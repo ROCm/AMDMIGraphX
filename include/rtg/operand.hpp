@@ -1,16 +1,12 @@
 #ifndef GUARD_RTGLIB_OPERAND_HPP
 #define GUARD_RTGLIB_OPERAND_HPP
 
+#include <string>
 #include <functional>
 #include <rtg/shape.hpp>
+#include <rtg/argument.hpp>
 
 namespace rtg {
-
-struct argument
-{
-    void* data;
-    shape s;
-};
 
 struct operand 
 {

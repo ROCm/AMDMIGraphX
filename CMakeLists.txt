@@ -5,6 +5,7 @@ project(rtglib)
 add_compile_options(-std=c++14)
 
 add_library(rtg 
+    src/program.cpp
     src/shape.cpp
 )
 target_include_directories(rtg PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)

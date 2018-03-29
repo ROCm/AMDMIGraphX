@@ -24,7 +24,7 @@ literal program::eval() const
         }
         results.emplace(std::addressof(ins), result);
     }
-    return literal{result.s, result.data()};
+    return literal{result.get_shape(), result.data()};
 }
 
 }

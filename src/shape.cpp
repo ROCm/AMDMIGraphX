@@ -11,10 +11,10 @@ shape::shape()
 {}
 
 shape::shape(type_t t)
-: type_(t), lens_({1}), strides_({1})
+: type_(t), lens_({1}), strides_({1}), packed_(true)
 {}
 shape::shape(type_t t, std::vector<std::size_t> l)
-: type_(t), lens_(std::move(l))
+: type_(t), lens_(std::move(l)), packed_(true)
 {
     this->calculate_strides();
     assert(lens_.size() == strides_.size());
@@ -23,6 +23,7 @@ shape::shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
 : type_(t), lens_(std::move(l)), strides_(std::move(s))
 {
     assert(lens_.size() == strides_.size());
+    packed_ = this->elements() == this->element_space();
 }
 
 void shape::calculate_strides()
@@ -71,6 +72,16 @@ std::size_t shape::index(const std::vector<std::size_t>& l) const
     assert(l.size() <= this->lens().size());
     assert(this->lens().size() == this->strides().size());
     return std::inner_product(l.begin(), l.end(), this->strides().begin(), std::size_t{0});
+}
+std::size_t shape::index(std::size_t i) const
+{
+    assert(this->lens().size() == this->strides().size());
+    return std::inner_product(this->lens().begin(), this->lens().end(), this->strides().begin(), std::size_t{0}, std::plus<std::size_t>{},
+        [&](std::size_t len, std::size_t stride) { return ((i / stride) % len)*stride; });
+}
+bool shape::packed() const
+{
+    return this->packed_;
 }
 std::size_t shape::element_space() const
 {

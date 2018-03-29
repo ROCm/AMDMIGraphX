@@ -3,6 +3,7 @@
 
 #include <rtg/shape.hpp>
 #include <rtg/argument.hpp>
+#include <rtg/tensor_view.hpp>
 
 namespace rtg {
 
@@ -37,12 +38,11 @@ struct literal
         bool result = x.buffer.empty() && y.buffer.empty();
         if(not result && x.shape_ == y.shape_ and x.buffer.size() == y.buffer.size())
         {
+            // TODO: Dont use tensor view for single values
             x.shape_.visit_type([&](auto as) {
-                auto space = x.shape_.bytes() / sizeof(as());
-                auto * xstart = &as.from(x.buffer.data());
-                auto * ystart = &as.from(y.buffer.data());
-                result = std::equal(xstart, xstart+space, ystart, ystart+space);
-
+                auto xview = make_view(x.shape_, as.from(x.buffer.data()));
+                auto yview = make_view(y.shape_, as.from(y.buffer.data()));
+                result = xview == yview;
             });
         }
         return result;
@@ -54,10 +54,18 @@ struct literal
     }
 
     template<class Visitor>
-    void visit(Visitor v, std::size_t n=0) const
+    void visit_at(Visitor v, std::size_t n=0) const
     {
         shape_.visit_type([&](auto as) {
-            v(as.from(this->buffer.data(), n));
+            v(*(as.from(this->buffer.data())+shape_.index(n)));
+        });
+    }
+
+    template<class Visitor>
+    void visit(Visitor v) const
+    {
+        shape_.visit_type([&](auto as) {
+            v(make_view(this->shape_, as.from(this->buffer.data())));
         });
     }
 
@@ -66,11 +74,16 @@ struct literal
         return this->buffer.empty();
     }
 
+    bool single() const
+    {
+        return this->shape_.elements() == 1;
+    }
+
     template<class T>
     T at(std::size_t n=0) const
     {
         T result;
-        this->visit([&](auto x) {
+        this->visit_at([&](auto x) {
             result = x;
         });
         return result;
@@ -83,11 +96,8 @@ struct literal
 
     argument get_argument() const
     {
-        argument arg;
         auto b = buffer;
-        arg.s = shape_;
-        arg.data = [b]() mutable { return b.data(); };
-        return arg;
+        return {shape_, [b]() mutable { return b.data(); }};
     }
 
 private:

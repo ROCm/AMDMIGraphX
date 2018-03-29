@@ -46,6 +46,11 @@ struct shape
     std::size_t index(std::initializer_list<std::size_t> l) const;
     std::size_t index(const std::vector<std::size_t>& l) const;
 
+    // Map element index to space index
+    std::size_t index(std::size_t i) const;
+
+    bool packed() const;
+
     friend bool operator==(const shape& x, const shape& y);
     friend bool operator!=(const shape& x, const shape& y);
 
@@ -83,15 +88,15 @@ struct shape
         }
 
         template<class U>
-        T& from(U* buffer, std::size_t n=0) const
+        T* from(U* buffer, std::size_t n=0) const
         {
-            return *(reinterpret_cast<T*>(buffer)+n);
+            return reinterpret_cast<T*>(buffer)+n;
         }
 
         template<class U>
-        const T& from(const U* buffer, std::size_t n=0) const
+        const T* from(const U* buffer, std::size_t n=0) const
         {
-            return *(reinterpret_cast<const T*>(buffer)+n);
+            return reinterpret_cast<const T*>(buffer)+n;
         }
     };
 
@@ -113,6 +118,7 @@ private:
     type_t type_;
     std::vector<std::size_t> lens_;
     std::vector<std::size_t> strides_;
+    bool packed_;
 
     void calculate_strides();
     std::size_t element_space() const;

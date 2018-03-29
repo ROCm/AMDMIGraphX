@@ -11,12 +11,12 @@ int main() {
         [](std::vector<rtg::argument> args) {
             rtg::argument result;
             if(args.size() != 2) throw "Wrong args";
-            if(args[0].s != args[1].s) throw "Wrong args";
-            if(args[0].s.lens().size() != 1) throw "Wrong args";
-            if(args[0].s.lens().front() != 1) throw "Wrong args";
+            if(args[0].get_shape() != args[1].get_shape()) throw "Wrong args";
+            if(args[0].get_shape().lens().size() != 1) throw "Wrong args";
+            if(args[0].get_shape().lens().front() != 1) throw "Wrong args";
 
-            args[0].visit([&](auto x) {
-                args[1].visit([&](auto y) {
+            args[0].visit_at([&](auto x) {
+                args[1].visit_at([&](auto y) {
                     result = rtg::literal{x + y}.get_argument();
                 });
             });

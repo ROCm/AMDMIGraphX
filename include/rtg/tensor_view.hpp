@@ -123,9 +123,6 @@ struct tensor_view
         {
             for(std::size_t i = 0;i < x.shape_.elements();i++)
             {
-                std::cout << x[i] << " == " << y[i] << std::endl;
-                if(x[i] == y[i]) std::cout << "true" << std::endl;;
-                if(x[i] != y[i]) std::cout << "true" << std::endl;;
                 if(x[i] != y[i]) return false;
             }
             return true;

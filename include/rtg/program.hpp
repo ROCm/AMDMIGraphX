@@ -25,6 +25,13 @@ struct program
         return std::addressof(instructions.back());
     }
 
+
+    instruction * add_parameter(std::string name, shape s)
+    {
+        instructions.push_back({"param:"+std::move(name), s, {}});
+        return std::addressof(instructions.back());
+    }
+
     template<class Op, class Shape>
     void add_operator(std::string name, Op op, Shape s)
     {
@@ -35,7 +42,7 @@ struct program
         ops.emplace(name, result);
     }
 
-    literal eval() const;
+    literal eval(std::unordered_map<std::string, argument> params) const;
 
 private:
     // A list is used to keep references to an instruction stable

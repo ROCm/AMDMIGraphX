@@ -1,9 +1,10 @@
 #include <rtg/program.hpp>
+#include <rtg/stringutils.hpp>
 #include <algorithm>
 
 namespace rtg {
 
-literal program::eval() const
+literal program::eval(std::unordered_map<std::string, argument> params) const
 {
     std::unordered_map<const instruction*, argument> results;
     argument result;
@@ -12,6 +13,10 @@ literal program::eval() const
         if(ins.name == "literal")
         {
             result = ins.lit.get_argument();
+        }
+        else if(starts_with(ins.name, "param:"))
+        {
+            result = params.at(ins.name.substr(6));
         }
         else
         {

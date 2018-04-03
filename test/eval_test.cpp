@@ -62,7 +62,10 @@ void param_test() {
     auto y = p.add_parameter("y", {rtg::shape::int_type});
 
     p.add_instruction("sum", x, y);
-    auto result = p.eval({{"x", rtg::literal{1}.get_argument()}, {"y", rtg::literal{2}.get_argument()}});
+    auto result = p.eval({
+        {"x", rtg::literal{1}.get_argument()}, 
+        {"y", rtg::literal{2}.get_argument()}
+    });
     EXPECT(result == rtg::literal{3});
     EXPECT(result != rtg::literal{4});
 }

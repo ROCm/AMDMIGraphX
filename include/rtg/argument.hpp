@@ -2,11 +2,12 @@
 #define GUARD_RTGLIB_ARGUMENT_HPP
 
 #include <rtg/shape.hpp>
+#include <rtg/raw_data.hpp>
 #include <functional>
 
 namespace rtg {
 
-struct argument
+struct argument : raw_data<argument>
 {
     argument()
     {}
@@ -17,25 +18,14 @@ struct argument
 
     std::function<char*()> data;
 
+    bool empty() const
+    {
+        return not data;
+    }
+
     const shape& get_shape() const
     {
         return this->shape_;
-    }
-
-    template<class Visitor>
-    void visit_at(Visitor v, std::size_t n=0) const
-    {
-        shape_.visit_type([&](auto as) {
-            v(*(as.from(this->data())+shape_.index(n)));
-        });
-    }
-
-    template<class Visitor>
-    void visit(Visitor v) const
-    {
-        shape_.visit_type([&](auto as) {
-            v(make_view(this->shape_, as.from(this->data())));
-        });
     }
 private:
     shape shape_;

@@ -2,6 +2,8 @@
 #ifndef RTG_GUARD_RAW_DATA_HPP
 #define RTG_GUARD_RAW_DATA_HPP
 
+#include <rtg/tensor_view.hpp>
+
 namespace rtg {
 
 template<class Derived>
@@ -30,6 +32,15 @@ struct raw_data
     {
         return !(x == y);
     }
+    
+    template<class Stream>
+    friend Stream& operator<<(Stream& os, const Derived& d)
+    {
+        d.visit([&](auto x) {
+            os << x;
+        });
+        return os;
+    }
 
     template<class Visitor>
     void visit_at(Visitor v, std::size_t n=0) const
@@ -47,14 +58,14 @@ struct raw_data
         auto && s = static_cast<const Derived&>(*this).get_shape();
         auto && buffer = static_cast<const Derived&>(*this).data();
         s.visit_type([&](auto as) {
-            v(make_view(this->s, as.from(buffer)));
+            v(make_view(s, as.from(buffer)));
         });
     }
 
     bool single() const
     {
         auto && s = static_cast<const Derived&>(*this).get_shape();
-        return this->s.elements() == 1;
+        return s.elements() == 1;
     }
 
     template<class T>

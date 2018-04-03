@@ -26,6 +26,16 @@ struct literal : raw_data<literal>
     literal(shape s, const std::vector<T>& x) 
     : buffer(s.bytes(), 0), shape_(s)
     {
+        assert(s.packed());
+        static_assert(std::is_trivial<T>{}, "Literals can only be trivial types");
+        std::copy(x.begin(), x.end(), reinterpret_cast<T*>(buffer.data()));
+    }
+
+    template<class T>
+    literal(shape s, const std::initializer_list<T>& x) 
+    : buffer(s.bytes(), 0), shape_(s)
+    {
+        assert(s.packed());
         static_assert(std::is_trivial<T>{}, "Literals can only be trivial types");
         std::copy(x.begin(), x.end(), reinterpret_cast<T*>(buffer.data()));
     }

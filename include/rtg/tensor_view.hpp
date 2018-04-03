@@ -135,6 +135,19 @@ struct tensor_view
         return !(x == y);
     }
 
+    friend std::ostream& operator<<(std::ostream& os, const tensor_view<T>& x)
+    {
+        if(!x.empty())
+        {
+            os << x.front();
+            for(std::size_t i = 1;i < x.shape_.elements();i++)
+            {
+                os << ", " << x.data_[x.shape_.index(i)];
+            }
+        }
+        return os;
+    }
+
 private:
     T* data_;
     shape shape_;

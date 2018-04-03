@@ -25,7 +25,6 @@ struct program
         return std::addressof(instructions.back());
     }
 
-
     instruction * add_parameter(std::string name, shape s)
     {
         instructions.push_back({"param:"+std::move(name), s, {}});

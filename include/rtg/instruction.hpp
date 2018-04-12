@@ -3,6 +3,7 @@
 
 #include <rtg/literal.hpp>
 #include <rtg/shape.hpp>
+#include <rtg/builtin.hpp>
 #include <string>
 
 namespace rtg {
@@ -16,7 +17,7 @@ struct instruction
     {}
 
     instruction(literal l)
-    : name("literal"), result(l.get_shape()), lit(std::move(l))
+    : name(builtin::literal), result(l.get_shape()), lit(std::move(l))
     {}
 
     std::string name;

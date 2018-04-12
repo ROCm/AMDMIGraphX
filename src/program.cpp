@@ -10,11 +10,11 @@ literal program::eval(std::unordered_map<std::string, argument> params) const
     argument result;
     for(auto& ins:instructions)
     {
-        if(ins.name == "literal")
+        if(ins.name == builtin::literal)
         {
             result = ins.lit.get_argument();
         }
-        else if(starts_with(ins.name, "param:"))
+        else if(starts_with(ins.name, builtin::param))
         {
             result = params.at(ins.name.substr(6));
         }

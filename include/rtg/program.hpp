@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <rtg/instruction.hpp>
 #include <rtg/operand.hpp>
+#include <rtg/builtin.hpp>
 
 namespace rtg {
 
@@ -27,18 +28,13 @@ struct program
 
     instruction * add_parameter(std::string name, shape s)
     {
-        instructions.push_back({"param:"+std::move(name), s, {}});
+        instructions.push_back({builtin::param+std::move(name), s, {}});
         return std::addressof(instructions.back());
     }
 
-    template<class Op, class Shape>
-    void add_operator(std::string name, Op op, Shape s)
+    void add_operator(operand op)
     {
-        operand result;
-        result.name = name;
-        result.compute = op;
-        result.compute_shape = s;
-        ops.emplace(name, result);
+        ops.emplace(op.name(), op);
     }
 
     literal eval(std::unordered_map<std::string, argument> params) const;
@@ -48,7 +44,6 @@ private:
     std::list<instruction> instructions;
 
     std::unordered_map<std::string, operand> ops;
-
 };
 
 }

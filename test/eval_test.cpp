@@ -4,28 +4,39 @@
 #include <rtg/shape.hpp>
 #include "test.hpp"
 
+
+struct sum_op
+{
+    std::string name() const
+    {
+        return "sum";
+    }
+    rtg::argument compute(std::vector<rtg::argument> args) const
+    {
+        rtg::argument result;
+        if(args.size() != 2) throw "Wrong args";
+        if(args[0].get_shape() != args[1].get_shape()) throw "Wrong args";
+        if(args[0].get_shape().lens().size() != 1) throw "Wrong args";
+        if(args[0].get_shape().lens().front() != 1) throw "Wrong args";
+
+        args[0].visit_at([&](auto x) {
+            args[1].visit_at([&](auto y) {
+                result = rtg::literal{x + y}.get_argument();
+            });
+        });
+        return result;
+    }
+
+    rtg::shape compute_shape(std::vector<rtg::shape> inputs) const
+    {
+        if(inputs.size() != 2) throw "Wrong inputs";
+        return inputs.front();
+    }
+};
+
 void literal_test() {
     rtg::program p;
-    p.add_operator("sum", 
-        [](std::vector<rtg::argument> args) {
-            rtg::argument result;
-            if(args.size() != 2) throw "Wrong args";
-            if(args[0].get_shape() != args[1].get_shape()) throw "Wrong args";
-            if(args[0].get_shape().lens().size() != 1) throw "Wrong args";
-            if(args[0].get_shape().lens().front() != 1) throw "Wrong args";
-
-            args[0].visit_at([&](auto x) {
-                args[1].visit_at([&](auto y) {
-                    result = rtg::literal{x + y}.get_argument();
-                });
-            });
-            return result;
-        },
-        [](std::vector<rtg::shape> inputs) {
-            if(inputs.size() != 2) throw "Wrong inputs";
-            return inputs.front();
-        }
-    );
+    p.add_operator(sum_op{});
 
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
@@ -37,26 +48,7 @@ void literal_test() {
 
 void param_test() {
     rtg::program p;
-    p.add_operator("sum", 
-        [](std::vector<rtg::argument> args) {
-            rtg::argument result;
-            if(args.size() != 2) throw "Wrong args";
-            if(args[0].get_shape() != args[1].get_shape()) throw "Wrong args";
-            if(args[0].get_shape().lens().size() != 1) throw "Wrong args";
-            if(args[0].get_shape().lens().front() != 1) throw "Wrong args";
-
-            args[0].visit_at([&](auto x) {
-                args[1].visit_at([&](auto y) {
-                    result = rtg::literal{x + y}.get_argument();
-                });
-            });
-            return result;
-        },
-        [](std::vector<rtg::shape> inputs) {
-            if(inputs.size() != 2) throw "Wrong inputs";
-            return inputs.front();
-        }
-    );
+    p.add_operator(sum_op{});
 
     auto x = p.add_parameter("x", {rtg::shape::int_type});
     auto y = p.add_parameter("y", {rtg::shape::int_type});

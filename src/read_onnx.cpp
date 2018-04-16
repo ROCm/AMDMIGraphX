@@ -4,7 +4,31 @@
 #include <onnx.pb.h>
 #include <iostream>
 #include <fstream>
+#include <unordered_map>
 
+
+std::unordered_map<std::string, onnx::AttributeProto> get_attributes(const onnx::NodeProto& node)
+{
+    std::unordered_map<std::string, onnx::AttributeProto> result;
+    for(auto&& attr:node.attribute())
+    {
+        result[attr.name()] = attr;
+    }
+    return result;
+}
+
+void parse_graph(onnx::GraphProto graph)
+{
+    std::cout << "Graph name: " << graph.name() << std::endl;
+    for(onnx::NodeProto node:graph.node()) {
+        std::cout << "Layer: " << node.op_type() << std::endl;
+        std::cout << "    Name: " << node.name() << std::endl;
+        if(node.input_size() > 0)
+            std::cout << "    Input: " << node.input(0) << std::endl;
+        if(node.output_size() > 0)
+            std::cout << "    Output: " << node.output(0) << std::endl;
+    }
+}
 
 int main(int argc, char const *argv[])
 {
@@ -19,12 +43,7 @@ int main(int argc, char const *argv[])
             std::cout << "Producer version: " << model.release_producer_version() << std::endl;
             if(model.has_graph()) {
                 std::cout << "Model has graph" << std::endl;
-                onnx::GraphProto graph = model.graph();
-                std::cout << "Graph name: " << graph.name() << std::endl;
-                for(int i=0; i < graph.node_size(); i++) {
-                    onnx::NodeProto node = graph.node(i);
-                    std::cout << "Layer: " << node.op_type() << std::endl;
-                }
+                parse_graph(model.graph());
             }
         } else {
             std::cout << "Failed reading: " << file << std::endl;

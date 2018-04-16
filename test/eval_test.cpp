@@ -36,11 +36,10 @@ struct sum_op
 
 void literal_test() {
     rtg::program p;
-    p.add_operator(sum_op{});
 
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
-    p.add_instruction("sum", one, two);
+    p.add_instruction(sum_op{}, one, two);
     auto result = p.eval({});
     EXPECT(result == rtg::literal{3});
     EXPECT(result != rtg::literal{4});
@@ -48,12 +47,11 @@ void literal_test() {
 
 void param_test() {
     rtg::program p;
-    p.add_operator(sum_op{});
 
     auto x = p.add_parameter("x", {rtg::shape::int_type});
     auto y = p.add_parameter("y", {rtg::shape::int_type});
 
-    p.add_instruction("sum", x, y);
+    p.add_instruction(sum_op{}, x, y);
     auto result = p.eval({
         {"x", rtg::literal{1}.get_argument()}, 
         {"y", rtg::literal{2}.get_argument()}

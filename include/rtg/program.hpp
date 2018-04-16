@@ -12,11 +12,10 @@ namespace rtg {
 struct program
 {
     template<class... Ts>
-    instruction * add_instruction(std::string name, Ts*... args)
+    instruction * add_instruction(operand op, Ts*... args)
     {
-        auto&& op = ops.at(name);
         shape r = op.compute_shape({args->result...});
-        instructions.push_back({name, r, {args...}});
+        instructions.push_back({op, r, {args...}});
         return std::addressof(instructions.back());
     }
     template<class... Ts>
@@ -28,13 +27,8 @@ struct program
 
     instruction * add_parameter(std::string name, shape s)
     {
-        instructions.push_back({builtin::param+std::move(name), s, {}});
+        instructions.push_back({builtin::param{std::move(name)}, s, {}});
         return std::addressof(instructions.back());
-    }
-
-    void add_operator(operand op)
-    {
-        ops.emplace(op.name(), op);
     }
 
     literal eval(std::unordered_map<std::string, argument> params) const;
@@ -42,8 +36,6 @@ struct program
 private:
     // A list is used to keep references to an instruction stable
     std::list<instruction> instructions;
-
-    std::unordered_map<std::string, operand> ops;
 };
 
 }

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <numeric>
 #include <string>
+#include <sstream>
 
 namespace rtg {
 
@@ -62,6 +63,21 @@ inline std::string remove_prefix(std::string s, std::string prefix)
         return s.substr(prefix.length());
     else
         return s;
+}
+
+template<class Range>
+inline std::string to_string(const Range& r)
+{
+    std::stringstream ss;
+    if(!r.empty())
+    {
+        ss << r.front();
+        std::for_each(++r.begin(), r.end(), [&](auto&& x)
+        {
+            ss << ", " << x;
+        });
+    }
+    return ss.str();
 }
 
 } // namespace rtg

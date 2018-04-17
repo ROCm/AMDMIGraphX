@@ -1,5 +1,6 @@
 
 #include <rtg/shape.hpp>
+#include <rtg/stringutils.hpp>
 #include <numeric>
 #include <algorithm>
 #include <functional>
@@ -98,6 +99,19 @@ std::size_t shape::element_space() const
            1;
 }
 
+std::string shape::type_string() const
+{
+    switch(this->type_) 
+    {
+#define RTG_SHAPE_TYPE_STRING_CASE(x, t) \
+        case x: \
+            return #x;
+        RTG_SHAPE_VISIT_TYPES(RTG_SHAPE_TYPE_STRING_CASE)
+#undef RTG_SHAPE_TYPE_STRING_CASE
+    }
+    throw "Invalid type";
+}
+
 bool operator==(const shape& x, const shape& y)
 {
     return x.type() == y.type() && x.lens() == y.lens() && x.strides() == y.strides();
@@ -105,6 +119,14 @@ bool operator==(const shape& x, const shape& y)
 bool operator!=(const shape& x, const shape& y)
 {
     return !(x == y);
+}
+
+std::ostream& operator<<(std::ostream& os, const shape& x)
+{
+    os << x.type_string() << ", ";
+    os << "{" << to_string(x.lens()) << "}, ";
+    os << "{" << to_string(x.strides()) << "}";
+    return os;
 }
 
 }

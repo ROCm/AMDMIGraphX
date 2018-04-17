@@ -6,6 +6,25 @@
 #include <fstream>
 #include <unordered_map>
 
+#include <rtg/program.hpp>
+
+struct unknown
+{
+    rtg::shape s;
+    std::string op;
+    std::string name() const
+    {
+        return "unknown:"+op;
+    }
+    rtg::shape compute_shape(std::vector<rtg::shape> input) const
+    {
+        return s;
+    }
+    rtg::argument compute(std::vector<rtg::argument> input) const
+    {
+        throw "not computable";
+    }
+};
 
 std::unordered_map<std::string, onnx::AttributeProto> get_attributes(const onnx::NodeProto& node)
 {
@@ -13,6 +32,16 @@ std::unordered_map<std::string, onnx::AttributeProto> get_attributes(const onnx:
     for(auto&& attr:node.attribute())
     {
         result[attr.name()] = attr;
+    }
+    return result;
+}
+
+std::unordered_map<std::string, onnx::NodeProto> get_nodes(const onnx::GraphProto& graph)
+{
+    std::unordered_map<std::string, onnx::NodeProto> result;
+    for(auto&& node:graph.node())
+    {
+        result[node.name()] = node;
     }
     return result;
 }
@@ -27,6 +56,12 @@ void parse_graph(onnx::GraphProto graph)
             std::cout << "    Input: " << node.input(0) << std::endl;
         if(node.output_size() > 0)
             std::cout << "    Output: " << node.output(0) << std::endl;
+        
+        std::cout << "    Attributes: " << std::endl;
+        for(auto&& attr:node.attribute())
+        {
+            std::cout << "        " << attr.name() << std::endl;
+        }
     }
 }
 

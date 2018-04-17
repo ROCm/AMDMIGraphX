@@ -33,6 +33,9 @@ struct program
 
     literal eval(std::unordered_map<std::string, argument> params) const;
 
+    // TODO: Change to stream operator
+    void print() const;
+
 private:
     // A list is used to keep references to an instruction stable
     std::list<instruction> instructions;

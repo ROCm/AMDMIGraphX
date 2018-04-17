@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <cassert>
-
+#include <ostream>
 
 namespace rtg {
 
@@ -53,6 +53,7 @@ struct shape
 
     friend bool operator==(const shape& x, const shape& y);
     friend bool operator!=(const shape& x, const shape& y);
+    friend std::ostream& operator<<(std::ostream& os, const shape& x);
 
     template<class T>
     struct as
@@ -122,6 +123,7 @@ private:
 
     void calculate_strides();
     std::size_t element_space() const;
+    std::string type_string() const;
 };
 
 }

@@ -59,6 +59,7 @@ void program::print() const
             char delim = '(';
             for(auto&& arg:ins.arguments)
             {
+                assert(this->has_instruction(arg) && "Instruction not found");
                 std::cout << delim << names.at(arg);
                 delim = ',';
             }
@@ -70,7 +71,7 @@ void program::print() const
         std::cout << std::endl;
 
         names.emplace(std::addressof(ins), var_name);
-
+        count++;
     }
 }
 

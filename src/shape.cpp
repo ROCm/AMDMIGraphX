@@ -8,7 +8,7 @@
 namespace rtg {
 
 shape::shape()
-: type_(float_type), lens_(), strides_()
+: type_(float_type), lens_(), strides_(), packed_(false)
 {}
 
 shape::shape(type_t t)

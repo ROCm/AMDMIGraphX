@@ -13,7 +13,15 @@ struct shape
 // Add new types here
 #define RTG_SHAPE_VISIT_TYPES(m) \
     m(float_type, float) \
-    m(int_type, int) \
+    m(double_type, double) \
+    m(uint8_type, uint8_t) \
+    m(int8_type, int8_t) \
+    m(uint16_type, uint16_t) \
+    m(int16_type, int16_t) \
+    m(int32_type, int32_t) \
+    m(int64_type, int64_t) \
+    m(uint32_type, uint32_t) \
+    m(uint64_type, uint64_t) \
 
 #define RTG_SHAPE_ENUM_TYPES(x, t) x,
     enum type_t

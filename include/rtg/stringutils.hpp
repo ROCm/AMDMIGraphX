@@ -72,7 +72,7 @@ inline std::string to_string(const Range& r)
     if(!r.empty())
     {
         ss << r.front();
-        std::for_each(++r.begin(), r.end(), [&](auto&& x)
+        std::for_each(std::next(r.begin()), r.end(), [&](auto&& x)
         {
             ss << ", " << x;
         });

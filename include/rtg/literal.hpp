@@ -28,7 +28,9 @@ struct literal : raw_data<literal>
     {
         assert(s.packed());
         static_assert(std::is_trivial<T>{}, "Literals can only be trivial types");
-        std::copy(x.begin(), x.end(), reinterpret_cast<T*>(buffer.data()));
+        s.visit_type([&](auto as) {
+            std::copy(x.begin(), x.end(), as.from(buffer.data()));
+        });
     }
 
     template<class T>
@@ -37,7 +39,19 @@ struct literal : raw_data<literal>
     {
         assert(s.packed());
         static_assert(std::is_trivial<T>{}, "Literals can only be trivial types");
-        std::copy(x.begin(), x.end(), reinterpret_cast<T*>(buffer.data()));
+        s.visit_type([&](auto as) {
+            std::copy(x.begin(), x.end(), as.from(buffer.data()));
+        });
+    }
+
+    template<class Iterator>
+    literal(shape s, Iterator start, Iterator end) 
+    : buffer(s.bytes(), 0), shape_(s)
+    {
+        assert(s.packed());
+        s.visit_type([&](auto as) {
+            std::copy(start, end, as.from(buffer.data()));
+        });
     }
     
     literal(shape s, const char* x)

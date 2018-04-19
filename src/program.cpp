@@ -51,7 +51,10 @@ void program::print() const
 
         if(ins.op.name() == "@literal")
         {
-            std::cout << "{" << ins.lit << "}";
+            if (ins.lit.get_shape().elements() > 10)
+                std::cout << "{ ... }";
+            else
+                std::cout << "{" << ins.lit << "}";
         }
 
         if(!ins.arguments.empty())

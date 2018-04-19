@@ -44,7 +44,7 @@ void literal_os2()
 
 void literal_os3()
 {
-    rtg::shape s{rtg::shape::int_type, {3}};
+    rtg::shape s{rtg::shape::int64_type, {3}};
     rtg::literal l{s, {1, 2, 3}};
     std::stringstream ss;
     ss << l;

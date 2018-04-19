@@ -48,8 +48,8 @@ void literal_test() {
 void param_test() {
     rtg::program p;
 
-    auto x = p.add_parameter("x", {rtg::shape::int_type});
-    auto y = p.add_parameter("y", {rtg::shape::int_type});
+    auto x = p.add_parameter("x", {rtg::shape::int64_type});
+    auto y = p.add_parameter("y", {rtg::shape::int64_type});
 
     p.add_instruction(sum_op{}, x, y);
     auto result = p.eval({

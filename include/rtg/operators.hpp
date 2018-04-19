@@ -3,6 +3,7 @@
 
 #include <rtg/operand.hpp>
 #include <rtg/stringutils.hpp>
+#include <cmath>
 
 namespace rtg {
 
@@ -10,11 +11,11 @@ struct not_computable
 {
     argument compute(std::vector<argument>) const
     {
-        throw "not computable";
+        throw std::runtime_error("not computable");
     }
 };
 
-struct convolution : not_computable
+struct convolution
 {
     std::array<std::size_t, 2> padding = {0, 0};
     std::array<std::size_t, 2> stride = {1, 1};
@@ -28,26 +29,31 @@ struct convolution : not_computable
     }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        if(inputs.size() != 2) throw "Wrong number of arguments";
+        if(inputs.size() != 2) throw std::runtime_error("Wrong number of arguments");
         const shape& input = inputs.at(0);
         const shape& weights = inputs.at(1);
-        if(input.type() != weights.type()) throw "Type doesn't match";
-        if(input.size() != weights.size()) throw "Dimensions don't match";
-        if(input.size() != 4) throw "Only 4d convolution supported";        
+        if(input.type() != weights.type()) throw std::runtime_error("Type doesn't match");
+        if(input.lens().size() != weights.lens().size()) throw std::runtime_error("Dimensions don't match");
+        if(input.lens().size() != 4) throw std::runtime_error("Only 4d convolution supported"); 
 
         auto t = input.type();
         return {t, {
-            input[0],
-            weights[0],
-            std::max<std::ptrdiff_t>(
-                1, (input[2] - (1 + dilation[0] * (weights[2] - 1)) + 2 * padding[0]) / stride[0] + 1),
-            std::max<std::ptrdiff_t>(
-                1, (input[3] - (1 + dilation[1] * (weights[3] - 1)) + 2 * padding[1]) / stride[1] + 1),
+            input.lens()[0],
+            weights.lens()[0],
+            std::size_t(std::max<std::ptrdiff_t>(
+                1, (input.lens()[2] - (1 + dilation[0] * (weights.lens()[2] - 1)) + 2 * padding[0]) / stride[0] + 1)),
+            std::size_t(std::max<std::ptrdiff_t>(
+                1, (input.lens()[3] - (1 + dilation[1] * (weights.lens()[3] - 1)) + 2 * padding[1]) / stride[1] + 1)),
         }};
+    }
+
+    argument compute(std::vector<argument>) const
+    {
+        throw std::runtime_error("not computable");
     }
 };
 
-struct pooling : not_computable
+struct pooling
 {
     std::string mode;
     std::array<std::size_t, 2> padding = {0, 0};
@@ -62,24 +68,29 @@ struct pooling : not_computable
     }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        if(!inputs.empty()) throw "Wrong number of arguments";
+        if(inputs.empty()) throw std::runtime_error("Wrong number of arguments");
         const shape& input = inputs.at(0);    
-        if(input.size() != 4) throw "Only 4d pooling supported";        
+        if(input.lens().size() != 4) throw std::runtime_error("Only 4d pooling supported"); 
 
         auto t = input.type();
         return {t, {
-            input[0],
-            input[1],
-            std::max<std::ptrdiff_t>(
-                1, std::ceil((input[3] + 2 * padding[0] - lengths[0]) / static_cast<float>(stride[0])) + 1),
-            std::max<std::ptrdiff_t>(
-                1, std::ceil((input[4] + 2 * padding[1] - lengths[1]) / static_cast<float>(stride[1])) + 1),
+            input.lens()[0],
+            input.lens()[1],
+            std::size_t(std::max<std::ptrdiff_t>(
+                1, std::ceil((input.lens()[3] + 2 * padding[0] - lengths[0]) / static_cast<float>(stride[0])) + 1)),
+            std::size_t(std::max<std::ptrdiff_t>(
+                1, std::ceil((input.lens()[4] + 2 * padding[1] - lengths[1]) / static_cast<float>(stride[1])) + 1)),
         }};
+    }
+
+    argument compute(std::vector<argument>) const
+    {
+        throw std::runtime_error("not computable");
     }
 };
 
 
-struct activation : not_computable
+struct activation
 {
     std::string mode;
     std::string name() const
@@ -88,8 +99,13 @@ struct activation : not_computable
     }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        if(!inputs.empty()) throw "Wrong number of arguments";
+        if(inputs.empty()) throw std::runtime_error("Wrong number of arguments");
         return inputs.front();
+    }
+
+    argument compute(std::vector<argument>) const
+    {
+        throw std::runtime_error("not computable");
     }
 };
 

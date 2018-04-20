@@ -109,6 +109,38 @@ struct activation
     }
 };
 
+struct reshape
+{
+    std::vector<int64_t> dims;
+    std::string name() const
+    {
+        return "reshape[dims={" + to_string(dims) +
+            "}]";
+    }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        if(inputs.empty()) throw std::runtime_error("Wrong number of arguments");
+        auto&& idims = inputs.front().lens();
+        std::vector<std::size_t> rdims(dims.begin(), dims.end());
+        for(std::size_t i = 0;i < dims.size();i++)
+        {
+            if(dims[i] == 0)
+                rdims[i] = idims[i];
+        }
+        if(dims.back() == -1)
+        {
+            rdims.pop_back();
+            std::copy(idims.begin()+rdims.size(), idims.end(), std::back_inserter(rdims));
+        }
+        return {inputs.front().type(), rdims};
+    }
+
+    argument compute(std::vector<argument>) const
+    {
+        throw std::runtime_error("not computable");
+    }
+};
+
 
 } // namespace rtg
 

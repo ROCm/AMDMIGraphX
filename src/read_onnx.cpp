@@ -89,6 +89,15 @@ struct onnx_parser
         add_op("Relu", [this](attribute_map attributes, std::vector<rtg::instruction*> args) {
             return prog->add_instruction(rtg::activation{"relu"}, args);
         });
+        add_op("Reshape", [this](attribute_map attributes, std::vector<rtg::instruction*> args) {
+            rtg::reshape op;
+            rtg::literal s = parse_value(attributes.at("shape"));
+            s.visit([&](auto v)
+            {
+                copy(v, std::back_inserter(op.dims));
+            });
+            return prog->add_instruction(op, args);
+        });
         add_op("Constant", [this](attribute_map attributes, std::vector<rtg::instruction*>) {
             rtg::literal v = parse_value(attributes.at("value"));
             return prog->add_literal(v);

@@ -2,6 +2,7 @@
 #define RTG_GUARD_TENSOR_VIEW_HPP
 
 #include <rtg/shape.hpp>
+#include <rtg/float_equal.hpp>
 
 #include <iostream>
 
@@ -123,7 +124,7 @@ struct tensor_view
         {
             for(std::size_t i = 0;i < x.shape_.elements();i++)
             {
-                if(x[i] != y[i]) return false;
+                if(!float_equal(x[i], y[i])) return false;
             }
             return true;
         }

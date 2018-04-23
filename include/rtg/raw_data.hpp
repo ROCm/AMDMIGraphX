@@ -74,7 +74,7 @@ struct raw_data
         T result;
         this->visit_at([&](auto x) {
             result = x;
-        });
+        }, n);
         return result;
     }
 };

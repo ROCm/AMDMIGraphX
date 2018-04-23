@@ -81,7 +81,7 @@ struct operand
     {
         template <typename TypeErased_U_ = TypeErased_T_>
         handle_type_(TypeErased_T_ value,
-                     typename std::enable_if<std::is_reference<TypeErased_U_>::value>::type* = 0)
+                     typename std::enable_if<std::is_reference<TypeErased_U_>::value>::type* = nullptr)
             : value_(value)
         {
         }
@@ -89,7 +89,7 @@ struct operand
         template <typename TypeErased_U_ = TypeErased_T_>
         handle_type_(TypeErased_T_ value,
                      typename std::enable_if<!std::is_reference<TypeErased_U_>::value, int>::type* =
-                         0) noexcept : value_(std::move(value))
+                         nullptr) noexcept : value_(std::move(value))
         {
         }
 

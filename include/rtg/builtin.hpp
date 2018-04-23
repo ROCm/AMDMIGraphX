@@ -13,11 +13,11 @@ struct literal
     {
         return "@literal";
     }
-    shape compute_shape(std::vector<shape> input) const
+    shape compute_shape(std::vector<shape>) const
     {
         throw "builtin"; 
     }
-    argument compute(std::vector<argument> input) const
+    argument compute(std::vector<argument>) const
     {
         throw "builtin";
     }
@@ -30,11 +30,11 @@ struct param
     {
         return "@param:" + parameter;
     }
-    shape compute_shape(std::vector<shape> input) const
+    shape compute_shape(std::vector<shape>) const
     {
         throw "builtin"; 
     }
-    argument compute(std::vector<argument> input) const
+    argument compute(std::vector<argument>) const
     {
         throw "builtin";
     }

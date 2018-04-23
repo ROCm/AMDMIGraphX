@@ -14,9 +14,9 @@ struct not_computable
 
 struct convolution
 {
-    std::array<std::size_t, 2> padding  = {0, 0};
-    std::array<std::size_t, 2> stride   = {1, 1};
-    std::array<std::size_t, 2> dilation = {1, 1};
+    std::array<std::size_t, 2> padding  = {{0, 0}};
+    std::array<std::size_t, 2> stride   = {{1, 1}};
+    std::array<std::size_t, 2> dilation = {{1, 1}};
     std::string name() const
     {
         return "convolution[padding={" + to_string(padding) + "}, stride={" + to_string(stride) +
@@ -61,9 +61,9 @@ struct convolution
 struct pooling
 {
     std::string mode;
-    std::array<std::size_t, 2> padding = {0, 0};
-    std::array<std::size_t, 2> stride  = {1, 1};
-    std::array<std::size_t, 2> lengths = {1, 1};
+    std::array<std::size_t, 2> padding = {{0, 0}};
+    std::array<std::size_t, 2> stride  = {{1, 1}};
+    std::array<std::size_t, 2> lengths = {{1, 1}};
     std::string name() const
     {
         return "pooling:" + mode + "[padding={" + to_string(padding) + "}, stride={" +

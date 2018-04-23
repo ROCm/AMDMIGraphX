@@ -66,7 +66,7 @@ def rocmnode(body) {
 }
 
 // Static checks
-rocmtest tidy: rocmnode('rocm') { cmake_build ->
+rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Tidy') {
         sh '''
             rm -rf build
@@ -76,7 +76,7 @@ rocmtest tidy: rocmnode('rocm') { cmake_build ->
             make -j8 -k analyze
         '''
     }
-}, format: rocmnode('rocm') { cmake_build ->
+}, format: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Format') {
         sh '''
             find . -iname \'*.h\' \
@@ -90,14 +90,14 @@ rocmtest tidy: rocmnode('rocm') { cmake_build ->
             | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-5.0 -style=file {} | diff - {}\'
         '''
     }
-}, clang: rocmnode('rocm') { cmake_build ->
+}, clang: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Debug') {
         cmake_build('clang++-5.0', '-DCMAKE_BUILD_TYPE=debug')
     }
     stage('Clang Release') {
         cmake_build('clang++-5.0', '-DCMAKE_BUILD_TYPE=release')
     }
-}, gcc: rocmnode('rocm') { cmake_build ->
+}, gcc: rocmnode('rocmtest') { cmake_build ->
     stage('GCC Debug') {
         cmake_build('g++-5', '-DCMAKE_BUILD_TYPE=debug')
     }

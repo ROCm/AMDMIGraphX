@@ -65,17 +65,14 @@ inline std::string remove_prefix(std::string s, std::string prefix)
         return s;
 }
 
-template<class Range>
+template <class Range>
 inline std::string to_string(const Range& r)
 {
     std::stringstream ss;
     if(!r.empty())
     {
         ss << r.front();
-        std::for_each(std::next(r.begin()), r.end(), [&](auto&& x)
-        {
-            ss << ", " << x;
-        });
+        std::for_each(std::next(r.begin()), r.end(), [&](auto&& x) { ss << ", " << x; });
     }
     return ss.str();
 }

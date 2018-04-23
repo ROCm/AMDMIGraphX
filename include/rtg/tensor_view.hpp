@@ -8,48 +8,29 @@
 
 namespace rtg {
 
-template<class T>
+template <class T>
 struct tensor_view
 {
-    tensor_view()
-    : data_(nullptr), shape_()
-    {}
-    tensor_view(shape s, T* d)
-    : data_(d), shape_(s)
-    {}
+    tensor_view() : data_(nullptr), shape_() {}
+    tensor_view(shape s, T* d) : data_(d), shape_(s) {}
 
-    const shape& get_shape() const
-    {
-        return this->shape_;
-    }
+    const shape& get_shape() const { return this->shape_; }
 
-    bool empty() const
-    {
-        return data_ == nullptr || shape_.lens().size() == 0;
-    }
+    bool empty() const { return data_ == nullptr || shape_.lens().size() == 0; }
 
-    std::size_t size() const
-    {
-        return shape_.elements();
-    }
+    std::size_t size() const { return shape_.elements(); }
 
-    T* data()
-    {
-        return this->data_;
-    }
+    T* data() { return this->data_; }
 
-    const T* data() const
-    {
-        return this->data_;
-    }
+    const T* data() const { return this->data_; }
 
-    template<class... Ts>
+    template <class... Ts>
     const T& operator()(Ts... xs) const
     {
         return data_[shape_.index({xs...})];
     }
 
-    template<class... Ts>
+    template <class... Ts>
     T& operator()(Ts... xs)
     {
         return data_[shape_.index({xs...})];
@@ -82,13 +63,13 @@ struct tensor_view
     T& back()
     {
         assert(!this->empty());
-        return data_[shape_.index(this->size()-1)];
+        return data_[shape_.index(this->size() - 1)];
     }
 
     const T& back() const
     {
         assert(!this->empty());
-        return data_[shape_.index(this->size()-1)];
+        return data_[shape_.index(this->size() - 1)];
     }
 
     // TODO: Add iterators so it can handle nonpacked tensors
@@ -101,8 +82,10 @@ struct tensor_view
     T* end()
     {
         assert(this->shape_.packed());
-        if(this->empty()) return data_;
-        else return data_+this->size();
+        if(this->empty())
+            return data_;
+        else
+            return data_ + this->size();
     }
 
     const T* begin() const
@@ -114,34 +97,34 @@ struct tensor_view
     const T* end() const
     {
         assert(this->shape_.packed());
-        if(this->empty()) return data_;
-        else return data_+this->size();
+        if(this->empty())
+            return data_;
+        else
+            return data_ + this->size();
     }
 
     friend bool operator==(const tensor_view<T>& x, const tensor_view<T>& y)
     {
         if(x.shape_ == y.shape_)
         {
-            for(std::size_t i = 0;i < x.shape_.elements();i++)
+            for(std::size_t i = 0; i < x.shape_.elements(); i++)
             {
-                if(!float_equal(x[i], y[i])) return false;
+                if(!float_equal(x[i], y[i]))
+                    return false;
             }
             return true;
         }
         return false;
     }
 
-    friend bool operator!=(const tensor_view<T>& x, const tensor_view<T>& y)
-    {
-        return !(x == y);
-    }
+    friend bool operator!=(const tensor_view<T>& x, const tensor_view<T>& y) { return !(x == y); }
 
     friend std::ostream& operator<<(std::ostream& os, const tensor_view<T>& x)
     {
         if(!x.empty())
         {
             os << x.front();
-            for(std::size_t i = 1;i < x.shape_.elements();i++)
+            for(std::size_t i = 1; i < x.shape_.elements(); i++)
             {
                 os << ", " << x.data_[x.shape_.index(i)];
             }
@@ -149,12 +132,12 @@ struct tensor_view
         return os;
     }
 
-private:
+    private:
     T* data_;
     shape shape_;
 };
 
-template<class T>
+template <class T>
 tensor_view<T> make_view(shape s, T* data)
 {
     return {s, data};

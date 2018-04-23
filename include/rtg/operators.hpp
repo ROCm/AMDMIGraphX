@@ -9,120 +9,120 @@ namespace rtg {
 
 struct not_computable
 {
-    argument compute(std::vector<argument>) const
-    {
-        throw std::runtime_error("not computable");
-    }
+    argument compute(std::vector<argument>) const { throw std::runtime_error("not computable"); }
 };
 
 struct convolution
 {
-    std::array<std::size_t, 2> padding = {0, 0};
-    std::array<std::size_t, 2> stride = {1, 1};
+    std::array<std::size_t, 2> padding  = {0, 0};
+    std::array<std::size_t, 2> stride   = {1, 1};
     std::array<std::size_t, 2> dilation = {1, 1};
     std::string name() const
     {
-        return "convolution[padding={" + to_string(padding) + 
-            "}, stride={" + to_string(stride) +
-            "}, dilation={" + to_string(dilation) +
-            "}]";
+        return "convolution[padding={" + to_string(padding) + "}, stride={" + to_string(stride) +
+               "}, dilation={" + to_string(dilation) + "}]";
     }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        if(inputs.size() != 2) throw std::runtime_error("Wrong number of arguments");
-        const shape& input = inputs.at(0);
+        if(inputs.size() != 2)
+            throw std::runtime_error("Wrong number of arguments");
+        const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
-        if(input.type() != weights.type()) throw std::runtime_error("Type doesn't match");
-        if(input.lens().size() != weights.lens().size()) throw std::runtime_error("Dimensions don't match");
-        if(input.lens().size() != 4) throw std::runtime_error("Only 4d convolution supported"); 
+        if(input.type() != weights.type())
+            throw std::runtime_error("Type doesn't match");
+        if(input.lens().size() != weights.lens().size())
+            throw std::runtime_error("Dimensions don't match");
+        if(input.lens().size() != 4)
+            throw std::runtime_error("Only 4d convolution supported");
 
         auto t = input.type();
-        return {t, {
-            input.lens()[0],
-            weights.lens()[0],
-            std::size_t(std::max<std::ptrdiff_t>(
-                1, (input.lens()[2] - (1 + dilation[0] * (weights.lens()[2] - 1)) + 2 * padding[0]) / stride[0] + 1)),
-            std::size_t(std::max<std::ptrdiff_t>(
-                1, (input.lens()[3] - (1 + dilation[1] * (weights.lens()[3] - 1)) + 2 * padding[1]) / stride[1] + 1)),
-        }};
+        return {t,
+                {
+                    input.lens()[0],
+                    weights.lens()[0],
+                    std::size_t(std::max<std::ptrdiff_t>(
+                        1,
+                        (input.lens()[2] - (1 + dilation[0] * (weights.lens()[2] - 1)) +
+                         2 * padding[0]) /
+                                stride[0] +
+                            1)),
+                    std::size_t(std::max<std::ptrdiff_t>(
+                        1,
+                        (input.lens()[3] - (1 + dilation[1] * (weights.lens()[3] - 1)) +
+                         2 * padding[1]) /
+                                stride[1] +
+                            1)),
+                }};
     }
 
-    argument compute(std::vector<argument>) const
-    {
-        throw std::runtime_error("not computable");
-    }
+    argument compute(std::vector<argument>) const { throw std::runtime_error("not computable"); }
 };
 
 struct pooling
 {
     std::string mode;
     std::array<std::size_t, 2> padding = {0, 0};
-    std::array<std::size_t, 2> stride = {1, 1};
+    std::array<std::size_t, 2> stride  = {1, 1};
     std::array<std::size_t, 2> lengths = {1, 1};
     std::string name() const
     {
-        return "pooling:" + mode + "[padding={" + to_string(padding) + 
-            "}, stride={" + to_string(stride) +
-            "}, lengths={" + to_string(lengths) +
-            "}]";
+        return "pooling:" + mode + "[padding={" + to_string(padding) + "}, stride={" +
+               to_string(stride) + "}, lengths={" + to_string(lengths) + "}]";
     }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        if(inputs.empty()) throw std::runtime_error("Wrong number of arguments");
-        const shape& input = inputs.at(0);    
-        if(input.lens().size() != 4) throw std::runtime_error("Only 4d pooling supported"); 
+        if(inputs.empty())
+            throw std::runtime_error("Wrong number of arguments");
+        const shape& input = inputs.at(0);
+        if(input.lens().size() != 4)
+            throw std::runtime_error("Only 4d pooling supported");
 
         auto t = input.type();
-        return {t, {
-            input.lens()[0],
-            input.lens()[1],
-            std::size_t(std::max<std::ptrdiff_t>(
-                1, std::ceil((input.lens()[3] + 2 * padding[0] - lengths[0]) / static_cast<float>(stride[0])) + 1)),
-            std::size_t(std::max<std::ptrdiff_t>(
-                1, std::ceil((input.lens()[4] + 2 * padding[1] - lengths[1]) / static_cast<float>(stride[1])) + 1)),
-        }};
+        return {t,
+                {
+                    input.lens()[0],
+                    input.lens()[1],
+                    std::size_t(std::max<std::ptrdiff_t>(
+                        1,
+                        std::ceil((input.lens()[3] + 2 * padding[0] - lengths[0]) /
+                                  static_cast<float>(stride[0])) +
+                            1)),
+                    std::size_t(std::max<std::ptrdiff_t>(
+                        1,
+                        std::ceil((input.lens()[4] + 2 * padding[1] - lengths[1]) /
+                                  static_cast<float>(stride[1])) +
+                            1)),
+                }};
     }
 
-    argument compute(std::vector<argument>) const
-    {
-        throw std::runtime_error("not computable");
-    }
+    argument compute(std::vector<argument>) const { throw std::runtime_error("not computable"); }
 };
-
 
 struct activation
 {
     std::string mode;
-    std::string name() const
-    {
-        return "activation:" + mode;
-    }
+    std::string name() const { return "activation:" + mode; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        if(inputs.empty()) throw std::runtime_error("Wrong number of arguments");
+        if(inputs.empty())
+            throw std::runtime_error("Wrong number of arguments");
         return inputs.front();
     }
 
-    argument compute(std::vector<argument>) const
-    {
-        throw std::runtime_error("not computable");
-    }
+    argument compute(std::vector<argument>) const { throw std::runtime_error("not computable"); }
 };
 
 struct reshape
 {
     std::vector<int64_t> dims;
-    std::string name() const
-    {
-        return "reshape[dims={" + to_string(dims) +
-            "}]";
-    }
+    std::string name() const { return "reshape[dims={" + to_string(dims) + "}]"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        if(inputs.empty()) throw std::runtime_error("Wrong number of arguments");
+        if(inputs.empty())
+            throw std::runtime_error("Wrong number of arguments");
         auto&& idims = inputs.front().lens();
         std::vector<std::size_t> rdims(dims.begin(), dims.end());
-        for(std::size_t i = 0;i < dims.size();i++)
+        for(std::size_t i = 0; i < dims.size(); i++)
         {
             if(dims[i] == 0)
                 rdims[i] = idims[i];
@@ -130,17 +130,13 @@ struct reshape
         if(dims.back() == -1)
         {
             rdims.pop_back();
-            std::copy(idims.begin()+rdims.size(), idims.end(), std::back_inserter(rdims));
+            std::copy(idims.begin() + rdims.size(), idims.end(), std::back_inserter(rdims));
         }
         return {inputs.front().type(), rdims};
     }
 
-    argument compute(std::vector<argument>) const
-    {
-        throw std::runtime_error("not computable");
-    }
+    argument compute(std::vector<argument>) const { throw std::runtime_error("not computable"); }
 };
-
 
 } // namespace rtg
 

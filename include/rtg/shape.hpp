@@ -11,6 +11,7 @@ struct shape
 {
 
 // Add new types here
+// clang-format off
 #define RTG_SHAPE_VISIT_TYPES(m) \
     m(float_type, float) \
     m(double_type, double) \
@@ -23,6 +24,7 @@ struct shape
     m(uint32_type, uint32_t) \
     m(uint64_type, uint64_t) \
 
+// clang-format on
 #define RTG_SHAPE_ENUM_TYPES(x, t) x,
     enum type_t
     {
@@ -30,12 +32,13 @@ struct shape
     };
 #undef RTG_SHAPE_ENUM_TYPES
 
-    template<class T, class=void>
+    template <class T, class = void>
     struct get_type;
-#define RTG_SHAPE_GET_TYPE(x, t) \
-    template<class T> \
+#define RTG_SHAPE_GET_TYPE(x, t)                              \
+    template <class T>                                        \
     struct get_type<t, T> : std::integral_constant<type_t, x> \
-    {};
+    {                                                         \
+    };
     RTG_SHAPE_VISIT_TYPES(RTG_SHAPE_GET_TYPE)
 #undef RTG_SHAPE_GET_TYPE
 
@@ -43,7 +46,6 @@ struct shape
     shape(type_t t);
     shape(type_t t, std::vector<std::size_t> l);
     shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s);
-
 
     type_t type() const;
     const std::vector<std::size_t>& lens() const;
@@ -63,67 +65,60 @@ struct shape
     friend bool operator!=(const shape& x, const shape& y);
     friend std::ostream& operator<<(std::ostream& os, const shape& x);
 
-    template<class T>
+    template <class T>
     struct as
     {
         using type = T;
 
-        template<class U>
+        template <class U>
         T operator()(U u) const
         {
             return T(u);
         }
 
-        template<class U>
+        template <class U>
         T* operator()(U* u) const
         {
             return static_cast<T*>(u);
         }
 
-        template<class U>
+        template <class U>
         const T* operator()(const U* u) const
         {
             return static_cast<T*>(u);
         }
 
-        T operator()() const
+        T operator()() const { return {}; }
+
+        std::size_t size(std::size_t n = 1) const { return sizeof(T) * n; }
+
+        template <class U>
+        T* from(U* buffer, std::size_t n = 0) const
         {
-            return {};
+            return reinterpret_cast<T*>(buffer) + n;
         }
 
-        std::size_t size(std::size_t n=1) const
+        template <class U>
+        const T* from(const U* buffer, std::size_t n = 0) const
         {
-            return sizeof(T)*n;
-        }
-
-        template<class U>
-        T* from(U* buffer, std::size_t n=0) const
-        {
-            return reinterpret_cast<T*>(buffer)+n;
-        }
-
-        template<class U>
-        const T* from(const U* buffer, std::size_t n=0) const
-        {
-            return reinterpret_cast<const T*>(buffer)+n;
+            return reinterpret_cast<const T*>(buffer) + n;
         }
     };
 
-    template<class Visitor>
+    template <class Visitor>
     void visit_type(Visitor v) const
     {
-        switch(this->type_) 
+        switch(this->type_)
         {
 #define RTG_SHAPE_VISITOR_CASE(x, t) \
-            case x: \
-                v(as<t>()); \
-                return;
+    case x: v(as<t>()); return;
             RTG_SHAPE_VISIT_TYPES(RTG_SHAPE_VISITOR_CASE)
 #undef RTG_SHAPE_VISITOR_CASE
         }
         assert(true);
     }
-private:
+
+    private:
     type_t type_;
     std::vector<std::size_t> lens_;
     std::vector<std::size_t> strides_;
@@ -134,6 +129,6 @@ private:
     std::string type_string() const;
 };
 
-}
+} // namespace rtg
 
 #endif

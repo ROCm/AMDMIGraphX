@@ -34,9 +34,9 @@ void test_shape4()
     EXPECT(s.bytes() == 100 * 32 * 8 * 8 * sizeof(float));
 }
 
-int main() {
+int main()
+{
     test_shape_assign();
     test_shape_default();
     test_shape4();
 }
-

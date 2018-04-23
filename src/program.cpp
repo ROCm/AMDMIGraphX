@@ -9,7 +9,7 @@ literal program::eval(std::unordered_map<std::string, argument> params) const
 {
     std::unordered_map<const instruction*, argument> results;
     argument result;
-    for(auto& ins:instructions)
+    for(auto& ins : instructions)
     {
         if(ins.op.name() == "@literal")
         {
@@ -22,9 +22,10 @@ literal program::eval(std::unordered_map<std::string, argument> params) const
         else
         {
             std::vector<argument> values(ins.arguments.size());
-            std::transform(ins.arguments.begin(), ins.arguments.end(), values.begin(), [&](instruction * i) {
-                return results.at(i);
-            });
+            std::transform(ins.arguments.begin(),
+                           ins.arguments.end(),
+                           values.begin(),
+                           [&](instruction* i) { return results.at(i); });
             result = ins.op.compute(values);
         }
         results.emplace(std::addressof(ins), result);
@@ -37,7 +38,7 @@ void program::print() const
     std::unordered_map<const instruction*, std::string> names;
     int count = 0;
 
-    for(auto& ins:instructions)
+    for(auto& ins : instructions)
     {
         std::string var_name = "@" + std::to_string(count);
         if(starts_with(ins.op.name(), "@param"))
@@ -51,7 +52,7 @@ void program::print() const
 
         if(ins.op.name() == "@literal")
         {
-            if (ins.lit.get_shape().elements() > 10)
+            if(ins.lit.get_shape().elements() > 10)
                 std::cout << "{ ... }";
             else
                 std::cout << "{" << ins.lit << "}";
@@ -60,7 +61,7 @@ void program::print() const
         if(!ins.arguments.empty())
         {
             char delim = '(';
-            for(auto&& arg:ins.arguments)
+            for(auto&& arg : ins.arguments)
             {
                 assert(this->has_instruction(arg) && "Instruction not found");
                 std::cout << delim << names.at(arg);
@@ -78,5 +79,4 @@ void program::print() const
     }
 }
 
-}
-
+} // namespace rtg

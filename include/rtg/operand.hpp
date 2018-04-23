@@ -12,16 +12,16 @@
 namespace rtg {
 
 /*
-* Type-erased interface for:
-* 
-* struct operand
-* {
-*     std::string name() const;
-*     shape compute_shape(std::vector<shape> input) const;
-*     argument compute(std::vector<argument> input) const;
-* };
-* 
-*/
+ * Type-erased interface for:
+ *
+ * struct operand
+ * {
+ *     std::string name() const;
+ *     shape compute_shape(std::vector<shape> input) const;
+ *     argument compute(std::vector<argument> input) const;
+ * };
+ *
+ */
 
 struct operand
 {
@@ -80,8 +80,9 @@ struct operand
     struct handle_type_ : handle_base_type_
     {
         template <typename TypeErased_U_ = TypeErased_T_>
-        handle_type_(TypeErased_T_ value,
-                     typename std::enable_if<std::is_reference<TypeErased_U_>::value>::type* = nullptr)
+        handle_type_(
+            TypeErased_T_ value,
+            typename std::enable_if<std::is_reference<TypeErased_U_>::value>::type* = nullptr)
             : value_(value)
         {
         }
@@ -89,7 +90,8 @@ struct operand
         template <typename TypeErased_U_ = TypeErased_T_>
         handle_type_(TypeErased_T_ value,
                      typename std::enable_if<!std::is_reference<TypeErased_U_>::value, int>::type* =
-                         nullptr) noexcept : value_(std::move(value))
+                         nullptr) noexcept
+            : value_(std::move(value))
         {
         }
 
@@ -134,6 +136,6 @@ struct operand
     std::shared_ptr<handle_base_type_> handle_mem_var_;
 };
 
-}
+} // namespace rtg
 
 #endif

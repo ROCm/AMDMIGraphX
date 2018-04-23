@@ -4,7 +4,6 @@
 #include <string>
 #include "test.hpp"
 
-
 void literal_test()
 {
     EXPECT(rtg::literal{1} == rtg::literal{1});
@@ -23,7 +22,7 @@ void literal_test()
     rtg::literal l4{};
     EXPECT(l3 == l4);
     EXPECT(l3.empty());
-    EXPECT(l4.empty());   
+    EXPECT(l4.empty());
 }
 
 void literal_os1()
@@ -51,10 +50,9 @@ void literal_os3()
     EXPECT(ss.str() == "1, 2, 3");
 }
 
-int main() {
+int main()
+{
     literal_test();
     literal_os1();
     literal_os2();
-
 }
-

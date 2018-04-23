@@ -7,7 +7,7 @@
 
 namespace rtg {
 
-shape::shape() : type_(float_type), lens_(), strides_(), packed_(false) {}
+shape::shape() : type_(float_type), packed_(false) {}
 
 shape::shape(type_t t) : type_(t), lens_({1}), strides_({1}), packed_(true) {}
 shape::shape(type_t t, std::vector<std::size_t> l) : type_(t), lens_(std::move(l)), packed_(true)

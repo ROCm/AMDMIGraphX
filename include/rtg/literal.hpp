@@ -10,7 +10,7 @@ namespace rtg {
 
 struct literal : raw_data<literal>
 {
-    literal() : buffer(), shape_() {}
+    literal() {}
 
     template <class T>
     literal(T x) : buffer(sizeof(T), 0), shape_(shape::get_type<T>{})

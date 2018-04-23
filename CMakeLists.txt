@@ -1,16 +1,98 @@
 cmake_minimum_required(VERSION 3.5)
 
 project(rtglib)
+find_package(ROCM REQUIRED)
 
 add_compile_options(-std=c++14)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)
+include(ROCMClangTidy)
+rocm_enable_clang_tidy(
+    CHECKS
+        *
+        -cert-env33-c
+        -android-cloexec-fopen
+        -cert-msc50-cpp
+        -clang-analyzer-alpha.core.CastToStruct
+        -clang-analyzer-optin.performance.Padding
+        -clang-diagnostic-deprecated-declarations
+        -clang-diagnostic-extern-c-compat
+        -clang-diagnostic-unused-command-line-argument
+        -cppcoreguidelines-pro-bounds-array-to-pointer-decay
+        -cppcoreguidelines-pro-bounds-constant-array-index
+        -cppcoreguidelines-pro-bounds-pointer-arithmetic
+        -cppcoreguidelines-pro-type-member-init
+        -cppcoreguidelines-pro-type-reinterpret-cast
+        -cppcoreguidelines-pro-type-union-access
+        -cppcoreguidelines-pro-type-vararg
+        -cppcoreguidelines-special-member-functions
+        -fuchsia-*
+        -google-explicit-constructor
+        -google-readability-braces-around-statements
+        -google-readability-todo
+        -google-runtime-int
+        -google-runtime-references
+        -hicpp-braces-around-statements
+        -hicpp-explicit-conversions
+        -hicpp-no-array-decay
+        -hicpp-special-member-functions
+        -hicpp-use-emplace
+        -hicpp-use-equals-default
+        -hicpp-use-override
+        -llvm-header-guard
+        -llvm-include-order
+        -misc-macro-parentheses
+        -misc-misplaced-const
+        -misc-misplaced-widening-cast
+        -modernize-pass-by-value
+        -modernize-use-default-member-init
+        -modernize-use-emplace
+        -modernize-use-equals-default
+        -modernize-use-transparent-functors
+        -performance-unnecessary-value-param
+        -readability-braces-around-statements
+        -readability-else-after-return
+        -readability-implicit-bool-cast
+        -readability-implicit-bool-conversion
+        -readability-misleading-indentation
+        -readability-named-parameter
+        ${CLANG_TIDY_CHECKS}
+    ERRORS
+        *
+        -readability-inconsistent-declaration-parameter-name
+    HEADER_FILTER
+        ".*hpp"
+    EXTRA_ARGS
+        -DRTG_USE_CLANG_TIDY
+    ANALYZE_TEMPORARY_DTORS ON
+
+)
+include(ROCMCppCheck)
+rocm_enable_cppcheck(
+    CHECKS 
+        all
+    SUPPRESS 
+        ConfigurationNotChecked
+        unmatchedSuppression
+        unusedFunction
+        noExplicitConstructor
+        passedByValue
+        unusedStructMember
+    FORCE
+    SOURCES
+        include/
+        src/
+        test/
+    INCLUDE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
 
 add_library(rtg 
     src/program.cpp
     src/shape.cpp
 )
+rocm_clang_tidy_check(rtg)
 target_include_directories(rtg PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
 add_subdirectory(onnx)

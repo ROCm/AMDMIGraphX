@@ -115,7 +115,7 @@ struct shape
             RTG_SHAPE_VISIT_TYPES(RTG_SHAPE_VISITOR_CASE)
 #undef RTG_SHAPE_VISITOR_CASE
         }
-        assert(true);
+        throw std::runtime_error("Unknown type");
     }
 
     private:

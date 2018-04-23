@@ -11,12 +11,12 @@ namespace rtg {
 template <class T>
 struct tensor_view
 {
-    tensor_view() : data_(nullptr), shape_() {}
+    tensor_view() : data_(nullptr) {}
     tensor_view(shape s, T* d) : data_(d), shape_(s) {}
 
     const shape& get_shape() const { return this->shape_; }
 
-    bool empty() const { return data_ == nullptr || shape_.lens().size() == 0; }
+    bool empty() const { return data_ == nullptr || shape_.lens().empty(); }
 
     std::size_t size() const { return shape_.elements(); }
 

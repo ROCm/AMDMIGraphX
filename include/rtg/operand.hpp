@@ -95,19 +95,19 @@ struct operand
         {
         }
 
-        virtual std::shared_ptr<handle_base_type_> clone() const
+        std::shared_ptr<handle_base_type_> clone() const override
         {
             return std::make_shared<handle_type_>(value_);
         }
 
-        virtual std::string name() const { return value_.name(); }
+        std::string name() const override { return value_.name(); }
 
-        virtual shape compute_shape(std::vector<shape> input) const
+        shape compute_shape(std::vector<shape> input) const override
         {
             return value_.compute_shape(std::move(input));
         }
 
-        virtual argument compute(std::vector<argument> input) const
+        argument compute(std::vector<argument> input) const override
         {
             return value_.compute(std::move(input));
         }

@@ -22,9 +22,9 @@ struct shape
     m(int32_type, int32_t) \
     m(int64_type, int64_t) \
     m(uint32_type, uint32_t) \
-    m(uint64_type, uint64_t) \
-
+    m(uint64_type, uint64_t)
 // clang-format on
+
 #define RTG_SHAPE_ENUM_TYPES(x, t) x,
     enum type_t
     {

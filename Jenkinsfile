@@ -19,9 +19,9 @@ def rocmtestnode(variant, name, body) {
         }
         stage("image ${variant}") {
             try {
-                docker.build("${image}", "--build-arg .")
+                docker.build("${image}", ".")
             } catch(Exception ex) {
-                docker.build("${image}", "--build-arg --no-cache .")
+                docker.build("${image}", "--no-cache .")
 
             }
         }

@@ -7,35 +7,35 @@
 
 namespace rtg {
 
-shape::shape() : type_(float_type), packed_(false) {}
+shape::shape() : m_type(float_type), m_packed(false) {}
 
-shape::shape(type_t t) : type_(t), lens_({1}), strides_({1}), packed_(true) {}
-shape::shape(type_t t, std::vector<std::size_t> l) : type_(t), lens_(std::move(l)), packed_(true)
+shape::shape(type_t t) : m_type(t), m_lens({1}), m_strides({1}), m_packed(true) {}
+shape::shape(type_t t, std::vector<std::size_t> l) : m_type(t), m_lens(std::move(l)), m_packed(true)
 {
     this->calculate_strides();
-    assert(lens_.size() == strides_.size());
+    assert(m_lens.size() == m_strides.size());
 }
 shape::shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
-    : type_(t), lens_(std::move(l)), strides_(std::move(s))
+    : m_type(t), m_lens(std::move(l)), m_strides(std::move(s))
 {
-    assert(lens_.size() == strides_.size());
-    packed_ = this->elements() == this->element_space();
+    assert(m_lens.size() == m_strides.size());
+    m_packed = this->elements() == this->element_space();
 }
 
 void shape::calculate_strides()
 {
-    strides_.clear();
-    strides_.resize(lens_.size(), 0);
-    if(strides_.empty())
+    m_strides.clear();
+    m_strides.resize(m_lens.size(), 0);
+    if(m_strides.empty())
         return;
-    strides_.back() = 1;
+    m_strides.back() = 1;
     std::partial_sum(
-        lens_.rbegin(), lens_.rend() - 1, strides_.rbegin() + 1, std::multiplies<std::size_t>());
+        m_lens.rbegin(), m_lens.rend() - 1, m_strides.rbegin() + 1, std::multiplies<std::size_t>());
 }
 
-shape::type_t shape::type() const { return this->type_; }
-const std::vector<std::size_t>& shape::lens() const { return this->lens_; }
-const std::vector<std::size_t>& shape::strides() const { return this->strides_; }
+shape::type_t shape::type() const { return this->m_type; }
+const std::vector<std::size_t>& shape::lens() const { return this->m_lens; }
+const std::vector<std::size_t>& shape::strides() const { return this->m_strides; }
 std::size_t shape::elements() const
 {
     assert(this->lens().size() == this->strides().size());
@@ -71,7 +71,7 @@ std::size_t shape::index(std::size_t i) const
         std::plus<std::size_t>{},
         [&](std::size_t len, std::size_t stride) { return ((i / stride) % len) * stride; });
 }
-bool shape::packed() const { return this->packed_; }
+bool shape::packed() const { return this->m_packed; }
 std::size_t shape::element_space() const
 {
     // TODO: Get rid of intermediate vector
@@ -89,7 +89,7 @@ std::size_t shape::element_space() const
 
 std::string shape::type_string() const
 {
-    switch(this->type_)
+    switch(this->m_type)
     {
 #define RTG_SHAPE_TYPE_STRING_CASE(x, t) \
     case x: return #x;

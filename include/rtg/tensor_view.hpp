@@ -11,103 +11,103 @@ namespace rtg {
 template <class T>
 struct tensor_view
 {
-    tensor_view() : data_(nullptr) {}
-    tensor_view(shape s, T* d) : data_(d), shape_(s) {}
+    tensor_view() : m_data(nullptr) {}
+    tensor_view(shape s, T* d) : m_data(d), m_shape(s) {}
 
-    const shape& get_shape() const { return this->shape_; }
+    const shape& get_shape() const { return this->m_shape; }
 
-    bool empty() const { return data_ == nullptr || shape_.lens().empty(); }
+    bool empty() const { return m_data == nullptr || m_shape.lens().empty(); }
 
-    std::size_t size() const { return shape_.elements(); }
+    std::size_t size() const { return m_shape.elements(); }
 
-    T* data() { return this->data_; }
+    T* data() { return this->m_data; }
 
-    const T* data() const { return this->data_; }
+    const T* data() const { return this->m_data; }
 
     template <class... Ts>
     const T& operator()(Ts... xs) const
     {
-        return data_[shape_.index({xs...})];
+        return m_data[m_shape.index({xs...})];
     }
 
     template <class... Ts>
     T& operator()(Ts... xs)
     {
-        return data_[shape_.index({xs...})];
+        return m_data[m_shape.index({xs...})];
     }
 
     T& operator[](std::size_t i)
     {
         assert(!this->empty() && i < this->size());
-        return data_[shape_.index(i)];
+        return m_data[m_shape.index(i)];
     }
 
     const T& operator[](std::size_t i) const
     {
         assert(!this->empty() && i < this->size());
-        return data_[shape_.index(i)];
+        return m_data[m_shape.index(i)];
     }
 
     T& front()
     {
         assert(!this->empty());
-        return data_[0];
+        return m_data[0];
     }
 
     const T& front() const
     {
         assert(!this->empty());
-        return data_[0];
+        return m_data[0];
     }
 
     T& back()
     {
         assert(!this->empty());
-        return data_[shape_.index(this->size() - 1)];
+        return m_data[m_shape.index(this->size() - 1)];
     }
 
     const T& back() const
     {
         assert(!this->empty());
-        return data_[shape_.index(this->size() - 1)];
+        return m_data[m_shape.index(this->size() - 1)];
     }
 
     // TODO: Add iterators so it can handle nonpacked tensors
     T* begin()
     {
-        assert(this->shape_.packed());
-        return data_;
+        assert(this->m_shape.packed());
+        return m_data;
     }
 
     T* end()
     {
-        assert(this->shape_.packed());
+        assert(this->m_shape.packed());
         if(this->empty())
-            return data_;
+            return m_data;
         else
-            return data_ + this->size();
+            return m_data + this->size();
     }
 
     const T* begin() const
     {
-        assert(this->shape_.packed());
-        return data_;
+        assert(this->m_shape.packed());
+        return m_data;
     }
 
     const T* end() const
     {
-        assert(this->shape_.packed());
+        assert(this->m_shape.packed());
         if(this->empty())
-            return data_;
+            return m_data;
         else
-            return data_ + this->size();
+            return m_data + this->size();
     }
 
     friend bool operator==(const tensor_view<T>& x, const tensor_view<T>& y)
     {
-        if(x.shape_ == y.shape_)
+        if(x.m_shape == y.m_shape)
         {
-            for(std::size_t i = 0; i < x.shape_.elements(); i++)
+            for(std::size_t i = 0; i < x.m_shape.elements(); i++)
             {
                 if(!float_equal(x[i], y[i]))
                     return false;
@@ -124,17 +124,17 @@ struct tensor_view
         if(!x.empty())
         {
             os << x.front();
-            for(std::size_t i = 1; i < x.shape_.elements(); i++)
+            for(std::size_t i = 1; i < x.m_shape.elements(); i++)
             {
-                os << ", " << x.data_[x.shape_.index(i)];
+                os << ", " << x.m_data[x.m_shape.index(i)];
             }
         }
         return os;
     }
 
     private:
-    T* data_;
-    shape shape_;
+    T* m_data;
+    shape m_shape;
 };
 
 template <class T>

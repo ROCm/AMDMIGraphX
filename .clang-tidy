@@ -11,91 +11,93 @@ CheckOptions:
     value:           '10'
   - key:             readability-function-size.StatementThreshold
     value:           '150'
-  - key:             readability-identifier-naming.Namespace
+  - key:             readability-identifier-naming.NamespaceCase
     value:           lower_case
-  - key:             readability-identifier-naming.InlineNamespace
+  - key:             readability-identifier-naming.InlineNamespaceCase
     value:           lower_case
-  - key:             readability-identifier-naming.EnumConstant
+  - key:             readability-identifier-naming.EnumConstantCase
     value:           lower_case
-  - key:             readability-identifier-naming.ConstexprVariable
+  - key:             readability-identifier-naming.ConstexprVariableCase
     value:           lower_case
-  - key:             readability-identifier-naming.ConstantMember
+  - key:             readability-identifier-naming.ConstantMemberCase
     value:           lower_case
-  - key:             readability-identifier-naming.PrivateMember
+  - key:             readability-identifier-naming.PrivateMemberCase
     value:           lower_case
-  - key:             readability-identifier-naming.ProtectedMember
+  - key:             readability-identifier-naming.ProtectedMemberCase
     value:           lower_case
-  - key:             readability-identifier-naming.PublicMember
+  - key:             readability-identifier-naming.PublicMemberCase
     value:           lower_case
-  - key:             readability-identifier-naming.Member
+  - key:             readability-identifier-naming.MemberCase
     value:           lower_case
-  - key:             readability-identifier-naming.ClassConstant
+  - key:             readability-identifier-naming.ClassConstantCase
     value:           lower_case
-  - key:             readability-identifier-naming.ClassMember
+  - key:             readability-identifier-naming.ClassMemberCase
     value:           lower_case
-  - key:             readability-identifier-naming.GlobalConstant
+  - key:             readability-identifier-naming.GlobalConstantCase
     value:           lower_case
-  - key:             readability-identifier-naming.GlobalVariable
+  - key:             readability-identifier-naming.GlobalVariableCase
     value:           lower_case
-  - key:             readability-identifier-naming.LocalConstant
+  - key:             readability-identifier-naming.LocalConstantCase
     value:           lower_case
-  - key:             readability-identifier-naming.LocalVariable
+  - key:             readability-identifier-naming.LocalVariableCase
     value:           lower_case
-  - key:             readability-identifier-naming.StaticConstant
+  - key:             readability-identifier-naming.StaticConstantCase
     value:           lower_case
-  - key:             readability-identifier-naming.StaticVariable
+  - key:             readability-identifier-naming.StaticVariableCase
     value:           lower_case
-  - key:             readability-identifier-naming.Constant
+  - key:             readability-identifier-naming.ConstantCase
     value:           lower_case
-  - key:             readability-identifier-naming.Variable
+  - key:             readability-identifier-naming.VariableCase
     value:           lower_case
-  - key:             readability-identifier-naming.ConstantParameter
+  - key:             readability-identifier-naming.ConstantParameterCase
     value:           lower_case
-  - key:             readability-identifier-naming.ParameterPack
+  - key:             readability-identifier-naming.ParameterPackCase
     value:           lower_case
-  - key:             readability-identifier-naming.Parameter
+  - key:             readability-identifier-naming.ParameterCase
     value:           lower_case
-  - key:             readability-identifier-naming.AbstractClass
+  - key:             readability-identifier-naming.AbstractClassCase
     value:           lower_case
-  - key:             readability-identifier-naming.Struct
+  - key:             readability-identifier-naming.StructCase
     value:           lower_case
-  - key:             readability-identifier-naming.Class
+  - key:             readability-identifier-naming.ClassCase
     value:           lower_case
-  - key:             readability-identifier-naming.Union
+  - key:             readability-identifier-naming.UnionCase
     value:           lower_case
-  - key:             readability-identifier-naming.Enum
+  - key:             readability-identifier-naming.EnumCase
     value:           lower_case
-  - key:             readability-identifier-naming.GlobalFunction
+  - key:             readability-identifier-naming.GlobalFunctionCase
     value:           lower_case
-  - key:             readability-identifier-naming.ConstexprFunction
+  - key:             readability-identifier-naming.ConstexprFunctionCase
     value:           lower_case
-  - key:             readability-identifier-naming.Function
+  - key:             readability-identifier-naming.FunctionCase
     value:           lower_case
-  - key:             readability-identifier-naming.ConstexprMethod
+  - key:             readability-identifier-naming.ConstexprMethodCase
     value:           lower_case
-  - key:             readability-identifier-naming.VirtualMethod
+  - key:             readability-identifier-naming.VirtualMethodCase
     value:           lower_case
-  - key:             readability-identifier-naming.ClassMethod
+  - key:             readability-identifier-naming.ClassMethodCase
     value:           lower_case
-  - key:             readability-identifier-naming.PrivateMethod
+  - key:             readability-identifier-naming.PrivateMethodCase
     value:           lower_case
-  - key:             readability-identifier-naming.ProtectedMethod
+  - key:             readability-identifier-naming.ProtectedMethodCase
     value:           lower_case
-  - key:             readability-identifier-naming.PublicMethod
+  - key:             readability-identifier-naming.PublicMethodCase
     value:           lower_case
-  - key:             readability-identifier-naming.Method
+  - key:             readability-identifier-naming.MethodCase
     value:           lower_case
-  - key:             readability-identifier-naming.Typedef
+  - key:             readability-identifier-naming.TypedefCase
     value:           lower_case
-  - key:             readability-identifier-naming.TypeTemplateParameter
+  - key:             readability-identifier-naming.TypeTemplateParameterCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.ValueTemplateParameterCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.TemplateTemplateParameterCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.TemplateParameterCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.TypeAliasCase
     value:           lower_case
-  - key:             readability-identifier-naming.ValueTemplateParameter
-    value:           lower_case
-  - key:             readability-identifier-naming.TemplateTemplateParameter
-    value:           lower_case
-  - key:             readability-identifier-naming.TemplateParameter
-    value:           lower_case
-  - key:             readability-identifier-naming.TypeAlias
-    value:           lower_case
-  - key:             readability-identifier-naming.MacroDefinition
-    value:           lower_case
+  # - key:             readability-identifier-naming.MacroDefinitionCase
+  #   value:           UPPER_CASE
+  # - key:             readability-identifier-naming.MacroDefinitionPrefix
+  #   value:           RTG_

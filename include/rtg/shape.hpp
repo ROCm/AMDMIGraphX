@@ -110,7 +110,7 @@ struct shape
     template <class Visitor>
     void visit_type(Visitor v) const
     {
-        switch(this->type_)
+        switch(this->m_type)
         {
 #define RTG_SHAPE_VISITOR_CASE(x, t) \
     case x: v(as<t>()); return;
@@ -121,10 +121,10 @@ struct shape
     }
 
     private:
-    type_t type_;
-    std::vector<std::size_t> lens_;
-    std::vector<std::size_t> strides_;
-    bool packed_;
+    type_t m_type;
+    std::vector<std::size_t> m_lens;
+    std::vector<std::size_t> m_strides;
+    bool m_packed;
 
     void calculate_strides();
     std::size_t element_space() const;

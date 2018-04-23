@@ -4,8 +4,8 @@
 #include <cstdlib>
 #include <iostream>
 
-#ifndef GUARD_TEST_TEST_HPP_
-#define GUARD_TEST_TEST_HPP_
+#ifndef GUARD_TEST_TEST_HPP
+#define GUARD_TEST_TEST_HPP
 
 inline void failed(const char* msg, const char* file, int line)
 {

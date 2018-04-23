@@ -9,9 +9,7 @@ namespace rtg {
 
 struct exception : std::runtime_error
 {
-    exception(std::string msg = "")
-    : std::runtime_error(msg)
-    {}
+    exception(std::string msg = "") : std::runtime_error(msg) {}
 };
 
 inline exception make_exception(std::string context, std::string message = "")

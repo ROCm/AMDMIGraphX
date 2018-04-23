@@ -17,10 +17,7 @@ struct instruction
     {
     }
 
-    instruction(literal l)
-        : op(builtin::literal{}), result(l.get_shape()), lit(std::move(l))
-    {
-    }
+    instruction(literal l) : op(builtin::literal{}), result(l.get_shape()), lit(std::move(l)) {}
 
     operand op;
     shape result;

@@ -1,5 +1,5 @@
 #ifndef GUARD_RTGLIB_STRINGUTILS_HPP
-#define GUARD_RTGLIB_STRINGUTILS_HPP
+#define RTG_GUARD_RTGLIB_STRINGUTILS_HPP
 
 #include <algorithm>
 #include <numeric>

@@ -5,7 +5,7 @@
 #include <iostream>
 
 #ifndef GUARD_TEST_TEST_HPP
-#define GUARD_TEST_TEST_HPP
+#define RTG_GUARD_TEST_TEST_HPP
 
 inline void failed(const char* msg, const char* file, int line)
 {
@@ -34,15 +34,20 @@ inline void expect_equality(const TLeft& left,
     std::abort();
 }
 
+// NOLINTNEXTLINE
 #define CHECK(...)     \
     if(!(__VA_ARGS__)) \
     failed(#__VA_ARGS__, __FILE__, __LINE__)
+// NOLINTNEXTLINE
 #define EXPECT(...)    \
     if(!(__VA_ARGS__)) \
     failed_abort(#__VA_ARGS__, __FILE__, __LINE__)
+// NOLINTNEXTLINE
 #define EXPECT_EQUAL(LEFT, RIGHT) expect_equality(LEFT, RIGHT, #LEFT, #RIGHT, __FILE__, __LINE__)
+// NOLINTNEXTLINE
 #define STATUS(...) EXPECT((__VA_ARGS__) == 0)
 
+// NOLINTNEXTLINE
 #define FAIL(...) failed(__VA_ARGS__, __FILE__, __LINE__)
 
 template <class F>

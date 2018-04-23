@@ -1,5 +1,5 @@
 #ifndef GUARD_RTGLIB_FLOAT_EQUAL_HPP
-#define GUARD_RTGLIB_FLOAT_EQUAL_HPP
+#define RTG_GUARD_RTGLIB_FLOAT_EQUAL_HPP
 
 #include <algorithm>
 #include <cmath>

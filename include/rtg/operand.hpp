@@ -1,5 +1,5 @@
 #ifndef GUARD_RTGLIB_OPERAND_HPP
-#define GUARD_RTGLIB_OPERAND_HPP
+#define RTG_GUARD_RTGLIB_OPERAND_HPP
 
 #include <string>
 #include <functional>

@@ -1,5 +1,5 @@
 #ifndef GUARD_RTGLIB_LITERAL_HPP
-#define GUARD_RTGLIB_LITERAL_HPP
+#define RTG_GUARD_RTGLIB_LITERAL_HPP
 
 #include <rtg/shape.hpp>
 #include <rtg/argument.hpp>

@@ -1,5 +1,5 @@
 #ifndef GUARD_RTGLIB_ARGUMENT_HPP
-#define GUARD_RTGLIB_ARGUMENT_HPP
+#define RTG_GUARD_RTGLIB_ARGUMENT_HPP
 
 #include <rtg/shape.hpp>
 #include <rtg/raw_data.hpp>

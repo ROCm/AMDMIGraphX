@@ -5,7 +5,7 @@
 void test_shape_assign()
 {
     rtg::shape s1{rtg::shape::float_type, {100, 32, 8, 8}};
-    rtg::shape s2 = s1;
+    rtg::shape s2 = s1; // NOLINT
     EXPECT(s1 == s2);
     EXPECT(!(s1 != s2));
 }

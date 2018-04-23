@@ -12,7 +12,7 @@ void literal_test()
     EXPECT(rtg::literal{} != rtg::literal{2});
 
     rtg::literal l1{1};
-    rtg::literal l2 = l1;
+    rtg::literal l2 = l1; // NOLINT
     EXPECT(l1 == l2);
     EXPECT(l1.at<int>(0) == 1);
     EXPECT(!l1.empty());
@@ -38,7 +38,7 @@ void literal_os2()
     rtg::literal l{};
     std::stringstream ss;
     ss << l;
-    EXPECT(ss.str() == "");
+    EXPECT(ss.str().empty());
 }
 
 void literal_os3()

@@ -62,7 +62,7 @@ def rocmnode(name, body) {
 
 @NonCPS
 def rocmnode(body) {
-    rocmnode('rocmtest || rocm', body)
+    rocmnode('rocmtest', body)
 }
 
 // Static checks

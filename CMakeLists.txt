@@ -4,6 +4,9 @@ project(rtglib)
 
 add_compile_options(-std=c++14)
 
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+include(EnableCompilerWarnings)
+
 add_library(rtg 
     src/program.cpp
     src/shape.cpp

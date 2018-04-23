@@ -1,6 +1,6 @@
 
 def rocmtestnode(variant, name, body) {
-    def image = 'miopen'
+    def image = 'rtglib'
     def cmake_build = { compiler, flags ->
         def cmd = """
             rm -rf build

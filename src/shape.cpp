@@ -96,7 +96,7 @@ std::string shape::type_string() const
         RTG_SHAPE_VISIT_TYPES(RTG_SHAPE_TYPE_STRING_CASE)
 #undef RTG_SHAPE_TYPE_STRING_CASE
     }
-    throw "Invalid type";
+    RTG_THROW("Invalid type");
 }
 
 bool operator==(const shape& x, const shape& y)

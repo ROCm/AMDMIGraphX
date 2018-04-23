@@ -9,7 +9,7 @@ namespace rtg {
 
 struct not_computable
 {
-    argument compute(std::vector<argument>) const { throw std::runtime_error("not computable"); }
+    argument compute(std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
 struct convolution
@@ -25,15 +25,15 @@ struct convolution
     shape compute_shape(std::vector<shape> inputs) const
     {
         if(inputs.size() != 2)
-            throw std::runtime_error("Wrong number of arguments");
+            RTG_THROW("Wrong number of arguments");
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
         if(input.type() != weights.type())
-            throw std::runtime_error("Type doesn't match");
+            RTG_THROW("Type doesn't match");
         if(input.lens().size() != weights.lens().size())
-            throw std::runtime_error("Dimensions don't match");
+            RTG_THROW("Dimensions don't match");
         if(input.lens().size() != 4)
-            throw std::runtime_error("Only 4d convolution supported");
+            RTG_THROW("Only 4d convolution supported");
 
         auto t = input.type();
         return {t,
@@ -55,7 +55,7 @@ struct convolution
                 }};
     }
 
-    argument compute(std::vector<argument>) const { throw std::runtime_error("not computable"); }
+    argument compute(std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
 struct pooling
@@ -72,10 +72,10 @@ struct pooling
     shape compute_shape(std::vector<shape> inputs) const
     {
         if(inputs.empty())
-            throw std::runtime_error("Wrong number of arguments");
+            RTG_THROW("Wrong number of arguments");
         const shape& input = inputs.at(0);
         if(input.lens().size() != 4)
-            throw std::runtime_error("Only 4d pooling supported");
+            RTG_THROW("Only 4d pooling supported");
 
         auto t = input.type();
         return {t,
@@ -95,7 +95,7 @@ struct pooling
                 }};
     }
 
-    argument compute(std::vector<argument>) const { throw std::runtime_error("not computable"); }
+    argument compute(std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
 struct activation
@@ -105,11 +105,11 @@ struct activation
     shape compute_shape(std::vector<shape> inputs) const
     {
         if(inputs.empty())
-            throw std::runtime_error("Wrong number of arguments");
+            RTG_THROW("Wrong number of arguments");
         return inputs.front();
     }
 
-    argument compute(std::vector<argument>) const { throw std::runtime_error("not computable"); }
+    argument compute(std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
 struct reshape
@@ -119,7 +119,7 @@ struct reshape
     shape compute_shape(std::vector<shape> inputs) const
     {
         if(inputs.empty())
-            throw std::runtime_error("Wrong number of arguments");
+            RTG_THROW("Wrong number of arguments");
         auto&& idims = inputs.front().lens();
         std::vector<std::size_t> rdims(dims.begin(), dims.end());
         for(std::size_t i = 0; i < dims.size(); i++)
@@ -135,7 +135,7 @@ struct reshape
         return {inputs.front().type(), rdims};
     }
 
-    argument compute(std::vector<argument>) const { throw std::runtime_error("not computable"); }
+    argument compute(std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
 } // namespace rtg

@@ -11,13 +11,13 @@ struct sum_op
     {
         rtg::argument result;
         if(args.size() != 2)
-            throw "Wrong args";
+            RTG_THROW("Wrong args");
         if(args[0].get_shape() != args[1].get_shape())
-            throw "Wrong args";
+            RTG_THROW("Wrong args");
         if(args[0].get_shape().lens().size() != 1)
-            throw "Wrong args";
+            RTG_THROW("Wrong args");
         if(args[0].get_shape().lens().front() != 1)
-            throw "Wrong args";
+            RTG_THROW("Wrong args");
 
         args[0].visit_at([&](auto x) {
             args[1].visit_at([&](auto y) { result = rtg::literal{x + y}.get_argument(); });
@@ -28,7 +28,7 @@ struct sum_op
     rtg::shape compute_shape(std::vector<rtg::shape> inputs) const
     {
         if(inputs.size() != 2)
-            throw "Wrong inputs";
+            RTG_THROW("Wrong inputs");
         return inputs.front();
     }
 };

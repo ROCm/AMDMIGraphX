@@ -5,6 +5,8 @@
 #include <cassert>
 #include <ostream>
 
+#include <rtg/errors.hpp>
+
 namespace rtg {
 
 struct shape
@@ -115,7 +117,7 @@ struct shape
             RTG_SHAPE_VISIT_TYPES(RTG_SHAPE_VISITOR_CASE)
 #undef RTG_SHAPE_VISITOR_CASE
         }
-        throw std::runtime_error("Unknown type");
+        RTG_THROW("Unknown type");
     }
 
     private:

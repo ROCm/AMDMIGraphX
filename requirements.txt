@@ -1,2 +1,2 @@
-pfultz2/cget-recipes
+RadeonOpenCompute/rocm-cmake@9e0a59ab3ca82d5fed6d5acaa5a5d891a4a65c86
 google/protobuf

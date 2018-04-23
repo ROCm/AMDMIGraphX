@@ -28,7 +28,6 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-vararg
         -cppcoreguidelines-special-member-functions
         -fuchsia-*
-        -google-explicit-constructor
         -google-readability-braces-around-statements
         -google-readability-todo
         -google-runtime-int
@@ -37,27 +36,18 @@ rocm_enable_clang_tidy(
         -hicpp-explicit-conversions
         -hicpp-no-array-decay
         -hicpp-special-member-functions
-        -hicpp-use-emplace
-        -hicpp-use-equals-default
-        -hicpp-use-override
         -llvm-header-guard
         -llvm-include-order
-        -misc-macro-parentheses
-        -misc-misplaced-const
-        -misc-misplaced-widening-cast
         -modernize-pass-by-value
         -modernize-use-default-member-init
-        -modernize-use-emplace
-        -modernize-use-equals-default
         -modernize-use-transparent-functors
         -performance-unnecessary-value-param
         -readability-braces-around-statements
         -readability-else-after-return
-        -readability-implicit-bool-cast
-        -readability-implicit-bool-conversion
-        -readability-misleading-indentation
         -readability-named-parameter
-        ${CLANG_TIDY_CHECKS}
+        -*-explicit-constructor
+        -*-use-emplace
+        -*-use-equals-default
     ERRORS
         *
         -readability-inconsistent-declaration-parameter-name

@@ -1,2 +1,2 @@
-RadeonOpenCompute/rocm-cmake@b5db96329881ad7c12f1b772fa155a6c2ac45f69
+RadeonOpenCompute/rocm-cmake@ec7313aa43de72729c8f66b2e53155e03aa74e20
 google/protobuf

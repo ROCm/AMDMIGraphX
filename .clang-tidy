@@ -1,0 +1,101 @@
+CheckOptions:    
+  - key:             modernize-loop-convert.NamingStyle
+    value:           snake_case
+  - key:             readability-function-size.BranchThreshold
+    value:           '15'
+  - key:             readability-function-size.LineThreshold
+    value:           '300'
+  - key:             readability-function-size.NestingThreshold
+    value:           '8'
+  - key:             readability-function-size.ParameterThreshold
+    value:           '10'
+  - key:             readability-function-size.StatementThreshold
+    value:           '300'
+  - key:             readability-identifier-naming.Namespace
+    value:           snake_case
+  - key:             readability-identifier-naming.InlineNamespace
+    value:           snake_case
+  - key:             readability-identifier-naming.EnumConstant
+    value:           snake_case
+  - key:             readability-identifier-naming.ConstexprVariable
+    value:           snake_case
+  - key:             readability-identifier-naming.ConstantMember
+    value:           snake_case
+  - key:             readability-identifier-naming.PrivateMember
+    value:           snake_case
+  - key:             readability-identifier-naming.ProtectedMember
+    value:           snake_case
+  - key:             readability-identifier-naming.PublicMember
+    value:           snake_case
+  - key:             readability-identifier-naming.Member
+    value:           snake_case
+  - key:             readability-identifier-naming.ClassConstant
+    value:           snake_case
+  - key:             readability-identifier-naming.ClassMember
+    value:           snake_case
+  - key:             readability-identifier-naming.GlobalConstant
+    value:           snake_case
+  - key:             readability-identifier-naming.GlobalVariable
+    value:           snake_case
+  - key:             readability-identifier-naming.LocalConstant
+    value:           snake_case
+  - key:             readability-identifier-naming.LocalVariable
+    value:           snake_case
+  - key:             readability-identifier-naming.StaticConstant
+    value:           snake_case
+  - key:             readability-identifier-naming.StaticVariable
+    value:           snake_case
+  - key:             readability-identifier-naming.Constant
+    value:           snake_case
+  - key:             readability-identifier-naming.Variable
+    value:           snake_case
+  - key:             readability-identifier-naming.ConstantParameter
+    value:           snake_case
+  - key:             readability-identifier-naming.ParameterPack
+    value:           snake_case
+  - key:             readability-identifier-naming.Parameter
+    value:           snake_case
+  - key:             readability-identifier-naming.AbstractClass
+    value:           snake_case
+  - key:             readability-identifier-naming.Struct
+    value:           snake_case
+  - key:             readability-identifier-naming.Class
+    value:           snake_case
+  - key:             readability-identifier-naming.Union
+    value:           snake_case
+  - key:             readability-identifier-naming.Enum
+    value:           snake_case
+  - key:             readability-identifier-naming.GlobalFunction
+    value:           snake_case
+  - key:             readability-identifier-naming.ConstexprFunction
+    value:           snake_case
+  - key:             readability-identifier-naming.Function
+    value:           snake_case
+  - key:             readability-identifier-naming.ConstexprMethod
+    value:           snake_case
+  - key:             readability-identifier-naming.VirtualMethod
+    value:           snake_case
+  - key:             readability-identifier-naming.ClassMethod
+    value:           snake_case
+  - key:             readability-identifier-naming.PrivateMethod
+    value:           snake_case
+  - key:             readability-identifier-naming.ProtectedMethod
+    value:           snake_case
+  - key:             readability-identifier-naming.PublicMethod
+    value:           snake_case
+  - key:             readability-identifier-naming.Method
+    value:           snake_case
+  - key:             readability-identifier-naming.Typedef
+    value:           snake_case
+  - key:             readability-identifier-naming.TypeTemplateParameter
+    value:           snake_case
+  - key:             readability-identifier-naming.ValueTemplateParameter
+    value:           snake_case
+  - key:             readability-identifier-naming.TemplateTemplateParameter
+    value:           snake_case
+  - key:             readability-identifier-naming.TemplateParameter
+    value:           snake_case
+  - key:             readability-identifier-naming.TypeAlias
+    value:           snake_case
+  - key:             readability-identifier-naming.MacroDefinition
+    value:           snake_case

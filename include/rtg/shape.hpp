@@ -1,4 +1,4 @@
-#ifndef GUARD_RTGLIB_SHAPE_HPP
+#ifndef RTG_GUARD_RTGLIB_SHAPE_HPP
 #define RTG_GUARD_RTGLIB_SHAPE_HPP
 
 #include <vector>

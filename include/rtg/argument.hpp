@@ -1,4 +1,4 @@
-#ifndef GUARD_RTGLIB_ARGUMENT_HPP
+#ifndef RTG_GUARD_RTGLIB_ARGUMENT_HPP
 #define RTG_GUARD_RTGLIB_ARGUMENT_HPP
 
 #include <rtg/shape.hpp>

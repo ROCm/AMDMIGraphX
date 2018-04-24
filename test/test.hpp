@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <iostream>
 
-#ifndef GUARD_TEST_TEST_HPP
+#ifndef RTG_GUARD_TEST_TEST_HPP
 #define RTG_GUARD_TEST_TEST_HPP
 
 inline void failed(const char* msg, const char* file, int line)

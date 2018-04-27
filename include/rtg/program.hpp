@@ -4,7 +4,7 @@
 #include <list>
 #include <unordered_map>
 #include <rtg/instruction.hpp>
-#include <rtg/operand.hpp>
+#include <rtg/operation.hpp>
 #include <rtg/builtin.hpp>
 #include <algorithm>
 
@@ -18,13 +18,13 @@ struct program
     program& operator=(const program&) = delete;
 
     template <class... Ts>
-    instruction* add_instruction(operand op, Ts*... args)
+    instruction* add_instruction(operation op, Ts*... args)
     {
         shape r = op.compute_shape({args->result...});
         instructions.push_back({op, r, {args...}});
         return std::addressof(instructions.back());
     }
-    instruction* add_instruction(operand op, std::vector<instruction*> args)
+    instruction* add_instruction(operation op, std::vector<instruction*> args)
     {
         assert(std::all_of(
                    args.begin(), args.end(), [&](instruction* x) { return has_instruction(x); }) &&

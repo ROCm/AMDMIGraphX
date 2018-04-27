@@ -14,7 +14,7 @@ namespace rtg {
 /*
  * Type-erased interface for:
  *
- * struct operand
+ * struct operation
  * {
  *     std::string name() const;
  *     shape compute_shape(std::vector<shape> input) const;
@@ -23,13 +23,13 @@ namespace rtg {
  *
  */
 
-struct operand
+struct operation
 {
     // Constructors
-    operand() = default;
+    operation() = default;
 
     template <typename PrivateDetailTypeErasedT>
-    operand(PrivateDetailTypeErasedT value)
+    operation(PrivateDetailTypeErasedT value)
         : private_detail_te_handle_mem_var(
               std::make_shared<private_detail_te_handle_type<
                   typename std::remove_reference<PrivateDetailTypeErasedT>::type>>(
@@ -39,7 +39,7 @@ struct operand
 
     // Assignment
     template <typename PrivateDetailTypeErasedT>
-    operand& operator=(PrivateDetailTypeErasedT value)
+    operation& operator=(PrivateDetailTypeErasedT value)
     {
         if(private_detail_te_handle_mem_var.unique())
             *private_detail_te_handle_mem_var = std::forward<PrivateDetailTypeErasedT>(value);

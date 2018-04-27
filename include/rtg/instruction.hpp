@@ -12,14 +12,14 @@ struct instruction
 {
     instruction() {}
 
-    instruction(operand o, shape r, std::vector<instruction*> args)
+    instruction(operation o, shape r, std::vector<instruction*> args)
         : op(std::move(o)), result(std::move(r)), arguments(std::move(args))
     {
     }
 
     instruction(literal l) : op(builtin::literal{}), result(l.get_shape()), lit(std::move(l)) {}
 
-    operand op;
+    operation op;
     shape result;
     std::vector<instruction*> arguments;
     literal lit;

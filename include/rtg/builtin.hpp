@@ -1,7 +1,7 @@
 #ifndef RTG_GUARD_BUILTIN_HPP
 #define RTG_GUARD_BUILTIN_HPP
 
-#include <rtg/operand.hpp>
+#include <rtg/operation.hpp>
 #include <rtg/errors.hpp>
 
 namespace rtg {

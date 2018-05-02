@@ -12,19 +12,17 @@ struct program_impl
     std::list<instruction> instructions;
 };
 
-program::program() 
-: impl(std::make_unique<program_impl>())
-{}
+program::program() : impl(std::make_unique<program_impl>()) {}
 
 program::program(program&&) noexcept = default;
 program& program::operator=(program&&) = default;
-program::~program() = default;
+program::~program()                    = default;
 
 instruction* program::add_instruction(operation op, std::vector<instruction*> args)
 {
-    assert(std::all_of(
-               args.begin(), args.end(), [&](instruction* x) { return has_instruction(x); }) &&
-           "Argument is not an exisiting instruction");
+    assert(
+        std::all_of(args.begin(), args.end(), [&](instruction* x) { return has_instruction(x); }) &&
+        "Argument is not an exisiting instruction");
     std::vector<shape> shapes(args.size());
     std::transform(
         args.begin(), args.end(), shapes.begin(), [](instruction* ins) { return ins->result; });
@@ -48,9 +46,10 @@ instruction* program::add_parameter(std::string name, shape s)
 
 bool program::has_instruction(const instruction* ins) const
 {
-    return std::find_if(impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
-               return ins == std::addressof(x);
-           }) != impl->instructions.end();
+    return std::find_if(impl->instructions.begin(),
+                        impl->instructions.end(),
+                        [&](const instruction& x) { return ins == std::addressof(x); }) !=
+           impl->instructions.end();
 }
 
 literal program::eval(std::unordered_map<std::string, argument> params) const

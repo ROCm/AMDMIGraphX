@@ -46,10 +46,7 @@ struct onnx_parser
     std::unordered_map<std::string, rtg::instruction*> instructions;
     rtg::program prog = rtg::program();
 
-    std::unordered_map<
-        std::string,
-        op_func>
-        ops;
+    std::unordered_map<std::string, op_func> ops;
 
     onnx_parser()
     {

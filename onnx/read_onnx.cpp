@@ -43,7 +43,7 @@ struct onnx_parser
     using node_map      = std::unordered_map<std::string, onnx::NodeProto>;
     node_map nodes;
     std::unordered_map<std::string, rtg::instruction*> instructions;
-    std::shared_ptr<rtg::program> prog = std::make_shared<rtg::program>();
+    rtg::program prog = std::make_shared<rtg::program>();
 
     std::unordered_map<
         std::string,
@@ -66,7 +66,7 @@ struct onnx_parser
             {
                 copy(attributes["dilations"].ints(), op.dilation.begin());
             }
-            return prog->add_instruction(op, args);
+            return prog.add_instruction(op, args);
         });
         add_op("MaxPool", [this](attribute_map attributes, std::vector<rtg::instruction*> args) {
             rtg::pooling op{"max"};
@@ -83,20 +83,20 @@ struct onnx_parser
             {
                 copy(attributes["kernel_shape"].ints(), op.lengths.begin());
             }
-            return prog->add_instruction(op, args);
+            return prog.add_instruction(op, args);
         });
         add_op("Relu", [this](attribute_map, std::vector<rtg::instruction*> args) {
-            return prog->add_instruction(rtg::activation{"relu"}, args);
+            return prog.add_instruction(rtg::activation{"relu"}, args);
         });
         add_op("Reshape", [this](attribute_map attributes, std::vector<rtg::instruction*> args) {
             rtg::reshape op;
             rtg::literal s = parse_value(attributes.at("shape"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
-            return prog->add_instruction(op, args);
+            return prog.add_instruction(op, args);
         });
         add_op("Constant", [this](attribute_map attributes, std::vector<rtg::instruction*>) {
             rtg::literal v = parse_value(attributes.at("value"));
-            return prog->add_literal(v);
+            return prog.add_literal(v);
         });
     }
 
@@ -130,7 +130,7 @@ struct onnx_parser
             const std::string& name = input.name();
             // TODO: Get shape of input parameter
             rtg::shape s       = parse_type(input.type());
-            instructions[name] = prog->add_parameter(name, s);
+            instructions[name] = prog.add_parameter(name, s);
         }
         for(auto&& p : nodes)
         {
@@ -159,7 +159,7 @@ struct onnx_parser
             }
             if(ops.count(node.op_type()) == 0)
             {
-                instructions[name] = prog->add_instruction(unknown{node.op_type()}, args);
+                instructions[name] = prog.add_instruction(unknown{node.op_type()}, args);
             }
             else
             {
@@ -306,9 +306,9 @@ int main(int argc, char const* argv[])
         catch(...)
         {
             if(parser.prog)
-                parser.prog->print();
+                parser.prog.print();
             throw;
         }
-        parser.prog->print();
+        parser.prog.print();
     }
 }

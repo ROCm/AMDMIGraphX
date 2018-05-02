@@ -3,68 +3,48 @@
 
 #include <list>
 #include <unordered_map>
-#include <rtg/instruction.hpp>
 #include <rtg/operation.hpp>
+#include <rtg/literal.hpp>
 #include <rtg/builtin.hpp>
 #include <algorithm>
 
 namespace rtg {
 
+struct instruction;
+struct program_impl;
+
 struct program
 {
-    // TODO: A program should be copyable
-    program()               = default;
-    program(const program&) = delete;
-    program& operator=(const program&) = delete;
+    program();;
+    program(program&&) = default;
+    program& operator=(program&&) = default;
+    ~program();
 
     template <class... Ts>
     instruction* add_instruction(operation op, Ts*... args)
     {
-        shape r = op.compute_shape({args->result...});
-        instructions.push_back({op, r, {args...}});
-        return std::addressof(instructions.back());
+        return add_instruction(op, {args...});
     }
-    instruction* add_instruction(operation op, std::vector<instruction*> args)
-    {
-        assert(std::all_of(
-                   args.begin(), args.end(), [&](instruction* x) { return has_instruction(x); }) &&
-               "Argument is not an exisiting instruction");
-        std::vector<shape> shapes(args.size());
-        std::transform(
-            args.begin(), args.end(), shapes.begin(), [](instruction* ins) { return ins->result; });
-        shape r = op.compute_shape(shapes);
-        instructions.push_back({op, r, args});
-        assert(instructions.back().arguments == args);
-        return std::addressof(instructions.back());
-    }
+    instruction* add_instruction(operation op, std::vector<instruction*> args);
     template <class... Ts>
     instruction* add_literal(Ts&&... xs)
     {
-        instructions.emplace_back(literal{std::forward<Ts>(xs)...});
-        return std::addressof(instructions.back());
+        return add_literal(literal{std::forward<Ts>(xs)...});
     }
 
-    instruction* add_parameter(std::string name, shape s)
-    {
-        instructions.push_back({builtin::param{std::move(name)}, s, {}});
-        return std::addressof(instructions.back());
-    }
+    instruction* add_literal(literal l);
+
+    instruction* add_parameter(std::string name, shape s);
 
     literal eval(std::unordered_map<std::string, argument> params) const;
 
     // TODO: Change to stream operator
     void print() const;
 
-    bool has_instruction(const instruction* ins) const
-    {
-        return std::find_if(instructions.begin(), instructions.end(), [&](const instruction& x) {
-                   return ins == std::addressof(x);
-               }) != instructions.end();
-    }
+    bool has_instruction(const instruction* ins) const;
 
     private:
-    // A list is used to keep references to an instruction stable
-    std::list<instruction> instructions;
+    std::unique_ptr<program_impl> impl;
 };
 
 } // namespace rtg

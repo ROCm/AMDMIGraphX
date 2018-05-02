@@ -9,26 +9,25 @@
 
 namespace test {
 // NOLINTNEXTLINE
-#define TEST_FOREACH_OPERATOR(m) \
-m(==, equal) \
-m(!=, not_equal) \
-m(<=, less_than_equal) \
-m(>=, greater_than_equal) \
-m(<, less_than) \
-m(>, greater_than)
+#define TEST_FOREACH_OPERATOR(m)                                                                   \
+    m(==, equal) m(!=, not_equal) m(<=, less_than_equal) m(>=, greater_than_equal) m(<, less_than) \
+        m(>, greater_than)
 
 // NOLINTNEXTLINE
-#define TEST_EACH_OPERATOR_OBJECT(op, name) \
-struct name \
-{ \
-    static std::string as_string() { return #op; } \
-    template<class T, class U> \
-    static decltype(auto) call(T&& x, U&& y) { return x op y; } \
-};
+#define TEST_EACH_OPERATOR_OBJECT(op, name)            \
+    struct name                                        \
+    {                                                  \
+        static std::string as_string() { return #op; } \
+        template <class T, class U>                    \
+        static decltype(auto) call(T&& x, U&& y)       \
+        {                                              \
+            return x op y;                             \
+        }                                              \
+    };
 
 TEST_FOREACH_OPERATOR(TEST_EACH_OPERATOR_OBJECT)
 
-template<class T, class U, class Operator>
+template <class T, class U, class Operator>
 struct expression
 {
     T lhs;
@@ -43,28 +42,27 @@ struct expression
     decltype(auto) value() const { return Operator::call(lhs, rhs); };
 };
 
-template<class T, class U, class Operator>
-expression<typename std::decay<T>::type, typename std::decay<U>::type, Operator> 
+template <class T, class U, class Operator>
+expression<typename std::decay<T>::type, typename std::decay<U>::type, Operator>
 make_expression(T&& rhs, U&& lhs, Operator)
 {
-    return { std::forward<T>(rhs), std::forward<U>(lhs) };
+    return {std::forward<T>(rhs), std::forward<U>(lhs)};
 }
 
-template<class T>
+template <class T>
 struct lhs_expression;
 
-template<class T>
+template <class T>
 lhs_expression<typename std::decay<T>::type> make_lhs_expression(T&& lhs)
 {
-    return lhs_expression<typename std::decay<T>::type>{ std::forward<T>(lhs) };
+    return lhs_expression<typename std::decay<T>::type>{std::forward<T>(lhs)};
 }
 
-template<class T>
+template <class T>
 struct lhs_expression
 {
     T lhs;
-    explicit lhs_expression(T e) : lhs(e)
-    {}
+    explicit lhs_expression(T e) : lhs(e) {}
 
     friend std::ostream& operator<<(std::ostream& s, const lhs_expression& self)
     {
@@ -72,41 +70,47 @@ struct lhs_expression
         return s;
     }
 
-    T value() const
-    {
-        return lhs;
+    T value() const { return lhs; }
+// NOLINTNEXTLINE
+#define TEST_LHS_OPERATOR(op, name)               \
+    template <class U>                            \
+    auto operator op(const U& rhs) const          \
+    {                                             \
+        return make_expression(lhs, rhs, name{}); \
+    } // NOLINT
+
+    TEST_FOREACH_OPERATOR(TEST_LHS_OPERATOR)
+// NOLINTNEXTLINE
+#define TEST_LHS_REOPERATOR(op)                 \
+    template <class U>                          \
+    auto operator op(const U& rhs) const        \
+    {                                           \
+        return make_lhs_expression(lhs op rhs); \
     }
-// NOLINTNEXTLINE
-#define TEST_LHS_OPERATOR(op, name) \
-    template<class U> \
-    auto operator op(const U& rhs) const { return make_expression(lhs, rhs, name{}); } // NOLINT
-
-TEST_FOREACH_OPERATOR(TEST_LHS_OPERATOR)
-// NOLINTNEXTLINE
-#define TEST_LHS_REOPERATOR(op) \
-    template<class U> auto operator op(const U& rhs) const { return make_lhs_expression(lhs op rhs); }
-TEST_LHS_REOPERATOR(+)
-TEST_LHS_REOPERATOR(-)
-TEST_LHS_REOPERATOR(*)
-TEST_LHS_REOPERATOR(/)
-TEST_LHS_REOPERATOR(%)
-TEST_LHS_REOPERATOR(&)
-TEST_LHS_REOPERATOR(|)
-TEST_LHS_REOPERATOR(&&)
-TEST_LHS_REOPERATOR(||)
-
+    TEST_LHS_REOPERATOR(+)
+    TEST_LHS_REOPERATOR(-)
+    TEST_LHS_REOPERATOR(*)
+    TEST_LHS_REOPERATOR(/)
+    TEST_LHS_REOPERATOR(%)
+    TEST_LHS_REOPERATOR(&)
+    TEST_LHS_REOPERATOR(|)
+    TEST_LHS_REOPERATOR(&&)
+    TEST_LHS_REOPERATOR(||)
 };
 
-struct capture 
+struct capture
 {
-    template<class T>
-    auto operator->* (const T& x) { return make_lhs_expression(x); }
+    template <class T>
+    auto operator->*(const T& x)
+    {
+        return make_lhs_expression(x);
+    }
 };
 
-template<class T, class F>
+template <class T, class F>
 void failed(T x, const char* msg, const char* file, int line, F f)
 {
-    if (!x.value()) 
+    if(!x.value())
     {
         std::cout << file << ":" << line << ":" << std::endl;
         std::cout << "    FAILED: " << msg << " " << x << std::endl;
@@ -152,9 +156,11 @@ void run_test()
 } // namespace test
 
 // NOLINTNEXTLINE
-#define CHECK(...) test::failed(test::capture{} ->* __VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__, []{})
+#define CHECK(...) \
+    test::failed(test::capture{}->*__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__, [] {})
 // NOLINTNEXTLINE
-#define EXPECT(...) test::failed(test::capture{} ->* __VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__, &std::abort)
+#define EXPECT(...) \
+    test::failed(test::capture{}->*__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__, &std::abort)
 // NOLINTNEXTLINE
 #define STATUS(...) EXPECT((__VA_ARGS__) == 0)
 

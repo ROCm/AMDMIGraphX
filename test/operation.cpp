@@ -14,13 +14,10 @@ struct simple_operation
 void operation_copy_test()
 {
     simple_operation s{};
-    rtg::operation op1 = s; // NOLINT
+    rtg::operation op1 = s;   // NOLINT
     rtg::operation op2 = op1; // NOLINT
     EXPECT(s.name() == op1.name());
     EXPECT(op2.name() == op1.name());
 }
 
-int main()
-{
-    operation_copy_test();
-}
+int main() { operation_copy_test(); }

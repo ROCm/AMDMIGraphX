@@ -48,7 +48,7 @@ inline void expect_equality(const TLeft& left,
 #define STATUS(...) EXPECT((__VA_ARGS__) == 0)
 
 // NOLINTNEXTLINE
-#define FAIL(...) failed(__VA_ARGS__, __FILE__, __LINE__)
+#define FAIL(...) failed(false, __VA_ARGS__, __FILE__, __LINE__)
 
 template <class F>
 bool throws(F f)

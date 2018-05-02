@@ -7,15 +7,19 @@
 #ifndef RTG_GUARD_TEST_TEST_HPP
 #define RTG_GUARD_TEST_TEST_HPP
 
-inline void failed(const char* msg, const char* file, int line)
+inline void failed(bool b, const char* msg, const char* file, int line)
 {
-    std::cout << "FAILED: " << msg << ": " << file << ": " << line << std::endl;
+    if (!b)
+        std::cout << "FAILED: " << msg << ": " << file << ": " << line << std::endl;
 }
 
-[[gnu::noreturn]] inline void failed_abort(const char* msg, const char* file, int line)
+inline void failed_abort(bool b, const char* msg, const char* file, int line)
 {
-    failed(msg, file, line);
-    std::abort();
+    if (!b) 
+    {
+        std::cout << "FAILED: " << msg << ": " << file << ": " << line << std::endl;
+        std::abort();
+    }
 }
 
 template <class TLeft, class TRight>
@@ -35,13 +39,9 @@ inline void expect_equality(const TLeft& left,
 }
 
 // NOLINTNEXTLINE
-#define CHECK(...)     \
-    if(!(__VA_ARGS__)) \
-    failed(#__VA_ARGS__, __FILE__, __LINE__)
+#define CHECK(...) failed(__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__)
 // NOLINTNEXTLINE
-#define EXPECT(...)    \
-    if(!(__VA_ARGS__)) \
-    failed_abort(#__VA_ARGS__, __FILE__, __LINE__)
+#define EXPECT(...) failed_abort(__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__)
 // NOLINTNEXTLINE
 #define EXPECT_EQUAL(LEFT, RIGHT) expect_equality(LEFT, RIGHT, #LEFT, #RIGHT, __FILE__, __LINE__)
 // NOLINTNEXTLINE

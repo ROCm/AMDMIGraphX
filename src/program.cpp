@@ -16,8 +16,9 @@ program::program()
 : impl(std::make_unique<program_impl>())
 {}
 
-program::~program()
-{}
+program::program(program&&) noexcept = default;
+program& program::operator=(program&&) = default;
+program::~program() = default;
 
 instruction* program::add_instruction(operation op, std::vector<instruction*> args)
 {

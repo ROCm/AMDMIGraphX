@@ -41,13 +41,14 @@ struct onnx_parser
 {
     using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
     using node_map      = std::unordered_map<std::string, onnx::NodeProto>;
+    using op_func = std::function<rtg::instruction*(attribute_map, std::vector<rtg::instruction*>)>;
     node_map nodes;
     std::unordered_map<std::string, rtg::instruction*> instructions;
-    rtg::program prog = std::make_shared<rtg::program>();
+    rtg::program prog = rtg::program();
 
     std::unordered_map<
         std::string,
-        std::function<rtg::instruction*(attribute_map, std::vector<rtg::instruction*>)>>
+        op_func>
         ops;
 
     onnx_parser()
@@ -305,8 +306,7 @@ int main(int argc, char const* argv[])
         }
         catch(...)
         {
-            if(parser.prog)
-                parser.prog.print();
+            parser.prog.print();
             throw;
         }
         parser.prog.print();

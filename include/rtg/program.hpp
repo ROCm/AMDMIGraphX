@@ -15,9 +15,9 @@ struct program_impl;
 
 struct program
 {
-    program();;
-    program(program&&) = default;
-    program& operator=(program&&) = default;
+    program();
+    program(program&&) noexcept;
+    program& operator=(program&&);
     ~program();
 
     template <class... Ts>

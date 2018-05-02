@@ -7,48 +7,112 @@
 #ifndef RTG_GUARD_TEST_TEST_HPP
 #define RTG_GUARD_TEST_TEST_HPP
 
-inline void failed(bool b, const char* msg, const char* file, int line)
+namespace test {
+// NOLINTNEXTLINE
+#define TEST_FOREACH_OPERATOR(m) \
+m(==, equal) \
+m(!=, not_equal) \
+m(<=, less_than_equal) \
+m(>=, greater_than_equal) \
+m(<, less_than) \
+m(>, greater_than)
+
+// NOLINTNEXTLINE
+#define TEST_EACH_OPERATOR_OBJECT(op, name) \
+struct name \
+{ \
+    static std::string as_string() { return #op; } \
+    template<class T, class U> \
+    static decltype(auto) call(T&& x, U&& y) { return x op y; } \
+};
+
+TEST_FOREACH_OPERATOR(TEST_EACH_OPERATOR_OBJECT)
+
+template<class T, class U, class Operator>
+struct expression
 {
-    if (!b)
-        std::cout << "FAILED: " << msg << ": " << file << ": " << line << std::endl;
+    T lhs;
+    U rhs;
+
+    friend std::ostream& operator<<(std::ostream& s, const expression& self)
+    {
+        s << " [ " << self.lhs << " " << Operator::as_string() << " " << self.rhs << " ]";
+        return s;
+    }
+
+    decltype(auto) value() const { return Operator::call(lhs, rhs); };
+};
+
+template<class T, class U, class Operator>
+expression<typename std::decay<T>::type, typename std::decay<U>::type, Operator> 
+make_expression(T&& rhs, U&& lhs, Operator)
+{
+    return { std::forward<T>(rhs), std::forward<U>(lhs) };
 }
 
-inline void failed_abort(bool b, const char* msg, const char* file, int line)
+template<class T>
+struct lhs_expression;
+
+template<class T>
+lhs_expression<typename std::decay<T>::type> make_lhs_expression(T&& lhs)
 {
-    if (!b) 
+    return lhs_expression<typename std::decay<T>::type>{ std::forward<T>(lhs) };
+}
+
+template<class T>
+struct lhs_expression
+{
+    T lhs;
+    explicit lhs_expression(T e) : lhs(e)
+    {}
+
+    friend std::ostream& operator<<(std::ostream& s, const lhs_expression& self)
     {
-        std::cout << "FAILED: " << msg << ": " << file << ": " << line << std::endl;
-        std::abort();
+        s << self.lhs;
+        return s;
+    }
+
+    T value() const
+    {
+        return lhs;
+    }
+// NOLINTNEXTLINE
+#define TEST_LHS_OPERATOR(op, name) \
+    template<class U> \
+    auto operator op(const U& rhs) const { return make_expression(lhs, rhs, name{}); } // NOLINT
+
+TEST_FOREACH_OPERATOR(TEST_LHS_OPERATOR)
+// NOLINTNEXTLINE
+#define TEST_LHS_REOPERATOR(op) \
+    template<class U> auto operator op(const U& rhs) const { return make_lhs_expression(lhs op rhs); }
+TEST_LHS_REOPERATOR(+)
+TEST_LHS_REOPERATOR(-)
+TEST_LHS_REOPERATOR(*)
+TEST_LHS_REOPERATOR(/)
+TEST_LHS_REOPERATOR(%)
+TEST_LHS_REOPERATOR(&)
+TEST_LHS_REOPERATOR(|)
+TEST_LHS_REOPERATOR(&&)
+TEST_LHS_REOPERATOR(||)
+
+};
+
+struct capture 
+{
+    template<class T>
+    auto operator->* (const T& x) { return make_lhs_expression(x); }
+};
+
+template<class T, class F>
+void failed(T x, const char* msg, const char* file, int line, F f)
+{
+    if (!x.value()) 
+    {
+        std::cout << file << ":" << line << ":" << std::endl;
+        std::cout << "    FAILED: " << msg << " " << x << std::endl;
+        f();
     }
 }
-
-template <class TLeft, class TRight>
-inline void expect_equality(const TLeft& left,
-                            const TRight& right,
-                            const char* left_s,
-                            const char* riglt_s,
-                            const char* file,
-                            int line)
-{
-    if(left == right)
-        return;
-
-    std::cout << "FAILED: " << left_s << "(" << left << ") == " << riglt_s << "(" << right
-              << "): " << file << ':' << line << std::endl;
-    std::abort();
-}
-
-// NOLINTNEXTLINE
-#define CHECK(...) failed(__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__)
-// NOLINTNEXTLINE
-#define EXPECT(...) failed_abort(__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__)
-// NOLINTNEXTLINE
-#define EXPECT_EQUAL(LEFT, RIGHT) expect_equality(LEFT, RIGHT, #LEFT, #RIGHT, __FILE__, __LINE__)
-// NOLINTNEXTLINE
-#define STATUS(...) EXPECT((__VA_ARGS__) == 0)
-
-// NOLINTNEXTLINE
-#define FAIL(...) failed(false, __VA_ARGS__, __FILE__, __LINE__)
 
 template <class F>
 bool throws(F f)
@@ -84,5 +148,14 @@ void run_test()
     T t = {};
     t.run();
 }
+
+} // namespace test
+
+// NOLINTNEXTLINE
+#define CHECK(...) test::failed(test::capture{} ->* __VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__, []{})
+// NOLINTNEXTLINE
+#define EXPECT(...) test::failed(test::capture{} ->* __VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__, &std::abort)
+// NOLINTNEXTLINE
+#define STATUS(...) EXPECT((__VA_ARGS__) == 0)
 
 #endif

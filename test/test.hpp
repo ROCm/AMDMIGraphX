@@ -77,7 +77,7 @@ struct lhs_expression
     auto operator op(const U& rhs) const          \
     {                                             \
         return make_expression(lhs, rhs, name{}); \
-    } // NOLINT
+    }
 
     TEST_FOREACH_OPERATOR(TEST_LHS_OPERATOR)
 // NOLINTNEXTLINE

@@ -48,6 +48,7 @@ rocm_enable_clang_tidy(
         -hicpp-special-member-functions
         -llvm-header-guard
         -llvm-include-order
+        -misc-macro-parentheses
         -modernize-pass-by-value
         -modernize-use-default-member-init
         -modernize-use-transparent-functors

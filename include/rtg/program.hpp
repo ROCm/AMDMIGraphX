@@ -17,8 +17,8 @@ struct program
 {
     program();
     program(program&&) noexcept;
-    program& operator=(program&&);
-    ~program();
+    program& operator=(program&&) noexcept;
+    ~program() noexcept;
 
     template <class... Ts>
     instruction* add_instruction(operation op, Ts*... args)

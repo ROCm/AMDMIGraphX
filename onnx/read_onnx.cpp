@@ -41,16 +41,16 @@ struct onnx_parser
 {
     using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
     using node_map      = std::unordered_map<std::string, onnx::NodeProto>;
-    using op_func = std::function<rtg::instruction*(attribute_map, std::vector<rtg::instruction*>)>;
+    using op_func = std::function<rtg::instruction_ref(attribute_map, std::vector<rtg::instruction_ref>)>;
     node_map nodes;
-    std::unordered_map<std::string, rtg::instruction*> instructions;
+    std::unordered_map<std::string, rtg::instruction_ref> instructions;
     rtg::program prog = rtg::program();
 
     std::unordered_map<std::string, op_func> ops;
 
     onnx_parser()
     {
-        add_op("Conv", [this](attribute_map attributes, std::vector<rtg::instruction*> args) {
+        add_op("Conv", [this](attribute_map attributes, std::vector<rtg::instruction_ref> args) {
             rtg::convolution op;
             if(contains(attributes, "pads"))
             {
@@ -66,7 +66,7 @@ struct onnx_parser
             }
             return prog.add_instruction(op, args);
         });
-        add_op("MaxPool", [this](attribute_map attributes, std::vector<rtg::instruction*> args) {
+        add_op("MaxPool", [this](attribute_map attributes, std::vector<rtg::instruction_ref> args) {
             rtg::pooling op{"max"};
             // for(auto&& p:attributes) std::cout << p.first << std::endl;
             if(contains(attributes, "pads"))
@@ -83,16 +83,16 @@ struct onnx_parser
             }
             return prog.add_instruction(op, args);
         });
-        add_op("Relu", [this](attribute_map, std::vector<rtg::instruction*> args) {
+        add_op("Relu", [this](attribute_map, std::vector<rtg::instruction_ref> args) {
             return prog.add_instruction(rtg::activation{"relu"}, args);
         });
-        add_op("Reshape", [this](attribute_map attributes, std::vector<rtg::instruction*> args) {
+        add_op("Reshape", [this](attribute_map attributes, std::vector<rtg::instruction_ref> args) {
             rtg::reshape op;
             rtg::literal s = parse_value(attributes.at("shape"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
             return prog.add_instruction(op, args);
         });
-        add_op("Constant", [this](attribute_map attributes, std::vector<rtg::instruction*>) {
+        add_op("Constant", [this](attribute_map attributes, std::vector<rtg::instruction_ref>) {
             rtg::literal v = parse_value(attributes.at("value"));
             return prog.add_literal(v);
         });
@@ -141,7 +141,7 @@ struct onnx_parser
         if(instructions.count(name) == 0)
         {
             auto&& node = nodes.at(name);
-            std::vector<rtg::instruction*> args;
+            std::vector<rtg::instruction_ref> args;
             for(auto&& input : node.input())
             {
                 if(nodes.count(input) > 0)

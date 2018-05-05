@@ -4,6 +4,7 @@
 #include <rtg/literal.hpp>
 #include <rtg/shape.hpp>
 #include <rtg/builtin.hpp>
+#include <rtg/instruction_ref.hpp>
 #include <string>
 
 namespace rtg {
@@ -12,7 +13,7 @@ struct instruction
 {
     instruction() {}
 
-    instruction(operation o, shape r, std::vector<instruction*> args)
+    instruction(operation o, shape r, std::vector<instruction_ref> args)
         : op(std::move(o)), result(std::move(r)), arguments(std::move(args))
     {
     }
@@ -21,7 +22,7 @@ struct instruction
 
     operation op;
     shape result;
-    std::vector<instruction*> arguments;
+    std::vector<instruction_ref> arguments;
     literal lit;
 };
 

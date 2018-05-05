@@ -18,37 +18,37 @@ program::program(program&&) noexcept = default;
 program& program::operator=(program&&) noexcept = default;
 program::~program() noexcept                    = default;
 
-instruction* program::add_instruction(operation op, std::vector<instruction*> args)
+instruction_ref program::add_instruction(operation op, std::vector<instruction_ref> args)
 {
     assert(
-        std::all_of(args.begin(), args.end(), [&](instruction* x) { return has_instruction(x); }) &&
+        std::all_of(args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
         "Argument is not an exisiting instruction");
     std::vector<shape> shapes(args.size());
     std::transform(
-        args.begin(), args.end(), shapes.begin(), [](instruction* ins) { return ins->result; });
+        args.begin(), args.end(), shapes.begin(), [](instruction_ref ins) { return ins->result; });
     shape r = op.compute_shape(shapes);
     impl->instructions.push_back({op, r, args});
     assert(impl->instructions.back().arguments == args);
-    return std::addressof(impl->instructions.back());
+    return std::prev(impl->instructions.end());
 }
 
-instruction* program::add_literal(literal l)
+instruction_ref program::add_literal(literal l)
 {
     impl->instructions.emplace_back(std::move(l));
-    return std::addressof(impl->instructions.back());
+    return std::prev(impl->instructions.end());
 }
 
-instruction* program::add_parameter(std::string name, shape s)
+instruction_ref program::add_parameter(std::string name, shape s)
 {
     impl->instructions.push_back({builtin::param{std::move(name)}, s, {}});
-    return std::addressof(impl->instructions.back());
+    return std::prev(impl->instructions.end());
 }
 
-bool program::has_instruction(const instruction* ins) const
+bool program::has_instruction(instruction_ref ins) const
 {
     return std::find_if(impl->instructions.begin(),
                         impl->instructions.end(),
-                        [&](const instruction& x) { return ins == std::addressof(x); }) !=
+                        [&](const instruction& x) { return std::addressof(*ins) == std::addressof(x); }) !=
            impl->instructions.end();
 }
 
@@ -72,7 +72,7 @@ literal program::eval(std::unordered_map<std::string, argument> params) const
             std::transform(ins.arguments.begin(),
                            ins.arguments.end(),
                            values.begin(),
-                           [&](instruction* i) { return results.at(i); });
+                           [&](instruction_ref i) { return results.at(std::addressof(*i)); });
             result = ins.op.compute(values);
         }
         results.emplace(std::addressof(ins), result);
@@ -111,7 +111,7 @@ void program::print() const
             for(auto&& arg : ins.arguments)
             {
                 assert(this->has_instruction(arg) && "Instruction not found");
-                std::cout << delim << names.at(arg);
+                std::cout << delim << names.at(std::addressof(*arg));
                 delim = ',';
             }
             std::cout << ")";

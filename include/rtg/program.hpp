@@ -6,11 +6,11 @@
 #include <rtg/operation.hpp>
 #include <rtg/literal.hpp>
 #include <rtg/builtin.hpp>
+#include <rtg/instruction_ref.hpp>
 #include <algorithm>
 
 namespace rtg {
 
-struct instruction;
 struct program_impl;
 
 struct program
@@ -21,27 +21,27 @@ struct program
     ~program() noexcept;
 
     template <class... Ts>
-    instruction* add_instruction(operation op, Ts*... args)
+    instruction_ref add_instruction(operation op, Ts... args)
     {
         return add_instruction(op, {args...});
     }
-    instruction* add_instruction(operation op, std::vector<instruction*> args);
+    instruction_ref add_instruction(operation op, std::vector<instruction_ref> args);
     template <class... Ts>
-    instruction* add_literal(Ts&&... xs)
+    instruction_ref add_literal(Ts&&... xs)
     {
         return add_literal(literal{std::forward<Ts>(xs)...});
     }
 
-    instruction* add_literal(literal l);
+    instruction_ref add_literal(literal l);
 
-    instruction* add_parameter(std::string name, shape s);
+    instruction_ref add_parameter(std::string name, shape s);
 
     literal eval(std::unordered_map<std::string, argument> params) const;
 
     // TODO: Change to stream operator
     void print() const;
 
-    bool has_instruction(const instruction* ins) const;
+    bool has_instruction(instruction_ref ins) const;
 
     private:
     std::unique_ptr<program_impl> impl;

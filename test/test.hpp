@@ -27,7 +27,6 @@ namespace test {
 
 TEST_FOREACH_OPERATOR(TEST_EACH_OPERATOR_OBJECT)
 
-
 inline std::ostream& operator<<(std::ostream& s, std::nullptr_t)
 {
     s << "nullptr";

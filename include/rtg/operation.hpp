@@ -128,10 +128,7 @@ struct operation
             return std::make_shared<private_detail_te_handle_type>(private_detail_te_value);
         }
 
-        const std::type_info& type() const override
-        {
-            return typeid(private_detail_te_value);
-        }
+        const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
         std::string name() const override { return private_detail_te_value.name(); }
 

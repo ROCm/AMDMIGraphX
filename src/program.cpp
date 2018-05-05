@@ -29,7 +29,9 @@ instruction_ref program::add_instruction(operation op, std::vector<instruction_r
     shape r = op.compute_shape(shapes);
     impl->instructions.push_back({op, r, args});
     assert(impl->instructions.back().arguments == args);
-    return std::prev(impl->instructions.end());
+    auto result = std::prev(impl->instructions.end());
+    for(auto&& arg:args) arg->output.push_back(result);
+    return result;
 }
 
 instruction_ref program::add_literal(literal l)

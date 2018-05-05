@@ -22,6 +22,7 @@ struct instruction
 
     operation op;
     shape result;
+    std::vector<instruction_ref> output;
     std::vector<instruction_ref> arguments;
     literal lit;
 };

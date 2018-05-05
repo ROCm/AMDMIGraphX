@@ -22,7 +22,8 @@ instruction_ref program::add_instruction(operation op, std::vector<instruction_r
 {
     return insert_instruction(impl->instructions.end(), std::move(op), std::move(args));
 }
-instruction_ref program::insert_instruction(instruction_ref ins, operation op, std::vector<instruction_ref> args)
+instruction_ref
+program::insert_instruction(instruction_ref ins, operation op, std::vector<instruction_ref> args)
 {
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
@@ -30,7 +31,7 @@ instruction_ref program::insert_instruction(instruction_ref ins, operation op, s
     std::vector<shape> shapes(args.size());
     std::transform(
         args.begin(), args.end(), shapes.begin(), [](instruction_ref i) { return i->result; });
-    shape r = op.compute_shape(shapes);
+    shape r     = op.compute_shape(shapes);
     auto result = impl->instructions.insert(ins, {op, r, args});
     assert(result->arguments == args);
     for(auto&& arg : args)

@@ -8,6 +8,7 @@
 #include <rtg/builtin.hpp>
 #include <rtg/instruction_ref.hpp>
 #include <algorithm>
+#include <iostream>
 
 namespace rtg {
 
@@ -47,8 +48,7 @@ struct program
 
     literal eval(std::unordered_map<std::string, argument> params) const;
 
-    // TODO: Change to stream operator
-    void print() const;
+    friend std::ostream& operator<<(std::ostream& os, const program& p);
 
     bool has_instruction(instruction_ref ins) const;
 

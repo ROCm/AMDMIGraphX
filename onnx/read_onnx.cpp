@@ -304,9 +304,9 @@ int main(int argc, char const* argv[])
         }
         catch(...)
         {
-            parser.prog.print();
+            std::cout << parser.prog << std::endl;
             throw;
         }
-        parser.prog.print();
+        std::cout << parser.prog << std::endl;
     }
 }

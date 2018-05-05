@@ -87,12 +87,12 @@ literal program::eval(std::unordered_map<std::string, argument> params) const
     return literal{result.get_shape(), result.data()};
 }
 
-void program::print() const
+std::ostream& operator<<(std::ostream& os, const program& p)
 {
     std::unordered_map<const instruction*, std::string> names;
     int count = 0;
 
-    for(auto& ins : impl->instructions)
+    for(auto& ins : p.impl->instructions)
     {
         std::string var_name = "@" + std::to_string(count);
         if(starts_with(ins.op.name(), "@param"))
@@ -100,16 +100,16 @@ void program::print() const
             var_name = ins.op.name().substr(7);
         }
 
-        std::cout << var_name << " = ";
+        os << var_name << " = ";
 
-        std::cout << ins.op.name();
+        os << ins.op.name();
 
         if(ins.op.name() == "@literal")
         {
             if(ins.lit.get_shape().elements() > 10)
-                std::cout << "{ ... }";
+                os << "{ ... }";
             else
-                std::cout << "{" << ins.lit << "}";
+                os << "{" << ins.lit << "}";
         }
 
         if(!ins.arguments.empty())
@@ -117,20 +117,21 @@ void program::print() const
             char delim = '(';
             for(auto&& arg : ins.arguments)
             {
-                assert(this->has_instruction(arg) && "Instruction not found");
-                std::cout << delim << names.at(std::addressof(*arg));
+                assert(p.has_instruction(arg) && "Instruction not found");
+                os << delim << names.at(std::addressof(*arg));
                 delim = ',';
             }
-            std::cout << ")";
+            os << ")";
         }
 
-        std::cout << " -> " << ins.result;
+        os << " -> " << ins.result;
 
-        std::cout << std::endl;
+        os << std::endl;
 
         names.emplace(std::addressof(ins), var_name);
         count++;
     }
+    return os;
 }
 
 } // namespace rtg

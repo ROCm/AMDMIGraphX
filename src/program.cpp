@@ -20,16 +20,19 @@ program::~program() noexcept                    = default;
 
 instruction_ref program::add_instruction(operation op, std::vector<instruction_ref> args)
 {
+    return insert_instruction(impl->instructions.end(), std::move(op), std::move(args));
+}
+instruction_ref program::insert_instruction(instruction_ref ins, operation op, std::vector<instruction_ref> args)
+{
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
            "Argument is not an exisiting instruction");
     std::vector<shape> shapes(args.size());
     std::transform(
-        args.begin(), args.end(), shapes.begin(), [](instruction_ref ins) { return ins->result; });
+        args.begin(), args.end(), shapes.begin(), [](instruction_ref i) { return i->result; });
     shape r = op.compute_shape(shapes);
-    impl->instructions.push_back({op, r, args});
-    assert(impl->instructions.back().arguments == args);
-    auto result = std::prev(impl->instructions.end());
+    auto result = impl->instructions.insert(ins, {op, r, args});
+    assert(result->arguments == args);
     for(auto&& arg : args)
         arg->output.push_back(result);
     return result;

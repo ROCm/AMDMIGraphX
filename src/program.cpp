@@ -20,9 +20,9 @@ program::~program() noexcept                    = default;
 
 instruction_ref program::add_instruction(operation op, std::vector<instruction_ref> args)
 {
-    assert(
-        std::all_of(args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
-        "Argument is not an exisiting instruction");
+    assert(std::all_of(
+               args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
+           "Argument is not an exisiting instruction");
     std::vector<shape> shapes(args.size());
     std::transform(
         args.begin(), args.end(), shapes.begin(), [](instruction_ref ins) { return ins->result; });
@@ -46,10 +46,10 @@ instruction_ref program::add_parameter(std::string name, shape s)
 
 bool program::has_instruction(instruction_ref ins) const
 {
-    return std::find_if(impl->instructions.begin(),
-                        impl->instructions.end(),
-                        [&](const instruction& x) { return std::addressof(*ins) == std::addressof(x); }) !=
-           impl->instructions.end();
+    return std::find_if(
+               impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
+                   return std::addressof(*ins) == std::addressof(x);
+               }) != impl->instructions.end();
 }
 
 literal program::eval(std::unordered_map<std::string, argument> params) const

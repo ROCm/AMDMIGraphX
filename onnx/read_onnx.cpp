@@ -41,7 +41,8 @@ struct onnx_parser
 {
     using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
     using node_map      = std::unordered_map<std::string, onnx::NodeProto>;
-    using op_func = std::function<rtg::instruction_ref(attribute_map, std::vector<rtg::instruction_ref>)>;
+    using op_func =
+        std::function<rtg::instruction_ref(attribute_map, std::vector<rtg::instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, rtg::instruction_ref> instructions;
     rtg::program prog = rtg::program();

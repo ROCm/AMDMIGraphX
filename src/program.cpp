@@ -59,14 +59,8 @@ bool program::has_instruction(instruction_ref ins) const
                }) != impl->instructions.end();
 }
 
-instruction_ref program::begin()
-{
-    return impl->instructions.begin();
-}
-instruction_ref program::end()
-{
-    return impl->instructions.end();
-}
+instruction_ref program::begin() { return impl->instructions.begin(); }
+instruction_ref program::end() { return impl->instructions.end(); }
 
 literal program::eval(std::unordered_map<std::string, argument> params) const
 {

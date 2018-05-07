@@ -52,6 +52,9 @@ struct program
 
     bool has_instruction(instruction_ref ins) const;
 
+    instruction_ref begin();
+    instruction_ref end();
+
     private:
     std::unique_ptr<program_impl> impl;
 };

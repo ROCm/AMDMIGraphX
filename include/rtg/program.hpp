@@ -37,6 +37,14 @@ struct program
     insert_instruction(instruction_ref ins, operation op, std::vector<instruction_ref> args);
 
     template <class... Ts>
+    instruction_ref replace_instruction(instruction_ref ins, operation op, Ts... args)
+    {
+        return replace_instruction(ins, op, {args...});
+    }
+    instruction_ref
+    replace_instruction(instruction_ref ins, operation op, std::vector<instruction_ref> args);
+
+    template <class... Ts>
     instruction_ref add_literal(Ts&&... xs)
     {
         return add_literal(literal{std::forward<Ts>(xs)...});

@@ -28,15 +28,26 @@ program::insert_instruction(instruction_ref ins, operation op, std::vector<instr
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
            "Argument is not an exisiting instruction");
-    std::vector<shape> shapes(args.size());
-    std::transform(
-        args.begin(), args.end(), shapes.begin(), [](instruction_ref i) { return i->result; });
-    shape r     = op.compute_shape(shapes);
+    // TODO: Use move
+    shape r     = compute_shape(op, args);
     auto result = impl->instructions.insert(ins, {op, r, args});
+    backreference(result);
     assert(result->arguments == args);
-    for(auto&& arg : args)
-        arg->output.push_back(result);
     return result;
+}
+
+instruction_ref
+program::replace_instruction(instruction_ref ins, operation op, std::vector<instruction_ref> args)
+{
+    assert(std::all_of(
+               args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
+           "Argument is not an exisiting instruction");
+
+    shape r     = compute_shape(op, args);
+    ins->replace(op, r, args);
+    backreference(ins);
+    return ins;
+
 }
 
 instruction_ref program::add_literal(literal l)

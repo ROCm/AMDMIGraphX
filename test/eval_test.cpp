@@ -33,6 +33,35 @@ struct sum_op
     }
 };
 
+struct minus_op
+{
+    std::string name() const { return "minus"; }
+    rtg::argument compute(std::vector<rtg::argument> args) const
+    {
+        rtg::argument result;
+        if(args.size() != 2)
+            RTG_THROW("Wrong args");
+        if(args[0].get_shape() != args[1].get_shape())
+            RTG_THROW("Wrong args");
+        if(args[0].get_shape().lens().size() != 1)
+            RTG_THROW("Wrong args");
+        if(args[0].get_shape().lens().front() != 1)
+            RTG_THROW("Wrong args");
+
+        args[0].visit_at([&](auto x) {
+            args[1].visit_at([&](auto y) { result = rtg::literal{x - y}.get_argument(); });
+        });
+        return result;
+    }
+
+    rtg::shape compute_shape(std::vector<rtg::shape> inputs) const
+    {
+        if(inputs.size() != 2)
+            RTG_THROW("Wrong inputs");
+        return inputs.front();
+    }
+};
+
 void literal_test()
 {
     rtg::program p;
@@ -59,8 +88,23 @@ void param_test()
     EXPECT(result != rtg::literal{4});
 }
 
+void replace_test()
+{
+    rtg::program p;
+
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum = p.add_instruction(sum_op{}, one, two);
+    p.replace_instruction(sum, minus_op{}, two, one);
+
+    auto result = p.eval({});
+    EXPECT(result == rtg::literal{1});
+    EXPECT(result != rtg::literal{3});
+}
+
 int main()
 {
     literal_test();
     param_test();
+    replace_test();
 }

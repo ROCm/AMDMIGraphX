@@ -78,8 +78,8 @@ void literal_test2()
 {
     rtg::program p;
 
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
+    auto one  = p.add_literal(1);
+    auto two  = p.add_literal(2);
     auto sum1 = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(sum_op{}, sum1, two);
 
@@ -120,8 +120,8 @@ void insert_replace_test()
 {
     rtg::program p;
 
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
+    auto one  = p.add_literal(1);
+    auto two  = p.add_literal(2);
     auto sum1 = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(sum_op{}, sum1, two);
 

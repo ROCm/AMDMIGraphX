@@ -35,13 +35,12 @@ struct instruction
         if(r != result)
         {
             result = r;
-            for(auto&& ins:output)
+            for(auto&& ins : output)
             {
                 ins->replace(compute_shape(ins->op, ins->arguments));
             }
         }
     }
-
 
     void replace(std::vector<instruction_ref> args)
     {
@@ -51,7 +50,7 @@ struct instruction
 
     void clear_arguments()
     {
-        for(auto&& arg:arguments)
+        for(auto&& arg : arguments)
         {
             rtg::erase(arg->output, *this);
         }
@@ -62,20 +61,11 @@ struct instruction
         return std::addressof(i) == std::addressof(*ref);
     }
 
-    friend bool operator==(instruction_ref ref, const instruction& i)
-    {
-        return i == ref;
-    }
+    friend bool operator==(instruction_ref ref, const instruction& i) { return i == ref; }
 
-    friend bool operator!=(const instruction& i, instruction_ref ref)
-    {
-        return !(i == ref);
-    }
+    friend bool operator!=(const instruction& i, instruction_ref ref) { return !(i == ref); }
 
-    friend bool operator!=(instruction_ref ref, const instruction& i)
-    {
-        return !(i == ref);
-    }
+    friend bool operator!=(instruction_ref ref, const instruction& i) { return !(i == ref); }
 
     operation op;
     shape result;

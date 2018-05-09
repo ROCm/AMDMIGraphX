@@ -43,11 +43,10 @@ program::replace_instruction(instruction_ref ins, operation op, std::vector<inst
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
            "Argument is not an exisiting instruction");
 
-    shape r     = compute_shape(op, args);
+    shape r = compute_shape(op, args);
     ins->replace(op, r, args);
     backreference(ins);
     return ins;
-
 }
 
 instruction_ref program::add_literal(literal l)

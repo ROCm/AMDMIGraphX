@@ -62,7 +62,7 @@ struct minus_op
     }
 };
 
-void literal_test()
+void literal_test1()
 {
     rtg::program p;
 
@@ -72,6 +72,20 @@ void literal_test()
     auto result = p.eval({});
     EXPECT(result == rtg::literal{3});
     EXPECT(result != rtg::literal{4});
+}
+
+void literal_test2()
+{
+    rtg::program p;
+
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum1 = p.add_instruction(sum_op{}, one, two);
+    p.add_instruction(sum_op{}, sum1, two);
+
+    auto result = p.eval({});
+    EXPECT(result == rtg::literal{5});
+    EXPECT(result != rtg::literal{3});
 }
 
 void param_test()
@@ -102,9 +116,28 @@ void replace_test()
     EXPECT(result != rtg::literal{3});
 }
 
+void insert_replace_test()
+{
+    rtg::program p;
+
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum1 = p.add_instruction(sum_op{}, one, two);
+    p.add_instruction(sum_op{}, sum1, two);
+
+    auto sum0 = p.insert_instruction(sum1, sum_op{}, two, two);
+    p.replace_instruction(sum1, minus_op{}, sum0, two);
+
+    auto result = p.eval({});
+    EXPECT(result == rtg::literal{4});
+    EXPECT(result != rtg::literal{5});
+}
+
 int main()
 {
-    literal_test();
+    literal_test1();
+    literal_test2();
     param_test();
     replace_test();
+    insert_replace_test();
 }

@@ -14,6 +14,9 @@ namespace rtg {
 
 struct program_impl;
 
+/**
+ * @brief Stores the instruction stream
+ */
 struct program
 {
     program();

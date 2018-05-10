@@ -8,6 +8,10 @@
 
 namespace rtg {
 
+/**
+ * @brief Represents a raw literal
+ * @details This stores the literal has a raw buffer that is owned by this class
+ */
 struct literal : raw_data<literal>
 {
     literal() {}
@@ -44,12 +48,15 @@ struct literal : raw_data<literal>
 
     literal(shape s, const char* x) : buffer(x, x + s.bytes()), m_shape(s) {}
 
+    /// Whether data is available
     bool empty() const { return this->buffer.empty(); }
 
+    /// Provides a raw pointer to the data
     const char* data() const { return this->buffer.data(); }
 
     const shape& get_shape() const { return this->m_shape; }
 
+    /// Convert the data to an argument
     argument get_argument() const
     {
         auto b = buffer;

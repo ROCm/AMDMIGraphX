@@ -63,14 +63,15 @@ struct instruction
 
     bool valid() const
     {
-        return std::all_of(output.begin(), output.end(), [&](instruction_ref i)
-        {
-            return std::find(i->arguments.begin(), i->arguments.end(), *this) != i->arguments.end();
-        }) &&
-        std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i)
-        {
-            return std::find(i->output.begin(), i->output.end(), *this) != i->output.end();
-        });
+        return std::all_of(output.begin(),
+                           output.end(),
+                           [&](instruction_ref i) {
+                               return std::find(i->arguments.begin(), i->arguments.end(), *this) !=
+                                      i->arguments.end();
+                           }) &&
+               std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
+                   return std::find(i->output.begin(), i->output.end(), *this) != i->output.end();
+               });
     }
 
     friend bool operator==(instruction_ref ref, const instruction& i) { return i == ref; }

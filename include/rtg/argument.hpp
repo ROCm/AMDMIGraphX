@@ -9,9 +9,10 @@ namespace rtg {
 
 /**
  * @brief Arguments passed to instructions
- * 
- * An `argument` can represent a raw buffer of data that either be referenced from another element or it can be owned by the argument. 
- * 
+ *
+ * An `argument` can represent a raw buffer of data that either be referenced from another element
+ * or it can be owned by the argument.
+ *
  */
 struct argument : raw_data<argument>
 {

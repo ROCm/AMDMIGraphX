@@ -15,7 +15,7 @@ struct exception : std::runtime_error
 
 /**
  * @brief Create an exception object
- * 
+ *
  * @param context A message that says where the exception occurred
  * @param message
  * @return Exceptions
@@ -27,10 +27,10 @@ inline exception make_exception(std::string context, std::string message = "")
 
 /**
  * @brief Create a message of a file location
- * 
+ *
  * @param file The filename
  * @param line The line number
- * 
+ *
  * @return A string that represents the file location
  */
 inline std::string make_source_context(const std::string& file, int line)

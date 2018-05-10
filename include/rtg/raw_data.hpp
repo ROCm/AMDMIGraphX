@@ -8,10 +8,11 @@ namespace rtg {
 
 /**
  * @brief Provides a base class for common operations with raw buffer
- * 
- * For classes that handle a raw buffer of data, this will provide common operations such as equals, printing, and visitors. 
- * To use this class the derived class needs to provide a `data()` method to retrieve a raw pointer to the data, and `get_shape` method that provides the shape of the data.
- * 
+ *
+ * For classes that handle a raw buffer of data, this will provide common operations such as equals,
+ * printing, and visitors. To use this class the derived class needs to provide a `data()` method to
+ * retrieve a raw pointer to the data, and `get_shape` method that provides the shape of the data.
+ *
  */
 template <class Derived>
 struct raw_data
@@ -46,7 +47,7 @@ struct raw_data
 
     /**
      * @brief Visits a single data element at a certain index.
-     * 
+     *
      * @param v A function which will be called with the type of data
      * @param n The index to read from
      */
@@ -60,9 +61,9 @@ struct raw_data
 
     /**
      * @brief Visits the data
-     * 
+     *
      *  This will call the visitor function with a `tensor_view<T>` based on the shape of the data.
-     * 
+     *
      * @param v A function to be called with `tensor_view<T>`
      */
     template <class Visitor>
@@ -82,7 +83,7 @@ struct raw_data
     /**
      * @brief Retrieves a single element of data
      * @details [long description]
-     * 
+     *
      * @param n The index to retrieve the data from
      * @tparam T The type of data to be retrieved
      * @return The element as `T`

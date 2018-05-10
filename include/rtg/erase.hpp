@@ -5,7 +5,7 @@ namespace rtg {
 
 /**
  * @brief Erase all elements from a container
- * 
+ *
  * @param r The container to erase elements from
  * @param value The value to be erased
  * @return Returns iterator to erased element
@@ -18,7 +18,7 @@ auto erase(R&& r, const T& value)
 
 /**
  * @brief Erase all elements from a container
- * 
+ *
  * @param r The container to erase elements from
  * @param pred Predicate function that selects which elements should be erased.
  * @return Returns iterator to erased element

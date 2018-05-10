@@ -72,8 +72,16 @@ bool program::has_instruction(instruction_ref ins) const
 instruction_ref program::begin() { return impl->instructions.begin(); }
 instruction_ref program::end() { return impl->instructions.end(); }
 
+instruction_ref program::validate() const
+{
+    return std::find_if(impl->instructions.begin(), impl->instructions.end(), [](const instruction& i) {
+        return i.valid();
+    });
+}
+
 literal program::eval(std::unordered_map<std::string, argument> params) const
 {
+    assert(this->validate() != impl->instructions.end());
     std::unordered_map<const instruction*, argument> results;
     argument result;
     for(auto& ins : impl->instructions)

@@ -63,6 +63,8 @@ struct program
     instruction_ref begin();
     instruction_ref end();
 
+    instruction_ref validate() const;
+
     private:
     std::unique_ptr<program_impl> impl;
 };

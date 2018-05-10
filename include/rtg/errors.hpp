@@ -17,7 +17,7 @@ struct exception : std::runtime_error
  * @brief Create an exception object
  *
  * @param context A message that says where the exception occurred
- * @param message
+ * @param message Custom message for the error
  * @return Exceptions
  */
 inline exception make_exception(std::string context, std::string message = "")

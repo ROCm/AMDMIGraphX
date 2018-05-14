@@ -6,6 +6,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <functional>
+#include <array>
 
 #include <rtg/fallthrough.hpp>
 #include <rtg/program.hpp>

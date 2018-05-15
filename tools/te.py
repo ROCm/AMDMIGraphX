@@ -231,8 +231,8 @@ def interface(name, *members):
     return generate_form(name, members)
 
 def template_eval(template,**kwargs):
-    start = '{%'
-    end = '%}'
+    start = '<%'
+    end = '%>'
     escaped = (re.escape(start), re.escape(end))
     mark = re.compile('%s(.*?)%s' % escaped, re.DOTALL)
     for key in kwargs:

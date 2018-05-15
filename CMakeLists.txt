@@ -99,3 +99,4 @@ target_include_directories(rtg PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_D
 add_subdirectory(frontend)
 add_subdirectory(doc)
 add_subdirectory(test)
+add_subdirectory(tools)

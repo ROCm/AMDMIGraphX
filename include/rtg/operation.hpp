@@ -185,8 +185,7 @@ inline ValueType* any_cast(operation* x)
 template <typename ValueType>
 inline ValueType& any_cast(operation& x)
 {
-    using type = typename std::remove_reference<ValueType>::type;
-    auto* y    = x.any_cast<type>();
+    auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
     if(y == nullptr)
         throw std::bad_cast();
     return *y;
@@ -195,8 +194,7 @@ inline ValueType& any_cast(operation& x)
 template <typename ValueType>
 inline const ValueType& any_cast(const operation& x)
 {
-    using type    = typename std::remove_reference<ValueType>::type;
-    const auto* y = x.any_cast<type>();
+    const auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
     if(y == nullptr)
         throw std::bad_cast();
     return *y;

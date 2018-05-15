@@ -96,6 +96,6 @@ add_library(rtg
 rocm_clang_tidy_check(rtg)
 target_include_directories(rtg PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
-add_subdirectory(onnx)
+add_subdirectory(frontend)
 add_subdirectory(doc)
 add_subdirectory(test)

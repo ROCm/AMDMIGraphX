@@ -64,12 +64,8 @@ struct minus_op
 
 struct id_target
 {
-    std::string name() const
-    {
-        return "id";
-    }
-    void apply(rtg::program&) const
-    {}
+    std::string name() const { return "id"; }
+    void apply(rtg::program&) const {}
 };
 
 void literal_test1()

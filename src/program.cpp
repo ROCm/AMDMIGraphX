@@ -79,6 +79,14 @@ instruction_ref program::validate() const
                         [](const instruction& i) { return i.valid(); });
 }
 
+void program::compile(const target& t)
+{
+    assert(this->validate() != impl->instructions.end());
+    t.apply(*this);
+    if(this->validate() == impl->instructions.end())
+        RTG_THROW("Invalid program from compilation");
+}
+
 literal program::eval(std::unordered_map<std::string, argument> params) const
 {
     assert(this->validate() != impl->instructions.end());

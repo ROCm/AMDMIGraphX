@@ -11,6 +11,16 @@
 
 namespace rtg {
 
+namespace operation_stream {
+
+template <class T>
+auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
+{
+    return os << x.name();
+}
+
+} // namespace operation_stream
+
 /*
  * Type-erased interface for:
  *
@@ -142,16 +152,19 @@ struct operation
 
         shape compute_shape(std::vector<shape> input) const override
         {
+
             return private_detail_te_value.compute_shape(std::move(input));
         }
 
         argument compute(std::vector<argument> input) const override
         {
+
             return private_detail_te_value.compute(std::move(input));
         }
 
         std::ostream& operator_shift_left(std::ostream& os) const override
         {
+            using rtg::operation_stream::operator<<;
             return os << private_detail_te_value;
         }
 

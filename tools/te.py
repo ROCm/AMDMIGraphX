@@ -173,6 +173,7 @@ pure_virtual_member = string.Template("virtual ${return_type} ${internal_name}($
 virtual_member = string.Template('''
 ${return_type} ${internal_name}(${member_params}) ${member_const} override
 {
+    ${using}
     return ${call};
 }
 ''')
@@ -217,7 +218,8 @@ def convert_member(d, struct_name):
             'const': '',
             'member_const': '',
             'friend': '',
-            'this': '(*this)'
+            'this': '(*this)',
+            'using': ''
         }
         args = []
         params = []
@@ -237,6 +239,8 @@ def convert_member(d, struct_name):
                 member['member_const'] = 'const'
             elif x == 'friend':
                 member['friend'] = 'friend'
+            elif x == 'using':
+                member['using'] = 'using {};'.format(d[name]['using'])
             else:
                 use_member = not(skip and struct_name == trim_type_name(t))
                 arg_name = x

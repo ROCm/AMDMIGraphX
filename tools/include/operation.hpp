@@ -13,14 +13,13 @@ namespace rtg {
 
 namespace operation_stream {
 
-template<class T>
-std::ostream& operator<<(std::ostream& os, const T& x)
+template <class T>
+auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
 {
-    os << x.name();
-    return os;
+    return os << x.name();
 }
 
-}
+} // namespace operation_stream
 
 <%
 interface('operation',

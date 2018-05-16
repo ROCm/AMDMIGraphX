@@ -16,9 +16,9 @@ namespace rtg {
  *
  * struct operation
  * {
- *     std::string name() const;
- *     shape compute_shape(std::vector<shape> input) const;
- *     argument compute(std::vector<argument> input) const;
+ *      std::string name() const;
+ *      shape compute_shape(std::vector<shape> input) const;
+ *      argument compute(std::vector<argument> input) const;
  * };
  *
  */

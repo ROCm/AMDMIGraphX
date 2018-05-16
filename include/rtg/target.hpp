@@ -16,8 +16,8 @@ struct program;
  *
  * struct target
  * {
- *     std::string name() const;
- *     void apply(program & p) const;
+ *      std::string name() const;
+ *      void apply(program & p) const;
  * };
  *
  */

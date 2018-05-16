@@ -1,35 +1,34 @@
-#ifndef RTG_GUARD_RTGLIB_OPERAND_HPP
-#define RTG_GUARD_RTGLIB_OPERAND_HPP
+#ifndef RTG_GUARD_RTGLIB_TARGET_HPP
+#define RTG_GUARD_RTGLIB_TARGET_HPP
 
 #include <string>
 #include <functional>
 #include <memory>
 #include <type_traits>
 #include <utility>
-#include <rtg/shape.hpp>
-#include <rtg/argument.hpp>
 
 namespace rtg {
+
+struct program;
 
 /*
  * Type-erased interface for:
  *
- * struct operation
+ * struct target
  * {
  *     std::string name() const;
- *     shape compute_shape(std::vector<shape> input) const;
- *     argument compute(std::vector<argument> input) const;
+ *     void apply(program & p) const;
  * };
  *
  */
 
-struct operation
+struct target
 {
     // Constructors
-    operation() = default;
+    target() = default;
 
     template <typename PrivateDetailTypeErasedT>
-    operation(PrivateDetailTypeErasedT value)
+    target(PrivateDetailTypeErasedT value)
         : private_detail_te_handle_mem_var(
               std::make_shared<private_detail_te_handle_type<
                   typename std::remove_reference<PrivateDetailTypeErasedT>::type>>(
@@ -39,7 +38,7 @@ struct operation
 
     // Assignment
     template <typename PrivateDetailTypeErasedT>
-    operation& operator=(PrivateDetailTypeErasedT value)
+    target& operator=(PrivateDetailTypeErasedT value)
     {
         if(private_detail_te_handle_mem_var.unique())
             *private_detail_te_handle_mem_var = std::forward<PrivateDetailTypeErasedT>(value);
@@ -78,16 +77,10 @@ struct operation
         return private_detail_te_get_handle().name();
     }
 
-    shape compute_shape(std::vector<shape> input) const
+    void apply(program& p) const
     {
         assert(private_detail_te_handle_mem_var);
-        return private_detail_te_get_handle().compute_shape(std::move(input));
-    }
-
-    argument compute(std::vector<argument> input) const
-    {
-        assert(private_detail_te_handle_mem_var);
-        return private_detail_te_get_handle().compute(std::move(input));
+        return private_detail_te_get_handle().apply(p);
     }
 
     private:
@@ -97,9 +90,8 @@ struct operation
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const                            = 0;
-        virtual shape compute_shape(std::vector<shape> input) const = 0;
-        virtual argument compute(std::vector<argument> input) const = 0;
+        virtual std::string name() const     = 0;
+        virtual void apply(program& p) const = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -132,15 +124,7 @@ struct operation
 
         std::string name() const override { return private_detail_te_value.name(); }
 
-        shape compute_shape(std::vector<shape> input) const override
-        {
-            return private_detail_te_value.compute_shape(std::move(input));
-        }
-
-        argument compute(std::vector<argument> input) const override
-        {
-            return private_detail_te_value.compute(std::move(input));
-        }
+        void apply(program& p) const override { return private_detail_te_value.apply(p); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -171,19 +155,19 @@ struct operation
 };
 
 template <typename ValueType>
-inline const ValueType* any_cast(const operation* x)
+inline const ValueType* any_cast(const target* x)
 {
     return x->any_cast<ValueType>();
 }
 
 template <typename ValueType>
-inline ValueType* any_cast(operation* x)
+inline ValueType* any_cast(target* x)
 {
     return x->any_cast<ValueType>();
 }
 
 template <typename ValueType>
-inline ValueType& any_cast(operation& x)
+inline ValueType& any_cast(target& x)
 {
     auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
     if(y == nullptr)
@@ -192,7 +176,7 @@ inline ValueType& any_cast(operation& x)
 }
 
 template <typename ValueType>
-inline const ValueType& any_cast(const operation& x)
+inline const ValueType& any_cast(const target& x)
 {
     const auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
     if(y == nullptr)

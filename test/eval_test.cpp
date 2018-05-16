@@ -62,6 +62,12 @@ struct minus_op
     }
 };
 
+struct id_target
+{
+    std::string name() const { return "id"; }
+    void apply(rtg::program&) const {}
+};
+
 void literal_test1()
 {
     rtg::program p;
@@ -133,6 +139,19 @@ void insert_replace_test()
     EXPECT(result != rtg::literal{5});
 }
 
+void target_test()
+{
+    rtg::program p;
+
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    p.add_instruction(sum_op{}, one, two);
+    p.compile(id_target{});
+    auto result = p.eval({});
+    EXPECT(result == rtg::literal{3});
+    EXPECT(result != rtg::literal{4});
+}
+
 int main()
 {
     literal_test1();
@@ -140,4 +159,5 @@ int main()
     param_test();
     replace_test();
     insert_replace_test();
+    target_test();
 }

@@ -7,6 +7,7 @@
 #include <rtg/literal.hpp>
 #include <rtg/builtin.hpp>
 #include <rtg/instruction_ref.hpp>
+#include <rtg/target.hpp>
 #include <algorithm>
 #include <iostream>
 
@@ -67,6 +68,8 @@ struct program
     instruction_ref end();
 
     instruction_ref validate() const;
+
+    void compile(const target& t);
 
     private:
     std::unique_ptr<program_impl> impl;

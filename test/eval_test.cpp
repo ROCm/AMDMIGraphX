@@ -31,6 +31,12 @@ struct sum_op
             RTG_THROW("Wrong inputs");
         return inputs.front();
     }
+
+    friend std::ostream & operator<<(std::ostream & os, const sum_op & op)
+    {
+        os << op.name();
+        return os;
+    }
 };
 
 struct minus_op
@@ -59,6 +65,12 @@ struct minus_op
         if(inputs.size() != 2)
             RTG_THROW("Wrong inputs");
         return inputs.front();
+    }
+
+    friend std::ostream & operator<<(std::ostream & os, const minus_op & op)
+    {
+        os << op.name();
+        return os;
     }
 };
 

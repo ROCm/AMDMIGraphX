@@ -10,6 +10,11 @@ struct simple_operation
     std::string name() const { return "simple"; }
     rtg::shape compute_shape(std::vector<rtg::shape>) const { RTG_THROW("not computable"); }
     rtg::argument compute(std::vector<rtg::argument>) const { RTG_THROW("not computable"); }
+    friend std::ostream & operator<<(std::ostream & os, const simple_operation & op)
+    {
+        os << op.name();
+        return os;
+    }
 };
 
 void operation_copy_test()

@@ -73,14 +73,14 @@ struct target
 
     std::string name() const
     {
-        assert(private_detail_te_handle_mem_var);
-        return private_detail_te_get_handle().name();
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().name();
     }
 
     void apply(program& p) const
     {
-        assert(private_detail_te_handle_mem_var);
-        return private_detail_te_get_handle().apply(p);
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().apply(p);
     }
 
     private:

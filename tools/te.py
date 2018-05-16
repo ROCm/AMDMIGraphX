@@ -163,15 +163,15 @@ inline const ValueType & any_cast(const ${struct_name} & x)
 nonvirtual_member = string.Template('''
 ${friend} ${return_type} ${name}(${params}) ${const}
 {
-    assert(private_detail_te_handle_mem_var);
-    return private_detail_te_get_handle().${internal_name}(${member_args});
+    assert(${this}.private_detail_te_handle_mem_var);
+    return ${this}.private_detail_te_get_handle().${internal_name}(${member_args});
 }
 ''')
 
-pure_virtual_member = string.Template("virtual ${return_type} ${internal_name}(${member_params}) ${const} = 0;\n")
+pure_virtual_member = string.Template("virtual ${return_type} ${internal_name}(${member_params}) ${member_const} = 0;\n")
 
 virtual_member = string.Template('''
-${return_type} ${internal_name}(${member_params}) ${const} override
+${return_type} ${internal_name}(${member_params}) ${member_const} override
 {
     return ${call};
 }
@@ -201,17 +201,24 @@ def generate_call(m, friend):
     if m['name'].startswith('operator'):
         op = m['name'][8:]
         args = m['args']
-        if len(m[args]) == 2:
-            return string.Template('${arg1} ${op} ${arg2}').substitute(op=op, arg1=args[0], arg2=args[1])
+        if ',' in args:
+            return args.replace(',', op)
         else:
-            return string.Template('${op}${arg1}').substitute(op=op, arg1=args[0])
+            return string.Template('${op}${arga}').substitute(op=op, args=args)
     if friend:
         return string.Template('${name}(${args})').substitute(m)
     return string.Template('private_detail_te_value.${name}(${args})').substitute(m)
 
 def convert_member(d, struct_name):
     for name in d:
-        member = { 'name': name, 'internal_name': internal_name(name), 'const': '', 'friend': ''}
+        member = { 
+            'name': name,
+            'internal_name': internal_name(name),
+            'const': '',
+            'member_const': '',
+            'friend': '',
+            'this': '(*this)'
+        }
         args = []
         params = []
         member_args = []
@@ -227,12 +234,17 @@ def convert_member(d, struct_name):
                 member['return_type'] = t
             elif x == 'const':
                 member['const'] = 'const'
+                member['member_const'] = 'const'
             elif x == 'friend':
                 member['friend'] = 'friend'
             else:
                 use_member = not(skip and struct_name == trim_type_name(t))
                 arg_name = x
-                if not use_member: arg_name = 'private_detail_te_value'
+                if not use_member: 
+                    arg_name = 'private_detail_te_value'
+                    member['this'] = x
+                    if 'const' in t:
+                        member['member_const'] = 'const'
                 if t.endswith(('&', '*')):
                     if use_member: member_args.append(x)
                     args.append(arg_name)

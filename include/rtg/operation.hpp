@@ -19,6 +19,7 @@ namespace rtg {
  *      std::string name() const;
  *      shape compute_shape(std::vector<shape> input) const;
  *      argument compute(std::vector<argument> input) const;
+ *     friend std::ostream & operator<<(std::ostream & os,const operation & op) ;
  * };
  *
  */
@@ -74,20 +75,26 @@ struct operation
 
     std::string name() const
     {
-        assert(private_detail_te_handle_mem_var);
-        return private_detail_te_get_handle().name();
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().name();
     }
 
     shape compute_shape(std::vector<shape> input) const
     {
-        assert(private_detail_te_handle_mem_var);
-        return private_detail_te_get_handle().compute_shape(std::move(input));
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().compute_shape(std::move(input));
     }
 
     argument compute(std::vector<argument> input) const
     {
-        assert(private_detail_te_handle_mem_var);
-        return private_detail_te_get_handle().compute(std::move(input));
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().compute(std::move(input));
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const operation& op)
+    {
+        assert(op.private_detail_te_handle_mem_var);
+        return op.private_detail_te_get_handle().operator_shift_left(os);
     }
 
     private:
@@ -97,9 +104,10 @@ struct operation
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const                            = 0;
-        virtual shape compute_shape(std::vector<shape> input) const = 0;
-        virtual argument compute(std::vector<argument> input) const = 0;
+        virtual std::string name() const                                  = 0;
+        virtual shape compute_shape(std::vector<shape> input) const       = 0;
+        virtual argument compute(std::vector<argument> input) const       = 0;
+        virtual std::ostream& operator_shift_left(std::ostream& os) const = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -140,6 +148,11 @@ struct operation
         argument compute(std::vector<argument> input) const override
         {
             return private_detail_te_value.compute(std::move(input));
+        }
+
+        std::ostream& operator_shift_left(std::ostream& os) const override
+        {
+            return os << private_detail_te_value;
         }
 
         PrivateDetailTypeErasedT private_detail_te_value;

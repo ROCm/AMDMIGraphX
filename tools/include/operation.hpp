@@ -15,7 +15,8 @@ namespace rtg {
 interface('operation',
     virtual('name', returns='std::string', const=True),
     virtual('compute_shape', returns='shape', input='std::vector<shape>', const=True),
-    virtual('compute', returns='argument', input='std::vector<argument>', const=True)
+    virtual('compute', returns='argument', input='std::vector<argument>', const=True),
+    friend('operator<<', returns='std::ostream &', os='std::ostream &', op='const operation &')
 )
 %>
 

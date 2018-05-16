@@ -32,7 +32,7 @@ struct sum_op
         return inputs.front();
     }
 
-    friend std::ostream & operator<<(std::ostream & os, const sum_op & op)
+    friend std::ostream& operator<<(std::ostream& os, const sum_op& op)
     {
         os << op.name();
         return os;
@@ -67,7 +67,7 @@ struct minus_op
         return inputs.front();
     }
 
-    friend std::ostream & operator<<(std::ostream & os, const minus_op & op)
+    friend std::ostream& operator<<(std::ostream& os, const minus_op& op)
     {
         os << op.name();
         return os;

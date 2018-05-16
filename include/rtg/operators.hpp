@@ -57,7 +57,7 @@ struct convolution
 
     argument compute(std::vector<argument>) const { RTG_THROW("not computable"); }
 
-    friend std::ostream & operator<<(std::ostream & os, const convolution & op)
+    friend std::ostream& operator<<(std::ostream& os, const convolution& op)
     {
         os << op.name();
         return os;
@@ -103,7 +103,7 @@ struct pooling
 
     argument compute(std::vector<argument>) const { RTG_THROW("not computable"); }
 
-    friend std::ostream & operator<<(std::ostream & os, const pooling & op)
+    friend std::ostream& operator<<(std::ostream& os, const pooling& op)
     {
         os << op.name();
         return os;
@@ -122,7 +122,7 @@ struct activation
     }
 
     argument compute(std::vector<argument>) const { RTG_THROW("not computable"); }
-    friend std::ostream & operator<<(std::ostream & os, const activation & op)
+    friend std::ostream& operator<<(std::ostream& os, const activation& op)
     {
         os << op.name();
         return os;
@@ -154,7 +154,7 @@ struct reshape
 
     argument compute(std::vector<argument>) const { RTG_THROW("not computable"); }
 
-    friend std::ostream & operator<<(std::ostream & os, const reshape & op)
+    friend std::ostream& operator<<(std::ostream& os, const reshape& op)
     {
         os << op.name();
         return os;

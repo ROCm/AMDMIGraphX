@@ -23,7 +23,7 @@ struct unknown
             return input.front();
     }
     rtg::argument compute(std::vector<rtg::argument>) const { RTG_THROW("not computable"); }
-    friend std::ostream & operator<<(std::ostream & os, const unknown & x)
+    friend std::ostream& operator<<(std::ostream& os, const unknown& x)
     {
         os << x.name();
         return os;

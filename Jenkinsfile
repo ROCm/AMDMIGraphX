@@ -7,7 +7,7 @@ def rocmtestnode(variant, name, body) {
             mkdir build
             cd build
             CXX=${compiler} CXXFLAGS='-Werror' cmake -DCMAKE_CXX_FLAGS_DEBUG='-g -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined' ${flags} .. 
-            CTEST_PARALLEL_LEVEL=32 make -j32 check
+            CTEST_PARALLEL_LEVEL=32 make -j32 all doc check
         """
         echo cmd
         sh cmd

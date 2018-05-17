@@ -3,6 +3,7 @@
 
 #include <rtg/operation.hpp>
 #include <rtg/stringutils.hpp>
+#include <rtg/streamutils.hpp>
 #include <cmath>
 
 namespace rtg {
@@ -19,8 +20,7 @@ struct convolution
     std::array<std::size_t, 2> dilation = {{1, 1}};
     std::string name() const
     {
-        return "convolution[padding={" + to_string(padding) + "}, stride={" + to_string(stride) +
-               "}, dilation={" + to_string(dilation) + "}]";
+        return "convolution";
     }
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -59,7 +59,11 @@ struct convolution
 
     friend std::ostream& operator<<(std::ostream& os, const convolution& op)
     {
-        os << op.name();
+        os << op.name() << "[";
+        os << "padding={" << stream_range(op.padding) << "}, ";
+        os << "stride={" << stream_range(op.stride) << "}, ";
+        os << "dilation={" << stream_range(op.dilation) << "}";
+        os << "]";
         return os;
     }
 };
@@ -72,8 +76,7 @@ struct pooling
     std::array<std::size_t, 2> lengths = {{1, 1}};
     std::string name() const
     {
-        return "pooling:" + mode + "[padding={" + to_string(padding) + "}, stride={" +
-               to_string(stride) + "}, lengths={" + to_string(lengths) + "}]";
+        return "pooling";
     }
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -105,7 +108,11 @@ struct pooling
 
     friend std::ostream& operator<<(std::ostream& os, const pooling& op)
     {
-        os << op.name();
+        os << op.name() << "[";
+        os << "padding={" << stream_range(op.padding) << "}, ";
+        os << "stride={" << stream_range(op.stride) << "}, ";
+        os << "lengths={" << stream_range(op.lengths) << "}";
+        os << "]";
         return os;
     }
 };
@@ -113,7 +120,7 @@ struct pooling
 struct activation
 {
     std::string mode;
-    std::string name() const { return "activation:" + mode; }
+    std::string name() const { return "activation"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         if(inputs.empty())
@@ -124,7 +131,7 @@ struct activation
     argument compute(std::vector<argument>) const { RTG_THROW("not computable"); }
     friend std::ostream& operator<<(std::ostream& os, const activation& op)
     {
-        os << op.name();
+        os << op.name() << ":" << op.mode;
         return os;
     }
 };
@@ -132,7 +139,7 @@ struct activation
 struct reshape
 {
     std::vector<int64_t> dims;
-    std::string name() const { return "reshape[dims={" + to_string(dims) + "}]"; }
+    std::string name() const { return "reshape"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         if(inputs.empty())
@@ -156,7 +163,9 @@ struct reshape
 
     friend std::ostream& operator<<(std::ostream& os, const reshape& op)
     {
-        os << op.name();
+        os << op.name() << "[";
+        os << "dims={" << stream_range(op.dims) << "}, ";
+        os << "]";
         return os;
     }
 };

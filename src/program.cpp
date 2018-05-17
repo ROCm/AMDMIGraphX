@@ -131,7 +131,7 @@ std::ostream& operator<<(std::ostream& os, const program& p)
 
         os << var_name << " = ";
 
-        os << ins.op.name();
+        os << ins.op;
 
         if(ins.op.name() == "@literal")
         {

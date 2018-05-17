@@ -99,7 +99,7 @@ void print_test()
 {
     rtg::program p;
 
-    auto x = p.add_parameter("x", {rtg::shape::int64_type});
+    auto x   = p.add_parameter("x", {rtg::shape::int64_type});
     auto two = p.add_literal(2);
     p.add_instruction(sum_op{}, x, two);
 
@@ -153,7 +153,6 @@ void insert_replace_test()
     EXPECT(result == rtg::literal{4});
     EXPECT(result != rtg::literal{5});
 }
-
 
 void target_test()
 {

@@ -18,10 +18,7 @@ struct convolution
     std::array<std::size_t, 2> padding  = {{0, 0}};
     std::array<std::size_t, 2> stride   = {{1, 1}};
     std::array<std::size_t, 2> dilation = {{1, 1}};
-    std::string name() const
-    {
-        return "convolution";
-    }
+    std::string name() const { return "convolution"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         if(inputs.size() != 2)
@@ -74,10 +71,7 @@ struct pooling
     std::array<std::size_t, 2> padding = {{0, 0}};
     std::array<std::size_t, 2> stride  = {{1, 1}};
     std::array<std::size_t, 2> lengths = {{1, 1}};
-    std::string name() const
-    {
-        return "pooling";
-    }
+    std::string name() const { return "pooling"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         if(inputs.empty())

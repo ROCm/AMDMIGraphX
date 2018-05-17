@@ -18,13 +18,13 @@ struct argument : raw_data<argument>
 {
     argument() {}
 
-    argument(shape s) : m_shape(s) 
+    argument(shape s) : m_shape(s)
     {
         std::vector<char> buffer(s.bytes());
         // TODO: Move vector
         data = [=]() mutable { return buffer.data(); };
     }
-    
+
     argument(shape s, std::function<char*()> d) : data(d), m_shape(s) {}
 
     /// Provides a raw pointer to the data

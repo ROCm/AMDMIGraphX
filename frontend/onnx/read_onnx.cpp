@@ -210,6 +210,7 @@ struct onnx_parser
         case onnx::AttributeProto::TENSORS: return {};
         case onnx::AttributeProto::GRAPHS: return {};
         }
+        RTG_THROW("Invalid attribute type");
     }
 
     static rtg::literal parse_tensor(const onnx::TensorProto& t)
@@ -250,6 +251,7 @@ struct onnx_parser
         case onnx::TensorProto::COMPLEX64: throw std::runtime_error("");
         case onnx::TensorProto::COMPLEX128: throw std::runtime_error("");
         }
+        RTG_THROW("Invalid tensor type");
     }
 
     static rtg::shape parse_type(const onnx::TypeProto& t)

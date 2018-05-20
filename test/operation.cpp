@@ -10,6 +10,18 @@ struct simple_operation
     std::string name() const { return "simple"; }
     rtg::shape compute_shape(std::vector<rtg::shape>) const { RTG_THROW("not computable"); }
     rtg::argument compute(std::vector<rtg::argument>) const { RTG_THROW("not computable"); }
+    friend std::ostream& operator<<(std::ostream& os, const simple_operation& op)
+    {
+        os << "[" << op.name() << "]";
+        return os;
+    }
+};
+
+struct simple_operation_no_print
+{
+    std::string name() const { return "simple"; }
+    rtg::shape compute_shape(std::vector<rtg::shape>) const { RTG_THROW("not computable"); }
+    rtg::argument compute(std::vector<rtg::argument>) const { RTG_THROW("not computable"); }
 };
 
 void operation_copy_test()
@@ -36,8 +48,28 @@ void operation_any_cast()
     EXPECT(rtg::any_cast<not_operation*>(&op2) == nullptr);
 }
 
+void operation_print()
+{
+    rtg::operation op = simple_operation{};
+    std::stringstream ss;
+    ss << op;
+    std::string s = ss.str();
+    EXPECT(s == "[simple]");
+}
+
+void operation_default_print()
+{
+    rtg::operation op = simple_operation_no_print{};
+    std::stringstream ss;
+    ss << op;
+    std::string s = ss.str();
+    EXPECT(s == "simple");
+}
+
 int main()
 {
     operation_copy_test();
     operation_any_cast();
+    operation_print();
+    operation_default_print();
 }

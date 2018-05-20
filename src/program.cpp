@@ -98,9 +98,9 @@ literal program::eval(std::unordered_map<std::string, argument> params) const
         {
             result = ins.lit.get_argument();
         }
-        else if(starts_with(ins.op.name(), "@param"))
+        else if(ins.op.name() == "@param")
         {
-            result = params.at(ins.op.name().substr(7));
+            result = params.at(any_cast<builtin::param>(ins.op).parameter);
         }
         else
         {
@@ -124,14 +124,14 @@ std::ostream& operator<<(std::ostream& os, const program& p)
     for(auto& ins : p.impl->instructions)
     {
         std::string var_name = "@" + std::to_string(count);
-        if(starts_with(ins.op.name(), "@param"))
+        if(ins.op.name() == "@param")
         {
-            var_name = ins.op.name().substr(7);
+            var_name = any_cast<builtin::param>(ins.op).parameter;
         }
 
         os << var_name << " = ";
 
-        os << ins.op.name();
+        os << ins.op;
 
         if(ins.op.name() == "@literal")
         {

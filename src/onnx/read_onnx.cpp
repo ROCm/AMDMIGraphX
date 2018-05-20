@@ -24,6 +24,11 @@ struct unknown
             return input.front();
     }
     rtg::argument compute(std::vector<rtg::argument>) const { RTG_THROW("not computable"); }
+    friend std::ostream& operator<<(std::ostream& os, const unknown& x)
+    {
+        os << x.name();
+        return os;
+    }
 };
 
 template <class C, class T>
@@ -211,6 +216,7 @@ struct onnx_parser
         case onnx::AttributeProto::TENSORS: return {};
         case onnx::AttributeProto::GRAPHS: return {};
         }
+        RTG_THROW("Invalid attribute type");
     }
 
     static rtg::literal parse_tensor(const onnx::TensorProto& t)
@@ -251,6 +257,7 @@ struct onnx_parser
         case onnx::TensorProto::COMPLEX64: throw std::runtime_error("");
         case onnx::TensorProto::COMPLEX128: throw std::runtime_error("");
         }
+        RTG_THROW("Invalid tensor type");
     }
 
     static rtg::shape parse_type(const onnx::TypeProto& t)

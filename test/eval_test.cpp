@@ -2,6 +2,7 @@
 #include <rtg/program.hpp>
 #include <rtg/argument.hpp>
 #include <rtg/shape.hpp>
+#include <sstream>
 #include "test.hpp"
 
 struct sum_op
@@ -94,6 +95,20 @@ void literal_test2()
     EXPECT(result != rtg::literal{3});
 }
 
+void print_test()
+{
+    rtg::program p;
+
+    auto x   = p.add_parameter("x", {rtg::shape::int64_type});
+    auto two = p.add_literal(2);
+    p.add_instruction(sum_op{}, x, two);
+
+    std::stringstream ss;
+    ss << p;
+    std::string s = ss.str();
+    EXPECT(!s.empty());
+}
+
 void param_test()
 {
     rtg::program p;
@@ -156,6 +171,7 @@ int main()
 {
     literal_test1();
     literal_test2();
+    print_test();
     param_test();
     replace_test();
     insert_replace_test();

@@ -1,0 +1,38 @@
+
+include(DoxygenDoc)
+
+set(DOXYGEN_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/doxygen/)
+add_doxygen_doc(
+    OUTPUT_DIRECTORY ${DOXYGEN_OUTPUT}
+    INPUT 
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src
+        ${CMAKE_CURRENT_SOURCE_DIR}/../onnx
+    MACRO_EXPANSION YES
+    RECURSIVE YES
+    GENERATE_XML YES
+    GENERATE_LATEX YES
+    USE_PDFLATEX YES
+    CALL_GRAPH YES
+    CALLER_GRAPH YES
+    BUILTIN_STL_SUPPORT YES
+    SORT_MEMBERS_CTORS_1ST YES
+    SOURCE_BROWSER YES
+    GENERATE_TREEVIEW YES
+    REFERENCED_BY_RELATION YES
+    REFERENCES_RELATION YES
+    REFERENCES_LINK_SOURCE YES
+    EXTRACT_ALL YES
+    ENUM_VALUES_PER_LINE 1
+)
+
+# include(SphinxDoc)
+# add_sphinx_doc(src 
+#     BUILDER html 
+#     OUTPUT_DIR html 
+#     VARS 
+#         breathe_projects.proj=${DOXYGEN_OUTPUT}/xml
+#         breathe_default_project=proj
+#     DEPENDS doxygen
+# )
+

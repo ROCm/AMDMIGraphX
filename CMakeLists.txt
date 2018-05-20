@@ -89,14 +89,7 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-add_library(rtg 
-    src/program.cpp
-    src/shape.cpp
-)
-rocm_clang_tidy_check(rtg)
-target_include_directories(rtg PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
-
-add_subdirectory(frontend)
+add_subdirectory(src)
 add_subdirectory(doc)
 add_subdirectory(test)
 add_subdirectory(tools)

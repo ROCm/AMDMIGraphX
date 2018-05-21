@@ -43,7 +43,6 @@ struct cpu_convolution
                     });
                     output(o, w, i, j) = acc;
                 });
-
         });
         return result;
     }

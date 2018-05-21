@@ -17,39 +17,35 @@ struct cpu_convolution
     {
         shape output_shape = compute_shape({args[0].get_shape(), args[1].get_shape()});
         argument result{compute_shape({args[0].get_shape(), args[1].get_shape()})};
-        result.visit([&](auto output) {
-            args[0].visit([&](auto input) {
-                args[1].visit([&](auto weights) {
-                    auto in_n = input.get_shape().lens()[0];
-                    auto in_c = input.get_shape().lens()[1];
-                    auto in_h = input.get_shape().lens()[2];
-                    auto in_w = input.get_shape().lens()[3];
+        visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
+            auto in_n = input.get_shape().lens()[0];
+            auto in_c = input.get_shape().lens()[1];
+            auto in_h = input.get_shape().lens()[2];
+            auto in_w = input.get_shape().lens()[3];
 
-                    auto wei_c = weights.get_shape().lens()[1];
-                    auto wei_h = weights.get_shape().lens()[2];
-                    auto wei_w = weights.get_shape().lens()[3];
+            auto wei_c = weights.get_shape().lens()[1];
+            auto wei_h = weights.get_shape().lens()[2];
+            auto wei_w = weights.get_shape().lens()[3];
 
-                    dfor(in_n,
-                         in_c,
-                         in_h,
-                         in_w)([&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
-                        const int start_x = i * op.stride[0] - op.padding[0];
-                        const int start_y = j * op.stride[1] - op.padding[1];
+            dfor(in_n,
+                 in_c,
+                 in_h,
+                 in_w)([&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
+                const int start_x = i * op.stride[0] - op.padding[0];
+                const int start_y = j * op.stride[1] - op.padding[1];
 
-                        double acc = 0;
-                        dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t y) {
-                            const int in_x = start_x + x;
-                            const int in_y = start_y + y;
-                            if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
-                            {
-                                acc += input(o, k, in_x, in_y) * weights(w, k, x, y);
-                            }
-                        });
-                        output(o, w, i, j) = acc;
-                    });
-
+                double acc = 0;
+                dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t y) {
+                    const int in_x = start_x + x;
+                    const int in_y = start_y + y;
+                    if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
+                    {
+                        acc += input(o, k, in_x, in_y) * weights(w, k, x, y);
+                    }
                 });
+                output(o, w, i, j) = acc;
             });
+            
         });
         return result;
     }

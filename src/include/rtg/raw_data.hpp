@@ -82,7 +82,6 @@ struct raw_data
 
     /**
      * @brief Retrieves a single element of data
-     * @details [long description]
      *
      * @param n The index to retrieve the data from
      * @tparam T The type of data to be retrieved
@@ -96,6 +95,20 @@ struct raw_data
         return result;
     }
 };
+
+template<class T, class... Ts>
+auto visit_all(T&& x, Ts&&... xs)
+{
+    auto&& s = x.get_shape();
+    std::initializer_list<shape::type_t> types = {xs.get_shape().type()...};
+    if (!std::all_of(types.begin(), types.end(), [&](shape::type_t t) { return t == s.type(); }))
+        RTG_THROW("Types must be the same");
+    return [&](auto v) {
+        s.visit_type([&](auto as) { 
+            v(make_view(s, as.from(x.data())), make_view(xs.get_shape(), as.from(xs.data()))...); 
+        });
+    };
+}
 
 } // namespace rtg
 

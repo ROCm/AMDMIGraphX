@@ -27,25 +27,23 @@ struct cpu_convolution
             auto wei_h = weights.get_shape().lens()[2];
             auto wei_w = weights.get_shape().lens()[3];
 
-            dfor(in_n,
-                 in_c,
-                 in_h,
-                 in_w)([&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
-                const int start_x = i * op.stride[0] - op.padding[0];
-                const int start_y = j * op.stride[1] - op.padding[1];
+            dfor(in_n, in_c, in_h, in_w)(
+                [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
+                    const int start_x = i * op.stride[0] - op.padding[0];
+                    const int start_y = j * op.stride[1] - op.padding[1];
 
-                double acc = 0;
-                dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t y) {
-                    const int in_x = start_x + x;
-                    const int in_y = start_y + y;
-                    if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
-                    {
-                        acc += input(o, k, in_x, in_y) * weights(w, k, x, y);
-                    }
+                    double acc = 0;
+                    dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t y) {
+                        const int in_x = start_x + x;
+                        const int in_y = start_y + y;
+                        if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
+                        {
+                            acc += input(o, k, in_x, in_y) * weights(w, k, x, y);
+                        }
+                    });
+                    output(o, w, i, j) = acc;
                 });
-                output(o, w, i, j) = acc;
-            });
-            
+
         });
         return result;
     }

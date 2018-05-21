@@ -49,6 +49,7 @@ rocm_enable_clang_tidy(
         -llvm-header-guard
         -llvm-include-order
         -misc-macro-parentheses
+        -modernize-use-auto
         -modernize-pass-by-value
         -modernize-use-default-member-init
         -modernize-use-transparent-functors

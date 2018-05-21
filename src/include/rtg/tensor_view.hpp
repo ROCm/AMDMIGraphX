@@ -33,7 +33,7 @@ struct tensor_view
     template <class... Ts>
     T& operator()(Ts... xs)
     {
-        return m_data[m_shape.index({xs...})];
+        return m_data[m_shape.index({static_cast<std::size_t>(xs)...})];
     }
 
     T& operator[](std::size_t i)

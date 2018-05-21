@@ -13,10 +13,9 @@ struct cpu_convolution
 
     std::string name() const { return "cpu::convolution"; }
     shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
-    argument compute(std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
-        shape output_shape = compute_shape({args[0].get_shape(), args[1].get_shape()});
-        argument result{compute_shape({args[0].get_shape(), args[1].get_shape()})};
+        argument result{output_shape};
         visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
             auto in_n = input.get_shape().lens()[0];
             auto in_c = input.get_shape().lens()[1];
@@ -53,9 +52,9 @@ struct relu
     std::string name() const { return "cpu::relu"; }
     shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
 
-    argument compute(std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
-        argument result{args[0].get_shape()};
+        argument result{output_shape};
         result.visit([&](auto output) {
             args[0].visit([&](auto input) {
                 std::transform(input.begin(), input.end(), output.begin(), [](auto x) {

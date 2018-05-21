@@ -8,7 +8,7 @@
 struct sum_op
 {
     std::string name() const { return "sum"; }
-    rtg::argument compute(std::vector<rtg::argument> args) const
+    rtg::argument compute(rtg::shape, std::vector<rtg::argument> args) const
     {
         rtg::argument result;
         if(args.size() != 2)
@@ -37,7 +37,7 @@ struct sum_op
 struct minus_op
 {
     std::string name() const { return "minus"; }
-    rtg::argument compute(std::vector<rtg::argument> args) const
+    rtg::argument compute(rtg::shape, std::vector<rtg::argument> args) const
     {
         rtg::argument result;
         if(args.size() != 2)

@@ -109,7 +109,7 @@ literal program::eval(std::unordered_map<std::string, argument> params) const
                            ins.arguments.end(),
                            values.begin(),
                            [&](instruction_ref i) { return results.at(std::addressof(*i)); });
-            result = ins.op.compute(values);
+            result = ins.op.compute(ins.result, values);
         }
         results.emplace(std::addressof(ins), result);
     }

@@ -12,7 +12,7 @@ struct literal
 {
     std::string name() const { return "@literal"; }
     shape compute_shape(std::vector<shape>) const { RTG_THROW("builtin"); }
-    argument compute(std::vector<argument>) const { RTG_THROW("builtin"); }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("builtin"); }
 };
 
 struct param
@@ -20,7 +20,7 @@ struct param
     std::string parameter;
     std::string name() const { return "@param"; }
     shape compute_shape(std::vector<shape>) const { RTG_THROW("builtin"); }
-    argument compute(std::vector<argument>) const { RTG_THROW("builtin"); }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("builtin"); }
     friend std::ostream& operator<<(std::ostream& os, const param& op)
     {
         os << op.name() << ":" << op.parameter;

@@ -3,7 +3,8 @@
 
 #include <rtg/program.hpp>
 
-namespace rtg { namespace cpu {
+namespace rtg {
+namespace cpu {
 
 struct cpu_target
 {

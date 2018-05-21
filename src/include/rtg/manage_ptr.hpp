@@ -37,16 +37,14 @@ struct element_type
 };
 
 template <class T>
-using remove_ptr = typename std::conditional_t<std::is_pointer<T>{},
-                                             std::remove_pointer<T>,
-                                             element_type<T>>::type;
+using remove_ptr = typename std::
+    conditional_t<std::is_pointer<T>{}, std::remove_pointer<T>, element_type<T>>::type;
 
 template <class T>
 using shared = std::shared_ptr<remove_ptr<T>>;
 
 } // namespace rtg
 
-#define RTG_MANAGE_PTR(T, F) \
-    rtg::manage_ptr<std::remove_pointer_t<T>, decltype(&F), &F> // NOLINT
+#define RTG_MANAGE_PTR(T, F) rtg::manage_ptr<std::remove_pointer_t<T>, decltype(&F), &F> // NOLINT
 
 #endif

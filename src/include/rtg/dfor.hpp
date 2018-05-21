@@ -6,17 +6,13 @@ namespace rtg {
 // Multidimensional for loop
 inline auto dfor()
 {
-    return [](auto f)
-    {
-        f();
-    };
+    return [](auto f) { f(); };
 }
 
-template<class T, class... Ts>
+template <class T, class... Ts>
 auto dfor(T x, Ts... xs)
 {
-    return [=](auto f) 
-    {
+    return [=](auto f) {
         for(T i = 0; i < x; i++)
         {
             dfor(xs...)([&](Ts... is) { f(i, is...); });

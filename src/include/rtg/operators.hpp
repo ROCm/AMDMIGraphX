@@ -12,22 +12,22 @@ struct check_shapes
 {
     const std::vector<shape>* shapes;
 
-    check_shapes(const std::vector<shape>& s)
-    : shapes(&s)
-    {}
+    check_shapes(const std::vector<shape>& s) : shapes(&s) {}
 
     const check_shapes& has(std::size_t n) const
     {
         assert(shapes != nullptr);
         if(shapes->size() != n)
-            RTG_THROW("Wrong number of arguments: expected " + std::to_string(n) + " but given " + std::to_string(shapes->size()));
+            RTG_THROW("Wrong number of arguments: expected " + std::to_string(n) + " but given " +
+                      std::to_string(shapes->size()));
         return *this;
     }
 
     const check_shapes& only_dims(std::size_t n) const
     {
         assert(shapes != nullptr);
-        if(!shapes->empty()) {
+        if(!shapes->empty())
+        {
             if(shapes->front().lens().size() != n)
                 RTG_THROW("Only " + std::to_string(n) + "d supported");
         }
@@ -55,19 +55,17 @@ struct check_shapes
         return *this;
     }
 
-    template<class F>
+    template <class F>
     bool same(F f) const
     {
         assert(shapes != nullptr);
         if(shapes->empty())
             return true;
         auto&& key = f(shapes->front());
-        return this->all_of([&](const shape& s) {
-            return f(s) == key;
-        });
+        return this->all_of([&](const shape& s) { return f(s) == key; });
     }
 
-    template<class Predicate>
+    template <class Predicate>
     bool all_of(Predicate p) const
     {
         assert(shapes != nullptr);
@@ -92,7 +90,7 @@ struct convolution
 
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
-        auto t = input.type();
+        auto t               = input.type();
         return {t,
                 {
                     input.lens()[0],
@@ -137,7 +135,7 @@ struct pooling
         check_shapes{inputs}.has(1).only_dims(4);
 
         const shape& input = inputs.at(0);
-        auto t = input.type();
+        auto t             = input.type();
         return {t,
                 {
                     input.lens()[0],

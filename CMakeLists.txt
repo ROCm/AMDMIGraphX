@@ -3,6 +3,12 @@ cmake_minimum_required(VERSION 3.5)
 project(rtglib)
 find_package(ROCM REQUIRED)
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "5.5")
+        message(FATAL_ERROR "RTGLib requires at least gcc 5.5")
+    endif()
+endif()
+
 add_compile_options(-std=c++14)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)

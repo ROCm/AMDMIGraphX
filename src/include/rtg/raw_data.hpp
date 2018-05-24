@@ -96,21 +96,21 @@ struct raw_data
     }
 };
 
-
 namespace detail {
-template<class V, class... Ts>
+template <class V, class... Ts>
 void visit_all_impl(const shape& s, V&& v, Ts&&... xs)
 {
-    s.visit_type([&](auto as) {
-        v(make_view(xs.get_shape(), as.from(xs.data()))...);
-    });
+    s.visit_type([&](auto as) { v(make_view(xs.get_shape(), as.from(xs.data()))...); });
 }
-}
+} // namespace detail
 
 /**
  * @brief Visits every object together
- * @details This will visit every object, but assumes each object is the same type. This can reduce the deeply nested visit calls. This will return a function that will take the visitor callback. So it will be called with `visit_all(xs...)([](auto... ys) {})` where `xs...` and `ys...` are the same number of parameters.
- * 
+ * @details This will visit every object, but assumes each object is the same type. This can reduce
+ * the deeply nested visit calls. This will return a function that will take the visitor callback.
+ * So it will be called with `visit_all(xs...)([](auto... ys) {})` where `xs...` and `ys...` are the
+ * same number of parameters.
+ *
  * @param x A raw data object
  * @param xs Many raw data objects
  * @return A function to be called with the visitor

@@ -8,3 +8,4 @@ target_include_directories(rtg PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_D
 
 add_subdirectory(onnx)
 add_subdirectory(targets/cpu)
+add_subdirectory(targets/miopen)

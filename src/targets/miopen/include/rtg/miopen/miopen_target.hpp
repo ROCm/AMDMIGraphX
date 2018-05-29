@@ -3,7 +3,8 @@
 
 #include <rtg/program.hpp>
 
-namespace rtg { namespace miopen {
+namespace rtg {
+namespace miopen {
 
 struct miopen_target
 {

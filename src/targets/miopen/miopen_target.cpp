@@ -3,23 +3,30 @@
 
 #include <miopen/miopen.h>
 
-namespace rtg { namespace miopen {
+namespace rtg {
+namespace miopen {
 
-using miopen_handle = RTG_MANAGE_PTR(miopenHandle_t, miopenDestroy);
+using miopen_handle     = RTG_MANAGE_PTR(miopenHandle_t, miopenDestroy);
 using tensor_descriptor = RTG_MANAGE_PTR(miopenTensorDescriptor_t, miopenDestroyTensorDescriptor);
-using convolution_descriptor = RTG_MANAGE_PTR(miopenConvolutionDescriptor_t, miopenDestroyConvolutionDescriptor);
-using activation_descriptor = RTG_MANAGE_PTR(miopenActivationDescriptor_t, miopenDestroyActivationDescriptor);
+using convolution_descriptor = RTG_MANAGE_PTR(miopenConvolutionDescriptor_t,
+                                              miopenDestroyConvolutionDescriptor);
+using activation_descriptor  = RTG_MANAGE_PTR(miopenActivationDescriptor_t,
+                                             miopenDestroyActivationDescriptor);
 
 struct miopen_apply
 {
-    program * prog;
+    program* prog;
 
     void apply()
     {
-        for(auto it = prog->begin();it != prog->end();it++) {
-            if (it->op.name() == "convolution") {
+        for(auto it = prog->begin(); it != prog->end(); it++)
+        {
+            if(it->op.name() == "convolution")
+            {
                 apply_convolution(it);
-            } else if (it->op.name() == "activation") {
+            }
+            else if(it->op.name() == "activation")
+            {
                 apply_activation(it);
             }
         }
@@ -31,22 +38,12 @@ struct miopen_apply
         // prog->replace_instruction(ins, miopen_convolution{op}, ins->arguments);
     }
 
-    void apply_activation(instruction_ref ins)
-    {
-
-    }
-
+    void apply_activation(instruction_ref ins) {}
 };
 
-std::string miopen_target::name() const
-{
-    return "miopen";
-}
+std::string miopen_target::name() const { return "miopen"; }
 
-void miopen_target::apply(program& p) const
-{
-    miopen_apply{&p}.apply();
-}
+void miopen_target::apply(program& p) const { miopen_apply{&p}.apply(); }
 
 } // namespace miopen
 

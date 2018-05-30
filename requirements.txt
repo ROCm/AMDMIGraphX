@@ -1,2 +1,3 @@
-RadeonOpenCompute/rocm-cmake@ec7313aa43de72729c8f66b2e53155e03aa74e20
 google/protobuf
+RadeonOpenCompute/rocm-cmake@3f43e2d493f24abbab4dc189a9ab12cc3ad33baf --build
+ROCmSoftwarePlatform/MIOpen

@@ -35,7 +35,7 @@ struct argument : raw_data<argument>
 
     const shape& get_shape() const { return this->m_shape; }
 
-    template<class T>
+    template <class T>
     T* cast() const
     {
         return reinterpret_cast<T*>(this->data());

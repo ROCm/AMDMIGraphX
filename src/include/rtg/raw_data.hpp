@@ -97,13 +97,13 @@ struct raw_data
 
     struct auto_cast
     {
-        const Derived * self;
-        template<class T>
+        const Derived* self;
+        template <class T>
         operator T()
         {
             return self->template at<T>();
         }
-        template<class T>
+        template <class T>
         operator T*()
         {
             // TODO: Check type
@@ -111,10 +111,7 @@ struct raw_data
         }
     };
 
-    auto_cast get() const
-    {
-        return {static_cast<const Derived*>(this)};
-    }
+    auto_cast get() const { return {static_cast<const Derived*>(this)}; }
 };
 
 namespace detail {

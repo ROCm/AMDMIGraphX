@@ -37,7 +37,8 @@ struct shape
 
     template <class T, class = void>
     struct get_type : std::integral_constant<type_t, any_type>
-    {};
+    {
+    };
 #define RTG_SHAPE_GET_TYPE(x, t)                              \
     template <class T>                                        \
     struct get_type<t, T> : std::integral_constant<type_t, x> \
@@ -114,7 +115,7 @@ struct shape
     {
         switch(this->m_type)
         {
-            case any_type: RTG_THROW("Cannot visit the any_type");
+        case any_type: RTG_THROW("Cannot visit the any_type");
 #define RTG_SHAPE_VISITOR_CASE(x, t) \
     case x: v(as<t>()); return;
             RTG_SHAPE_VISIT_TYPES(RTG_SHAPE_VISITOR_CASE)

@@ -91,7 +91,7 @@ std::string shape::type_string() const
 {
     switch(this->m_type)
     {
-        case any_type: return "any";
+    case any_type: return "any";
 #define RTG_SHAPE_TYPE_STRING_CASE(x, t) \
     case x: return #x;
         RTG_SHAPE_VISIT_TYPES(RTG_SHAPE_TYPE_STRING_CASE)

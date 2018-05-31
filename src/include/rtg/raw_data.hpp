@@ -94,6 +94,27 @@ struct raw_data
         this->visit_at([&](auto x) { result = x; }, n);
         return result;
     }
+
+    struct auto_cast
+    {
+        const Derived * self;
+        template<class T>
+        operator T()
+        {
+            return self->template at<T>();
+        }
+        template<class T>
+        operator T*()
+        {
+            // TODO: Check type
+            return reinterpret_cast<T*>(self->data());
+        }
+    };
+
+    auto_cast get() const
+    {
+        return {static_cast<const Derived*>(this)};
+    }
 };
 
 namespace detail {

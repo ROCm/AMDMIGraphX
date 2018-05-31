@@ -72,34 +72,35 @@ struct miopen_convolution
         auto w_desc = make_tensor(args[2].get_shape());
         auto y_desc = make_tensor(output_shape);
 
+        float alpha = 1, beta = 0;
         int algo_count;
         miopenConvAlgoPerf_t perf;
-        miopenFindConvolutionForwardAlgorithm(args[0].data(),
+        miopenFindConvolutionForwardAlgorithm(args[0].get(),
                                               x_desc.get(),
-                                              args[1].data(),
-                                              w_desc,
-                                              args[2].data(),
+                                              args[1].get(),
+                                              w_desc.get(),
+                                              args[2].get(),
                                               cd.get(),
-                                              y_desc,
-                                              args[4].data(),
+                                              y_desc.get(),
+                                              args[4].get(),
                                               1,
                                               &algo_count,
                                               &perf,
-                                              args[3].data(),
+                                              args[3].get(),
                                               args[3].get_shape().bytes(),
                                               false);
-        miopenConvolutionForward(args[0].data(),
+        miopenConvolutionForward(args[0].get(),
                                  &alpha,
-                                 x_desc,
-                                 args[1].data(),
-                                 w_desc,
-                                 args[2].data(),
+                                 x_desc.get(),
+                                 args[1].get(),
+                                 w_desc.get(),
+                                 args[2].get(),
                                  cd.get(),
                                  perf.fwd_algo,
                                  &beta,
-                                 y_desc,
-                                 args[4].data(),
-                                 args[3].data(),
+                                 y_desc.get(),
+                                 args[4].get(),
+                                 args[3].get(),
                                  args[3].get_shape().bytes());
         return result;
     }

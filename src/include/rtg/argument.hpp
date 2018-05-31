@@ -35,6 +35,12 @@ struct argument : raw_data<argument>
 
     const shape& get_shape() const { return this->m_shape; }
 
+    template<class T>
+    T* cast() const
+    {
+        return reinterpret_cast<T*>(this->data());
+    }
+
     private:
     shape m_shape;
 };

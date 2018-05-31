@@ -3,6 +3,12 @@ cmake_minimum_required(VERSION 3.5)
 project(rtglib)
 find_package(ROCM REQUIRED)
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "5.4")
+        message(FATAL_ERROR "RTGLib requires at least gcc 5.4")
+    endif()
+endif()
+
 add_compile_options(-std=c++14)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
@@ -49,6 +55,7 @@ rocm_enable_clang_tidy(
         -llvm-header-guard
         -llvm-include-order
         -misc-macro-parentheses
+        -modernize-use-auto
         -modernize-pass-by-value
         -modernize-use-default-member-init
         -modernize-use-transparent-functors

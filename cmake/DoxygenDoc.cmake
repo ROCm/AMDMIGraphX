@@ -320,6 +320,10 @@ function(add_doxygen_doc)
 
     file(WRITE ${DOXYGEN_CONFIG_FILE} "# Auto-generated doxygen configuration file\n")
 
+    if(NOT PARSE_STRIP_FROM_PATH)
+        set(PARSE_STRIP_FROM_PATH ${CMAKE_SOURCE_DIR})
+    endif()
+
     foreach(ARG ${DOXYGEN_ARGS})
         if(PARSE_${ARG})
             string(REPLACE ";" " " ARG_VALUE "${PARSE_${ARG}}")
@@ -342,7 +346,7 @@ function(add_doxygen_doc)
 
     add_custom_target(doxygen
         ${DOXYGEN_EXECUTABLE} ${DOXYGEN_CONFIG_FILE}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "Building documentation with doxygen"
     )
     if(PARSE_OUTPUT_DIRECTORY)

@@ -1,6 +1,7 @@
 #ifndef RTG_GUARD_OPERATORS_HPP
 #define RTG_GUARD_OPERATORS_HPP
 
+#include <array>
 #include <rtg/operation.hpp>
 #include <rtg/stringutils.hpp>
 #include <rtg/streamutils.hpp>
@@ -215,6 +216,33 @@ struct reshape
         os << "dims={" << stream_range(op.dims) << "}, ";
         os << "]";
         return os;
+    }
+};
+
+struct gemm
+{
+    std::string name() const { return "gemm";}
+    std::size_t lda = 1; 
+    std::size_t ldb = 1; 
+    std::size_t ldc = 1; 
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(2).same_type().same_dims().only_dims(2);
+        const shape& A = inputs.at(0); 
+        const shape& B = inputs.at(1); 
+        
+        auto t         = A.type();
+        if (A.lens()[1] != B.lens()[0])
+            RTG_THROW("Inner dimensions do not match");
+        return {t, {A.lens()[0], B.lens()[1]}};
+    }
+  
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+  
+    friend std::ostream& operator<<(std::ostream& os, const gemm& op) 
+    {
+        os << op.name() << "[";
+        os << "]"; 
     }
 };
 

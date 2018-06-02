@@ -47,6 +47,45 @@ struct cpu_convolution
     }
 };
 
+struct cpu_gemm
+{
+    gemm op;
+    std::string name() const { return "cpu::gemm"; }
+    shape compute_shape(std::vector<shape> inputs) 
+    {
+        return op.compute_shape(inputs);
+    }
+
+    argument compute(shape output_shape, std::vector<argument> args) const 
+    {
+        argument C{output_shape};
+        visit_all(C, args[0], args[1])([&](auto C, auto A, auto B) {
+            auto M = A.get_shape().lens()[0];
+            auto N = B.get_shape().lens()[1];
+            auto K = B.get_shape().lens()[0];
+
+            auto a = A.data();
+            auto b = B.data();
+            auto c = C.data();
+            for (int ii = 0; ii < M; ii++) {
+              for (int jj = 0; jj < N; jj++) {
+                c[ii*N+jj] = 0;
+              }
+            }
+            for (int ii = 0; ii < M; ii++) {
+              for (int kk = 0; kk < K; kk++) {
+                auto aik = a[ii*K+kk];
+                auto* bkj = &b[kk*N];
+                auto* cij = &c[ii*N];
+                for (int jj = 0; jj < N; jj++, cij++, bkj++) {
+                  *cij += aik*(*bkj);
+                }
+              }
+            }
+        });
+    }
+};
+
 struct relu
 {
     std::string name() const { return "cpu::relu"; }

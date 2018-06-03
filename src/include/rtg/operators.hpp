@@ -246,6 +246,80 @@ struct gemm
     }
 };
 
+struct identity
+{
+    std::string name() const { return "identity"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      check_shapes{inputs}.has(1);
+      return inputs.at(0);
+    }
+};
+
+struct softmax
+{
+    std::string name() const { return "softmax"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      check_shapes{inputs}.has(1);
+      return inputs.at(0);
+    }
+};
+
+struct flatten 
+{
+    std::string name() const { return "flatten"; }
+};
+
+struct add_op
+{
+    std::string name() const { return "add"; }
+};
+
+struct sub_op
+{
+    std::string name() const { return "sub"; }
+};
+
+struct mul_op
+{
+    std::string name() const { return "mul"; }
+};
+
+struct div_op
+{
+    std::string name() const { return "div"; }
+};
+
+struct max_op
+{
+    std::string name() const { return "max"; }
+};
+
+struct min_op
+{
+    std::string name() const { return "min"; }
+};
+
+// max, min, add, sub
+template <typename Op>
+struct binaryop
+{
+    Op op;
+    std::string name() const { op.name(); }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      // TODO(wsttiger@gmail.com) Check this for numpy-style broadcasting operations
+      check_shapes{inputs}.has(2).same_type().same_dims();
+      return inputs.at(0);
+    }
+};
+
+struct reduce
+{
+    std::string name() const { return "reduce"; }
+};
+
 } // namespace rtg
 
 #endif

@@ -246,19 +246,76 @@ struct gemm
     }
 };
 
-struct identity
+struct identity_op
 {
-    std::string name() const { return "identity"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      check_shapes{inputs}.has(1);
-      return inputs.at(0);
-    }
+    std::string name() const {return "identity"; }
 };
 
-struct softmax
+struct abs_op 
 {
-    std::string name() const { return "softmax"; }
+    std::string name() const {return "abs"; }
+};
+
+struct exp_op 
+{
+    std::string name() const {return "exp"; }
+};
+
+struct sin_op 
+{
+    std::string name() const {return "sin"; }
+};
+
+struct cos_op 
+{
+    std::string name() const {return "cos"; }
+};
+
+struct tan_op 
+{
+    std::string name() const {return "tan"; }
+};
+
+struct asin_op 
+{
+    std::string name() const {return "asin"; }
+};
+
+struct acos_op 
+{
+    std::string name() const {return "acos"; }
+};
+
+struct atan_op 
+{
+    std::string name() const {return "atan"; }
+};
+
+struct softmax_op
+{
+    std::string name() const {return "softmax"; }
+};
+
+struct tanh_op
+{
+    std::string name() const {return "tanh"; }
+};
+
+struct sigmoid_op
+{
+    std::string name() const {return "sigmoid"; }
+};
+
+struct neg_op
+{
+    std::string name() const {return "neg"; }
+};
+
+template <typename Op>
+struct unaryop 
+{
+    Op op;
+    std::string name() const { op.name(); }
     shape compute_shape(std::vector<shape> inputs) const
     {
       check_shapes{inputs}.has(1);
@@ -291,17 +348,6 @@ struct div_op
     std::string name() const { return "div"; }
 };
 
-struct max_op
-{
-    std::string name() const { return "max"; }
-};
-
-struct min_op
-{
-    std::string name() const { return "min"; }
-};
-
-// max, min, add, sub
 template <typename Op>
 struct binaryop
 {

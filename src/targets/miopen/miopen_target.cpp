@@ -8,7 +8,6 @@
 namespace rtg {
 namespace miopen {
 
-
 struct hip_allocate
 {
     std::string name() const { return "hip::allocate"; }
@@ -19,7 +18,7 @@ struct hip_allocate
     }
     argument compute(shape output_shape, std::vector<argument>) const
     {
-        char * data = nullptr;
+        char* data = nullptr;
         // TODO: Check return status
         hipMalloc(&data, output_shape.bytes());
         return {output_shape, data};
@@ -41,7 +40,6 @@ struct hip_free
         return {};
     }
 };
-
 
 using miopen_handle     = RTG_MANAGE_PTR(miopenHandle_t, miopenDestroy);
 using tensor_descriptor = RTG_MANAGE_PTR(miopenTensorDescriptor_t, miopenDestroyTensorDescriptor);
@@ -152,10 +150,10 @@ struct miopen_relu
 {
     shared<activation_descriptor> ad;
     std::string name() const { return "miopen::relu"; }
-    shape compute_shape(std::vector<shape> inputs) const 
+    shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(3); 
-        return inputs.at(1); 
+        check_shapes{inputs}.has(3);
+        return inputs.at(1);
     }
 
     argument compute(shape output_shape, std::vector<argument> args) const
@@ -163,7 +161,14 @@ struct miopen_relu
         float alpha = 1, beta = 0;
         auto x_desc = make_tensor(args[1].get_shape());
         auto y_desc = make_tensor(output_shape);
-        miopenActivationForward(args[0].get(), ad.get(), &alpha, x_desc.get(), args[1].get(), &beta, y_desc.get(), args[2].get());
+        miopenActivationForward(args[0].get(),
+                                ad.get(),
+                                &alpha,
+                                x_desc.get(),
+                                args[1].get(),
+                                &beta,
+                                y_desc.get(),
+                                args[2].get());
 
         return args[2];
     }
@@ -192,13 +197,13 @@ struct miopen_apply
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s)
     {
-        if (ins == --prog->end())
+        if(ins == --prog->end())
         {
             return prog->add_parameter("output", s);
         }
         else
         {
-            auto is = prog->add_outline(s);
+            auto is     = prog->add_outline(s);
             auto result = prog->insert_instruction(ins, hip_allocate{}, is);
             prog->insert_instruction(++ins, hip_free{}, result);
             return result;
@@ -207,21 +212,27 @@ struct miopen_apply
 
     void apply_convolution(instruction_ref ins)
     {
-        auto&& op = any_cast<convolution>(ins->op);
-        auto cd = make_conv(op);
+        auto&& op   = any_cast<convolution>(ins->op);
+        auto cd     = make_conv(op);
         auto output = insert_allocation(ins, ins->result);
 
-        prog->replace_instruction(ins, miopen_convolution{op, std::move(cd)}, handle, ins->arguments.at(0), ins->arguments.at(1), output);
+        prog->replace_instruction(ins,
+                                  miopen_convolution{op, std::move(cd)},
+                                  handle,
+                                  ins->arguments.at(0),
+                                  ins->arguments.at(1),
+                                  output);
     }
 
-    void apply_activation(instruction_ref ins) 
+    void apply_activation(instruction_ref ins)
     {
         auto&& op = any_cast<activation>(ins->op);
-        auto ad = make_relu();
-        if(op.mode == "relu") 
+        auto ad   = make_relu();
+        if(op.mode == "relu")
         {
             auto output = insert_allocation(ins, ins->result);
-            prog->replace_instruction(ins, miopen_relu{std::move(ad)}, handle, ins->arguments.at(0), output);
+            prog->replace_instruction(
+                ins, miopen_relu{std::move(ad)}, handle, ins->arguments.at(0), output);
         }
     }
 };

@@ -55,7 +55,7 @@ struct program
     }
 
     instruction_ref add_literal(literal l);
-    
+
     instruction_ref add_outline(shape s);
 
     instruction_ref add_parameter(std::string name, shape s);

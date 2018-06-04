@@ -227,10 +227,7 @@ struct outline
         check_shapes{inputs}.has(0);
         return s;
     }
-    argument compute(shape, std::vector<argument>) const
-    {
-        return {s, nullptr};
-    }
+    argument compute(shape, std::vector<argument>) const { return {s, nullptr}; }
 };
 
 } // namespace rtg

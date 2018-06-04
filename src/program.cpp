@@ -70,18 +70,20 @@ instruction_ref program::add_parameter(std::string name, shape s)
 shape program::get_parameter_shape(std::string name)
 {
     auto ins = std::find_if(
-               impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
-                   if(x.op.name() == "@param") 
-                   {
-                        return any_cast<builtin::param>(x.op).parameter == name;
-                   }
-                   else
-                   {
-                        return false;
-                   }
-               });
-    if (ins != this->end()) return ins->result;
-    else return {};
+        impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
+            if(x.op.name() == "@param")
+            {
+                return any_cast<builtin::param>(x.op).parameter == name;
+            }
+            else
+            {
+                return false;
+            }
+        });
+    if(ins != this->end())
+        return ins->result;
+    else
+        return {};
 }
 
 bool program::has_instruction(instruction_ref ins) const

@@ -43,7 +43,7 @@ using remove_ptr = typename std::
 template <class T>
 using shared = std::shared_ptr<remove_ptr<T>>;
 
-template<class T>
+template <class T>
 shared<T> share(T p)
 {
     return shared<T>{std::move(p)};

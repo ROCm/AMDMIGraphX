@@ -243,6 +243,7 @@ struct gemm
     {
         os << op.name() << "[";
         os << "]"; 
+        return os;
     }
 };
 

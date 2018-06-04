@@ -51,14 +51,37 @@ program::replace_instruction(instruction_ref ins, operation op, std::vector<inst
 
 instruction_ref program::add_literal(literal l)
 {
-    impl->instructions.emplace_back(std::move(l));
-    return std::prev(impl->instructions.end());
+    impl->instructions.emplace_front(std::move(l));
+    return impl->instructions.begin();
+}
+
+instruction_ref program::add_outline(shape s)
+{
+    impl->instructions.push_front({builtin::outline{s}, s, {}});
+    return impl->instructions.begin();
 }
 
 instruction_ref program::add_parameter(std::string name, shape s)
 {
-    impl->instructions.push_back({builtin::param{std::move(name)}, s, {}});
-    return std::prev(impl->instructions.end());
+    impl->instructions.push_front({builtin::param{std::move(name)}, s, {}});
+    return impl->instructions.begin();
+}
+
+shape program::get_parameter_shape(std::string name)
+{
+    auto ins = std::find_if(
+               impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
+                   if(x.op.name() == "@param") 
+                   {
+                        return any_cast<builtin::param>(x.op).parameter == name;
+                   }
+                   else
+                   {
+                        return false;
+                   }
+               });
+    if (ins != this->end()) return ins->result;
+    else return {};
 }
 
 bool program::has_instruction(instruction_ref ins) const
@@ -101,6 +124,10 @@ literal program::eval(std::unordered_map<std::string, argument> params) const
         else if(ins.op.name() == "@param")
         {
             result = params.at(any_cast<builtin::param>(ins.op).parameter);
+        }
+        else if(ins.op.name() == "@outline")
+        {
+            result = argument{ins.result, nullptr};
         }
         else
         {

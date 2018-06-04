@@ -26,7 +26,7 @@ struct cpu_convolution
             auto wei_h = weights.get_shape().lens()[2];
             auto wei_w = weights.get_shape().lens()[3];
 
-            dfor(in_n, in_c, in_h, in_w)(
+            dfor(output_shape.lens()[0], output_shape.lens()[1], output_shape.lens()[2], output_shape.lens()[3])(
                 [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
                     const int start_x = i * op.stride[0] - op.padding[0];
                     const int start_y = j * op.stride[1] - op.padding[1];

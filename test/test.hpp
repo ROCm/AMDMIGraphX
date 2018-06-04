@@ -82,7 +82,7 @@ struct lhs_expression
     template <class U>                            \
     auto operator op(const U& rhs) const          \
     {                                             \
-        return make_expression(lhs, rhs, name{}); \
+        return make_expression(lhs, rhs, name{}); /* NOLINT */ \
     }
 
     TEST_FOREACH_OPERATOR(TEST_LHS_OPERATOR)

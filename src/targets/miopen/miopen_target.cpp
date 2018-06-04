@@ -33,7 +33,7 @@ struct hip_free
         check_shapes{inputs}.has(1);
         return {};
     }
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(shape, std::vector<argument> args) const
     {
         // TODO: Check return status
         hipFree(args.front().data());
@@ -176,8 +176,8 @@ struct miopen_relu
 
 struct miopen_apply
 {
-    program* prog;
-    instruction_ref handle;
+    program* prog = nullptr;
+    instruction_ref handle{};
 
     void apply()
     {

@@ -17,8 +17,6 @@ struct cpu_convolution
     {
         argument result{output_shape};
         visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
-            auto in_n = input.get_shape().lens()[0];
-            auto in_c = input.get_shape().lens()[1];
             auto in_h = input.get_shape().lens()[2];
             auto in_w = input.get_shape().lens()[3];
 

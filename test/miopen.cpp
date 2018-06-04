@@ -116,8 +116,9 @@ void test1()
 {
     auto x = cpu();
     auto y = gpu();
+    // TODO: Use expect
     if(x == y)
-        printf("FAILED\n");
+        std::cout << "FAILED" << std::endl;
 }
 
 int main() { test1(); }

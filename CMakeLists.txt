@@ -53,6 +53,8 @@ rocm_enable_clang_tidy(
         -hicpp-no-array-decay
         -hicpp-special-member-functions
         -hicpp-use-override
+        # This check is broken
+        -hicpp-use-auto
         -llvm-header-guard
         -llvm-include-order
         -misc-macro-parentheses

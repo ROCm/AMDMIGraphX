@@ -27,7 +27,7 @@ struct null_deleter
     }
 };
 
-template <class T, class F, F f>
+template <class T, class F, F f> // NOLINT
 using manage_ptr = std::unique_ptr<T, manage_deleter<F, f>>;
 
 template <class T>

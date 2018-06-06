@@ -60,6 +60,7 @@ function(add_test_executable TEST_NAME)
     add_dependencies(check ${TEST_NAME})
     set_tests_properties(${TEST_NAME} PROPERTIES FAIL_REGULAR_EXPRESSION "FAILED")
     target_link_libraries(${TEST_NAME} rtg)
+    target_link_libraries(${TEST_NAME} rtg_cpu)
 endfunction(add_test_executable)
 
 file(GLOB TESTS *.cpp)

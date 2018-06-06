@@ -54,7 +54,7 @@ struct cpu_gemm
 {
     gemm op;
     std::string name() const { return "cpu::gemm"; }
-    shape compute_shape(std::vector<shape> inputs) 
+    shape compute_shape(std::vector<shape> inputs) const
     {
         return op.compute_shape(inputs);
     }
@@ -93,73 +93,73 @@ struct cpu_gemm
 struct identity_op
 {
     std::string name() const {return "cpu::identity"; }
-    auto fcn() { return [](auto x) { return x; }; }
+    auto fcn() const { return [](auto x) { return x; }; }
 };
 
 struct abs_op 
 {
     std::string name() const {return "cpu::abs"; }
-    auto fcn() { return [](auto x) { return std::abs(x); }; }
+    auto fcn() const { return [](auto x) { return std::abs(x); }; }
 };
 
 struct exp_op 
 {
     std::string name() const {return "cpu::exp"; }
-    auto fcn() { return [](auto x) { return std::exp(x); }; }
+    auto fcn() const { return [](auto x) { return std::exp(x); }; }
 };
 
 struct sin_op 
 {
     std::string name() const {return "cpu::sin"; }
-    auto fcn() { return [](auto x) { return std::sin(x); }; }
+    auto fcn() const { return [](auto x) { return std::sin(x); }; }
 };
 
 struct cos_op 
 {
     std::string name() const {return "cpu::cos"; }
-    auto fcn() { return [](auto x) { return std::cos(x); }; }
+    auto fcn() const { return [](auto x) { return std::cos(x); }; }
 };
 
 struct tan_op 
 {
     std::string name() const {return "cpu::tan"; }
-    auto fcn() { return [](auto x) { return std::tan(x); }; }
+    auto fcn() const { return [](auto x) { return std::tan(x); }; }
 };
 
 struct asin_op 
 {
     std::string name() const {return "cpu::asin"; }
-    auto fcn() { return [](auto x) { return std::asin(x); }; }
+    auto fcn() const { return [](auto x) { return std::asin(x); }; }
 };
 
 struct acos_op 
 {
     std::string name() const {return "cpu::acos"; }
-    auto fcn() { return [](auto x) { return std::acos(x); }; }
+    auto fcn() const { return [](auto x) { return std::acos(x); }; }
 };
 
 struct atan_op 
 {
     std::string name() const {return "cpu::atan"; }
-    auto fcn() { return [](auto x) { return std::atan(x); }; }
+    auto fcn() const { return [](auto x) { return std::atan(x); }; }
 };
 
 struct tanh_op
 {
     std::string name() const {return "cpu::tanh"; }
-    auto fcn() { return [](auto x) { return std::tanh(x); }; }
+    auto fcn() const { return [](auto x) { return std::tanh(x); }; }
 };
 
 struct sigmoid_op
 {
     std::string name() const {return "cpu::sigmoid"; }
-    auto fcn() { return [](auto x) { return 1.f/(1.f + std::exp(-x)); }; }
+    auto fcn() const { return [](auto x) { return 1.f/(1.f + std::exp(-x)); }; }
 };
 
 struct neg_op
 {
     std::string name() const {return "cpu::neg"; }
-    auto fcn() { return [](auto x) { return -x; }; }
+    auto fcn() const { return [](auto x) { return -x; }; }
 };
 
 struct relu_op
@@ -262,6 +262,46 @@ struct cpu_apply
             {
                 apply_activation(it);
             }
+            else if(it->op.name() == "identity")
+            {
+                apply_identity(it);
+            }
+            else if(it->op.name() == "softmax")
+            {
+                apply_softmax(it);
+            }
+            else if(it->op.name() == "tanh")
+            {
+                apply_tanh(it);
+            }
+            else if(it->op.name() == "sigmoid")
+            {
+                apply_sigmoid(it);
+            }
+            else if(it->op.name() == "exp")
+            {
+                apply_exp(it);
+            }
+            else if(it->op.name() == "neg")
+            {
+                apply_neg(it);
+            }
+            else if(it->op.name() == "sin")
+            {
+                apply_sin(it);
+            }
+            else if(it->op.name() == "cos")
+            {
+                apply_cos(it);
+            }
+            else if(it->op.name() == "tan")
+            {
+                apply_tan(it);
+            }
+            else if(it->op.name() == "gemm")
+            {
+                apply_gemm(it);
+            }
         }
     }
 
@@ -271,11 +311,71 @@ struct cpu_apply
         prog->replace_instruction(ins, cpu_convolution{op}, ins->arguments);
     }
 
+    void apply_gemm(instruction_ref ins)
+    {
+        auto&& op = any_cast<gemm>(ins->op);
+        prog->replace_instruction(ins, cpu_gemm{op}, ins->arguments);
+    }
+
     void apply_activation(instruction_ref ins)
     {
         auto&& op = any_cast<activation>(ins->op);
         if(op.mode == "relu")
             prog->replace_instruction(ins, cpu_unary<relu_op>{}, ins->arguments);
+    }
+
+    void apply_identity(instruction_ref ins)
+    {
+        auto&& op = any_cast<identity>(ins->op);
+        prog->replace_instruction(ins, cpu_unary<identity_op>{}, ins->arguments);
+    }
+
+    void apply_softmax(instruction_ref ins)
+    {
+        auto&& op = any_cast<softmax>(ins->op);
+        prog->replace_instruction(ins, softmax{}, ins->arguments);
+    }
+
+    void apply_tanh(instruction_ref ins)
+    {
+        auto&& op = any_cast<tanh>(ins->op);
+        prog->replace_instruction(ins, cpu_unary<tanh_op>{}, ins->arguments);
+    }
+
+    void apply_sigmoid(instruction_ref ins)
+    {
+        auto&& op = any_cast<sigmoid>(ins->op);
+        prog->replace_instruction(ins, cpu_unary<sigmoid_op>{}, ins->arguments);
+    }
+
+    void apply_exp(instruction_ref ins)
+    {
+        auto&& op = any_cast<exp>(ins->op);
+        prog->replace_instruction(ins, cpu_unary<exp_op>{}, ins->arguments);
+    }
+
+    void apply_neg(instruction_ref ins)
+    {
+        auto&& op = any_cast<neg>(ins->op);
+        prog->replace_instruction(ins, cpu_unary<neg_op>{}, ins->arguments);
+    }
+
+    void apply_sin(instruction_ref ins)
+    {
+        auto&& op = any_cast<sin>(ins->op);
+        prog->replace_instruction(ins, cpu_unary<sin_op>{}, ins->arguments);
+    }
+
+    void apply_cos(instruction_ref ins)
+    {
+        auto&& op = any_cast<cos>(ins->op);
+        prog->replace_instruction(ins, cpu_unary<cos_op>{}, ins->arguments);
+    }
+
+    void apply_tan(instruction_ref ins)
+    {
+        auto&& op = any_cast<tan>(ins->op);
+        prog->replace_instruction(ins, cpu_unary<tan_op>{}, ins->arguments);
     }
 };
 

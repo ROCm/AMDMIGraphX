@@ -227,11 +227,11 @@ struct gemm
     std::size_t ldc = 1; 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(2).same_type().same_dims().only_dims(2);
+        check_shapes{inputs}.has(2).same_type();
         const shape& A = inputs.at(0); 
         const shape& B = inputs.at(1); 
-        
         auto t         = A.type();
+
         if (A.lens()[1] != B.lens()[0])
             RTG_THROW("Inner dimensions do not match");
         return {t, {A.lens()[0], B.lens()[1]}};
@@ -247,81 +247,147 @@ struct gemm
     }
 };
 
-struct identity_op
+struct identity
 {
     std::string name() const {return "identity"; }
-};
-
-struct abs_op 
-{
-    std::string name() const {return "abs"; }
-};
-
-struct exp_op 
-{
-    std::string name() const {return "exp"; }
-};
-
-struct sin_op 
-{
-    std::string name() const {return "sin"; }
-};
-
-struct cos_op 
-{
-    std::string name() const {return "cos"; }
-};
-
-struct tan_op 
-{
-    std::string name() const {return "tan"; }
-};
-
-struct asin_op 
-{
-    std::string name() const {return "asin"; }
-};
-
-struct acos_op 
-{
-    std::string name() const {return "acos"; }
-};
-
-struct atan_op 
-{
-    std::string name() const {return "atan"; }
-};
-
-struct softmax_op
-{
-    std::string name() const {return "softmax"; }
-};
-
-struct tanh_op
-{
-    std::string name() const {return "tanh"; }
-};
-
-struct sigmoid_op
-{
-    std::string name() const {return "sigmoid"; }
-};
-
-struct neg_op
-{
-    std::string name() const {return "neg"; }
-};
-
-template <typename Op>
-struct unaryop 
-{
-    Op op;
-    std::string name() const { op.name(); }
     shape compute_shape(std::vector<shape> inputs) const
     {
       check_shapes{inputs}.has(1);
       return inputs.at(0);
     }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+};
+
+struct abs
+{
+    std::string name() const {return "abs"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      check_shapes{inputs}.has(1);
+      return inputs.at(0);
+    }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+};
+
+struct exp 
+{
+    std::string name() const { return "exp"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      check_shapes{inputs}.has(1);
+      return inputs.at(0);
+    }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+};
+
+struct sin
+{
+    std::string name() const {return "sin"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      check_shapes{inputs}.has(1);
+      return inputs.at(0);
+    }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+};
+
+struct cos
+{
+    std::string name() const {return "cos"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      check_shapes{inputs}.has(1);
+      return inputs.at(0);
+    }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+};
+
+struct tan
+{
+    std::string name() const {return "tan"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      check_shapes{inputs}.has(1);
+      return inputs.at(0);
+    }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+};
+
+struct asin
+{
+    std::string name() const {return "asin"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      check_shapes{inputs}.has(1);
+      return inputs.at(0);
+    }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+};
+
+struct acos
+{
+    std::string name() const {return "acos"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      check_shapes{inputs}.has(1);
+      return inputs.at(0);
+    }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+};
+
+struct atan
+{
+    std::string name() const {return "atan"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      check_shapes{inputs}.has(1);
+      return inputs.at(0);
+    }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+};
+
+struct softmax
+{
+    std::string name() const {return "softmax"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      check_shapes{inputs}.has(1);
+      return inputs.at(0);
+    }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+};
+
+struct tanh
+{
+    std::string name() const {return "tanh"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      check_shapes{inputs}.has(1);
+      return inputs.at(0);
+    }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+};
+
+struct sigmoid
+{
+    std::string name() const {return "sigmoid"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      check_shapes{inputs}.has(1);
+      return inputs.at(0);
+    }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+};
+
+struct neg
+{
+    std::string name() const {return "neg"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      check_shapes{inputs}.has(1);
+      return inputs.at(0);
+    }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
 struct flatten 
@@ -329,31 +395,42 @@ struct flatten
     std::string name() const { return "flatten"; }
 };
 
-struct add_op
+struct add
 {
     std::string name() const { return "add"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      // TODO(wsttiger@gmail.com) Check this for numpy-style broadcasting operations
+      check_shapes{inputs}.has(2).same_type().same_dims();
+      return inputs.at(0);
+    }
 };
 
-struct sub_op
+struct sub
 {
     std::string name() const { return "sub"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      // TODO(wsttiger@gmail.com) Check this for numpy-style broadcasting operations
+      check_shapes{inputs}.has(2).same_type().same_dims();
+      return inputs.at(0);
+    }
 };
 
-struct mul_op
+struct mul
 {
     std::string name() const { return "mul"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      // TODO(wsttiger@gmail.com) Check this for numpy-style broadcasting operations
+      check_shapes{inputs}.has(2).same_type().same_dims();
+      return inputs.at(0);
+    }
 };
 
-struct div_op
+struct div
 {
     std::string name() const { return "div"; }
-};
-
-template <typename Op>
-struct binaryop
-{
-    Op op;
-    std::string name() const { op.name(); }
     shape compute_shape(std::vector<shape> inputs) const
     {
       // TODO(wsttiger@gmail.com) Check this for numpy-style broadcasting operations

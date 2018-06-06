@@ -41,6 +41,7 @@ RUN cget -p $PREFIX init --cxx /opt/rocm/bin/hcc
 
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
+ADD requirements.txt /requirements.txt
 RUN cget -p $PREFIX install -f /dev-requirements.txt
 
 # Install doc requirements

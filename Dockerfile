@@ -37,7 +37,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
 RUN pip install cget
 
 # Use hcc
-RUN cget init --cxx /opt/rocm/bin/hcc
+RUN cget -p $PREFIX init --cxx /opt/rocm/bin/hcc
 
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt

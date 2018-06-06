@@ -36,14 +36,12 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
 # Install cget
 RUN pip install cget
 
-# Install cppcheck
-RUN cget -p $PREFIX install danmar/cppcheck@ab02595be1b17035b534db655f9e119080a368bc
-
-RUN cget -p $PREFIX install pfultz2/rocm-recipes
+# Use hcc
+RUN cget init --cxx /opt/rocm/bin/hcc
 
 # Install dependencies
-ADD requirements.txt /requirements.txt
-RUN cget -p $PREFIX install -f /requirements.txt
+ADD dev-requirements.txt /dev-requirements.txt
+RUN cget -p $PREFIX install -f /dev-requirements.txt
 
 # Install doc requirements
 # ADD doc/requirements.txt /doc-requirements.txt

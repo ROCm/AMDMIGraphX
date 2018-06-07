@@ -21,6 +21,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     doxygen \
     git \
     hcc \
+    hip_base \
     lcov \
     libnuma-dev \
     python \

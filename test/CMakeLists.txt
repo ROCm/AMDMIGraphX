@@ -38,6 +38,7 @@ function(add_test_command NAME EXE)
                 -ex "set disable-randomization off"
                 -ex "catch throw"
                 -ex run
+                -ex "print $_exception"
                 -ex backtrace
                 --args $<TARGET_FILE:${EXE}> ${ARGN})
         else()

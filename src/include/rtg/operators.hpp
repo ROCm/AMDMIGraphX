@@ -351,7 +351,7 @@ struct softmax
     std::string name() const {return "softmax"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-      check_shapes{inputs}.has(1);
+      check_shapes{inputs}.has(1).only_dims(4);
       return inputs.at(0);
     }
     argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }

@@ -61,8 +61,8 @@ struct cpu_gemm
 
     argument compute(shape output_shape, std::vector<argument> args) const 
     {
-        argument C{output_shape};
-        visit_all(C, args[0], args[1])([&](auto C, auto A, auto B) {
+        argument result{output_shape};
+        visit_all(result, args[0], args[1])([&](auto C, auto A, auto B) {
             auto M = A.get_shape().lens()[0];
             auto N = B.get_shape().lens()[1];
             auto K = B.get_shape().lens()[0];
@@ -86,7 +86,7 @@ struct cpu_gemm
               }
             }
         });
-        return C;
+        return result;
     }
 };
 
@@ -186,21 +186,43 @@ struct cpu_unary
   }
 };
 
-struct softmax
+struct softmax2d
 {
-  std::string name() const { return "cpu::softmax"; }
+  std::string name() const { return "cpu::softmax2d"; }
   shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
   argument compute(shape output_shape, std::vector<argument> args) const
   {
       argument result{output_shape};
-      result.visit([&](auto output) {
-          args[0].visit([&](auto input) {
-              std::transform(input.begin(), input.end(), output.begin(), 
-                  [](auto x) { return std::exp(x); });
-              float t = std::accumulate(output.begin(), output.end(), zero(input.front()));
-              std::transform(output.begin(), output.end(), output.begin(), 
-                  [t](auto x) { return x/t; });
-          });
+      visit_all(result, args[0])([&](auto output, auto input) {
+          using value_type = typename decltype(input)::value_type;
+          auto nb = input.get_shape().lens()[0];
+          auto nc = input.get_shape().lens()[1]; 
+          auto nh = input.get_shape().lens()[2]; 
+          auto nw = input.get_shape().lens()[3];
+          for (int b = 0; b < nb; b++) {
+              for (int i = 0; i < nh; i++) {
+                  for (int j = 0; j < nw; j++) {
+                      value_type cmax = std::numeric_limits<value_type>::lowest();
+                      for (int c = 0; c < nc; c++) {
+                          cmax = std::max(cmax, input(b, c, i, j)); 
+                      }
+                      for (int c = 0; c < nc; c++) {
+                          output(b, c, i, j) = std::exp(input(b, c, i, j)-cmax);
+                      }
+                      value_type sum = value_type(0);
+                      for (int c = 0; c < nc; c++) {
+                          sum += output(b, c, i, j);
+                      }
+                      for (int c = 0; c < nc; c++) {
+                          output(b, c, i, j) = output(b, c, i, j)/sum;
+                      }
+
+//                       for (int c = 0; c < nc; c++) {
+//                           output(b, c, i, j) = input(b, c, i, j);
+//                       }
+                  }
+              }
+         } 
       });
       return result;
   }
@@ -333,7 +355,7 @@ struct cpu_apply
     void apply_softmax(instruction_ref ins)
     {
         auto&& op = any_cast<softmax>(ins->op);
-        prog->replace_instruction(ins, softmax{}, ins->arguments);
+        prog->replace_instruction(ins, softmax2d{}, ins->arguments);
     }
 
     void apply_tanh(instruction_ref ins)

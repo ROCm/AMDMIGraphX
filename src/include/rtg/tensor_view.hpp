@@ -11,6 +11,7 @@ namespace rtg {
 template <class T>
 struct tensor_view
 {
+    using value_type = T;
     tensor_view() : m_data(nullptr) {}
     tensor_view(shape s, T* d) : m_data(d), m_shape(s) {}
 

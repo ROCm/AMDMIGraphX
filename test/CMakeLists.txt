@@ -7,6 +7,8 @@ find_package(Threads REQUIRED)
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
 add_custom_target(tests)
 
+set(RTG_TEST_GDB On CACHE BOOL "")
+
 set(SKIP_TESTS)
 
 function(add_test_command NAME EXE)

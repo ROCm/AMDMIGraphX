@@ -100,11 +100,12 @@ rocm_enable_cppcheck(
         unusedStructMember
     FORCE
     SOURCES
-        include/
         src/
         test/
     INCLUDE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/cpu/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/miopen/include
 )
 
 add_subdirectory(src)

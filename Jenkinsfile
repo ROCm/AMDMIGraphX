@@ -25,7 +25,7 @@ def rocmtestnode(variant, name, body) {
 
             }
         }
-        withDockerContainer(image: image, args: '--device=/dev/kfd --device=/dev/dri --group-add video') {
+        withDockerContainer(image: image, args: '--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE') {
             timeout(time: 1, unit: 'HOURS') {
                 body(cmake_build)
             }

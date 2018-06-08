@@ -19,6 +19,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     cmake \
     curl \
     doxygen \
+    gdb \
     git \
     hcc \
     hip_hcc \

@@ -23,7 +23,7 @@ function(add_test_command NAME EXE)
                     %1 ${ARGN}")
         add_test(NAME ${NAME} COMMAND ${WINE_CMD} cmd /c "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmd" $<TARGET_FILE:${EXE}>)
     else()
-        if(MIOPEN_TEST_GDB)
+        if(RTG_TEST_GDB)
             file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmake"
                 CONTENT "
                 execute_process(COMMAND $<TARGET_FILE:${EXE}> ${ARGN} RESULT_VARIABLE RESULT)
@@ -59,7 +59,8 @@ function(add_test_executable TEST_NAME)
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
     set_tests_properties(${TEST_NAME} PROPERTIES FAIL_REGULAR_EXPRESSION "FAILED")
-    target_link_libraries(${TEST_NAME} rtg rtg_cpu rtg_miopen)
+    target_link_libraries(${TEST_NAME} rtg rtg_cpu)
+    target_include_directories(${TEST_NAME} PUBLIC include)
 endfunction(add_test_executable)
 
 file(GLOB TESTS *.cpp)
@@ -68,3 +69,14 @@ foreach(TEST ${TESTS})
     get_filename_component(BASE_NAME ${TEST} NAME_WE)
     add_test_executable(test_${BASE_NAME} ${TEST})
 endforeach()
+
+if(RTG_ENABLE_MIOPEN)
+    # miopen tests
+    file(GLOB MIOPEN_TESTS miopen/*.cpp)
+
+    foreach(TEST ${MIOPEN_TESTS})
+        get_filename_component(BASE_NAME ${TEST} NAME_WE)
+        add_test_executable(test_miopen_${BASE_NAME} ${TEST})
+        target_link_libraries(test_miopen_${BASE_NAME} rtg_miopen)
+    endforeach()
+endif()

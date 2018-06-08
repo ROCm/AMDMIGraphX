@@ -9,6 +9,13 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     endif()
 endif()
 
+if(CMAKE_CXX_COMPILER MATCHES ".*hcc")
+    message(STATUS "Enable miopen backend")
+    set(RTG_ENABLE_MIOPEN On CACHE BOOL "")
+else()
+    set(RTG_ENABLE_MIOPEN Off CACHE BOOL "")
+endif()
+
 add_compile_options(-std=c++14)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)

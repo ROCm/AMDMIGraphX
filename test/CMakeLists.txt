@@ -7,7 +7,13 @@ find_package(Threads REQUIRED)
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
 add_custom_target(tests)
 
-set(RTG_TEST_GDB On CACHE BOOL "")
+find_program(RTG_GDB gdb)
+
+if(RTG_GDB)
+    set(RTG_TEST_GDB On CACHE BOOL "")
+else()
+    set(RTG_TEST_GDB Off CACHE BOOL "")
+endif()
 
 set(SKIP_TESTS)
 
@@ -26,7 +32,7 @@ function(add_test_command NAME EXE)
         add_test(NAME ${NAME} COMMAND ${WINE_CMD} cmd /c "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmd" $<TARGET_FILE:${EXE}>)
     else()
         if(RTG_TEST_GDB)
-            add_test(NAME ${NAME} COMMAND gdb --batch --return-child-result -ex r -ex bt --args $<TARGET_FILE:${EXE}> ${ARGN})
+            add_test(NAME ${NAME} COMMAND ${RTG_GDB} --batch --return-child-result -ex r -ex bt --args $<TARGET_FILE:${EXE}> ${ARGN})
         else()
             add_test(NAME ${NAME} COMMAND ${EXE} ${ARGN})
         endif()

@@ -45,11 +45,11 @@ hip_ptr write(const T& x)
 }
 
 template <class T>
-std::vector<T> read(const hip_ptr& x, std::size_t sz)
+std::vector<T> read(const void* x, std::size_t sz)
 {
     std::vector<T> result(sz);
     // TODO: Check status
-    hipMemcpy(result.data(), x.get(), sz * sizeof(T), hipMemcpyDeviceToHost);
+    hipMemcpy(result.data(), x, sz * sizeof(T), hipMemcpyDeviceToHost);
     return result;
 }
 
@@ -108,7 +108,7 @@ std::vector<float> gpu()
     auto handle = make_obj<miopen_handle>(&miopenCreate);
     auto r      = p.eval(
         {{"x", x}, {"w", w}, {"output", y}, {"handle", {rtg::shape::any_type, handle.get()}}});
-    r.visit([&](auto output) { result.assign(output.begin(), output.end()); });
+    result = read<float>(r.data(), r.get_shape().elements());
     return result;
 }
 

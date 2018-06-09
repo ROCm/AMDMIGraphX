@@ -112,7 +112,7 @@ void program::compile(const target& t)
         RTG_THROW("Invalid program from compilation");
 }
 
-literal program::eval(std::unordered_map<std::string, argument> params) const
+argument program::eval(std::unordered_map<std::string, argument> params) const
 {
     assert(this->validate() != impl->instructions.end());
     std::unordered_map<const instruction*, argument> results;
@@ -142,7 +142,7 @@ literal program::eval(std::unordered_map<std::string, argument> params) const
         }
         results.emplace(std::addressof(ins), result);
     }
-    return literal{result.get_shape(), result.data()};
+    return result;
 }
 
 std::ostream& operator<<(std::ostream& os, const program& p)

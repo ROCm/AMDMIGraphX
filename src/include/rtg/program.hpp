@@ -62,7 +62,7 @@ struct program
 
     shape get_parameter_shape(std::string name);
 
-    literal eval(std::unordered_map<std::string, argument> params) const;
+    argument eval(std::unordered_map<std::string, argument> params) const;
 
     friend std::ostream& operator<<(std::ostream& os, const program& p);
 

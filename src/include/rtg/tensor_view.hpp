@@ -121,7 +121,7 @@ struct tensor_view
     shape m_shape;
 };
 
-template<class T, class U>
+template <class T, class U>
 bool operator==(const tensor_view<T>& x, const tensor_view<U>& y)
 {
     if(x.get_shape() == y.get_shape())
@@ -136,8 +136,11 @@ bool operator==(const tensor_view<T>& x, const tensor_view<U>& y)
     return false;
 }
 
-template<class T, class U>
-bool operator!=(const tensor_view<T>& x, const tensor_view<U>& y) { return !(x == y); }
+template <class T, class U>
+bool operator!=(const tensor_view<T>& x, const tensor_view<U>& y)
+{
+    return !(x == y);
+}
 
 template <class T>
 tensor_view<T> make_view(shape s, T* data)

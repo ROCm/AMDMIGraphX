@@ -6,10 +6,11 @@
 
 namespace rtg {
 
-#define RTG_REQUIRES(...) class=typename std::enable_if<(__VA_ARGS__)>::type
+#define RTG_REQUIRES(...) class = typename std::enable_if<(__VA_ARGS__)>::type
 
 struct raw_data_base
-{};
+{
+};
 
 /**
  * @brief Provides a base class for common operations with raw buffer
@@ -98,7 +99,10 @@ struct raw_data : raw_data_base
     auto_cast get() const { return {static_cast<const Derived*>(this)}; }
 };
 
-template<class T, class U, RTG_REQUIRES(std::is_base_of<raw_data_base, T>{}), RTG_REQUIRES(std::is_base_of<raw_data_base, U>{})>
+template <class T,
+          class U,
+          RTG_REQUIRES(std::is_base_of<raw_data_base, T>{}),
+          RTG_REQUIRES(std::is_base_of<raw_data_base, U>{})>
 bool operator==(const T& x, const U& y)
 {
     auto&& xshape = x.get_shape();
@@ -118,7 +122,10 @@ bool operator==(const T& x, const U& y)
     return result;
 }
 
-template<class T, class U, RTG_REQUIRES(std::is_base_of<raw_data_base, T>{}), RTG_REQUIRES(std::is_base_of<raw_data_base, U>{})>
+template <class T,
+          class U,
+          RTG_REQUIRES(std::is_base_of<raw_data_base, T>{}),
+          RTG_REQUIRES(std::is_base_of<raw_data_base, U>{})>
 bool operator!=(const T& x, const U& y)
 {
     return !(x == y);

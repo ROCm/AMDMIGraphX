@@ -4,7 +4,10 @@ cmake_policy(SET CMP0057 NEW)
 include(CTest)
 
 find_package(Threads REQUIRED)
-add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
+include(ProcessorCount)
+ProcessorCount(N)
+set(CTEST_PARALLEL_LEVEL ${N} CACHE STRING "CTest parallel level")
+add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j ${CTEST_PARALLEL_LEVEL} -C ${CMAKE_CFG_INTDIR})
 add_custom_target(tests)
 
 find_program(RTG_GDB gdb)
@@ -32,13 +35,25 @@ function(add_test_command NAME EXE)
         add_test(NAME ${NAME} COMMAND ${WINE_CMD} cmd /c "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmd" $<TARGET_FILE:${EXE}>)
     else()
         if(RTG_TEST_GDB)
-            add_test(NAME ${NAME} COMMAND ${RTG_GDB} 
-                --batch
-                --return-child-result
-                -ex "set disable-randomization off"
-                -ex run
-                -ex backtrace
-                --args $<TARGET_FILE:${EXE}> ${ARGN})
+            # add_test(NAME ${NAME} COMMAND ${RTG_GDB} 
+            #     --batch
+            #     --return-child-result
+            #     -ex "set disable-randomization off"
+            #     -ex run
+            #     -ex backtrace
+            #     --args $<TARGET_FILE:${EXE}> ${ARGN})
+            file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmake"
+                CONTENT "
+                execute_process(COMMAND $<TARGET_FILE:${EXE}> ${ARGN} RESULT_VARIABLE RESULT)
+                if(NOT RESULT EQUAL 0)
+                    # TODO: check for core files based on pid when setting /proc/sys/kernel/core_uses_pid
+                    if(EXISTS core)
+                        execute_process(COMMAND ${RTG_GDB} $<TARGET_FILE:${EXE}> core -batch -ex bt)
+                    endif()
+                    message(FATAL_ERROR \"Test failed\")
+                endif()
+            ")
+            add_test(NAME ${NAME} COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmake")
         else()
             add_test(NAME ${NAME} COMMAND ${EXE} ${ARGN})
         endif()

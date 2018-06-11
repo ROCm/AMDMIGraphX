@@ -78,11 +78,11 @@ struct lhs_expression
 
     T value() const { return lhs; }
 // NOLINTNEXTLINE
-#define TEST_LHS_OPERATOR(op, name)               \
-    template <class U>                            \
-    auto operator op(const U& rhs) const          \
-    {                                             \
-        return make_expression(lhs, rhs, name{}); \
+#define TEST_LHS_OPERATOR(op, name)                            \
+    template <class U>                                         \
+    auto operator op(const U& rhs) const                       \
+    {                                                          \
+        return make_expression(lhs, rhs, name{}); /* NOLINT */ \
     }
 
     TEST_FOREACH_OPERATOR(TEST_LHS_OPERATOR)

@@ -218,6 +218,18 @@ struct reshape
     }
 };
 
+struct outline
+{
+    shape s;
+    std::string name() const { return "outline"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(0);
+        return s;
+    }
+    argument compute(shape, std::vector<argument>) const { return {s, nullptr}; }
+};
+
 } // namespace rtg
 
 #endif

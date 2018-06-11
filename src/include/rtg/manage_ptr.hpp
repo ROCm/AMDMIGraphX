@@ -6,7 +6,7 @@
 
 namespace rtg {
 
-template <class F, F f>
+template <class F, F f> // NOLINT
 struct manage_deleter
 {
     template <class T>
@@ -27,7 +27,7 @@ struct null_deleter
     }
 };
 
-template <class T, class F, F f>
+template <class T, class F, F f> // NOLINT
 using manage_ptr = std::unique_ptr<T, manage_deleter<F, f>>;
 
 template <class T>
@@ -42,6 +42,12 @@ using remove_ptr = typename std::
 
 template <class T>
 using shared = std::shared_ptr<remove_ptr<T>>;
+
+template <class T>
+shared<T> share(T p)
+{
+    return shared<T>{std::move(p)};
+}
 
 } // namespace rtg
 

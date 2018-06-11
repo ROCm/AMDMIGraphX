@@ -56,9 +56,13 @@ struct program
 
     instruction_ref add_literal(literal l);
 
+    instruction_ref add_outline(shape s);
+
     instruction_ref add_parameter(std::string name, shape s);
 
-    literal eval(std::unordered_map<std::string, argument> params) const;
+    shape get_parameter_shape(std::string name);
+
+    argument eval(std::unordered_map<std::string, argument> params) const;
 
     friend std::ostream& operator<<(std::ostream& os, const program& p);
 

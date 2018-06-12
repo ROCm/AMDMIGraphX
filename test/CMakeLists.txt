@@ -4,8 +4,19 @@ cmake_policy(SET CMP0057 NEW)
 include(CTest)
 
 find_package(Threads REQUIRED)
-add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
+include(ProcessorCount)
+ProcessorCount(N)
+set(CTEST_PARALLEL_LEVEL ${N} CACHE STRING "CTest parallel level")
+add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j ${CTEST_PARALLEL_LEVEL} -C ${CMAKE_CFG_INTDIR})
 add_custom_target(tests)
+
+find_program(RTG_GDB gdb)
+
+if(RTG_GDB)
+    set(RTG_TEST_GDB On CACHE BOOL "")
+else()
+    set(RTG_TEST_GDB Off CACHE BOOL "")
+endif()
 
 set(SKIP_TESTS)
 
@@ -23,13 +34,21 @@ function(add_test_command NAME EXE)
                     %1 ${ARGN}")
         add_test(NAME ${NAME} COMMAND ${WINE_CMD} cmd /c "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmd" $<TARGET_FILE:${EXE}>)
     else()
-        if(MIOPEN_TEST_GDB)
+        if(RTG_TEST_GDB)
+            # add_test(NAME ${NAME} COMMAND ${RTG_GDB} 
+            #     --batch
+            #     --return-child-result
+            #     -ex "set disable-randomization off"
+            #     -ex run
+            #     -ex backtrace
+            #     --args $<TARGET_FILE:${EXE}> ${ARGN})
             file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmake"
                 CONTENT "
                 execute_process(COMMAND $<TARGET_FILE:${EXE}> ${ARGN} RESULT_VARIABLE RESULT)
                 if(NOT RESULT EQUAL 0)
+                    # TODO: check for core files based on pid when setting /proc/sys/kernel/core_uses_pid
                     if(EXISTS core)
-                        execute_process(COMMAND gdb $<TARGET_FILE:${EXE}> core -batch -ex bt)
+                        execute_process(COMMAND ${RTG_GDB} $<TARGET_FILE:${EXE}> core -batch -ex bt)
                     endif()
                     message(FATAL_ERROR \"Test failed\")
                 endif()
@@ -59,8 +78,8 @@ function(add_test_executable TEST_NAME)
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
     set_tests_properties(${TEST_NAME} PROPERTIES FAIL_REGULAR_EXPRESSION "FAILED")
-    target_link_libraries(${TEST_NAME} rtg)
-    target_link_libraries(${TEST_NAME} rtg_cpu)
+    target_link_libraries(${TEST_NAME} rtg rtg_cpu)
+    target_include_directories(${TEST_NAME} PUBLIC include)
 endfunction(add_test_executable)
 
 file(GLOB TESTS *.cpp)
@@ -69,3 +88,14 @@ foreach(TEST ${TESTS})
     get_filename_component(BASE_NAME ${TEST} NAME_WE)
     add_test_executable(test_${BASE_NAME} ${TEST})
 endforeach()
+
+if(RTG_ENABLE_MIOPEN)
+    # miopen tests
+    file(GLOB MIOPEN_TESTS miopen/*.cpp)
+
+    foreach(TEST ${MIOPEN_TESTS})
+        get_filename_component(BASE_NAME ${TEST} NAME_WE)
+        add_test_executable(test_miopen_${BASE_NAME} ${TEST})
+        target_link_libraries(test_miopen_${BASE_NAME} rtg_miopen)
+    endforeach()
+endif()

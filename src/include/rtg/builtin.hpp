@@ -15,6 +15,14 @@ struct literal
     argument compute(shape, std::vector<argument>) const { RTG_THROW("builtin"); }
 };
 
+struct outline
+{
+    shape s;
+    std::string name() const { return "@outline"; }
+    shape compute_shape(std::vector<shape>) const { RTG_THROW("builtin"); }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("builtin"); }
+};
+
 struct param
 {
     std::string parameter;

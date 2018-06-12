@@ -8,7 +8,7 @@ namespace rtg {
 namespace cpu {
 
 template <typename T>
-T zero(const T& x) { return T(0); }
+T zero(const T&) { return T(0); }
 
 struct cpu_convolution
 {
@@ -20,8 +20,6 @@ struct cpu_convolution
     {
         argument result{output_shape};
         visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
-            auto in_n = input.get_shape().lens()[0];
-            auto in_c = input.get_shape().lens()[1];
             auto in_h = input.get_shape().lens()[2];
             auto in_w = input.get_shape().lens()[3];
 
@@ -29,7 +27,10 @@ struct cpu_convolution
             auto wei_h = weights.get_shape().lens()[2];
             auto wei_w = weights.get_shape().lens()[3];
 
-            dfor(in_n, in_c, in_h, in_w)(
+            dfor(output_shape.lens()[0],
+                 output_shape.lens()[1],
+                 output_shape.lens()[2],
+                 output_shape.lens()[3])(
                 [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
                     const int start_x = i * op.stride[0] - op.padding[0];
                     const int start_y = j * op.stride[1] - op.padding[1];
@@ -62,25 +63,25 @@ struct cpu_gemm
     argument compute(shape output_shape, std::vector<argument> args) const 
     {
         argument result{output_shape};
-        visit_all(result, args[0], args[1])([&](auto C, auto A, auto B) {
-            auto M = A.get_shape().lens()[0];
-            auto N = B.get_shape().lens()[1];
-            auto K = B.get_shape().lens()[0];
+        visit_all(result, args[0], args[1])([&](auto cmat, auto amat, auto bmat) {
+            auto m = amat.get_shape().lens()[0];
+            auto n = bmat.get_shape().lens()[1];
+            auto k = bmat.get_shape().lens()[0];
 
-            auto a = A.data();
-            auto b = B.data();
-            auto c = C.data();
-            for (int ii = 0; ii < M; ii++) {
-              for (int jj = 0; jj < N; jj++) {
-                c[ii*N+jj] = 0;
+            auto a = amat.data();
+            auto b = bmat.data();
+            auto c = cmat.data();
+            for (int ii = 0; ii < m; ii++) {
+              for (int jj = 0; jj < n; jj++) {
+                c[ii*n+jj] = 0;
               }
             }
-            for (int ii = 0; ii < M; ii++) {
-              for (int kk = 0; kk < K; kk++) {
-                auto aik = a[ii*K+kk];
-                auto* bkj = &b[kk*N];
-                auto* cij = &c[ii*N];
-                for (int jj = 0; jj < N; jj++, cij++, bkj++) {
+            for (int ii = 0; ii < m; ii++) {
+              for (int kk = 0; kk < k; kk++) {
+                auto aik = a[ii*k+kk];
+                auto* bkj = &b[kk*n];
+                auto* cij = &c[ii*n];
+                for (int jj = 0; jj < n; jj++, cij++, bkj++) {
                   *cij += aik*(*bkj);
                 }
               }
@@ -216,10 +217,6 @@ struct softmax2d
                       for (int c = 0; c < nc; c++) {
                           output(b, c, i, j) = output(b, c, i, j)/sum;
                       }
-
-//                       for (int c = 0; c < nc; c++) {
-//                           output(b, c, i, j) = input(b, c, i, j);
-//                       }
                   }
               }
          } 
@@ -348,55 +345,46 @@ struct cpu_apply
 
     void apply_identity(instruction_ref ins)
     {
-        auto&& op = any_cast<identity>(ins->op);
         prog->replace_instruction(ins, cpu_unary<identity_op>{}, ins->arguments);
     }
 
     void apply_softmax(instruction_ref ins)
     {
-        auto&& op = any_cast<softmax>(ins->op);
         prog->replace_instruction(ins, softmax2d{}, ins->arguments);
     }
 
     void apply_tanh(instruction_ref ins)
     {
-        auto&& op = any_cast<tanh>(ins->op);
         prog->replace_instruction(ins, cpu_unary<tanh_op>{}, ins->arguments);
     }
 
     void apply_sigmoid(instruction_ref ins)
     {
-        auto&& op = any_cast<sigmoid>(ins->op);
         prog->replace_instruction(ins, cpu_unary<sigmoid_op>{}, ins->arguments);
     }
 
     void apply_exp(instruction_ref ins)
     {
-        auto&& op = any_cast<exp>(ins->op);
         prog->replace_instruction(ins, cpu_unary<exp_op>{}, ins->arguments);
     }
 
     void apply_neg(instruction_ref ins)
     {
-        auto&& op = any_cast<neg>(ins->op);
         prog->replace_instruction(ins, cpu_unary<neg_op>{}, ins->arguments);
     }
 
     void apply_sin(instruction_ref ins)
     {
-        auto&& op = any_cast<sin>(ins->op);
         prog->replace_instruction(ins, cpu_unary<sin_op>{}, ins->arguments);
     }
 
     void apply_cos(instruction_ref ins)
     {
-        auto&& op = any_cast<cos>(ins->op);
         prog->replace_instruction(ins, cpu_unary<cos_op>{}, ins->arguments);
     }
 
     void apply_tan(instruction_ref ins)
     {
-        auto&& op = any_cast<tan>(ins->op);
         prog->replace_instruction(ins, cpu_unary<tan_op>{}, ins->arguments);
     }
 };

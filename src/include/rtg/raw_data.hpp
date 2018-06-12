@@ -6,6 +6,12 @@
 
 namespace rtg {
 
+#define RTG_REQUIRES(...) class = typename std::enable_if<(__VA_ARGS__)>::type
+
+struct raw_data_base
+{
+};
+
 /**
  * @brief Provides a base class for common operations with raw buffer
  *
@@ -15,29 +21,8 @@ namespace rtg {
  *
  */
 template <class Derived>
-struct raw_data
+struct raw_data : raw_data_base
 {
-    friend bool operator==(const Derived& x, const Derived& y)
-    {
-        auto&& xshape = x.get_shape();
-        auto&& yshape = y.get_shape();
-        bool result   = x.empty() && y.empty();
-        if(not result && xshape == yshape)
-        {
-            auto&& xbuffer = x.data();
-            auto&& ybuffer = y.data();
-            // TODO: Dont use tensor view for single values
-            xshape.visit_type([&](auto as) {
-                auto xview = make_view(xshape, as.from(xbuffer));
-                auto yview = make_view(yshape, as.from(ybuffer));
-                result     = xview == yview;
-            });
-        }
-        return result;
-    }
-
-    friend bool operator!=(const Derived& x, const Derived& y) { return !(x == y); }
-
     template <class Stream>
     friend Stream& operator<<(Stream& os, const Derived& d)
     {
@@ -94,7 +79,55 @@ struct raw_data
         this->visit_at([&](auto x) { result = x; }, n);
         return result;
     }
+
+    struct auto_cast
+    {
+        const Derived* self;
+        template <class T>
+        operator T()
+        {
+            return self->template at<T>();
+        }
+        template <class T>
+        operator T*()
+        {
+            // TODO: Check type
+            return reinterpret_cast<T*>(self->data());
+        }
+    };
+
+    auto_cast get() const { return {static_cast<const Derived*>(this)}; }
 };
+
+template <class T,
+          class U,
+          RTG_REQUIRES(std::is_base_of<raw_data_base, T>{} && std::is_base_of<raw_data_base, U>{})>
+bool operator==(const T& x, const U& y)
+{
+    auto&& xshape = x.get_shape();
+    auto&& yshape = y.get_shape();
+    bool result   = x.empty() && y.empty();
+    if(not result && xshape == yshape)
+    {
+        auto&& xbuffer = x.data();
+        auto&& ybuffer = y.data();
+        // TODO: Dont use tensor view for single values
+        xshape.visit_type([&](auto as) {
+            auto xview = make_view(xshape, as.from(xbuffer));
+            auto yview = make_view(yshape, as.from(ybuffer));
+            result     = xview == yview;
+        });
+    }
+    return result;
+}
+
+template <class T,
+          class U,
+          RTG_REQUIRES(std::is_base_of<raw_data_base, T>{} && std::is_base_of<raw_data_base, U>{})>
+bool operator!=(const T& x, const U& y)
+{
+    return !(x == y);
+}
 
 namespace detail {
 template <class V, class... Ts>

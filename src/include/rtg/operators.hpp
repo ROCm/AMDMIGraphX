@@ -235,13 +235,13 @@ struct gemm
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs}.has(2).same_type();
-        const shape& A = inputs.at(0); 
-        const shape& B = inputs.at(1); 
-        auto t         = A.type();
+        const shape& a = inputs.at(0); 
+        const shape& b = inputs.at(1); 
+        auto t         = a.type();
 
-        if (A.lens()[1] != B.lens()[0])
+        if (a.lens()[1] != b.lens()[0])
             RTG_THROW("Inner dimensions do not match");
-        return {t, {A.lens()[0], B.lens()[1]}};
+        return {t, {a.lens()[0], b.lens()[1]}};
     }
   
     argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
@@ -446,9 +446,16 @@ struct div
     }
 };
 
-struct reduce
+struct outline
 {
-    std::string name() const { return "reduce"; }
+    shape s;
+    std::string name() const { return "outline"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(0);
+        return s;
+    }
+    argument compute(shape, std::vector<argument>) const { return {s, nullptr}; }
 };
 
 } // namespace rtg

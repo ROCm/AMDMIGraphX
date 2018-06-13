@@ -16,7 +16,10 @@ using range_value = std::decay_t<decltype(*std::declval<R>().begin())>;
 struct sum_fn
 {
     template <class T, class U>
-    auto operator()(T x, U y) const { return x + y; }
+    auto operator()(T x, U y) const
+    {
+        return x + y;
+    }
 };
 static constexpr sum_fn sum{};
 
@@ -29,7 +32,10 @@ struct max_fn
     }
 
     template <class T, class U>
-    auto operator()(T x, U y) const { return x > y ? x : y; }
+    auto operator()(T x, U y) const
+    {
+        return x > y ? x : y;
+    }
 };
 static constexpr max_fn max{};
 
@@ -38,7 +44,10 @@ using std::fabs;
 struct fn
 {
     template <class T, class U>
-    auto operator()(T x, U y) const { return fabs(x - y); }
+    auto operator()(T x, U y) const
+    {
+        return fabs(x - y);
+    }
 };
 
 } // namespace abs_diff_detail
@@ -90,8 +99,10 @@ bool range_empty(R1&& r1)
 }
 
 template <class R1>
-auto range_distance(R1&& r1) 
-{ return std::distance(r1.begin(), r1.end()); }
+auto range_distance(R1&& r1)
+{
+    return std::distance(r1.begin(), r1.end());
+}
 
 template <class R1>
 bool range_zero(R1&& r1)
@@ -131,13 +142,10 @@ double max_diff(R1&& r1, R2&& r2)
 template <class R1, class R2, class T>
 std::size_t mismatch_diff(R1&& r1, R2&& r2, T diff)
 {
-    return mismatch_idx(
-        r1,
-        r2,
-        [&](auto x, auto y) {
-            auto d = abs_diff(x, y);
-            return !(d > diff && d < diff);
-        });
+    return mismatch_idx(r1, r2, [&](auto x, auto y) {
+        auto d = abs_diff(x, y);
+        return !(d > diff && d < diff);
+    });
 }
 
 template <class R1, class R2>
@@ -157,8 +165,8 @@ double rms_range(R1&& r1, R2&& r2)
         return std::numeric_limits<range_value<R1>>::max();
 }
 
-template<class R1, class R2>
-bool verify_range(R1&& r1, R2&& r2, double tolerance=80)
+template <class R1, class R2>
+bool verify_range(R1&& r1, R2&& r2, double tolerance = 80)
 {
     double threshold = std::numeric_limits<range_value<R1>>::epsilon() * tolerance;
     auto error       = rms_range(r1, r2);

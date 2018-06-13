@@ -54,6 +54,24 @@ struct cpu_convolution
     }
 };
 
+struct cpu_transpose
+{
+    transpose op;
+   
+    std::string name() const { return "cpu::transpose"; } 
+    shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
+    argument compute(shape output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        visit_all(result, args[0])([&](auto output, auto input) {
+            dfor(output_shape.lens()[0],
+                 output_shape.lens()[0],
+                 output_shape.lens()[0],
+                 output_shape.lens()[0]
+        });
+    }
+}
+
 struct cpu_reshape
 {
     reshape op;

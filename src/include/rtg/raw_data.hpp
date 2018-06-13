@@ -59,6 +59,7 @@ struct raw_data : raw_data_base
         s.visit_type([&](auto as) { v(make_view(s, as.from(buffer))); });
     }
 
+    /// Returns true if the raw data is only one element
     bool single() const
     {
         auto&& s = static_cast<const Derived&>(*this).get_shape();
@@ -86,17 +87,31 @@ struct raw_data : raw_data_base
         template <class T>
         operator T()
         {
+            assert(self->single());
             return self->template at<T>();
         }
         template <class T>
         operator T*()
         {
-            // TODO: Check type
-            return reinterpret_cast<T*>(self->data());
+            using type = std::remove_cv_t<T>;
+            assert((std::is_void<T>{} or std::is_same<char, type>{} or std::is_same<unsigned char, type>{} or self->get_shape().type() == rtg::shape::get_type<T>{}));
+            return reinterpret_cast<type*>(self->data());
         }
     };
 
-    auto_cast get() const { return {static_cast<const Derived*>(this)}; }
+    /// Implicit conversion of raw data pointer
+    auto_cast implicit() const { return {static_cast<const Derived*>(this)}; }
+
+    /// Get a tensor_view to the data
+    template<class T>
+    tensor_view<T> get() const
+    {
+        auto&& s = static_cast<const Derived&>(*this).get_shape();
+        auto&& buffer = static_cast<const Derived&>(*this).data();
+        if(s.type() != rtg::shape::get_type<T>{})
+            RTG_THROW("Incorrect data type for raw data");
+        return make_view(s, reinterpret_cast<T*>(buffer));
+    }
 };
 
 template <class T,

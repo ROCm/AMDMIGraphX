@@ -93,7 +93,7 @@ std::vector<float> cpu()
     auto x = get_tensor_argument_cpu({rtg::shape::float_type, {4, 3, 3, 3}});
     auto w = get_tensor_argument_cpu({rtg::shape::float_type, {4, 3, 3, 3}});
     p.compile(rtg::cpu::cpu_target{});
-    auto r = p.eval({{"x", x}, {"w", w}});
+    auto r      = p.eval({{"x", x}, {"w", w}});
     auto output = r.get<float>();
     result.assign(output.begin(), output.end());
     return result;

@@ -10,6 +10,7 @@
 #include <random>
 
 #include "test.hpp"
+#include "verify.hpp"
 
 using hip_ptr       = RTG_MANAGE_PTR(void, hipFree);
 using miopen_handle = RTG_MANAGE_PTR(miopenHandle_t, miopenDestroy);
@@ -92,8 +93,9 @@ std::vector<float> cpu()
     auto x = get_tensor_argument_cpu({rtg::shape::float_type, {4, 3, 3, 3}});
     auto w = get_tensor_argument_cpu({rtg::shape::float_type, {4, 3, 3, 3}});
     p.compile(rtg::cpu::cpu_target{});
-    auto r = p.eval({{"x", x}, {"w", w}});
-    r.visit([&](auto output) { result.assign(output.begin(), output.end()); });
+    auto r      = p.eval({{"x", x}, {"w", w}});
+    auto output = r.get<float>();
+    result.assign(output.begin(), output.end());
     return result;
 }
 
@@ -116,9 +118,7 @@ void test1()
 {
     auto x = cpu();
     auto y = gpu();
-    // TODO: Use expect
-    if(x == y)
-        std::cout << "FAILED" << std::endl;
+    EXPECT(test::verify_range(x, y));
 }
 
 int main() { test1(); }

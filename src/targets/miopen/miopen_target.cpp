@@ -115,31 +115,31 @@ struct miopen_convolution
         float alpha = 1, beta = 0;
         int algo_count;
         miopenConvAlgoPerf_t perf;
-        miopenFindConvolutionForwardAlgorithm(args[0].get(),
+        miopenFindConvolutionForwardAlgorithm(args[0].implicit(),
                                               x_desc.get(),
-                                              args[1].get(),
+                                              args[1].implicit(),
                                               w_desc.get(),
-                                              args[2].get(),
+                                              args[2].implicit(),
                                               cd.get(),
                                               y_desc.get(),
-                                              args[3].get(),
+                                              args[3].implicit(),
                                               1,
                                               &algo_count,
                                               &perf,
                                               nullptr,
                                               0,
                                               false);
-        miopenConvolutionForward(args[0].get(),
+        miopenConvolutionForward(args[0].implicit(),
                                  &alpha,
                                  x_desc.get(),
-                                 args[1].get(),
+                                 args[1].implicit(),
                                  w_desc.get(),
-                                 args[2].get(),
+                                 args[2].implicit(),
                                  cd.get(),
                                  perf.fwd_algo,
                                  &beta,
                                  y_desc.get(),
-                                 args[3].get(),
+                                 args[3].implicit(),
                                  nullptr,
                                  0);
         return args[3];
@@ -161,14 +161,14 @@ struct miopen_relu
         float alpha = 1, beta = 0;
         auto x_desc = make_tensor(args[1].get_shape());
         auto y_desc = make_tensor(output_shape);
-        miopenActivationForward(args[0].get(),
+        miopenActivationForward(args[0].implicit(),
                                 ad.get(),
                                 &alpha,
                                 x_desc.get(),
-                                args[1].get(),
+                                args[1].implicit(),
                                 &beta,
                                 y_desc.get(),
-                                args[2].get());
+                                args[2].implicit());
 
         return args[2];
     }

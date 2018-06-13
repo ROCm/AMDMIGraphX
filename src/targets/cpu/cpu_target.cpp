@@ -51,6 +51,21 @@ struct cpu_convolution
     }
 };
 
+struct cpu_reshape
+{
+    reshape op; 
+    std::string name() const { return "cpu::reshape"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        return op.compute_shape(inputs);
+    }
+
+    argument compute(shape output_shape, std::vector<argument> args) const 
+    {
+        return {output_shape, std::move(args.front().data)};
+    }
+};
+
 struct cpu_gemm
 {
     gemm op;
@@ -277,6 +292,14 @@ struct cpu_apply
             {
                 apply_convolution(it);
             }
+            else if(it->op.name() == "gemm")
+            {
+                apply_gemm(it);
+            }
+            else if(it->op.name() == "reshape")
+            {
+                apply_reshape(it);
+            }
             else if(it->op.name() == "activation")
             {
                 apply_activation(it);
@@ -317,10 +340,6 @@ struct cpu_apply
             {
                 apply_tan(it);
             }
-            else if(it->op.name() == "gemm")
-            {
-                apply_gemm(it);
-            }
         }
     }
 
@@ -334,6 +353,12 @@ struct cpu_apply
     {
         auto&& op = any_cast<gemm>(ins->op);
         prog->replace_instruction(ins, cpu_gemm{op}, ins->arguments);
+    }
+
+    void apply_reshape(instruction_ref ins)
+    {
+        auto&& op = any_cast<reshape>(ins->op);
+        prog->replace_instruction(ins, cpu_reshape{op}, ins->arguments);
     }
 
     void apply_activation(instruction_ref ins)

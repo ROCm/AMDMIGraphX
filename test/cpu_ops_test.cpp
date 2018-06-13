@@ -1,9 +1,9 @@
-#include <cassert>
 #include <iostream>
 #include <vector>
 #include <rtg/literal.hpp>
 #include <rtg/operators.hpp>
 #include <rtg/cpu/cpu_target.hpp>
+#include "test.hpp"
 
 void exp_test() {
     rtg::program p;
@@ -13,14 +13,111 @@ void exp_test() {
     p.compile(rtg::cpu::cpu_target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
-    memcpy(results_vector.data(), result.data(), 3*sizeof(float));
+    result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0.36787944f,1.f,2.71828183f};
-    float tol = 1e-8;
+    float tol = 1e-6;
     for (int i = 0; i < results_vector.size(); i++) {
-        assert(std::abs(results_vector[i]-gold[i]) < tol);
+        EXPECT(std::abs(results_vector[i]-gold[i]) < tol);
     }
 }
 
+void sin_test() {
+    rtg::program p;
+    rtg::shape s{rtg::shape::float_type, {3}};
+    auto l = p.add_literal(rtg::literal{s, {-1,0,1}});
+    p.add_instruction(rtg::sin{}, l);
+    p.compile(rtg::cpu::cpu_target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(3);
+    result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {-0.84147098f,0.f,0.84147098f};
+    float tol = 1e-6;
+    for (int i = 0; i < results_vector.size(); i++) {
+        EXPECT(std::abs(results_vector[i]-gold[i]) < tol);
+    }
+}
+
+void cos_test() {
+    rtg::program p;
+    rtg::shape s{rtg::shape::float_type, {3}};
+    auto l = p.add_literal(rtg::literal{s, {-1,0,1}});
+    p.add_instruction(rtg::cos{}, l);
+    p.compile(rtg::cpu::cpu_target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(3);
+    result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {0.54030231f,1.f,0.54030231f};
+    float tol = 1e-6;
+    for (int i = 0; i < results_vector.size(); i++) {
+        EXPECT(std::abs(results_vector[i]-gold[i]) < tol);
+    }
+}
+
+void tan_test() {
+    rtg::program p;
+    rtg::shape s{rtg::shape::float_type, {3}};
+    auto l = p.add_literal(rtg::literal{s, {-1,0,1}});
+    p.add_instruction(rtg::tan{}, l);
+    p.compile(rtg::cpu::cpu_target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(3);
+    result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {-1.55740772f,0.0f,1.55740772f};
+    float tol = 1e-6;
+    for (int i = 0; i < results_vector.size(); i++) {
+        EXPECT(std::abs(results_vector[i]-gold[i]) < tol);
+    }
+}
+
+void reshape_test() {
+    rtg::shape a_shape{rtg::shape::float_type, {24,1,1,1}};
+    std::vector<float> data(24);
+    std::iota(data.begin(), data.end(), -3);
+    {
+        rtg::program p;
+        auto l = p.add_literal(rtg::literal{a_shape, data});
+        std::vector<int64_t> new_shape = {8,3,1,1};
+        p.add_instruction(rtg::reshape{new_shape}, l);
+        p.compile(rtg::cpu::cpu_target{});
+        auto result = p.eval({});
+        std::vector<float> results_vector(3);
+        result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
+        float tol = 1e-8;
+        for (int i = 0; i < results_vector.size(); i++) {
+            EXPECT(std::abs(results_vector[i]-data[i]) < tol);
+        }
+    }
+    {
+        rtg::program p;
+        auto l = p.add_literal(rtg::literal{a_shape, data});
+        std::vector<int64_t> new_shape = {1,3,4,2};
+        p.add_instruction(rtg::reshape{new_shape}, l);
+        p.compile(rtg::cpu::cpu_target{});
+        auto result = p.eval({});
+        std::vector<float> results_vector(3);
+        result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
+        float tol = 1e-8;
+        for (int i = 0; i < results_vector.size(); i++) {
+            EXPECT(std::abs(results_vector[i]-data[i]) < tol);
+        }
+    }
+    {
+        rtg::program p;
+        auto l = p.add_literal(rtg::literal{a_shape, data});
+        std::vector<int64_t> new_shape = {1,3,4,2};
+        p.add_instruction(rtg::reshape{new_shape}, l);
+        p.compile(rtg::cpu::cpu_target{});
+        auto result = p.eval({});
+        std::vector<float> results_vector(3);
+        result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
+        float tol = 1e-8;
+        for (int i = 0; i < results_vector.size(); i++) {
+            EXPECT(std::abs(results_vector[i]-data[i]) < tol);
+        }
+    }
+}
+
+        //std::cout << std::abs(results_vector[i]-gold[i])  << std::endl;
 void gemm_test() {
     rtg::program p;
     std::vector<float> a = {-0.00925222,  0.56250403,  0.70107397,  0.75402161, -0.505885  ,
@@ -44,10 +141,10 @@ void gemm_test() {
     p.compile(rtg::cpu::cpu_target{});
     auto result = p.eval({});
     std::vector<float> results_vector(12);
-    memcpy(results_vector.data(), result.data(), 12*sizeof(float));
+    result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
     float tol = 1e-6;
     for (int i = 0; i < results_vector.size(); i++) {
-        assert(std::abs(results_vector[i]-c[i]) < tol);
+        EXPECT(std::abs(results_vector[i]-c[i]) < tol);
     }
 }
 
@@ -125,10 +222,10 @@ void softmax_test() {
     p.compile(rtg::cpu::cpu_target{});
     auto result = p.eval({});
     std::vector<float> results_vector(120);
-    memcpy(results_vector.data(), result.data(), 120*sizeof(float));
+    result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
     float tol = 1e-6;
     for (int i = 0; i < results_vector.size(); i++) {
-        assert(std::abs(results_vector[i]-s[i]) < tol);
+        EXPECT(std::abs(results_vector[i]-s[i]) < tol);
     }
 }
 
@@ -190,10 +287,10 @@ void conv2d_test() {
     auto result = p.eval({});
 
     std::vector<float> results_vector(16);
-    memcpy(results_vector.data(), result.data(), 16*sizeof(float));
+    result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
     float tol = 1e-6;
     for (int i = 0; i < results_vector.size(); i++) {
-        assert(std::abs(results_vector[i]-s[i]) < tol);
+        EXPECT(std::abs(results_vector[i]-s[i]) < tol);
     }
 }
 
@@ -257,10 +354,10 @@ void conv2d_padding_test() {
     auto result = p.eval({});
 
     std::vector<float> results_vector(64);
-    memcpy(results_vector.data(), result.data(), 64*sizeof(float));
+    result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
     float tol = 1e-6;
     for (int i = 0; i < results_vector.size(); i++) {
-        assert(std::abs(results_vector[i]-s[i]) < tol);
+        EXPECT(std::abs(results_vector[i]-s[i]) < tol);
     }
 }
 
@@ -315,16 +412,21 @@ void conv2d_padding_stride_test() {
     auto result = p.eval({});
 
     std::vector<float> results_vector(16);
-    memcpy(results_vector.data(), result.data(), 16*sizeof(float));
+    result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
     float tol = 1e-6;
     for (int i = 0; i < results_vector.size(); i++) {
-        assert(std::abs(results_vector[i]-s[i]) < tol);
+        EXPECT(std::abs(results_vector[i]-s[i]) < tol);
     }
 }
+
 int main()
 {
     exp_test();
+    sin_test();
+    cos_test();
+    tan_test();
     gemm_test();
+    reshape_test();
     softmax_test();
     conv2d_test();
     conv2d_padding_test();

@@ -229,9 +229,6 @@ struct reshape
 struct gemm
 {
     std::string name() const { return "gemm";}
-    std::size_t lda = 1; 
-    std::size_t ldb = 1; 
-    std::size_t ldc = 1; 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs}.has(2).same_type();
@@ -254,147 +251,79 @@ struct gemm
     }
 };
 
-struct identity
+struct unary
+{
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      check_shapes{inputs}.has(1);
+      return inputs.at(0);
+    }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+};
+
+struct identity : unary
 {
     std::string name() const {return "identity"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      check_shapes{inputs}.has(1);
-      return inputs.at(0);
-    }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
-struct abs
+struct abs : unary
 {
     std::string name() const {return "abs"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      check_shapes{inputs}.has(1);
-      return inputs.at(0);
-    }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
-struct exp 
+struct exp : unary
 {
     std::string name() const { return "exp"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      check_shapes{inputs}.has(1);
-      return inputs.at(0);
-    }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
-struct sin
+struct sin : unary
 {
     std::string name() const {return "sin"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      check_shapes{inputs}.has(1);
-      return inputs.at(0);
-    }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
-struct cos
+struct cos : unary
 {
     std::string name() const {return "cos"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      check_shapes{inputs}.has(1);
-      return inputs.at(0);
-    }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
-struct tan
+struct tan : unary
 {
     std::string name() const {return "tan"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      check_shapes{inputs}.has(1);
-      return inputs.at(0);
-    }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
-struct asin
+struct asin : unary
 {
     std::string name() const {return "asin"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      check_shapes{inputs}.has(1);
-      return inputs.at(0);
-    }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
-struct acos
+struct acos : unary
 {
     std::string name() const {return "acos"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      check_shapes{inputs}.has(1);
-      return inputs.at(0);
-    }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
-struct atan
+struct atan : unary
 {
     std::string name() const {return "atan"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      check_shapes{inputs}.has(1);
-      return inputs.at(0);
-    }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
-struct softmax
+struct softmax : unary
 {
     std::string name() const {return "softmax"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      check_shapes{inputs}.has(1).only_dims(4);
-      return inputs.at(0);
-    }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
-struct tanh
+struct tanh : unary
 {
     std::string name() const {return "tanh"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      check_shapes{inputs}.has(1);
-      return inputs.at(0);
-    }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
-struct sigmoid
+struct sigmoid : unary
 {
     std::string name() const {return "sigmoid"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      check_shapes{inputs}.has(1);
-      return inputs.at(0);
-    }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
-struct neg
+struct neg : unary
 {
     std::string name() const {return "neg"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      check_shapes{inputs}.has(1);
-      return inputs.at(0);
-    }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
 struct flatten 
@@ -402,48 +331,34 @@ struct flatten
     std::string name() const { return "flatten"; }
 };
 
-struct add
+struct binary
+{
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+      // TODO(wsttiger@gmail.com) Check this for numpy-style broadcasting operations
+      check_shapes{inputs}.has(2).same_type().same_dims();
+      return inputs.at(0);
+    }
+};
+
+struct add : binary
 {
     std::string name() const { return "add"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      // TODO(wsttiger@gmail.com) Check this for numpy-style broadcasting operations
-      check_shapes{inputs}.has(2).same_type().same_dims();
-      return inputs.at(0);
-    }
 };
 
-struct sub
+struct sub : binary
 {
     std::string name() const { return "sub"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      // TODO(wsttiger@gmail.com) Check this for numpy-style broadcasting operations
-      check_shapes{inputs}.has(2).same_type().same_dims();
-      return inputs.at(0);
-    }
 };
 
-struct mul
+struct mul : binary
 {
     std::string name() const { return "mul"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      // TODO(wsttiger@gmail.com) Check this for numpy-style broadcasting operations
-      check_shapes{inputs}.has(2).same_type().same_dims();
-      return inputs.at(0);
-    }
 };
 
-struct div
+struct div : binary
 {
     std::string name() const { return "div"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-      // TODO(wsttiger@gmail.com) Check this for numpy-style broadcasting operations
-      check_shapes{inputs}.has(2).same_type().same_dims();
-      return inputs.at(0);
-    }
 };
 
 struct outline

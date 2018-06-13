@@ -10,6 +10,7 @@
 #include <random>
 
 #include "test.hpp"
+#include "verify.hpp"
 
 using hip_ptr       = RTG_MANAGE_PTR(void, hipFree);
 using miopen_handle = RTG_MANAGE_PTR(miopenHandle_t, miopenDestroy);
@@ -116,9 +117,7 @@ void test1()
 {
     auto x = cpu();
     auto y = gpu();
-    // TODO: Use expect
-    if(x == y)
-        std::cout << "FAILED" << std::endl;
+    EXPECT(test::verify_range(x, y));
 }
 
 int main() { test1(); }

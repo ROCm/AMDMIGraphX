@@ -4,6 +4,8 @@
 #include <rtg/operators.hpp>
 #include <rtg/cpu/cpu_target.hpp>
 #include "test.hpp"
+#include "verify.hpp"
+
 
 void exp_test() {
     rtg::program p;
@@ -15,10 +17,7 @@ void exp_test() {
     std::vector<float> results_vector(3);
     result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0.36787944f,1.f,2.71828183f};
-    float tol = 1e-6;
-    for (int i = 0; i < results_vector.size(); i++) {
-        EXPECT(std::abs(results_vector[i]-gold[i]) < tol);
-    }
+    EXPECT(test::verify_range(results_vector, gold));
 }
 
 void sin_test() {
@@ -31,10 +30,7 @@ void sin_test() {
     std::vector<float> results_vector(3);
     result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {-0.84147098f,0.f,0.84147098f};
-    float tol = 1e-6;
-    for (int i = 0; i < results_vector.size(); i++) {
-        EXPECT(std::abs(results_vector[i]-gold[i]) < tol);
-    }
+    EXPECT(test::verify_range(results_vector, gold));
 }
 
 void cos_test() {
@@ -47,10 +43,7 @@ void cos_test() {
     std::vector<float> results_vector(3);
     result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0.54030231f,1.f,0.54030231f};
-    float tol = 1e-6;
-    for (int i = 0; i < results_vector.size(); i++) {
-        EXPECT(std::abs(results_vector[i]-gold[i]) < tol);
-    }
+    EXPECT(test::verify_range(results_vector, gold));
 }
 
 void tan_test() {
@@ -63,10 +56,7 @@ void tan_test() {
     std::vector<float> results_vector(3);
     result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {-1.55740772f,0.0f,1.55740772f};
-    float tol = 1e-6;
-    for (int i = 0; i < results_vector.size(); i++) {
-        EXPECT(std::abs(results_vector[i]-gold[i]) < tol);
-    }
+    EXPECT(test::verify_range(results_vector, gold));
 }
 
 void reshape_test() {
@@ -82,10 +72,7 @@ void reshape_test() {
         auto result = p.eval({});
         std::vector<float> results_vector(3);
         result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
-        float tol = 1e-8;
-        for (int i = 0; i < results_vector.size(); i++) {
-            EXPECT(std::abs(results_vector[i]-data[i]) < tol);
-        }
+        EXPECT(test::verify_range(results_vector, data));
     }
     {
         rtg::program p;
@@ -96,10 +83,7 @@ void reshape_test() {
         auto result = p.eval({});
         std::vector<float> results_vector(3);
         result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
-        float tol = 1e-8;
-        for (int i = 0; i < results_vector.size(); i++) {
-            EXPECT(std::abs(results_vector[i]-data[i]) < tol);
-        }
+        EXPECT(test::verify_range(results_vector, data));
     }
     {
         rtg::program p;
@@ -110,10 +94,7 @@ void reshape_test() {
         auto result = p.eval({});
         std::vector<float> results_vector(3);
         result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
-        float tol = 1e-8;
-        for (int i = 0; i < results_vector.size(); i++) {
-            EXPECT(std::abs(results_vector[i]-data[i]) < tol);
-        }
+        EXPECT(test::verify_range(results_vector, data));
     }
 }
 
@@ -223,10 +204,7 @@ void softmax_test() {
     auto result = p.eval({});
     std::vector<float> results_vector(120);
     result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
-    float tol = 1e-6;
-    for (int i = 0; i < results_vector.size(); i++) {
-        EXPECT(std::abs(results_vector[i]-s[i]) < tol);
-    }
+    EXPECT(test::verify_range(results_vector, s));
 }
 
 void conv2d_test() {
@@ -288,10 +266,7 @@ void conv2d_test() {
 
     std::vector<float> results_vector(16);
     result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
-    float tol = 1e-6;
-    for (int i = 0; i < results_vector.size(); i++) {
-        EXPECT(std::abs(results_vector[i]-s[i]) < tol);
-    }
+    EXPECT(test::verify_range(results_vector, s));
 }
 
 void conv2d_padding_test() {
@@ -355,10 +330,7 @@ void conv2d_padding_test() {
 
     std::vector<float> results_vector(64);
     result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
-    float tol = 1e-6;
-    for (int i = 0; i < results_vector.size(); i++) {
-        EXPECT(std::abs(results_vector[i]-s[i]) < tol);
-    }
+    EXPECT(test::verify_range(results_vector, s));
 }
 
 void conv2d_padding_stride_test() {
@@ -413,10 +385,7 @@ void conv2d_padding_stride_test() {
 
     std::vector<float> results_vector(16);
     result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
-    float tol = 1e-6;
-    for (int i = 0; i < results_vector.size(); i++) {
-        EXPECT(std::abs(results_vector[i]-s[i]) < tol);
-    }
+    EXPECT(test::verify_range(results_vector, s));
 }
 
 int main()

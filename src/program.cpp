@@ -55,6 +55,13 @@ instruction_ref program::add_literal(literal l)
     return std::prev(impl->instructions.end());
 }
 
+instruction_ref program::insert_literal(instruction_ref ins, literal l)
+{
+    auto result = impl->instructions.insert(ins, std::move(l));
+    backreference(result);
+    return result;
+}
+    
 instruction_ref program::add_parameter(std::string name, shape s)
 {
     impl->instructions.push_back({builtin::param{std::move(name)}, s, {}});
@@ -115,6 +122,22 @@ literal program::eval(std::unordered_map<std::string, argument> params) const
     }
     return literal{result.get_shape(), result.data()};
 }
+
+std::list<instruction>&  program::get_instructions()
+{
+    return impl->instructions;
+}
+
+instruction_ref program::get_first_instruction()
+{
+    return impl->instructions.begin();
+}
+
+instruction_ref program::get_last_instruction()
+{
+    return std::prev(impl->instructions.end());
+}
+    
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {

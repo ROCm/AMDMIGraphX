@@ -56,6 +56,8 @@ struct program
 
     instruction_ref add_literal(literal l);
 
+    instruction_ref insert_literal(instruction_ref ins, literal l);
+
     instruction_ref add_parameter(std::string name, shape s);
 
     literal eval(std::unordered_map<std::string, argument> params) const;
@@ -70,7 +72,9 @@ struct program
     instruction_ref validate() const;
 
     void compile(const target& t);
-
+    std::list<instruction>& get_instructions();
+    instruction_ref get_first_instruction();
+    instruction_ref get_last_instruction();
     private:
     std::unique_ptr<program_impl> impl;
 };

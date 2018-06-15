@@ -404,12 +404,14 @@ void transpose_test()
     p.add_instruction(rtg::transpose{perm}, l);
     p.compile(rtg::cpu::cpu_target{});
     auto result = p.eval({});
+
     std::vector<float> results_vector(12);
-    result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
-    float tol = 1e-6;
-    for (int i = 0; i < results_vector.size(); i++) {
-      std::cout << results_vector[i] << std::endl;
-    }
+    result.visit([&] (auto output){
+      std::vector<size_t> new_lens = {1,3,2,2};
+      std::vector<size_t> new_strides = {12,1,6,3}; 
+      EXPECT(bool{output.get_shape().lens() == new_lens});
+      EXPECT(bool{output.get_shape().strides() == new_strides});
+      });
 }
 
 int main()

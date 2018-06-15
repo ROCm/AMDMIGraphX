@@ -235,36 +235,42 @@ struct transpose
     {
         check_shapes{inputs}.has(1);
         auto input         = inputs.at(0);
-        auto input_size    = input.lens();
+        auto input_lens    = input.lens();
         auto input_strides = input.strides();
         auto t             = input.type();
-        if (dims.size() != input_size.size()) {
+        if (dims.size() != input_lens.size()) {
             RTG_THROW("Permutation has wrong number of axes");
         }
-
-        // DEBUG
-        for (int i = 0; i < dims.size(); i++) {
-            std::cout << dims[i] << std::endl;
-        }
-        std::cout << std::endl;
-
         std::vector<int64_t> axes(dims.size());
         std::iota(axes.begin(), axes.end(), 0);
         if (!std::is_permutation(axes.begin(), axes.end(), dims.begin())) {
             RTG_THROW("Invalid permutation");
         }
-        std::vector<size_t> output_size(input_size.size());
-        std::vector<size_t> output_strides(input_size.size());
-        for (int i = 0; i < output_size.size(); i++) {
-            output_size[i] = input_size[dims[i]];
+        std::vector<size_t> output_lens(input_lens.size());
+        std::vector<size_t> output_strides(input_lens.size());
+        for (int i = 0; i < output_lens.size(); i++) {
+            output_lens[i] = input_lens[dims[i]];
             output_strides[i] = input_strides[dims[i]];
-            //std::cout << input_size[i] << "    " << output_size[i] << std::endl;
-            //std::cout << input_strides[i] << "    " << output_strides[i] << std::endl;
         }
-        std::cout << std::endl;
-        return {t, output_size, output_strides};
+        return {t, output_lens, output_strides};
     }
     argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+};
+
+struct contiguous 
+{
+    std::vector<int64_t> dims;
+    std::string name() const { return "contiguous"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(1);
+        auto lens    = inputs.at(0).lens();
+        auto t       = inputs.at(0).type();
+        if (lens.size() < 2) {
+            RTG_THROW("Number of dimensions should exceed 1");
+        }
+        return {t, lens};
+    }
 };
 
 struct reshape

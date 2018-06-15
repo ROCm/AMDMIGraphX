@@ -62,29 +62,80 @@ struct cpu_transpose
     shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
     argument compute(shape output_shape, std::vector<argument> args) const
     {
+        return {output_shape, std::move(args.front().data)};
+    }
+};
+
+struct cpu_contiguous
+{
+    contiguous op;
+    std::string name() const { return "cpu::contiguous"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        return op.compute_shape(inputs);
+    }
+    argument compute(shape output_shape, std::vector<argument> args) const
+    {
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
+            auto input_shape = args[0].get_shape();
+            auto ndim = output_shape.lens().size();
             using value_type = typename decltype(input)::value_type;
             value_type* ptr = static_cast<value_type*>(output.data());
-            auto nb = output_shape.lens()[0];
-            auto nc = output_shape.lens()[1]; 
-            auto nh = output_shape.lens()[2]; 
-            auto nw = output_shape.lens()[3];
-            for (int kk = 0; kk < 4; kk++) {
-                std::cout << "cpu_transpose: " << output_shape.lens()[kk] << "    " << output_shape.strides()[kk] << std::endl;
+            if (ndim == 2) {
+                dfor(input_shape.lens()[0],
+                     input_shape.lens()[1])(
+                    [&](std::size_t i0, std::size_t i1) {
+                        *ptr++ = input(i0,i1);
+                    });
             }
-            
-            for (int b = 0; b < nb; b++) {
-                for (int c = 0; c < nc; c++) {
-                    for (int i = 0; i < nh; i++) {
-                        for (int j = 0; j < nw; j++) {
-                            *ptr++ = input(b,c,i,j);
-                             std::cout << input(b,c,i,j) << "  ";
-                        }
-                    }
-                }
+            else if (ndim == 3) {
+                dfor(input_shape.lens()[0],
+                     input_shape.lens()[1],
+                     input_shape.lens()[2])(
+                    [&](std::size_t i0, std::size_t i1, std::size_t i2) {
+                        *ptr++ = input(i0,i1,i2);
+                    });
             }
-            std::cout << std::endl;
+            else if (ndim == 4) {
+                dfor(input_shape.lens()[0],
+                     input_shape.lens()[1],
+                     input_shape.lens()[2],
+                     input_shape.lens()[3])(
+                    [&](std::size_t i0, std::size_t i1, std::size_t i2, std::size_t i3) {
+                        *ptr++ = input(i0,i1,i2,i3);
+                    });
+            }
+            else if (ndim == 5) {
+                dfor(input_shape.lens()[0],
+                     input_shape.lens()[1],
+                     input_shape.lens()[2],
+                     input_shape.lens()[3],
+                     input_shape.lens()[4])(
+                    [&](std::size_t i0, 
+                        std::size_t i1, 
+                        std::size_t i2, 
+                        std::size_t i3, 
+                        std::size_t i4) {
+                        *ptr++ = input(i0,i1,i2,i3,i4);
+                    });
+            }
+            else if (ndim == 6) {
+                dfor(input_shape.lens()[0],
+                     input_shape.lens()[1],
+                     input_shape.lens()[2],
+                     input_shape.lens()[3],
+                     input_shape.lens()[4],
+                     input_shape.lens()[5])(
+                    [&](std::size_t i0, 
+                        std::size_t i1, 
+                        std::size_t i2, 
+                        std::size_t i3, 
+                        std::size_t i4, 
+                        std::size_t i5) {
+                        *ptr++ = input(i0,i1,i2,i3,i4,i5);
+                    });
+            }
         });
         return result;
     }

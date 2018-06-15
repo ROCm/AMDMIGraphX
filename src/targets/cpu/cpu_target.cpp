@@ -440,6 +440,10 @@ struct cpu_apply
             {
                 apply_reshape(it);
             }
+            else if(it->op.name() == "contiguous")
+            {
+                apply_contiguous(it);
+            }
             else if(it->op.name() == "transpose")
             {
                 apply_transpose(it);
@@ -503,6 +507,12 @@ struct cpu_apply
     {
         auto&& op = any_cast<reshape>(ins->op);
         prog->replace_instruction(ins, cpu_reshape{op}, ins->arguments);
+    }
+
+    void apply_contiguous(instruction_ref ins)
+    {
+        auto&& op = any_cast<contiguous>(ins->op);
+        prog->replace_instruction(ins, cpu_contiguous{op}, ins->arguments);
     }
 
     void apply_transpose(instruction_ref ins)

@@ -259,7 +259,6 @@ struct transpose
 
 struct contiguous 
 {
-    std::vector<int64_t> dims;
     std::string name() const { return "contiguous"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -271,6 +270,7 @@ struct contiguous
         }
         return {t, lens};
     }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
 struct reshape

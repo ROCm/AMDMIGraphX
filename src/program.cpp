@@ -12,6 +12,11 @@ struct program_impl
     std::list<instruction> instructions;
 };
 
+const operation& get_operation(instruction_ref ins)
+{
+    return ins->op;
+}
+
 program::program() : impl(std::make_unique<program_impl>()) {}
 
 program::program(program&&) noexcept = default;

@@ -64,13 +64,31 @@ struct cpu_transpose
     {
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
-            dfor(output_shape.lens()[0],
-                 output_shape.lens()[0],
-                 output_shape.lens()[0],
-                 output_shape.lens()[0]
+            using value_type = typename decltype(input)::value_type;
+            value_type* ptr = static_cast<value_type*>(output.data());
+            auto nb = output_shape.lens()[0];
+            auto nc = output_shape.lens()[1]; 
+            auto nh = output_shape.lens()[2]; 
+            auto nw = output_shape.lens()[3];
+            for (int kk = 0; kk < 4; kk++) {
+                std::cout << "cpu_transpose: " << output_shape.lens()[kk] << "    " << output_shape.strides()[kk] << std::endl;
+            }
+            
+            for (int b = 0; b < nb; b++) {
+                for (int c = 0; c < nc; c++) {
+                    for (int i = 0; i < nh; i++) {
+                        for (int j = 0; j < nw; j++) {
+                            *ptr++ = input(b,c,i,j);
+                             std::cout << input(b,c,i,j) << "  ";
+                        }
+                    }
+                }
+            }
+            std::cout << std::endl;
         });
+        return result;
     }
-}
+};
 
 struct cpu_reshape
 {
@@ -371,6 +389,10 @@ struct cpu_apply
             {
                 apply_reshape(it);
             }
+            else if(it->op.name() == "transpose")
+            {
+                apply_transpose(it);
+            }
             else if(it->op.name() == "activation")
             {
                 apply_activation(it);
@@ -430,6 +452,12 @@ struct cpu_apply
     {
         auto&& op = any_cast<reshape>(ins->op);
         prog->replace_instruction(ins, cpu_reshape{op}, ins->arguments);
+    }
+
+    void apply_transpose(instruction_ref ins)
+    {
+        auto&& op = any_cast<transpose>(ins->op);
+        prog->replace_instruction(ins, cpu_transpose{op}, ins->arguments);
     }
 
     void apply_activation(instruction_ref ins)

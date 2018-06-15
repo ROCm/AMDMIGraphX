@@ -263,25 +263,25 @@ struct reshape
 
 struct gemm
 {
-    std::string name() const { return "gemm";}
+    std::string name() const { return "gemm"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs}.has(2).same_type();
-        const shape& a = inputs.at(0); 
-        const shape& b = inputs.at(1); 
+        const shape& a = inputs.at(0);
+        const shape& b = inputs.at(1);
         auto t         = a.type();
 
-        if (a.lens()[1] != b.lens()[0])
+        if(a.lens()[1] != b.lens()[0])
             RTG_THROW("Inner dimensions do not match");
         return {t, {a.lens()[0], b.lens()[1]}};
     }
-  
+
     argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
-  
-    friend std::ostream& operator<<(std::ostream& os, const gemm& op) 
+
+    friend std::ostream& operator<<(std::ostream& os, const gemm& op)
     {
         os << op.name() << "[";
-        os << "]"; 
+        os << "]";
         return os;
     }
 };
@@ -290,20 +290,20 @@ struct unary
 {
     shape compute_shape(std::vector<shape> inputs) const
     {
-      check_shapes{inputs}.has(1);
-      return inputs.at(0);
+        check_shapes{inputs}.has(1);
+        return inputs.at(0);
     }
     argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
 struct identity : unary
 {
-    std::string name() const {return "identity"; }
+    std::string name() const { return "identity"; }
 };
 
 struct abs : unary
 {
-    std::string name() const {return "abs"; }
+    std::string name() const { return "abs"; }
 };
 
 struct exp : unary
@@ -313,55 +313,55 @@ struct exp : unary
 
 struct sin : unary
 {
-    std::string name() const {return "sin"; }
+    std::string name() const { return "sin"; }
 };
 
 struct cos : unary
 {
-    std::string name() const {return "cos"; }
+    std::string name() const { return "cos"; }
 };
 
 struct tan : unary
 {
-    std::string name() const {return "tan"; }
+    std::string name() const { return "tan"; }
 };
 
 struct asin : unary
 {
-    std::string name() const {return "asin"; }
+    std::string name() const { return "asin"; }
 };
 
 struct acos : unary
 {
-    std::string name() const {return "acos"; }
+    std::string name() const { return "acos"; }
 };
 
 struct atan : unary
 {
-    std::string name() const {return "atan"; }
+    std::string name() const { return "atan"; }
 };
 
 struct softmax : unary
 {
-    std::string name() const {return "softmax"; }
+    std::string name() const { return "softmax"; }
 };
 
 struct tanh : unary
 {
-    std::string name() const {return "tanh"; }
+    std::string name() const { return "tanh"; }
 };
 
 struct sigmoid : unary
 {
-    std::string name() const {return "sigmoid"; }
+    std::string name() const { return "sigmoid"; }
 };
 
 struct neg : unary
 {
-    std::string name() const {return "neg"; }
+    std::string name() const { return "neg"; }
 };
 
-struct flatten 
+struct flatten
 {
     std::string name() const { return "flatten"; }
 };
@@ -370,9 +370,9 @@ struct binary
 {
     shape compute_shape(std::vector<shape> inputs) const
     {
-      // TODO(wsttiger@gmail.com) Check this for numpy-style broadcasting operations
-      check_shapes{inputs}.has(2).same_type().same_dims();
-      return inputs.at(0);
+        // TODO(wsttiger@gmail.com) Check this for numpy-style broadcasting operations
+        check_shapes{inputs}.has(2).same_type().same_dims();
+        return inputs.at(0);
     }
 };
 

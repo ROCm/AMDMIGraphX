@@ -392,6 +392,26 @@ void conv2d_padding_stride_test()
     EXPECT(test::verify_range(results_vector, s));
 }
 
+void transpose_test()
+{
+    rtg::shape a_shape{rtg::shape::float_type, {1,2,2,3}};
+    std::vector<float> data(12);
+    std::iota(data.begin(), data.end(), 0);
+
+    rtg::program p;
+    auto l = p.add_literal(rtg::literal{a_shape, data});
+    std::vector<int64_t> perm = {0,3,1,2};
+    p.add_instruction(rtg::transpose{perm}, l);
+    p.compile(rtg::cpu::cpu_target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(12);
+    result.visit([&] (auto output){ results_vector.assign(output.begin(), output.end()); });
+    float tol = 1e-6;
+    for (int i = 0; i < results_vector.size(); i++) {
+      std::cout << results_vector[i] << std::endl;
+    }
+}
+
 int main()
 {
     exp_test();
@@ -400,6 +420,7 @@ int main()
     tan_test();
     gemm_test();
     reshape_test();
+    transpose_test();
     softmax_test();
     conv2d_test();
     conv2d_padding_test();

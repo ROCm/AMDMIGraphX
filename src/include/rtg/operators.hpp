@@ -1,6 +1,7 @@
 #ifndef RTG_GUARD_OPERATORS_HPP
 #define RTG_GUARD_OPERATORS_HPP
 
+#include <array>
 #include <rtg/operation.hpp>
 #include <rtg/stringutils.hpp>
 #include <rtg/streamutils.hpp>
@@ -55,6 +56,13 @@ struct check_shapes
         return *this;
     }
 
+    const check_shapes& same_ndims() const
+    {
+        if(!this->same([](const shape& s) { return s.lens().size(); }))
+            RTG_THROW("Dimensions do not match");
+        return *this;
+    }
+
     template <class F>
     bool same(F f) const
     {
@@ -83,31 +91,66 @@ struct convolution
     std::array<std::size_t, 2> padding  = {{0, 0}};
     std::array<std::size_t, 2> stride   = {{1, 1}};
     std::array<std::size_t, 2> dilation = {{1, 1}};
+    enum padding_mode_t
+    {
+        default_, // NOLINT
+        same,
+        valid
+    };
+    padding_mode_t padding_mode = default_;
     std::string name() const { return "convolution"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(2).same_type().same_dims().only_dims(4);
+        check_shapes{inputs}.has(2).same_type().same_ndims().only_dims(4);
 
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
         auto t               = input.type();
-        return {t,
-                {
-                    input.lens()[0],
-                    weights.lens()[0],
-                    std::size_t(std::max<std::ptrdiff_t>(
-                        1,
-                        (input.lens()[2] - (1 + dilation[0] * (weights.lens()[2] - 1)) +
-                         2 * padding[0]) /
-                                stride[0] +
-                            1)),
-                    std::size_t(std::max<std::ptrdiff_t>(
-                        1,
-                        (input.lens()[3] - (1 + dilation[1] * (weights.lens()[3] - 1)) +
-                         2 * padding[1]) /
-                                stride[1] +
-                            1)),
-                }};
+        if(padding_mode == default_)
+        {
+            return {t,
+                    {
+                        input.lens()[0],
+                        weights.lens()[0],
+                        std::size_t(std::max<std::ptrdiff_t>(
+                            1,
+                            (input.lens()[2] - (1 + dilation[0] * (weights.lens()[2] - 1)) +
+                             2 * padding[0]) /
+                                    stride[0] +
+                                1)),
+                        std::size_t(std::max<std::ptrdiff_t>(
+                            1,
+                            (input.lens()[3] - (1 + dilation[1] * (weights.lens()[3] - 1)) +
+                             2 * padding[1]) /
+                                    stride[1] +
+                                1)),
+                    }};
+        }
+        else if(padding_mode == same)
+        {
+            return {t,
+                    {input.lens()[0],
+                     weights.lens()[0],
+                     static_cast<std::size_t>(
+                         std::ceil(static_cast<double>(input.lens()[2]) / stride[0])),
+                     static_cast<std::size_t>(
+                         std::ceil(static_cast<double>(input.lens()[3]) / stride[1]))}};
+        }
+        else if(padding_mode == valid)
+        {
+            return {
+                t,
+                {input.lens()[0],
+                 weights.lens()[0],
+                 static_cast<std::size_t>(std::ceil(
+                     static_cast<double>(input.lens()[2] - weights.lens()[2] + 1) / stride[0])),
+                 static_cast<std::size_t>(std::ceil(
+                     static_cast<double>(input.lens()[3] - weights.lens()[3] + 1) / stride[1]))}};
+        }
+        else
+        {
+            RTG_THROW("Invalid padding mode");
+        }
     }
 
     argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
@@ -216,6 +259,153 @@ struct reshape
         os << "]";
         return os;
     }
+};
+
+struct gemm
+{
+    std::string name() const { return "gemm"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(2).same_type();
+        const shape& a = inputs.at(0);
+        const shape& b = inputs.at(1);
+        auto t         = a.type();
+
+        if(a.lens()[1] != b.lens()[0])
+            RTG_THROW("Inner dimensions do not match");
+        return {t, {a.lens()[0], b.lens()[1]}};
+    }
+
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+
+    friend std::ostream& operator<<(std::ostream& os, const gemm& op)
+    {
+        os << op.name() << "[";
+        os << "]";
+        return os;
+    }
+};
+
+struct unary
+{
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(1);
+        return inputs.at(0);
+    }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+};
+
+struct identity : unary
+{
+    std::string name() const { return "identity"; }
+};
+
+struct abs : unary
+{
+    std::string name() const { return "abs"; }
+};
+
+struct exp : unary
+{
+    std::string name() const { return "exp"; }
+};
+
+struct sin : unary
+{
+    std::string name() const { return "sin"; }
+};
+
+struct cos : unary
+{
+    std::string name() const { return "cos"; }
+};
+
+struct tan : unary
+{
+    std::string name() const { return "tan"; }
+};
+
+struct asin : unary
+{
+    std::string name() const { return "asin"; }
+};
+
+struct acos : unary
+{
+    std::string name() const { return "acos"; }
+};
+
+struct atan : unary
+{
+    std::string name() const { return "atan"; }
+};
+
+struct softmax : unary
+{
+    std::string name() const { return "softmax"; }
+};
+
+struct tanh : unary
+{
+    std::string name() const { return "tanh"; }
+};
+
+struct sigmoid : unary
+{
+    std::string name() const { return "sigmoid"; }
+};
+
+struct neg : unary
+{
+    std::string name() const { return "neg"; }
+};
+
+struct flatten
+{
+    std::string name() const { return "flatten"; }
+};
+
+struct binary
+{
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        // TODO(wsttiger@gmail.com) Check this for numpy-style broadcasting operations
+        check_shapes{inputs}.has(2).same_type().same_dims();
+        return inputs.at(0);
+    }
+};
+
+struct add : binary
+{
+    std::string name() const { return "add"; }
+};
+
+struct sub : binary
+{
+    std::string name() const { return "sub"; }
+};
+
+struct mul : binary
+{
+    std::string name() const { return "mul"; }
+};
+
+struct div : binary
+{
+    std::string name() const { return "div"; }
+};
+
+struct outline
+{
+    shape s;
+    std::string name() const { return "outline"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(0);
+        return s;
+    }
+    argument compute(shape, std::vector<argument>) const { return {s, nullptr}; }
 };
 
 } // namespace rtg

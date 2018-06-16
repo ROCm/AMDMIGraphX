@@ -15,6 +15,8 @@ namespace rtg {
 
 struct program_impl;
 
+const operation& get_operation(instruction_ref ins);
+
 /**
  * @brief Stores the instruction stream
  */
@@ -58,9 +60,14 @@ struct program
 
     instruction_ref insert_literal(instruction_ref ins, literal l);
 
+    instruction_ref add_outline(shape s);
+
+
     instruction_ref add_parameter(std::string name, shape s);
 
-    literal eval(std::unordered_map<std::string, argument> params) const;
+    shape get_parameter_shape(std::string name);
+
+    argument eval(std::unordered_map<std::string, argument> params) const;
 
     friend std::ostream& operator<<(std::ostream& os, const program& p);
 

@@ -12,6 +12,8 @@ struct program_impl
     std::list<instruction> instructions;
 };
 
+const operation& get_operation(instruction_ref ins) { return ins->op; }
+
 program::program() : impl(std::make_unique<program_impl>()) {}
 
 program::program(program&&) noexcept = default;
@@ -51,8 +53,14 @@ program::replace_instruction(instruction_ref ins, operation op, std::vector<inst
 
 instruction_ref program::add_literal(literal l)
 {
-    impl->instructions.emplace_back(std::move(l));
-    return std::prev(impl->instructions.end());
+    impl->instructions.emplace_front(std::move(l));
+    return impl->instructions.begin();
+}
+
+instruction_ref program::add_outline(shape s)
+{
+    impl->instructions.push_front({builtin::outline{s}, s, {}});
+    return impl->instructions.begin();
 }
 
 instruction_ref program::insert_literal(instruction_ref ins, literal l)
@@ -64,8 +72,27 @@ instruction_ref program::insert_literal(instruction_ref ins, literal l)
     
 instruction_ref program::add_parameter(std::string name, shape s)
 {
-    impl->instructions.push_back({builtin::param{std::move(name)}, s, {}});
-    return std::prev(impl->instructions.end());
+    impl->instructions.push_front({builtin::param{std::move(name)}, s, {}});
+    return impl->instructions.begin();
+}
+
+shape program::get_parameter_shape(std::string name)
+{
+    auto ins = std::find_if(
+        impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
+            if(x.op.name() == "@param")
+            {
+                return any_cast<builtin::param>(x.op).parameter == name;
+            }
+            else
+            {
+                return false;
+            }
+        });
+    if(ins != this->end())
+        return ins->result;
+    else
+        return {};
 }
 
 bool program::has_instruction(instruction_ref ins) const
@@ -94,7 +121,7 @@ void program::compile(const target& t)
         RTG_THROW("Invalid program from compilation");
 }
 
-literal program::eval(std::unordered_map<std::string, argument> params) const
+argument program::eval(std::unordered_map<std::string, argument> params) const
 {
     assert(this->validate() != impl->instructions.end());
     std::unordered_map<const instruction*, argument> results;
@@ -109,6 +136,10 @@ literal program::eval(std::unordered_map<std::string, argument> params) const
         {
             result = params.at(any_cast<builtin::param>(ins.op).parameter);
         }
+        else if(ins.op.name() == "@outline")
+        {
+            result = argument{ins.result, nullptr};
+        }
         else
         {
             std::vector<argument> values(ins.arguments.size());
@@ -120,7 +151,7 @@ literal program::eval(std::unordered_map<std::string, argument> params) const
         }
         results.emplace(std::addressof(ins), result);
     }
-    return literal{result.get_shape(), result.data()};
+    return result;
 }
 
 std::list<instruction>&  program::get_instructions()

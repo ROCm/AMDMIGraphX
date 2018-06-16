@@ -11,6 +11,7 @@ namespace rtg {
 template <class T>
 struct tensor_view
 {
+    using value_type = T;
     tensor_view() : m_data(nullptr) {}
     tensor_view(shape s, T* d) : m_data(d), m_shape(s) {}
 
@@ -103,22 +104,6 @@ struct tensor_view
             return m_data + this->size();
     }
 
-    friend bool operator==(const tensor_view<T>& x, const tensor_view<T>& y)
-    {
-        if(x.m_shape == y.m_shape)
-        {
-            for(std::size_t i = 0; i < x.m_shape.elements(); i++)
-            {
-                if(!float_equal(x[i], y[i]))
-                    return false;
-            }
-            return true;
-        }
-        return false;
-    }
-
-    friend bool operator!=(const tensor_view<T>& x, const tensor_view<T>& y) { return !(x == y); }
-
     friend std::ostream& operator<<(std::ostream& os, const tensor_view<T>& x)
     {
         if(!x.empty())
@@ -136,6 +121,27 @@ struct tensor_view
     T* m_data;
     shape m_shape;
 };
+
+template <class T, class U>
+bool operator==(const tensor_view<T>& x, const tensor_view<U>& y)
+{
+    if(x.get_shape() == y.get_shape())
+    {
+        for(std::size_t i = 0; i < x.get_shape().elements(); i++)
+        {
+            if(!float_equal(x[i], y[i]))
+                return false;
+        }
+        return true;
+    }
+    return false;
+}
+
+template <class T, class U>
+bool operator!=(const tensor_view<T>& x, const tensor_view<U>& y)
+{
+    return !(x == y);
+}
 
 template <class T>
 tensor_view<T> make_view(shape s, T* data)

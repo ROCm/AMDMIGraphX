@@ -97,7 +97,7 @@ CheckOptions:
     value:           CamelCase
   - key:             readability-identifier-naming.TypeAliasCase
     value:           lower_case
-  - key:             readability-identifier-naming.MacroDefinitionCase
-    value:           UPPER_CASE
-  - key:             readability-identifier-naming.MacroDefinitionPrefix
-    value:           RTG_
+  # - key:             readability-identifier-naming.MacroDefinitionCase
+  #   value:           UPPER_CASE
+  # - key:             readability-identifier-naming.MacroDefinitionPrefix
+  #   value:           RTG_

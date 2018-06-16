@@ -26,6 +26,10 @@ struct argument : raw_data<argument>
     }
 
     argument(shape s, std::function<char*()> d) : data(d), m_shape(s) {}
+    template <class T>
+    argument(shape s, T* d) : data([d] { return reinterpret_cast<char*>(d); }), m_shape(s)
+    {
+    }
 
     /// Provides a raw pointer to the data
     std::function<char*()> data;
@@ -34,6 +38,12 @@ struct argument : raw_data<argument>
     bool empty() const { return not data; }
 
     const shape& get_shape() const { return this->m_shape; }
+
+    template <class T>
+    T* cast() const
+    {
+        return reinterpret_cast<T*>(this->data());
+    }
 
     private:
     shape m_shape;

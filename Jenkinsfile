@@ -25,7 +25,7 @@ def rocmtestnode(variant, name, body) {
 
             }
         }
-        withDockerContainer(image: image, args: '--device=/dev/kfd --device=/dev/dri --group-add video') {
+        withDockerContainer(image: image, args: '--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE') {
             timeout(time: 1, unit: 'HOURS') {
                 body(cmake_build)
             }
@@ -92,10 +92,10 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     }
 }, clang: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Debug') {
-        cmake_build('clang++-5.0', '-DCMAKE_BUILD_TYPE=debug')
+        cmake_build('/opt/rocm/bin/hcc', '-DCMAKE_BUILD_TYPE=debug')
     }
     stage('Clang Release') {
-        cmake_build('clang++-5.0', '-DCMAKE_BUILD_TYPE=release')
+        cmake_build('/opt/rocm/bin/hcc', '-DCMAKE_BUILD_TYPE=release')
     }
 }, gcc: rocmnode('rocmtest') { cmake_build ->
     stage('GCC Debug') {

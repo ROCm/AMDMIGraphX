@@ -14,3 +14,9 @@ install (TARGETS rtg
    LIBRARY DESTINATION /opt/rocm/lib)
 
 install (DIRECTORY include/rtg DESTINATION /opt/rocm/include)
+
+
+if(RTG_ENABLE_MIOPEN)
+add_subdirectory(targets/miopen)
+endif()
+

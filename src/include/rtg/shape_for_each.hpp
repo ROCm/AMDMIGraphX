@@ -6,22 +6,22 @@
 
 namespace rtg {
 
-template<class F>
+template <class F>
 void shape_for_each(const rtg::shape& s, F f)
 {
     // Ensure calls to f use const ref to vector
     auto call = [&f](const std::vector<std::size_t>& i) { f(i); };
     std::vector<std::size_t> indices(s.lens().size());
-    for(std::size_t i = 0;i < s.elements();i++) {
+    for(std::size_t i = 0; i < s.elements(); i++)
+    {
         std::transform(s.strides().begin(),
-                           s.strides().end(),
-                           s.lens().begin(),
-                           indices.begin(),
-                           [&](std::size_t stride, std::size_t len) { return (i / stride) % len; });
+                       s.strides().end(),
+                       s.lens().begin(),
+                       indices.begin(),
+                       [&](std::size_t stride, std::size_t len) { return (i / stride) % len; });
         call(indices);
     }
 }
-
 
 } // namespace rtg
 

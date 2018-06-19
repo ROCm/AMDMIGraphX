@@ -13,7 +13,7 @@ void fred()
     rtg::shape shape1{rtg::shape::float_type, {4, 3}};
     std::vector<size_t> shape0_lens    = shape0.lens();
     std::vector<size_t> shape1_lens    = shape1.lens();
-    std::vector<size_t> shape0_strides = shape0.strides();
+    const std::vector<size_t>& shape0_strides = shape0.strides();
     std::vector<size_t> shape1_strides = shape1.strides();
     for(size_t i = 0; i < shape1.lens().size(); i++)
     {

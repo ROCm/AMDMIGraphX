@@ -9,23 +9,27 @@
 void fred()
 {
     size_t axis = 1;
-    rtg::shape shape0{rtg::shape::float_type, {2,4,3,4}};
-    rtg::shape shape1{rtg::shape::float_type, {4,3}};
-    std::vector<size_t> shape0_lens = shape0.lens();
-    std::vector<size_t> shape1_lens = shape1.lens();
+    rtg::shape shape0{rtg::shape::float_type, {2, 4, 3, 4}};
+    rtg::shape shape1{rtg::shape::float_type, {4, 3}};
+    std::vector<size_t> shape0_lens    = shape0.lens();
+    std::vector<size_t> shape1_lens    = shape1.lens();
     std::vector<size_t> shape0_strides = shape0.strides();
     std::vector<size_t> shape1_strides = shape1.strides();
-    for (size_t i = 0; i < shape1.lens().size(); i++) {
-       assert(shape0_lens[i+axis] == shape1_lens[i]);
+    for(size_t i = 0; i < shape1.lens().size(); i++)
+    {
+        assert(shape0_lens[i + axis] == shape1_lens[i]);
     }
     std::vector<size_t> bcast_shape_lens = shape0_lens;
     std::vector<size_t> bcast_shape_strides(bcast_shape_lens.size(), 0);
-    for (size_t i = 0; i < shape1_strides.size(); i++) {
-       bcast_shape_strides[i+axis] = shape1_strides[i];
+    for(size_t i = 0; i < shape1_strides.size(); i++)
+    {
+        bcast_shape_strides[i + axis] = shape1_strides[i];
     }
-    for (auto x : bcast_shape_lens) std::cout << x << " "; 
+    for(auto x : bcast_shape_lens)
+        std::cout << x << " ";
     std::cout << "\n";
-    for (auto x : bcast_shape_strides) std::cout << x << " "; 
+    for(auto x : bcast_shape_strides)
+        std::cout << x << " ";
     std::cout << "\n";
 }
 
@@ -90,7 +94,7 @@ void add_test()
     rtg::program p;
     rtg::shape s{rtg::shape::float_type, {3}};
     auto l1 = p.add_literal(rtg::literal{s, {-1, 0, 1}});
-    auto l2 = p.add_literal(rtg::literal{s, { 1, 2, 3}});
+    auto l2 = p.add_literal(rtg::literal{s, {1, 2, 3}});
     p.add_instruction(rtg::add{}, l1, l2);
     p.compile(rtg::cpu::cpu_target{});
     auto result = p.eval({});
@@ -105,7 +109,7 @@ void sub_test()
     rtg::program p;
     rtg::shape s{rtg::shape::float_type, {3}};
     auto l1 = p.add_literal(rtg::literal{s, {-1, 0, 1}});
-    auto l2 = p.add_literal(rtg::literal{s, { 1, 2, 3}});
+    auto l2 = p.add_literal(rtg::literal{s, {1, 2, 3}});
     p.add_instruction(rtg::sub{}, l1, l2);
     p.compile(rtg::cpu::cpu_target{});
     auto result = p.eval({});
@@ -120,7 +124,7 @@ void mul_test()
     rtg::program p;
     rtg::shape s{rtg::shape::float_type, {3}};
     auto l1 = p.add_literal(rtg::literal{s, {-1, 0, 1}});
-    auto l2 = p.add_literal(rtg::literal{s, { 1, 2, 3}});
+    auto l2 = p.add_literal(rtg::literal{s, {1, 2, 3}});
     p.add_instruction(rtg::mul{}, l1, l2);
     p.compile(rtg::cpu::cpu_target{});
     auto result = p.eval({});
@@ -135,7 +139,7 @@ void div_test()
     rtg::program p;
     rtg::shape s{rtg::shape::float_type, {3}};
     auto l1 = p.add_literal(rtg::literal{s, {-1.0f, 0.5f, 1.0f}});
-    auto l2 = p.add_literal(rtg::literal{s, { 1.0f, 2.0f, 4.0f}});
+    auto l2 = p.add_literal(rtg::literal{s, {1.0f, 2.0f, 4.0f}});
     p.add_instruction(rtg::div{}, l1, l2);
     p.compile(rtg::cpu::cpu_target{});
     auto result = p.eval({});

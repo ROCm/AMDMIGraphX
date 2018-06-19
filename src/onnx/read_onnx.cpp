@@ -110,15 +110,17 @@ struct onnx_parser
             return prog.add_literal(v);
         });
         add_op("Add", [this](attribute_map attributes, std::vector<rtg::instruction_ref> args) {
-            if (contains(attributes, "broadcast"))
+            if(contains(attributes, "broadcast"))
             {
                 uint64_t broadcast = parse_value(attributes.at("broadcast")).at<uint64_t>();
-                if (broadcast != 0) {
-                    uint64_t axis = (contains(attributes, "axis")) ? 
-                        parse_value(attributes.at("axis")).at<uint64_t>() : 0;
+                if(broadcast != 0)
+                {
+                    uint64_t axis = (contains(attributes, "axis"))
+                                        ? parse_value(attributes.at("axis")).at<uint64_t>()
+                                        : 0;
                     auto l = prog.add_instruction(rtg::broadcast{axis}, args);
                     return prog.add_instruction(rtg::add{}, args[0], l);
-                } 
+                }
             }
             return prog.add_instruction(rtg::add{}, args);
         });

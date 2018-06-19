@@ -379,33 +379,34 @@ struct broadcast
         auto shape1_lens    = shape1.lens();
         auto shape0_strides = shape0.lens();
         auto shape1_strides = shape1.lens();
-        if (std::all_of(shape0_lens.cbegin(), 
-                        shape1_lens.cend(), 
-                        [&](auto x) { return x == 1; }))
+        if(std::all_of(shape0_lens.cbegin(), shape1_lens.cend(), [&](auto x) { return x == 1; }))
         {
-            if (axis != 0) RTG_THROW("when broadcasting tensor of size 1, axis should be 0");
+            if(axis != 0)
+                RTG_THROW("when broadcasting tensor of size 1, axis should be 0");
             std::vector<size_t> bcast_shape_lens = shape0_lens;
             std::vector<size_t> bcast_shape_strides(bcast_shape_lens.size(), 0);
             return {t, bcast_shape_lens, bcast_shape_strides};
         }
         else
         {
-            for (size_t i = 0; i < shape1_lens.size(); i++)
+            for(size_t i = 0; i < shape1_lens.size(); i++)
             {
-                if (shape0_lens[i+axis] != shape1_lens[i]) RTG_THROW("when broadcasting success sizes must match");
+                if(shape0_lens[i + axis] != shape1_lens[i])
+                    RTG_THROW("when broadcasting success sizes must match");
             }
             std::vector<size_t> bcast_shape_lens = shape0_lens;
             std::vector<size_t> bcast_shape_strides(bcast_shape_lens.size(), 0);
-            for (size_t i = 0; i < shape1_strides.size(); i++) {
-               bcast_shape_strides[i+axis] = shape1_strides[i];
+            for(size_t i = 0; i < shape1_strides.size(); i++)
+            {
+                bcast_shape_strides[i + axis] = shape1_strides[i];
             }
             return {t, bcast_shape_lens, bcast_shape_strides};
         }
     }
-    argument compute(shape output_shape, std::vector<argument> args) const 
-    { 
+    argument compute(shape output_shape, std::vector<argument> args) const
+    {
         return {output_shape, std::move(args.at(1).data)};
-    } 
+    }
 };
 
 struct binary

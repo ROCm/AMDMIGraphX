@@ -3,10 +3,9 @@
 #define RTG_GUARD_RAW_DATA_HPP
 
 #include <rtg/tensor_view.hpp>
+#include <rtg/requires.hpp>
 
 namespace rtg {
-
-#define RTG_REQUIRES(...) class = typename std::enable_if<(__VA_ARGS__)>::type
 
 struct raw_data_base
 {

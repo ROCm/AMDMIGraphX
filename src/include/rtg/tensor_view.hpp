@@ -3,6 +3,7 @@
 
 #include <rtg/shape.hpp>
 #include <rtg/float_equal.hpp>
+#include <rtg/requires.hpp>
 
 #include <iostream>
 
@@ -25,16 +26,28 @@ struct tensor_view
 
     const T* data() const { return this->m_data; }
 
-    template <class... Ts>
+    template <class... Ts, RTG_REQUIRES(std::is_integral<Ts>{}...)>
     const T& operator()(Ts... xs) const
     {
-        return m_data[m_shape.index({xs...})];
+        return m_data[m_shape.index({static_cast<std::size_t>(xs)...})];
     }
 
-    template <class... Ts>
+    template <class... Ts, RTG_REQUIRES(std::is_integral<Ts>{}...)>
     T& operator()(Ts... xs)
     {
         return m_data[m_shape.index({static_cast<std::size_t>(xs)...})];
+    }
+
+    template <class Iterator, RTG_REQUIRES(not std::is_integral<Iterator>{})>
+    const T& operator()(Iterator start, Iterator last) const
+    {
+        return m_data[m_shape.index(start, last)];
+    }
+
+    template <class Iterator, RTG_REQUIRES(not std::is_integral<Iterator>{})>
+    T& operator()(Iterator start, Iterator last)
+    {
+        return m_data[m_shape.index(start, last)];
     }
 
     T& operator[](std::size_t i)

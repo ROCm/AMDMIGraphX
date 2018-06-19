@@ -179,6 +179,10 @@ struct pooling
 
         const shape& input = inputs.at(0);
         auto t             = input.type();
+
+        assert(lengths[0] < (input.lens()[3] + 2 * padding[0]));
+        assert(lengths[1] < (input.lens()[4] + 2 * padding[1]));
+
         return {t,
                 {
                     input.lens()[0],

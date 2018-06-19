@@ -11,10 +11,10 @@ void fred()
     size_t axis = 1;
     rtg::shape shape0{rtg::shape::float_type, {2, 4, 3, 4}};
     rtg::shape shape1{rtg::shape::float_type, {4, 3}};
-    std::vector<size_t> shape0_lens    = shape0.lens();
-    std::vector<size_t> shape1_lens    = shape1.lens();
+    std::vector<size_t> shape0_lens           = shape0.lens();
+    std::vector<size_t> shape1_lens           = shape1.lens();
     const std::vector<size_t>& shape0_strides = shape0.strides();
-    std::vector<size_t> shape1_strides = shape1.strides();
+    std::vector<size_t> shape1_strides        = shape1.strides();
     for(size_t i = 0; i < shape1.lens().size(); i++)
     {
         assert(shape0_lens[i + axis] == shape1_lens[i]);

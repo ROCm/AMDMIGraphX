@@ -426,13 +426,13 @@ struct broadcast
     std::string name() const { return "broadcast"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        auto t              = inputs.at(0).type();
-        auto shape0         = inputs.at(0);
-        auto shape1         = inputs.at(1);
-        auto shape0_lens    = shape0.lens();
-        auto shape1_lens    = shape1.lens();
+        auto t                     = inputs.at(0).type();
+        auto shape0                = inputs.at(0);
+        auto shape1                = inputs.at(1);
+        auto shape0_lens           = shape0.lens();
+        auto shape1_lens           = shape1.lens();
         const auto& shape0_strides = shape0.lens();
-        auto shape1_strides = shape1.lens();
+        auto shape1_strides        = shape1.lens();
         if(std::all_of(shape0_lens.cbegin(), shape1_lens.cend(), [&](auto x) { return x == 1; }))
         {
             if(axis != 0)

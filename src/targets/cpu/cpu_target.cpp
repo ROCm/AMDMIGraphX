@@ -57,8 +57,8 @@ struct cpu_convolution
 struct cpu_transpose
 {
     transpose op;
-   
-    std::string name() const { return "cpu::transpose"; } 
+
+    std::string name() const { return "cpu::transpose"; }
     shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
     argument compute(shape output_shape, std::vector<argument> args) const
     {
@@ -70,71 +70,64 @@ struct cpu_contiguous
 {
     contiguous op;
     std::string name() const { return "cpu::contiguous"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        return op.compute_shape(inputs);
-    }
+    shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
     argument compute(shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
             auto input_shape = args[0].get_shape();
-            auto ndim = output_shape.lens().size();
+            auto ndim        = output_shape.lens().size();
             using value_type = typename decltype(input)::value_type;
-            value_type* ptr = static_cast<value_type*>(output.data());
-            if (ndim == 2) {
-                dfor(input_shape.lens()[0],
-                     input_shape.lens()[1])(
-                    [&](std::size_t i0, std::size_t i1) {
-                        *ptr++ = input(i0,i1);
-                    });
+            value_type* ptr  = static_cast<value_type*>(output.data());
+            if(ndim == 2)
+            {
+                dfor(input_shape.lens()[0], input_shape.lens()[1])(
+                    [&](std::size_t i0, std::size_t i1) { *ptr++ = input(i0, i1); });
             }
-            else if (ndim == 3) {
-                dfor(input_shape.lens()[0],
-                     input_shape.lens()[1],
-                     input_shape.lens()[2])(
+            else if(ndim == 3)
+            {
+                dfor(input_shape.lens()[0], input_shape.lens()[1], input_shape.lens()[2])(
                     [&](std::size_t i0, std::size_t i1, std::size_t i2) {
-                        *ptr++ = input(i0,i1,i2);
+                        *ptr++ = input(i0, i1, i2);
                     });
             }
-            else if (ndim == 4) {
+            else if(ndim == 4)
+            {
                 dfor(input_shape.lens()[0],
                      input_shape.lens()[1],
                      input_shape.lens()[2],
                      input_shape.lens()[3])(
                     [&](std::size_t i0, std::size_t i1, std::size_t i2, std::size_t i3) {
-                        *ptr++ = input(i0,i1,i2,i3);
+                        *ptr++ = input(i0, i1, i2, i3);
                     });
             }
-            else if (ndim == 5) {
+            else if(ndim == 5)
+            {
                 dfor(input_shape.lens()[0],
                      input_shape.lens()[1],
                      input_shape.lens()[2],
                      input_shape.lens()[3],
                      input_shape.lens()[4])(
-                    [&](std::size_t i0, 
-                        std::size_t i1, 
-                        std::size_t i2, 
-                        std::size_t i3, 
-                        std::size_t i4) {
-                        *ptr++ = input(i0,i1,i2,i3,i4);
-                    });
+                    [&](std::size_t i0,
+                        std::size_t i1,
+                        std::size_t i2,
+                        std::size_t i3,
+                        std::size_t i4) { *ptr++ = input(i0, i1, i2, i3, i4); });
             }
-            else if (ndim == 6) {
+            else if(ndim == 6)
+            {
                 dfor(input_shape.lens()[0],
                      input_shape.lens()[1],
                      input_shape.lens()[2],
                      input_shape.lens()[3],
                      input_shape.lens()[4],
                      input_shape.lens()[5])(
-                    [&](std::size_t i0, 
-                        std::size_t i1, 
-                        std::size_t i2, 
-                        std::size_t i3, 
-                        std::size_t i4, 
-                        std::size_t i5) {
-                        *ptr++ = input(i0,i1,i2,i3,i4,i5);
-                    });
+                    [&](std::size_t i0,
+                        std::size_t i1,
+                        std::size_t i2,
+                        std::size_t i3,
+                        std::size_t i4,
+                        std::size_t i5) { *ptr++ = input(i0, i1, i2, i3, i4, i5); });
             }
         });
         return result;
@@ -425,40 +418,34 @@ struct cpu_apply
     program* prog;
     std::unordered_map<std::string, std::function<void(instruction_ref)>> apply_map{};
 
-    template<class T>
+    template <class T>
     auto simple_op()
     {
-        return [this](instruction_ref ins)
-        {
-            apply_simple_op<T>(ins);
-        };
+        return [this](instruction_ref ins) { apply_simple_op<T>(ins); };
     }
 
-    template<class T, class Op>
+    template <class T, class Op>
     auto extend_op()
     {
-        return [this](instruction_ref ins)
-        {
-            apply_extend_op<T, Op>(ins);
-        };
+        return [this](instruction_ref ins) { apply_extend_op<T, Op>(ins); };
     }
 
     void init()
     {
         apply_map["convolution"] = extend_op<cpu_convolution, convolution>();
-        apply_map["gemm"] = extend_op<cpu_gemm, gemm>();
-        apply_map["reshape"] = extend_op<cpu_reshape, reshape>();
-        apply_map["contiguous"] = extend_op<cpu_contiguous, contiguous>();
-        apply_map["transpose"] = extend_op<cpu_transpose, transpose>();
-        
+        apply_map["gemm"]        = extend_op<cpu_gemm, gemm>();
+        apply_map["reshape"]     = extend_op<cpu_reshape, reshape>();
+        apply_map["contiguous"]  = extend_op<cpu_contiguous, contiguous>();
+        apply_map["transpose"]   = extend_op<cpu_transpose, transpose>();
+
         apply_map["identity"] = simple_op<cpu_unary<identity_op>>();
-        apply_map["tanh"] = simple_op<cpu_unary<tanh_op>>();
-        apply_map["sigmoid"] = simple_op<cpu_unary<sigmoid_op>>();
-        apply_map["exp"] = simple_op<cpu_unary<exp_op>>();
-        apply_map["neg"] = simple_op<cpu_unary<neg_op>>();
-        apply_map["sin"] = simple_op<cpu_unary<sin_op>>();
-        apply_map["cos"] = simple_op<cpu_unary<cos_op>>();
-        apply_map["tan"] = simple_op<cpu_unary<tan_op>>();
+        apply_map["tanh"]     = simple_op<cpu_unary<tanh_op>>();
+        apply_map["sigmoid"]  = simple_op<cpu_unary<sigmoid_op>>();
+        apply_map["exp"]      = simple_op<cpu_unary<exp_op>>();
+        apply_map["neg"]      = simple_op<cpu_unary<neg_op>>();
+        apply_map["sin"]      = simple_op<cpu_unary<sin_op>>();
+        apply_map["cos"]      = simple_op<cpu_unary<cos_op>>();
+        apply_map["tan"]      = simple_op<cpu_unary<tan_op>>();
 
         apply_map["softmax"] = simple_op<softmax2d>();
     }
@@ -471,7 +458,7 @@ struct cpu_apply
             if(it->op.name() == "activation")
             {
                 apply_activation(it);
-            } 
+            }
             else if(apply_map.count(it->op.name()) > 0)
             {
                 apply_map.at(it->op.name())(it);
@@ -479,13 +466,13 @@ struct cpu_apply
         }
     }
 
-    template<class T>
+    template <class T>
     void apply_simple_op(instruction_ref ins)
     {
         prog->replace_instruction(ins, T{}, ins->arguments);
     }
 
-    template<class T, class Op>
+    template <class T, class Op>
     void apply_extend_op(instruction_ref ins)
     {
         auto&& op = any_cast<Op>(ins->op);

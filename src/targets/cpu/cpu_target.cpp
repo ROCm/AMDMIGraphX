@@ -57,29 +57,17 @@ struct cpu_convolution
 struct max_pool
 {
     static std::string name() { return "max"; }
-    static double start()
-    {
-        return std::numeric_limits<double>::lowest();
-    }
+    static double start() { return std::numeric_limits<double>::lowest(); }
 
-    static double apply(double x, double y)
-    {
-        return x + y;
-    }
+    static double apply(double x, double y) { return x + y; }
 
-    static double final(double x, double)
-    {
-        return (x);
-    }
+    static double final(double x, double) { return (x); }
 };
 
 struct avg_pool
 {
     static std::string name() { return "average"; }
-    static double start()
-    {
-        return 0.0;
-    }
+    static double start() { return 0.0; }
 
     static double apply(double x, double y)
     {
@@ -87,14 +75,10 @@ struct avg_pool
         return (m);
     }
 
-    static double final(double x, double y)
-    {
-        return x / y;
-    }
+    static double final(double x, double y) { return x / y; }
 };
 
-
-template<class Op>
+template <class Op>
 struct cpu_pooling
 {
     pooling op;
@@ -106,8 +90,8 @@ struct cpu_pooling
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
             using type = typename decltype(output)::value_type;
-            auto in_h = input.get_shape().lens()[2];
-            auto in_w = input.get_shape().lens()[3];
+            auto in_h  = input.get_shape().lens()[2];
+            auto in_w  = input.get_shape().lens()[3];
 
             dfor(output_shape.lens()[0],
                  output_shape.lens()[1],
@@ -126,7 +110,6 @@ struct cpu_pooling
                     const int w_h       = (hend - start_x);
                     const int w_w       = (wend - start_y);
                     const int pool_size = std::max(w_h * w_w, 1);
-
 
                     double acc = Op::start();
                     dfor(w_h, w_w)([&](int x, int y) {
@@ -583,7 +566,6 @@ struct cpu_apply
             prog->replace_instruction(ins, cpu_pooling<max_pool>{op}, ins->arguments);
         else if(op.mode == "average")
             prog->replace_instruction(ins, cpu_pooling<avg_pool>{op}, ins->arguments);
-
     }
 };
 

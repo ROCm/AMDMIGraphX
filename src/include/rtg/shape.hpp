@@ -61,8 +61,8 @@ struct shape
 
     std::size_t index(std::initializer_list<std::size_t> l) const;
     std::size_t index(const std::vector<std::size_t>& l) const;
-    
-    template<class Iterator>
+
+    template <class Iterator>
     std::size_t index(Iterator start, Iterator last) const
     {
         assert(std::distance(start, last) <= this->lens().size());

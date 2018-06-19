@@ -179,6 +179,10 @@ struct pooling
 
         const shape& input = inputs.at(0);
         auto t             = input.type();
+
+        assert(lengths[0] < (input.lens()[3] + 2 * padding[0]));
+        assert(lengths[1] < (input.lens()[4] + 2 * padding[1]));
+
         return {t,
                 {
                     input.lens()[0],
@@ -225,6 +229,56 @@ struct activation
         os << op.name() << ":" << op.mode;
         return os;
     }
+};
+
+struct transpose
+{
+    std::vector<int64_t> dims;
+    std::string name() const { return "transpose"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(1);
+        auto input         = inputs.at(0);
+        auto input_lens    = input.lens();
+        auto input_strides = input.strides();
+        auto t             = input.type();
+        if(dims.size() != input_lens.size())
+        {
+            RTG_THROW("Permutation has wrong number of axes");
+        }
+        std::vector<int64_t> axes(dims.size());
+        std::iota(axes.begin(), axes.end(), 0);
+        if(!std::is_permutation(axes.begin(), axes.end(), dims.begin()))
+        {
+            RTG_THROW("Invalid permutation");
+        }
+        std::vector<size_t> output_lens(input_lens.size());
+        std::vector<size_t> output_strides(input_lens.size());
+        for(int i = 0; i < output_lens.size(); i++)
+        {
+            output_lens[i]    = input_lens[dims[i]];
+            output_strides[i] = input_strides[dims[i]];
+        }
+        return {t, output_lens, output_strides};
+    }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+};
+
+struct contiguous
+{
+    std::string name() const { return "contiguous"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(1);
+        auto lens = inputs.at(0).lens();
+        auto t    = inputs.at(0).type();
+        if(lens.size() < 2)
+        {
+            RTG_THROW("Number of dimensions should exceed 1");
+        }
+        return {t, lens};
+    }
+    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
 struct reshape

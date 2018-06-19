@@ -54,6 +54,159 @@ struct cpu_convolution
     }
 };
 
+struct max_pool
+{
+    static std::string name() { return "max"; }
+    static double start() { return std::numeric_limits<double>::lowest(); }
+
+    static double apply(double x, double y) { return x + y; }
+
+    static double final(double x, double) { return (x); }
+};
+
+struct avg_pool
+{
+    static std::string name() { return "average"; }
+    static double start() { return 0.0; }
+
+    static double apply(double x, double y)
+    {
+        double m = std::max(x, y);
+        return (m);
+    }
+
+    static double final(double x, double y) { return x / y; }
+};
+
+template <class Op>
+struct cpu_pooling
+{
+    pooling op;
+
+    std::string name() const { return "cpu::pooling_" + Op::name(); }
+    shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
+    argument compute(shape output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        visit_all(result, args[0])([&](auto output, auto input) {
+            using type = typename decltype(output)::value_type;
+            auto in_h  = input.get_shape().lens()[2];
+            auto in_w  = input.get_shape().lens()[3];
+
+            dfor(output_shape.lens()[0],
+                 output_shape.lens()[1],
+                 output_shape.lens()[2],
+                 output_shape.lens()[3])(
+                [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
+                    const int start_x0 = i * op.stride[0] - op.padding[0];
+                    const int start_y0 = j * op.stride[1] - op.padding[1];
+
+                    const int hend = std::min(start_x0 + op.lengths[0], in_h);
+                    const int wend = std::min(start_y0 + op.lengths[1], in_w);
+
+                    const int start_x = std::max(start_x0, 0);
+                    const int start_y = std::max(start_y0, 0);
+
+                    const int w_h       = (hend - start_x);
+                    const int w_w       = (wend - start_y);
+                    const int pool_size = std::max(w_h * w_w, 1);
+
+                    double acc = Op::start();
+                    dfor(w_h, w_w)([&](int x, int y) {
+                        const int in_x = start_x + x;
+                        const int in_y = start_y + y;
+                        if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
+                        {
+                            acc = Op::apply(acc, input(o, w, in_x, in_y));
+                        }
+                    });
+                    output(o, w, i, j) = type(Op::final(acc, pool_size));
+                });
+        });
+        return result;
+    }
+};
+
+struct cpu_transpose
+{
+    transpose op;
+
+    std::string name() const { return "cpu::transpose"; }
+    shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
+    argument compute(shape output_shape, std::vector<argument> args) const
+    {
+        return {output_shape, std::move(args.front().data)};
+    }
+};
+
+struct cpu_contiguous
+{
+    contiguous op;
+    std::string name() const { return "cpu::contiguous"; }
+    shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
+    argument compute(shape output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        visit_all(result, args[0])([&](auto output, auto input) {
+            auto input_shape = args[0].get_shape();
+            auto ndim        = output_shape.lens().size();
+            using value_type = typename decltype(input)::value_type;
+            value_type* ptr  = static_cast<value_type*>(output.data());
+            if(ndim == 2)
+            {
+                dfor(input_shape.lens()[0], input_shape.lens()[1])(
+                    [&](std::size_t i0, std::size_t i1) { *ptr++ = input(i0, i1); });
+            }
+            else if(ndim == 3)
+            {
+                dfor(input_shape.lens()[0], input_shape.lens()[1], input_shape.lens()[2])(
+                    [&](std::size_t i0, std::size_t i1, std::size_t i2) {
+                        *ptr++ = input(i0, i1, i2);
+                    });
+            }
+            else if(ndim == 4)
+            {
+                dfor(input_shape.lens()[0],
+                     input_shape.lens()[1],
+                     input_shape.lens()[2],
+                     input_shape.lens()[3])(
+                    [&](std::size_t i0, std::size_t i1, std::size_t i2, std::size_t i3) {
+                        *ptr++ = input(i0, i1, i2, i3);
+                    });
+            }
+            else if(ndim == 5)
+            {
+                dfor(input_shape.lens()[0],
+                     input_shape.lens()[1],
+                     input_shape.lens()[2],
+                     input_shape.lens()[3],
+                     input_shape.lens()[4])(
+                    [&](std::size_t i0,
+                        std::size_t i1,
+                        std::size_t i2,
+                        std::size_t i3,
+                        std::size_t i4) { *ptr++ = input(i0, i1, i2, i3, i4); });
+            }
+            else if(ndim == 6)
+            {
+                dfor(input_shape.lens()[0],
+                     input_shape.lens()[1],
+                     input_shape.lens()[2],
+                     input_shape.lens()[3],
+                     input_shape.lens()[4],
+                     input_shape.lens()[5])(
+                    [&](std::size_t i0,
+                        std::size_t i1,
+                        std::size_t i2,
+                        std::size_t i3,
+                        std::size_t i4,
+                        std::size_t i5) { *ptr++ = input(i0, i1, i2, i3, i4, i5); });
+            }
+        });
+        return result;
+    }
+};
+
 struct cpu_reshape
 {
     reshape op;
@@ -390,62 +543,52 @@ struct cpu_binary
 struct cpu_apply
 {
     program* prog;
+    std::unordered_map<std::string, std::function<void(instruction_ref)>> apply_map{};
+
+    template <class T>
+    auto simple_op()
+    {
+        return [this](instruction_ref ins) { apply_simple_op<T>(ins); };
+    }
+
+    template <class T, class Op>
+    auto extend_op()
+    {
+        return [this](instruction_ref ins) { apply_extend_op<T, Op>(ins); };
+    }
+
+    void init()
+    {
+        apply_map["convolution"] = extend_op<cpu_convolution, convolution>();
+        apply_map["gemm"]        = extend_op<cpu_gemm, gemm>();
+        apply_map["reshape"]     = extend_op<cpu_reshape, reshape>();
+        apply_map["contiguous"]  = extend_op<cpu_contiguous, contiguous>();
+        apply_map["transpose"]   = extend_op<cpu_transpose, transpose>();
+
+        apply_map["identity"] = simple_op<cpu_unary<identity_op>>();
+        apply_map["tanh"]     = simple_op<cpu_unary<tanh_op>>();
+        apply_map["sigmoid"]  = simple_op<cpu_unary<sigmoid_op>>();
+        apply_map["exp"]      = simple_op<cpu_unary<exp_op>>();
+        apply_map["neg"]      = simple_op<cpu_unary<neg_op>>();
+        apply_map["sin"]      = simple_op<cpu_unary<sin_op>>();
+        apply_map["cos"]      = simple_op<cpu_unary<cos_op>>();
+        apply_map["tan"]      = simple_op<cpu_unary<tan_op>>();
+
+        apply_map["softmax"] = simple_op<softmax2d>();
+    }
 
     void apply()
     {
+        init();
         for(auto it = prog->begin(); it != prog->end(); it++)
         {
-            if(it->op.name() == "convolution")
-            {
-                apply_convolution(it);
-            }
-            else if(it->op.name() == "gemm")
-            {
-                apply_gemm(it);
-            }
-            else if(it->op.name() == "reshape")
-            {
-                apply_reshape(it);
-            }
-            else if(it->op.name() == "activation")
+            if(it->op.name() == "activation")
             {
                 apply_activation(it);
             }
-            else if(it->op.name() == "identity")
+            else if(apply_map.count(it->op.name()) > 0)
             {
-                apply_identity(it);
-            }
-            else if(it->op.name() == "softmax")
-            {
-                apply_softmax(it);
-            }
-            else if(it->op.name() == "tanh")
-            {
-                apply_tanh(it);
-            }
-            else if(it->op.name() == "sigmoid")
-            {
-                apply_sigmoid(it);
-            }
-            else if(it->op.name() == "exp")
-            {
-                apply_exp(it);
-            }
-            else if(it->op.name() == "neg")
-            {
-                apply_neg(it);
-            }
-            else if(it->op.name() == "sin")
-            {
-                apply_sin(it);
-            }
-            else if(it->op.name() == "cos")
-            {
-                apply_cos(it);
-            }
-            else if(it->op.name() == "tan")
-            {
-                apply_tan(it);
+                apply_map.at(it->op.name())(it);
             }
             else if(it->op.name() == "add")
             {
@@ -466,22 +609,17 @@ struct cpu_apply
         }
     }
 
-    void apply_convolution(instruction_ref ins)
+    template <class T>
+    void apply_simple_op(instruction_ref ins)
     {
-        auto&& op = any_cast<convolution>(ins->op);
-        prog->replace_instruction(ins, cpu_convolution{op}, ins->arguments);
+        prog->replace_instruction(ins, T{}, ins->arguments);
     }
 
-    void apply_gemm(instruction_ref ins)
+    template <class T, class Op>
+    void apply_extend_op(instruction_ref ins)
     {
-        auto&& op = any_cast<gemm>(ins->op);
-        prog->replace_instruction(ins, cpu_gemm{op}, ins->arguments);
-    }
-
-    void apply_reshape(instruction_ref ins)
-    {
-        auto&& op = any_cast<reshape>(ins->op);
-        prog->replace_instruction(ins, cpu_reshape{op}, ins->arguments);
+        auto&& op = any_cast<Op>(ins->op);
+        prog->replace_instruction(ins, T{op}, ins->arguments);
     }
 
     void apply_activation(instruction_ref ins)
@@ -491,49 +629,13 @@ struct cpu_apply
             prog->replace_instruction(ins, cpu_unary<relu_op>{}, ins->arguments);
     }
 
-    void apply_identity(instruction_ref ins)
+    void apply_pooling(instruction_ref ins)
     {
-        prog->replace_instruction(ins, cpu_unary<identity_op>{}, ins->arguments);
-    }
-
-    void apply_softmax(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, softmax2d{}, ins->arguments);
-    }
-
-    void apply_tanh(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_unary<tanh_op>{}, ins->arguments);
-    }
-
-    void apply_sigmoid(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_unary<sigmoid_op>{}, ins->arguments);
-    }
-
-    void apply_exp(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_unary<exp_op>{}, ins->arguments);
-    }
-
-    void apply_neg(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_unary<neg_op>{}, ins->arguments);
-    }
-
-    void apply_sin(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_unary<sin_op>{}, ins->arguments);
-    }
-
-    void apply_cos(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_unary<cos_op>{}, ins->arguments);
-    }
-
-    void apply_tan(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_unary<tan_op>{}, ins->arguments);
+        auto&& op = any_cast<pooling>(ins->op);
+        if(op.mode == "max")
+            prog->replace_instruction(ins, cpu_pooling<max_pool>{op}, ins->arguments);
+        else if(op.mode == "average")
+            prog->replace_instruction(ins, cpu_pooling<avg_pool>{op}, ins->arguments);
     }
 
     void apply_add(instruction_ref ins)

@@ -423,102 +423,73 @@ struct cpu_binary
 struct cpu_apply
 {
     program* prog;
+    std::unordered_map<std::string, std::function<void(instruction_ref)>> apply_map{};
+
+    template<class T>
+    auto simple_op()
+    {
+        return [this](instruction_ref ins)
+        {
+            apply_simple_op<T>(ins);
+        };
+    }
+
+    template<class T, class Op>
+    auto extend_op()
+    {
+        return [this](instruction_ref ins)
+        {
+            apply_extend_op<T, Op>(ins);
+        };
+    }
+
+    void init()
+    {
+        apply_map["convolution"] = extend_op<cpu_convolution, convolution>();
+        apply_map["gemm"] = extend_op<cpu_gemm, gemm>();
+        apply_map["reshape"] = extend_op<cpu_reshape, reshape>();
+        apply_map["contiguous"] = extend_op<cpu_contiguous, contiguous>();
+        apply_map["transpose"] = extend_op<cpu_transpose, transpose>();
+        
+        apply_map["identity"] = simple_op<cpu_unary<identity_op>>();
+        apply_map["tanh"] = simple_op<cpu_unary<tanh_op>>();
+        apply_map["sigmoid"] = simple_op<cpu_unary<sigmoid_op>>();
+        apply_map["exp"] = simple_op<cpu_unary<exp_op>>();
+        apply_map["neg"] = simple_op<cpu_unary<neg_op>>();
+        apply_map["sin"] = simple_op<cpu_unary<sin_op>>();
+        apply_map["cos"] = simple_op<cpu_unary<cos_op>>();
+        apply_map["tan"] = simple_op<cpu_unary<tan_op>>();
+
+        apply_map["softmax"] = simple_op<softmax2d>();
+    }
 
     void apply()
     {
+        init();
         for(auto it = prog->begin(); it != prog->end(); it++)
         {
-            if(it->op.name() == "convolution")
-            {
-                apply_convolution(it);
-            }
-            else if(it->op.name() == "gemm")
-            {
-                apply_gemm(it);
-            }
-            else if(it->op.name() == "reshape")
-            {
-                apply_reshape(it);
-            }
-            else if(it->op.name() == "contiguous")
-            {
-                apply_contiguous(it);
-            }
-            else if(it->op.name() == "transpose")
-            {
-                apply_transpose(it);
-            }
-            else if(it->op.name() == "activation")
+            if(it->op.name() == "activation")
             {
                 apply_activation(it);
-            }
-            else if(it->op.name() == "identity")
+            } 
+            else if(apply_map.count(it->op.name()) > 0)
             {
-                apply_identity(it);
-            }
-            else if(it->op.name() == "softmax")
-            {
-                apply_softmax(it);
-            }
-            else if(it->op.name() == "tanh")
-            {
-                apply_tanh(it);
-            }
-            else if(it->op.name() == "sigmoid")
-            {
-                apply_sigmoid(it);
-            }
-            else if(it->op.name() == "exp")
-            {
-                apply_exp(it);
-            }
-            else if(it->op.name() == "neg")
-            {
-                apply_neg(it);
-            }
-            else if(it->op.name() == "sin")
-            {
-                apply_sin(it);
-            }
-            else if(it->op.name() == "cos")
-            {
-                apply_cos(it);
-            }
-            else if(it->op.name() == "tan")
-            {
-                apply_tan(it);
+                apply_map.at(it->op.name())(it);
             }
         }
     }
 
-    void apply_convolution(instruction_ref ins)
+    template<class T>
+    void apply_simple_op(instruction_ref ins)
     {
-        auto&& op = any_cast<convolution>(ins->op);
-        prog->replace_instruction(ins, cpu_convolution{op}, ins->arguments);
+        prog->replace_instruction(ins, T{}, ins->arguments);
     }
 
-    void apply_gemm(instruction_ref ins)
+    template<class T, class Op>
+    void apply_extend_op(instruction_ref ins)
     {
-        auto&& op = any_cast<gemm>(ins->op);
-        prog->replace_instruction(ins, cpu_gemm{op}, ins->arguments);
-    }
-
-    void apply_reshape(instruction_ref ins)
-    {
-        auto&& op = any_cast<reshape>(ins->op);
-        prog->replace_instruction(ins, cpu_reshape{op}, ins->arguments);
-    }
-
-    void apply_contiguous(instruction_ref ins)
-    {
-        auto&& op = any_cast<contiguous>(ins->op);
-        prog->replace_instruction(ins, cpu_contiguous{op}, ins->arguments);
-    }
-
-    void apply_transpose(instruction_ref ins)
-    {
-        auto&& op = any_cast<transpose>(ins->op);
-        prog->replace_instruction(ins, cpu_transpose{op}, ins->arguments);
+        auto&& op = any_cast<Op>(ins->op);
+        prog->replace_instruction(ins, T{op}, ins->arguments);
     }
 
     void apply_activation(instruction_ref ins)
@@ -526,51 +497,6 @@ struct cpu_apply
         auto&& op = any_cast<activation>(ins->op);
         if(op.mode == "relu")
             prog->replace_instruction(ins, cpu_unary<relu_op>{}, ins->arguments);
-    }
-
-    void apply_identity(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_unary<identity_op>{}, ins->arguments);
-    }
-
-    void apply_softmax(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, softmax2d{}, ins->arguments);
-    }
-
-    void apply_tanh(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_unary<tanh_op>{}, ins->arguments);
-    }
-
-    void apply_sigmoid(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_unary<sigmoid_op>{}, ins->arguments);
-    }
-
-    void apply_exp(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_unary<exp_op>{}, ins->arguments);
-    }
-
-    void apply_neg(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_unary<neg_op>{}, ins->arguments);
-    }
-
-    void apply_sin(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_unary<sin_op>{}, ins->arguments);
-    }
-
-    void apply_cos(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_unary<cos_op>{}, ins->arguments);
-    }
-
-    void apply_tan(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_unary<tan_op>{}, ins->arguments);
     }
 };
 

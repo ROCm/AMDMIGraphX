@@ -281,6 +281,63 @@ struct softmax2d
     }
 };
 
+struct add_with_broadcast
+{
+    add op;
+    std::string name() const { return "add_with_broadcast"; }
+    shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
+    argument compute(shape output_shape, std::vector<argument> args) const
+    {
+        size_t ndims = output_shape.lens().size();
+        argument result{output_shape};
+        visit_all(result, args[0], args[1])([&](auto output, auto input0, auto input1) {
+            if (ndims == 0)
+            {
+                output(0) = input0(0) + input1(0);
+            }
+            if (ndims == 1)
+            {
+                for (size_t i = 0; i < output_shape.lens()[0]; i++) 
+                {
+                    output(i) = input0(i) + input1(i);
+                }
+            }
+            else if (ndims == 2)
+            {
+                dfor(output_shape.lens()[0],
+                     output_shape.lens()[1])(
+                    [&](std::size_t i0, std::size_t i1) {
+                    output(i0,i1) = input0(i0,i1) + input1(i0,i1);
+                });
+            }
+            else if (ndims == 3)
+            {
+                dfor(output_shape.lens()[0],
+                     output_shape.lens()[1],
+                     output_shape.lens()[2])(
+                    [&](std::size_t i0, std::size_t i1, std::size_t i2) {
+                    output(i0,i1,i2) = input0(i0,i1,i2) + input1(i0,i1,i2);
+                });
+            }
+            else if (ndims == 4)
+            {
+                dfor(output_shape.lens()[0],
+                     output_shape.lens()[1],
+                     output_shape.lens()[2],
+                     output_shape.lens()[3])(
+                    [&](std::size_t i0, std::size_t i1, std::size_t i2, std::size_t i3) {
+                    output(i0,i1,i2,i3) = input0(i0,i1,i2,i3) + input1(i0,i1,i2,i3);
+                });
+            }
+            else
+            {
+                RTG_THROW("current not support tensors with ndim > 4");     
+            }
+        });
+        return result;
+    }
+};
+
 struct add_op
 {
     std::string name() const { return "add"; }
@@ -393,6 +450,22 @@ struct cpu_apply
             {
                 apply_tan(it);
             }
+            else if(it->op.name() == "add")
+            {
+                apply_add(it);
+            }
+            else if(it->op.name() == "sub")
+            {
+                apply_sub(it);
+            }
+            else if(it->op.name() == "mul")
+            {
+                apply_mul(it);
+            }
+            else if(it->op.name() == "div")
+            {
+                apply_div(it);
+            }
         }
     }
 
@@ -464,6 +537,28 @@ struct cpu_apply
     void apply_tan(instruction_ref ins)
     {
         prog->replace_instruction(ins, cpu_unary<tan_op>{}, ins->arguments);
+    }
+
+    void apply_add(instruction_ref ins)
+    {
+        auto&& op = any_cast<add>(ins->op);
+        //prog->replace_instruction(ins, cpu_binary<add_op>{}, ins->arguments);
+        prog->replace_instruction(ins, add_with_broadcast{op}, ins->arguments);
+    }
+
+    void apply_sub(instruction_ref ins)
+    {
+        prog->replace_instruction(ins, cpu_binary<sub_op>{}, ins->arguments);
+    }
+
+    void apply_mul(instruction_ref ins)
+    {
+        prog->replace_instruction(ins, cpu_binary<mul_op>{}, ins->arguments);
+    }
+
+    void apply_div(instruction_ref ins)
+    {
+        prog->replace_instruction(ins, cpu_binary<div_op>{}, ins->arguments);
     }
 };
 

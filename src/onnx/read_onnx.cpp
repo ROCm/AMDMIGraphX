@@ -76,6 +76,9 @@ struct onnx_parser
             }
             return prog.add_instruction(op, args);
         });
+        add_op("MatMul", [this](attribute_map, std::vector<rtg::instruction_ref> args) {
+            return prog.add_instruction(rtg::gemm{}, args);
+        });
         add_op("MaxPool", [this](attribute_map attributes, std::vector<rtg::instruction_ref> args) {
             rtg::pooling op{"max"};
             // for(auto&& p:attributes) std::cout << p.first << std::endl;
@@ -105,6 +108,28 @@ struct onnx_parser
         add_op("Constant", [this](attribute_map attributes, std::vector<rtg::instruction_ref>) {
             rtg::literal v = parse_value(attributes.at("value"));
             return prog.add_literal(v);
+        });
+        add_op("Add", [this](attribute_map attributes, std::vector<rtg::instruction_ref> args) {
+            if (contains(attributes, "broadcast"))
+            {
+                uint64_t broadcast = parse_value(attributes.at("broadcast")).at<uint64_t>();
+                if (broadcast != 0) {
+                    uint64_t axis = (contains(attributes, "axis")) ? 
+                        parse_value(attributes.at("axis")).at<uint64_t>() : 0;
+                    auto l = prog.add_instruction(rtg::broadcast{axis}, args);
+                    return prog.add_instruction(rtg::add{}, args[0], l);
+                } 
+            }
+            return prog.add_instruction(rtg::add{}, args);
+        });
+        add_op("Sub", [this](attribute_map, std::vector<rtg::instruction_ref> args) {
+            return prog.add_instruction(rtg::sub{}, args);
+        });
+        add_op("Mul", [this](attribute_map, std::vector<rtg::instruction_ref> args) {
+            return prog.add_instruction(rtg::mul{}, args);
+        });
+        add_op("Div", [this](attribute_map, std::vector<rtg::instruction_ref> args) {
+            return prog.add_instruction(rtg::div{}, args);
         });
     }
 

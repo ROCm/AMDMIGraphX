@@ -573,6 +573,9 @@ struct cpu_apply
         apply_map["sin"]      = simple_op<cpu_unary<sin_op>>();
         apply_map["cos"]      = simple_op<cpu_unary<cos_op>>();
         apply_map["tan"]      = simple_op<cpu_unary<tan_op>>();
+        apply_map["sub"]      = simple_op<cpu_binary<sub_op>>();
+        apply_map["mul"]      = simple_op<cpu_binary<mul_op>>();
+        apply_map["div"]      = simple_op<cpu_binary<div_op>>();
 
         apply_map["softmax"] = simple_op<softmax2d>();
     }
@@ -590,25 +593,13 @@ struct cpu_apply
             {
                 apply_pooling(it);
             }
-            else if(apply_map.count(it->op.name()) > 0)
-            {
-                apply_map.at(it->op.name())(it);
-            }
             else if(it->op.name() == "add")
             {
                 apply_add(it);
             }
-            else if(it->op.name() == "sub")
+            else if(apply_map.count(it->op.name()) > 0)
             {
-                apply_sub(it);
-            }
-            else if(it->op.name() == "mul")
-            {
-                apply_mul(it);
-            }
-            else if(it->op.name() == "div")
-            {
-                apply_div(it);
+                apply_map.at(it->op.name())(it);
             }
         }
     }
@@ -647,21 +638,6 @@ struct cpu_apply
         auto&& op = any_cast<add>(ins->op);
         // prog->replace_instruction(ins, cpu_binary<add_op>{}, ins->arguments);
         prog->replace_instruction(ins, add_with_broadcast{op}, ins->arguments);
-    }
-
-    void apply_sub(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_binary<sub_op>{}, ins->arguments);
-    }
-
-    void apply_mul(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_binary<mul_op>{}, ins->arguments);
-    }
-
-    void apply_div(instruction_ref ins)
-    {
-        prog->replace_instruction(ins, cpu_binary<div_op>{}, ins->arguments);
     }
 };
 

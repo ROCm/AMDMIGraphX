@@ -586,6 +586,10 @@ struct cpu_apply
             {
                 apply_activation(it);
             }
+            else if(it->op.name() == "pooling")
+            {
+                apply_pooling(it);
+            }
             else if(apply_map.count(it->op.name()) > 0)
             {
                 apply_map.at(it->op.name())(it);

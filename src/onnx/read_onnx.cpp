@@ -12,6 +12,9 @@
 #include <rtg/program.hpp>
 #include <rtg/operators.hpp>
 
+#include <rtg/cpu/cpu_target.hpp>
+#include <random>
+
 struct unknown
 {
     std::string op;
@@ -334,6 +337,22 @@ struct onnx_parser
     }
 };
 
+// TODO: Move this to a seperate header
+std::vector<float> get_tensor_data(rtg::shape s)
+{
+    std::vector<float> result(s.elements());
+    std::mt19937 engine{0};
+    std::uniform_real_distribution<> dist;
+    std::generate(result.begin(), result.end(), [&] { return dist(engine); });
+    return result;
+}
+
+rtg::argument get_tensor_argument(rtg::shape s)
+{
+    auto v = get_tensor_data(s);
+    return {s, [v]() mutable { return reinterpret_cast<char*>(v.data()); }};
+}
+
 int main(int argc, char const* argv[])
 {
     if(argc > 1)
@@ -344,6 +363,11 @@ int main(int argc, char const* argv[])
         try
         {
             parser.parse_from(input);
+            parser.prog.compile(rtg::cpu::cpu_target{});
+            auto s = parser.prog.get_parameter_shape("Input3");
+            auto input3 = get_tensor_argument(s);
+            auto out = parser.prog.eval({{"Input3", input3}});
+            (void)out;
         }
         catch(...)
         {

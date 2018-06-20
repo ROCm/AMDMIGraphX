@@ -364,9 +364,9 @@ int main(int argc, char const* argv[])
         {
             parser.parse_from(input);
             parser.prog.compile(rtg::cpu::cpu_target{});
-            auto s = parser.prog.get_parameter_shape("Input3");
+            auto s      = parser.prog.get_parameter_shape("Input3");
             auto input3 = get_tensor_argument(s);
-            auto out = parser.prog.eval({{"Input3", input3}});
+            auto out    = parser.prog.eval({{"Input3", input3}});
             (void)out;
         }
         catch(...)

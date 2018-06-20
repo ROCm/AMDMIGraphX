@@ -481,11 +481,16 @@ struct cpu_binary
     {
         argument result{output_shape};
         visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {
-            if(input1.get_shape().packed() and input2.get_shape().packed()) {
-                std::transform(input1.begin(), input1.end(), input2.begin(), output.begin(), op.fcn());
-            } else {
+            if(input1.get_shape().packed() and input2.get_shape().packed())
+            {
+                std::transform(
+                    input1.begin(), input1.end(), input2.begin(), output.begin(), op.fcn());
+            }
+            else
+            {
                 shape_for_each(output.get_shape(), [&](const auto& idx) {
-                    output(idx.begin(), idx.end()) = op.fcn()(input1(idx.begin(), idx.end()), input2(idx.begin(), idx.end()));
+                    output(idx.begin(), idx.end()) =
+                        op.fcn()(input1(idx.begin(), idx.end()), input2(idx.begin(), idx.end()));
                 });
             }
         });

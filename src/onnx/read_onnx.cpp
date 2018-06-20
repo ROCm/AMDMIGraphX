@@ -227,6 +227,13 @@ struct onnx_parser
         return result;
     }
 
+    template<class T>
+    static rtg::literal from_repeated(rtg::shape::type_t t, const T& r)
+    {
+        std::size_t size = r.size();
+        return rtg::literal{{t, {size}}, r.begin(), r.end()};
+    }
+
     static rtg::literal parse_value(const onnx::AttributeProto& attr)
     {
         switch(attr.type())
@@ -237,11 +244,8 @@ struct onnx_parser
         case onnx::AttributeProto::STRING: return {};
         case onnx::AttributeProto::TENSOR: return parse_tensor(attr.t());
         case onnx::AttributeProto::GRAPH: return {};
-        case onnx::AttributeProto::FLOATS:
-            return rtg::literal{rtg::shape::float_type, attr.floats().begin(), attr.floats().end()};
-        case onnx::AttributeProto::INTS:
-            return rtg::literal{rtg::shape::int32_type, attr.ints().begin(), attr.ints().end()};
-            ;
+        case onnx::AttributeProto::FLOATS: return from_repeated(rtg::shape::float_type, attr.floats());
+        case onnx::AttributeProto::INTS: return from_repeated(rtg::shape::int64_type, attr.ints());
         case onnx::AttributeProto::STRINGS: return {};
         case onnx::AttributeProto::TENSORS: return {};
         case onnx::AttributeProto::GRAPHS: return {};

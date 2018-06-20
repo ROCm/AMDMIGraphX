@@ -431,8 +431,8 @@ struct broadcast
         auto shape1                = inputs.at(1);
         auto shape0_lens           = shape0.lens();
         auto shape1_lens           = shape1.lens();
-        const auto& shape0_strides = shape0.lens();
-        auto shape1_strides        = shape1.lens();
+        const auto& shape0_strides = shape0.strides();
+        auto shape1_strides        = shape1.strides();
         if(std::all_of(shape0_lens.cbegin(), shape1_lens.cend(), [&](auto x) { return x == 1; }))
         {
             if(axis != 0)

@@ -91,13 +91,6 @@ void broadcast_test()
     p.compile(rtg::cpu::cpu_target{});
     auto result = p.eval({});
     std::vector<int32_t> results_vector(4);
-
-    // result.visit([&](auto output) {
-    //     EXPECT(output(0,0) == -2);
-    //     EXPECT(output(0,1) == -2);
-    //     EXPECT(output(1,0) == -3);
-    //     EXPECT(output(1,1) == -3);
-    // });
 }
 void add_broadcast_test()
 {
@@ -113,6 +106,7 @@ void add_broadcast_test()
     p.add_instruction(rtg::add{}, l1, l3);
     p.compile(rtg::cpu::cpu_target{});
     auto result = p.eval({});
+    EXPECT(result.get_shape().packed());
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0, 1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8};

@@ -42,18 +42,20 @@ function(add_test_command NAME EXE)
             #     -ex run
             #     -ex backtrace
             #     --args $<TARGET_FILE:${EXE}> ${ARGN})
-            file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmake"
+            set(TEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/gdb/test_${NAME})
+            file(MAKE_DIRECTORY ${TEST_DIR})
+            file(GENERATE OUTPUT "${TEST_DIR}/run.cmake"
                 CONTENT "
-                execute_process(COMMAND $<TARGET_FILE:${EXE}> ${ARGN} RESULT_VARIABLE RESULT)
+                execute_process(COMMAND $<TARGET_FILE:${EXE}> ${ARGN} WORKING_DIRECTORY ${TEST_DIR} RESULT_VARIABLE RESULT)
                 if(NOT RESULT EQUAL 0)
                     # TODO: check for core files based on pid when setting /proc/sys/kernel/core_uses_pid
-                    if(EXISTS core)
-                        execute_process(COMMAND ${RTG_GDB} $<TARGET_FILE:${EXE}> core -batch -ex bt)
+                    if(EXISTS ${TEST_DIR}/core)
+                        execute_process(COMMAND ${RTG_GDB} $<TARGET_FILE:${EXE}> ${TEST_DIR}/core -batch -ex bt)
                     endif()
                     message(FATAL_ERROR \"Test failed\")
                 endif()
             ")
-            add_test(NAME ${NAME} COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmake")
+            add_test(NAME ${NAME} COMMAND ${CMAKE_COMMAND} -P "${TEST_DIR}/run.cmake")
         else()
             add_test(NAME ${NAME} COMMAND ${EXE} ${ARGN})
         endif()

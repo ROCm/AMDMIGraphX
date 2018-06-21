@@ -149,60 +149,9 @@ struct cpu_contiguous
     {
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
-            auto input_shape = args[0].get_shape();
-            auto ndim        = output_shape.lens().size();
-            using value_type = typename decltype(input)::value_type;
-            value_type* ptr  = static_cast<value_type*>(output.data());
-            if(ndim == 2)
-            {
-                dfor(input_shape.lens()[0], input_shape.lens()[1])(
-                    [&](std::size_t i0, std::size_t i1) { *ptr++ = input(i0, i1); });
-            }
-            else if(ndim == 3)
-            {
-                dfor(input_shape.lens()[0], input_shape.lens()[1], input_shape.lens()[2])(
-                    [&](std::size_t i0, std::size_t i1, std::size_t i2) {
-                        *ptr++ = input(i0, i1, i2);
-                    });
-            }
-            else if(ndim == 4)
-            {
-                dfor(input_shape.lens()[0],
-                     input_shape.lens()[1],
-                     input_shape.lens()[2],
-                     input_shape.lens()[3])(
-                    [&](std::size_t i0, std::size_t i1, std::size_t i2, std::size_t i3) {
-                        *ptr++ = input(i0, i1, i2, i3);
-                    });
-            }
-            else if(ndim == 5)
-            {
-                dfor(input_shape.lens()[0],
-                     input_shape.lens()[1],
-                     input_shape.lens()[2],
-                     input_shape.lens()[3],
-                     input_shape.lens()[4])(
-                    [&](std::size_t i0,
-                        std::size_t i1,
-                        std::size_t i2,
-                        std::size_t i3,
-                        std::size_t i4) { *ptr++ = input(i0, i1, i2, i3, i4); });
-            }
-            else if(ndim == 6)
-            {
-                dfor(input_shape.lens()[0],
-                     input_shape.lens()[1],
-                     input_shape.lens()[2],
-                     input_shape.lens()[3],
-                     input_shape.lens()[4],
-                     input_shape.lens()[5])(
-                    [&](std::size_t i0,
-                        std::size_t i1,
-                        std::size_t i2,
-                        std::size_t i3,
-                        std::size_t i4,
-                        std::size_t i5) { *ptr++ = input(i0, i1, i2, i3, i4, i5); });
-            }
+            shape_for_each(output.get_shape(), [&](const auto& idx) {
+                output(idx.begin(), idx.end()) = input(idx.begin(), idx.end());
+            });
         });
         return result;
     }

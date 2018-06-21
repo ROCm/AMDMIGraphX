@@ -18,7 +18,7 @@ void shape_for_each(const rtg::shape& s, F f)
                        s.strides().end(),
                        s.lens().begin(),
                        indices.begin(),
-                       [&](std::size_t stride, std::size_t len) { return (i / stride) % len; });
+                       [&](std::size_t stride, std::size_t len) { assert(len > 0 and stride > 0); return (i / stride) % len; });
         call(indices);
     }
 }

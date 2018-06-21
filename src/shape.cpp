@@ -20,7 +20,8 @@ shape::shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
     : m_type(t), m_lens(std::move(l)), m_strides(std::move(s))
 {
     assert(m_lens.size() == m_strides.size());
-    assert(std::any_of(m_strides.begin(), m_strides.end(), [](auto x) { return x > 0; }) and "At least one stride must be non-zero");
+    assert(std::any_of(m_strides.begin(), m_strides.end(), [](auto x) { return x > 0; }) and
+           "At least one stride must be non-zero");
     m_packed = this->elements() == this->element_space();
 }
 
@@ -68,13 +69,15 @@ std::size_t shape::index(std::size_t i) const
     if(this->packed())
         return i;
     else
-        return std::inner_product(
-            this->lens().begin(),
-            this->lens().end(),
-            this->strides().begin(),
-            std::size_t{0},
-            std::plus<std::size_t>{},
-            [&](std::size_t len, std::size_t stride) { assert(stride > 0 and len > 0); return ((i / stride) % len) * stride; });
+        return std::inner_product(this->lens().begin(),
+                                  this->lens().end(),
+                                  this->strides().begin(),
+                                  std::size_t{0},
+                                  std::plus<std::size_t>{},
+                                  [&](std::size_t len, std::size_t stride) {
+                                      assert(stride > 0 and len > 0);
+                                      return ((i / stride) % len) * stride;
+                                  });
 }
 bool shape::packed() const { return this->m_packed; }
 std::size_t shape::element_space() const

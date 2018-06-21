@@ -91,10 +91,10 @@ void broadcast_test()
     p.compile(rtg::cpu::cpu_target{});
     auto result = p.eval({});
     auto output = result.get<int32_t>();
-    EXPECT(output(0,0) == -2);
-    EXPECT(output(0,1) == -2);
-    EXPECT(output(1,0) == -3);
-    EXPECT(output(1,1) == -3);
+    EXPECT(output(0, 0) == -2);
+    EXPECT(output(0, 1) == -2);
+    EXPECT(output(1, 0) == -3);
+    EXPECT(output(1, 1) == -3);
 }
 void add_broadcast_test()
 {

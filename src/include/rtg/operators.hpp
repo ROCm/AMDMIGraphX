@@ -426,12 +426,13 @@ struct broadcast
     std::string name() const { return "broadcast"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        auto t              = inputs.at(0).type();
-        auto result         = inputs.at(0);
-        auto input         = inputs.at(1);
-        
+        auto t      = inputs.at(0).type();
+        auto result = inputs.at(0);
+        auto input  = inputs.at(1);
+
         std::vector<size_t> bcast_strides(result.lens().size(), 0);
-        if(std::all_of(result.lens().cbegin(), result.lens().cend(), [&](auto x) { return x == 1; }))
+        if(std::all_of(
+               result.lens().cbegin(), result.lens().cend(), [&](auto x) { return x == 1; }))
         {
             if(axis != 0)
                 RTG_THROW("when broadcasting tensor of size 1, axis should be 0");
@@ -439,10 +440,10 @@ struct broadcast
         }
         else
         {
-            assert(result.lens().size()-axis >= input.lens().size());
-            if(!std::equal(input.lens().begin(), input.lens().end(), result.lens().begin()+axis))
+            assert(result.lens().size() - axis >= input.lens().size());
+            if(!std::equal(input.lens().begin(), input.lens().end(), result.lens().begin() + axis))
                 RTG_THROW("when broadcasting success sizes must match");
-            std::copy(input.strides().begin(), input.strides().end(), bcast_strides.begin()+axis);
+            std::copy(input.strides().begin(), input.strides().end(), bcast_strides.begin() + axis);
             return {t, result.lens(), std::move(bcast_strides)};
         }
     }

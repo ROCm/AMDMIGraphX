@@ -25,7 +25,7 @@ int main(int argc, char const* argv[])
     if(argc > 1)
     {
         std::string file = argv[1];
-        auto prog = rtg::parse_onnx(file);
+        auto prog        = rtg::parse_onnx(file);
         prog.compile(rtg::cpu::cpu_target{});
         auto s      = prog.get_parameter_shape("Input3");
         auto input3 = get_tensor_argument(s);

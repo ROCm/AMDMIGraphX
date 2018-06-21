@@ -90,7 +90,11 @@ void broadcast_test()
     p.add_instruction(rtg::broadcast{axis}, l1, l2);
     p.compile(rtg::cpu::cpu_target{});
     auto result = p.eval({});
-    std::vector<int32_t> results_vector(4);
+    auto output = result.get<int32_t>();
+    EXPECT(output(0,0) == -2);
+    EXPECT(output(0,1) == -2);
+    EXPECT(output(1,0) == -3);
+    EXPECT(output(1,1) == -3);
 }
 void add_broadcast_test()
 {

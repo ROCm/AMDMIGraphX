@@ -46,6 +46,8 @@ function(add_test_command NAME EXE)
             file(MAKE_DIRECTORY ${TEST_DIR})
             file(GENERATE OUTPUT "${TEST_DIR}/run.cmake"
                 CONTENT "
+                # Remove previous core dump
+                file(REMOVE ${TEST_DIR}/core)
                 execute_process(COMMAND $<TARGET_FILE:${EXE}> ${ARGN} WORKING_DIRECTORY ${TEST_DIR} RESULT_VARIABLE RESULT)
                 if(NOT RESULT EQUAL 0)
                     # TODO: check for core files based on pid when setting /proc/sys/kernel/core_uses_pid

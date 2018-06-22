@@ -2,98 +2,11 @@
 #include <rtg/manage_ptr.hpp>
 #include <rtg/instruction.hpp>
 #include <rtg/operators.hpp>
-
-#include <miopen/miopen.h>
+#include <rtg/miopen/miopen.hpp>
+#include <rtg/miopen/hip.hpp>
 
 namespace rtg {
 namespace miopen {
-
-struct hip_allocate
-{
-    std::string name() const { return "hip::allocate"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs}.has(1);
-        return inputs.front();
-    }
-    argument compute(shape output_shape, std::vector<argument>) const
-    {
-        char* data = nullptr;
-        // TODO: Check return status
-        hipMalloc(&data, output_shape.bytes());
-        return {output_shape, data};
-    }
-};
-
-struct hip_free
-{
-    std::string name() const { return "hip::free"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs}.has(1);
-        return {};
-    }
-    argument compute(shape, std::vector<argument> args) const
-    {
-        // TODO: Check return status
-        hipFree(args.front().data());
-        return {};
-    }
-};
-
-using miopen_handle     = RTG_MANAGE_PTR(miopenHandle_t, miopenDestroy);
-using tensor_descriptor = RTG_MANAGE_PTR(miopenTensorDescriptor_t, miopenDestroyTensorDescriptor);
-using convolution_descriptor = RTG_MANAGE_PTR(miopenConvolutionDescriptor_t,
-                                              miopenDestroyConvolutionDescriptor);
-using activation_descriptor  = RTG_MANAGE_PTR(miopenActivationDescriptor_t,
-                                             miopenDestroyActivationDescriptor);
-
-template <class Result, class F, class... Ts>
-Result make_obj(F f, Ts... xs)
-{
-    typename Result::pointer x = nullptr;
-    auto status                = f(&x, xs...);
-    Result r{x};
-    if(status != miopenStatusSuccess)
-        RTG_THROW("MIOpen call failed");
-    return r;
-}
-
-tensor_descriptor make_tensor(const rtg::shape& s)
-{
-    auto t = make_obj<tensor_descriptor>(&miopenCreateTensorDescriptor);
-    // Convert to ints
-    std::vector<int> lens(s.lens().begin(), s.lens().end());
-    std::vector<int> strides(s.strides().begin(), s.strides().end());
-    miopenDataType_t d;
-    if(s.type() == shape::float_type)
-        d = miopenFloat;
-    else
-        RTG_THROW("Unsupported type");
-    miopenSetTensorDescriptor(t.get(), d, s.lens().size(), lens.data(), strides.data());
-    return t;
-}
-
-convolution_descriptor make_conv(const rtg::convolution& op)
-{
-    auto c = make_obj<convolution_descriptor>(&miopenCreateConvolutionDescriptor);
-    miopenInitConvolutionDescriptor(c.get(),
-                                    miopenConvolution,
-                                    op.padding[0],
-                                    op.padding[1],
-                                    op.stride[0],
-                                    op.stride[1],
-                                    op.dilation[0],
-                                    op.dilation[1]);
-    return c;
-}
-
-activation_descriptor make_relu()
-{
-    auto ad = make_obj<activation_descriptor>(&miopenCreateActivationDescriptor);
-    miopenSetActivationDescriptor(ad.get(), miopenActivationRELU, 0, 0, 0);
-    return ad;
-}
 
 struct miopen_convolution
 {

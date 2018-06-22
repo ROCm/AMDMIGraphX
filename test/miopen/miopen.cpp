@@ -4,54 +4,14 @@
 #include <rtg/generate.hpp>
 #include <rtg/cpu/cpu_target.hpp>
 #include <rtg/miopen/miopen_target.hpp>
+#include <rtg/miopen/miopen.hpp>
+#include <rtg/miopen/hip.hpp>
 #include <rtg/manage_ptr.hpp>
 
 #include <miopen/miopen.h>
 
 #include "test.hpp"
 #include "verify.hpp"
-
-using hip_ptr       = RTG_MANAGE_PTR(void, hipFree);
-using miopen_handle = RTG_MANAGE_PTR(miopenHandle_t, miopenDestroy);
-
-template <class Result, class F, class... Ts>
-Result make_obj(F f, Ts... xs)
-{
-    typename Result::pointer x = nullptr;
-    auto status                = f(&x, xs...);
-    Result r{x};
-    if(status != miopenStatusSuccess)
-        RTG_THROW("MIOpen call failed");
-    return r;
-}
-
-hip_ptr hip_allocate(std::size_t sz)
-{
-    void* result;
-    // TODO: Check status
-    hipMalloc(&result, sz);
-    return hip_ptr{result};
-}
-
-template <class T>
-hip_ptr write(const T& x)
-{
-    using type  = typename T::value_type;
-    auto size   = x.size() * sizeof(type);
-    auto result = hip_allocate(size);
-    // TODO: Check status
-    hipMemcpy(result.get(), x.data(), size, hipMemcpyHostToDevice);
-    return result;
-}
-
-template <class T>
-std::vector<T> read(const void* x, std::size_t sz)
-{
-    std::vector<T> result(sz);
-    // TODO: Check status
-    hipMemcpy(result.data(), x, sz * sizeof(T), hipMemcpyDeviceToHost);
-    return result;
-}
 
 rtg::program create_program()
 {
@@ -67,7 +27,7 @@ rtg::program create_program()
 rtg::argument get_tensor_argument_gpu(rtg::shape s)
 {
     auto v = rtg::generate_tensor_data<float>(s);
-    auto p = rtg::share(write(v));
+    auto p = rtg::share(rtg::miopen::write_to_gpu(v));
     return {s, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
 }
 
@@ -92,10 +52,10 @@ std::vector<float> gpu()
     auto w = get_tensor_argument_gpu({rtg::shape::float_type, {4, 3, 3, 3}});
     p.compile(rtg::miopen::miopen_target{});
     auto y      = get_tensor_argument_gpu(p.get_parameter_shape("output"));
-    auto handle = make_obj<miopen_handle>(&miopenCreate);
+    auto handle = rtg::miopen::make_obj<rtg::miopen::miopen_handle>(&miopenCreate);
     auto r      = p.eval(
         {{"x", x}, {"w", w}, {"output", y}, {"handle", {rtg::shape::any_type, handle.get()}}});
-    result = read<float>(r.data(), r.get_shape().elements());
+    result = rtg::miopen::read_from_gpu<float>(r.data(), r.get_shape().elements());
     return result;
 }
 

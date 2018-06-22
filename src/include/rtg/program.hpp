@@ -27,6 +27,8 @@ struct program
     program& operator=(program&&) noexcept;
     ~program() noexcept;
 
+    using parameter_map = std::unordered_map<std::string, argument>;
+
     template <class... Ts>
     instruction_ref add_instruction(operation op, Ts... args)
     {
@@ -64,7 +66,7 @@ struct program
 
     shape get_parameter_shape(std::string name);
 
-    argument eval(std::unordered_map<std::string, argument> params) const;
+    argument eval(parameter_map params) const;
 
     friend std::ostream& operator<<(std::ostream& os, const program& p);
 

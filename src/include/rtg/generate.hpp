@@ -6,7 +6,7 @@
 
 namespace rtg {
 
-template<class T>
+template <class T>
 std::vector<T> generate_tensor_data(rtg::shape s, std::mt19937::result_type seed = 0)
 {
     std::vector<T> result(s.elements());

@@ -5,7 +5,8 @@
 
 #include <miopen/miopen.h>
 
-namespace rtg { namespace miopen {
+namespace rtg {
+namespace miopen {
 
 using miopen_handle     = RTG_MANAGE_PTR(miopenHandle_t, miopenDestroy);
 using tensor_descriptor = RTG_MANAGE_PTR(miopenTensorDescriptor_t, miopenDestroyTensorDescriptor);

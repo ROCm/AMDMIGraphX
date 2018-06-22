@@ -5,9 +5,10 @@
 
 #include <miopen/miopen.h>
 
-namespace rtg { namespace miopen {
+namespace rtg {
+namespace miopen {
 
-using hip_ptr       = RTG_MANAGE_PTR(void, hipFree);
+using hip_ptr = RTG_MANAGE_PTR(void, hipFree);
 
 inline hip_ptr gpu_allocate(std::size_t sz)
 {

@@ -1,13 +1,12 @@
 
 #include <rtg/program.hpp>
 #include <rtg/operators.hpp>
+#include <rtg/generate.hpp>
 #include <rtg/cpu/cpu_target.hpp>
 #include <rtg/miopen/miopen_target.hpp>
 #include <rtg/manage_ptr.hpp>
 
 #include <miopen/miopen.h>
-
-#include <random>
 
 #include "test.hpp"
 #include "verify.hpp"
@@ -64,24 +63,10 @@ rtg::program create_program()
     return p;
 }
 
-std::vector<float> get_tensor_data(rtg::shape s)
-{
-    std::vector<float> result(s.elements());
-    std::mt19937 engine{0};
-    std::uniform_real_distribution<> dist;
-    std::generate(result.begin(), result.end(), [&] { return dist(engine); });
-    return result;
-}
-
-rtg::argument get_tensor_argument_cpu(rtg::shape s)
-{
-    auto v = get_tensor_data(s);
-    return {s, [v]() mutable { return reinterpret_cast<char*>(v.data()); }};
-}
-
+// TODO: Move to header
 rtg::argument get_tensor_argument_gpu(rtg::shape s)
 {
-    auto v = get_tensor_data(s);
+    auto v = rtg::generate_tensor_data<float>(s);
     auto p = rtg::share(write(v));
     return {s, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
 }
@@ -90,8 +75,8 @@ std::vector<float> cpu()
 {
     std::vector<float> result;
     auto p = create_program();
-    auto x = get_tensor_argument_cpu({rtg::shape::float_type, {4, 3, 3, 3}});
-    auto w = get_tensor_argument_cpu({rtg::shape::float_type, {4, 3, 3, 3}});
+    auto x = rtg::generate_argument({rtg::shape::float_type, {4, 3, 3, 3}});
+    auto w = rtg::generate_argument({rtg::shape::float_type, {4, 3, 3, 3}});
     p.compile(rtg::cpu::cpu_target{});
     auto r      = p.eval({{"x", x}, {"w", w}});
     auto output = r.get<float>();

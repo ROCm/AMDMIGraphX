@@ -1,5 +1,6 @@
 
 add_library(rtg 
+    generate.cpp
     program.cpp
     shape.cpp
 )

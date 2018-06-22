@@ -13,7 +13,7 @@
 #include "test.hpp"
 #include "verify.hpp"
 
-template<class V>
+template <class V>
 rtg::argument run_cpu()
 {
     V v;
@@ -22,7 +22,7 @@ rtg::argument run_cpu()
     return p.eval(v.create_params());
 }
 
-template<class V>
+template <class V>
 rtg::argument run_gpu()
 {
     V v;
@@ -30,29 +30,27 @@ rtg::argument run_gpu()
     p.compile(rtg::miopen::miopen_target{});
 
     auto m = v.create_params();
-    for(auto&& e:m)
+    for(auto&& e : m)
     {
         e.second = rtg::miopen::to_gpu(e.second);
     }
 
-    m["output"]      = rtg::miopen::to_gpu(rtg::generate_argument(p.get_parameter_shape("output")));
+    m["output"] = rtg::miopen::to_gpu(rtg::generate_argument(p.get_parameter_shape("output")));
     auto handle = rtg::miopen::make_obj<rtg::miopen::miopen_handle>(&miopenCreate);
     m["handle"] = {rtg::shape::any_type, handle.get()};
 
     return rtg::miopen::from_gpu(p.eval(m));
 }
 
-template<class V>
+template <class V>
 void verify_program()
 {
     auto cpu_arg = run_cpu<V>();
     auto gpu_arg = run_gpu<V>();
-    visit_all(cpu_arg, gpu_arg)([](auto cpu, auto gpu) {
-        EXPECT(test::verify_range(cpu, gpu));
-    });
+    visit_all(cpu_arg, gpu_arg)([](auto cpu, auto gpu) { EXPECT(test::verify_range(cpu, gpu)); });
 }
 
-struct test1 
+struct test1
 {
     rtg::program create_program() const
     {

@@ -23,14 +23,6 @@ rtg::program create_program()
     return p;
 }
 
-// TODO: Move to header
-rtg::argument get_tensor_argument_gpu(rtg::shape s)
-{
-    auto v = rtg::generate_tensor_data<float>(s);
-    auto p = rtg::share(rtg::miopen::write_to_gpu(v));
-    return {s, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
-}
-
 std::vector<float> cpu()
 {
     std::vector<float> result;
@@ -48,10 +40,10 @@ std::vector<float> gpu()
 {
     std::vector<float> result;
     auto p = create_program();
-    auto x = get_tensor_argument_gpu({rtg::shape::float_type, {4, 3, 3, 3}});
-    auto w = get_tensor_argument_gpu({rtg::shape::float_type, {4, 3, 3, 3}});
+    auto x = rtg::miopen::to_gpu(rtg::generate_argument({rtg::shape::float_type, {4, 3, 3, 3}}));
+    auto w = rtg::miopen::to_gpu(rtg::generate_argument({rtg::shape::float_type, {4, 3, 3, 3}}));
     p.compile(rtg::miopen::miopen_target{});
-    auto y      = get_tensor_argument_gpu(p.get_parameter_shape("output"));
+    auto y      = rtg::miopen::to_gpu(rtg::generate_argument(p.get_parameter_shape("output")));
     auto handle = rtg::miopen::make_obj<rtg::miopen::miopen_handle>(&miopenCreate);
     auto r      = p.eval(
         {{"x", x}, {"w", w}, {"output", y}, {"handle", {rtg::shape::any_type, handle.get()}}});

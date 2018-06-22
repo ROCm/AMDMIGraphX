@@ -29,8 +29,8 @@ inline hip_ptr write_to_gpu(const void* x, std::size_t sz)
 template <class T>
 hip_ptr write_to_gpu(const T& x)
 {
-    using type  = typename T::value_type;
-    auto size   = x.size() * sizeof(type);
+    using type = typename T::value_type;
+    auto size  = x.size() * sizeof(type);
     return write_to_gpu(x.data(), size);
 }
 
@@ -54,7 +54,7 @@ inline rtg::argument from_gpu(rtg::argument arg)
     rtg::argument result;
     arg.visit([&](auto x) {
         using type = typename decltype(x)::value_type;
-        auto v = read_from_gpu<type>(arg.data(), x.get_shape().bytes() / sizeof(type));
+        auto v     = read_from_gpu<type>(arg.data(), x.get_shape().bytes() / sizeof(type));
         result     = {x.get_shape(), [v]() mutable { return reinterpret_cast<char*>(v.data()); }};
     });
     return result;

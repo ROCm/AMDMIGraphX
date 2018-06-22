@@ -10,6 +10,7 @@
 #include <rtg/fallthrough.hpp>
 #include <rtg/program.hpp>
 #include <rtg/operators.hpp>
+#include <rtg/ranges.hpp>
 
 namespace rtg {
 
@@ -31,18 +32,6 @@ struct unknown
         return os;
     }
 };
-
-template <class C, class T>
-bool contains(C&& c, T&& x)
-{
-    return c.find(x) != c.end();
-}
-
-template <class Range, class Iterator>
-void copy(Range&& r, Iterator it)
-{
-    std::copy(r.begin(), r.end(), it);
-}
 
 struct onnx_parser
 {

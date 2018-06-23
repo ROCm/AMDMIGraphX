@@ -60,7 +60,11 @@ struct max_pool
     static std::string name() { return "max"; }
     static double start() { return std::numeric_limits<double>::lowest(); }
 
-    static double apply(double x, double y) { return x + y; }
+    static double apply(double x, double y)
+    {
+        double m = std::max(x, y);
+        return (m);
+    }
 
     static double final(double x, double) { return (x); }
 };
@@ -70,11 +74,7 @@ struct avg_pool
     static std::string name() { return "average"; }
     static double start() { return 0.0; }
 
-    static double apply(double x, double y)
-    {
-        double m = std::max(x, y);
-        return (m);
-    }
+    static double apply(double x, double y) { return x + y; }
 
     static double final(double x, double y) { return x / y; }
 };

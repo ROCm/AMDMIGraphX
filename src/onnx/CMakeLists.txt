@@ -13,3 +13,7 @@ target_link_libraries(rtg_onnx onnx-proto rtg)
 add_executable(read_onnx read_onnx.cpp)
 rocm_clang_tidy_check(read_onnx)
 target_link_libraries(read_onnx rtg_onnx rtg_cpu)
+
+add_executable(mnist mnist.cpp)
+rocm_clang_tidy_check(mnist)
+target_link_libraries(mnist rtg_onnx rtg_cpu)

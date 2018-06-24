@@ -7,6 +7,7 @@ if(NOT TARGET MIOpen)
 endif()
 
 add_library(rtg_miopen
+    hip.cpp
     miopen_target.cpp
 )
 rocm_clang_tidy_check(rtg_miopen)

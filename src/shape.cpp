@@ -80,6 +80,14 @@ std::size_t shape::index(std::size_t i) const
                                   });
 }
 bool shape::packed() const { return this->m_packed; }
+
+bool shape::broadcasted() const
+{
+    assert(this->lens().size() == this->strides().size());
+    return std::accumulate(
+        this->strides().begin(), this->strides().end(), std::size_t{1}, std::multiplies<std::size_t>()) == 0; 
+}
+
 std::size_t shape::element_space() const
 {
     // TODO: Get rid of intermediate vector

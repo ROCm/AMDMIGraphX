@@ -74,6 +74,7 @@ struct shape
     std::size_t index(std::size_t i) const;
 
     bool packed() const;
+    bool broadcasted() const;
 
     friend bool operator==(const shape& x, const shape& y);
     friend bool operator!=(const shape& x, const shape& y);

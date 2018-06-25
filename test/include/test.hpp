@@ -114,10 +114,11 @@ struct capture
 };
 
 template <class T, class F>
-void failed(T x, const char* msg, const char* file, int line, F f)
+void failed(T x, const char* msg, const char * func, const char* file, int line, F f)
 {
     if(!x.value())
     {
+        std::cout << func << std::endl;
         std::cout << file << ":" << line << ":" << std::endl;
         std::cout << "    FAILED: " << msg << " " << x << std::endl;
         f();
@@ -163,10 +164,10 @@ void run_test()
 
 // NOLINTNEXTLINE
 #define CHECK(...) \
-    test::failed(test::capture{}->*__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__, [] {})
+    test::failed(test::capture{}->*__VA_ARGS__, #__VA_ARGS__, __PRETTY_FUNCTION__, __FILE__, __LINE__, [] {})
 // NOLINTNEXTLINE
 #define EXPECT(...) \
-    test::failed(test::capture{}->*__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__, &std::abort)
+    test::failed(test::capture{}->*__VA_ARGS__, #__VA_ARGS__, __PRETTY_FUNCTION__, __FILE__, __LINE__, &std::abort)
 // NOLINTNEXTLINE
 #define STATUS(...) EXPECT((__VA_ARGS__) == 0)
 

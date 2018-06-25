@@ -50,6 +50,49 @@ void verify_program()
     visit_all(cpu_arg, gpu_arg)([](auto cpu, auto gpu) { EXPECT(test::verify_range(cpu, gpu)); });
 }
 
+struct test_add
+{
+    rtg::program create_program() const
+    {
+        rtg::program p;
+        rtg::shape s{rtg::shape::float_type, {3}};
+        auto x = p.add_parameter("x", s);
+        auto y = p.add_parameter("y", s);
+        p.add_instruction(rtg::add{}, x, y);
+        return p;
+    }
+
+    rtg::program::parameter_map create_params() const
+    {
+        rtg::program::parameter_map m;
+        m["x"] = rtg::generate_argument({rtg::shape::float_type, {3}});
+        m["y"] = rtg::generate_argument({rtg::shape::float_type, {3}});
+        return m;
+    }
+};
+
+struct test_add_broadcast
+{
+    rtg::program create_program() const
+    {
+        rtg::program p;
+        rtg::shape s{rtg::shape::float_type, {3}};
+        auto x = p.add_parameter("x", {rtg::shape::float_type, {2, 2, 3}});
+        auto y = p.add_parameter("y", {rtg::shape::float_type, {2, 2}});
+        auto by = p.add_instruction(rtg::broadcast{0}, x, y);
+        p.add_instruction(rtg::add{}, x, by);
+        return p;
+    }
+
+    rtg::program::parameter_map create_params() const
+    {
+        rtg::program::parameter_map m;
+        m["x"] = rtg::generate_argument({rtg::shape::float_type, {2, 2, 3}});
+        m["y"] = rtg::generate_argument({rtg::shape::float_type, {2, 2}});
+        return m;
+    }
+};
+
 struct test_conv_relu
 {
     rtg::program create_program() const
@@ -95,6 +138,8 @@ struct test_conv_pooling
 
 int main()
 {
-    verify_program<test_conv_relu>();
-    verify_program<test_conv_pooling>();
+    // verify_program<test_add>();
+    verify_program<test_add_broadcast>();
+    // verify_program<test_conv_relu>();
+    // verify_program<test_conv_pooling>();
 }

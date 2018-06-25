@@ -5,6 +5,7 @@
 #include <rtg/shape_for_each.hpp>
 #include <rtg/miopen/miopen.hpp>
 #include <rtg/miopen/hip.hpp>
+#include <rtg/dfor.hpp>
 
 namespace rtg {
 namespace miopen {
@@ -140,6 +141,29 @@ struct miopen_add
     }
 };
 
+struct miopen_gemm
+{
+    gemm op;
+    std::string name() const { return "miopen::convolution"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(4);
+        return op.compute_shape({inputs.at(1), inputs.at(2)});
+    }
+    argument compute(shape output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+
+        visit_all(result, from_gpu(args[1]), from_gpu(args[2]))(
+            [&](auto output, auto input1, auto input2) {
+                dfor(input1.get_shape().lens()[0], input2.get_shape().lens()[1], input2.get_shape().lens()[0])([&](auto i, auto j, auto k) {
+                    output(i, j) += input1(i, k) * input2(k, j);
+                });
+            });
+        return to_gpu(result);
+    }
+};
+
 struct miopen_relu
 {
     shared<activation_descriptor> ad;
@@ -193,6 +217,10 @@ struct miopen_apply
             else if(it->op.name() == "add")
             {
                 apply_add(it);
+            }
+            else if(it->op.name() == "gemm")
+            {
+                apply_gemm(it);
             }
         }
     }
@@ -252,6 +280,14 @@ struct miopen_apply
         auto output = insert_allocation(ins, ins->result);
         prog->replace_instruction(
             ins, miopen_add{}, handle, ins->arguments.at(0), ins->arguments.at(1), output);
+    }
+
+    void apply_gemm(instruction_ref ins)
+    {
+        auto&& op = any_cast<gemm>(ins->op);
+        auto output = insert_allocation(ins, ins->result);
+        prog->replace_instruction(
+            ins, miopen_gemm{op}, handle, ins->arguments.at(0), ins->arguments.at(1), output);
     }
 };
 

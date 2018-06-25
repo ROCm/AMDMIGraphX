@@ -50,7 +50,7 @@ void verify_program()
     visit_all(cpu_arg, gpu_arg)([](auto cpu, auto gpu) { EXPECT(test::verify_range(cpu, gpu)); });
 }
 
-struct test1
+struct test_conv_relu
 {
     rtg::program create_program() const
     {
@@ -71,4 +71,29 @@ struct test1
     }
 };
 
-int main() { verify_program<test1>(); }
+struct test_conv_pooling
+{
+    rtg::program create_program() const
+    {
+        rtg::program p;
+        auto input   = p.add_parameter("x", rtg::shape{rtg::shape::float_type, {4, 3, 32, 32}});
+        auto weights = p.add_parameter("w", rtg::shape{rtg::shape::float_type, {4, 3, 3, 3}});
+        auto conv    = p.add_instruction(rtg::convolution{}, input, weights);
+        auto pooling = p.add_instruction(rtg::pooling{"max"}, conv);
+        p.add_instruction(rtg::activation{"relu"}, pooling);
+        return p;
+    }
+
+    rtg::program::parameter_map create_params() const
+    {
+        rtg::program::parameter_map m;
+        m["x"] = rtg::generate_argument({rtg::shape::float_type, {4, 3, 32, 32}});
+        m["w"] = rtg::generate_argument({rtg::shape::float_type, {4, 3, 3, 3}});
+        return m;
+    }
+};
+
+int main() { 
+    verify_program<test_conv_relu>(); 
+    verify_program<test_conv_pooling>(); 
+}

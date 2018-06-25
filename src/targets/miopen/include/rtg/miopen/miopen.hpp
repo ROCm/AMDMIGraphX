@@ -12,6 +12,8 @@ using miopen_handle     = RTG_MANAGE_PTR(miopenHandle_t, miopenDestroy);
 using tensor_descriptor = RTG_MANAGE_PTR(miopenTensorDescriptor_t, miopenDestroyTensorDescriptor);
 using convolution_descriptor = RTG_MANAGE_PTR(miopenConvolutionDescriptor_t,
                                               miopenDestroyConvolutionDescriptor);
+using pooling_descriptor = RTG_MANAGE_PTR(miopenPoolingDescriptor_t,
+                                              miopenDestroyPoolingDescriptor);
 using activation_descriptor  = RTG_MANAGE_PTR(miopenActivationDescriptor_t,
                                              miopenDestroyActivationDescriptor);
 
@@ -53,6 +55,23 @@ inline convolution_descriptor make_conv(const rtg::convolution& op)
                                     op.dilation[0],
                                     op.dilation[1]);
     return c;
+}
+
+inline pooling_descriptor make_pooling(const rtg::pooling& op)
+{
+    miopenPoolingMode_t mode;
+    if(op.mode == "max") mode = miopenPoolingMax;
+    else mode = miopenPoolingAverage;
+    auto p = make_obj<pooling_descriptor>(&miopenCreatePoolingDescriptor);
+    miopenSet2dPoolingDescriptor(p.get(),
+                                                          mode,
+                                                          op.lengths[0],
+                                    op.lengths[1],
+                                                          op.padding[0],
+                                    op.padding[1],
+                                    op.stride[0],
+                                    op.stride[1]);
+    return p;
 }
 
 inline activation_descriptor make_relu()

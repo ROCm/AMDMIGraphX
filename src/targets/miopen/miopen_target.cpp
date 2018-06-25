@@ -59,6 +59,40 @@ struct miopen_convolution
     }
 };
 
+struct miopen_pooling
+{
+    pooling op;
+    shared<pooling_descriptor> pd;
+
+    std::string name() const { return "miopen::pooling"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(3);
+        return op.compute_shape({inputs.at(1)});
+    }
+    argument compute(shape output_shape, std::vector<argument> args) const
+    {
+        auto x_desc = make_tensor(args[1].get_shape());
+        auto y_desc = make_tensor(output_shape);
+
+        float alpha = 1, beta = 0;
+
+        miopenPoolingForward(args[0].implicit(),
+                                                  pd.get(),
+                                                  &alpha,
+                                                  x_desc.get(),
+                                              args[1].implicit(),
+                                                  &beta,
+                                                  y_desc.get(),
+                                              args[2].implicit(),
+                                                  false,
+                                                  nullptr,
+                                                  0);
+
+        return args[2];
+    }
+};
+
 struct miopen_relu
 {
     shared<activation_descriptor> ad;
@@ -105,6 +139,10 @@ struct miopen_apply
             {
                 apply_activation(it);
             }
+            else if(it->op.name() == "pooling")
+            {
+                apply_pooling(it);
+            }
         }
     }
 
@@ -133,6 +171,19 @@ struct miopen_apply
                                   handle,
                                   ins->arguments.at(0),
                                   ins->arguments.at(1),
+                                  output);
+    }
+
+    void apply_pooling(instruction_ref ins)
+    {
+        auto&& op   = any_cast<pooling>(ins->op);
+        auto pd     = make_pooling(op);
+        auto output = insert_allocation(ins, ins->result);
+
+        prog->replace_instruction(ins,
+                                  miopen_pooling{op, std::move(pd)},
+                                  handle,
+                                  ins->arguments.at(0),
                                   output);
     }
 

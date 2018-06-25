@@ -136,10 +136,31 @@ struct test_conv_pooling
     }
 };
 
+struct test_gemm
+{
+    rtg::program create_program() const
+    {
+        rtg::program p;
+        auto a   = p.add_parameter("a", rtg::shape{rtg::shape::float_type, {4, 5}});
+        auto b = p.add_parameter("b", rtg::shape{rtg::shape::float_type, {5, 3}});
+        p.add_instruction(rtg::gemm{}, a, b);
+        return p;
+    }
+
+    rtg::program::parameter_map create_params() const
+    {
+        rtg::program::parameter_map m;
+        m["a"] = rtg::generate_argument({rtg::shape::float_type, {4, 5}});
+        m["b"] = rtg::generate_argument({rtg::shape::float_type, {5, 3}});
+        return m;
+    }
+};
+
 int main()
 {
-    // verify_program<test_add>();
+    verify_program<test_add>();
     verify_program<test_add_broadcast>();
-    // verify_program<test_conv_relu>();
-    // verify_program<test_conv_pooling>();
+    verify_program<test_conv_relu>();
+    verify_program<test_conv_pooling>();
+    verify_program<test_gemm>();
 }

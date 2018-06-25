@@ -136,7 +136,8 @@ int main(int argc, char const* argv[])
         std::string file = argv[1];
         auto prog        = rtg::parse_onnx(file);
         prog.compile(rtg::cpu::cpu_target{});
-        auto s = prog.get_parameter_shape("Input3");
+        // auto s = prog.get_parameter_shape("Input3");
+        auto s = rtg::shape{rtg::shape::float_type, {1, 1, 28, 28}};
         std::cout << s << std::endl;
         auto input3 = rtg::argument{s, input.data()};
         auto out    = prog.eval({{"Input3", input3}});

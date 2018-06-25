@@ -77,8 +77,8 @@ struct test_add_broadcast
     {
         rtg::program p;
         rtg::shape s{rtg::shape::float_type, {3}};
-        auto x = p.add_parameter("x", {rtg::shape::float_type, {2, 2, 3}});
-        auto y = p.add_parameter("y", {rtg::shape::float_type, {2, 2}});
+        auto x  = p.add_parameter("x", {rtg::shape::float_type, {2, 2, 3}});
+        auto y  = p.add_parameter("y", {rtg::shape::float_type, {2, 2}});
         auto by = p.add_instruction(rtg::broadcast{0}, x, y);
         p.add_instruction(rtg::add{}, x, by);
         return p;

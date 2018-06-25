@@ -105,33 +105,37 @@ struct miopen_add
 
     argument compute(shape output_shape, std::vector<argument> args) const
     {
-        if(args[2].get_shape().broadcasted()) {
+        if(args[2].get_shape().broadcasted())
+        {
             argument result{output_shape};
 
-            visit_all(result, from_gpu(args[1]), from_gpu(args[2]))([&](auto output, auto input1, auto input2) {
-                shape_for_each(output.get_shape(), [&](const auto& idx) {
+            visit_all(result, from_gpu(args[1]), from_gpu(args[2]))(
+                [&](auto output, auto input1, auto input2) {
+                    shape_for_each(output.get_shape(), [&](const auto& idx) {
                         output(idx.begin(), idx.end()) =
                             input1(idx.begin(), idx.end()) + input2(idx.begin(), idx.end());
                     });
-            });
+                });
             return to_gpu(result);
-        } else {
-        float alpha = 1, beta = 0;
-        auto a_desc = make_tensor(args[1].get_shape());
-        auto b_desc = make_tensor(args[2].get_shape());
-        auto c_desc = make_tensor(output_shape);
-        miopenOpTensor(args[0].implicit(),
-                                            miopenTensorOpAdd,
-                                            &alpha,
-                                            a_desc.get(),
-                                            args[1].implicit(),
-                                            &alpha,
-                                            b_desc.get(),
-                                            args[2].implicit(),
-                                            &beta,
-                                            c_desc.get(),
-                                            args[3].implicit());
-        return args[3];
+        }
+        else
+        {
+            float alpha = 1, beta = 0;
+            auto a_desc = make_tensor(args[1].get_shape());
+            auto b_desc = make_tensor(args[2].get_shape());
+            auto c_desc = make_tensor(output_shape);
+            miopenOpTensor(args[0].implicit(),
+                           miopenTensorOpAdd,
+                           &alpha,
+                           a_desc.get(),
+                           args[1].implicit(),
+                           &alpha,
+                           b_desc.get(),
+                           args[2].implicit(),
+                           &beta,
+                           c_desc.get(),
+                           args[3].implicit());
+            return args[3];
         }
     }
 };

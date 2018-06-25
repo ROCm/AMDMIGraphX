@@ -156,9 +156,10 @@ struct miopen_gemm
 
         visit_all(result, from_gpu(args[1]), from_gpu(args[2]))(
             [&](auto output, auto input1, auto input2) {
-                dfor(input1.get_shape().lens()[0], input2.get_shape().lens()[1], input2.get_shape().lens()[0])([&](auto i, auto j, auto k) {
-                    output(i, j) += input1(i, k) * input2(k, j);
-                });
+                dfor(input1.get_shape().lens()[0],
+                     input2.get_shape().lens()[1],
+                     input2.get_shape().lens()[0])(
+                    [&](auto i, auto j, auto k) { output(i, j) += input1(i, k) * input2(k, j); });
             });
         return to_gpu(result);
     }
@@ -284,7 +285,7 @@ struct miopen_apply
 
     void apply_gemm(instruction_ref ins)
     {
-        auto&& op = any_cast<gemm>(ins->op);
+        auto&& op   = any_cast<gemm>(ins->op);
         auto output = insert_allocation(ins, ins->result);
         prog->replace_instruction(
             ins, miopen_gemm{op}, handle, ins->arguments.at(0), ins->arguments.at(1), output);

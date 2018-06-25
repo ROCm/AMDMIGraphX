@@ -141,7 +141,7 @@ struct test_gemm
     rtg::program create_program() const
     {
         rtg::program p;
-        auto a   = p.add_parameter("a", rtg::shape{rtg::shape::float_type, {4, 5}});
+        auto a = p.add_parameter("a", rtg::shape{rtg::shape::float_type, {4, 5}});
         auto b = p.add_parameter("b", rtg::shape{rtg::shape::float_type, {5, 3}});
         p.add_instruction(rtg::gemm{}, a, b);
         return p;

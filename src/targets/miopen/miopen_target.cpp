@@ -78,16 +78,16 @@ struct miopen_pooling
         float alpha = 1, beta = 0;
 
         miopenPoolingForward(args[0].implicit(),
-                                                  pd.get(),
-                                                  &alpha,
-                                                  x_desc.get(),
-                                              args[1].implicit(),
-                                                  &beta,
-                                                  y_desc.get(),
-                                              args[2].implicit(),
-                                                  false,
-                                                  nullptr,
-                                                  0);
+                             pd.get(),
+                             &alpha,
+                             x_desc.get(),
+                             args[1].implicit(),
+                             &beta,
+                             y_desc.get(),
+                             args[2].implicit(),
+                             false,
+                             nullptr,
+                             0);
 
         return args[2];
     }
@@ -180,11 +180,8 @@ struct miopen_apply
         auto pd     = make_pooling(op);
         auto output = insert_allocation(ins, ins->result);
 
-        prog->replace_instruction(ins,
-                                  miopen_pooling{op, std::move(pd)},
-                                  handle,
-                                  ins->arguments.at(0),
-                                  output);
+        prog->replace_instruction(
+            ins, miopen_pooling{op, std::move(pd)}, handle, ins->arguments.at(0), output);
     }
 
     void apply_activation(instruction_ref ins)

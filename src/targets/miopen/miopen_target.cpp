@@ -118,7 +118,6 @@ struct miopen_apply
         {
             auto is     = prog->add_outline(s);
             auto result = prog->insert_instruction(ins, hip_allocate{}, is);
-            prog->insert_instruction(++ins, hip_free{}, result);
             return result;
         }
     }

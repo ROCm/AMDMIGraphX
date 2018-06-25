@@ -183,21 +183,18 @@ struct pooling
         assert(lengths[0] < (input.lens()[2] + 2 * padding[0]));
         assert(lengths[1] < (input.lens()[3] + 2 * padding[1]));
 
-        return {t,
-                {
-                    input.lens()[0],
-                    input.lens()[1],
-                    std::size_t(std::max<std::ptrdiff_t>(
-                        1,
-                        std::ceil((input.lens()[2] + 2 * padding[0] - lengths[0]) /
-                                  static_cast<float>(stride[0])) +
-                            1)),
-                    std::size_t(std::max<std::ptrdiff_t>(
-                        1,
-                        std::ceil((input.lens()[3] + 2 * padding[1] - lengths[1]) /
-                                  static_cast<float>(stride[1])) +
-                            1)),
-                }};
+        return {
+            t,
+            {
+                input.lens()[0],
+                input.lens()[1],
+                std::size_t(std::max<std::ptrdiff_t>(
+                                1, (input.lens()[2] + 2 * padding[0] - lengths[0]) / stride[0]) +
+                            1),
+                std::size_t(std::max<std::ptrdiff_t>(
+                                1, (input.lens()[3] + 2 * padding[1] - lengths[1]) / stride[1]) +
+                            1),
+            }};
     }
 
     argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
@@ -320,7 +317,7 @@ struct gemm
     std::string name() const { return "gemm"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(2).same_type();
+        check_shapes{inputs}.has(2).same_type().same_ndims().only_dims(2);
         const shape& a = inputs.at(0);
         const shape& b = inputs.at(1);
         auto t         = a.type();
@@ -431,6 +428,7 @@ struct broadcast
         auto input  = inputs.at(1);
 
         std::vector<size_t> bcast_strides(result.lens().size(), 0);
+
         if(std::all_of(
                result.lens().cbegin(), result.lens().cend(), [&](auto x) { return x == 1; }))
         {

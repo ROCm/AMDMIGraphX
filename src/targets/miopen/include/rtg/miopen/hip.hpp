@@ -1,12 +1,7 @@
 #ifndef RTG_GUARD_RTGLIB_HIP_HPP
 #define RTG_GUARD_RTGLIB_HIP_HPP
 
-#include <rtg/manage_ptr.hpp>
-#include <rtg/argument.hpp>
 #include <rtg/operators.hpp>
-#include <miopen/miopen.h>
-
-#include <vector>
 
 namespace rtg {
 namespace miopen {

@@ -14,6 +14,8 @@ add_executable(read_onnx read_onnx.cpp)
 rocm_clang_tidy_check(read_onnx)
 target_link_libraries(read_onnx rtg_onnx)
 
+if(RTG_ENABLE_MIOPEN)
 add_executable(verify_onnx verify_onnx.cpp)
 rocm_clang_tidy_check(verify_onnx)
 target_link_libraries(verify_onnx rtg_onnx rtg_cpu rtg_miopen)
+endif()

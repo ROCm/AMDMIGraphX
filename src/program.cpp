@@ -141,7 +141,6 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
                            values.begin(),
                            [&](instruction_ref i) { return results.at(std::addressof(*i)); });
             result = ins.op.compute(ins.result, values);
-            std::cout << "Debug:  " << ins.op.name() << "\n";
             if(result.get_shape().elements() > 0 and result.get_shape().packed() and
                std::isnan(result.at<float>()))
                 std::cout << "Nan: " << ins.op.name() << std::endl;

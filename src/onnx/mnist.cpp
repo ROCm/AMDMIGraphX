@@ -110,6 +110,20 @@ std::vector<int32_t> read_mnist_labels(std::string full_path, int& number_of_lab
     }
 }
 
+std::vector<float> softmax(std::vector<float> p) {
+    size_t n = p.size();
+    std::vector<float> result(n);
+    float s = 0.0f;
+    for (size_t i = 0; i < n; i++) {
+        result[i] = std::exp(p[i]);
+        s += result[i];
+    }
+    for (size_t i = 0; i < n; i++) {
+        result[i] = result[i]/s;
+    }
+    return result;
+}
+
 int main(int argc, char const* argv[])
 {
     if(argc > 1)
@@ -122,26 +136,24 @@ int main(int argc, char const* argv[])
         std::vector<float> input    = read_mnist_images(datafile, nimages, image_size);
         std::vector<int32_t> labels = read_mnist_labels(labelfile, nlabels);
 
-        printf("label: %d\n\n", labels[0]);
-
-        for(int i = 7; i < 9; i++)
-        {
-            for(int j = 0; j < 28; j++)
-            {
-                printf("%8.5f  ", input[i * 28 + j]);
-            }
-            printf("\n");
-        }
-
         std::string file = argv[1];
         auto prog        = rtg::parse_onnx(file);
         prog.compile(rtg::cpu::cpu_target{});
         // auto s = prog.get_parameter_shape("Input3");
         auto s = rtg::shape{rtg::shape::float_type, {1, 1, 28, 28}};
         std::cout << s << std::endl;
-        auto input3 = rtg::argument{s, input.data()};
-        auto out    = prog.eval({{"Input3", input3}});
-        std::cout << out << std::endl;
-        std::cout << prog << std::endl;
+        auto ptr = input.data();
+        for (int i = 0; i < 20; i++)
+        {
+            printf("label: %d  ---->  ", labels[i]);
+            auto input3 = rtg::argument{s, &ptr[784*i]};
+            auto result = prog.eval({{"Input3", input3}});
+            std::vector<float> logits;
+            result.visit([&](auto output) { logits.assign(output.begin(), output.end()); });
+            std::vector<float> probs = softmax(logits);
+            for (auto x : probs) printf("%8.4f    ", x);
+            printf("\n");
+        }
+        printf("\n");
     }
 }

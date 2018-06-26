@@ -298,7 +298,9 @@ struct reshape
             rdims.pop_back();
             std::copy(idims.begin() + rdims.size(), idims.end(), std::back_inserter(rdims));
         }
-        return {inputs.front().type(), rdims};
+        shape s{inputs.front().type(), rdims};
+        if (s.elements() != inputs.front().elements()) RTG_THROW("Wrong number of elements");
+        return s;
     }
 
     argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }

@@ -5,10 +5,12 @@ add_library(onnx-proto STATIC ${PROTO_SRCS})
 target_include_directories(onnx-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
 target_compile_options(onnx-proto PRIVATE -w)
 target_link_libraries(onnx-proto PRIVATE ${PROTOBUF_LIBRARY})
+set_target_properties(onnx-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
 
 add_library(rtg_onnx onnx.cpp)
 rocm_clang_tidy_check(rtg_onnx)
-target_link_libraries(rtg_onnx onnx-proto rtg)
+target_link_libraries(rtg_onnx PRIVATE onnx-proto)
+target_link_libraries(rtg_onnx PUBLIC rtg)
 
 add_executable(read_onnx read_onnx.cpp)
 rocm_clang_tidy_check(read_onnx)

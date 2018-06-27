@@ -42,7 +42,11 @@ int main(int argc, char const* argv[])
         std::string file = argv[1];
         auto x           = run_cpu(file);
         auto y           = run_gpu(file);
-        if(x != y)
+        if(x == y)
+        {
+            std::cout << "Passed" << std::endl;
+        }
+        else
         {
             std::cout << "Not equal" << std::endl;
             std::cout << x << std::endl;

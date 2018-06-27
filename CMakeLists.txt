@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.5)
 project(rtglib)
 find_package(ROCM REQUIRED)
 
+option( BUILD_SHARED_LIBS "Build as a shared library" ON )
+
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "5.4")
         message(FATAL_ERROR "RTGLib requires at least gcc 5.4")

@@ -28,7 +28,7 @@ struct miopen_convolution
     }
     argument compute(context& gctx, shape output_shape, std::vector<argument> args) const
     {
-        auto& ctx = any_cast<miopen_context>(gctx);
+        auto& ctx   = any_cast<miopen_context>(gctx);
         auto x_desc = make_tensor(args[0].get_shape());
         auto w_desc = make_tensor(args[1].get_shape());
         auto y_desc = make_tensor(output_shape);
@@ -80,7 +80,7 @@ struct miopen_pooling
     }
     argument compute(context& gctx, shape output_shape, std::vector<argument> args) const
     {
-        auto& ctx = any_cast<miopen_context>(gctx);
+        auto& ctx   = any_cast<miopen_context>(gctx);
         auto x_desc = make_tensor(args[0].get_shape());
         auto y_desc = make_tensor(output_shape);
 
@@ -128,7 +128,7 @@ struct miopen_add
         }
         else
         {
-            auto& ctx = any_cast<miopen_context>(gctx);
+            auto& ctx   = any_cast<miopen_context>(gctx);
             float alpha = 1, beta = 0;
             auto a_desc = make_tensor(args[0].get_shape());
             auto b_desc = make_tensor(args[1].get_shape());
@@ -185,7 +185,7 @@ struct miopen_relu
 
     argument compute(context& gctx, shape output_shape, std::vector<argument> args) const
     {
-        auto& ctx = any_cast<miopen_context>(gctx);
+        auto& ctx   = any_cast<miopen_context>(gctx);
         float alpha = 1, beta = 0;
         auto x_desc = make_tensor(args[0].get_shape());
         auto y_desc = make_tensor(output_shape);

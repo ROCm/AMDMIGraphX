@@ -10,6 +10,7 @@ struct cpu_target
 {
     std::string name() const;
     void apply(program& p) const;
+    context get_context() const { return {}; }
 };
 
 } // namespace cpu

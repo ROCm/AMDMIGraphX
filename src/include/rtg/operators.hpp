@@ -15,22 +15,26 @@ struct check_shapes
     const std::string name;
 
     check_shapes(const std::vector<shape>& s) : shapes(&s) {}
-    
-    template<class Op>
-    check_shapes(const std::vector<shape>& s, const Op& op) : shapes(&s), name(op.name()) {}
+
+    template <class Op>
+    check_shapes(const std::vector<shape>& s, const Op& op) : shapes(&s), name(op.name())
+    {
+    }
 
     std::string prefix() const
     {
-        if(name.empty()) return "";
-        else return name + ": ";
+        if(name.empty())
+            return "";
+        else
+            return name + ": ";
     }
 
     const check_shapes& has(std::size_t n) const
     {
         assert(shapes != nullptr);
         if(shapes->size() != n)
-            RTG_THROW(prefix() + "Wrong number of arguments: expected " + std::to_string(n) + " but given " +
-                      std::to_string(shapes->size()));
+            RTG_THROW(prefix() + "Wrong number of arguments: expected " + std::to_string(n) +
+                      " but given " + std::to_string(shapes->size()));
         return *this;
     }
 
@@ -508,15 +512,12 @@ struct outline
     argument compute(context&, shape, std::vector<argument>) const { return {s, nullptr}; }
 };
 
-template<class T>
+template <class T>
 struct check_context
 {
     std::string name() const { return "check_context"; }
-    shape compute_shape(std::vector<shape>) const
-    {
-        return {};
-    }
-    argument compute(context& ctx, shape, std::vector<argument>) const 
+    shape compute_shape(std::vector<shape>) const { return {}; }
+    argument compute(context& ctx, shape, std::vector<argument>) const
     {
         T* x = any_cast<T>(&ctx);
         if(x == nullptr)

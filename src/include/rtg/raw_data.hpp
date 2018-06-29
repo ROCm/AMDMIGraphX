@@ -90,19 +90,19 @@ struct raw_data : raw_data_base
             return self->template at<T>();
         }
 
-        template<class T>
-        using is_data_ptr = bool_c<(std::is_void<T>{} or std::is_same<char, std::remove_cv_t<T>>{} or std::is_same<unsigned char, std::remove_cv_t<T>>{})>;
+        template <class T>
+        using is_data_ptr =
+            bool_c<(std::is_void<T>{} or std::is_same<char, std::remove_cv_t<T>>{} or
+                    std::is_same<unsigned char, std::remove_cv_t<T>>{})>;
 
-        template<class T>
-        using get_data_type = std::conditional_t<is_data_ptr<T>{},
-            float,
-            T
-        >;
+        template <class T>
+        using get_data_type = std::conditional_t<is_data_ptr<T>{}, float, T>;
 
-        template<class T>
+        template <class T>
         bool matches() const
         {
-            return is_data_ptr<T>{} || self->get_shape().type() == rtg::shape::get_type<get_data_type<T>>{};
+            return is_data_ptr<T>{} ||
+                   self->get_shape().type() == rtg::shape::get_type<get_data_type<T>>{};
         }
 
         template <class T>

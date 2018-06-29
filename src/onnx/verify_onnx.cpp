@@ -30,7 +30,7 @@ rtg::argument run_gpu(std::string file)
     auto handle = rtg::miopen::make_obj<rtg::miopen::miopen_handle>(&miopenCreate);
 
     auto out = p.eval(
-        {{"Input3", input3}, {"handle", {rtg::shape::any_type, handle.get()}}, {"output", output}});
+        {{"Input3", input3}, {"output", output}});
     std::cout << p << std::endl;
     return rtg::miopen::from_gpu(out);
 }

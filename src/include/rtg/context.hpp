@@ -62,6 +62,14 @@ struct context
                    : nullptr;
     }
 
+    const std::type_info& type_id() const
+    {
+        if(private_detail_te_handle_empty())
+            return typeid(std::nullptr_t);
+        else
+            return private_detail_te_get_handle().type();
+    }
+
     private:
     struct private_detail_te_handle_base_type
     {
@@ -111,13 +119,20 @@ struct context
         }
     };
 
+    bool private_detail_te_handle_empty() const
+    {
+        return private_detail_te_handle_mem_var == nullptr;
+    }
+
     const private_detail_te_handle_base_type& private_detail_te_get_handle() const
     {
+        assert(private_detail_te_handle_mem_var != nullptr);
         return *private_detail_te_handle_mem_var;
     }
 
     private_detail_te_handle_base_type& private_detail_te_get_handle()
     {
+        assert(private_detail_te_handle_mem_var != nullptr);
         if(!private_detail_te_handle_mem_var.unique())
             private_detail_te_handle_mem_var = private_detail_te_handle_mem_var->clone();
         return *private_detail_te_handle_mem_var;

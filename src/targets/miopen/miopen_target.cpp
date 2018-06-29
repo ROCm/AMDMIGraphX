@@ -21,7 +21,7 @@ struct miopen_convolution
         check_shapes{inputs}.has(4);
         return op.compute_shape({inputs.at(1), inputs.at(2)});
     }
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         auto x_desc = make_tensor(args[1].get_shape());
         auto w_desc = make_tensor(args[2].get_shape());
@@ -72,7 +72,7 @@ struct miopen_pooling
         check_shapes{inputs}.has(3);
         return op.compute_shape({inputs.at(1)});
     }
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         auto x_desc = make_tensor(args[1].get_shape());
         auto y_desc = make_tensor(output_shape);
@@ -104,7 +104,7 @@ struct miopen_add
         return inputs.at(1);
     }
 
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         if(args[2].get_shape().broadcasted())
         {
@@ -150,7 +150,7 @@ struct miopen_gemm
         check_shapes{inputs}.has(4);
         return op.compute_shape({inputs.at(1), inputs.at(2)});
     }
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
 
@@ -175,7 +175,7 @@ struct miopen_relu
         return inputs.at(1);
     }
 
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         float alpha = 1, beta = 0;
         auto x_desc = make_tensor(args[1].get_shape());

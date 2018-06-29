@@ -9,7 +9,7 @@ struct simple_operation
     int data = 1;
     std::string name() const { return "simple"; }
     rtg::shape compute_shape(std::vector<rtg::shape>) const { RTG_THROW("not computable"); }
-    rtg::argument compute(rtg::shape, std::vector<rtg::argument>) const
+    rtg::argument compute(rtg::context&, rtg::shape, std::vector<rtg::argument>) const
     {
         RTG_THROW("not computable");
     }
@@ -24,7 +24,7 @@ struct simple_operation_no_print
 {
     std::string name() const { return "simple"; }
     rtg::shape compute_shape(std::vector<rtg::shape>) const { RTG_THROW("not computable"); }
-    rtg::argument compute(rtg::shape, std::vector<rtg::argument>) const
+    rtg::argument compute(rtg::context&, rtg::shape, std::vector<rtg::argument>) const
     {
         RTG_THROW("not computable");
     }

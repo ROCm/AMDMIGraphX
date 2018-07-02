@@ -12,15 +12,29 @@ namespace rtg {
 struct check_shapes
 {
     const std::vector<shape>* shapes;
+    const std::string name;
 
     check_shapes(const std::vector<shape>& s) : shapes(&s) {}
+
+    template <class Op>
+    check_shapes(const std::vector<shape>& s, const Op& op) : shapes(&s), name(op.name())
+    {
+    }
+
+    std::string prefix() const
+    {
+        if(name.empty())
+            return "";
+        else
+            return name + ": ";
+    }
 
     const check_shapes& has(std::size_t n) const
     {
         assert(shapes != nullptr);
         if(shapes->size() != n)
-            RTG_THROW("Wrong number of arguments: expected " + std::to_string(n) + " but given " +
-                      std::to_string(shapes->size()));
+            RTG_THROW(prefix() + "Wrong number of arguments: expected " + std::to_string(n) +
+                      " but given " + std::to_string(shapes->size()));
         return *this;
     }
 
@@ -30,7 +44,7 @@ struct check_shapes
         if(!shapes->empty())
         {
             if(shapes->front().lens().size() != n)
-                RTG_THROW("Only " + std::to_string(n) + "d supported");
+                RTG_THROW(prefix() + "Only " + std::to_string(n) + "d supported");
         }
         return *this;
     }
@@ -38,28 +52,28 @@ struct check_shapes
     const check_shapes& same_shape() const
     {
         if(!this->same([](const shape& s) { return s; }))
-            RTG_THROW("Shapes do not match");
+            RTG_THROW(prefix() + "Shapes do not match");
         return *this;
     }
 
     const check_shapes& same_type() const
     {
         if(!this->same([](const shape& s) { return s.type(); }))
-            RTG_THROW("Types do not match");
+            RTG_THROW(prefix() + "Types do not match");
         return *this;
     }
 
     const check_shapes& same_dims() const
     {
         if(!this->same([](const shape& s) { return s.lens(); }))
-            RTG_THROW("Dimensions do not match");
+            RTG_THROW(prefix() + "Dimensions do not match");
         return *this;
     }
 
     const check_shapes& same_ndims() const
     {
         if(!this->same([](const shape& s) { return s.lens().size(); }))
-            RTG_THROW("Dimensions do not match");
+            RTG_THROW(prefix() + "Dimensions do not match");
         return *this;
     }
 
@@ -83,7 +97,7 @@ struct check_shapes
 
 struct not_computable
 {
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
 struct convolution
@@ -101,7 +115,7 @@ struct convolution
     std::string name() const { return "convolution"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(2).same_type().same_ndims().only_dims(4);
+        check_shapes{inputs, *this}.has(2).same_type().same_ndims().only_dims(4);
 
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
@@ -153,7 +167,7 @@ struct convolution
         }
     }
 
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 
     friend std::ostream& operator<<(std::ostream& os, const convolution& op)
     {
@@ -175,7 +189,7 @@ struct pooling
     std::string name() const { return "pooling"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(1).only_dims(4);
+        check_shapes{inputs, *this}.has(1).only_dims(4);
 
         const shape& input = inputs.at(0);
         auto t             = input.type();
@@ -200,7 +214,7 @@ struct pooling
                 }};
     }
 
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 
     friend std::ostream& operator<<(std::ostream& os, const pooling& op)
     {
@@ -219,11 +233,11 @@ struct activation
     std::string name() const { return "activation"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(1);
+        check_shapes{inputs, *this}.has(1);
         return inputs.front();
     }
 
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const { RTG_THROW("not computable"); }
     friend std::ostream& operator<<(std::ostream& os, const activation& op)
     {
         os << op.name() << ":" << op.mode;
@@ -237,7 +251,7 @@ struct transpose
     std::string name() const { return "transpose"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(1);
+        check_shapes{inputs, *this}.has(1);
         auto input         = inputs.at(0);
         auto input_lens    = input.lens();
         auto input_strides = input.strides();
@@ -261,7 +275,7 @@ struct transpose
         }
         return {t, output_lens, output_strides};
     }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
 struct contiguous
@@ -269,7 +283,7 @@ struct contiguous
     std::string name() const { return "contiguous"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(1);
+        check_shapes{inputs, *this}.has(1);
         auto lens = inputs.at(0).lens();
         auto t    = inputs.at(0).type();
         if(lens.size() < 2)
@@ -278,7 +292,7 @@ struct contiguous
         }
         return {t, lens};
     }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
 struct reshape
@@ -287,7 +301,7 @@ struct reshape
     std::string name() const { return "reshape"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(1);
+        check_shapes{inputs, *this}.has(1);
         auto&& idims = inputs.front().lens();
         std::vector<std::size_t> rdims(dims.begin(), dims.end());
         for(std::size_t i = 0; i < dims.size(); i++)
@@ -306,7 +320,7 @@ struct reshape
         return s;
     }
 
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 
     friend std::ostream& operator<<(std::ostream& os, const reshape& op)
     {
@@ -322,7 +336,7 @@ struct gemm
     std::string name() const { return "gemm"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(2).same_type();
+        check_shapes{inputs, *this}.has(2).same_type();
         const shape& a = inputs.at(0);
         const shape& b = inputs.at(1);
         auto t         = a.type();
@@ -332,7 +346,7 @@ struct gemm
         return {t, {a.lens()[0], b.lens()[1]}};
     }
 
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 
     friend std::ostream& operator<<(std::ostream& os, const gemm& op)
     {
@@ -349,7 +363,7 @@ struct unary
         check_shapes{inputs}.has(1);
         return inputs.at(0);
     }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
 struct identity : unary
@@ -449,7 +463,7 @@ struct broadcast
             return {t, result.lens(), std::move(bcast_strides)};
         }
     }
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         return {output_shape, std::move(args.at(1).data)};
     }
@@ -463,7 +477,7 @@ struct binary
         check_shapes{inputs}.has(2).same_type().same_dims();
         return inputs.at(0);
     }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const { RTG_THROW("not computable"); }
 };
 
 struct add : binary
@@ -492,10 +506,24 @@ struct outline
     std::string name() const { return "outline"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(0);
+        check_shapes{inputs, *this}.has(0);
         return s;
     }
-    argument compute(shape, std::vector<argument>) const { return {s, nullptr}; }
+    argument compute(context&, shape, std::vector<argument>) const { return {s, nullptr}; }
+};
+
+template <class T>
+struct check_context
+{
+    std::string name() const { return "check_context"; }
+    shape compute_shape(std::vector<shape>) const { return {}; }
+    argument compute(context& ctx, shape, std::vector<argument>) const
+    {
+        T* x = any_cast<T>(&ctx);
+        if(x == nullptr)
+            RTG_THROW(std::string("Unexpected context type: ") + ctx.type_id().name());
+        return {};
+    }
 };
 
 } // namespace rtg

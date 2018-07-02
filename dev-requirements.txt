@@ -1,3 +1,4 @@
 pfultz2/rocm-recipes
 danmar/cppcheck@d9f9bdda7344e80585f71141be7797055d7987f3
+# python/cpython@v3.6.6 -X autotools -H sha256:92aa914572c695c0aeb01b0a214813f414da4b51a371234df514a74761f2bb36
 -f requirements.txt

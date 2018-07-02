@@ -8,6 +8,7 @@
 #include <utility>
 #include <rtg/shape.hpp>
 #include <rtg/argument.hpp>
+#include <rtg/context.hpp>
 
 namespace rtg {
 
@@ -28,7 +29,7 @@ auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
  * {
  *      std::string name() const;
  *      shape compute_shape(std::vector<shape> input) const;
- *      argument compute(shape output,std::vector<argument> input) const;
+ *      argument compute(context& ctx,shape output,std::vector<argument> input) const;
  *     friend std::ostream & operator<<(std::ostream & os,const operation & op) ;
  * };
  *
@@ -83,6 +84,14 @@ struct operation
                    : nullptr;
     }
 
+    const std::type_info& type_id() const
+    {
+        if(private_detail_te_handle_empty())
+            return typeid(std::nullptr_t);
+        else
+            return private_detail_te_get_handle().type();
+    }
+
     std::string name() const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -95,10 +104,11 @@ struct operation
         return (*this).private_detail_te_get_handle().compute_shape(std::move(input));
     }
 
-    argument compute(shape output, std::vector<argument> input) const
+    argument compute(context& ctx, shape output, std::vector<argument> input) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().compute(std::move(output), std::move(input));
+        return (*this).private_detail_te_get_handle().compute(
+            ctx, std::move(output), std::move(input));
     }
 
     friend std::ostream& operator<<(std::ostream& os, const operation& op)
@@ -114,10 +124,10 @@ struct operation
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const                                          = 0;
-        virtual shape compute_shape(std::vector<shape> input) const               = 0;
-        virtual argument compute(shape output, std::vector<argument> input) const = 0;
-        virtual std::ostream& operator_shift_left(std::ostream& os) const         = 0;
+        virtual std::string name() const                                                        = 0;
+        virtual shape compute_shape(std::vector<shape> input) const                             = 0;
+        virtual argument compute(context& ctx, shape output, std::vector<argument> input) const = 0;
+        virtual std::ostream& operator_shift_left(std::ostream& os) const                       = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -156,10 +166,10 @@ struct operation
             return private_detail_te_value.compute_shape(std::move(input));
         }
 
-        argument compute(shape output, std::vector<argument> input) const override
+        argument compute(context& ctx, shape output, std::vector<argument> input) const override
         {
 
-            return private_detail_te_value.compute(std::move(output), std::move(input));
+            return private_detail_te_value.compute(ctx, std::move(output), std::move(input));
         }
 
         std::ostream& operator_shift_left(std::ostream& os) const override
@@ -181,13 +191,20 @@ struct operation
         }
     };
 
+    bool private_detail_te_handle_empty() const
+    {
+        return private_detail_te_handle_mem_var == nullptr;
+    }
+
     const private_detail_te_handle_base_type& private_detail_te_get_handle() const
     {
+        assert(private_detail_te_handle_mem_var != nullptr);
         return *private_detail_te_handle_mem_var;
     }
 
     private_detail_te_handle_base_type& private_detail_te_get_handle()
     {
+        assert(private_detail_te_handle_mem_var != nullptr);
         if(!private_detail_te_handle_mem_var.unique())
             private_detail_te_handle_mem_var = private_detail_te_handle_mem_var->clone();
         return *private_detail_te_handle_mem_var;

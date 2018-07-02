@@ -6,6 +6,7 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
+#include <rtg/context.hpp>
 
 namespace rtg {
 
@@ -14,7 +15,8 @@ struct program;
 <%
 interface('target',
     virtual('name', returns='std::string', const=True),
-    virtual('apply', returns='void', p='program &', const=True)
+    virtual('apply', returns='void', p='program &', const=True),
+    virtual('get_context', returns='context', const=True)
 )
 %>
 

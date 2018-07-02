@@ -128,7 +128,6 @@ struct raw_data : raw_data_base
         return make_view(s, reinterpret_cast<T*>(buffer));
     }
 
-
     /// Cast the data pointer
     template <class T>
     T* cast() const

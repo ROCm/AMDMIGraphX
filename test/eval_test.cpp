@@ -8,7 +8,8 @@
 struct sum_op
 {
     std::string name() const { return "sum"; }
-    migraph::argument compute(migraph::context&, migraph::shape, std::vector<migraph::argument> args) const
+    migraph::argument
+    compute(migraph::context&, migraph::shape, std::vector<migraph::argument> args) const
     {
         migraph::argument result;
         if(args.size() != 2)
@@ -37,7 +38,8 @@ struct sum_op
 struct minus_op
 {
     std::string name() const { return "minus"; }
-    migraph::argument compute(migraph::context&, migraph::shape, std::vector<migraph::argument> args) const
+    migraph::argument
+    compute(migraph::context&, migraph::shape, std::vector<migraph::argument> args) const
     {
         migraph::argument result;
         if(args.size() != 2)
@@ -118,8 +120,8 @@ void param_test()
     auto y = p.add_parameter("y", {migraph::shape::int64_type});
 
     p.add_instruction(sum_op{}, x, y);
-    auto result =
-        p.eval({{"x", migraph::literal{1}.get_argument()}, {"y", migraph::literal{2}.get_argument()}});
+    auto result = p.eval(
+        {{"x", migraph::literal{1}.get_argument()}, {"y", migraph::literal{2}.get_argument()}});
     EXPECT(result == migraph::literal{3});
     EXPECT(result != migraph::literal{4});
 }

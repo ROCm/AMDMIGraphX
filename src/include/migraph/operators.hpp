@@ -34,7 +34,7 @@ struct check_shapes
         assert(shapes != nullptr);
         if(shapes->size() != n)
             MIGRAPH_THROW(prefix() + "Wrong number of arguments: expected " + std::to_string(n) +
-                      " but given " + std::to_string(shapes->size()));
+                          " but given " + std::to_string(shapes->size()));
         return *this;
     }
 
@@ -97,7 +97,10 @@ struct check_shapes
 
 struct not_computable
 {
-    argument compute(context&, shape, std::vector<argument>) const { MIGRAPH_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const
+    {
+        MIGRAPH_THROW("not computable");
+    }
 };
 
 struct convolution
@@ -167,7 +170,10 @@ struct convolution
         }
     }
 
-    argument compute(context&, shape, std::vector<argument>) const { MIGRAPH_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const
+    {
+        MIGRAPH_THROW("not computable");
+    }
 
     friend std::ostream& operator<<(std::ostream& os, const convolution& op)
     {
@@ -214,7 +220,10 @@ struct pooling
                 }};
     }
 
-    argument compute(context&, shape, std::vector<argument>) const { MIGRAPH_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const
+    {
+        MIGRAPH_THROW("not computable");
+    }
 
     friend std::ostream& operator<<(std::ostream& os, const pooling& op)
     {
@@ -237,7 +246,10 @@ struct activation
         return inputs.front();
     }
 
-    argument compute(context&, shape, std::vector<argument>) const { MIGRAPH_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const
+    {
+        MIGRAPH_THROW("not computable");
+    }
     friend std::ostream& operator<<(std::ostream& os, const activation& op)
     {
         os << op.name() << ":" << op.mode;
@@ -275,7 +287,10 @@ struct transpose
         }
         return {t, output_lens, output_strides};
     }
-    argument compute(context&, shape, std::vector<argument>) const { MIGRAPH_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const
+    {
+        MIGRAPH_THROW("not computable");
+    }
 };
 
 struct contiguous
@@ -292,7 +307,10 @@ struct contiguous
         }
         return {t, lens};
     }
-    argument compute(context&, shape, std::vector<argument>) const { MIGRAPH_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const
+    {
+        MIGRAPH_THROW("not computable");
+    }
 };
 
 struct reshape
@@ -320,7 +338,10 @@ struct reshape
         return s;
     }
 
-    argument compute(context&, shape, std::vector<argument>) const { MIGRAPH_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const
+    {
+        MIGRAPH_THROW("not computable");
+    }
 
     friend std::ostream& operator<<(std::ostream& os, const reshape& op)
     {
@@ -346,7 +367,10 @@ struct gemm
         return {t, {a.lens()[0], b.lens()[1]}};
     }
 
-    argument compute(context&, shape, std::vector<argument>) const { MIGRAPH_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const
+    {
+        MIGRAPH_THROW("not computable");
+    }
 
     friend std::ostream& operator<<(std::ostream& os, const gemm& op)
     {
@@ -363,7 +387,10 @@ struct unary
         check_shapes{inputs}.has(1);
         return inputs.at(0);
     }
-    argument compute(context&, shape, std::vector<argument>) const { MIGRAPH_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const
+    {
+        MIGRAPH_THROW("not computable");
+    }
 };
 
 struct identity : unary
@@ -477,7 +504,10 @@ struct binary
         check_shapes{inputs}.has(2).same_type().same_dims();
         return inputs.at(0);
     }
-    argument compute(context&, shape, std::vector<argument>) const { MIGRAPH_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const
+    {
+        MIGRAPH_THROW("not computable");
+    }
 };
 
 struct add : binary

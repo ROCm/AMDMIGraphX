@@ -16,7 +16,7 @@ using bool_c = std::integral_constant<bool, B>;
 #ifdef CPPCHECK
 #define MIGRAPH_REQUIRES(...) class = void
 #else
-#define MIGRAPH_REQUIRES(...)                  \
+#define MIGRAPH_REQUIRES(...)              \
     bool PrivateRequires##__LINE__ = true, \
          class = typename std::enable_if<and_<__VA_ARGS__, PrivateRequires##__LINE__>{}>::type
 #endif

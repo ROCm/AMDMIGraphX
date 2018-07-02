@@ -8,14 +8,15 @@
 namespace migraph {
 namespace miopen {
 
-using miopen_handle     = MIGRAPH_MANAGE_PTR(miopenHandle_t, miopenDestroy);
-using tensor_descriptor = MIGRAPH_MANAGE_PTR(miopenTensorDescriptor_t, miopenDestroyTensorDescriptor);
+using miopen_handle          = MIGRAPH_MANAGE_PTR(miopenHandle_t, miopenDestroy);
+using tensor_descriptor      = MIGRAPH_MANAGE_PTR(miopenTensorDescriptor_t,
+                                             miopenDestroyTensorDescriptor);
 using convolution_descriptor = MIGRAPH_MANAGE_PTR(miopenConvolutionDescriptor_t,
-                                              miopenDestroyConvolutionDescriptor);
+                                                  miopenDestroyConvolutionDescriptor);
 using pooling_descriptor     = MIGRAPH_MANAGE_PTR(miopenPoolingDescriptor_t,
-                                          miopenDestroyPoolingDescriptor);
+                                              miopenDestroyPoolingDescriptor);
 using activation_descriptor  = MIGRAPH_MANAGE_PTR(miopenActivationDescriptor_t,
-                                             miopenDestroyActivationDescriptor);
+                                                 miopenDestroyActivationDescriptor);
 
 template <class Result, class F, class... Ts>
 Result make_obj(F f, Ts... xs)

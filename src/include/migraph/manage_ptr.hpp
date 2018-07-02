@@ -51,6 +51,7 @@ shared<T> share(T p)
 
 } // namespace migraph
 
-#define MIGRAPH_MANAGE_PTR(T, F) migraph::manage_ptr<std::remove_pointer_t<T>, decltype(&F), &F> // NOLINT
+#define MIGRAPH_MANAGE_PTR(T, F) \
+    migraph::manage_ptr<std::remove_pointer_t<T>, decltype(&F), &F> // NOLINT
 
 #endif

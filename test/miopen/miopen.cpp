@@ -35,7 +35,8 @@ migraph::argument run_gpu()
         e.second = migraph::miopen::to_gpu(e.second);
     }
 
-    m["output"] = migraph::miopen::to_gpu(migraph::generate_argument(p.get_parameter_shape("output")));
+    m["output"] =
+        migraph::miopen::to_gpu(migraph::generate_argument(p.get_parameter_shape("output")));
 
     return migraph::miopen::from_gpu(p.eval(m));
 }
@@ -96,9 +97,10 @@ struct test_conv_relu
     migraph::program create_program() const
     {
         migraph::program p;
-        auto input   = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
-        auto weights = p.add_parameter("w", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
-        auto conv    = p.add_instruction(migraph::convolution{}, input, weights);
+        auto input = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+        auto weights =
+            p.add_parameter("w", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+        auto conv = p.add_instruction(migraph::convolution{}, input, weights);
         p.add_instruction(migraph::activation{"relu"}, conv);
         return p;
     }
@@ -117,8 +119,10 @@ struct test_conv_pooling
     migraph::program create_program() const
     {
         migraph::program p;
-        auto input   = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 32, 32}});
-        auto weights = p.add_parameter("w", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+        auto input =
+            p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 32, 32}});
+        auto weights =
+            p.add_parameter("w", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
         auto conv    = p.add_instruction(migraph::convolution{}, input, weights);
         auto pooling = p.add_instruction(migraph::pooling{"max"}, conv);
         p.add_instruction(migraph::activation{"relu"}, pooling);

@@ -7,7 +7,7 @@ option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "5.4")
-        message(FATAL_ERROR "MIGRAPHLib requires at least gcc 5.4")
+        message(FATAL_ERROR "MIGraph requires at least gcc 5.4")
     endif()
 endif()
 

@@ -1,18 +1,18 @@
 #include <iostream>
 #include <vector>
-#include <rtg/literal.hpp>
-#include <rtg/operators.hpp>
-#include <rtg/cpu/cpu_target.hpp>
+#include <migraph/literal.hpp>
+#include <migraph/operators.hpp>
+#include <migraph/cpu/cpu_target.hpp>
 #include "test.hpp"
 #include "verify.hpp"
 
 void exp_test()
 {
-    rtg::program p;
-    rtg::shape s{rtg::shape::float_type, {3}};
-    auto l = p.add_literal(rtg::literal{s, {-1, 0, 1}});
-    p.add_instruction(rtg::exp{}, l);
-    p.compile(rtg::cpu::cpu_target{});
+    migraph::program p;
+    migraph::shape s{migraph::shape::float_type, {3}};
+    auto l = p.add_literal(migraph::literal{s, {-1, 0, 1}});
+    p.add_instruction(migraph::exp{}, l);
+    p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -22,11 +22,11 @@ void exp_test()
 
 void sin_test()
 {
-    rtg::program p;
-    rtg::shape s{rtg::shape::float_type, {3}};
-    auto l = p.add_literal(rtg::literal{s, {-1, 0, 1}});
-    p.add_instruction(rtg::sin{}, l);
-    p.compile(rtg::cpu::cpu_target{});
+    migraph::program p;
+    migraph::shape s{migraph::shape::float_type, {3}};
+    auto l = p.add_literal(migraph::literal{s, {-1, 0, 1}});
+    p.add_instruction(migraph::sin{}, l);
+    p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -36,11 +36,11 @@ void sin_test()
 
 void cos_test()
 {
-    rtg::program p;
-    rtg::shape s{rtg::shape::float_type, {3}};
-    auto l = p.add_literal(rtg::literal{s, {-1, 0, 1}});
-    p.add_instruction(rtg::cos{}, l);
-    p.compile(rtg::cpu::cpu_target{});
+    migraph::program p;
+    migraph::shape s{migraph::shape::float_type, {3}};
+    auto l = p.add_literal(migraph::literal{s, {-1, 0, 1}});
+    p.add_instruction(migraph::cos{}, l);
+    p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -50,11 +50,11 @@ void cos_test()
 
 void tan_test()
 {
-    rtg::program p;
-    rtg::shape s{rtg::shape::float_type, {3}};
-    auto l = p.add_literal(rtg::literal{s, {-1, 0, 1}});
-    p.add_instruction(rtg::tan{}, l);
-    p.compile(rtg::cpu::cpu_target{});
+    migraph::program p;
+    migraph::shape s{migraph::shape::float_type, {3}};
+    auto l = p.add_literal(migraph::literal{s, {-1, 0, 1}});
+    p.add_instruction(migraph::tan{}, l);
+    p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -64,12 +64,12 @@ void tan_test()
 
 void add_test()
 {
-    rtg::program p;
-    rtg::shape s{rtg::shape::float_type, {3}};
-    auto l1 = p.add_literal(rtg::literal{s, {-1, 0, 1}});
-    auto l2 = p.add_literal(rtg::literal{s, {1, 2, 3}});
-    p.add_instruction(rtg::add{}, l1, l2);
-    p.compile(rtg::cpu::cpu_target{});
+    migraph::program p;
+    migraph::shape s{migraph::shape::float_type, {3}};
+    auto l1 = p.add_literal(migraph::literal{s, {-1, 0, 1}});
+    auto l2 = p.add_literal(migraph::literal{s, {1, 2, 3}});
+    p.add_instruction(migraph::add{}, l1, l2);
+    p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -79,16 +79,16 @@ void add_test()
 
 void broadcast_test()
 {
-    rtg::program p;
-    rtg::shape a_shape{rtg::shape::int32_type, {2, 2}};
+    migraph::program p;
+    migraph::shape a_shape{migraph::shape::int32_type, {2, 2}};
     std::vector<int32_t> a_data{0, 0, 0, 0};
-    rtg::shape b_shape{rtg::shape::int32_type, {2}};
+    migraph::shape b_shape{migraph::shape::int32_type, {2}};
     std::vector<int32_t> b_data{-2, -3};
     uint64_t axis = 0;
-    auto l1       = p.add_literal(rtg::literal{a_shape, a_data});
-    auto l2       = p.add_literal(rtg::literal{b_shape, b_data});
-    p.add_instruction(rtg::broadcast{axis}, l1, l2);
-    p.compile(rtg::cpu::cpu_target{});
+    auto l1       = p.add_literal(migraph::literal{a_shape, a_data});
+    auto l2       = p.add_literal(migraph::literal{b_shape, b_data});
+    p.add_instruction(migraph::broadcast{axis}, l1, l2);
+    p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
     auto output = result.get<int32_t>();
     EXPECT(output(0, 0) == -2);
@@ -98,17 +98,17 @@ void broadcast_test()
 }
 void add_broadcast_test()
 {
-    rtg::program p;
-    rtg::shape a_shape{rtg::shape::float_type, {2, 2, 3}};
+    migraph::program p;
+    migraph::shape a_shape{migraph::shape::float_type, {2, 2, 3}};
     std::vector<float> a_data{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-    rtg::shape b_shape{rtg::shape::float_type, {2, 2}};
+    migraph::shape b_shape{migraph::shape::float_type, {2, 2}};
     std::vector<float> b_data{0, -1, -2, -3};
     uint64_t axis = 0;
-    auto l1       = p.add_literal(rtg::literal{a_shape, a_data});
-    auto l2       = p.add_literal(rtg::literal{b_shape, b_data});
-    auto l3       = p.add_instruction(rtg::broadcast{axis}, l1, l2);
-    p.add_instruction(rtg::add{}, l1, l3);
-    p.compile(rtg::cpu::cpu_target{});
+    auto l1       = p.add_literal(migraph::literal{a_shape, a_data});
+    auto l2       = p.add_literal(migraph::literal{b_shape, b_data});
+    auto l3       = p.add_instruction(migraph::broadcast{axis}, l1, l2);
+    p.add_instruction(migraph::add{}, l1, l3);
+    p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
     EXPECT(result.get_shape().packed());
     std::vector<float> results_vector(12);
@@ -119,12 +119,12 @@ void add_broadcast_test()
 
 void sub_test()
 {
-    rtg::program p;
-    rtg::shape s{rtg::shape::float_type, {3}};
-    auto l1 = p.add_literal(rtg::literal{s, {-1, 0, 1}});
-    auto l2 = p.add_literal(rtg::literal{s, {1, 2, 3}});
-    p.add_instruction(rtg::sub{}, l1, l2);
-    p.compile(rtg::cpu::cpu_target{});
+    migraph::program p;
+    migraph::shape s{migraph::shape::float_type, {3}};
+    auto l1 = p.add_literal(migraph::literal{s, {-1, 0, 1}});
+    auto l2 = p.add_literal(migraph::literal{s, {1, 2, 3}});
+    p.add_instruction(migraph::sub{}, l1, l2);
+    p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -134,12 +134,12 @@ void sub_test()
 
 void mul_test()
 {
-    rtg::program p;
-    rtg::shape s{rtg::shape::float_type, {3}};
-    auto l1 = p.add_literal(rtg::literal{s, {-1, 0, 1}});
-    auto l2 = p.add_literal(rtg::literal{s, {1, 2, 3}});
-    p.add_instruction(rtg::mul{}, l1, l2);
-    p.compile(rtg::cpu::cpu_target{});
+    migraph::program p;
+    migraph::shape s{migraph::shape::float_type, {3}};
+    auto l1 = p.add_literal(migraph::literal{s, {-1, 0, 1}});
+    auto l2 = p.add_literal(migraph::literal{s, {1, 2, 3}});
+    p.add_instruction(migraph::mul{}, l1, l2);
+    p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -149,12 +149,12 @@ void mul_test()
 
 void div_test()
 {
-    rtg::program p;
-    rtg::shape s{rtg::shape::float_type, {3}};
-    auto l1 = p.add_literal(rtg::literal{s, {-1.0f, 0.5f, 1.0f}});
-    auto l2 = p.add_literal(rtg::literal{s, {1.0f, 2.0f, 4.0f}});
-    p.add_instruction(rtg::div{}, l1, l2);
-    p.compile(rtg::cpu::cpu_target{});
+    migraph::program p;
+    migraph::shape s{migraph::shape::float_type, {3}};
+    auto l1 = p.add_literal(migraph::literal{s, {-1.0f, 0.5f, 1.0f}});
+    auto l2 = p.add_literal(migraph::literal{s, {1.0f, 2.0f, 4.0f}});
+    p.add_instruction(migraph::div{}, l1, l2);
+    p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -164,37 +164,37 @@ void div_test()
 
 void reshape_test()
 {
-    rtg::shape a_shape{rtg::shape::float_type, {24, 1, 1, 1}};
+    migraph::shape a_shape{migraph::shape::float_type, {24, 1, 1, 1}};
     std::vector<float> data(24);
     std::iota(data.begin(), data.end(), -3);
     {
-        rtg::program p;
-        auto l                         = p.add_literal(rtg::literal{a_shape, data});
+        migraph::program p;
+        auto l                         = p.add_literal(migraph::literal{a_shape, data});
         std::vector<int64_t> new_shape = {8, 3, 1, 1};
-        p.add_instruction(rtg::reshape{new_shape}, l);
-        p.compile(rtg::cpu::cpu_target{});
+        p.add_instruction(migraph::reshape{new_shape}, l);
+        p.compile(migraph::cpu::cpu_target{});
         auto result = p.eval({});
         std::vector<float> results_vector(3);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         EXPECT(test::verify_range(results_vector, data));
     }
     {
-        rtg::program p;
-        auto l                         = p.add_literal(rtg::literal{a_shape, data});
+        migraph::program p;
+        auto l                         = p.add_literal(migraph::literal{a_shape, data});
         std::vector<int64_t> new_shape = {1, 3, 4, 2};
-        p.add_instruction(rtg::reshape{new_shape}, l);
-        p.compile(rtg::cpu::cpu_target{});
+        p.add_instruction(migraph::reshape{new_shape}, l);
+        p.compile(migraph::cpu::cpu_target{});
         auto result = p.eval({});
         std::vector<float> results_vector(3);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         EXPECT(test::verify_range(results_vector, data));
     }
     {
-        rtg::program p;
-        auto l                         = p.add_literal(rtg::literal{a_shape, data});
+        migraph::program p;
+        auto l                         = p.add_literal(migraph::literal{a_shape, data});
         std::vector<int64_t> new_shape = {1, 3, 4, 2};
-        p.add_instruction(rtg::reshape{new_shape}, l);
-        p.compile(rtg::cpu::cpu_target{});
+        p.add_instruction(migraph::reshape{new_shape}, l);
+        p.compile(migraph::cpu::cpu_target{});
         auto result = p.eval({});
         std::vector<float> results_vector(3);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -204,7 +204,7 @@ void reshape_test()
 
 void gemm_test()
 {
-    rtg::program p;
+    migraph::program p;
     std::vector<float> a = {-0.00925222, 0.56250403, 0.70107397,  0.75402161,  -0.505885,
                             1.33628943,  -0.11413,   -0.31270559, 1.59336732,  -0.19361027,
                             -0.91620867, 0.40108416, -0.06969921, 0.68483471,  -0.39906632,
@@ -236,12 +236,12 @@ void gemm_test()
                             -1.29885596e+00,
                             2.16294914e+00,
                             -1.48101497e-01};
-    rtg::shape a_shape{rtg::shape::float_type, {4, 5}};
-    auto al = p.add_literal(rtg::literal{a_shape, a});
-    rtg::shape b_shape{rtg::shape::float_type, {5, 3}};
-    auto bl = p.add_literal(rtg::literal{b_shape, b});
-    p.add_instruction(rtg::gemm{}, al, bl);
-    p.compile(rtg::cpu::cpu_target{});
+    migraph::shape a_shape{migraph::shape::float_type, {4, 5}};
+    auto al = p.add_literal(migraph::literal{a_shape, a});
+    migraph::shape b_shape{migraph::shape::float_type, {5, 3}};
+    auto bl = p.add_literal(migraph::literal{b_shape, b});
+    p.add_instruction(migraph::gemm{}, al, bl);
+    p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -254,7 +254,7 @@ void gemm_test()
 
 void softmax_test()
 {
-    rtg::program p;
+    migraph::program p;
     std::vector<float> a = {
         -5.61869681e-01, 9.07827199e-01,  1.29255986e+00,  3.18533443e-02,  -1.22183852e-03,
         -2.83830553e-01, -1.03245842e+00, -9.28322077e-01, -8.82696748e-01, 1.11327164e-01,
@@ -301,10 +301,10 @@ void softmax_test()
         0.17377149, 0.76075399, 0.20071237, 0.32632929, 0.36892858, 0.09416146, 0.26656723,
         0.42914796};
 
-    rtg::shape a_shape{rtg::shape::float_type, {5, 3, 4, 2}};
-    auto al = p.add_literal(rtg::literal{a_shape, a});
-    p.add_instruction(rtg::softmax{}, al);
-    p.compile(rtg::cpu::cpu_target{});
+    migraph::shape a_shape{migraph::shape::float_type, {5, 3, 4, 2}};
+    auto al = p.add_literal(migraph::literal{a_shape, a});
+    p.add_instruction(migraph::softmax{}, al);
+    p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
     std::vector<float> results_vector(120);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -313,7 +313,7 @@ void softmax_test()
 
 void conv2d_test()
 {
-    rtg::program p;
+    migraph::program p;
     std::vector<float> a = {
         2.71567607,  -0.9960829,  0.91671127,  0.28140706,  0.63235772,  0.08077253,  0.80927712,
         -0.59108931, -1.05421555, -2.76622486, -0.85044265, -0.52049929, 0.67726439,  -0.65290606,
@@ -359,14 +359,14 @@ void conv2d_test()
                             0.71606487,
                             -0.55201721,
                             -0.46427044};
-    rtg::shape a_shape{rtg::shape::float_type, {2, 3, 4, 4}};
-    auto al = p.add_literal(rtg::literal{a_shape, a});
+    migraph::shape a_shape{migraph::shape::float_type, {2, 3, 4, 4}};
+    auto al = p.add_literal(migraph::literal{a_shape, a});
 
-    rtg::shape c_shape{rtg::shape::float_type, {2, 3, 3, 3}};
-    auto cl = p.add_literal(rtg::literal{c_shape, c});
+    migraph::shape c_shape{migraph::shape::float_type, {2, 3, 3, 3}};
+    auto cl = p.add_literal(migraph::literal{c_shape, c});
 
-    p.add_instruction(rtg::convolution{}, al, cl);
-    p.compile(rtg::cpu::cpu_target{});
+    p.add_instruction(migraph::convolution{}, al, cl);
+    p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
 
     std::vector<float> results_vector(16);
@@ -376,7 +376,7 @@ void conv2d_test()
 
 void conv2d_padding_test()
 {
-    rtg::program p;
+    migraph::program p;
     std::vector<float> a = {
         2.71567607,  -0.9960829,  0.91671127,  0.28140706,  0.63235772,  0.08077253,  0.80927712,
         -0.59108931, -1.05421555, -2.76622486, -0.85044265, -0.52049929, 0.67726439,  -0.65290606,
@@ -415,14 +415,14 @@ void conv2d_padding_test()
         -0.20369984, -0.83037728, -1.40423918, -0.46160448, -0.22944322, 0.36074194,  0.49579027,
         0.46527559};
 
-    rtg::shape a_shape{rtg::shape::float_type, {2, 3, 4, 4}};
-    auto al = p.add_literal(rtg::literal{a_shape, a});
+    migraph::shape a_shape{migraph::shape::float_type, {2, 3, 4, 4}};
+    auto al = p.add_literal(migraph::literal{a_shape, a});
 
-    rtg::shape c_shape{rtg::shape::float_type, {2, 3, 3, 3}};
-    auto cl = p.add_literal(rtg::literal{c_shape, c});
+    migraph::shape c_shape{migraph::shape::float_type, {2, 3, 3, 3}};
+    auto cl = p.add_literal(migraph::literal{c_shape, c});
 
-    p.add_instruction(rtg::convolution{{{1, 1}}, {{1, 1}}}, al, cl);
-    p.compile(rtg::cpu::cpu_target{});
+    p.add_instruction(migraph::convolution{{{1, 1}}, {{1, 1}}}, al, cl);
+    p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
 
     std::vector<float> results_vector(64);
@@ -432,7 +432,7 @@ void conv2d_padding_test()
 
 void conv2d_padding_stride_test()
 {
-    rtg::program p;
+    migraph::program p;
     std::vector<float> a = {
         2.71567607,  -0.9960829,  0.91671127,  0.28140706,  0.63235772,  0.08077253,  0.80927712,
         -0.59108931, -1.05421555, -2.76622486, -0.85044265, -0.52049929, 0.67726439,  -0.65290606,
@@ -476,14 +476,14 @@ void conv2d_padding_stride_test()
                             -0.16138598,
                             0.79344082};
 
-    rtg::shape a_shape{rtg::shape::float_type, {2, 3, 4, 4}};
-    auto al = p.add_literal(rtg::literal{a_shape, a});
+    migraph::shape a_shape{migraph::shape::float_type, {2, 3, 4, 4}};
+    auto al = p.add_literal(migraph::literal{a_shape, a});
 
-    rtg::shape c_shape{rtg::shape::float_type, {2, 3, 3, 3}};
-    auto cl = p.add_literal(rtg::literal{c_shape, c});
+    migraph::shape c_shape{migraph::shape::float_type, {2, 3, 3, 3}};
+    auto cl = p.add_literal(migraph::literal{c_shape, c});
 
-    p.add_instruction(rtg::convolution{{{1, 1}}, {{2, 2}}}, al, cl);
-    p.compile(rtg::cpu::cpu_target{});
+    p.add_instruction(migraph::convolution{{{1, 1}}, {{2, 2}}}, al, cl);
+    p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
 
     std::vector<float> results_vector(16);
@@ -493,16 +493,16 @@ void conv2d_padding_stride_test()
 
 void transpose_test()
 {
-    rtg::shape a_shape{rtg::shape::float_type, {1, 2, 2, 3}};
+    migraph::shape a_shape{migraph::shape::float_type, {1, 2, 2, 3}};
     std::vector<float> data(12);
     std::iota(data.begin(), data.end(), 0);
 
     {
-        rtg::program p;
-        auto l                    = p.add_literal(rtg::literal{a_shape, data});
+        migraph::program p;
+        auto l                    = p.add_literal(migraph::literal{a_shape, data});
         std::vector<int64_t> perm = {0, 3, 1, 2};
-        p.add_instruction(rtg::transpose{perm}, l);
-        p.compile(rtg::cpu::cpu_target{});
+        p.add_instruction(migraph::transpose{perm}, l);
+        p.compile(migraph::cpu::cpu_target{});
         auto result = p.eval({});
 
         result.visit([&](auto output) {
@@ -513,12 +513,12 @@ void transpose_test()
         });
     }
     {
-        rtg::program p;
-        auto l                    = p.add_literal(rtg::literal{a_shape, data});
+        migraph::program p;
+        auto l                    = p.add_literal(migraph::literal{a_shape, data});
         std::vector<int64_t> perm = {0, 3, 1, 2};
-        auto result               = p.add_instruction(rtg::transpose{perm}, l);
-        p.add_instruction(rtg::contiguous{}, result);
-        p.compile(rtg::cpu::cpu_target{});
+        auto result               = p.add_instruction(migraph::transpose{perm}, l);
+        p.add_instruction(migraph::contiguous{}, result);
+        p.compile(migraph::cpu::cpu_target{});
         auto result2 = p.eval({});
 
         std::vector<float> results_vector(12);
@@ -530,14 +530,14 @@ void transpose_test()
 
 void contiguous_test()
 {
-    rtg::shape a_shape{rtg::shape::float_type, {1, 3, 2, 2}, {12, 1, 6, 3}};
+    migraph::shape a_shape{migraph::shape::float_type, {1, 3, 2, 2}, {12, 1, 6, 3}};
     std::vector<float> data(12);
     std::iota(data.begin(), data.end(), 0);
 
-    rtg::program p;
-    auto l = p.add_literal(rtg::literal{a_shape, data});
-    p.add_instruction(rtg::contiguous{}, l);
-    p.compile(rtg::cpu::cpu_target{});
+    migraph::program p;
+    auto l = p.add_literal(migraph::literal{a_shape, data});
+    p.add_instruction(migraph::contiguous{}, l);
+    p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
 
     std::vector<float> results_vector(12);

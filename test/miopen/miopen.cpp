@@ -1,12 +1,12 @@
 
-#include <rtg/program.hpp>
-#include <rtg/operators.hpp>
-#include <rtg/generate.hpp>
-#include <rtg/cpu/cpu_target.hpp>
-#include <rtg/miopen/miopen_target.hpp>
-#include <rtg/miopen/miopen.hpp>
-#include <rtg/miopen/hip.hpp>
-#include <rtg/manage_ptr.hpp>
+#include <migraph/program.hpp>
+#include <migraph/operators.hpp>
+#include <migraph/generate.hpp>
+#include <migraph/cpu/cpu_target.hpp>
+#include <migraph/miopen/miopen_target.hpp>
+#include <migraph/miopen/miopen.hpp>
+#include <migraph/miopen/hip.hpp>
+#include <migraph/manage_ptr.hpp>
 
 #include <miopen/miopen.h>
 
@@ -14,30 +14,30 @@
 #include "verify.hpp"
 
 template <class V>
-rtg::argument run_cpu()
+migraph::argument run_cpu()
 {
     V v;
     auto p = v.create_program();
-    p.compile(rtg::cpu::cpu_target{});
+    p.compile(migraph::cpu::cpu_target{});
     return p.eval(v.create_params());
 }
 
 template <class V>
-rtg::argument run_gpu()
+migraph::argument run_gpu()
 {
     V v;
     auto p = v.create_program();
-    p.compile(rtg::miopen::miopen_target{});
+    p.compile(migraph::miopen::miopen_target{});
 
     auto m = v.create_params();
     for(auto&& e : m)
     {
-        e.second = rtg::miopen::to_gpu(e.second);
+        e.second = migraph::miopen::to_gpu(e.second);
     }
 
-    m["output"] = rtg::miopen::to_gpu(rtg::generate_argument(p.get_parameter_shape("output")));
+    m["output"] = migraph::miopen::to_gpu(migraph::generate_argument(p.get_parameter_shape("output")));
 
-    return rtg::miopen::from_gpu(p.eval(m));
+    return migraph::miopen::from_gpu(p.eval(m));
 }
 
 template <class V>
@@ -50,106 +50,106 @@ void verify_program()
 
 struct test_add
 {
-    rtg::program create_program() const
+    migraph::program create_program() const
     {
-        rtg::program p;
-        rtg::shape s{rtg::shape::float_type, {3}};
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {3}};
         auto x = p.add_parameter("x", s);
         auto y = p.add_parameter("y", s);
-        p.add_instruction(rtg::add{}, x, y);
+        p.add_instruction(migraph::add{}, x, y);
         return p;
     }
 
-    rtg::program::parameter_map create_params() const
+    migraph::program::parameter_map create_params() const
     {
-        rtg::program::parameter_map m;
-        m["x"] = rtg::generate_argument({rtg::shape::float_type, {3}});
-        m["y"] = rtg::generate_argument({rtg::shape::float_type, {3}});
+        migraph::program::parameter_map m;
+        m["x"] = migraph::generate_argument({migraph::shape::float_type, {3}});
+        m["y"] = migraph::generate_argument({migraph::shape::float_type, {3}});
         return m;
     }
 };
 
 struct test_add_broadcast
 {
-    rtg::program create_program() const
+    migraph::program create_program() const
     {
-        rtg::program p;
-        rtg::shape s{rtg::shape::float_type, {3}};
-        auto x  = p.add_parameter("x", {rtg::shape::float_type, {2, 2, 3}});
-        auto y  = p.add_parameter("y", {rtg::shape::float_type, {2, 2}});
-        auto by = p.add_instruction(rtg::broadcast{0}, x, y);
-        p.add_instruction(rtg::add{}, x, by);
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {3}};
+        auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 2, 3}});
+        auto y  = p.add_parameter("y", {migraph::shape::float_type, {2, 2}});
+        auto by = p.add_instruction(migraph::broadcast{0}, x, y);
+        p.add_instruction(migraph::add{}, x, by);
         return p;
     }
 
-    rtg::program::parameter_map create_params() const
+    migraph::program::parameter_map create_params() const
     {
-        rtg::program::parameter_map m;
-        m["x"] = rtg::generate_argument({rtg::shape::float_type, {2, 2, 3}});
-        m["y"] = rtg::generate_argument({rtg::shape::float_type, {2, 2}});
+        migraph::program::parameter_map m;
+        m["x"] = migraph::generate_argument({migraph::shape::float_type, {2, 2, 3}});
+        m["y"] = migraph::generate_argument({migraph::shape::float_type, {2, 2}});
         return m;
     }
 };
 
 struct test_conv_relu
 {
-    rtg::program create_program() const
+    migraph::program create_program() const
     {
-        rtg::program p;
-        auto input   = p.add_parameter("x", rtg::shape{rtg::shape::float_type, {4, 3, 3, 3}});
-        auto weights = p.add_parameter("w", rtg::shape{rtg::shape::float_type, {4, 3, 3, 3}});
-        auto conv    = p.add_instruction(rtg::convolution{}, input, weights);
-        p.add_instruction(rtg::activation{"relu"}, conv);
+        migraph::program p;
+        auto input   = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+        auto weights = p.add_parameter("w", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+        auto conv    = p.add_instruction(migraph::convolution{}, input, weights);
+        p.add_instruction(migraph::activation{"relu"}, conv);
         return p;
     }
 
-    rtg::program::parameter_map create_params() const
+    migraph::program::parameter_map create_params() const
     {
-        rtg::program::parameter_map m;
-        m["x"] = rtg::generate_argument({rtg::shape::float_type, {4, 3, 3, 3}});
-        m["w"] = rtg::generate_argument({rtg::shape::float_type, {4, 3, 3, 3}});
+        migraph::program::parameter_map m;
+        m["x"] = migraph::generate_argument({migraph::shape::float_type, {4, 3, 3, 3}});
+        m["w"] = migraph::generate_argument({migraph::shape::float_type, {4, 3, 3, 3}});
         return m;
     }
 };
 
 struct test_conv_pooling
 {
-    rtg::program create_program() const
+    migraph::program create_program() const
     {
-        rtg::program p;
-        auto input   = p.add_parameter("x", rtg::shape{rtg::shape::float_type, {4, 3, 32, 32}});
-        auto weights = p.add_parameter("w", rtg::shape{rtg::shape::float_type, {4, 3, 3, 3}});
-        auto conv    = p.add_instruction(rtg::convolution{}, input, weights);
-        auto pooling = p.add_instruction(rtg::pooling{"max"}, conv);
-        p.add_instruction(rtg::activation{"relu"}, pooling);
+        migraph::program p;
+        auto input   = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 32, 32}});
+        auto weights = p.add_parameter("w", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+        auto conv    = p.add_instruction(migraph::convolution{}, input, weights);
+        auto pooling = p.add_instruction(migraph::pooling{"max"}, conv);
+        p.add_instruction(migraph::activation{"relu"}, pooling);
         return p;
     }
 
-    rtg::program::parameter_map create_params() const
+    migraph::program::parameter_map create_params() const
     {
-        rtg::program::parameter_map m;
-        m["x"] = rtg::generate_argument({rtg::shape::float_type, {4, 3, 32, 32}});
-        m["w"] = rtg::generate_argument({rtg::shape::float_type, {4, 3, 3, 3}});
+        migraph::program::parameter_map m;
+        m["x"] = migraph::generate_argument({migraph::shape::float_type, {4, 3, 32, 32}});
+        m["w"] = migraph::generate_argument({migraph::shape::float_type, {4, 3, 3, 3}});
         return m;
     }
 };
 
 struct test_gemm
 {
-    rtg::program create_program() const
+    migraph::program create_program() const
     {
-        rtg::program p;
-        auto a = p.add_parameter("a", rtg::shape{rtg::shape::float_type, {4, 5}});
-        auto b = p.add_parameter("b", rtg::shape{rtg::shape::float_type, {5, 3}});
-        p.add_instruction(rtg::gemm{}, a, b);
+        migraph::program p;
+        auto a = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {4, 5}});
+        auto b = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {5, 3}});
+        p.add_instruction(migraph::gemm{}, a, b);
         return p;
     }
 
-    rtg::program::parameter_map create_params() const
+    migraph::program::parameter_map create_params() const
     {
-        rtg::program::parameter_map m;
-        m["a"] = rtg::generate_argument({rtg::shape::float_type, {4, 5}});
-        m["b"] = rtg::generate_argument({rtg::shape::float_type, {5, 3}});
+        migraph::program::parameter_map m;
+        m["a"] = migraph::generate_argument({migraph::shape::float_type, {4, 5}});
+        m["b"] = migraph::generate_argument({migraph::shape::float_type, {5, 3}});
         return m;
     }
 };

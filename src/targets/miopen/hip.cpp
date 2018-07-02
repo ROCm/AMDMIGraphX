@@ -1,15 +1,15 @@
 
-#include <rtg/miopen/hip.hpp>
+#include <migraph/miopen/hip.hpp>
 
-#include <rtg/manage_ptr.hpp>
+#include <migraph/manage_ptr.hpp>
 #include <miopen/miopen.h>
 
 #include <vector>
 
-namespace rtg {
+namespace migraph {
 namespace miopen {
 
-using hip_ptr = RTG_MANAGE_PTR(void, hipFree);
+using hip_ptr = MIGRAPH_MANAGE_PTR(void, hipFree);
 
 hip_ptr allocate_gpu(std::size_t sz)
 {
@@ -44,21 +44,21 @@ hip_ptr write_to_gpu(const void* x, std::size_t sz)
     return result;
 }
 
-rtg::argument allocate_gpu(rtg::shape s)
+migraph::argument allocate_gpu(migraph::shape s)
 {
     auto p = share(allocate_gpu(s.bytes()));
     return {s, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
 }
 
-rtg::argument to_gpu(rtg::argument arg)
+migraph::argument to_gpu(migraph::argument arg)
 {
     auto p = share(write_to_gpu(arg.data(), arg.get_shape().bytes()));
     return {arg.get_shape(), [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
 }
 
-rtg::argument from_gpu(rtg::argument arg)
+migraph::argument from_gpu(migraph::argument arg)
 {
-    rtg::argument result;
+    migraph::argument result;
     arg.visit([&](auto x) {
         using type = typename decltype(x)::value_type;
         auto v     = read_from_gpu<type>(arg.data(), x.get_shape().bytes() / sizeof(type));
@@ -69,4 +69,4 @@ rtg::argument from_gpu(rtg::argument arg)
 
 } // namespace miopen
 
-} // namespace rtg
+} // namespace migraph

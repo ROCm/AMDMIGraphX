@@ -1,37 +1,37 @@
 
-#include <rtg/onnx.hpp>
+#include <migraph/onnx.hpp>
 
-#include <rtg/cpu/cpu_target.hpp>
-#include <rtg/miopen/miopen_target.hpp>
-#include <rtg/miopen/hip.hpp>
-#include <rtg/generate.hpp>
+#include <migraph/cpu/cpu_target.hpp>
+#include <migraph/miopen/miopen_target.hpp>
+#include <migraph/miopen/hip.hpp>
+#include <migraph/generate.hpp>
 #include <miopen/miopen.h>
-#include <rtg/miopen/miopen.hpp>
+#include <migraph/miopen/miopen.hpp>
 
-rtg::argument run_cpu(std::string file)
+migraph::argument run_cpu(std::string file)
 {
-    auto p = rtg::parse_onnx(file);
-    p.compile(rtg::cpu::cpu_target{});
+    auto p = migraph::parse_onnx(file);
+    p.compile(migraph::cpu::cpu_target{});
     auto s      = p.get_parameter_shape("Input3");
-    auto input3 = rtg::generate_argument(s);
+    auto input3 = migraph::generate_argument(s);
     auto out    = p.eval({{"Input3", input3}});
     std::cout << p << std::endl;
     return out;
 }
 
-rtg::argument run_gpu(std::string file)
+migraph::argument run_gpu(std::string file)
 {
-    auto p = rtg::parse_onnx(file);
-    p.compile(rtg::cpu::cpu_target{});
+    auto p = migraph::parse_onnx(file);
+    p.compile(migraph::cpu::cpu_target{});
     auto s      = p.get_parameter_shape("Input3");
-    auto input3 = rtg::miopen::to_gpu(rtg::generate_argument(s));
+    auto input3 = migraph::miopen::to_gpu(migraph::generate_argument(s));
 
-    auto output = rtg::miopen::to_gpu(rtg::generate_argument(p.get_parameter_shape("output")));
-    auto handle = rtg::miopen::make_obj<rtg::miopen::miopen_handle>(&miopenCreate);
+    auto output = migraph::miopen::to_gpu(migraph::generate_argument(p.get_parameter_shape("output")));
+    auto handle = migraph::miopen::make_obj<migraph::miopen::miopen_handle>(&miopenCreate);
 
     auto out = p.eval({{"Input3", input3}, {"output", output}});
     std::cout << p << std::endl;
-    return rtg::miopen::from_gpu(out);
+    return migraph::miopen::from_gpu(out);
 }
 
 int main(int argc, char const* argv[])

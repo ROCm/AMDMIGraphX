@@ -7,12 +7,12 @@
 #include <functional>
 #include <array>
 
-#include <rtg/fallthrough.hpp>
-#include <rtg/program.hpp>
-#include <rtg/operators.hpp>
-#include <rtg/ranges.hpp>
+#include <migraph/fallthrough.hpp>
+#include <migraph/program.hpp>
+#include <migraph/operators.hpp>
+#include <migraph/ranges.hpp>
 
-namespace rtg {
+namespace migraph {
 
 struct unknown
 {
@@ -25,7 +25,7 @@ struct unknown
         else
             return input.front();
     }
-    argument compute(context&, shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const { MIGRAPH_THROW("not computable"); }
     friend std::ostream& operator<<(std::ostream& os, const unknown& x)
     {
         os << x.name();
@@ -162,7 +162,7 @@ struct onnx_parser
     void parse_node(std::string name)
     {
         if(name.empty())
-            RTG_THROW("Onnx node must have a name");
+            MIGRAPH_THROW("Onnx node must have a name");
         if(instructions.count(name) == 0)
         {
             auto&& node = nodes.at(name);
@@ -239,7 +239,7 @@ struct onnx_parser
         case onnx::AttributeProto::TENSORS: return {};
         case onnx::AttributeProto::GRAPHS: return {};
         }
-        RTG_THROW("Invalid attribute type");
+        MIGRAPH_THROW("Invalid attribute type");
     }
 
     static literal parse_tensor(const onnx::TensorProto& t)
@@ -273,7 +273,7 @@ struct onnx_parser
         case onnx::TensorProto::COMPLEX64: throw std::runtime_error("");
         case onnx::TensorProto::COMPLEX128: throw std::runtime_error("");
         }
-        RTG_THROW("Invalid tensor type");
+        MIGRAPH_THROW("Invalid tensor type");
     }
 
     static shape parse_type(const onnx::TypeProto& t)
@@ -336,4 +336,4 @@ program parse_onnx(const std::string& name)
     return std::move(parser.prog);
 }
 
-} // namespace rtg
+} // namespace migraph

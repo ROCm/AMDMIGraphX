@@ -1,16 +1,16 @@
-#ifndef RTG_GUARD_RTGLIB_OPERAND_HPP
-#define RTG_GUARD_RTGLIB_OPERAND_HPP
+#ifndef MIGRAPH_GUARD_MIGRAPHLIB_OPERAND_HPP
+#define MIGRAPH_GUARD_MIGRAPHLIB_OPERAND_HPP
 
 #include <string>
 #include <functional>
 #include <memory>
 #include <type_traits>
 #include <utility>
-#include <rtg/shape.hpp>
-#include <rtg/argument.hpp>
-#include <rtg/context.hpp>
+#include <migraph/shape.hpp>
+#include <migraph/argument.hpp>
+#include <migraph/context.hpp>
 
-namespace rtg {
+namespace migraph {
 
 namespace operation_stream {
 
@@ -27,10 +27,10 @@ interface('operation',
     virtual('name', returns='std::string', const=True),
     virtual('compute_shape', returns='shape', input='std::vector<shape>', const=True),
     virtual('compute', returns='argument', ctx='context&', output='shape', input='std::vector<argument>', const=True),
-    friend('operator<<', returns='std::ostream &', os='std::ostream &', op='const operation &', using='rtg::operation_stream::operator<<')
+    friend('operator<<', returns='std::ostream &', os='std::ostream &', op='const operation &', using='migraph::operation_stream::operator<<')
 )
 %>
 
-} // namespace rtg
+} // namespace migraph
 
 #endif

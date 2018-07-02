@@ -1,10 +1,10 @@
-#include <rtg/program.hpp>
-#include <rtg/stringutils.hpp>
-#include <rtg/instruction.hpp>
+#include <migraph/program.hpp>
+#include <migraph/stringutils.hpp>
+#include <migraph/instruction.hpp>
 #include <iostream>
 #include <algorithm>
 
-namespace rtg {
+namespace migraph {
 
 struct program_impl
 {
@@ -113,7 +113,7 @@ void program::compile(const target& t)
     this->impl->ctx = t.get_context();
     t.apply(*this);
     if(this->validate() == impl->instructions.end())
-        RTG_THROW("Invalid program from compilation");
+        MIGRAPH_THROW("Invalid program from compilation");
 }
 
 argument program::eval(std::unordered_map<std::string, argument> params) const
@@ -196,4 +196,4 @@ std::ostream& operator<<(std::ostream& os, const program& p)
     return os;
 }
 
-} // namespace rtg
+} // namespace migraph

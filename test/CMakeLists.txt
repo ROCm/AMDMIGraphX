@@ -10,12 +10,12 @@ set(CTEST_PARALLEL_LEVEL ${N} CACHE STRING "CTest parallel level")
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j ${CTEST_PARALLEL_LEVEL} -C ${CMAKE_CFG_INTDIR})
 add_custom_target(tests)
 
-find_program(RTG_GDB gdb)
+find_program(MIGRAPH_GDB gdb)
 
-if(RTG_GDB)
-    set(RTG_TEST_GDB On CACHE BOOL "")
+if(MIGRAPH_GDB)
+    set(MIGRAPH_TEST_GDB On CACHE BOOL "")
 else()
-    set(RTG_TEST_GDB Off CACHE BOOL "")
+    set(MIGRAPH_TEST_GDB Off CACHE BOOL "")
 endif()
 
 set(SKIP_TESTS)
@@ -34,8 +34,8 @@ function(add_test_command NAME EXE)
                     %1 ${ARGN}")
         add_test(NAME ${NAME} COMMAND ${WINE_CMD} cmd /c "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmd" $<TARGET_FILE:${EXE}>)
     else()
-        if(RTG_TEST_GDB)
-            # add_test(NAME ${NAME} COMMAND ${RTG_GDB} 
+        if(MIGRAPH_TEST_GDB)
+            # add_test(NAME ${NAME} COMMAND ${MIGRAPH_GDB} 
             #     --batch
             #     --return-child-result
             #     -ex "set disable-randomization off"
@@ -52,7 +52,7 @@ function(add_test_command NAME EXE)
                 if(NOT RESULT EQUAL 0)
                     # TODO: check for core files based on pid when setting /proc/sys/kernel/core_uses_pid
                     if(EXISTS ${TEST_DIR}/core)
-                        execute_process(COMMAND ${RTG_GDB} $<TARGET_FILE:${EXE}> ${TEST_DIR}/core -batch -ex bt)
+                        execute_process(COMMAND ${MIGRAPH_GDB} $<TARGET_FILE:${EXE}> ${TEST_DIR}/core -batch -ex bt)
                     endif()
                     message(FATAL_ERROR \"Test failed\")
                 endif()
@@ -82,7 +82,7 @@ function(add_test_executable TEST_NAME)
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
     set_tests_properties(${TEST_NAME} PROPERTIES FAIL_REGULAR_EXPRESSION "FAILED")
-    target_link_libraries(${TEST_NAME} rtg rtg_cpu)
+    target_link_libraries(${TEST_NAME} migraph migraph_cpu)
     target_include_directories(${TEST_NAME} PUBLIC include)
 endfunction(add_test_executable)
 
@@ -93,13 +93,13 @@ foreach(TEST ${TESTS})
     add_test_executable(test_${BASE_NAME} ${TEST})
 endforeach()
 
-if(RTG_ENABLE_MIOPEN)
+if(MIGRAPH_ENABLE_MIOPEN)
     # miopen tests
     file(GLOB MIOPEN_TESTS miopen/*.cpp)
 
     foreach(TEST ${MIOPEN_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
         add_test_executable(test_miopen_${BASE_NAME} ${TEST})
-        target_link_libraries(test_miopen_${BASE_NAME} rtg_miopen)
+        target_link_libraries(test_miopen_${BASE_NAME} migraph_miopen)
     endforeach()
 endif()

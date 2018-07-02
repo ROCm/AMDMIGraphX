@@ -1,14 +1,14 @@
-#ifndef RTG_GUARD_RTGLIB_TARGET_HPP
-#define RTG_GUARD_RTGLIB_TARGET_HPP
+#ifndef MIGRAPH_GUARD_MIGRAPHLIB_TARGET_HPP
+#define MIGRAPH_GUARD_MIGRAPHLIB_TARGET_HPP
 
 #include <string>
 #include <functional>
 #include <memory>
 #include <type_traits>
 #include <utility>
-#include <rtg/context.hpp>
+#include <migraph/context.hpp>
 
-namespace rtg {
+namespace migraph {
 
 struct program;
 
@@ -20,6 +20,6 @@ interface('target',
 )
 %>
 
-} // namespace rtg
+} // namespace migraph
 
 #endif

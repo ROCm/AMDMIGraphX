@@ -1,12 +1,12 @@
-#ifndef RTG_GUARD_CONTEXT_HPP
-#define RTG_GUARD_CONTEXT_HPP
+#ifndef MIGRAPH_GUARD_CONTEXT_HPP
+#define MIGRAPH_GUARD_CONTEXT_HPP
 
-namespace rtg {
+namespace migraph {
 
 <%
 interface('context')
 %>
 
-} // namespace rtg
+} // namespace migraph
 
 #endif

@@ -1,13 +1,13 @@
-#include <rtg/miopen/miopen_target.hpp>
-#include <rtg/manage_ptr.hpp>
-#include <rtg/instruction.hpp>
-#include <rtg/operators.hpp>
-#include <rtg/shape_for_each.hpp>
-#include <rtg/miopen/miopen.hpp>
-#include <rtg/miopen/hip.hpp>
-#include <rtg/dfor.hpp>
+#include <migraph/miopen/miopen_target.hpp>
+#include <migraph/manage_ptr.hpp>
+#include <migraph/instruction.hpp>
+#include <migraph/operators.hpp>
+#include <migraph/shape_for_each.hpp>
+#include <migraph/miopen/miopen.hpp>
+#include <migraph/miopen/hip.hpp>
+#include <migraph/dfor.hpp>
 
-namespace rtg {
+namespace migraph {
 namespace miopen {
 
 struct miopen_context
@@ -310,4 +310,4 @@ context miopen_target::get_context() const
 
 } // namespace miopen
 
-} // namespace rtg
+} // namespace migraph

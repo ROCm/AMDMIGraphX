@@ -1,25 +1,25 @@
 
-#include <rtg/literal.hpp>
+#include <migraph/literal.hpp>
 #include <sstream>
 #include <string>
 #include "test.hpp"
 
 void literal_test()
 {
-    EXPECT(rtg::literal{1} == rtg::literal{1});
-    EXPECT(rtg::literal{1} != rtg::literal{2});
-    EXPECT(rtg::literal{} == rtg::literal{});
-    EXPECT(rtg::literal{} != rtg::literal{2});
+    EXPECT(migraph::literal{1} == migraph::literal{1});
+    EXPECT(migraph::literal{1} != migraph::literal{2});
+    EXPECT(migraph::literal{} == migraph::literal{});
+    EXPECT(migraph::literal{} != migraph::literal{2});
 
-    rtg::literal l1{1};
-    rtg::literal l2 = l1; // NOLINT
+    migraph::literal l1{1};
+    migraph::literal l2 = l1; // NOLINT
     EXPECT(l1 == l2);
     EXPECT(l1.at<int>(0) == 1);
     EXPECT(!l1.empty());
     EXPECT(!l2.empty());
 
-    rtg::literal l3{};
-    rtg::literal l4{};
+    migraph::literal l3{};
+    migraph::literal l4{};
     EXPECT(l3 == l4);
     EXPECT(l3.empty());
     EXPECT(l4.empty());
@@ -27,7 +27,7 @@ void literal_test()
 
 void literal_os1()
 {
-    rtg::literal l{1};
+    migraph::literal l{1};
     std::stringstream ss;
     ss << l;
     EXPECT(ss.str() == "1");
@@ -35,7 +35,7 @@ void literal_os1()
 
 void literal_os2()
 {
-    rtg::literal l{};
+    migraph::literal l{};
     std::stringstream ss;
     ss << l;
     EXPECT(ss.str().empty());
@@ -43,8 +43,8 @@ void literal_os2()
 
 void literal_os3()
 {
-    rtg::shape s{rtg::shape::int64_type, {3}};
-    rtg::literal l{s, {1, 2, 3}};
+    migraph::shape s{migraph::shape::int64_type, {3}};
+    migraph::literal l{s, {1, 2, 3}};
     std::stringstream ss;
     ss << l;
     EXPECT(ss.str() == "1, 2, 3");

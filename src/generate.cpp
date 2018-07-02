@@ -1,10 +1,10 @@
-#include <rtg/generate.hpp>
+#include <migraph/generate.hpp>
 
-namespace rtg {
+namespace migraph {
 
-rtg::argument generate_argument(rtg::shape s, std::mt19937::result_type seed)
+migraph::argument generate_argument(migraph::shape s, std::mt19937::result_type seed)
 {
-    rtg::argument result;
+    migraph::argument result;
     s.visit_type([&](auto as) {
         using type = typename decltype(as)::type;
         auto v     = generate_tensor_data<type>(s, seed);
@@ -13,4 +13,4 @@ rtg::argument generate_argument(rtg::shape s, std::mt19937::result_type seed)
     return result;
 }
 
-} // namespace rtg
+} // namespace migraph

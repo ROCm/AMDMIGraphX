@@ -4,8 +4,8 @@
 #include <cstdlib>
 #include <iostream>
 
-#ifndef RTG_GUARD_TEST_TEST_HPP
-#define RTG_GUARD_TEST_TEST_HPP
+#ifndef MIGRAPH_GUARD_TEST_TEST_HPP
+#define MIGRAPH_GUARD_TEST_TEST_HPP
 
 namespace test {
 // NOLINTNEXTLINE

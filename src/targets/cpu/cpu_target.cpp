@@ -1,11 +1,11 @@
 
-#include <rtg/cpu/cpu_target.hpp>
-#include <rtg/instruction.hpp>
-#include <rtg/dfor.hpp>
-#include <rtg/operators.hpp>
-#include <rtg/shape_for_each.hpp>
+#include <migraph/cpu/cpu_target.hpp>
+#include <migraph/instruction.hpp>
+#include <migraph/dfor.hpp>
+#include <migraph/operators.hpp>
+#include <migraph/shape_for_each.hpp>
 
-namespace rtg {
+namespace migraph {
 namespace cpu {
 
 template <typename T>
@@ -544,4 +544,4 @@ void cpu_target::apply(program& p) const { cpu_apply{&p}.apply(); }
 
 } // namespace cpu
 
-} // namespace rtg
+} // namespace migraph

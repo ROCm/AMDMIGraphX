@@ -8,7 +8,7 @@
 struct sum_op
 {
     std::string name() const { return "sum"; }
-    rtg::argument compute(rtg::shape, std::vector<rtg::argument> args) const
+    rtg::argument compute(rtg::context&, rtg::shape, std::vector<rtg::argument> args) const
     {
         rtg::argument result;
         if(args.size() != 2)
@@ -37,7 +37,7 @@ struct sum_op
 struct minus_op
 {
     std::string name() const { return "minus"; }
-    rtg::argument compute(rtg::shape, std::vector<rtg::argument> args) const
+    rtg::argument compute(rtg::context&, rtg::shape, std::vector<rtg::argument> args) const
     {
         rtg::argument result;
         if(args.size() != 2)
@@ -67,6 +67,7 @@ struct id_target
 {
     std::string name() const { return "id"; }
     void apply(rtg::program&) const {}
+    rtg::context get_context() const { return {}; }
 };
 
 void literal_test1()

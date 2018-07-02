@@ -20,7 +20,7 @@ struct cpu_convolution
 
     std::string name() const { return "cpu::convolution"; }
     shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
@@ -86,7 +86,7 @@ struct cpu_pooling
 
     std::string name() const { return "cpu::pooling_" + Op::name(); }
     shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
@@ -134,7 +134,7 @@ struct cpu_transpose
 
     std::string name() const { return "cpu::transpose"; }
     shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         return {output_shape, std::move(args.front().data)};
     }
@@ -145,7 +145,7 @@ struct cpu_contiguous
     contiguous op;
     std::string name() const { return "cpu::contiguous"; }
     shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
@@ -163,7 +163,7 @@ struct cpu_reshape
     std::string name() const { return "cpu::reshape"; }
     shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
 
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         return {output_shape, std::move(args.front().data)};
     }
@@ -175,7 +175,7 @@ struct cpu_gemm
     std::string name() const { return "cpu::gemm"; }
     shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
 
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         visit_all(result, args[0], args[1])([&](auto cmat, auto amat, auto bmat) {
@@ -334,7 +334,7 @@ struct cpu_unary
     Op op;
     std::string name() const { return op.name(); }
     shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         result.visit([&](auto output) {
@@ -350,7 +350,7 @@ struct softmax2d
 {
     std::string name() const { return "cpu::softmax2d"; }
     shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
@@ -426,7 +426,7 @@ struct cpu_binary
     Op op;
     std::string name() const { return op.name(); }
     shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {

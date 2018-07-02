@@ -20,7 +20,7 @@ struct hip_allocate
         check_shapes{inputs}.has(1);
         return inputs.front();
     }
-    argument compute(shape output_shape, std::vector<argument>) const
+    argument compute(context&, shape output_shape, std::vector<argument>) const
     {
         return allocate_gpu(output_shape);
     }

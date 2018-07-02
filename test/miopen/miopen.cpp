@@ -36,8 +36,6 @@ rtg::argument run_gpu()
     }
 
     m["output"] = rtg::miopen::to_gpu(rtg::generate_argument(p.get_parameter_shape("output")));
-    auto handle = rtg::miopen::make_obj<rtg::miopen::miopen_handle>(&miopenCreate);
-    m["handle"] = {rtg::shape::any_type, handle.get()};
 
     return rtg::miopen::from_gpu(p.eval(m));
 }

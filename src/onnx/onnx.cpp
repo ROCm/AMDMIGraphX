@@ -25,7 +25,7 @@ struct unknown
         else
             return input.front();
     }
-    argument compute(shape, std::vector<argument>) const { RTG_THROW("not computable"); }
+    argument compute(context&, shape, std::vector<argument>) const { RTG_THROW("not computable"); }
     friend std::ostream& operator<<(std::ostream& os, const unknown& x)
     {
         os << x.name();

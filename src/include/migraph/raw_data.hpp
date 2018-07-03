@@ -127,6 +127,16 @@ struct raw_data : raw_data_base
             MIGRAPH_THROW("Incorrect data type for raw data");
         return make_view(s, reinterpret_cast<T*>(buffer));
     }
+
+    /// Cast the data pointer
+    template <class T>
+    T* cast() const
+    {
+        auto&& s      = static_cast<const Derived&>(*this).get_shape();
+        auto&& buffer = static_cast<const Derived&>(*this).data();
+        assert(s.type() == migraph::shape::get_type<T>{});
+        return reinterpret_cast<T*>(buffer);
+    }
 };
 
 template <class T,

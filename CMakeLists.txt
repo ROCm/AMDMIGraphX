@@ -112,6 +112,8 @@ rocm_enable_cppcheck(
         CPPCHECK=1
 )
 
+enable_testing()
+
 add_subdirectory(src)
 add_subdirectory(doc)
 add_subdirectory(test)

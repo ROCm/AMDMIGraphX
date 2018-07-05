@@ -1,5 +1,5 @@
 
-#include <rtg/shape.hpp>
+#include <migraph/shape.hpp>
 #include <array>
 #include <algorithm>
 #include <numeric>
@@ -7,25 +7,25 @@
 
 void test_shape_assign()
 {
-    rtg::shape s1{rtg::shape::float_type, {100, 32, 8, 8}};
-    rtg::shape s2 = s1; // NOLINT
+    migraph::shape s1{migraph::shape::float_type, {100, 32, 8, 8}};
+    migraph::shape s2 = s1; // NOLINT
     EXPECT(s1 == s2);
     EXPECT(!(s1 != s2));
 }
 
 void test_shape_default()
 {
-    rtg::shape s1{};
-    rtg::shape s2{};
+    migraph::shape s1{};
+    migraph::shape s2{};
     EXPECT(s1 == s2);
     EXPECT(!(s1 != s2));
 }
 
 void test_shape4()
 {
-    rtg::shape s{rtg::shape::float_type, {100, 32, 8, 8}};
+    migraph::shape s{migraph::shape::float_type, {100, 32, 8, 8}};
     EXPECT(s.packed());
-    EXPECT(s.type() == rtg::shape::float_type);
+    EXPECT(s.type() == migraph::shape::float_type);
     EXPECT(s.lens()[0] == 100);
     EXPECT(s.lens()[1] == 32);
     EXPECT(s.lens()[2] == 8);
@@ -67,9 +67,9 @@ void test_shape4_nonpacked()
                      strides.rbegin() + 1,
                      std::multiplies<std::size_t>());
 
-    rtg::shape s{rtg::shape::float_type, lens, strides};
+    migraph::shape s{migraph::shape::float_type, lens, strides};
     EXPECT(!s.packed());
-    EXPECT(s.type() == rtg::shape::float_type);
+    EXPECT(s.type() == migraph::shape::float_type);
     EXPECT(s.lens()[0] == 100);
     EXPECT(s.lens()[1] == 32);
     EXPECT(s.lens()[2] == 8);

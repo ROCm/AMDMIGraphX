@@ -1,99 +1,19 @@
-#include <rtg/miopen/miopen_target.hpp>
-#include <rtg/manage_ptr.hpp>
-#include <rtg/instruction.hpp>
-#include <rtg/operators.hpp>
+#include <migraph/miopen/miopen_target.hpp>
+#include <migraph/manage_ptr.hpp>
+#include <migraph/instruction.hpp>
+#include <migraph/operators.hpp>
+#include <migraph/shape_for_each.hpp>
+#include <migraph/miopen/miopen.hpp>
+#include <migraph/miopen/hip.hpp>
+#include <migraph/dfor.hpp>
 
-#include <miopen/miopen.h>
-
-namespace rtg {
+namespace migraph {
 namespace miopen {
 
-struct hip_allocate
+struct miopen_context
 {
-    std::string name() const { return "hip::allocate"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs}.has(1);
-        return inputs.front();
-    }
-    argument compute(shape output_shape, std::vector<argument>) const
-    {
-        char* data = nullptr;
-        // TODO: Check return status
-        hipMalloc(&data, output_shape.bytes());
-        return {output_shape, data};
-    }
+    shared<miopen_handle> handle;
 };
-
-struct hip_free
-{
-    std::string name() const { return "hip::free"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs}.has(1);
-        return {};
-    }
-    argument compute(shape, std::vector<argument> args) const
-    {
-        // TODO: Check return status
-        hipFree(args.front().data());
-        return {};
-    }
-};
-
-using miopen_handle     = RTG_MANAGE_PTR(miopenHandle_t, miopenDestroy);
-using tensor_descriptor = RTG_MANAGE_PTR(miopenTensorDescriptor_t, miopenDestroyTensorDescriptor);
-using convolution_descriptor = RTG_MANAGE_PTR(miopenConvolutionDescriptor_t,
-                                              miopenDestroyConvolutionDescriptor);
-using activation_descriptor  = RTG_MANAGE_PTR(miopenActivationDescriptor_t,
-                                             miopenDestroyActivationDescriptor);
-
-template <class Result, class F, class... Ts>
-Result make_obj(F f, Ts... xs)
-{
-    typename Result::pointer x = nullptr;
-    auto status                = f(&x, xs...);
-    Result r{x};
-    if(status != miopenStatusSuccess)
-        RTG_THROW("MIOpen call failed");
-    return r;
-}
-
-tensor_descriptor make_tensor(const rtg::shape& s)
-{
-    auto t = make_obj<tensor_descriptor>(&miopenCreateTensorDescriptor);
-    // Convert to ints
-    std::vector<int> lens(s.lens().begin(), s.lens().end());
-    std::vector<int> strides(s.strides().begin(), s.strides().end());
-    miopenDataType_t d;
-    if(s.type() == shape::float_type)
-        d = miopenFloat;
-    else
-        RTG_THROW("Unsupported type");
-    miopenSetTensorDescriptor(t.get(), d, s.lens().size(), lens.data(), strides.data());
-    return t;
-}
-
-convolution_descriptor make_conv(const rtg::convolution& op)
-{
-    auto c = make_obj<convolution_descriptor>(&miopenCreateConvolutionDescriptor);
-    miopenInitConvolutionDescriptor(c.get(),
-                                    miopenConvolution,
-                                    op.padding[0],
-                                    op.padding[1],
-                                    op.stride[0],
-                                    op.stride[1],
-                                    op.dilation[0],
-                                    op.dilation[1]);
-    return c;
-}
-
-activation_descriptor make_relu()
-{
-    auto ad = make_obj<activation_descriptor>(&miopenCreateActivationDescriptor);
-    miopenSetActivationDescriptor(ad.get(), miopenActivationRELU, 0, 0, 0);
-    return ad;
-}
 
 struct miopen_convolution
 {
@@ -103,46 +23,153 @@ struct miopen_convolution
     std::string name() const { return "miopen::convolution"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(4);
-        return op.compute_shape({inputs.at(1), inputs.at(2)});
+        check_shapes{inputs, *this}.has(3);
+        return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(context& gctx, shape output_shape, std::vector<argument> args) const
     {
-        auto x_desc = make_tensor(args[1].get_shape());
-        auto w_desc = make_tensor(args[2].get_shape());
+        auto& ctx   = any_cast<miopen_context>(gctx);
+        auto x_desc = make_tensor(args[0].get_shape());
+        auto w_desc = make_tensor(args[1].get_shape());
         auto y_desc = make_tensor(output_shape);
 
         float alpha = 1, beta = 0;
         int algo_count;
         miopenConvAlgoPerf_t perf;
-        miopenFindConvolutionForwardAlgorithm(args[0].implicit(),
+        miopenFindConvolutionForwardAlgorithm(ctx.handle.get(),
                                               x_desc.get(),
-                                              args[1].implicit(),
+                                              args[0].implicit(),
                                               w_desc.get(),
-                                              args[2].implicit(),
+                                              args[1].implicit(),
                                               cd.get(),
                                               y_desc.get(),
-                                              args[3].implicit(),
+                                              args[2].implicit(),
                                               1,
                                               &algo_count,
                                               &perf,
                                               nullptr,
                                               0,
                                               false);
-        miopenConvolutionForward(args[0].implicit(),
+        miopenConvolutionForward(ctx.handle.get(),
                                  &alpha,
                                  x_desc.get(),
-                                 args[1].implicit(),
+                                 args[0].implicit(),
                                  w_desc.get(),
-                                 args[2].implicit(),
+                                 args[1].implicit(),
                                  cd.get(),
                                  perf.fwd_algo,
                                  &beta,
                                  y_desc.get(),
-                                 args[3].implicit(),
+                                 args[2].implicit(),
                                  nullptr,
                                  0);
-        return args[3];
+        return args[2];
+    }
+};
+
+struct miopen_pooling
+{
+    pooling op;
+    shared<pooling_descriptor> pd;
+
+    std::string name() const { return "miopen::pooling"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(2);
+        return op.compute_shape({inputs.at(1)});
+    }
+    argument compute(context& gctx, shape output_shape, std::vector<argument> args) const
+    {
+        auto& ctx   = any_cast<miopen_context>(gctx);
+        auto x_desc = make_tensor(args[0].get_shape());
+        auto y_desc = make_tensor(output_shape);
+
+        float alpha = 1, beta = 0;
+
+        miopenPoolingForward(ctx.handle.get(),
+                             pd.get(),
+                             &alpha,
+                             x_desc.get(),
+                             args[0].implicit(),
+                             &beta,
+                             y_desc.get(),
+                             args[1].implicit(),
+                             false,
+                             nullptr,
+                             0);
+
+        return args[1];
+    }
+};
+
+struct miopen_add
+{
+    std::string name() const { return "miopen::add"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(3);
+        return inputs.at(0);
+    }
+
+    argument compute(context& gctx, shape output_shape, std::vector<argument> args) const
+    {
+        if(args[1].get_shape().broadcasted())
+        {
+            argument result{output_shape};
+
+            visit_all(result, from_gpu(args[0]), from_gpu(args[1]))(
+                [&](auto output, auto input1, auto input2) {
+                    shape_for_each(output.get_shape(), [&](const auto& idx) {
+                        output(idx.begin(), idx.end()) =
+                            input1(idx.begin(), idx.end()) + input2(idx.begin(), idx.end());
+                    });
+                });
+            return to_gpu(result);
+        }
+        else
+        {
+            auto& ctx   = any_cast<miopen_context>(gctx);
+            float alpha = 1, beta = 0;
+            auto a_desc = make_tensor(args[0].get_shape());
+            auto b_desc = make_tensor(args[1].get_shape());
+            auto c_desc = make_tensor(output_shape);
+            miopenOpTensor(ctx.handle.get(),
+                           miopenTensorOpAdd,
+                           &alpha,
+                           a_desc.get(),
+                           args[0].implicit(),
+                           &alpha,
+                           b_desc.get(),
+                           args[1].implicit(),
+                           &beta,
+                           c_desc.get(),
+                           args[2].implicit());
+            return args[2];
+        }
+    }
+};
+
+struct miopen_gemm
+{
+    gemm op;
+    std::string name() const { return "miopen::convolution"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(3);
+        return op.compute_shape({inputs.at(0), inputs.at(1)});
+    }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+
+        visit_all(result, from_gpu(args[0]), from_gpu(args[1]))(
+            [&](auto output, auto input1, auto input2) {
+                dfor(input1.get_shape().lens()[0],
+                     input2.get_shape().lens()[1],
+                     input2.get_shape().lens()[0])(
+                    [&](auto i, auto j, auto k) { output(i, j) += input1(i, k) * input2(k, j); });
+            });
+        return to_gpu(result);
     }
 };
 
@@ -152,36 +179,36 @@ struct miopen_relu
     std::string name() const { return "miopen::relu"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(3);
+        check_shapes{inputs, *this}.has(2);
         return inputs.at(1);
     }
 
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(context& gctx, shape output_shape, std::vector<argument> args) const
     {
+        auto& ctx   = any_cast<miopen_context>(gctx);
         float alpha = 1, beta = 0;
-        auto x_desc = make_tensor(args[1].get_shape());
+        auto x_desc = make_tensor(args[0].get_shape());
         auto y_desc = make_tensor(output_shape);
-        miopenActivationForward(args[0].implicit(),
+        miopenActivationForward(ctx.handle.get(),
                                 ad.get(),
                                 &alpha,
                                 x_desc.get(),
-                                args[1].implicit(),
+                                args[0].implicit(),
                                 &beta,
                                 y_desc.get(),
-                                args[2].implicit());
+                                args[1].implicit());
 
-        return args[2];
+        return args[1];
     }
 };
 
 struct miopen_apply
 {
     program* prog = nullptr;
-    instruction_ref handle{};
 
     void apply()
     {
-        handle = prog->add_parameter("handle", shape{shape::any_type});
+        prog->insert_instruction(prog->begin(), check_context<miopen_context>{});
         for(auto it = prog->begin(); it != prog->end(); it++)
         {
             if(it->op.name() == "convolution")
@@ -191,6 +218,18 @@ struct miopen_apply
             else if(it->op.name() == "activation")
             {
                 apply_activation(it);
+            }
+            else if(it->op.name() == "pooling")
+            {
+                apply_pooling(it);
+            }
+            else if(it->op.name() == "add")
+            {
+                apply_add(it);
+            }
+            else if(it->op.name() == "gemm")
+            {
+                apply_gemm(it);
             }
         }
     }
@@ -205,7 +244,6 @@ struct miopen_apply
         {
             auto is     = prog->add_outline(s);
             auto result = prog->insert_instruction(ins, hip_allocate{}, is);
-            prog->insert_instruction(++ins, hip_free{}, result);
             return result;
         }
     }
@@ -218,10 +256,19 @@ struct miopen_apply
 
         prog->replace_instruction(ins,
                                   miopen_convolution{op, std::move(cd)},
-                                  handle,
                                   ins->arguments.at(0),
                                   ins->arguments.at(1),
                                   output);
+    }
+
+    void apply_pooling(instruction_ref ins)
+    {
+        auto&& op   = any_cast<pooling>(ins->op);
+        auto pd     = make_pooling(op);
+        auto output = insert_allocation(ins, ins->result);
+
+        prog->replace_instruction(
+            ins, miopen_pooling{op, std::move(pd)}, ins->arguments.at(0), output);
     }
 
     void apply_activation(instruction_ref ins)
@@ -232,8 +279,23 @@ struct miopen_apply
         {
             auto output = insert_allocation(ins, ins->result);
             prog->replace_instruction(
-                ins, miopen_relu{std::move(ad)}, handle, ins->arguments.at(0), output);
+                ins, miopen_relu{std::move(ad)}, ins->arguments.at(0), output);
         }
+    }
+
+    void apply_add(instruction_ref ins)
+    {
+        auto output = insert_allocation(ins, ins->result);
+        prog->replace_instruction(
+            ins, miopen_add{}, ins->arguments.at(0), ins->arguments.at(1), output);
+    }
+
+    void apply_gemm(instruction_ref ins)
+    {
+        auto&& op   = any_cast<gemm>(ins->op);
+        auto output = insert_allocation(ins, ins->result);
+        prog->replace_instruction(
+            ins, miopen_gemm{op}, ins->arguments.at(0), ins->arguments.at(1), output);
     }
 };
 
@@ -241,6 +303,11 @@ std::string miopen_target::name() const { return "miopen"; }
 
 void miopen_target::apply(program& p) const { miopen_apply{&p}.apply(); }
 
+context miopen_target::get_context() const
+{
+    return miopen_context{share(make_obj<miopen_handle>(&miopenCreate))};
+}
+
 } // namespace miopen
 
-} // namespace rtg
+} // namespace migraph

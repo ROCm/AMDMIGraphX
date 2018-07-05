@@ -1,15 +1,16 @@
-#include <rtg/program.hpp>
-#include <rtg/stringutils.hpp>
-#include <rtg/instruction.hpp>
+#include <migraph/program.hpp>
+#include <migraph/stringutils.hpp>
+#include <migraph/instruction.hpp>
 #include <iostream>
 #include <algorithm>
 
-namespace rtg {
+namespace migraph {
 
 struct program_impl
 {
     // A list is used to keep references to an instruction stable
     std::list<instruction> instructions;
+    context ctx;
 };
 
 const operation& get_operation(instruction_ref ins) { return ins->op; }
@@ -109,9 +110,10 @@ instruction_ref program::validate() const
 void program::compile(const target& t)
 {
     assert(this->validate() != impl->instructions.end());
+    this->impl->ctx = t.get_context();
     t.apply(*this);
     if(this->validate() == impl->instructions.end())
-        RTG_THROW("Invalid program from compilation");
+        MIGRAPH_THROW("Invalid program from compilation");
 }
 
 argument program::eval(std::unordered_map<std::string, argument> params) const
@@ -140,10 +142,7 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
                            ins.arguments.end(),
                            values.begin(),
                            [&](instruction_ref i) { return results.at(std::addressof(*i)); });
-            result = ins.op.compute(ins.result, values);
-            if(result.get_shape().elements() > 0 and result.get_shape().packed() and
-               std::isnan(result.at<float>()))
-                std::cout << "Nan: " << ins.op.name() << std::endl;
+            result = ins.op.compute(this->impl->ctx, ins.result, values);
         }
         results.emplace(std::addressof(ins), result);
     }
@@ -197,4 +196,4 @@ std::ostream& operator<<(std::ostream& os, const program& p)
     return os;
 }
 
-} // namespace rtg
+} // namespace migraph

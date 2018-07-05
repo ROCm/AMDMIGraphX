@@ -1,3 +1,3 @@
-google/protobuf
+google/protobuf -DCMAKE_POSITION_INDEPENDENT_CODE=On
 RadeonOpenCompute/rocm-cmake@3f43e2d493f24abbab4dc189a9ab12cc3ad33baf --build
 ROCmSoftwarePlatform/MIOpen,http://gitlab1.amd.com/pfultz/miopen/-/archive/57dd8372fa043f4bb500ac297f2c479e1c819e89/miopen-57dd8372fa043f4bb500ac297f2c479e1c819e89.tar.bz2 -DMIOPEN_CACHE_DIR=""

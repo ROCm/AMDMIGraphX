@@ -1,109 +1,168 @@
 
-#include <rtg/program.hpp>
-#include <rtg/operators.hpp>
-#include <rtg/generate.hpp>
-#include <rtg/cpu/cpu_target.hpp>
-#include <rtg/miopen/miopen_target.hpp>
-#include <rtg/manage_ptr.hpp>
+#include <migraph/program.hpp>
+#include <migraph/operators.hpp>
+#include <migraph/generate.hpp>
+#include <migraph/cpu/cpu_target.hpp>
+#include <migraph/miopen/miopen_target.hpp>
+#include <migraph/miopen/miopen.hpp>
+#include <migraph/miopen/hip.hpp>
+#include <migraph/manage_ptr.hpp>
 
 #include <miopen/miopen.h>
 
 #include "test.hpp"
 #include "verify.hpp"
 
-using hip_ptr       = RTG_MANAGE_PTR(void, hipFree);
-using miopen_handle = RTG_MANAGE_PTR(miopenHandle_t, miopenDestroy);
-
-template <class Result, class F, class... Ts>
-Result make_obj(F f, Ts... xs)
+template <class V>
+migraph::argument run_cpu()
 {
-    typename Result::pointer x = nullptr;
-    auto status                = f(&x, xs...);
-    Result r{x};
-    if(status != miopenStatusSuccess)
-        RTG_THROW("MIOpen call failed");
-    return r;
+    V v;
+    auto p = v.create_program();
+    p.compile(migraph::cpu::cpu_target{});
+    return p.eval(v.create_params());
 }
 
-hip_ptr hip_allocate(std::size_t sz)
+template <class V>
+migraph::argument run_gpu()
 {
-    void* result;
-    // TODO: Check status
-    hipMalloc(&result, sz);
-    return hip_ptr{result};
+    V v;
+    auto p = v.create_program();
+    p.compile(migraph::miopen::miopen_target{});
+
+    auto m = v.create_params();
+    for(auto&& e : m)
+    {
+        e.second = migraph::miopen::to_gpu(e.second);
+    }
+
+    m["output"] =
+        migraph::miopen::to_gpu(migraph::generate_argument(p.get_parameter_shape("output")));
+
+    return migraph::miopen::from_gpu(p.eval(m));
 }
 
-template <class T>
-hip_ptr write(const T& x)
+template <class V>
+void verify_program()
 {
-    using type  = typename T::value_type;
-    auto size   = x.size() * sizeof(type);
-    auto result = hip_allocate(size);
-    // TODO: Check status
-    hipMemcpy(result.get(), x.data(), size, hipMemcpyHostToDevice);
-    return result;
+    auto cpu_arg = run_cpu<V>();
+    auto gpu_arg = run_gpu<V>();
+    visit_all(cpu_arg, gpu_arg)([](auto cpu, auto gpu) { EXPECT(test::verify_range(cpu, gpu)); });
 }
 
-template <class T>
-std::vector<T> read(const void* x, std::size_t sz)
+struct test_add
 {
-    std::vector<T> result(sz);
-    // TODO: Check status
-    hipMemcpy(result.data(), x, sz * sizeof(T), hipMemcpyDeviceToHost);
-    return result;
-}
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {3}};
+        auto x = p.add_parameter("x", s);
+        auto y = p.add_parameter("y", s);
+        p.add_instruction(migraph::add{}, x, y);
+        return p;
+    }
 
-rtg::program create_program()
+    migraph::program::parameter_map create_params() const
+    {
+        migraph::program::parameter_map m;
+        m["x"] = migraph::generate_argument({migraph::shape::float_type, {3}});
+        m["y"] = migraph::generate_argument({migraph::shape::float_type, {3}});
+        return m;
+    }
+};
+
+struct test_add_broadcast
 {
-    rtg::program p;
-    auto input   = p.add_parameter("x", rtg::shape{rtg::shape::float_type, {4, 3, 3, 3}});
-    auto weights = p.add_parameter("w", rtg::shape{rtg::shape::float_type, {4, 3, 3, 3}});
-    auto conv    = p.add_instruction(rtg::convolution{}, input, weights);
-    p.add_instruction(rtg::activation{"relu"}, conv);
-    return p;
-}
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {3}};
+        auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 2, 3}});
+        auto y  = p.add_parameter("y", {migraph::shape::float_type, {2, 2}});
+        auto by = p.add_instruction(migraph::broadcast{0}, x, y);
+        p.add_instruction(migraph::add{}, x, by);
+        return p;
+    }
 
-// TODO: Move to header
-rtg::argument get_tensor_argument_gpu(rtg::shape s)
+    migraph::program::parameter_map create_params() const
+    {
+        migraph::program::parameter_map m;
+        m["x"] = migraph::generate_argument({migraph::shape::float_type, {2, 2, 3}});
+        m["y"] = migraph::generate_argument({migraph::shape::float_type, {2, 2}});
+        return m;
+    }
+};
+
+struct test_conv_relu
 {
-    auto v = rtg::generate_tensor_data<float>(s);
-    auto p = rtg::share(write(v));
-    return {s, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
-}
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto input = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+        auto weights =
+            p.add_parameter("w", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+        auto conv = p.add_instruction(migraph::convolution{}, input, weights);
+        p.add_instruction(migraph::activation{"relu"}, conv);
+        return p;
+    }
 
-std::vector<float> cpu()
+    migraph::program::parameter_map create_params() const
+    {
+        migraph::program::parameter_map m;
+        m["x"] = migraph::generate_argument({migraph::shape::float_type, {4, 3, 3, 3}});
+        m["w"] = migraph::generate_argument({migraph::shape::float_type, {4, 3, 3, 3}});
+        return m;
+    }
+};
+
+struct test_conv_pooling
 {
-    std::vector<float> result;
-    auto p = create_program();
-    auto x = rtg::generate_argument({rtg::shape::float_type, {4, 3, 3, 3}});
-    auto w = rtg::generate_argument({rtg::shape::float_type, {4, 3, 3, 3}});
-    p.compile(rtg::cpu::cpu_target{});
-    auto r      = p.eval({{"x", x}, {"w", w}});
-    auto output = r.get<float>();
-    result.assign(output.begin(), output.end());
-    return result;
-}
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto input =
+            p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 32, 32}});
+        auto weights =
+            p.add_parameter("w", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+        auto conv    = p.add_instruction(migraph::convolution{}, input, weights);
+        auto pooling = p.add_instruction(migraph::pooling{"max"}, conv);
+        p.add_instruction(migraph::activation{"relu"}, pooling);
+        return p;
+    }
 
-std::vector<float> gpu()
+    migraph::program::parameter_map create_params() const
+    {
+        migraph::program::parameter_map m;
+        m["x"] = migraph::generate_argument({migraph::shape::float_type, {4, 3, 32, 32}});
+        m["w"] = migraph::generate_argument({migraph::shape::float_type, {4, 3, 3, 3}});
+        return m;
+    }
+};
+
+struct test_gemm
 {
-    std::vector<float> result;
-    auto p = create_program();
-    auto x = get_tensor_argument_gpu({rtg::shape::float_type, {4, 3, 3, 3}});
-    auto w = get_tensor_argument_gpu({rtg::shape::float_type, {4, 3, 3, 3}});
-    p.compile(rtg::miopen::miopen_target{});
-    auto y      = get_tensor_argument_gpu(p.get_parameter_shape("output"));
-    auto handle = make_obj<miopen_handle>(&miopenCreate);
-    auto r      = p.eval(
-        {{"x", x}, {"w", w}, {"output", y}, {"handle", {rtg::shape::any_type, handle.get()}}});
-    result = read<float>(r.data(), r.get_shape().elements());
-    return result;
-}
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto a = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {4, 5}});
+        auto b = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {5, 3}});
+        p.add_instruction(migraph::gemm{}, a, b);
+        return p;
+    }
 
-void test1()
+    migraph::program::parameter_map create_params() const
+    {
+        migraph::program::parameter_map m;
+        m["a"] = migraph::generate_argument({migraph::shape::float_type, {4, 5}});
+        m["b"] = migraph::generate_argument({migraph::shape::float_type, {5, 3}});
+        return m;
+    }
+};
+
+int main()
 {
-    auto x = cpu();
-    auto y = gpu();
-    EXPECT(test::verify_range(x, y));
+    verify_program<test_add>();
+    verify_program<test_add_broadcast>();
+    verify_program<test_conv_relu>();
+    verify_program<test_conv_pooling>();
+    verify_program<test_gemm>();
 }
-
-int main() { test1(); }

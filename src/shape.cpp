@@ -1,12 +1,12 @@
 
-#include <rtg/shape.hpp>
-#include <rtg/stringutils.hpp>
+#include <migraph/shape.hpp>
+#include <migraph/stringutils.hpp>
 #include <numeric>
 #include <algorithm>
 #include <functional>
 #include <iostream>
 
-namespace rtg {
+namespace migraph {
 
 shape::shape() : m_type(float_type), m_packed(false) {}
 
@@ -80,6 +80,16 @@ std::size_t shape::index(std::size_t i) const
                                   });
 }
 bool shape::packed() const { return this->m_packed; }
+
+bool shape::broadcasted() const
+{
+    assert(this->lens().size() == this->strides().size());
+    return std::accumulate(this->strides().begin(),
+                           this->strides().end(),
+                           std::size_t{1},
+                           std::multiplies<std::size_t>()) == 0;
+}
+
 std::size_t shape::element_space() const
 {
     // TODO: Get rid of intermediate vector
@@ -99,13 +109,12 @@ std::string shape::type_string() const
 {
     switch(this->m_type)
     {
-    case any_type: return "any";
-#define RTG_SHAPE_TYPE_STRING_CASE(x, t) \
+#define MIGRAPH_SHAPE_TYPE_STRING_CASE(x, t) \
     case x: return #x;
-        RTG_SHAPE_VISIT_TYPES(RTG_SHAPE_TYPE_STRING_CASE)
-#undef RTG_SHAPE_TYPE_STRING_CASE
+        MIGRAPH_SHAPE_VISIT_TYPES(MIGRAPH_SHAPE_TYPE_STRING_CASE)
+#undef MIGRAPH_SHAPE_TYPE_STRING_CASE
     }
-    RTG_THROW("Invalid type");
+    MIGRAPH_THROW("Invalid type");
 }
 
 bool operator==(const shape& x, const shape& y)
@@ -122,4 +131,4 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
     return os;
 }
 
-} // namespace rtg
+} // namespace migraph

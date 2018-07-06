@@ -76,20 +76,17 @@ struct id_target
 
 struct reverse_pass
 {
-    std::string name() const
-    {
-        return "reverse_pass";
-    }
+    std::string name() const { return "reverse_pass"; }
 
     void apply(migraph::program& p) const
     {
-        for(auto ins:migraph::iterator_for(p))
+        for(auto ins : migraph::iterator_for(p))
         {
-            if(ins->op.name() == "sum") 
+            if(ins->op.name() == "sum")
             {
                 p.replace_instruction(ins, minus_op{}, ins->arguments);
             }
-            else if(ins->op.name() == "minus") 
+            else if(ins->op.name() == "minus")
             {
                 p.replace_instruction(ins, sum_op{}, ins->arguments);
             }
@@ -100,19 +97,16 @@ struct reverse_pass
 struct reverse_target
 {
     std::string name() const { return "reverse"; }
-    std::vector<migraph::pass> get_passes(migraph::context&) const 
-    { 
-        return { reverse_pass{} }; 
-    }
+    std::vector<migraph::pass> get_passes(migraph::context&) const { return {reverse_pass{}}; }
     migraph::context get_context() const { return {}; }
 };
 
 struct double_reverse_target
 {
     std::string name() const { return "double_reverse"; }
-    std::vector<migraph::pass> get_passes(migraph::context&) const 
-    { 
-        return { reverse_pass{}, reverse_pass{} }; 
+    std::vector<migraph::pass> get_passes(migraph::context&) const
+    {
+        return {reverse_pass{}, reverse_pass{}};
     }
     migraph::context get_context() const { return {}; }
 };

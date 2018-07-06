@@ -492,7 +492,7 @@ struct cpu_apply
     void apply()
     {
         init();
-        for(auto it:iterator_for(*prog))
+        for(auto it : iterator_for(*prog))
         {
             if(it->op.name() == "activation")
             {

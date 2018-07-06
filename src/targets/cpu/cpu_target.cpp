@@ -538,9 +538,25 @@ struct cpu_apply
     }
 };
 
+struct cpu_pass
+{
+    std::string name() const { return "cpu::pass"; }
+
+    void apply(program & p) const
+    {
+        cpu_apply{&p}.apply();
+    }
+};
+
 std::string cpu_target::name() const { return "cpu"; }
 
-void cpu_target::apply(program& p) const { cpu_apply{&p}.apply(); }
+std::vector<pass> cpu_target::get_passes(context&) const
+{
+    return 
+    {
+        cpu_pass{}
+    };
+}
 
 } // namespace cpu
 

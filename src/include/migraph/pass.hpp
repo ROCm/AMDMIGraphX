@@ -1,14 +1,11 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_TARGET_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_TARGET_HPP
+#ifndef MIGRAPH_GUARD_PASS_HPP
+#define MIGRAPH_GUARD_PASS_HPP
 
 #include <string>
 #include <functional>
 #include <memory>
 #include <type_traits>
 #include <utility>
-#include <vector>
-#include <migraph/context.hpp>
-#include <migraph/pass.hpp>
 
 namespace migraph {
 
@@ -17,22 +14,21 @@ struct program;
 /*
  * Type-erased interface for:
  *
- * struct target
+ * struct pass
  * {
  *      std::string name() const;
- *      std::vector<pass> get_passes(context& ctx) const;
- *      context get_context() const;
+ *      void apply(program & p) const;
  * };
  *
  */
 
-struct target
+struct pass
 {
     // Constructors
-    target() = default;
+    pass() = default;
 
     template <typename PrivateDetailTypeErasedT>
-    target(PrivateDetailTypeErasedT value)
+    pass(PrivateDetailTypeErasedT value)
         : private_detail_te_handle_mem_var(
               std::make_shared<private_detail_te_handle_type<
                   typename std::remove_reference<PrivateDetailTypeErasedT>::type>>(
@@ -42,7 +38,7 @@ struct target
 
     // Assignment
     template <typename PrivateDetailTypeErasedT>
-    target& operator=(PrivateDetailTypeErasedT value)
+    pass& operator=(PrivateDetailTypeErasedT value)
     {
         if(private_detail_te_handle_mem_var.unique())
             *private_detail_te_handle_mem_var = std::forward<PrivateDetailTypeErasedT>(value);
@@ -89,16 +85,10 @@ struct target
         return (*this).private_detail_te_get_handle().name();
     }
 
-    std::vector<pass> get_passes(context& ctx) const
+    void apply(program& p) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().get_passes(ctx);
-    }
-
-    context get_context() const
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().get_context();
+        return (*this).private_detail_te_get_handle().apply(p);
     }
 
     private:
@@ -108,9 +98,8 @@ struct target
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const                         = 0;
-        virtual std::vector<pass> get_passes(context& ctx) const = 0;
-        virtual context get_context() const                      = 0;
+        virtual std::string name() const     = 0;
+        virtual void apply(program& p) const = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -143,13 +132,7 @@ struct target
 
         std::string name() const override { return private_detail_te_value.name(); }
 
-        std::vector<pass> get_passes(context& ctx) const override
-        {
-
-            return private_detail_te_value.get_passes(ctx);
-        }
-
-        context get_context() const override { return private_detail_te_value.get_context(); }
+        void apply(program& p) const override { return private_detail_te_value.apply(p); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -187,19 +170,19 @@ struct target
 };
 
 template <typename ValueType>
-inline const ValueType* any_cast(const target* x)
+inline const ValueType* any_cast(const pass* x)
 {
     return x->any_cast<ValueType>();
 }
 
 template <typename ValueType>
-inline ValueType* any_cast(target* x)
+inline ValueType* any_cast(pass* x)
 {
     return x->any_cast<ValueType>();
 }
 
 template <typename ValueType>
-inline ValueType& any_cast(target& x)
+inline ValueType& any_cast(pass& x)
 {
     auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
     if(y == nullptr)
@@ -208,7 +191,7 @@ inline ValueType& any_cast(target& x)
 }
 
 template <typename ValueType>
-inline const ValueType& any_cast(const target& x)
+inline const ValueType& any_cast(const pass& x)
 {
     const auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
     if(y == nullptr)

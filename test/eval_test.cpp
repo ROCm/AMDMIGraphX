@@ -68,7 +68,10 @@ struct minus_op
 struct id_target
 {
     std::string name() const { return "id"; }
-    void apply(migraph::program&) const {}
+    std::vector<migraph::pass> get_passes(migraph::context&) const
+    {
+        return {};
+    }
     migraph::context get_context() const { return {}; }
 };
 

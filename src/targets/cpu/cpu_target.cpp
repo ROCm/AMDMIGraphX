@@ -542,21 +542,12 @@ struct cpu_pass
 {
     std::string name() const { return "cpu::pass"; }
 
-    void apply(program & p) const
-    {
-        cpu_apply{&p}.apply();
-    }
+    void apply(program& p) const { cpu_apply{&p}.apply(); }
 };
 
 std::string cpu_target::name() const { return "cpu"; }
 
-std::vector<pass> cpu_target::get_passes(context&) const
-{
-    return 
-    {
-        cpu_pass{}
-    };
-}
+std::vector<pass> cpu_target::get_passes(context&) const { return {cpu_pass{}}; }
 
 } // namespace cpu
 

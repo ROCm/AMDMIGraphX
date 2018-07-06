@@ -111,7 +111,7 @@ void program::compile(const target& t)
 {
     assert(this->validate() != impl->instructions.end());
     this->impl->ctx = t.get_context();
-    for(auto&& p:t.get_passes(this->impl->ctx))
+    for(auto&& p : t.get_passes(this->impl->ctx))
     {
         p.apply(*this);
 #ifndef NDEBUG

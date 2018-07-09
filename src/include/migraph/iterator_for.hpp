@@ -20,8 +20,16 @@ struct iterator_for_range
         bool operator!=(const iterator& rhs) { return i != rhs.i; }
     };
 
-    iterator begin() { assert(base != nullptr); return {base->begin()}; }
-    iterator end() { assert(base != nullptr); return {base->end()}; }
+    iterator begin()
+    {
+        assert(base != nullptr);
+        return {base->begin()};
+    }
+    iterator end()
+    {
+        assert(base != nullptr);
+        return {base->end()};
+    }
 };
 template <class T>
 iterator_for_range<T> iterator_for(T& x)

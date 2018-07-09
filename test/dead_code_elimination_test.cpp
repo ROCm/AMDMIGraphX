@@ -5,7 +5,10 @@
 struct dce_target
 {
     std::string name() const { return "dce"; }
-    std::vector<migraph::pass> get_passes(migraph::context&) const { return { migraph::dead_code_elimination{} }; }
+    std::vector<migraph::pass> get_passes(migraph::context&) const
+    {
+        return {migraph::dead_code_elimination{}};
+    }
     migraph::context get_context() const { return {}; }
 };
 
@@ -34,15 +37,14 @@ void duplicate_test()
     p.add_instruction(sum_op{}, one, two);
     auto count = std::distance(p.begin(), p.end());
     p.compile(dce_target{});
-    EXPECT(std::distance(p.begin(), p.end()) == (count-1));
+    EXPECT(std::distance(p.begin(), p.end()) == (count - 1));
     auto result = p.eval({});
     EXPECT(result == migraph::literal{3});
     EXPECT(result != migraph::literal{4});
 }
 
-int main() 
+int main()
 {
     simple_test();
     duplicate_test();
 }
-

@@ -52,6 +52,8 @@ struct program
     instruction_ref
     replace_instruction(instruction_ref ins, operation op, std::vector<instruction_ref> args);
 
+    instruction_ref remove_instruction(instruction_ref ins);
+
     template <class... Ts>
     instruction_ref add_literal(Ts&&... xs)
     {

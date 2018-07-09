@@ -52,6 +52,15 @@ program::replace_instruction(instruction_ref ins, operation op, std::vector<inst
     return ins;
 }
 
+instruction_ref
+program::remove_instruction(instruction_ref ins)
+{
+    assert(has_instruction(ins));
+    assert(ins->output.empty());
+    ins->clear_arguments();
+    return impl->instructions.erase(ins);
+}
+
 instruction_ref program::add_literal(literal l)
 {
     impl->instructions.emplace_front(std::move(l));

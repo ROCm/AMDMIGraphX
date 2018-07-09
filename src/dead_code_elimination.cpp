@@ -8,7 +8,7 @@ namespace migraph {
 
 void dead_code_elimination::apply(program& p) const
 {
-    for(auto i:iterator_for(p)) 
+    for(auto i : iterator_for(p))
     {
         // Skip over instructions that may have been removed
         if(!p.has_instruction(i))
@@ -23,7 +23,7 @@ void dead_code_elimination::apply(program& p) const
                 std::cout << p << std::endl;
                 auto args = ins->arguments;
                 p.remove_instruction(ins);
-                for(auto arg:args)
+                for(auto arg : args)
                     self(arg);
             }
         })(i);

@@ -1,5 +1,6 @@
 
 add_library(migraph 
+    dead_code_elimination.cpp
     generate.cpp
     program.cpp
     shape.cpp

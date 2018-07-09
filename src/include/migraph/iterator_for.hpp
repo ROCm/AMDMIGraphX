@@ -1,13 +1,16 @@
 #ifndef MIGRAPH_GUARD_RTGLIB_ITERATOR_FOR_HPP
 #define MIGRAPH_GUARD_RTGLIB_ITERATOR_FOR_HPP
 
+#include <cassert>
+#include <type_traits>
+
 namespace migraph {
 
 template <class T>
 struct iterator_for_range
 {
     T* base;
-    using base_iterator = decltype(base->begin());
+    using base_iterator = std::remove_reference_t<decltype(base->begin())>;
 
     struct iterator
     {
@@ -17,8 +20,8 @@ struct iterator_for_range
         bool operator!=(const iterator& rhs) { return i != rhs.i; }
     };
 
-    iterator begin() { return {base->begin()}; }
-    iterator end() { return {base->end()}; }
+    iterator begin() { assert(base != nullptr); return {base->begin()}; }
+    iterator end() { assert(base != nullptr); return {base->end()}; }
 };
 template <class T>
 iterator_for_range<T> iterator_for(T& x)

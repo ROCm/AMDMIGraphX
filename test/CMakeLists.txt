@@ -52,6 +52,8 @@ function(add_test_command NAME EXE)
                 if(NOT RESULT EQUAL 0)
                     # TODO: check for core files based on pid when setting /proc/sys/kernel/core_uses_pid
                     if(EXISTS ${TEST_DIR}/core)
+                        set(\$ENV{UBSAN_OPTIONS} print_stacktrace=1)
+                        set(\$ENV{ASAN_OPTIONS} print_stacktrace=1)
                         execute_process(COMMAND ${MIGRAPH_GDB} $<TARGET_FILE:${EXE}> ${TEST_DIR}/core -batch -ex bt)
                     endif()
                     message(FATAL_ERROR \"Test failed\")

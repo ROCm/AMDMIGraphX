@@ -66,8 +66,8 @@ void depth_test()
 
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
-    auto x1 = p.add_instruction(sum_op{}, one, two);
-    auto x2 = p.add_instruction(sum_op{}, one, two);
+    auto x1  = p.add_instruction(sum_op{}, one, two);
+    auto x2  = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(minus_op{}, x1, x2);
     p.add_instruction(minus_op{}, x1, x2);
     p.add_instruction(sum_op{}, one, two);

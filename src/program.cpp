@@ -62,8 +62,9 @@ instruction_ref program::remove_instruction(instruction_ref ins)
 
 instruction_ref program::remove_instructions(instruction_ref first, instruction_ref last)
 {
+    if(first == last) return first;
+    // TODO: Check every element
     assert(has_instruction(first));
-    assert(has_instruction(last));
     std::for_each(first, last, [&](instruction& ins) { ins.clear_arguments(); });
     assert(std::all_of(first, last, [&](instruction& ins) { return ins.output.empty(); }));
     return impl->instructions.erase(first, last);

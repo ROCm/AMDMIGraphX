@@ -54,6 +54,7 @@ struct instruction
         {
             migraph::erase(arg->output, *this);
         }
+        arguments.clear();
     }
 
     friend bool operator==(const instruction& i, instruction_ref ref)

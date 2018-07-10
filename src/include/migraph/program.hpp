@@ -54,7 +54,7 @@ struct program
 
     instruction_ref remove_instruction(instruction_ref ins);
     instruction_ref remove_instructions(instruction_ref first, instruction_ref last);
-    
+
     instruction_ref move_instruction(instruction_ref src, instruction_ref dst);
 
     template <class... Ts>

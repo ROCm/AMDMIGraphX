@@ -8,26 +8,24 @@ namespace migraph {
 
 void dead_code_elimination::apply(program& p) const
 {
-    for(auto i : iterator_for(p))
+    auto last = std::prev(p.end());
+    for(auto ins : iterator_for(p))
     {
-        // Skip over instructions that may have been removed
-        if(!p.has_instruction(i))
-            continue;
         // Skip the last instruction
-        if(i == std::prev(p.end()))
+        if(ins == last)
             break;
-        fix([&](auto self, auto ins) {
-            assert(p.has_instruction(ins));
-            if(ins->output.empty())
+        fix([&](auto self, auto leaf) {
+            assert(p.has_instruction(leaf));
+            if(leaf->output.empty())
             {
-                std::cout << p << std::endl;
-                auto args = ins->arguments;
-                p.remove_instruction(ins);
+                auto args = leaf->arguments;
+                p.move_instruction(leaf, p.end());
                 for(auto arg : args)
                     self(arg);
             }
-        })(i);
+        })(ins);
     }
+    p.remove_instructions(std::next(last), p.end());
 }
 
 } // namespace migraph

@@ -60,6 +60,23 @@ instruction_ref program::remove_instruction(instruction_ref ins)
     return impl->instructions.erase(ins);
 }
 
+instruction_ref program::remove_instructions(instruction_ref first, instruction_ref last)
+{
+    assert(has_instruction(first));
+    assert(has_instruction(last));
+    std::for_each(first, last, [&](instruction& ins) {
+        ins.clear_arguments();
+    });
+    assert(std::all_of(first, last, [&](instruction& ins){ return ins.output.empty(); }));
+    return impl->instructions.erase(first, last);
+}
+
+instruction_ref program::move_instruction(instruction_ref src, instruction_ref dst)
+{
+    impl->instructions.splice(dst, impl->instructions, src);
+    return src;
+}
+
 instruction_ref program::add_literal(literal l)
 {
     impl->instructions.emplace_front(std::move(l));

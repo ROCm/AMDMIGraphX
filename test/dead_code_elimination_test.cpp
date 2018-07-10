@@ -60,9 +60,29 @@ void duplicate_test2()
     EXPECT(result != migraph::literal{4});
 }
 
+void depth_test()
+{
+    migraph::program p;
+
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto x1 = p.add_instruction(sum_op{}, one, two);
+    auto x2 = p.add_instruction(sum_op{}, one, two);
+    p.add_instruction(minus_op{}, x1, x2);
+    p.add_instruction(minus_op{}, x1, x2);
+    p.add_instruction(sum_op{}, one, two);
+    auto count = std::distance(p.begin(), p.end());
+    p.compile(dce_target{});
+    EXPECT(std::distance(p.begin(), p.end()) == (count - 4));
+    auto result = p.eval({});
+    EXPECT(result == migraph::literal{3});
+    EXPECT(result != migraph::literal{4});
+}
+
 int main()
 {
     simple_test();
     duplicate_test1();
     duplicate_test2();
+    depth_test();
 }

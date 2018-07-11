@@ -9,7 +9,6 @@ void simple_test()
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     p.add_instruction(sum_op{}, one, two);
-    std::cout << std::distance(p.begin(), p.validate()) << std::endl;
     EXPECT(bool{p.validate() == p.end()});
     auto result = p.eval({});
     EXPECT(result == migraph::literal{3});

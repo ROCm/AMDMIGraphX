@@ -129,28 +129,34 @@ instruction_ref program::validate() const
 {
     return std::find_if(impl->instructions.begin(),
                         impl->instructions.end(),
-                        [&](const instruction& i) { return i.valid(impl->instructions.begin()); });
+                        [&](const instruction& i) { return !i.valid(impl->instructions.begin()); });
 }
 
 void program::compile(const target& t)
 {
-    assert(this->validate() != impl->instructions.end());
+    assert(this->validate() == impl->instructions.end());
     this->impl->ctx = t.get_context();
     for(auto&& p : t.get_passes(this->impl->ctx))
     {
         p.apply(*this);
 #ifndef NDEBUG
-        if(this->validate() == impl->instructions.end())
-            MIGRAPH_THROW(p.name() + " pass produces invalid program");
+        auto invalid = this->validate();
+        if(invalid != impl->instructions.end()) {
+            auto index = std::distance(impl->instructions.begin(), invalid);
+            MIGRAPH_THROW(p.name() + " pass produces invalid program at instruction " + std::to_string(index));
+        }
 #endif
     }
-    if(this->validate() == impl->instructions.end())
-        MIGRAPH_THROW("Invalid program from compilation");
+    auto invalid = this->validate();
+    if(invalid != impl->instructions.end()) {
+        auto index = std::distance(impl->instructions.begin(), invalid);
+        MIGRAPH_THROW("Invalid program from compilation at instruction " + std::to_string(index));
+    }
 }
 
 argument program::eval(std::unordered_map<std::string, argument> params) const
 {
-    assert(this->validate() != impl->instructions.end());
+    assert(this->validate() == impl->instructions.end());
     std::unordered_map<const instruction*, argument> results;
     argument result;
     for(auto& ins : impl->instructions)

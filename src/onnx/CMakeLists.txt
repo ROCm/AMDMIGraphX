@@ -16,6 +16,10 @@ add_executable(read_onnx read_onnx.cpp)
 rocm_clang_tidy_check(read_onnx)
 target_link_libraries(read_onnx migraph_onnx)
 
+add_executable(mnist mnist.cpp)
+rocm_clang_tidy_check(mnist)
+target_link_libraries(mnist migraph_cpu migraph_onnx)
+
 if(MIGRAPH_ENABLE_MIOPEN)
 add_executable(verify_onnx verify_onnx.cpp)
 rocm_clang_tidy_check(verify_onnx)

@@ -193,6 +193,7 @@ struct pooling
     std::array<std::size_t, 2> stride  = {{1, 1}};
     std::array<std::size_t, 2> lengths = {{1, 1}};
     std::string name() const { return "pooling"; }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1).only_dims(4);
@@ -474,6 +475,7 @@ struct broadcast
         auto input  = inputs.at(1);
 
         std::vector<size_t> bcast_strides(result.lens().size(), 0);
+
         if(std::all_of(
                result.lens().cbegin(), result.lens().cend(), [&](auto x) { return x == 1; }))
         {

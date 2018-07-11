@@ -9,18 +9,19 @@
 #include <migraph/cpu/cpu_target.hpp>
 #include <migraph/generate.hpp>
 
+auto reverse_int(unsigned int i)
+{
+    unsigned char c1, c2, c3, c4;
+    c1 = i & 255u;
+    c2 = (i >> 8u) & 255u;
+    c3 = (i >> 16u) & 255u;
+    c4 = (i >> 24u) & 255u;
+    return (static_cast<unsigned int>(c1) << 24u) + (static_cast<unsigned int>(c2) << 16u) +
+           (static_cast<unsigned int>(c3) << 8u) + c4;
+};
+
 std::vector<float> read_mnist_images(std::string full_path, int& number_of_images, int& image_size)
 {
-    auto reverse_int = [](unsigned int i) {
-        unsigned char c1, c2, c3, c4;
-        c1 = i & 255u;
-        c2 = (i >> 8u) & 255u;
-        c3 = (i >> 16u) & 255u;
-        c4 = (i >> 24u) & 255u;
-        return (static_cast<unsigned int>(c1) << 24u) + (static_cast<unsigned int>(c2) << 16u) +
-               (static_cast<unsigned int>(c3) << 8u) + c4;
-    };
-
     using uchar = unsigned char;
 
     std::ifstream file(full_path, std::ios::binary);
@@ -64,16 +65,6 @@ std::vector<float> read_mnist_images(std::string full_path, int& number_of_image
 
 std::vector<int32_t> read_mnist_labels(std::string full_path, int& number_of_labels)
 {
-    auto reverse_int = [](unsigned int i) {
-        unsigned char c1, c2, c3, c4;
-        c1 = i & 255u;
-        c2 = (i >> 8u) & 255u;
-        c3 = (i >> 16u) & 255u;
-        c4 = (i >> 24u) & 255u;
-        return (static_cast<unsigned int>(c1) << 24u) + (static_cast<unsigned int>(c2) << 16u) +
-               (static_cast<unsigned int>(c3) << 8u) + c4;
-    };
-
     using uchar = unsigned char;
 
     std::ifstream file(full_path, std::ios::binary);
@@ -116,7 +107,7 @@ std::vector<float> softmax(std::vector<float> p) {
 
 int main(int argc, char const* argv[])
 {
-    if(argc > 1)
+    if(argc > 3)
     {
         std::string datafile        = argv[2];
         std::string labelfile       = argv[3];

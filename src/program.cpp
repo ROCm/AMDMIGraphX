@@ -111,7 +111,14 @@ void program::compile(const target& t)
 {
     assert(this->validate() != impl->instructions.end());
     this->impl->ctx = t.get_context();
-    t.apply(*this);
+    for(auto&& p : t.get_passes(this->impl->ctx))
+    {
+        p.apply(*this);
+#ifndef NDEBUG
+        if(this->validate() == impl->instructions.end())
+            MIGRAPH_THROW(p.name() + " pass produces invalid program");
+#endif
+    }
     if(this->validate() == impl->instructions.end())
         MIGRAPH_THROW("Invalid program from compilation");
 }

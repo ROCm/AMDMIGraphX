@@ -2,6 +2,8 @@
 #include <migraph/program.hpp>
 #include <migraph/argument.hpp>
 #include <migraph/shape.hpp>
+#include <migraph/iterator_for.hpp>
+#include <migraph/instruction.hpp>
 #include <sstream>
 #include "test.hpp"
 
@@ -68,7 +70,44 @@ struct minus_op
 struct id_target
 {
     std::string name() const { return "id"; }
-    void apply(migraph::program&) const {}
+    std::vector<migraph::pass> get_passes(migraph::context&) const { return {}; }
+    migraph::context get_context() const { return {}; }
+};
+
+struct reverse_pass
+{
+    std::string name() const { return "reverse_pass"; }
+
+    void apply(migraph::program& p) const
+    {
+        for(auto ins : migraph::iterator_for(p))
+        {
+            if(ins->op.name() == "sum")
+            {
+                p.replace_instruction(ins, minus_op{}, ins->arguments);
+            }
+            else if(ins->op.name() == "minus")
+            {
+                p.replace_instruction(ins, sum_op{}, ins->arguments);
+            }
+        }
+    }
+};
+
+struct reverse_target
+{
+    std::string name() const { return "reverse"; }
+    std::vector<migraph::pass> get_passes(migraph::context&) const { return {reverse_pass{}}; }
+    migraph::context get_context() const { return {}; }
+};
+
+struct double_reverse_target
+{
+    std::string name() const { return "double_reverse"; }
+    std::vector<migraph::pass> get_passes(migraph::context&) const
+    {
+        return {reverse_pass{}, reverse_pass{}};
+    }
     migraph::context get_context() const { return {}; }
 };
 
@@ -170,6 +209,32 @@ void target_test()
     EXPECT(result != migraph::literal{4});
 }
 
+void reverse_target_test()
+{
+    migraph::program p;
+
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    p.add_instruction(sum_op{}, two, one);
+    p.compile(reverse_target{});
+    auto result = p.eval({});
+    EXPECT(result == migraph::literal{1});
+    EXPECT(result != migraph::literal{4});
+}
+
+void double_reverse_target_test()
+{
+    migraph::program p;
+
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    p.add_instruction(sum_op{}, two, one);
+    p.compile(double_reverse_target{});
+    auto result = p.eval({});
+    EXPECT(result == migraph::literal{3});
+    EXPECT(result != migraph::literal{4});
+}
+
 int main()
 {
     literal_test1();
@@ -179,4 +244,5 @@ int main()
     replace_test();
     insert_replace_test();
     target_test();
+    reverse_target_test();
 }

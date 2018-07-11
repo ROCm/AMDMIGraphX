@@ -193,6 +193,7 @@ struct pooling
     std::array<std::size_t, 2> stride  = {{1, 1}};
     std::array<std::size_t, 2> lengths = {{1, 1}};
     std::string name() const { return "pooling"; }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1).only_dims(4);
@@ -203,18 +204,21 @@ struct pooling
         assert(lengths[0] < (input.lens()[2] + 2 * padding[0]));
         assert(lengths[1] < (input.lens()[3] + 2 * padding[1]));
 
-        return {
-            t,
-            {
-                input.lens()[0],
-                input.lens()[1],
-                std::size_t(std::max<std::ptrdiff_t>(
-                                1, (input.lens()[2] + 2 * padding[0] - lengths[0]) / stride[0]) +
-                            1),
-                std::size_t(std::max<std::ptrdiff_t>(
-                                1, (input.lens()[3] + 2 * padding[1] - lengths[1]) / stride[1]) +
-                            1),
-            }};
+        return {t,
+                {
+                    input.lens()[0],
+                    input.lens()[1],
+                    std::size_t(std::max<std::ptrdiff_t>(
+                        1,
+                        std::ceil((input.lens()[2] + 2 * padding[0] - lengths[0]) /
+                                  static_cast<float>(stride[0])) +
+                            1)),
+                    std::size_t(std::max<std::ptrdiff_t>(
+                        1,
+                        std::ceil((input.lens()[3] + 2 * padding[1] - lengths[1]) /
+                                  static_cast<float>(stride[1])) +
+                            1)),
+                }};
     }
 
     argument compute(context&, shape, std::vector<argument>) const

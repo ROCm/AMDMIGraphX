@@ -1,4 +1,5 @@
 #include <migraph/program.hpp>
+#include <migraph/instruction.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -26,8 +27,32 @@ void out_of_order()
     EXPECT(bool{p.validate() == ins});
 }
 
+void incomplete_args()
+{
+    migraph::program p;
+
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto ins = p.add_instruction(sum_op{}, one, two);
+    ins->clear_arguments();
+    EXPECT(bool{p.validate() == ins});
+}
+
+void invalid_args()
+{
+    migraph::program p;
+
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto ins = p.add_instruction(sum_op{}, one, two);
+    ins->arguments.clear();
+    EXPECT(bool{p.validate() == p.begin()});
+}
+
 int main()
 {
     simple_test();
     out_of_order();
+    incomplete_args();
+    invalid_args();
 }

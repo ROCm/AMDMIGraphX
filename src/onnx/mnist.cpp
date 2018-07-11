@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <string>
 #include <fstream>
+#include <numeric>
 #include <stdexcept>
 
 #include <migraph/onnx.hpp>
@@ -42,12 +43,6 @@ std::vector<float> read_mnist_images(std::string full_path, int& number_of_image
         n_cols = reverse_int(n_cols);
 
         image_size = n_rows * n_cols;
-
-        // uchar** _dataset = new uchar*[number_of_images];
-        // for(int i = 0; i < number_of_images; i++) {
-        //     _dataset[i] = new uchar[image_size];
-        //     file.read((char *)_dataset[i], image_size);
-        // }
 
         std::vector<float> result(number_of_images * image_size);
         for(int i = 0; i < number_of_images; i++)
@@ -113,14 +108,9 @@ std::vector<int32_t> read_mnist_labels(std::string full_path, int& number_of_lab
 std::vector<float> softmax(std::vector<float> p) {
     size_t n = p.size();
     std::vector<float> result(n);
-    float s = 0.0f;
-    for (size_t i = 0; i < n; i++) {
-        result[i] = std::exp(p[i]);
-        s += result[i];
-    }
-    for (size_t i = 0; i < n; i++) {
-        result[i] = result[i]/s;
-    }
+    std::transform(p.begin(), p.end(), result.begin(), [] (auto x) {return std::exp(x);});
+    float s = std::accumulate(result.begin(), result.end(), 0.0f, std::plus<float>());
+    std::transform(result.begin(), result.end(), result.begin(), [=] (auto x) {return x/s;});
     return result;
 }
 
@@ -139,7 +129,6 @@ int main(int argc, char const* argv[])
         std::string file = argv[1];
         auto prog        = migraph::parse_onnx(file);
         prog.compile(migraph::cpu::cpu_target{});
-        // auto s = prog.get_parameter_shape("Input3");
         auto s = migraph::shape{migraph::shape::float_type, {1, 1, 28, 28}};
         std::cout << s << std::endl;
         auto ptr = input.data();

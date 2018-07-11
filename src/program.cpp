@@ -129,7 +129,7 @@ instruction_ref program::validate() const
 {
     return std::find_if(impl->instructions.begin(),
                         impl->instructions.end(),
-                        [](const instruction& i) { return i.valid(); });
+                        [&](const instruction& i) { return i.valid(impl->instructions.begin()); });
 }
 
 void program::compile(const target& t)

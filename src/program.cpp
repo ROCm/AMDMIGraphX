@@ -141,14 +141,17 @@ void program::compile(const target& t)
         p.apply(*this);
 #ifndef NDEBUG
         auto invalid = this->validate();
-        if(invalid != impl->instructions.end()) {
+        if(invalid != impl->instructions.end())
+        {
             auto index = std::distance(impl->instructions.begin(), invalid);
-            MIGRAPH_THROW(p.name() + " pass produces invalid program at instruction " + std::to_string(index));
+            MIGRAPH_THROW(p.name() + " pass produces invalid program at instruction " +
+                          std::to_string(index));
         }
 #endif
     }
     auto invalid = this->validate();
-    if(invalid != impl->instructions.end()) {
+    if(invalid != impl->instructions.end())
+    {
         auto index = std::distance(impl->instructions.begin(), invalid);
         MIGRAPH_THROW("Invalid program from compilation at instruction " + std::to_string(index));
     }

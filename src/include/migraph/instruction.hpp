@@ -73,7 +73,8 @@ struct instruction
         {
             computed = result;
         }
-        else {
+        else
+        {
             try
             {
                 computed = compute_shape(op, arguments);

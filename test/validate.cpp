@@ -27,7 +27,8 @@ void out_of_order()
     EXPECT(bool{p.validate() == ins});
 }
 
-int main() {
+int main()
+{
     simple_test();
     out_of_order();
 }

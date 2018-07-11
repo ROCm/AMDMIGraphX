@@ -9,7 +9,7 @@ namespace miopen {
 struct miopen_target
 {
     std::string name() const;
-    void apply(program& p) const;
+    std::vector<pass> get_passes(context& ctx) const;
     context get_context() const;
 };
 

@@ -4,6 +4,7 @@
 #include <migraph/dfor.hpp>
 #include <migraph/operators.hpp>
 #include <migraph/shape_for_each.hpp>
+#include <migraph/iterator_for.hpp>
 
 namespace migraph {
 namespace cpu {
@@ -491,7 +492,7 @@ struct cpu_apply
     void apply()
     {
         init();
-        for(auto it = prog->begin(); it != prog->end(); it++)
+        for(auto it : iterator_for(*prog))
         {
             if(it->op.name() == "activation")
             {
@@ -538,9 +539,16 @@ struct cpu_apply
     }
 };
 
+struct cpu_pass
+{
+    std::string name() const { return "cpu::pass"; }
+
+    void apply(program& p) const { cpu_apply{&p}.apply(); }
+};
+
 std::string cpu_target::name() const { return "cpu"; }
 
-void cpu_target::apply(program& p) const { cpu_apply{&p}.apply(); }
+std::vector<pass> cpu_target::get_passes(context&) const { return {cpu_pass{}}; }
 
 } // namespace cpu
 

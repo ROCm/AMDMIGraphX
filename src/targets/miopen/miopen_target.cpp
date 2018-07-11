@@ -299,9 +299,16 @@ struct miopen_apply
     }
 };
 
-std::string miopen_target::name() const { return "miopen"; }
+struct miopen_pass
+{
+    std::string name() const { return "miopen::pass"; }
 
-void miopen_target::apply(program& p) const { miopen_apply{&p}.apply(); }
+    void apply(program& p) const { miopen_apply{&p}.apply(); }
+};
+
+std::vector<pass> miopen_target::get_passes(context&) const { return {miopen_pass{}}; }
+
+std::string miopen_target::name() const { return "miopen"; }
 
 context miopen_target::get_context() const
 {

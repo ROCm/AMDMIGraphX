@@ -19,7 +19,7 @@ struct outline
 {
     shape s;
     std::string name() const { return "@outline"; }
-    shape compute_shape(std::vector<shape>) const { MIGRAPH_THROW("builtin"); }
+    shape compute_shape(std::vector<shape>) const { return s; }
     argument compute(context&, shape, std::vector<argument>) const { MIGRAPH_THROW("builtin"); }
 };
 

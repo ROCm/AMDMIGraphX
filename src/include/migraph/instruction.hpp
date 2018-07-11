@@ -64,18 +64,24 @@ struct instruction
 
     bool valid(instruction_ref start) const
     {
-        std::vector<shape> shapes(arguments.size());
-        std::transform(arguments.begin(), arguments.end(), shapes.begin(), [](instruction_ref ins) {
-            return ins->result;
-        });
         shape computed;
-        try
+        if(op.name() == "@literal")
         {
-            computed = op.compute_shape(shapes);
+            computed = lit.get_shape();
         }
-        catch(migraph::exception&)
+        else if(op.name() == "@param")
         {
-            return false;
+            computed = result;
+        }
+        else {
+            try
+            {
+                computed = compute_shape(op, arguments);
+            }
+            catch(migraph::exception&)
+            {
+                return false;
+            }
         }
         return result == computed &&
                std::all_of(output.begin(),

@@ -65,15 +65,20 @@ struct instruction
     bool valid(instruction_ref start) const
     {
         std::vector<shape> shapes(arguments.size());
-        std::transform(arguments.begin(), arguments.end(), shapes.begin(), [](instruction_ref ins) { return ins->result; });
+        std::transform(arguments.begin(), arguments.end(), shapes.begin(), [](instruction_ref ins) {
+            return ins->result;
+        });
         shape computed;
         try
         {
             computed = op.compute_shape(shapes);
-        } 
-        catch(migraph::exception&) { return false; }
+        }
+        catch(migraph::exception&)
+        {
+            return false;
+        }
         return result == computed &&
-        std::all_of(output.begin(),
+               std::all_of(output.begin(),
                            output.end(),
                            [&](instruction_ref i) {
                                return std::find(i->arguments.begin(), i->arguments.end(), *this) !=
@@ -81,7 +86,8 @@ struct instruction
                            }) &&
                std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
                    auto self = std::find(i->output.begin(), i->output.end(), *this);
-                   return self != i->output.end() && std::distance(start, i) < std::distance(start, *self);
+                   return self != i->output.end() &&
+                          std::distance(start, i) < std::distance(start, *self);
                });
     }
 

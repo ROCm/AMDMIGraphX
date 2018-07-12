@@ -13,3 +13,13 @@ add_library(migraph_miopen
 rocm_clang_tidy_check(migraph_miopen)
 target_link_libraries(migraph_miopen migraph MIOpen)
 target_include_directories(migraph_miopen PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+
+
+add_library(migraph_device
+    kernels.cu
+)
+rocm_clang_tidy_check(migraph_device)
+target_link_libraries(migraph_device migraph hip::device)
+target_include_directories(migraph_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+
+

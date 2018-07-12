@@ -163,7 +163,7 @@ struct test_contiguous
     migraph::program create_program() const
     {
         migraph::program p;
-        migraph::shape s{migraph::shape::float_type, {32, 16, 128, 128}, {262144, 128, 1, 16384}};
+        migraph::shape s{migraph::shape::float_type, {4, 4, 4, 3}, {48, 4, 1, 16}};
         auto x = p.add_parameter("x", s);
         p.add_instruction(migraph::contiguous{}, x);
         return p;
@@ -172,30 +172,32 @@ struct test_contiguous
     migraph::program::parameter_map create_params() const
     {
         migraph::program::parameter_map m;
-        m["x"] = migraph::generate_argument({migraph::shape::float_type, {32, 16, 128, 128}});
+        m["x"] =
+            migraph::generate_argument({migraph::shape::float_type, {4, 4, 4, 3}, {48, 4, 1, 16}});
         return m;
     }
 };
 
-void contiguous_test()
+struct test_transpose
 {
-    migraph::shape a_shape{migraph::shape::float_type, {1, 3, 2, 2}, {12, 1, 6, 3}};
-    std::vector<float> data(12);
-    std::iota(data.begin(), data.end(), 0);
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {4, 3, 4, 4}};
+        auto x                    = p.add_parameter("x", s);
+        std::vector<int64_t> perm = {0, 2, 3, 1};
+        auto l                    = p.add_instruction(migraph::transpose{perm}, x);
+        p.add_instruction(migraph::contiguous{}, l);
+        return p;
+    }
 
-    migraph::program p;
-    auto l = p.add_literal(migraph::literal{a_shape, data});
-    p.add_instruction(migraph::contiguous{}, l);
-    p.compile(migraph::miopen::miopen_target{});
-    auto result = p.eval({});
-
-    std::vector<float> results_vector(12);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<size_t> new_lens    = {1, 3, 2, 2};
-    std::vector<size_t> new_strides = {12, 1, 6, 3};
-    std::vector<float> gold         = {0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11};
-    EXPECT(test::verify_range(results_vector, gold));
-}
+    migraph::program::parameter_map create_params() const
+    {
+        migraph::program::parameter_map m;
+        m["x"] = migraph::generate_argument({migraph::shape::float_type, {4, 3, 4, 4}});
+        return m;
+    }
+};
 
 int main()
 {
@@ -204,6 +206,6 @@ int main()
     verify_program<test_conv_relu>();
     verify_program<test_conv_pooling>();
     verify_program<test_gemm>();
-    // verify_program<test_contiguous>();
-    contiguous_test();
+    verify_program<test_contiguous>();
+    verify_program<test_transpose>();
 }

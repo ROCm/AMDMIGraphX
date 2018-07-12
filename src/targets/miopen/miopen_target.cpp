@@ -173,6 +173,23 @@ struct miopen_gemm
     }
 };
 
+struct miopen_contiguous
+{
+    contiguous op;
+    std::string name() const { return "miopen::contiguous"; }
+    shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        visit_all(result, from_gpu(args[0]))([&](auto output, auto input) {
+            shape_for_each(output.get_shape(), [&](const auto& idx) {
+                output(idx.begin(), idx.end()) = input(idx.begin(), idx.end());
+            });
+        });
+        return to_gpu(result);
+    }
+};
+
 struct miopen_relu
 {
     shared<activation_descriptor> ad;
@@ -230,6 +247,10 @@ struct miopen_apply
             else if(it->op.name() == "gemm")
             {
                 apply_gemm(it);
+            }
+            else if(it->op.name() == "contiguous")
+            {
+                apply_contiguous(it);
             }
         }
     }
@@ -296,6 +317,13 @@ struct miopen_apply
         auto output = insert_allocation(ins, ins->result);
         prog->replace_instruction(
             ins, miopen_gemm{op}, ins->arguments.at(0), ins->arguments.at(1), output);
+    }
+
+    void apply_contiguous(instruction_ref ins)
+    {
+        auto&& op   = any_cast<contiguous>(ins->op);
+        auto output = insert_allocation(ins, ins->result);
+        prog->replace_instruction(ins, miopen_contiguous{op}, ins->arguments.at(0), output);
     }
 };
 

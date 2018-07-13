@@ -54,17 +54,16 @@ struct test_literals
     migraph::program create_program() const
     {
         migraph::program p;
-        auto input = p.add_literal(generate_literal(migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}}));
-        auto weights = p.add_literal(generate_literal(migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}}));
+        auto input = p.add_literal(
+            generate_literal(migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}}));
+        auto weights = p.add_literal(
+            generate_literal(migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}}));
         auto conv = p.add_instruction(migraph::convolution{}, input, weights);
         p.add_instruction(migraph::activation{"relu"}, conv);
         return p;
     }
 
-    migraph::program::parameter_map create_params() const
-    {
-        return {};
-    }
+    migraph::program::parameter_map create_params() const { return {}; }
 };
 
 struct test_add

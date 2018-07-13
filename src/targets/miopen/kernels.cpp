@@ -57,9 +57,6 @@ void hip_contiguous(migraph::shape output_shape, migraph::argument arg, migraph:
             }
             dim3 nblocks(512);
             dim3 nthreads(512);
-            // std::cout << "nelements: " << s.elements() << std::endl;
-            // std::cout << "A ptr: " << input.data() << std::endl;
-            // std::cout << "At ptr: " << output.data() << std::endl;
             hipLaunchKernelGGL((contiguous_gpu<int, 4>),
                                nblocks,
                                nthreads,

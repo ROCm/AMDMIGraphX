@@ -311,21 +311,24 @@ struct miopen_write_literals
 {
     std::string name() const { return "miopen::write_literals"; }
 
-    void apply(program& p) const 
-    { 
-        for(auto ins:iterator_for(p))
+    void apply(program& p) const
+    {
+        for(auto ins : iterator_for(p))
         {
             if(ins->op.name() == "@literal")
             {
                 literal l = ins->lit;
-                auto pre = p.add_literal(l);
+                auto pre  = p.add_literal(l);
                 p.replace_instruction(ins, hip_write{}, pre);
             }
         }
     }
 };
 
-std::vector<pass> miopen_target::get_passes(context&) const { return {miopen_pass{}, miopen_write_literals{}}; }
+std::vector<pass> miopen_target::get_passes(context&) const
+{
+    return {miopen_pass{}, miopen_write_literals{}};
+}
 
 std::string miopen_target::name() const { return "miopen"; }
 

@@ -42,22 +42,24 @@ __global__ void contiguous_gpu(const T* A,
     }
 }
 
-migraph::argument hip_contiguous(migraph::argument arg, migraph::shape output_shape)
+void hip_contiguous(migraph::shape output_shape, migraph::argument arg, migraph::argument result)
 {
-    migraph::argument result{output_shape};
     size_t ndim = output_shape.lens().size();
     visit_all(result, arg)([&](auto output, auto input) {
         if(ndim == 4)
         {
             HIPTensorDescriptor<4> td_a, td_at;
             auto s = arg.get_shape();
-            for(int i = 0; i < output_shape.lens().size(); i++)
+            for(int i = 0; i < ndim; i++)
             {
                 td_a.strides[i]  = s.strides().at(i);
                 td_at.strides[i] = output_shape.strides().at(i);
             }
             dim3 nblocks(512);
             dim3 nthreads(512);
+            // std::cout << "nelements: " << s.elements() << std::endl;
+            // std::cout << "A ptr: " << input.data() << std::endl;
+            // std::cout << "At ptr: " << output.data() << std::endl;
             hipLaunchKernelGGL((contiguous_gpu<int, 4>),
                                nblocks,
                                nthreads,
@@ -74,7 +76,6 @@ migraph::argument hip_contiguous(migraph::argument arg, migraph::shape output_sh
             MIGRAPH_THROW("contiguous is only valid for 4D tensors");
         }
     });
-    return result;
 }
 } // namespace miopen
 } // namespace migraph

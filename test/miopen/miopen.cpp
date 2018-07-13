@@ -158,6 +158,47 @@ struct test_gemm
     }
 };
 
+struct test_contiguous
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {4, 4, 4, 3}, {48, 4, 1, 16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraph::contiguous{}, x);
+        return p;
+    }
+
+    migraph::program::parameter_map create_params() const
+    {
+        migraph::program::parameter_map m;
+        m["x"] =
+            migraph::generate_argument({migraph::shape::float_type, {4, 4, 4, 3}, {48, 4, 1, 16}});
+        return m;
+    }
+};
+
+struct test_transpose
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {4, 3, 4, 4}};
+        auto x                    = p.add_parameter("x", s);
+        std::vector<int64_t> perm = {0, 2, 3, 1};
+        auto l                    = p.add_instruction(migraph::transpose{perm}, x);
+        p.add_instruction(migraph::contiguous{}, l);
+        return p;
+    }
+
+    migraph::program::parameter_map create_params() const
+    {
+        migraph::program::parameter_map m;
+        m["x"] = migraph::generate_argument({migraph::shape::float_type, {4, 3, 4, 4}});
+        return m;
+    }
+};
+
 int main()
 {
     verify_program<test_add>();
@@ -165,4 +206,6 @@ int main()
     verify_program<test_conv_relu>();
     verify_program<test_conv_pooling>();
     verify_program<test_gemm>();
+    verify_program<test_contiguous>();
+    verify_program<test_transpose>();
 }

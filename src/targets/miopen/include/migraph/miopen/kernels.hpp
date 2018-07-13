@@ -3,7 +3,7 @@
 namespace migraph {
 namespace miopen {
 
-migraph::argument hip_contiguous(migraph::argument arg, migraph::shape output_shape);
+void hip_contiguous(migraph::shape output_shape, migraph::argument arg, migraph::argument result);
 
 } // namespace miopen
 

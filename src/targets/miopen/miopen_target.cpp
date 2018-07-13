@@ -6,6 +6,7 @@
 #include <migraph/miopen/miopen.hpp>
 #include <migraph/miopen/hip.hpp>
 #include <migraph/dfor.hpp>
+#include <migraph/miopen/kernels.hpp>
 
 namespace migraph {
 namespace miopen {
@@ -200,13 +201,15 @@ struct miopen_contiguous
     }
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
-        argument result{output_shape};
-        visit_all(result, from_gpu(args[0]))([&](auto output, auto input) {
-            shape_for_each(output.get_shape(), [&](const auto& idx) {
-                output(idx.begin(), idx.end()) = input(idx.begin(), idx.end());
-            });
-        });
-        return to_gpu(result);
+        // argument result{output_shape};
+        // visit_all(result, from_gpu(args[0]))([&](auto output, auto input) {
+        //     shape_for_each(output.get_shape(), [&](const auto& idx) {
+        //         output(idx.begin(), idx.end()) = input(idx.begin(), idx.end());
+        //     });
+        // });
+        // return to_gpu(result);
+        hip_contiguous(output_shape, args.at(0), args.at(1));
+        return args.at(1);
     }
 };
 

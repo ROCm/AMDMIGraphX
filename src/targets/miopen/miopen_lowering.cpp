@@ -8,7 +8,6 @@
 #include <migraph/dfor.hpp>
 #include <migraph/iterator_for.hpp>
 
-
 namespace migraph {
 namespace miopen {
 
@@ -301,10 +300,7 @@ struct miopen_apply
     }
 };
 
-void miopen_lowering::apply(program& p) const
-{
-    miopen_apply{&p}.apply();
-}
+void miopen_lowering::apply(program& p) const { miopen_apply{&p}.apply(); }
 
 } // namespace miopen
 

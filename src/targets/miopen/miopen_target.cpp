@@ -1,3 +1,4 @@
+#include <rocblas.h>
 #include <migraph/miopen/miopen_target.hpp>
 #include <migraph/manage_ptr.hpp>
 #include <migraph/instruction.hpp>
@@ -160,30 +161,30 @@ struct miopen_gemm
     }
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
-        // visit_all(result, from_gpu(args[0]), from_gpu(args[1]))(
-        //     [&](auto output, auto input1, auto input2) {
-        //         dfor(input1.get_shape().lens()[0],
-        //              input2.get_shape().lens()[1],
-        //              input2.get_shape().lens()[0])(
-        //             [&](auto i, auto j, auto k) { output(i, j) += input1(i, k) * input2(k, j); });
-        //     });
-        visit_all(args[2], args[0], args[1])(
-            [&](auto output, auto input1, auto input2) {
-                float alpha = 1.0;
-                float beta = 0.0;
-                rocblas_int lda = input1.get_shape().lens()[1];
-                rocblas_int ldb = input2.get_shape().lens()[1];
-                rocblas_int ldc = output.get_shape().lens()[1];
-                rocblas_int m = ouptut.get_shape().lens()[0];
-                rocblas_int n = ouptut.get_shape().lens()[1];
-                rocblas_int k = args[0].get_shape().lens()[1];
-                rocblas_sgemm(rochandle, rocblas_operation_none, rocblas_operation_none, n, m, k,
-                                     &alpha,
-                                     input2.data(), ldb,
-                                     input1.data(), lda,
-                                     &beta,
-                                     output.data(), ldc);
-            });
+        rocblas_handle rochandle;
+        rocblas_create_handle(&rochandle);
+        float alpha     = 1.0f;
+        float beta      = 0.0f;
+        rocblas_int lda = args[0].get_shape().lens()[1];
+        rocblas_int ldb = args[1].get_shape().lens()[1];
+        rocblas_int ldc = args[2].get_shape().lens()[1];
+        rocblas_int m   = output_shape.lens()[0];
+        rocblas_int n   = output_shape.lens()[1];
+        rocblas_int k   = args[0].get_shape().lens()[1];
+        rocblas_sgemm(rochandle,
+                      rocblas_operation_none,
+                      rocblas_operation_none,
+                      n,
+                      m,
+                      k,
+                      &alpha,
+                      args[1].implicit(),
+                      ldb,
+                      args[0].implicit(),
+                      lda,
+                      &beta,
+                      args[2].implicit(),
+                      ldc);
         return args[2];
     }
 };

@@ -16,6 +16,53 @@ T zero(const T&)
     return T(0);
 }
 
+//
+// cpu implemenataion of batch norm for inference
+//
+// inputs are:
+// mini-batch mean, mini-batch variance,
+// input data, output data,
+// total number of elements in input,
+// epsilon for denominator to normalize,
+// gamma and beta
+//
+// the input data format should be nchw
+//
+struct cpu_batch_norm_inference
+{
+    std::string name() const { return "cpu::batch_norm_inference"; }
+
+    argument compute(context&, std::vector<argument> args) const
+    {
+        // args[0] is output (y),
+        // args[1] is input  (x),
+        // args[2] is number of input elements (m),
+        // args[3] is mini-batch mean (u),
+        // args[4] is mini-batch variance (s),
+        // args[5] is epsilon (e)
+        // args[6] is gamma (g)
+        // args[7] is beta (b)
+
+        auto output = args[0];
+        auto input = args[1];
+        auto num_input_elements = args[2];
+        auto mini_batch_mean = args[3];
+        auto mini_batch_variance = args[4];
+        auto epsilon = args[5];
+        auto gamma = args[6];
+        auto beta = args[7];
+
+        for(size_t i = 0; i < num_input_elements; i++) {
+            output[i] = gamma * \
+                ((input[i] - mini_batch_mean) / (std::sqrt(mini_batch_variance + epsilon))) + \
+                beta;
+        }
+
+        return output;
+
+    }
+};
+
 struct cpu_convolution
 {
     convolution op;

@@ -2,7 +2,7 @@
 #define MIGRAPH_GUARD_MIGRAPHLIB_MIOPEN_HPP
 
 #include <migraph/manage_ptr.hpp>
-
+#include <migraph/operators.hpp>
 #include <miopen/miopen.h>
 
 namespace migraph {

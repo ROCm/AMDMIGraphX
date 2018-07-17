@@ -6,6 +6,17 @@
 #include "test.hpp"
 #include "verify.hpp"
 
+void batch_norm_inference_test()
+{
+    migraph::program p;
+    migraph::shape s{migraph::shape::float_type, {4}};
+    auto x = p.add_literal(migraph::literal{s, {1, 2, 3, 4}};
+    auto y = p.add_literal(migraph::literal{s, {0, 0, 0, 0}};
+    p.add_instruction(migraph::cpu_batch_norm_inference, y, x, 4, 0, 0.5, 0.5, 1, 0);
+    p.compile(migraph::cpu::cpu_target{});
+    auto result = p.eval({});
+}
+
 void exp_test()
 {
     migraph::program p;
@@ -625,4 +636,5 @@ int main()
     conv2d_test();
     conv2d_padding_test();
     conv2d_padding_stride_test();
+    batch_norm_inference_test();
 }

@@ -11,5 +11,5 @@ add_library(migraph_miopen
     miopen_target.cpp
 )
 rocm_clang_tidy_check(migraph_miopen)
-target_link_libraries(migraph_miopen migraph MIOpen)
+target_link_libraries(migraph_miopen migraph MIOpen rocblas)
 target_include_directories(migraph_miopen PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)

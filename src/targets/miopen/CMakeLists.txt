@@ -9,6 +9,8 @@ endif()
 add_library(migraph_miopen
     hip.cpp
     miopen_target.cpp
+    miopen_lowering.cpp
+    miopen_write_literals.cpp
 )
 rocm_clang_tidy_check(migraph_miopen)
 target_link_libraries(migraph_miopen migraph MIOpen rocblas)

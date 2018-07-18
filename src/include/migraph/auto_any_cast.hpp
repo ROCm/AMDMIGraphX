@@ -5,10 +5,12 @@ namespace migraph {
 
 namespace detail {
 
-template<class U>
-void any_cast() {}
+template <class U>
+void any_cast()
+{
+}
 
-template<class T>
+template <class T>
 struct auto_any_caster
 {
     T& x;
@@ -19,15 +21,12 @@ struct auto_any_caster
         return any_cast<U>(x);
     }
 
-    operator T&()
-    {
-        return x;
-    }
+    operator T&() { return x; }
 };
 
-}
+} // namespace detail
 
-template<class T>
+template <class T>
 detail::auto_any_caster<T> auto_any_cast(T& x)
 {
     return {x};

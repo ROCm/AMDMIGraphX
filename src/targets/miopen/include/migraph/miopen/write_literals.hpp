@@ -7,7 +7,7 @@ namespace migraph {
 
 namespace miopen {
 
-struct miopen_write_literals
+struct write_literals
 {
     std::string name() const { return "miopen::write_literals"; }
 

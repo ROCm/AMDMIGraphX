@@ -1,4 +1,4 @@
-#include <migraph/miopen/miopen_write_literals.hpp>
+#include <migraph/miopen/write_literals.hpp>
 #include <migraph/iterator_for.hpp>
 #include <migraph/miopen/hip.hpp>
 #include <migraph/instruction.hpp>
@@ -7,7 +7,7 @@ namespace migraph {
 
 namespace miopen {
 
-void miopen_write_literals::apply(program& p) const
+void write_literals::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
     {

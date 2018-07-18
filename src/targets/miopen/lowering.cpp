@@ -1,5 +1,5 @@
 #include <rocblas.h>
-#include <migraph/miopen/miopen_lowering.hpp>
+#include <migraph/miopen/lowering.hpp>
 #include <migraph/manage_ptr.hpp>
 #include <migraph/instruction.hpp>
 #include <migraph/operators.hpp>
@@ -312,7 +312,7 @@ struct miopen_apply
     }
 };
 
-void miopen_lowering::apply(program& p) const { miopen_apply{&p}.apply(); }
+void lowering::apply(program& p) const { miopen_apply{&p}.apply(); }
 
 } // namespace miopen
 

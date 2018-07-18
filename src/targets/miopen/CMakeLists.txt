@@ -14,7 +14,7 @@ add_library(migraph_miopen
     hip.cpp
     target.cpp
     lowering.cpp
-    miopen_write_literals.cpp
+    write_literals.cpp
     rocblas.cpp
 )
 rocm_clang_tidy_check(migraph_miopen)

@@ -16,6 +16,52 @@ T zero(const T&)
     return T(0);
 }
 
+//
+// cpu implemenataion of batch norm for inference
+//
+// inputs are:
+// args[0] -> input data buffer
+// args[1] -> mini batch mean
+// args[2] -> mini batch variance
+// args[3] -> gamma
+// args[4] -> beta
+//
+// The equation to compute batch norm for inference is:
+//
+// output[i] = beta + gamma * (input[i] + mean) / sqrt(variance + epsilon)
+//
+// the input data format should be nchw
+//
+struct cpu_batch_norm_inference
+{
+    batch_norm_inference op;
+
+    std::string name() const { return "cpu::batch_norm_inference"; }
+
+    shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
+
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        argument output{output_shape};
+
+        double epsilon           = op.epsilon;
+        auto input               = args[0];
+        auto mini_batch_mean     = args[1].at<float>();
+        auto mini_batch_variance = args[2].at<float>();
+        auto gamma               = args[3].at<float>();
+        auto beta                = args[4].at<float>();
+
+        visit_all(output, input)([&](auto result, auto buffer) {
+            std::transform(buffer.begin(), buffer.end(), result.begin(), [&](auto x) {
+                return gamma * (x - mini_batch_mean) / std::sqrt(mini_batch_variance + epsilon) +
+                       beta;
+            });
+        });
+
+        return output;
+    }
+};
+
 struct cpu_convolution
 {
     convolution op;
@@ -470,9 +516,11 @@ struct cpu_apply
     {
         apply_map["convolution"] = extend_op<cpu_convolution, convolution>();
         apply_map["gemm"]        = extend_op<cpu_gemm, gemm>();
-        apply_map["reshape"]     = extend_op<cpu_reshape, reshape>();
-        apply_map["contiguous"]  = extend_op<cpu_contiguous, contiguous>();
-        apply_map["transpose"]   = extend_op<cpu_transpose, transpose>();
+        apply_map["batch_norm_inference"] =
+            extend_op<cpu_batch_norm_inference, batch_norm_inference>();
+        apply_map["reshape"]    = extend_op<cpu_reshape, reshape>();
+        apply_map["contiguous"] = extend_op<cpu_contiguous, contiguous>();
+        apply_map["transpose"]  = extend_op<cpu_transpose, transpose>();
 
         apply_map["identity"] = simple_op<cpu_unary<identity_op>>();
         apply_map["tanh"]     = simple_op<cpu_unary<tanh_op>>();

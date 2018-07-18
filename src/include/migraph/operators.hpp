@@ -103,6 +103,24 @@ struct not_computable
     }
 };
 
+struct batch_norm_inference
+{
+    double epsilon = 1.0e-6;
+
+    std::string name() const { return "batch_norm_inference"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(5);
+        return inputs.front();
+    }
+
+    argument compute(context&, shape, std::vector<argument>) const
+    {
+        MIGRAPH_THROW("not computable");
+    }
+};
+
 struct convolution
 {
     std::array<std::size_t, 2> padding  = {{0, 0}};

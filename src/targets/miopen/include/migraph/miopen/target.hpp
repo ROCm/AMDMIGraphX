@@ -6,7 +6,7 @@
 namespace migraph {
 namespace miopen {
 
-struct miopen_target
+struct target
 {
     std::string name() const;
     std::vector<pass> get_passes(context& ctx) const;

@@ -25,7 +25,7 @@ struct miopen_convolution
         check_shapes{inputs, *this}.has(3);
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
-    argument compute(miopen_context& ctx, shape output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
     {
         auto x_desc = make_tensor(args[0].get_shape());
         auto w_desc = make_tensor(args[1].get_shape());
@@ -76,7 +76,7 @@ struct miopen_pooling
         check_shapes{inputs, *this}.has(2);
         return op.compute_shape({inputs.at(1)});
     }
-    argument compute(miopen_context& ctx, shape output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
     {
         auto x_desc = make_tensor(args[0].get_shape());
         auto y_desc = make_tensor(output_shape);
@@ -108,7 +108,7 @@ struct miopen_add
         return inputs.at(0);
     }
 
-    argument compute(miopen_context& ctx, shape output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
     {
         if(args[1].get_shape().broadcasted())
         {
@@ -154,7 +154,7 @@ struct miopen_gemm
         check_shapes{inputs, *this}.has(3);
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
-    argument compute(miopen_context& ctx, shape output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
     {
         float alpha     = 1.0f;
         float beta      = 0.0f;
@@ -192,7 +192,7 @@ struct miopen_relu
         return inputs.at(1);
     }
 
-    argument compute(miopen_context& ctx, shape output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
     {
         float alpha = 1, beta = 0;
         auto x_desc = make_tensor(args[0].get_shape());
@@ -216,7 +216,7 @@ struct miopen_apply
 
     void apply()
     {
-        prog->insert_instruction(prog->begin(), check_context<miopen_context>{});
+        prog->insert_instruction(prog->begin(), check_context<context>{});
         for(auto it = prog->begin(); it != prog->end(); it++)
         {
             if(it->op.name() == "convolution")

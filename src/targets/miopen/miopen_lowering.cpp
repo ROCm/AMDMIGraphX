@@ -1,3 +1,4 @@
+#include <rocblas.h>
 #include <migraph/miopen/miopen_lowering.hpp>
 #include <migraph/manage_ptr.hpp>
 #include <migraph/instruction.hpp>
@@ -7,15 +8,11 @@
 #include <migraph/miopen/hip.hpp>
 #include <migraph/dfor.hpp>
 #include <migraph/iterator_for.hpp>
-#include <rocblas.h>
+#include <migraph/miopen/rocblas.hpp>
+#include <migraph/miopen/context.hpp>
 
 namespace migraph {
 namespace miopen {
-
-struct miopen_context
-{
-    shared<miopen_handle> handle;
-};
 
 struct miopen_convolution
 {
@@ -28,7 +25,7 @@ struct miopen_convolution
         check_shapes{inputs, *this}.has(3);
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
-    argument compute(context& gctx, shape output_shape, std::vector<argument> args) const
+    argument compute(migraph::context& gctx, shape output_shape, std::vector<argument> args) const
     {
         auto& ctx   = any_cast<miopen_context>(gctx);
         auto x_desc = make_tensor(args[0].get_shape());
@@ -80,7 +77,7 @@ struct miopen_pooling
         check_shapes{inputs, *this}.has(2);
         return op.compute_shape({inputs.at(1)});
     }
-    argument compute(context& gctx, shape output_shape, std::vector<argument> args) const
+    argument compute(migraph::context& gctx, shape output_shape, std::vector<argument> args) const
     {
         auto& ctx   = any_cast<miopen_context>(gctx);
         auto x_desc = make_tensor(args[0].get_shape());
@@ -113,7 +110,7 @@ struct miopen_add
         return inputs.at(0);
     }
 
-    argument compute(context& gctx, shape output_shape, std::vector<argument> args) const
+    argument compute(migraph::context& gctx, shape output_shape, std::vector<argument> args) const
     {
         if(args[1].get_shape().broadcasted())
         {
@@ -160,10 +157,10 @@ struct miopen_gemm
         check_shapes{inputs, *this}.has(3);
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(migraph::context& gctx, shape output_shape, std::vector<argument> args) const
     {
-        rocblas_handle rochandle;
-        rocblas_create_handle(&rochandle);
+        // rocblas_handle_ptr handle_ptr = create_rocblas_handle_ptr(); 
+        auto& ctx   = any_cast<miopen_context>(gctx);
         float alpha     = 1.0f;
         float beta      = 0.0f;
         rocblas_int lda = args[0].get_shape().lens()[1];
@@ -172,7 +169,7 @@ struct miopen_gemm
         rocblas_int m   = output_shape.lens()[0];
         rocblas_int n   = output_shape.lens()[1];
         rocblas_int k   = args[0].get_shape().lens()[1];
-        rocblas_sgemm(rochandle,
+        rocblas_sgemm(ctx.rbhandle.get(),
                       rocblas_operation_none,
                       rocblas_operation_none,
                       n,
@@ -200,7 +197,7 @@ struct miopen_relu
         return inputs.at(1);
     }
 
-    argument compute(context& gctx, shape output_shape, std::vector<argument> args) const
+    argument compute(migraph::context& gctx, shape output_shape, std::vector<argument> args) const
     {
         auto& ctx   = any_cast<miopen_context>(gctx);
         float alpha = 1, beta = 0;

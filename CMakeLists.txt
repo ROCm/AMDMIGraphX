@@ -20,10 +20,6 @@ endif()
 
 add_compile_options(-std=c++14)
 
-# rocblas
-find_package(rocblas REQUIRED PATHS /opt/rocm)
-message(STATUS "Build with rocblas")
-
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)
 # Override clang-tidy to not find the version from hcc

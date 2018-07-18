@@ -12,3 +12,8 @@ add_subdirectory(targets/cpu)
 if(MIGRAPH_ENABLE_MIOPEN)
 add_subdirectory(targets/miopen)
 endif()
+
+install (TARGETS migraph
+   LIBRARY DESTINATION /opt/rocm/lib)
+
+install (DIRECTORY include/migraph DESTINATION /opt/rocm/include)

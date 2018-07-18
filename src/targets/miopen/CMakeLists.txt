@@ -13,3 +13,7 @@ add_library(migraph_miopen
 rocm_clang_tidy_check(migraph_miopen)
 target_link_libraries(migraph_miopen migraph MIOpen)
 target_include_directories(migraph_miopen PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+
+install (TARGETS migraph_miopen
+  LIBRARY DESTINATION /opt/rocm/lib)
+install (DIRECTORY include/migraph DESTINATION /opt/rocm/include)

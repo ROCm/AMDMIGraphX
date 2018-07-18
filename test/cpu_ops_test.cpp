@@ -10,17 +10,18 @@ void batch_norm_inference_test()
 {
     migraph::program p;
     migraph::shape s{migraph::shape::float_type, {4}};
-    auto x = p.add_literal(migraph::literal{s, {1, 2, 3, 4}});
-    auto gamma = p.add_literal(migraph::literal{s, {1}});
-    auto beta = p.add_literal(migraph::literal{s, {0}});
-    auto mean = p.add_literal(migraph::literal{s, {0}});
+    auto x        = p.add_literal(migraph::literal{s, {1, 2, 3, 4}});
+    auto gamma    = p.add_literal(migraph::literal{s, {1}});
+    auto beta     = p.add_literal(migraph::literal{s, {0}});
+    auto mean     = p.add_literal(migraph::literal{s, {0}});
     auto variance = p.add_literal(migraph::literal{s, {1}});
     p.add_instruction(migraph::batch_norm_inference{}, x, mean, variance, gamma, beta);
     p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
     std::vector<float> result_vector(4);
-    result.visit([&](auto output) {result_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = { 1 / (1 + 1.0e-6), 2 / (1 + 1.0e-6), 3 / (1 + 1.0e-6), 4 / (1 + 1.0e-6)};
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {
+        1 / (1 + 1.0e-6), 2 / (1 + 1.0e-6), 3 / (1 + 1.0e-6), 4 / (1 + 1.0e-6)};
     EXPECT(test::verify_range(result_vector, gold));
 }
 

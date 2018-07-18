@@ -15,7 +15,8 @@ std::string miopen_target::name() const { return "miopen"; }
 
 context miopen_target::get_context() const
 {
-    return miopen_context{share(make_obj<miopen_handle>(&miopenCreate)), share(create_rocblas_handle_ptr())};
+    return miopen_context{share(make_obj<miopen_handle>(&miopenCreate)),
+                          share(create_rocblas_handle_ptr())};
 }
 
 } // namespace miopen

@@ -159,8 +159,7 @@ struct miopen_gemm
     }
     argument compute(migraph::context& gctx, shape output_shape, std::vector<argument> args) const
     {
-        // rocblas_handle_ptr handle_ptr = create_rocblas_handle_ptr(); 
-        auto& ctx   = any_cast<miopen_context>(gctx);
+        auto& ctx       = any_cast<miopen_context>(gctx);
         float alpha     = 1.0f;
         float beta      = 0.0f;
         rocblas_int lda = args[0].get_shape().lens()[1];

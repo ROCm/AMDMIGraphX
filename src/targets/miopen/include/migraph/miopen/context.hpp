@@ -7,7 +7,7 @@
 namespace migraph {
 namespace miopen {
 
-struct miopen_context
+struct context
 {
     shared<miopen_handle> handle;
     shared<rocblas_handle_ptr> rbhandle;

@@ -6,13 +6,13 @@
 namespace migraph {
 namespace miopen {
 
-std::vector<pass> target::get_passes(context&) const { return {lowering{}, write_literals{}}; }
+std::vector<pass> target::get_passes(migraph::context&) const { return {lowering{}, write_literals{}}; }
 
 std::string target::name() const { return "miopen"; }
 
-context target::get_context() const
+migraph::context target::get_context() const
 {
-    return miopen_context{share(make_obj<miopen_handle>(&miopenCreate)),
+    return context{share(make_obj<miopen_handle>(&miopenCreate)),
                           share(create_rocblas_handle_ptr())};
 }
 

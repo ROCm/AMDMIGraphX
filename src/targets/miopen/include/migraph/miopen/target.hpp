@@ -9,8 +9,8 @@ namespace miopen {
 struct target
 {
     std::string name() const;
-    std::vector<pass> get_passes(context& ctx) const;
-    context get_context() const;
+    std::vector<pass> get_passes(migraph::context& ctx) const;
+    migraph::context get_context() const;
 };
 
 } // namespace miopen

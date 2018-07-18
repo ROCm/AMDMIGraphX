@@ -1,5 +1,5 @@
 #include <migraph/miopen/miopen_target.hpp>
-#include <migraph/miopen/miopen_lowering.hpp>
+#include <migraph/miopen/lowering.hpp>
 #include <migraph/miopen/miopen_write_literals.hpp>
 #include <migraph/miopen/context.hpp>
 
@@ -8,7 +8,7 @@ namespace miopen {
 
 std::vector<pass> miopen_target::get_passes(context&) const
 {
-    return {miopen_lowering{}, miopen_write_literals{}};
+    return {lowering{}, miopen_write_literals{}};
 }
 
 std::string miopen_target::name() const { return "miopen"; }

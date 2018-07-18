@@ -6,7 +6,7 @@
 namespace migraph {
 namespace miopen {
 
-struct miopen_lowering
+struct lowering
 {
     std::string name() const { return "miopen::lowering"; }
     void apply(program& p) const;

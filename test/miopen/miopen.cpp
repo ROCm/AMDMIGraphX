@@ -3,7 +3,7 @@
 #include <migraph/operators.hpp>
 #include <migraph/generate.hpp>
 #include <migraph/cpu/cpu_target.hpp>
-#include <migraph/miopen/miopen_target.hpp>
+#include <migraph/miopen/target.hpp>
 #include <migraph/miopen/miopen.hpp>
 #include <migraph/miopen/hip.hpp>
 #include <migraph/manage_ptr.hpp>
@@ -27,7 +27,7 @@ migraph::argument run_gpu()
 {
     V v;
     auto p = v.create_program();
-    p.compile(migraph::miopen::miopen_target{});
+    p.compile(migraph::miopen::target{});
 
     auto m = v.create_params();
     for(auto&& e : m)

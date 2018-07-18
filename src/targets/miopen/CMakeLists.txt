@@ -12,7 +12,7 @@ endif()
 
 add_library(migraph_miopen
     hip.cpp
-    miopen_target.cpp
+    target.cpp
     lowering.cpp
     miopen_write_literals.cpp
     rocblas.cpp

@@ -45,6 +45,11 @@ struct shape
     MIGRAPH_SHAPE_VISIT_TYPES(MIGRAPH_SHAPE_GET_TYPE)
 #undef MIGRAPH_SHAPE_GET_TYPE
 
+    template <class T>
+    struct get_type<const T> : get_type<T>
+    {
+    };
+
     shape();
     shape(type_t t);
     shape(type_t t, std::vector<std::size_t> l);

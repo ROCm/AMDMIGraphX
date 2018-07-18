@@ -6,10 +6,7 @@
 namespace migraph {
 namespace miopen {
 
-std::vector<pass> target::get_passes(context&) const
-{
-    return {lowering{}, write_literals{}};
-}
+std::vector<pass> target::get_passes(context&) const { return {lowering{}, write_literals{}}; }
 
 std::string target::name() const { return "miopen"; }
 

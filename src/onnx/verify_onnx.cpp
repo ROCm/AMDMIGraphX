@@ -2,7 +2,7 @@
 #include <migraph/onnx.hpp>
 
 #include <migraph/cpu/cpu_target.hpp>
-#include <migraph/miopen/miopen_target.hpp>
+#include <migraph/miopen/target.hpp>
 #include <migraph/miopen/hip.hpp>
 #include <migraph/generate.hpp>
 #include <miopen/miopen.h>

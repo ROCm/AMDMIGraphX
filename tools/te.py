@@ -213,16 +213,21 @@ def internal_name(name):
     else:
         return name
 
-def generate_call(m, friend):
+def generate_call(m, friend, indirect):
     if m['name'].startswith('operator'):
         op = m['name'][8:]
         args = m['args']
         if ',' in args:
             return args.replace(',', op)
         else:
-            return string.Template('${op}${arga}').substitute(op=op, args=args)
+            return string.Template('${op}${args}').substitute(op=op, args=args)
     if friend:
         return string.Template('${name}(${args})').substitute(m)
+    if indirect:
+        if m['args']:
+            return string.Template('${default}(private_detail_te_value, ${args})').substitute(m)
+        else:
+            return string.Template('${default}(private_detail_te_value)').substitute(m)
     return string.Template('private_detail_te_value.${name}(${args})').substitute(m)
 
 def convert_member(d, struct_name):
@@ -242,9 +247,12 @@ def convert_member(d, struct_name):
         member_params = []
         skip = False
         friend = False
+        indirect = False
         if 'friend' in d[name]:
             friend = True
             skip = True
+        if 'default' in d[name]:
+            indirect = True
         for x in d[name]:
             t = d[name][x]
             if x == 'return':
@@ -254,8 +262,12 @@ def convert_member(d, struct_name):
                 member['member_const'] = 'const'
             elif x == 'friend':
                 member['friend'] = 'friend'
+            elif x == 'default':
+                member['default'] = t
             elif x == 'using':
                 member['using'] = 'using {};'.format(d[name]['using'])
+            elif x.startswith('__') and x.endswith('__'):
+                continue
             else:
                 use_member = not(skip and struct_name == trim_type_name(t))
                 arg_name = x
@@ -278,7 +290,7 @@ def convert_member(d, struct_name):
         member['params'] = ','.join(params)
         member['params'] = ','.join(params)
         member['member_params'] = ','.join(member_params)
-        member['call'] = generate_call(member, friend)
+        member['call'] = generate_call(member, friend, indirect)
         return member
     return None
 

@@ -1,4 +1,5 @@
-#include <migraph/miopen/miopen_target.hpp>
+#include <rocblas.h>
+#include <migraph/miopen/lowering.hpp>
 #include <migraph/manage_ptr.hpp>
 #include <migraph/instruction.hpp>
 #include <migraph/operators.hpp>
@@ -7,14 +8,12 @@
 #include <migraph/miopen/hip.hpp>
 #include <migraph/dfor.hpp>
 #include <migraph/miopen/kernels.hpp>
+#include <migraph/iterator_for.hpp>
+#include <migraph/miopen/rocblas.hpp>
+#include <migraph/miopen/context.hpp>
 
 namespace migraph {
 namespace miopen {
-
-struct miopen_context
-{
-    shared<miopen_handle> handle;
-};
 
 struct miopen_convolution
 {
@@ -27,9 +26,8 @@ struct miopen_convolution
         check_shapes{inputs, *this}.has(3);
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
-    argument compute(context& gctx, shape output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
     {
-        auto& ctx   = any_cast<miopen_context>(gctx);
         auto x_desc = make_tensor(args[0].get_shape());
         auto w_desc = make_tensor(args[1].get_shape());
         auto y_desc = make_tensor(output_shape);
@@ -79,9 +77,8 @@ struct miopen_pooling
         check_shapes{inputs, *this}.has(2);
         return op.compute_shape({inputs.at(1)});
     }
-    argument compute(context& gctx, shape output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
     {
-        auto& ctx   = any_cast<miopen_context>(gctx);
         auto x_desc = make_tensor(args[0].get_shape());
         auto y_desc = make_tensor(output_shape);
 
@@ -112,7 +109,7 @@ struct miopen_add
         return inputs.at(0);
     }
 
-    argument compute(context& gctx, shape output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
     {
         if(args[1].get_shape().broadcasted())
         {
@@ -129,7 +126,6 @@ struct miopen_add
         }
         else
         {
-            auto& ctx   = any_cast<miopen_context>(gctx);
             float alpha = 1, beta = 0;
             auto a_desc = make_tensor(args[0].get_shape());
             auto b_desc = make_tensor(args[1].get_shape());
@@ -159,18 +155,31 @@ struct miopen_gemm
         check_shapes{inputs, *this}.has(3);
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
     {
-        argument result{output_shape};
-
-        visit_all(result, from_gpu(args[0]), from_gpu(args[1]))(
-            [&](auto output, auto input1, auto input2) {
-                dfor(input1.get_shape().lens()[0],
-                     input2.get_shape().lens()[1],
-                     input2.get_shape().lens()[0])(
-                    [&](auto i, auto j, auto k) { output(i, j) += input1(i, k) * input2(k, j); });
-            });
-        return to_gpu(result);
+        float alpha     = 1.0f;
+        float beta      = 0.0f;
+        rocblas_int lda = args[0].get_shape().lens()[1];
+        rocblas_int ldb = args[1].get_shape().lens()[1];
+        rocblas_int ldc = args[2].get_shape().lens()[1];
+        rocblas_int m   = output_shape.lens()[0];
+        rocblas_int n   = output_shape.lens()[1];
+        rocblas_int k   = args[0].get_shape().lens()[1];
+        rocblas_sgemm(ctx.rbhandle.get(),
+                      rocblas_operation_none,
+                      rocblas_operation_none,
+                      n,
+                      m,
+                      k,
+                      &alpha,
+                      args[1].implicit(),
+                      ldb,
+                      args[0].implicit(),
+                      lda,
+                      &beta,
+                      args[2].implicit(),
+                      ldc);
+        return args[2];
     }
 };
 
@@ -216,9 +225,8 @@ struct miopen_relu
         return inputs.at(1);
     }
 
-    argument compute(context& gctx, shape output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
     {
-        auto& ctx   = any_cast<miopen_context>(gctx);
         float alpha = 1, beta = 0;
         auto x_desc = make_tensor(args[0].get_shape());
         auto y_desc = make_tensor(output_shape);
@@ -241,7 +249,7 @@ struct miopen_apply
 
     void apply()
     {
-        prog->insert_instruction(prog->begin(), check_context<miopen_context>{});
+        prog->insert_instruction(prog->begin(), check_context<context>{});
         for(auto it = prog->begin(); it != prog->end(); it++)
         {
             if(it->op.name() == "convolution")
@@ -354,21 +362,7 @@ struct miopen_apply
     }
 };
 
-struct miopen_pass
-{
-    std::string name() const { return "miopen::pass"; }
-
-    void apply(program& p) const { miopen_apply{&p}.apply(); }
-};
-
-std::vector<pass> miopen_target::get_passes(context&) const { return {miopen_pass{}}; }
-
-std::string miopen_target::name() const { return "miopen"; }
-
-context miopen_target::get_context() const
-{
-    return miopen_context{share(make_obj<miopen_handle>(&miopenCreate))};
-}
+void lowering::apply(program& p) const { miopen_apply{&p}.apply(); }
 
 } // namespace miopen
 

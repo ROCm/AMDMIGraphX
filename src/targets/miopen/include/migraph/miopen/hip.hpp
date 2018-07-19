@@ -26,6 +26,20 @@ struct hip_allocate
     }
 };
 
+struct hip_write
+{
+    std::string name() const { return "hip::write"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(1);
+        return inputs.front();
+    }
+    argument compute(context&, shape, std::vector<argument> args) const
+    {
+        return to_gpu(args.front());
+    }
+};
+
 } // namespace miopen
 
 } // namespace migraph

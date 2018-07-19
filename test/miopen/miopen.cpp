@@ -3,7 +3,7 @@
 #include <migraph/operators.hpp>
 #include <migraph/generate.hpp>
 #include <migraph/cpu/cpu_target.hpp>
-#include <migraph/miopen/miopen_target.hpp>
+#include <migraph/miopen/target.hpp>
 #include <migraph/miopen/miopen.hpp>
 #include <migraph/miopen/hip.hpp>
 #include <migraph/manage_ptr.hpp>
@@ -27,7 +27,7 @@ migraph::argument run_gpu()
 {
     V v;
     auto p = v.create_program();
-    p.compile(migraph::miopen::miopen_target{});
+    p.compile(migraph::miopen::target{});
 
     auto m = v.create_params();
     for(auto&& e : m)
@@ -48,6 +48,23 @@ void verify_program()
     auto gpu_arg = run_gpu<V>();
     visit_all(cpu_arg, gpu_arg)([](auto cpu, auto gpu) { EXPECT(test::verify_range(cpu, gpu)); });
 }
+
+struct test_literals
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto input = p.add_literal(
+            generate_literal(migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}}));
+        auto weights = p.add_literal(
+            generate_literal(migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}}));
+        auto conv = p.add_instruction(migraph::convolution{}, input, weights);
+        p.add_instruction(migraph::activation{"relu"}, conv);
+        return p;
+    }
+
+    migraph::program::parameter_map create_params() const { return {}; }
+};
 
 struct test_add
 {

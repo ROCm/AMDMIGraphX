@@ -28,13 +28,13 @@ add_doxygen_doc(
     FULL_PATH_NAMES YES
 )
 
-# include(SphinxDoc)
-# add_sphinx_doc(src 
-#     BUILDER html 
-#     OUTPUT_DIR html 
-#     VARS 
-#         breathe_projects.proj=${DOXYGEN_OUTPUT}/xml
-#         breathe_default_project=proj
-#     DEPENDS doxygen
-# )
+include(SphinxDoc)
+add_sphinx_doc(src 
+    BUILDER html 
+    OUTPUT_DIR html 
+    VARS 
+        breathe_projects.proj=${DOXYGEN_OUTPUT}/xml
+        breathe_default_project=proj
+    DEPENDS doxygen
+)
 

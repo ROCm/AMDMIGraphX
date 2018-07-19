@@ -152,5 +152,6 @@ texinfo_documents = [
      'Miscellaneous'),
 ]
 
-
+breathe_default_members = ('members', 'undoc-members')
+cpp_index_common_prefix = ['migraph::']
 

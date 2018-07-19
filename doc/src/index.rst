@@ -10,6 +10,8 @@ Welcome to MIGraph's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   reference/data
+   reference/operators
 
 
 Indices and tables

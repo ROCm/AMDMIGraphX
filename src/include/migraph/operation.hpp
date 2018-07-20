@@ -9,6 +9,7 @@
 #include <migraph/shape.hpp>
 #include <migraph/argument.hpp>
 #include <migraph/context.hpp>
+#include <migraph/auto_any_cast.hpp>
 
 namespace migraph {
 
@@ -21,6 +22,12 @@ auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
 }
 
 } // namespace operation_stream
+
+template <class T>
+argument compute_op(const T& x, context& ctx, shape output_shape, std::vector<argument> input)
+{
+    return x.compute(auto_any_cast(ctx), output_shape, input);
+}
 
 /*
  * Type-erased interface for:
@@ -169,7 +176,7 @@ struct operation
         argument compute(context& ctx, shape output, std::vector<argument> input) const override
         {
 
-            return private_detail_te_value.compute(ctx, std::move(output), std::move(input));
+            return compute_op(private_detail_te_value, ctx, std::move(output), std::move(input));
         }
 
         std::ostream& operator_shift_left(std::ostream& os) const override

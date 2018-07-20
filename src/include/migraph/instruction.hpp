@@ -5,6 +5,7 @@
 #include <migraph/shape.hpp>
 #include <migraph/builtin.hpp>
 #include <migraph/instruction_ref.hpp>
+#include <migraph/operation.hpp>
 #include <migraph/erase.hpp>
 #include <string>
 

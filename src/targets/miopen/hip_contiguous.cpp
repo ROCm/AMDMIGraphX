@@ -45,31 +45,46 @@ void visit_tensor_size(std::size_t n, F f)
 }
 
 template <size_t NDim>
+struct hip_index
+{
+    size_t d[NDim];
+    size_t& operator[](size_t i) { return d[i]; }
+    size_t operator[](size_t i) const { return d[i]; }
+};
+
+template <size_t NDim>
 struct hip_tensor_descriptor
 {
     hip_tensor_descriptor() = default;
     template <typename T, typename V>
-    hip_tensor_descriptor(const T& lens_, const V& strides_)
+    hip_tensor_descriptor(const T& lens_ext, const V& strides_ext)
     {
         for(size_t i = 0; i < NDim; i++)
-            lens[i] = lens_[i];
+            lens[i] = lens_ext[i];
         for(size_t i = 0; i < NDim; i++)
-            strides[i] = strides_[i];
+            strides[i] = strides_ext[i];
     }
-    size_t lens[NDim];
-    size_t strides[NDim];
+    hip_index<NDim> multi(size_t idx)
+    {
+        hip_index<NDim> result{};
+        size_t tidx = idx;
+        for(size_t is = 0; is < NDim; is++)
+        {
+            result[is] = tidx / strides[is];
+            tidx       = tidx % strides[is];
+        }
+        return result;
+    }
+    size_t linear(hip_index<NDim> s)
+    {
+        size_t idx = 0;
+        for(size_t i = 0; i < NDim; i++)
+            idx += s[i] * strides[i];
+        return idx;
+    }
+    size_t lens[NDim]    = {};
+    size_t strides[NDim] = {};
 };
-
-template <size_t NDim>
-__host__ __device__ void multiindex(size_t (&strides)[NDim], size_t idx, size_t* result)
-{
-    size_t tidx = idx;
-    for(size_t is = 0; is < NDim; is++)
-    {
-        result[is] = tidx / strides[is];
-        tidx       = tidx % strides[is];
-    }
-}
 
 template <typename T, size_t NDim>
 __global__ void contiguous_gpu(const T* a,
@@ -81,12 +96,9 @@ __global__ void contiguous_gpu(const T* a,
     for(size_t i = blockIdx.x * blockDim.x + threadIdx.x; i < nelements;
         i += blockDim.x * gridDim.x)
     {
-        size_t s[NDim];
-        multiindex<NDim>(at_desc.strides, i, s);
-        size_t lidx = 0;
-        for(size_t j = 0; j < NDim; j++)
-            lidx += s[j] * a_desc.strides[j];
-        at[i] = a[lidx];
+        hip_index<NDim> s = at_desc.multi(i);
+        size_t lidx       = a_desc.linear(s);
+        at[i]             = a[lidx];
     }
 }
 

@@ -49,5 +49,5 @@ RUN cget -p $PREFIX install -f /dev-requirements.txt
 ENV LD_LIBRARY_PATH=$PREFIX/lib
 
 # Install doc requirements
-# ADD doc/requirements.txt /doc-requirements.txt
-# RUN pip install -r /doc-requirements.txt
+ADD doc/requirements.txt /doc-requirements.txt
+RUN pip install -r /doc-requirements.txt

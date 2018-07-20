@@ -15,7 +15,8 @@ namespace migraph {
 /// constructed by a target during compilation and passed to the operations
 /// during `eval`.
 struct context
-{};
+{
+};
 
 #else
 

@@ -19,7 +19,7 @@ struct pass
     /// A unique name used to identify the pass
     std::string name() const;
     /// Run the pass on the program
-    void apply(program & p) const;
+    void apply(program& p) const;
 };
 
 #else

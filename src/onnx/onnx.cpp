@@ -113,13 +113,49 @@ struct onnx_parser
             }
             return prog.add_instruction(add{}, args);
         });
-        add_op("Sub", [this](attribute_map, std::vector<instruction_ref> args) {
+        add_op("Sub", [this](attribute_map attributes, std::vector<instruction_ref> args) {
+            if(contains(attributes, "broadcast"))
+            {
+                uint64_t broadcasted = parse_value(attributes.at("broadcast")).at<uint64_t>();
+                if(broadcasted != 0)
+                {
+                    uint64_t axis = (contains(attributes, "axis"))
+                                        ? parse_value(attributes.at("axis")).at<uint64_t>()
+                                        : 0;
+                    auto l = prog.add_instruction(broadcast{axis}, args);
+                    return prog.add_instruction(sub{}, args[0], l);
+                }
+            }
             return prog.add_instruction(sub{}, args);
         });
-        add_op("Mul", [this](attribute_map, std::vector<instruction_ref> args) {
+        add_op("Mul", [this](attribute_map attributes, std::vector<instruction_ref> args) {
+            if(contains(attributes, "broadcast"))
+            {
+                uint64_t broadcasted = parse_value(attributes.at("broadcast")).at<uint64_t>();
+                if(broadcasted != 0)
+                {
+                    uint64_t axis = (contains(attributes, "axis"))
+                                        ? parse_value(attributes.at("axis")).at<uint64_t>()
+                                        : 0;
+                    auto l = prog.add_instruction(broadcast{axis}, args);
+                    return prog.add_instruction(mul{}, args[0], l);
+                }
+            }
             return prog.add_instruction(mul{}, args);
         });
-        add_op("Div", [this](attribute_map, std::vector<instruction_ref> args) {
+        add_op("Div", [this](attribute_map attributes, std::vector<instruction_ref> args) {
+            if(contains(attributes, "broadcast"))
+            {
+                uint64_t broadcasted = parse_value(attributes.at("broadcast")).at<uint64_t>();
+                if(broadcasted != 0)
+                {
+                    uint64_t axis = (contains(attributes, "axis"))
+                                        ? parse_value(attributes.at("axis")).at<uint64_t>()
+                                        : 0;
+                    auto l = prog.add_instruction(broadcast{axis}, args);
+                    return prog.add_instruction(div{}, args[0], l);
+                }
+            }
             return prog.add_instruction(div{}, args);
         });
     }

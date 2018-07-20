@@ -13,7 +13,8 @@ struct program;
 
 #ifdef DOXYGEN
 
-/// This applies a transformation to the instruction in a `program`
+/// An interface for applying a transformation to the instructions in a
+/// `program`
 struct pass
 {
     /// A unique name used to identify the pass

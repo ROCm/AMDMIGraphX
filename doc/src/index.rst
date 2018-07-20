@@ -12,6 +12,9 @@ Welcome to MIGraph's documentation!
 
    reference/data
    reference/operators
+   reference/program
+   reference/targets
+   reference/pass
 
 
 Indices and tables

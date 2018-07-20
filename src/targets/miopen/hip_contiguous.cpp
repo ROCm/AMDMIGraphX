@@ -48,23 +48,23 @@ template <size_t NDim>
 struct hip_index
 {
     size_t d[NDim];
-    size_t& operator[](size_t i) { return d[i]; }
-    size_t operator[](size_t i) const { return d[i]; }
+    __device__ __host__ size_t& operator[](size_t i) { return d[i]; }
+    __device__ __host__ size_t operator[](size_t i) const { return d[i]; }
 };
 
 template <size_t NDim>
 struct hip_tensor_descriptor
 {
-    hip_tensor_descriptor() = default;
+    __device__ __host__ hip_tensor_descriptor() = default;
     template <typename T, typename V>
-    hip_tensor_descriptor(const T& lens_ext, const V& strides_ext)
+    __device__ __host__ hip_tensor_descriptor(const T& lens_ext, const V& strides_ext)
     {
         for(size_t i = 0; i < NDim; i++)
             lens[i] = lens_ext[i];
         for(size_t i = 0; i < NDim; i++)
             strides[i] = strides_ext[i];
     }
-    hip_index<NDim> multi(size_t idx)
+    __device__ __host__ hip_index<NDim> multi(size_t idx)
     {
         hip_index<NDim> result{};
         size_t tidx = idx;
@@ -75,7 +75,7 @@ struct hip_tensor_descriptor
         }
         return result;
     }
-    size_t linear(hip_index<NDim> s)
+    __device__ __host__ size_t linear(hip_index<NDim> s)
     {
         size_t idx = 0;
         for(size_t i = 0; i < NDim; i++)

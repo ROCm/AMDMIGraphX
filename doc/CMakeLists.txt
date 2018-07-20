@@ -26,6 +26,7 @@ add_doxygen_doc(
     EXTRACT_ALL YES
     ENUM_VALUES_PER_LINE 1
     FULL_PATH_NAMES YES
+    PREDEFINED DOXYGEN
 )
 
 include(SphinxDoc)

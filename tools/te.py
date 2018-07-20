@@ -239,7 +239,8 @@ def convert_member(d, struct_name):
             'member_const': '',
             'friend': '',
             'this': '(*this)',
-            'using': ''
+            'using': '',
+            'brief': ''
         }
         args = []
         params = []
@@ -266,6 +267,8 @@ def convert_member(d, struct_name):
                 member['default'] = t
             elif x == 'using':
                 member['using'] = 'using {};'.format(d[name]['using'])
+            elif x == '__brief__':
+                member['doc'] = '/// ' + t
             elif x.startswith('__') and x.endswith('__'):
                 continue
             else:

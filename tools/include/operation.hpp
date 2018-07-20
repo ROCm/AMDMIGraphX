@@ -13,6 +13,34 @@
 
 namespace migraph {
 
+#ifdef DOXYGEN
+
+/// The operation interface represents an action an instruction will perform. All
+/// operation classes must be CopyConstructible.
+struct operation
+{
+    /// A unique name identifying the operation
+    std::string name() const;
+    /// This is used to compute the resulting shape from an operation. If an
+    /// operation cannot be run with input shapes, then it should throw an
+    /// exception.
+    shape compute_shape(std::vector<shape> input) const;
+    /**
+     * @brief This performs the operation's computation
+     * 
+     * @param ctx This is the context created by the `target` during compilation. Implementations can use the target's `context` class rather than the `context` interface class.
+     * @param output This is the output shape. It is equivalent to running `compute_shape` with each `shape` of the `argument`.
+     * @param input This is the `argument` result from the previous instuction's computation.
+     * @return Return an `argument` of the result computation. The `shape` of `argument` should be the same the `output` shape.
+     */
+    argument compute(context& ctx, shape output, std::vector<argument> input) const;
+    /// An optional stream operator to print the operation. When this is not
+    /// implemented, it will just print the operation's name.
+    friend std::ostream & operator<<(std::ostream & os, const operation & op);
+};
+
+#else
+
 namespace operation_stream {
 
 template <class T>
@@ -37,6 +65,8 @@ interface('operation',
     friend('operator<<', returns='std::ostream &', os='std::ostream &', op='const operation &', using='migraph::operation_stream::operator<<')
 )
 %>
+
+#endif
 
 } // namespace migraph
 

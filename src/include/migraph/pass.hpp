@@ -11,6 +11,19 @@ namespace migraph {
 
 struct program;
 
+#ifdef DOXYGEN
+
+/// This applies a transformation to the instruction in a `program`
+struct pass
+{
+    /// A unique name used to identify the pass
+    std::string name() const;
+    /// Run the pass on the program
+    void apply(program& p) const;
+};
+
+#else
+
 /*
  * Type-erased interface for:
  *
@@ -198,6 +211,8 @@ inline const ValueType& any_cast(const pass& x)
         throw std::bad_cast();
     return *y;
 }
+
+#endif
 
 } // namespace migraph
 

@@ -15,7 +15,7 @@ namespace migraph {
 
 #ifdef DOXYGEN
 
-/// The operation interface represents an action an instruction will do. All
+/// The operation interface represents an action an instruction will perform. All
 /// operation classes must be CopyConstructible.
 struct operation
 {

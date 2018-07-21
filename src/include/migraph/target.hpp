@@ -12,9 +12,9 @@
 
 namespace migraph {
 
-#if DOXYGEN
+#ifdef DOXYGEN
 
-/// A compilation target
+/// An interface for a compilation target
 struct target
 {
     /// A unique name used to identify the target

@@ -77,6 +77,7 @@ else()
                 -Wno-double-promotion
                 -Wno-exit-time-destructors
                 -Wno-extra-semi
+                -Wno-fallback
                 -Wno-float-conversion
                 -Wno-gnu-anonymous-struct
                 -Wno-gnu-zero-variadic-macro-arguments

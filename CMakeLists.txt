@@ -86,7 +86,6 @@ rocm_enable_clang_tidy(
         ".*hpp"
     EXTRA_ARGS
         -DMIGRAPH_USE_CLANG_TIDY
-    ANALYZE_TEMPORARY_DTORS ON
 
 )
 include(ROCMCppCheck)

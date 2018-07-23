@@ -92,10 +92,10 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     }
 }, clang: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Debug') {
-        cmake_build('/opt/rocm/bin/hcc', '-DCMAKE_BUILD_TYPE=debug')
+        cmake_build('hcc', '-DCMAKE_BUILD_TYPE=debug')
     }
     stage('Clang Release') {
-        cmake_build('/opt/rocm/bin/hcc', '-DCMAKE_BUILD_TYPE=release')
+        cmake_build('hcc', '-DCMAKE_BUILD_TYPE=release')
     }
 }, gcc: rocmnode('rocmtest') { cmake_build ->
     stage('GCC Debug') {

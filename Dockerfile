@@ -21,8 +21,12 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     doxygen \
     gdb \
     git \
-    hcc \
+    hsa-rocr-dev \
+    hsakmt-roct-dev \
     lcov \
+    libelf-dev \
+    libncurses5-dev \
+    libpthread-stubs0-dev \
     libnuma-dev \
     python \
     python-dev \
@@ -37,8 +41,15 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
 # Install cget
 RUN pip install cget
 
+# Install rclone
+RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
+
+# Install hcc
+RUN rclone -b sanitizer1 https://github.com/RadeonOpenCompute/hcc.git /hcc
+RUN cget -p $PREFIX install hcc,/hcc
+
 # Use hcc
-RUN cget -p $PREFIX init --cxx /opt/rocm/bin/hcc
+RUN cget -p $PREFIX init --cxx $PREFIX/bin/hcc
 
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt

@@ -51,6 +51,10 @@ RUN cget -p $PREFIX install hcc,/hcc
 # Use hcc
 RUN cget -p $PREFIX init --cxx $PREFIX/bin/hcc
 
+# Workaround hip's broken cmake
+RUN ln -s $PREFIX /opt/rocm/hip
+RUN ln -s $PREFIX /opt/rocm/hcc
+
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt

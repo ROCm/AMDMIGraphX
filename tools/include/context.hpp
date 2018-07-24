@@ -9,9 +9,22 @@
 
 namespace migraph {
 
+#ifdef DOXYGEN
+
+/// A context is used to store internal data for a `target`. A context is
+/// constructed by a target during compilation and passed to the operations
+/// during `eval`.
+struct context
+{
+};
+
+#else
+
 <%
 interface('context')
 %>
+
+#endif
 
 } // namespace migraph
 

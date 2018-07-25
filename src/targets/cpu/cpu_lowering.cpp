@@ -24,11 +24,11 @@ T zero(const T&)
 // args[1] -> mini batch mean
 // args[2] -> mini batch variance
 // args[3] -> gamma
-// args[4] -> beta
+// args[4] -> bias
 //
 // The equation to compute batch norm for inference is:
 //
-// output[i] = beta + gamma * (input[i] + mean) / sqrt(variance + epsilon)
+// output[i] = bias + gamma * (input[i] + mean) / sqrt(variance + epsilon)
 //
 // the input data format should be nchw
 //
@@ -46,16 +46,30 @@ struct cpu_batch_norm_inference
 
         double epsilon           = op.epsilon;
         auto input               = args[0];
-        auto mini_batch_mean     = args[1].at<float>();
-        auto mini_batch_variance = args[2].at<float>();
-        auto gamma               = args[3].at<float>();
-        auto beta                = args[4].at<float>();
+        auto mini_batch_mean     = args[1];
+        auto mini_batch_variance = args[2];
+        auto gamma               = args[3];
+        auto bias                = args[4];
 
-        visit_all(output, input)([&](auto result, auto buffer) {
-            std::transform(buffer.begin(), buffer.end(), result.begin(), [&](auto x) {
-                return gamma * (x - mini_batch_mean) / std::sqrt(mini_batch_variance + epsilon) +
-                       beta;
-            });
+        auto num_batch = output_shape.lens()[0];
+        auto num_channels = output_shape.lens()[1];
+        auto image_height = output_shape.lens()[2];
+        auto image_width = output_shape.lens()[3];
+
+        visit_all(output, input, mini_batch_mean, mini_batch_variance, gamma, bias)([&](auto result, auto buffer, auto _mean, auto _variance, auto _gamma, auto _bias) {
+            for(size_t n = 0; n < num_batch; n++) {
+                size_t stride_n = n * num_channels * image_height * image_width;
+                for(size_t c = 0; c < num_channels; c++) {
+                    size_t stride_c = c * image_height * image_width;
+                    for(size_t h = 0; h < image_height; h++) {
+                        size_t stride_h = h * image_width;
+                        for(size_t w = 0; w < image_width; w++) {
+                            size_t index = w + stride_h + stride_c + stride_n;
+                            result[index] = _gamma[c] * (buffer[index] - _mean[c]) / std::sqrt(_variance[c] + epsilon) + _bias[c];
+                        }
+                    }
+                }
+            }
         });
 
         return output;

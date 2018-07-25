@@ -10,7 +10,8 @@ void batch_norm_inference_test()
 {
     migraph::program p;
     const size_t width = 2, height = 2, channels = 4, batches = 2;
-    const float x_val = 8.0f, mean_val = 2.0f, variance_val = 4.0f, scale_val = 2.0f, bias_val = 1.0f;
+    const float x_val = 8.0f, mean_val = 2.0f, variance_val = 4.0f, scale_val = 2.0f,
+                bias_val   = 1.0f;
     const float output_val = scale_val * (x_val - mean_val) / (std::sqrt(variance_val)) + bias_val;
 
     migraph::shape s{migraph::shape::float_type, {batches, channels, height, width}};

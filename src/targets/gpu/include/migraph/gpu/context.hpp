@@ -1,8 +1,8 @@
 #ifndef MIGRAPH_GUARD_RTGLIB_CONTEXT_HPP
 #define MIGRAPH_GUARD_RTGLIB_CONTEXT_HPP
 
-#include <migraph/miopen/miopen.hpp>
-#include <migraph/miopen/rocblas.hpp>
+#include <migraph/gpu/miopen.hpp>
+#include <migraph/gpu/rocblas.hpp>
 
 namespace migraph {
 namespace miopen {

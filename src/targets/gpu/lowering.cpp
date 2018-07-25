@@ -1,16 +1,16 @@
 #include <rocblas.h>
-#include <migraph/miopen/lowering.hpp>
+#include <migraph/gpu/lowering.hpp>
 #include <migraph/manage_ptr.hpp>
 #include <migraph/instruction.hpp>
 #include <migraph/operators.hpp>
 #include <migraph/shape_for_each.hpp>
-#include <migraph/miopen/miopen.hpp>
-#include <migraph/miopen/hip.hpp>
+#include <migraph/gpu/miopen.hpp>
+#include <migraph/gpu/hip.hpp>
 #include <migraph/dfor.hpp>
-#include <migraph/miopen/kernels.hpp>
+#include <migraph/gpu/kernels.hpp>
 #include <migraph/iterator_for.hpp>
-#include <migraph/miopen/rocblas.hpp>
-#include <migraph/miopen/context.hpp>
+#include <migraph/gpu/rocblas.hpp>
+#include <migraph/gpu/context.hpp>
 
 namespace migraph {
 namespace miopen {

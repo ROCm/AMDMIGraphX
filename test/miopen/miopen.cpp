@@ -3,9 +3,9 @@
 #include <migraph/operators.hpp>
 #include <migraph/generate.hpp>
 #include <migraph/cpu/cpu_target.hpp>
-#include <migraph/miopen/target.hpp>
-#include <migraph/miopen/miopen.hpp>
-#include <migraph/miopen/hip.hpp>
+#include <migraph/gpu/target.hpp>
+#include <migraph/gpu/miopen.hpp>
+#include <migraph/gpu/hip.hpp>
 #include <migraph/manage_ptr.hpp>
 
 #include <miopen/miopen.h>

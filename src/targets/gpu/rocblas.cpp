@@ -1,4 +1,4 @@
-#include <migraph/miopen/rocblas.hpp>
+#include <migraph/gpu/rocblas.hpp>
 
 namespace migraph {
 namespace miopen {

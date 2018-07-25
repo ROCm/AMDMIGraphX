@@ -95,13 +95,13 @@ foreach(TEST ${TESTS})
     add_test_executable(test_${BASE_NAME} ${TEST})
 endforeach()
 
-if(MIGRAPH_ENABLE_MIOPEN)
-    # miopen tests
-    file(GLOB MIOPEN_TESTS miopen/*.cpp)
+if(MIGRAPH_ENABLE_GPU)
+    # gpu tests
+    file(GLOB GPU_TESTS gpu/*.cpp)
 
-    foreach(TEST ${MIOPEN_TESTS})
+    foreach(TEST ${GPU_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
-        add_test_executable(test_miopen_${BASE_NAME} ${TEST})
-        target_link_libraries(test_miopen_${BASE_NAME} migraph_gpu)
+        add_test_executable(test_gpu_${BASE_NAME} ${TEST})
+        target_link_libraries(test_gpu_${BASE_NAME} migraph_gpu)
     endforeach()
 endif()

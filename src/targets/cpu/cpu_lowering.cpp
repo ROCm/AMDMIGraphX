@@ -51,26 +51,33 @@ struct cpu_batch_norm_inference
         auto gamma               = args[3];
         auto bias                = args[4];
 
-        auto num_batch = output_shape.lens()[0];
+        auto num_batch    = output_shape.lens()[0];
         auto num_channels = output_shape.lens()[1];
         auto image_height = output_shape.lens()[2];
-        auto image_width = output_shape.lens()[3];
+        auto image_width  = output_shape.lens()[3];
 
-        visit_all(output, input, mini_batch_mean, mini_batch_variance, gamma, bias)([&](auto result, auto buffer, auto _mean, auto _variance, auto _gamma, auto _bias) {
-            for(size_t n = 0; n < num_batch; n++) {
-                size_t stride_n = n * num_channels * image_height * image_width;
-                for(size_t c = 0; c < num_channels; c++) {
-                    size_t stride_c = c * image_height * image_width;
-                    for(size_t h = 0; h < image_height; h++) {
-                        size_t stride_h = h * image_width;
-                        for(size_t w = 0; w < image_width; w++) {
-                            size_t index = w + stride_h + stride_c + stride_n;
-                            result[index] = _gamma[c] * (buffer[index] - _mean[c]) / std::sqrt(_variance[c] + epsilon) + _bias[c];
+        visit_all(output, input, mini_batch_mean, mini_batch_variance, gamma, bias)(
+            [&](auto result, auto buffer, auto _mean, auto _variance, auto _gamma, auto _bias) {
+                for(size_t n = 0; n < num_batch; n++)
+                {
+                    size_t stride_n = n * num_channels * image_height * image_width;
+                    for(size_t c = 0; c < num_channels; c++)
+                    {
+                        size_t stride_c = c * image_height * image_width;
+                        for(size_t h = 0; h < image_height; h++)
+                        {
+                            size_t stride_h = h * image_width;
+                            for(size_t w = 0; w < image_width; w++)
+                            {
+                                size_t index  = w + stride_h + stride_c + stride_n;
+                                result[index] = _gamma[c] * (buffer[index] - _mean[c]) /
+                                                    std::sqrt(_variance[c] + epsilon) +
+                                                _bias[c];
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
 
         return output;
     }

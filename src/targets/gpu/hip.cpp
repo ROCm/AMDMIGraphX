@@ -1,5 +1,5 @@
 
-#include <migraph/miopen/hip.hpp>
+#include <migraph/gpu/hip.hpp>
 
 #include <migraph/manage_ptr.hpp>
 #include <miopen/miopen.h>

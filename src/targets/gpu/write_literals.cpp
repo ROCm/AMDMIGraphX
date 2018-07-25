@@ -1,6 +1,6 @@
-#include <migraph/miopen/write_literals.hpp>
+#include <migraph/gpu/write_literals.hpp>
 #include <migraph/iterator_for.hpp>
-#include <migraph/miopen/hip.hpp>
+#include <migraph/gpu/hip.hpp>
 #include <migraph/instruction.hpp>
 
 namespace migraph {

@@ -35,8 +35,7 @@ migraph::argument run_gpu()
         e.second = migraph::gpu::to_gpu(e.second);
     }
 
-    m["output"] =
-        migraph::gpu::to_gpu(migraph::generate_argument(p.get_parameter_shape("output")));
+    m["output"] = migraph::gpu::to_gpu(migraph::generate_argument(p.get_parameter_shape("output")));
 
     return migraph::gpu::from_gpu(p.eval(m));
 }

@@ -5,7 +5,7 @@
 #include <migraph/gpu/rocblas.hpp>
 
 namespace migraph {
-namespace miopen {
+namespace gpu {
 
 struct context
 {
@@ -13,7 +13,7 @@ struct context
     shared<rocblas_handle_ptr> rbhandle;
 };
 
-} // namespace miopen
+} // namespace gpu
 
 } // namespace migraph
 

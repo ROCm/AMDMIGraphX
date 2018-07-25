@@ -1,7 +1,7 @@
 #include <migraph/gpu/rocblas.hpp>
 
 namespace migraph {
-namespace miopen {
+namespace gpu {
 
 rocblas_handle_ptr create_rocblas_handle_ptr()
 {
@@ -10,6 +10,6 @@ rocblas_handle_ptr create_rocblas_handle_ptr()
     return rocblas_handle_ptr{handle};
 }
 
-} // namespace miopen
+} // namespace gpu
 
 } // namespace migraph

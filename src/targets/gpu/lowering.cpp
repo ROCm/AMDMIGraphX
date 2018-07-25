@@ -13,14 +13,14 @@
 #include <migraph/gpu/context.hpp>
 
 namespace migraph {
-namespace miopen {
+namespace gpu {
 
 struct miopen_convolution
 {
     convolution op;
     shared<convolution_descriptor> cd;
 
-    std::string name() const { return "miopen::convolution"; }
+    std::string name() const { return "gpu::convolution"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3);
@@ -71,7 +71,7 @@ struct miopen_pooling
     pooling op;
     shared<pooling_descriptor> pd;
 
-    std::string name() const { return "miopen::pooling"; }
+    std::string name() const { return "gpu::pooling"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2);
@@ -102,7 +102,7 @@ struct miopen_pooling
 
 struct miopen_add
 {
-    std::string name() const { return "miopen::add"; }
+    std::string name() const { return "gpu::add"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3);
@@ -149,7 +149,7 @@ struct miopen_add
 struct miopen_gemm
 {
     gemm op;
-    std::string name() const { return "miopen::convolution"; }
+    std::string name() const { return "gpu::convolution"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3);
@@ -187,7 +187,7 @@ struct miopen_transpose
 {
     transpose op;
 
-    std::string name() const { return "miopen::transpose"; }
+    std::string name() const { return "gpu::transpose"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2);
@@ -202,7 +202,7 @@ struct miopen_transpose
 struct miopen_contiguous
 {
     contiguous op;
-    std::string name() const { return "miopen::contiguous"; }
+    std::string name() const { return "gpu::contiguous"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2);
@@ -218,7 +218,7 @@ struct miopen_contiguous
 struct miopen_relu
 {
     shared<activation_descriptor> ad;
-    std::string name() const { return "miopen::relu"; }
+    std::string name() const { return "gpu::relu"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2);
@@ -364,6 +364,6 @@ struct miopen_apply
 
 void lowering::apply(program& p) const { miopen_apply{&p}.apply(); }
 
-} // namespace miopen
+} // namespace gpu
 
 } // namespace migraph

@@ -5,16 +5,16 @@
 
 namespace migraph {
 
-namespace miopen {
+namespace gpu {
 
 struct write_literals
 {
-    std::string name() const { return "miopen::write_literals"; }
+    std::string name() const { return "gpu::write_literals"; }
 
     void apply(program& p) const;
 };
 
-} // namespace miopen
+} // namespace gpu
 
 } // namespace migraph
 

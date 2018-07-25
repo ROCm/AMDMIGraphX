@@ -6,7 +6,7 @@
 #include <miopen/miopen.h>
 
 namespace migraph {
-namespace miopen {
+namespace gpu {
 
 using miopen_handle          = MIGRAPH_MANAGE_PTR(miopenHandle_t, miopenDestroy);
 using tensor_descriptor      = MIGRAPH_MANAGE_PTR(miopenTensorDescriptor_t,
@@ -84,7 +84,7 @@ inline activation_descriptor make_relu()
     return ad;
 }
 
-} // namespace miopen
+} // namespace gpu
 
 } // namespace migraph
 

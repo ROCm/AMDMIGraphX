@@ -5,7 +5,7 @@
 
 namespace migraph {
 
-namespace miopen {
+namespace gpu {
 
 void write_literals::apply(program& p) const
 {
@@ -20,6 +20,6 @@ void write_literals::apply(program& p) const
     }
 }
 
-} // namespace miopen
+} // namespace gpu
 
 } // namespace migraph

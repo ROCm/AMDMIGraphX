@@ -4,15 +4,15 @@
 #include <migraph/program.hpp>
 
 namespace migraph {
-namespace miopen {
+namespace gpu {
 
 struct lowering
 {
-    std::string name() const { return "miopen::lowering"; }
+    std::string name() const { return "gpu::lowering"; }
     void apply(program& p) const;
 };
 
-} // namespace miopen
+} // namespace gpu
 
 } // namespace migraph
 

@@ -4,7 +4,7 @@
 #include <migraph/program.hpp>
 
 namespace migraph {
-namespace miopen {
+namespace gpu {
 
 struct target
 {
@@ -13,7 +13,7 @@ struct target
     migraph::context get_context() const;
 };
 
-} // namespace miopen
+} // namespace gpu
 
 } // namespace migraph
 

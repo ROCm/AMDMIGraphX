@@ -3,7 +3,7 @@
 #include <migraph/operators.hpp>
 
 namespace migraph {
-namespace miopen {
+namespace gpu {
 
 template <class F>
 void visit_tensor_size(std::size_t n, F f)
@@ -130,5 +130,5 @@ void hip_contiguous(migraph::shape output_shape, migraph::argument arg, migraph:
         }
     });
 }
-} // namespace miopen
+} // namespace gpu
 } // namespace migraph

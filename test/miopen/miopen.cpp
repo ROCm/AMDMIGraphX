@@ -27,18 +27,18 @@ migraph::argument run_gpu()
 {
     V v;
     auto p = v.create_program();
-    p.compile(migraph::miopen::target{});
+    p.compile(migraph::gpu::target{});
 
     auto m = v.create_params();
     for(auto&& e : m)
     {
-        e.second = migraph::miopen::to_gpu(e.second);
+        e.second = migraph::gpu::to_gpu(e.second);
     }
 
     m["output"] =
-        migraph::miopen::to_gpu(migraph::generate_argument(p.get_parameter_shape("output")));
+        migraph::gpu::to_gpu(migraph::generate_argument(p.get_parameter_shape("output")));
 
-    return migraph::miopen::from_gpu(p.eval(m));
+    return migraph::gpu::from_gpu(p.eval(m));
 }
 
 template <class V>

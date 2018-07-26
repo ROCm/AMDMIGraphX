@@ -14,19 +14,17 @@ migraph::program create_program()
     auto y = p.add_parameter("y", {migraph::shape::int64_type});
 
     auto sum = p.add_instruction(sum_op{}, x, y);
-    auto one  = p.add_literal(1);
+    auto one = p.add_literal(1);
     p.add_instruction(sum_op{}, sum, one);
 
     return p;
 }
 
-void program_equality() 
+void program_equality()
 {
     migraph::program x = create_program();
     migraph::program y = create_program();
     EXPECT(x == y);
 }
 
-int main() {
-    program_equality();
-}
+int main() { program_equality(); }

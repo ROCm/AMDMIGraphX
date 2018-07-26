@@ -50,8 +50,7 @@ struct expression
 
 // TODO: Remove rvalue references
 template <class T, class U, class Operator>
-expression<T, U, Operator>
-make_expression(T&& rhs, U&& lhs, Operator)
+expression<T, U, Operator> make_expression(T&& rhs, U&& lhs, Operator)
 {
     return {std::forward<T>(rhs), std::forward<U>(lhs)};
 }

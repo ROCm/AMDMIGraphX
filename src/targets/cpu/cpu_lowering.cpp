@@ -24,11 +24,11 @@ T zero(const T&)
 // args[1] -> mini batch mean
 // args[2] -> mini batch variance
 // args[3] -> gamma
-// args[4] -> beta
+// args[4] -> bias
 //
 // The equation to compute batch norm for inference is:
 //
-// output[i] = beta + gamma * (input[i] + mean) / sqrt(variance + epsilon)
+// output[i] = bias + gamma * (input[i] + mean) / sqrt(variance + epsilon)
 //
 // the input data format should be nchw
 //
@@ -46,17 +46,26 @@ struct cpu_batch_norm_inference
 
         double epsilon           = op.epsilon;
         auto input               = args[0];
-        auto mini_batch_mean     = args[1].at<float>();
-        auto mini_batch_variance = args[2].at<float>();
-        auto gamma               = args[3].at<float>();
-        auto beta                = args[4].at<float>();
+        auto mini_batch_mean     = args[1];
+        auto mini_batch_variance = args[2];
+        auto arg_gamma           = args[3];
+        auto arg_bias            = args[4];
 
-        visit_all(output, input)([&](auto result, auto buffer) {
-            std::transform(buffer.begin(), buffer.end(), result.begin(), [&](auto x) {
-                return gamma * (x - mini_batch_mean) / std::sqrt(mini_batch_variance + epsilon) +
-                       beta;
+        auto num_batch    = output_shape.lens()[0];
+        auto num_channels = output_shape.lens()[1];
+        auto image_height = output_shape.lens()[2];
+        auto image_width  = output_shape.lens()[3];
+
+        visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
+            [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
+
+                dfor(num_batch, num_channels, image_height, image_width)(
+                    [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
+                        result(n, c, h, w) = gamma(c) * (buffer(n, c, h, w) - mean(c)) /
+                                                 std::sqrt(variance(c) + epsilon) +
+                                             bias(c);
+                    });
             });
-        });
 
         return output;
     }

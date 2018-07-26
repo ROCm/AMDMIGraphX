@@ -9,19 +9,40 @@
 void batch_norm_inference_test()
 {
     migraph::program p;
-    migraph::shape s{migraph::shape::float_type, {4}};
-    auto x        = p.add_literal(migraph::literal{s, {1, 2, 3, 4}});
-    auto gamma    = p.add_literal(migraph::literal{s, {1}});
-    auto beta     = p.add_literal(migraph::literal{s, {0}});
-    auto mean     = p.add_literal(migraph::literal{s, {0}});
-    auto variance = p.add_literal(migraph::literal{s, {1}});
-    p.add_instruction(migraph::batch_norm_inference{}, x, mean, variance, gamma, beta);
+    const size_t width = 2, height = 2, channels = 4, batches = 2;
+    const float x_val = 8.0f, mean_val = 2.0f, variance_val = 4.0f, scale_val = 2.0f,
+                bias_val   = 1.0f;
+    const float output_val = scale_val * (x_val - mean_val) / (std::sqrt(variance_val)) + bias_val;
+
+    migraph::shape s{migraph::shape::float_type, {batches, channels, height, width}};
+    migraph::shape vars{migraph::shape::float_type, {channels}};
+    std::vector<float> x_data(width * height * channels * batches);
+    std::vector<float> scale_data(channels);
+    std::vector<float> bias_data(channels);
+    std::vector<float> mean_data(channels);
+    std::vector<float> variance_data(channels);
+
+    std::fill(x_data.begin(), x_data.end(), x_val);
+    std::fill(mean_data.begin(), mean_data.end(), mean_val);
+    std::fill(variance_data.begin(), variance_data.end(), variance_val);
+    std::fill(scale_data.begin(), scale_data.end(), scale_val);
+    std::fill(bias_data.begin(), bias_data.end(), bias_val);
+
+    auto x        = p.add_literal(migraph::literal{s, x_data});
+    auto scale    = p.add_literal(migraph::literal{vars, scale_data});
+    auto bias     = p.add_literal(migraph::literal{vars, bias_data});
+    auto mean     = p.add_literal(migraph::literal{vars, mean_data});
+    auto variance = p.add_literal(migraph::literal{vars, variance_data});
+
+    p.add_instruction(migraph::batch_norm_inference{}, x, mean, variance, scale, bias);
     p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
-    std::vector<float> result_vector(4);
+
+    std::vector<float> result_vector(width * height * channels * batches);
+    std::vector<float> gold(width * height * channels * batches);
+    std::fill(gold.begin(), gold.end(), output_val);
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {
-        1 / (1 + 1.0e-6), 2 / (1 + 1.0e-6), 3 / (1 + 1.0e-6), 4 / (1 + 1.0e-6)};
+
     EXPECT(test::verify_range(result_vector, gold));
 }
 

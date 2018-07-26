@@ -48,9 +48,9 @@ struct expression
     decltype(auto) value() const { return Operator::call(lhs, rhs); };
 };
 
+// TODO: Remove rvalue references
 template <class T, class U, class Operator>
-expression<typename std::decay<T>::type, typename std::decay<U>::type, Operator>
-make_expression(T&& rhs, U&& lhs, Operator)
+expression<T, U, Operator> make_expression(T&& rhs, U&& lhs, Operator)
 {
     return {std::forward<T>(rhs), std::forward<U>(lhs)};
 }
@@ -58,10 +58,11 @@ make_expression(T&& rhs, U&& lhs, Operator)
 template <class T>
 struct lhs_expression;
 
+// TODO: Remove rvalue reference
 template <class T>
-lhs_expression<typename std::decay<T>::type> make_lhs_expression(T&& lhs)
+lhs_expression<T> make_lhs_expression(T&& lhs)
 {
-    return lhs_expression<typename std::decay<T>::type>{std::forward<T>(lhs)};
+    return lhs_expression<T>{std::forward<T>(lhs)};
 }
 
 template <class T>

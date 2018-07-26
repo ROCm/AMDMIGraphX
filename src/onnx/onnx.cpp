@@ -320,10 +320,7 @@ struct onnx_parser
             std::string s = t.raw_data();
             if(t.data_type() == onnx::TensorProto::FLOAT)
             {
-                std::vector<float> raw(
-                    std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<size_t>()));
-                memcpy(raw.data(), s.data(), s.length());
-                return literal{{shape::float_type, dims}, raw};
+                return literal{{shape::float_type, dims}, s.data()};
             }
             else if(t.data_type() == onnx::TensorProto::UINT8)
             {
@@ -331,38 +328,23 @@ struct onnx_parser
             }
             else if(t.data_type() == onnx::TensorProto::INT8)
             {
-                std::vector<int32_t> raw(
-                    std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<size_t>()));
-                memcpy(raw.data(), s.data(), s.length());
-                return literal{{shape::int32_type, dims}, raw};
+                return literal{{shape::int32_type, dims}, s.data()};
             }
             else if(t.data_type() == onnx::TensorProto::UINT16)
             {
-                std::vector<int32_t> raw(
-                    std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<size_t>()));
-                memcpy(raw.data(), s.data(), s.length());
-                return literal{{shape::int32_type, dims}, raw};
+                return literal{{shape::int32_type, dims}, s.data()};
             }
             else if(t.data_type() == onnx::TensorProto::INT16)
             {
-                std::vector<int32_t> raw(
-                    std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<size_t>()));
-                memcpy(raw.data(), s.data(), s.length());
-                return literal{{shape::int32_type, dims}, raw};
+                return literal{{shape::int32_type, dims}, s.data()};
             }
             else if(t.data_type() == onnx::TensorProto::INT32)
             {
-                std::vector<int32_t> raw(
-                    std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<size_t>()));
-                memcpy(raw.data(), s.data(), s.length());
-                return literal{{shape::int32_type, dims}, raw};
+                return literal{{shape::int32_type, dims}, s.data()};
             }
             else if(t.data_type() == onnx::TensorProto::INT64)
             {
-                std::vector<int64_t> raw(
-                    std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<size_t>()));
-                memcpy(raw.data(), s.data(), s.length());
-                return literal{{shape::int64_type, dims}, raw};
+                return literal{{shape::int64_type, dims}, s.data()};
             }
             else if(t.data_type() == onnx::TensorProto::STRING)
             {
@@ -370,10 +352,7 @@ struct onnx_parser
             }
             else if(t.data_type() == onnx::TensorProto::BOOL)
             {
-                std::vector<int32_t> raw(
-                    std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<size_t>()));
-                memcpy(raw.data(), s.data(), s.length());
-                return literal{{shape::int32_type, dims}, raw};
+                return literal{{shape::int32_type, dims}, s.data()};
             }
             else if(t.data_type() == onnx::TensorProto::FLOAT16)
             {
@@ -381,10 +360,7 @@ struct onnx_parser
             }
             else if(t.data_type() == onnx::TensorProto::DOUBLE)
             {
-                std::vector<double> raw(
-                    std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<size_t>()));
-                memcpy(raw.data(), s.data(), s.length());
-                return literal{{shape::double_type, dims}, raw};
+                return literal{{shape::double_type, dims}, s.data()};
             }
             else if(t.data_type() == onnx::TensorProto::UINT32)
             {

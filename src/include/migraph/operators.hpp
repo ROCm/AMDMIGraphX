@@ -341,10 +341,24 @@ struct reshape
         check_shapes{inputs, *this}.has(1);
         auto&& idims = inputs.front().lens();
         std::vector<std::size_t> rdims(dims.begin(), dims.end());
+        auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
+        if(n_neg_dims > 1)
+            MIGRAPH_THROW("Dimensions for reshape can only have one -1 dim");
         for(std::size_t i = 0; i < dims.size(); i++)
         {
             if(dims[i] == 0)
                 rdims[i] = idims[i];
+        }
+        if(n_neg_dims > 0)
+        {
+            size_t missing_dim =
+                -inputs.front().elements() /
+                std::accumulate(rdims.begin(), rdims.end(), 1, std::multiplies<int64_t>());
+            for(std::size_t i = 0; i < rdims.size(); i++)
+            {
+                if(dims[i] == -1)
+                    rdims[i] = missing_dim;
+            }
         }
         if(dims.back() == -1)
         {

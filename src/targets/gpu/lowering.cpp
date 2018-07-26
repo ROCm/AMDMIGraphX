@@ -1,25 +1,26 @@
 #include <rocblas.h>
-#include <migraph/miopen/lowering.hpp>
+#include <migraph/gpu/lowering.hpp>
 #include <migraph/manage_ptr.hpp>
 #include <migraph/instruction.hpp>
 #include <migraph/operators.hpp>
 #include <migraph/shape_for_each.hpp>
-#include <migraph/miopen/miopen.hpp>
-#include <migraph/miopen/hip.hpp>
+#include <migraph/gpu/miopen.hpp>
+#include <migraph/gpu/hip.hpp>
 #include <migraph/dfor.hpp>
+#include <migraph/gpu/kernels.hpp>
 #include <migraph/iterator_for.hpp>
-#include <migraph/miopen/rocblas.hpp>
-#include <migraph/miopen/context.hpp>
+#include <migraph/gpu/rocblas.hpp>
+#include <migraph/gpu/context.hpp>
 
 namespace migraph {
-namespace miopen {
+namespace gpu {
 
 struct miopen_convolution
 {
     convolution op;
     shared<convolution_descriptor> cd;
 
-    std::string name() const { return "miopen::convolution"; }
+    std::string name() const { return "gpu::convolution"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3);
@@ -70,7 +71,7 @@ struct miopen_pooling
     pooling op;
     shared<pooling_descriptor> pd;
 
-    std::string name() const { return "miopen::pooling"; }
+    std::string name() const { return "gpu::pooling"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2);
@@ -101,7 +102,7 @@ struct miopen_pooling
 
 struct miopen_add
 {
-    std::string name() const { return "miopen::add"; }
+    std::string name() const { return "gpu::add"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3);
@@ -148,7 +149,7 @@ struct miopen_add
 struct miopen_gemm
 {
     gemm op;
-    std::string name() const { return "miopen::convolution"; }
+    std::string name() const { return "gpu::convolution"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3);
@@ -182,10 +183,42 @@ struct miopen_gemm
     }
 };
 
+struct miopen_transpose
+{
+    transpose op;
+
+    std::string name() const { return "gpu::transpose"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(2);
+        return op.compute_shape({inputs.at(0)});
+    }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        return {output_shape, std::move(args.front().data)};
+    }
+};
+
+struct miopen_contiguous
+{
+    contiguous op;
+    std::string name() const { return "gpu::contiguous"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(2);
+        return op.compute_shape({inputs.at(0)});
+    }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        hip_contiguous(output_shape, args.at(0), args.at(1));
+        return args.at(1);
+    }
+};
+
 struct miopen_relu
 {
     shared<activation_descriptor> ad;
-    std::string name() const { return "miopen::relu"; }
+    std::string name() const { return "gpu::relu"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2);
@@ -238,6 +271,14 @@ struct miopen_apply
             else if(it->op.name() == "gemm")
             {
                 apply_gemm(it);
+            }
+            else if(it->op.name() == "transpose")
+            {
+                apply_transpose(it);
+            }
+            else if(it->op.name() == "contiguous")
+            {
+                apply_contiguous(it);
             }
         }
     }
@@ -305,10 +346,24 @@ struct miopen_apply
         prog->replace_instruction(
             ins, miopen_gemm{op}, ins->arguments.at(0), ins->arguments.at(1), output);
     }
+
+    void apply_transpose(instruction_ref ins)
+    {
+        auto&& op   = any_cast<transpose>(ins->op);
+        auto output = insert_allocation(ins, ins->result);
+        prog->replace_instruction(ins, miopen_transpose{op}, ins->arguments.at(0), output);
+    }
+
+    void apply_contiguous(instruction_ref ins)
+    {
+        auto&& op   = any_cast<contiguous>(ins->op);
+        auto output = insert_allocation(ins, ins->result);
+        prog->replace_instruction(ins, miopen_contiguous{op}, ins->arguments.at(0), output);
+    }
 };
 
 void lowering::apply(program& p) const { miopen_apply{&p}.apply(); }
 
-} // namespace miopen
+} // namespace gpu
 
 } // namespace migraph

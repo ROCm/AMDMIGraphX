@@ -4,7 +4,7 @@
 #include <migraph/operators.hpp>
 
 namespace migraph {
-namespace miopen {
+namespace gpu {
 
 migraph::argument allocate_gpu(migraph::shape s);
 
@@ -40,7 +40,7 @@ struct hip_write
     }
 };
 
-} // namespace miopen
+} // namespace gpu
 
 } // namespace migraph
 

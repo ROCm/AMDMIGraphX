@@ -3,9 +3,9 @@
 #include <migraph/operators.hpp>
 #include <migraph/generate.hpp>
 #include <migraph/cpu/cpu_target.hpp>
-#include <migraph/miopen/target.hpp>
-#include <migraph/miopen/miopen.hpp>
-#include <migraph/miopen/hip.hpp>
+#include <migraph/gpu/target.hpp>
+#include <migraph/gpu/miopen.hpp>
+#include <migraph/gpu/hip.hpp>
 #include <migraph/manage_ptr.hpp>
 
 #include <miopen/miopen.h>
@@ -27,18 +27,17 @@ migraph::argument run_gpu()
 {
     V v;
     auto p = v.create_program();
-    p.compile(migraph::miopen::target{});
+    p.compile(migraph::gpu::target{});
 
     auto m = v.create_params();
     for(auto&& e : m)
     {
-        e.second = migraph::miopen::to_gpu(e.second);
+        e.second = migraph::gpu::to_gpu(e.second);
     }
 
-    m["output"] =
-        migraph::miopen::to_gpu(migraph::generate_argument(p.get_parameter_shape("output")));
+    m["output"] = migraph::gpu::to_gpu(migraph::generate_argument(p.get_parameter_shape("output")));
 
-    return migraph::miopen::from_gpu(p.eval(m));
+    return migraph::gpu::from_gpu(p.eval(m));
 }
 
 template <class V>
@@ -175,6 +174,47 @@ struct test_gemm
     }
 };
 
+struct test_contiguous
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {4, 4, 4, 3}, {48, 4, 1, 16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraph::contiguous{}, x);
+        return p;
+    }
+
+    migraph::program::parameter_map create_params() const
+    {
+        migraph::program::parameter_map m;
+        m["x"] =
+            migraph::generate_argument({migraph::shape::float_type, {4, 4, 4, 3}, {48, 4, 1, 16}});
+        return m;
+    }
+};
+
+struct test_transpose
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {4, 3, 4, 4}};
+        auto x                    = p.add_parameter("x", s);
+        std::vector<int64_t> perm = {0, 2, 3, 1};
+        auto l                    = p.add_instruction(migraph::transpose{perm}, x);
+        p.add_instruction(migraph::contiguous{}, l);
+        return p;
+    }
+
+    migraph::program::parameter_map create_params() const
+    {
+        migraph::program::parameter_map m;
+        m["x"] = migraph::generate_argument({migraph::shape::float_type, {4, 3, 4, 4}});
+        return m;
+    }
+};
+
 int main()
 {
     verify_program<test_add>();
@@ -182,4 +222,6 @@ int main()
     verify_program<test_conv_relu>();
     verify_program<test_conv_pooling>();
     verify_program<test_gemm>();
+    verify_program<test_contiguous>();
+    verify_program<test_transpose>();
 }

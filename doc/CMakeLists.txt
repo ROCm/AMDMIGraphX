@@ -26,15 +26,16 @@ add_doxygen_doc(
     EXTRACT_ALL YES
     ENUM_VALUES_PER_LINE 1
     FULL_PATH_NAMES YES
+    PREDEFINED DOXYGEN
 )
 
-# include(SphinxDoc)
-# add_sphinx_doc(src 
-#     BUILDER html 
-#     OUTPUT_DIR html 
-#     VARS 
-#         breathe_projects.proj=${DOXYGEN_OUTPUT}/xml
-#         breathe_default_project=proj
-#     DEPENDS doxygen
-# )
+include(SphinxDoc)
+add_sphinx_doc(src 
+    BUILDER html 
+    OUTPUT_DIR html 
+    VARS 
+        breathe_projects.proj=${DOXYGEN_OUTPUT}/xml
+        breathe_default_project=proj
+    DEPENDS doxygen
+)
 

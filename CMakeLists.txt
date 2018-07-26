@@ -13,9 +13,9 @@ endif()
 
 if(CMAKE_CXX_COMPILER MATCHES ".*hcc")
     message(STATUS "Enable miopen backend")
-    set(MIGRAPH_ENABLE_MIOPEN On CACHE BOOL "")
+    set(MIGRAPH_ENABLE_GPU On CACHE BOOL "")
 else()
-    set(MIGRAPH_ENABLE_MIOPEN Off CACHE BOOL "")
+    set(MIGRAPH_ENABLE_GPU Off CACHE BOOL "")
 endif()
 
 add_compile_options(-std=c++14)

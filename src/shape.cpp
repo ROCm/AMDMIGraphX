@@ -126,8 +126,8 @@ bool operator!=(const shape& x, const shape& y) { return !(x == y); }
 std::ostream& operator<<(std::ostream& os, const shape& x)
 {
     os << x.type_string() << ", ";
-    os << "{" << to_string(x.lens()) << "}, ";
-    os << "{" << to_string(x.strides()) << "}";
+    os << "{" << to_string_range(x.lens()) << "}, ";
+    os << "{" << to_string_range(x.strides()) << "}";
     return os;
 }
 

@@ -2,6 +2,7 @@
 #include <migraph/stringutils.hpp>
 #include <migraph/instruction.hpp>
 #include <iostream>
+#include <sstream>
 #include <algorithm>
 
 namespace migraph {
@@ -188,6 +189,11 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
         results.emplace(std::addressof(ins), result);
     }
     return result;
+}
+
+bool operator==(const program& x, const program& y)
+{
+    return to_string(x) == to_string(y);
 }
 
 std::ostream& operator<<(std::ostream& os, const program& p)

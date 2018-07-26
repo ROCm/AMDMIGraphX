@@ -73,8 +73,6 @@ struct program
 
     argument eval(parameter_map params) const;
 
-    friend std::ostream& operator<<(std::ostream& os, const program& p);
-
     bool has_instruction(instruction_ref ins) const;
 
     instruction_ref begin();
@@ -83,6 +81,10 @@ struct program
     instruction_ref validate() const;
 
     void compile(const target& t);
+
+    friend std::ostream& operator<<(std::ostream& os, const program& p);
+    friend bool operator==(const program& x, const program& y);
+    friend bool operator!=(const program& x, const program& y) { return !(x == y); }
 
     private:
     std::unique_ptr<program_impl> impl;

@@ -77,7 +77,7 @@ inline std::string to_string_range(const Range& r)
     return ss.str();
 }
 
-template<class T>
+template <class T>
 inline std::string to_string(const T& x)
 {
     std::stringstream ss;

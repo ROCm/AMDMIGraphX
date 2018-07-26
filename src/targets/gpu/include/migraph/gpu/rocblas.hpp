@@ -6,13 +6,13 @@
 #include <rocblas.h>
 
 namespace migraph {
-namespace miopen {
+namespace gpu {
 
 using rocblas_handle_ptr = MIGRAPH_MANAGE_PTR(rocblas_handle, rocblas_destroy_handle);
 
 rocblas_handle_ptr create_rocblas_handle_ptr();
 
-} // namespace miopen
+} // namespace gpu
 
 } // namespace migraph
 

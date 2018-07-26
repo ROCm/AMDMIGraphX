@@ -1,11 +1,11 @@
-#include <migraph/miopen/write_literals.hpp>
+#include <migraph/gpu/write_literals.hpp>
 #include <migraph/iterator_for.hpp>
-#include <migraph/miopen/hip.hpp>
+#include <migraph/gpu/hip.hpp>
 #include <migraph/instruction.hpp>
 
 namespace migraph {
 
-namespace miopen {
+namespace gpu {
 
 void write_literals::apply(program& p) const
 {
@@ -20,6 +20,6 @@ void write_literals::apply(program& p) const
     }
 }
 
-} // namespace miopen
+} // namespace gpu
 
 } // namespace migraph

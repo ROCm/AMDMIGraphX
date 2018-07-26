@@ -1,10 +1,10 @@
-#include <migraph/miopen/target.hpp>
-#include <migraph/miopen/lowering.hpp>
-#include <migraph/miopen/write_literals.hpp>
-#include <migraph/miopen/context.hpp>
+#include <migraph/gpu/target.hpp>
+#include <migraph/gpu/lowering.hpp>
+#include <migraph/gpu/write_literals.hpp>
+#include <migraph/gpu/context.hpp>
 
 namespace migraph {
-namespace miopen {
+namespace gpu {
 
 std::vector<pass> target::get_passes(migraph::context&) const
 {
@@ -19,6 +19,6 @@ migraph::context target::get_context() const
                    share(create_rocblas_handle_ptr())};
 }
 
-} // namespace miopen
+} // namespace gpu
 
 } // namespace migraph

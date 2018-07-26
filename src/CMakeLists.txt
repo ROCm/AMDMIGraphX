@@ -10,6 +10,6 @@ target_include_directories(migraph PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOUR
 
 add_subdirectory(onnx)
 add_subdirectory(targets/cpu)
-if(MIGRAPH_ENABLE_MIOPEN)
-add_subdirectory(targets/miopen)
+if(MIGRAPH_ENABLE_GPU)
+add_subdirectory(targets/gpu)
 endif()

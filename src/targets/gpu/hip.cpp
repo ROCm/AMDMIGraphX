@@ -1,5 +1,5 @@
 
-#include <migraph/miopen/hip.hpp>
+#include <migraph/gpu/hip.hpp>
 
 #include <migraph/manage_ptr.hpp>
 #include <miopen/miopen.h>
@@ -7,7 +7,7 @@
 #include <vector>
 
 namespace migraph {
-namespace miopen {
+namespace gpu {
 
 using hip_ptr = MIGRAPH_MANAGE_PTR(void, hipFree);
 
@@ -67,6 +67,6 @@ migraph::argument from_gpu(migraph::argument arg)
     return result;
 }
 
-} // namespace miopen
+} // namespace gpu
 
 } // namespace migraph

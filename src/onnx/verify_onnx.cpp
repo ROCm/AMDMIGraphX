@@ -26,8 +26,7 @@ migraph::argument run_gpu(std::string file)
     auto s      = p.get_parameter_shape("Input3");
     auto input3 = migraph::gpu::to_gpu(migraph::generate_argument(s));
 
-    auto output =
-        migraph::gpu::to_gpu(migraph::generate_argument(p.get_parameter_shape("output")));
+    auto output = migraph::gpu::to_gpu(migraph::generate_argument(p.get_parameter_shape("output")));
     auto handle = migraph::gpu::make_obj<migraph::gpu::miopen_handle>(&miopenCreate);
 
     auto out = p.eval({{"Input3", input3}, {"output", output}});

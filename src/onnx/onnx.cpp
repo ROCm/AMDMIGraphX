@@ -317,7 +317,7 @@ struct onnx_parser
         std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
         if(t.has_raw_data())
         {
-            std::string s = t.raw_data();
+            const std::string& s = t.raw_data();
             switch(t.data_type())
             {
             case onnx::TensorProto::UNDEFINED: throw std::runtime_error("");

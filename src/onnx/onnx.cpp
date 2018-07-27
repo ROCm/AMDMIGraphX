@@ -318,70 +318,26 @@ struct onnx_parser
         if(t.has_raw_data())
         {
             std::string s = t.raw_data();
-            if(t.data_type() == onnx::TensorProto::FLOAT)
+            switch(t.data_type())
             {
-                return literal{{shape::float_type, dims}, s.data()};
+            case onnx::TensorProto::UNDEFINED: throw std::runtime_error("");
+            case onnx::TensorProto::FLOAT: return literal{{shape::float_type, dims}, s.data()};
+            case onnx::TensorProto::UINT8: throw std::runtime_error("");
+            case onnx::TensorProto::INT8: return literal{{shape::int32_type, dims}, s.data()};
+            case onnx::TensorProto::UINT16: return literal{{shape::int32_type, dims}, s.data()};
+            case onnx::TensorProto::INT16: return literal{{shape::int32_type, dims}, s.data()};
+            case onnx::TensorProto::INT32: return literal{{shape::int32_type, dims}, s.data()};
+            case onnx::TensorProto::INT64: return literal{{shape::int64_type, dims}, s.data()};
+            case onnx::TensorProto::STRING: throw std::runtime_error("");
+            case onnx::TensorProto::BOOL: return literal{{shape::int32_type, dims}, s.data()};
+            case onnx::TensorProto::FLOAT16: throw std::runtime_error("");
+            case onnx::TensorProto::DOUBLE: return literal{{shape::double_type, dims}, s.data()};
+            case onnx::TensorProto::UINT32: throw std::runtime_error("");
+            case onnx::TensorProto::UINT64: throw std::runtime_error("");
+            case onnx::TensorProto::COMPLEX64: throw std::runtime_error("");
+            case onnx::TensorProto::COMPLEX128: throw std::runtime_error("");
             }
-            else if(t.data_type() == onnx::TensorProto::UINT8)
-            {
-                throw std::runtime_error("");
-            }
-            else if(t.data_type() == onnx::TensorProto::INT8)
-            {
-                return literal{{shape::int32_type, dims}, s.data()};
-            }
-            else if(t.data_type() == onnx::TensorProto::UINT16)
-            {
-                return literal{{shape::int32_type, dims}, s.data()};
-            }
-            else if(t.data_type() == onnx::TensorProto::INT16)
-            {
-                return literal{{shape::int32_type, dims}, s.data()};
-            }
-            else if(t.data_type() == onnx::TensorProto::INT32)
-            {
-                return literal{{shape::int32_type, dims}, s.data()};
-            }
-            else if(t.data_type() == onnx::TensorProto::INT64)
-            {
-                return literal{{shape::int64_type, dims}, s.data()};
-            }
-            else if(t.data_type() == onnx::TensorProto::STRING)
-            {
-                throw std::runtime_error("");
-            }
-            else if(t.data_type() == onnx::TensorProto::BOOL)
-            {
-                return literal{{shape::int32_type, dims}, s.data()};
-            }
-            else if(t.data_type() == onnx::TensorProto::FLOAT16)
-            {
-                throw std::runtime_error("");
-            }
-            else if(t.data_type() == onnx::TensorProto::DOUBLE)
-            {
-                return literal{{shape::double_type, dims}, s.data()};
-            }
-            else if(t.data_type() == onnx::TensorProto::UINT32)
-            {
-                throw std::runtime_error("");
-            }
-            else if(t.data_type() == onnx::TensorProto::UINT64)
-            {
-                throw std::runtime_error("");
-            }
-            else if(t.data_type() == onnx::TensorProto::COMPLEX64)
-            {
-                throw std::runtime_error("");
-            }
-            else if(t.data_type() == onnx::TensorProto::COMPLEX128)
-            {
-                throw std::runtime_error("");
-            }
-            else
-            {
-                MIGRAPH_THROW("Invalid tensor type");
-            }
+            MIGRAPH_THROW("Invalid tensor type");
         }
         switch(t.data_type())
         {

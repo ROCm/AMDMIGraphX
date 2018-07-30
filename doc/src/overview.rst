@@ -6,7 +6,7 @@ MIGraph provides an optimized execution engine for deep learning neural networks
 Building a program
 ------------------
 
-A program consists of a set of an instruction to be executed when calling ``eval``. Each instruction has an associated ``operation`` which represents the computation to be performed by the instruction.
+A program consists of a set of instructions to be executed when calling ``eval``. Each instruction has an associated ``operation`` which represents the computation to be performed by the instruction.
 
 We can start by building a simple program to add two numbers together::
 
@@ -17,7 +17,7 @@ We can start by building a simple program to add two numbers together::
 
 The ``add_literal`` will add an instruction to the program to store a literal number. The ``instruction_ref`` is a reference to the instruction in the program, which can be used to compose the output of the instruction with another instruction.
 
-After creating the literals, we then create the instruction to add the numbers together. This is done by using the ``add{}`` operations class along with the ``instruction_ref`` for the input arguments of the instruction.
+After creating the literals, we then create the instruction to add the numbers together. This is done by using the ``add{}`` operation class along with the ``instruction_ref`` for the input arguments of the instruction.
 
 Finally, we can run this ``program`` by compiling it for the cpu and then running it with ``eval``::
 
@@ -35,7 +35,7 @@ We can also compile the program for the gpu as well.
 Adding parameters
 -----------------
 
-Of course, this program will always prodouce the same value which is quite uninteresting. Instead, we want to pass an input to a program and compute a value based on the input. This can be done with a parameter. For example, we can modify the program to take an input ``x``::
+Of course, this program will always produce the same value which is quite uninteresting. Instead, we want to pass an input to a program and compute a value based on the input. This can be done with a parameter. For example, we can modify the program to take an input ``x``::
 
     program p;
     instruction_ref x = p.add_parameter("x", {shape::int64_type});
@@ -57,7 +57,7 @@ A parameter is given as an ``argument``. In this case, the simplest way of creat
 Tensor data
 -----------
 
-In this example we are just creating numbers, but the `shape` class can describe multi-dimensional tensors. For example, we can build a simple network with convolution and relu::
+In this example we are just creating numbers, but the ``shape`` class can describe multi-dimensional tensors. For example, we can build a simple network with convolution and relu::
 
     program p;
     instruction_ref input = p.add_parameter("x", shape{shape::float_type, {1, 3, 32, 32}});
@@ -65,7 +65,7 @@ In this example we are just creating numbers, but the `shape` class can describe
     instruction_ref conv = p.add_instruction(convolution{}, input, weights);
     p.add_instruction(activation{"relu"}, conv);
 
-Here we create two parameters for both the ``input`` and ``weights``. In the previous examples, we just created simple literals, however, most programs will take data from already allocated buffers(usually on the GPU). In this case, we can create ``argument``s directly from the pointers to the buffers::
+Here we create two parameters for both the ``input`` and ``weights``. In the previous examples, we just created simple literals, however, most programs will take data from already allocated buffers(usually on the GPU). In this case, we can create ``argument`` objects directly from the pointers to the buffers::
 
     // Compile the program
     p.compile(gpu::target{});
@@ -77,7 +77,7 @@ Here we create two parameters for both the ``input`` and ``weights``. In the pre
     argument weights_arg{shape{shape::float_type, {1, 3, 32, 32}}, weights};
     p.eval({{"x", input_arg}, {"w", weights_arg}})
 
-An ``argument`` can handle memory buffers from either the GPU or the CPU, but when running the ``program`` buffers should be allocated for the corresponding target. That is, when compiling for the CPU, the buffers should be allocated on the CPU, and when compiling for the GPU the buffers should be allocated on the GPU.
+An ``argument`` can handle memory buffers from either the GPU or the CPU, but when running the ``program``, buffers should be allocated for the corresponding target. That is, when compiling for the CPU, the buffers should be allocated on the CPU, and when compiling for the GPU the buffers should be allocated on the GPU.
 
 Importing from onnx
 -------------------
@@ -86,4 +86,4 @@ A ``program`` can be built directly from an onnx file, which makes it easier to 
 
     program p = parse_onnx("model.onnx");
     p.compile(gpu::target{});
-    
+

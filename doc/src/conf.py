@@ -157,3 +157,6 @@ texinfo_documents = [
 breathe_default_members = ('members', 'undoc-members')
 cpp_index_common_prefix = ['migraph::']
 
+default_role = 'any'
+primary_domain = 'cpp'
+

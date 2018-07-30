@@ -11,6 +11,8 @@ instruction_ref
 
 .. cpp:type:: migraph::instruction_ref
 
+    References an instruction in the program.
+
 program
 -------
 

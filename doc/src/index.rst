@@ -10,6 +10,7 @@ Welcome to MIGraph's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   overview
    reference/data
    reference/operators
    reference/program

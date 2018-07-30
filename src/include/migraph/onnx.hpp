@@ -5,6 +5,7 @@
 
 namespace migraph {
 
+/// Create a program from an onnx file
 program parse_onnx(const std::string& name);
 
 } // namespace migraph

@@ -128,7 +128,6 @@ struct onnx_parser
     parse_pooling(std::string, attribute_map attributes, std::vector<instruction_ref> args)
     {
         pooling op{"max"};
-        // for(auto&& p:attributes) std::cout << p.first << std::endl;
         if(contains(attributes, "pads"))
         {
             copy(attributes["pads"].ints(), op.padding.begin());

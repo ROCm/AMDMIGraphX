@@ -6,7 +6,7 @@ MIGraph provides an optimized execution engine for deep learning neural networks
 Building a program
 ------------------
 
-A program consists of a set of instructions to be executed when calling :cpp:any:`eval <migraph::program::eval>`. Each instruction has an associated :cpp:class:`operation <migraph::operation>` which represents the computation to be performed by the instruction.
+A program consists of a set of instructions to be executed when calling `eval <migraph::program::eval>`. Each instruction has an associated `operation <migraph::operation>` which represents the computation to be performed by the instruction.
 
 We can start by building a simple program to add two numbers together::
 
@@ -15,11 +15,11 @@ We can start by building a simple program to add two numbers together::
     instruction_ref two = p.add_literal(2);
     p.add_instruction(add{}, one, two);
 
-The :cpp:any:`add_literal <migraph::program::add_literal>` function will add an instruction to the program to store a literal number. The :cpp:any:`instruction_ref <migraph::instruction_ref>` is a reference to the instruction in the program, which can be used to compose the output of the instruction with another instruction.
+The `add_literal <migraph::program::add_literal>` function will add an instruction to the program to store a literal number. The `instruction_ref <migraph::instruction_ref>` is a reference to the instruction in the program, which can be used to compose the output of the instruction with another instruction.
 
-After creating the literals, we then create the instruction to add the numbers together. This is done by using the :cpp:class:`add{} <migraph::add>` operation class along with the :cpp:any:`instruction_ref <migraph::instruction_ref>` for the input arguments of the instruction.
+After creating the literals, we then create the instruction to add the numbers together. This is done by using the `add{} <migraph::add>` operation class along with the `instruction_ref <migraph::instruction_ref>` for the input arguments of the instruction.
 
-Finally, we can run this :cpp:class:`program <migraph::program>` by compiling it for the cpu and then running it with :cpp:any:`eval <migraph::program::eval>`::
+Finally, we can run this `program <migraph::program>` by compiling it for the cpu and then running it with `eval <migraph::program::eval>`::
 
     p.compile(cpu::target{});
     argument result = p.eval({});
@@ -43,7 +43,7 @@ Of course, this program will always produce the same value which is quite uninte
     p.add_instruction(add{}, one, two);
     p.compile(cpu::target{});
 
-This adds a parameter of type ``int64``, and compiles it for the ``cpu``. To run the program, we need to pass the parameter to it when we call :cpp:any:`eval <migraph::program::eval>`::
+This adds a parameter of type ``int64``, and compiles it for the ``cpu``. To run the program, we need to pass the parameter to it when we call `eval <migraph::program::eval>`::
 
     argument result = p.eval({
         {"x", literal{1}.get_argument()}
@@ -52,12 +52,12 @@ This adds a parameter of type ``int64``, and compiles it for the ``cpu``. To run
 
 This will print ``3``.
 
-A parameter is given as an :cpp:class:`argument <migraph::argument>`. In this case, the simplest way of creating an :cpp:class:`argument <migraph::argument>` is from a :cpp:class:`literal <migraph::literal>`.
+A parameter is given as an `argument <migraph::argument>`. In this case, the simplest way of creating an `argument <migraph::argument>` is from a `literal <migraph::literal>`.
 
 Tensor data
 -----------
 
-In this example we are just creating numbers, but the :cpp:class:`shape <migraph::shape>` class can describe multi-dimensional tensors. For example, we can build a simple network with convolution and relu::
+In this example we are just creating numbers, but the `shape <migraph::shape>` class can describe multi-dimensional tensors. For example, we can build a simple network with convolution and relu::
 
     program p;
     instruction_ref input = p.add_parameter("x", shape{shape::float_type, {1, 3, 32, 32}});
@@ -65,7 +65,7 @@ In this example we are just creating numbers, but the :cpp:class:`shape <migraph
     instruction_ref conv = p.add_instruction(convolution{}, input, weights);
     p.add_instruction(activation{"relu"}, conv);
 
-Here we create two parameters for both the ``input`` and ``weights``. In the previous examples, we just created simple literals, however, most programs will take data from already allocated buffers(usually on the GPU). In this case, we can create :cpp:class:`argument <migraph::argument>` objects directly from the pointers to the buffers::
+Here we create two parameters for both the ``input`` and ``weights``. In the previous examples, we just created simple literals, however, most programs will take data from already allocated buffers(usually on the GPU). In this case, we can create `argument <migraph::argument>` objects directly from the pointers to the buffers::
 
     // Compile the program
     p.compile(gpu::target{});
@@ -77,12 +77,12 @@ Here we create two parameters for both the ``input`` and ``weights``. In the pre
     argument weights_arg{shape{shape::float_type, {1, 3, 32, 32}}, weights};
     p.eval({{"x", input_arg}, {"w", weights_arg}})
 
-An :cpp:class:`argument <migraph::argument>` can handle memory buffers from either the GPU or the CPU, but when running the :cpp:class:`program <migraph::program>`, buffers should be allocated for the corresponding target. That is, when compiling for the CPU, the buffers should be allocated on the CPU, and when compiling for the GPU the buffers should be allocated on the GPU.
+An `argument <migraph::argument>` can handle memory buffers from either the GPU or the CPU, but when running the `program <migraph::program>`, buffers should be allocated for the corresponding target. That is, when compiling for the CPU, the buffers should be allocated on the CPU, and when compiling for the GPU the buffers should be allocated on the GPU.
 
 Importing from onnx
 -------------------
 
-A :cpp:class:`program <migraph::program>` can be built directly from an onnx file, which makes it easier to use neural networks directly from other frameworks. In this case, there is an ``parse_onnx`` function::
+A `program <migraph::program>` can be built directly from an onnx file, which makes it easier to use neural networks directly from other frameworks. In this case, there is an ``parse_onnx`` function::
 
     program p = parse_onnx("model.onnx");
     p.compile(gpu::target{});

@@ -1,6 +1,8 @@
 #ifndef MIGRAPH_GUARD_ERASE_HPP
 #define MIGRAPH_GUARD_ERASE_HPP
 
+#include <algorithm>
+
 namespace migraph {
 
 /**

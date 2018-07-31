@@ -106,9 +106,31 @@ if(MIGRAPH_ENABLE_GPU)
     endforeach()
 endif()
 
+# Onnx test
 add_executable(test_onnx onnx/onnx_test.cpp)
 target_link_libraries(test_onnx migraph_onnx)
 target_include_directories(test_onnx PUBLIC include)
 add_test(NAME test_onnx COMMAND $<TARGET_FILE:test_onnx> WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/onnx) 
 add_dependencies(tests test_onnx)
 add_dependencies(check test_onnx)
+
+function(test_header NAME HEADER)
+
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp 
+        "#include <${HEADER}>\nint main() {}\n"
+    )
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-static-include-${NAME}.cpp 
+        "#include <${HEADER}>\n"
+    )
+    add_test_executable(${NAME}
+        ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp 
+        ${CMAKE_CURRENT_BINARY_DIR}/header-static-include-${NAME}.cpp
+    )
+endfunction()
+
+file(GLOB HEADERS ${CMAKE_SOURCE_DIR}/src/include/migraph/*.hpp)
+
+foreach(HEADER ${HEADERS})
+    get_filename_component(BASE_NAME ${HEADER} NAME_WE)
+    test_header(header_${BASE_NAME} migraph/${BASE_NAME}.hpp)
+endforeach()

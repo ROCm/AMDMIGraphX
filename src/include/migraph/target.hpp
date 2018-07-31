@@ -1,6 +1,7 @@
 #ifndef MIGRAPH_GUARD_MIGRAPHLIB_TARGET_HPP
 #define MIGRAPH_GUARD_MIGRAPHLIB_TARGET_HPP
 
+#include <cassert>
 #include <string>
 #include <functional>
 #include <memory>

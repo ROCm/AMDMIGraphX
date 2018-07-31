@@ -249,7 +249,6 @@ struct miopen_apply
 
     void apply()
     {
-        prog->insert_instruction(prog->begin(), check_context<context>{});
         for(auto it = prog->begin(); it != prog->end(); it++)
         {
             if(it->op.name() == "convolution")

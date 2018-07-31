@@ -491,20 +491,6 @@ struct outline
     argument compute(context&, shape, std::vector<argument>) const { return {s, nullptr}; }
 };
 
-template <class T>
-struct check_context
-{
-    std::string name() const { return "check_context"; }
-    shape compute_shape(std::vector<shape>) const { return {}; }
-    argument compute(context& ctx, shape, std::vector<argument>) const
-    {
-        T* x = any_cast<T>(&ctx);
-        if(x == nullptr)
-            MIGRAPH_THROW(std::string("Unexpected context type: ") + ctx.type_id().name());
-        return {};
-    }
-};
-
 } // namespace migraph
 
 #endif

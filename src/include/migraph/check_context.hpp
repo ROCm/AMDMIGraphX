@@ -5,7 +5,7 @@
 
 namespace migraph {
 
-template<class T>
+template <class T>
 struct check_context
 {
     struct op
@@ -22,10 +22,7 @@ struct check_context
     };
 
     std::string name() const { return "check_context"; }
-    void apply(program& p) const
-    {
-        p.insert_instruction(p.begin(), op{});
-    }
+    void apply(program& p) const { p.insert_instruction(p.begin(), op{}); }
 };
 
 } // namespace migraph

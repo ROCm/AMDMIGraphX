@@ -1,6 +1,8 @@
 #ifndef MIGRAPH_GUARD_MIGRAPHLIB_RANGES_HPP
 #define MIGRAPH_GUARD_MIGRAPHLIB_RANGES_HPP
 
+#include <algorithm>
+
 namespace migraph {
 
 template <class C, class T>

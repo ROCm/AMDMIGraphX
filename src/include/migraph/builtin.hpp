@@ -3,6 +3,7 @@
 
 #include <migraph/context.hpp>
 #include <migraph/errors.hpp>
+#include <migraph/argument.hpp>
 
 namespace migraph {
 

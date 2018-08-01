@@ -24,6 +24,14 @@ struct batch_norm_inference
 
     std::string name() const { return "batch_norm_inference"; }
 
+    enum bn_infer_mode_t
+    {
+        per_activation,
+        spatial,
+    };
+
+    bn_infer_mode_t bn_mode = spatial;
+
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(5);

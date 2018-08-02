@@ -11,7 +11,8 @@ namespace migraph {
 shape::shape() : m_type(float_type), m_standard(false) {}
 
 shape::shape(type_t t) : m_type(t), m_lens({1}), m_strides({1}), m_standard(true) {}
-shape::shape(type_t t, std::vector<std::size_t> l) : m_type(t), m_lens(std::move(l)), m_standard(true)
+shape::shape(type_t t, std::vector<std::size_t> l)
+    : m_type(t), m_lens(std::move(l)), m_standard(true)
 {
     this->calculate_strides();
     assert(m_lens.size() == m_strides.size());
@@ -81,7 +82,10 @@ std::size_t shape::index(std::size_t i) const
 }
 bool shape::packed() const { return this->elements() == this->element_space(); }
 
-bool shape::transposed() const { return not std::is_sorted(this->strides().rbegin(), this->strides().rend()); }
+bool shape::transposed() const
+{
+    return not std::is_sorted(this->strides().rbegin(), this->strides().rend());
+}
 
 bool shape::broadcasted() const
 {

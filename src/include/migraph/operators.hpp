@@ -22,8 +22,6 @@ struct batch_norm_inference
 {
     float epsilon  = 1.0e-6f;
     float momentum = 0.9f;
-    bool spatial   = true;
-    bool is_test   = false;
 
     std::string name() const { return "batch_norm_inference"; }
 
@@ -34,6 +32,8 @@ struct batch_norm_inference
     };
 
     bn_infer_mode_t bn_mode = spatial;
+
+    bool is_test = false;
 
     shape compute_shape(std::vector<shape> inputs) const
     {

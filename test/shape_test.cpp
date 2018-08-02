@@ -13,6 +13,24 @@ void test_shape_assign()
     EXPECT(!(s1 != s2));
 }
 
+void test_shape_packed_default()
+{
+    migraph::shape s{migraph::shape::float_type, {2, 2}};
+    EXPECT(s.packed());
+}
+
+void test_shape_packed()
+{
+    migraph::shape s{migraph::shape::float_type, {2, 2}, {2, 1}};
+    EXPECT(s.packed());
+}
+
+void test_shape_transposed()
+{
+    migraph::shape s{migraph::shape::float_type, {2, 2}, {1, 2}};
+    EXPECT(not s.packed());
+}
+
 void test_shape_default()
 {
     migraph::shape s1{};
@@ -95,6 +113,9 @@ void test_shape4_nonpacked()
 int main()
 {
     test_shape_assign();
+    test_shape_packed_default();
+    test_shape_packed();
+    test_shape_transposed();
     test_shape_default();
     test_shape4();
     test_shape4_nonpacked();

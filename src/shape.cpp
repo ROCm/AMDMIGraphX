@@ -22,7 +22,7 @@ shape::shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
     assert(m_lens.size() == m_strides.size());
     assert(std::any_of(m_strides.begin(), m_strides.end(), [](auto x) { return x > 0; }) and
            "At least one stride must be non-zero");
-    m_packed = this->elements() == this->element_space();
+    m_packed = this->elements() == this->element_space() and std::is_sorted(m_strides.rbegin(), m_strides.rend());
 }
 
 void shape::calculate_strides()

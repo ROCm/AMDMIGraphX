@@ -22,11 +22,14 @@ void after_literal_transpose()
 {
     migraph::program p;
     auto l = p.add_literal(get_2x2());
-    EXPECT(p.get_shape().packed());
+    EXPECT(p.get_shape().standard());
+    EXPECT(not p.get_shape().transposed());
     p.add_instruction(migraph::transpose{{1, 0}}, l);
-    EXPECT(not p.get_shape().packed());
+    EXPECT(not p.get_shape().standard());
+    EXPECT(p.get_shape().transposed());
     p.compile(contigous_target{});
-    EXPECT(p.get_shape().packed());
+    EXPECT(p.get_shape().standard());
+    EXPECT(not p.get_shape().transposed());
 }
 
 int main() { after_literal_transpose(); }

@@ -8,10 +8,10 @@
 
 namespace migraph {
 
-shape::shape() : m_type(float_type), m_packed(false) {}
+shape::shape() : m_type(float_type), m_standard(false) {}
 
-shape::shape(type_t t) : m_type(t), m_lens({1}), m_strides({1}), m_packed(true) {}
-shape::shape(type_t t, std::vector<std::size_t> l) : m_type(t), m_lens(std::move(l)), m_packed(true)
+shape::shape(type_t t) : m_type(t), m_lens({1}), m_strides({1}), m_standard(true) {}
+shape::shape(type_t t, std::vector<std::size_t> l) : m_type(t), m_lens(std::move(l)), m_standard(true)
 {
     this->calculate_strides();
     assert(m_lens.size() == m_strides.size());
@@ -22,8 +22,7 @@ shape::shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
     assert(m_lens.size() == m_strides.size());
     assert(std::any_of(m_strides.begin(), m_strides.end(), [](auto x) { return x > 0; }) and
            "At least one stride must be non-zero");
-    m_packed = this->elements() == this->element_space() and
-               std::is_sorted(m_strides.rbegin(), m_strides.rend());
+    m_standard = this->packed() and not this->transposed();
 }
 
 void shape::calculate_strides()
@@ -67,7 +66,7 @@ std::size_t shape::index(const std::vector<std::size_t>& l) const
 std::size_t shape::index(std::size_t i) const
 {
     assert(this->lens().size() == this->strides().size());
-    if(this->packed())
+    if(this->standard())
         return i;
     else
         return std::inner_product(this->lens().begin(),
@@ -80,7 +79,9 @@ std::size_t shape::index(std::size_t i) const
                                       return ((i / stride) % len) * stride;
                                   });
 }
-bool shape::packed() const { return this->m_packed; }
+bool shape::packed() const { return this->elements() == this->element_space(); }
+
+bool shape::transposed() const { return not std::is_sorted(this->strides().rbegin(), this->strides().rend()); }
 
 bool shape::broadcasted() const
 {
@@ -90,6 +91,8 @@ bool shape::broadcasted() const
                            std::size_t{1},
                            std::multiplies<std::size_t>()) == 0;
 }
+
+bool shape::standard() const { return this->m_standard; }
 
 std::size_t shape::element_space() const
 {

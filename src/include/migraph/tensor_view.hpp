@@ -88,16 +88,16 @@ struct tensor_view
         return m_data[m_shape.index(this->size() - 1)];
     }
 
-    // TODO: Add iterators so it can handle nonpacked tensors
+    // TODO: Add iterators so it can handle nonstandard tensors
     T* begin()
     {
-        assert(this->m_shape.packed());
+        assert(this->m_shape.standard());
         return m_data;
     }
 
     T* end()
     {
-        assert(this->m_shape.packed());
+        assert(this->m_shape.standard());
         if(this->empty())
             return m_data;
         else
@@ -106,13 +106,13 @@ struct tensor_view
 
     const T* begin() const
     {
-        assert(this->m_shape.packed());
+        assert(this->m_shape.standard());
         return m_data;
     }
 
     const T* end() const
     {
-        assert(this->m_shape.packed());
+        assert(this->m_shape.standard());
         if(this->empty())
             return m_data;
         else

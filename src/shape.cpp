@@ -94,10 +94,12 @@ bool shape::broadcasted() const
 std::size_t shape::element_space() const
 {
     assert(this->lens().size() == this->strides().size());
-    return std::inner_product(
-               this->lens().begin(), this->lens().end(), this->strides().begin(), std::size_t{0}, std::plus<std::size_t>{}, [](std::size_t l, std::size_t s) {
-                  return (l - 1) * s;
-               }) +
+    return std::inner_product(this->lens().begin(),
+                              this->lens().end(),
+                              this->strides().begin(),
+                              std::size_t{0},
+                              std::plus<std::size_t>{},
+                              [](std::size_t l, std::size_t s) { return (l - 1) * s; }) +
            1;
 }
 

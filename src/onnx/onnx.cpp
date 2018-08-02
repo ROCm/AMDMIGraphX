@@ -62,6 +62,7 @@ struct onnx_parser
         add_mem_op("Conv", &onnx_parser::parse_conv);
         add_mem_op("MaxPool", &onnx_parser::parse_pooling);
         add_mem_op("Reshape", &onnx_parser::parse_reshape);
+        add_mem_op("BatchNormalization", &onnx_parser::parse_batchnorm);
     }
 
     template <class F>
@@ -165,6 +166,35 @@ struct onnx_parser
     {
         literal v = parse_value(attributes.at("value"));
         return prog.add_literal(v);
+    }
+
+    instruction_ref
+    parse_batchnorm(std::string, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        float epsilon                                 = 1e-5f;
+        float momentum                                = 0.9f;
+        batch_norm_inference::bn_infer_mode_t bn_mode = batch_norm_inference::spatial;
+        bool is_test                                  = false;
+        if(contains(attributes, "epsilon"))
+        {
+            epsilon = parse_value(attributes.at("epsilon")).at<float>();
+        }
+        if(contains(attributes, "momentum"))
+        {
+            epsilon = parse_value(attributes.at("momentum")).at<float>();
+        }
+        if(contains(attributes, "is_test"))
+        {
+            is_test = parse_value(attributes.at("is_test")).at<uint64_t>() > 0;
+        }
+        if(contains(attributes, "spatial"))
+        {
+            bn_mode = (parse_value(attributes.at("spatial")).at<uint64_t>() > 0)
+                          ? batch_norm_inference::spatial
+                          : batch_norm_inference::per_activation;
+        }
+        batch_norm_inference op{epsilon, momentum, bn_mode, is_test};
+        return prog.add_instruction(op, args);
     }
 
     void parse_from(std::istream& is)

@@ -56,16 +56,34 @@ struct cpu_batch_norm_inference
         auto image_height = output_shape.lens()[2];
         auto image_width  = output_shape.lens()[3];
 
-        visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
-            [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
+        if(op.bn_mode == batch_norm_inference::spatial)
+        {
+            visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
+                [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
 
-                dfor(num_batch, num_channels, image_height, image_width)(
-                    [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
-                        result(n, c, h, w) = gamma(c) * (buffer(n, c, h, w) - mean(c)) /
-                                                 std::sqrt(variance(c) + epsilon) +
-                                             bias(c);
-                    });
-            });
+                    dfor(num_batch, num_channels, image_height, image_width)(
+                        [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
+                            result(n, c, h, w) = gamma(c) * (buffer(n, c, h, w) - mean(c)) /
+                                                     std::sqrt(variance(c) + epsilon) +
+                                                 bias(c);
+                        });
+                });
+        }
+
+        if(op.bn_mode == batch_norm_inference::per_activation)
+        {
+            visit_all(output, input, mini_batch_mean, mini_batch_mean, arg_gamma, arg_bias)(
+                [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
+
+                    dfor(num_batch, num_channels, image_height, image_width)(
+                        [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
+                            result(n, c, h, w) = gamma(c, h, w) *
+                                                     (buffer(n, c, h, w) - mean(c, h, w)) /
+                                                     std::sqrt(variance(c, h, w) + epsilon) +
+                                                 bias(c, h, w);
+                        });
+                });
+        }
 
         return output;
     }

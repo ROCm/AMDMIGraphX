@@ -126,10 +126,7 @@ bool program::has_instruction(instruction_ref ins) const
 instruction_ref program::begin() { return impl->instructions.begin(); }
 instruction_ref program::end() { return impl->instructions.end(); }
 
-shape program::get_shape() const
-{
-    return impl->instructions.back().result;
-}
+shape program::get_shape() const { return impl->instructions.back().result; }
 
 instruction_ref program::validate() const
 {

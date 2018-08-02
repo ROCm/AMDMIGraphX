@@ -221,9 +221,9 @@ struct transpose
         }
         return {t, output_lens, output_strides};
     }
-    argument compute(context&, shape, std::vector<argument>) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
-        MIGRAPH_THROW("not computable");
+        return {output_shape, std::move(args.front().data)};
     }
 };
 
@@ -286,9 +286,9 @@ struct reshape
         return s;
     }
 
-    argument compute(context&, shape, std::vector<argument>) const
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
-        MIGRAPH_THROW("not computable");
+        return {output_shape, std::move(args.front().data)};
     }
 
     friend std::ostream& operator<<(std::ostream& os, const reshape& op)

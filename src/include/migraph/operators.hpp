@@ -105,7 +105,10 @@ struct not_computable
 
 struct batch_norm_inference
 {
-    double epsilon = 1.0e-6;
+    float epsilon  = 1.0e-6f;
+    float momentum = 0.9f;
+    bool spatial   = true;
+    bool is_test   = false;
 
     std::string name() const { return "batch_norm_inference"; }
 

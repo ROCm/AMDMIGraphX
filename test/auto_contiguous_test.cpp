@@ -29,6 +29,4 @@ void after_literal_transpose()
     EXPECT(p.get_shape().packed());
 }
 
-int main() {
-    after_literal_transpose();
-}
+int main() { after_literal_transpose(); }

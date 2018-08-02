@@ -185,7 +185,7 @@ struct onnx_parser
         }
         if(contains(attributes, "is_test"))
         {
-            is_test = (parse_value(attributes.at("is_test")).at<uint64_t>() > 0) ? true : false;
+            is_test = parse_value(attributes.at("is_test")).at<uint64_t>() > 0;
         }
         if(contains(attributes, "spatial"))
         {

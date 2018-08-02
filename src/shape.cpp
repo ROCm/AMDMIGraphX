@@ -93,16 +93,11 @@ bool shape::broadcasted() const
 
 std::size_t shape::element_space() const
 {
-    // TODO: Get rid of intermediate vector
     assert(this->lens().size() == this->strides().size());
-    std::vector<std::size_t> max_indices(this->lens().size());
-    std::transform(this->lens().begin(),
-                   this->lens().end(),
-                   std::vector<std::size_t>(this->lens().size(), 1).begin(),
-                   max_indices.begin(),
-                   std::minus<std::size_t>());
     return std::inner_product(
-               max_indices.begin(), max_indices.end(), this->strides().begin(), std::size_t{0}) +
+               this->lens().begin(), this->lens().end(), this->strides().begin(), std::size_t{0}, std::plus<std::size_t>{}, [](std::size_t l, std::size_t s) {
+                  return (l - 1) * s;
+               }) +
            1;
 }
 

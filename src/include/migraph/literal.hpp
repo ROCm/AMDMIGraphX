@@ -68,7 +68,7 @@ struct literal : raw_data<literal>
     template <class Iterator>
     void fill(Iterator start, Iterator end)
     {
-        if(m_shape.packed())
+        if(m_shape.standard())
         {
             m_shape.visit_type([&](auto as) { std::copy(start, end, as.from(buffer.data())); });
         }
@@ -82,12 +82,6 @@ struct literal : raw_data<literal>
                     output(idx.begin(), idx.end()) = *it;
                 });
             });
-            //     visit_all(*this)([&](auto output) {
-            //         shape_for_each(output.get_shape(), [&](const auto& idx) {
-            //             it++;
-            //             output(idx.begin(), idx.end()) = *it;
-            //         });
-            // });
         }
     }
 };

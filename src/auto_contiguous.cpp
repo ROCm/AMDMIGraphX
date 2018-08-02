@@ -11,7 +11,7 @@ void auto_contigous::apply(program& p) const
     for(auto ins : iterator_for(p))
     {
         shape s = ins->result;
-        if(not s.packed() or s.broadcasted())
+        if(not s.standard())
         {
             auto prev = p.insert_instruction(ins, ins->op, ins->arguments);
             p.replace_instruction(ins, contiguous{}, prev);

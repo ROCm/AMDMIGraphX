@@ -76,7 +76,9 @@ struct shape
     std::size_t index(std::size_t i) const;
 
     bool packed() const;
+    bool transposed() const;
     bool broadcasted() const;
+    bool standard() const;
 
     friend bool operator==(const shape& x, const shape& y);
     friend bool operator!=(const shape& x, const shape& y);
@@ -139,7 +141,7 @@ struct shape
     type_t m_type;
     std::vector<std::size_t> m_lens;
     std::vector<std::size_t> m_strides;
-    bool m_packed;
+    bool m_standard;
 
     void calculate_strides();
     std::size_t element_space() const;

@@ -2,13 +2,14 @@
 #include <migraph/gpu/lowering.hpp>
 #include <migraph/gpu/write_literals.hpp>
 #include <migraph/gpu/context.hpp>
+#include <migraph/check_context.hpp>
 
 namespace migraph {
 namespace gpu {
 
 std::vector<pass> target::get_passes(migraph::context&) const
 {
-    return {lowering{}, write_literals{}};
+    return {lowering{}, write_literals{}, check_context<context>{}};
 }
 
 std::string target::name() const { return "miopen"; }

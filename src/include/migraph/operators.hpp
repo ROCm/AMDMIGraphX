@@ -3,97 +3,12 @@
 
 #include <array>
 #include <migraph/operation.hpp>
+#include <migraph/check_shapes.hpp>
 #include <migraph/stringutils.hpp>
 #include <migraph/streamutils.hpp>
 #include <cmath>
 
 namespace migraph {
-
-struct check_shapes
-{
-    const std::vector<shape>* shapes;
-    const std::string name;
-
-    check_shapes(const std::vector<shape>& s) : shapes(&s) {}
-
-    template <class Op>
-    check_shapes(const std::vector<shape>& s, const Op& op) : shapes(&s), name(op.name())
-    {
-    }
-
-    std::string prefix() const
-    {
-        if(name.empty())
-            return "";
-        else
-            return name + ": ";
-    }
-
-    const check_shapes& has(std::size_t n) const
-    {
-        assert(shapes != nullptr);
-        if(shapes->size() != n)
-            MIGRAPH_THROW(prefix() + "Wrong number of arguments: expected " + std::to_string(n) +
-                          " but given " + std::to_string(shapes->size()));
-        return *this;
-    }
-
-    const check_shapes& only_dims(std::size_t n) const
-    {
-        assert(shapes != nullptr);
-        if(!shapes->empty())
-        {
-            if(shapes->front().lens().size() != n)
-                MIGRAPH_THROW(prefix() + "Only " + std::to_string(n) + "d supported");
-        }
-        return *this;
-    }
-
-    const check_shapes& same_shape() const
-    {
-        if(!this->same([](const shape& s) { return s; }))
-            MIGRAPH_THROW(prefix() + "Shapes do not match");
-        return *this;
-    }
-
-    const check_shapes& same_type() const
-    {
-        if(!this->same([](const shape& s) { return s.type(); }))
-            MIGRAPH_THROW(prefix() + "Types do not match");
-        return *this;
-    }
-
-    const check_shapes& same_dims() const
-    {
-        if(!this->same([](const shape& s) { return s.lens(); }))
-            MIGRAPH_THROW(prefix() + "Dimensions do not match");
-        return *this;
-    }
-
-    const check_shapes& same_ndims() const
-    {
-        if(!this->same([](const shape& s) { return s.lens().size(); }))
-            MIGRAPH_THROW(prefix() + "Dimensions do not match");
-        return *this;
-    }
-
-    template <class F>
-    bool same(F f) const
-    {
-        assert(shapes != nullptr);
-        if(shapes->empty())
-            return true;
-        auto&& key = f(shapes->front());
-        return this->all_of([&](const shape& s) { return f(s) == key; });
-    }
-
-    template <class Predicate>
-    bool all_of(Predicate p) const
-    {
-        assert(shapes != nullptr);
-        return std::all_of(shapes->begin(), shapes->end(), p);
-    }
-};
 
 struct not_computable
 {
@@ -111,6 +26,14 @@ struct batch_norm_inference
     bool is_test   = false;
 
     std::string name() const { return "batch_norm_inference"; }
+
+    enum bn_infer_mode_t
+    {
+        per_activation,
+        spatial,
+    };
+
+    bn_infer_mode_t bn_mode = spatial;
 
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -577,20 +500,6 @@ struct outline
         return s;
     }
     argument compute(context&, shape, std::vector<argument>) const { return {s, nullptr}; }
-};
-
-template <class T>
-struct check_context
-{
-    std::string name() const { return "check_context"; }
-    shape compute_shape(std::vector<shape>) const { return {}; }
-    argument compute(context& ctx, shape, std::vector<argument>) const
-    {
-        T* x = any_cast<T>(&ctx);
-        if(x == nullptr)
-            MIGRAPH_THROW(std::string("Unexpected context type: ") + ctx.type_id().name());
-        return {};
-    }
 };
 
 } // namespace migraph

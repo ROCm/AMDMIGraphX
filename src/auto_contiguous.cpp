@@ -6,7 +6,7 @@
 
 namespace migraph {
 
-void auto_contigous::apply(program& p) const
+void auto_contiguous::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
     {

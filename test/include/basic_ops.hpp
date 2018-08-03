@@ -61,3 +61,22 @@ struct minus_op
         return inputs.front();
     }
 };
+
+struct pass_op
+{
+    std::string name() const { return "pass"; }
+    migraph::argument
+    compute(migraph::context&, migraph::shape, std::vector<migraph::argument> args) const
+    {
+        if(args.empty())
+            return {};
+        return args.front();
+    }
+
+    migraph::shape compute_shape(std::vector<migraph::shape> inputs) const
+    {
+        if(inputs.empty())
+            return {};
+        return inputs.front();
+    }
+};

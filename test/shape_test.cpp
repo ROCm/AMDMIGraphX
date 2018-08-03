@@ -13,6 +13,42 @@ void test_shape_assign()
     EXPECT(!(s1 != s2));
 }
 
+void test_shape_packed_default()
+{
+    migraph::shape s{migraph::shape::float_type, {2, 2}};
+    EXPECT(s.standard());
+    EXPECT(s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
+void test_shape_packed()
+{
+    migraph::shape s{migraph::shape::float_type, {2, 2}, {2, 1}};
+    EXPECT(s.standard());
+    EXPECT(s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
+void test_shape_transposed()
+{
+    migraph::shape s{migraph::shape::float_type, {2, 2}, {1, 2}};
+    EXPECT(not s.standard());
+    EXPECT(s.packed());
+    EXPECT(s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
+void test_shape_broadcasted()
+{
+    migraph::shape s{migraph::shape::float_type, {2, 2}, {1, 0}};
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(s.broadcasted());
+}
+
 void test_shape_default()
 {
     migraph::shape s1{};
@@ -24,7 +60,10 @@ void test_shape_default()
 void test_shape4()
 {
     migraph::shape s{migraph::shape::float_type, {100, 32, 8, 8}};
+    EXPECT(s.standard());
     EXPECT(s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
     EXPECT(s.type() == migraph::shape::float_type);
     EXPECT(s.lens()[0] == 100);
     EXPECT(s.lens()[1] == 32);
@@ -68,7 +107,10 @@ void test_shape4_nonpacked()
                      std::multiplies<std::size_t>());
 
     migraph::shape s{migraph::shape::float_type, lens, strides};
-    EXPECT(!s.packed());
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
     EXPECT(s.type() == migraph::shape::float_type);
     EXPECT(s.lens()[0] == 100);
     EXPECT(s.lens()[1] == 32);
@@ -95,6 +137,10 @@ void test_shape4_nonpacked()
 int main()
 {
     test_shape_assign();
+    test_shape_packed_default();
+    test_shape_packed();
+    test_shape_transposed();
+    test_shape_broadcasted();
     test_shape_default();
     test_shape4();
     test_shape4_nonpacked();

@@ -18,10 +18,7 @@ migraph::literal get_2x2()
     return migraph::literal{{migraph::shape::float_type, {2, 2}}, {1, 2, 3, 4}};
 }
 
-migraph::literal get_2()
-{
-    return migraph::literal{{migraph::shape::float_type, {2}}, {1, 2}};
-}
+migraph::literal get_2() { return migraph::literal{{migraph::shape::float_type, {2}}, {1, 2}}; }
 
 void after_literal_transpose()
 {
@@ -54,7 +51,8 @@ void after_literal_broadcast()
     EXPECT(not p.get_shape().broadcasted());
 }
 
-int main() { 
+int main()
+{
     after_literal_transpose();
     after_literal_broadcast();
 }

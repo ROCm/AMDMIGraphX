@@ -8,9 +8,9 @@ namespace migraph {
 
 struct program;
 
-struct auto_contigous
+struct auto_contiguous
 {
-    std::string name() const { return "auto_contigous"; }
+    std::string name() const { return "auto_contiguous"; }
     void apply(program& p) const;
 };
 

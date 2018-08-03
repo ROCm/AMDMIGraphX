@@ -78,6 +78,8 @@ struct program
     instruction_ref begin();
     instruction_ref end();
 
+    shape get_shape() const;
+
     instruction_ref validate() const;
 
     void compile(const target& t);

@@ -183,22 +183,6 @@ struct miopen_gemm
     }
 };
 
-struct miopen_transpose
-{
-    transpose op;
-
-    std::string name() const { return "gpu::transpose"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs, *this}.has(2);
-        return op.compute_shape({inputs.at(0)});
-    }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
-    {
-        return {output_shape, std::move(args.front().data)};
-    }
-};
-
 struct miopen_contiguous
 {
     contiguous op;
@@ -271,10 +255,6 @@ struct miopen_apply
             {
                 apply_gemm(it);
             }
-            else if(it->op.name() == "transpose")
-            {
-                apply_transpose(it);
-            }
             else if(it->op.name() == "contiguous")
             {
                 apply_contiguous(it);
@@ -344,13 +324,6 @@ struct miopen_apply
         auto output = insert_allocation(ins, ins->result);
         prog->replace_instruction(
             ins, miopen_gemm{op}, ins->arguments.at(0), ins->arguments.at(1), output);
-    }
-
-    void apply_transpose(instruction_ref ins)
-    {
-        auto&& op   = any_cast<transpose>(ins->op);
-        auto output = insert_allocation(ins, ins->result);
-        prog->replace_instruction(ins, miopen_transpose{op}, ins->arguments.at(0), output);
     }
 
     void apply_contiguous(instruction_ref ins)

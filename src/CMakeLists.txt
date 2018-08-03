@@ -1,5 +1,6 @@
 
 add_library(migraph 
+    auto_contiguous.cpp
     dead_code_elimination.cpp
     generate.cpp
     program.cpp

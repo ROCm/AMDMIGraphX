@@ -641,7 +641,7 @@ void contiguous_test()
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<size_t> new_lens    = {1, 3, 2, 2};
     std::vector<size_t> new_strides = {12, 1, 6, 3};
-    std::vector<float> gold         = {0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11};
+    std::vector<float> gold         = {1, 4, 7, 10, 2, 5, 8, 11, 3, 6, 9, 0};
     EXPECT(test::verify_range(results_vector, gold));
 }
 

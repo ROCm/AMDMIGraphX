@@ -203,18 +203,6 @@ struct cpu_pooling
     }
 };
 
-struct cpu_transpose
-{
-    transpose op;
-
-    std::string name() const { return "cpu::transpose"; }
-    shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
-    {
-        return {output_shape, std::move(args.front().data)};
-    }
-};
-
 struct cpu_contiguous
 {
     contiguous op;
@@ -229,18 +217,6 @@ struct cpu_contiguous
             });
         });
         return result;
-    }
-};
-
-struct cpu_reshape
-{
-    reshape op;
-    std::string name() const { return "cpu::reshape"; }
-    shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
-
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
-    {
-        return {output_shape, std::move(args.front().data)};
     }
 };
 
@@ -545,9 +521,7 @@ struct cpu_apply
         apply_map["gemm"]        = extend_op<cpu_gemm, gemm>();
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, batch_norm_inference>();
-        apply_map["reshape"]    = extend_op<cpu_reshape, reshape>();
         apply_map["contiguous"] = extend_op<cpu_contiguous, contiguous>();
-        apply_map["transpose"]  = extend_op<cpu_transpose, transpose>();
 
         apply_map["identity"] = simple_op<cpu_unary<identity_op>>();
         apply_map["tanh"]     = simple_op<cpu_unary<tanh_op>>();

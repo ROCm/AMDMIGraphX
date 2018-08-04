@@ -313,6 +313,8 @@ struct reshape
 
 struct gemm
 {
+    float alpha = 1.0;
+    float beta = 0.0;
     std::string name() const { return "gemm"; }
     shape compute_shape(std::vector<shape> inputs) const
     {

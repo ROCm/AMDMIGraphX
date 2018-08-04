@@ -3,6 +3,10 @@ add_library(migraph_cpu
     cpu_target.cpp
     cpu_lowering.cpp
 )
+
+find_file(BLAZE_INCLUDE blaze/Blaze.h)
+
 rocm_clang_tidy_check(migraph_cpu)
 target_link_libraries(migraph_cpu migraph)
 target_include_directories(migraph_cpu PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+target_include_directories(migraph_cpu PRIVATE ${BLAZE_INCLUDE})

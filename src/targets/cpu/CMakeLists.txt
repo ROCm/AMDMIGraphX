@@ -4,7 +4,7 @@ add_library(migraph_cpu
     cpu_lowering.cpp
 )
 
-find_file(BLAZE_INCLUDE blaze/Blaze.h)
+find_path(BLAZE_INCLUDE blaze/Blaze.h)
 
 rocm_clang_tidy_check(migraph_cpu)
 target_link_libraries(migraph_cpu migraph)

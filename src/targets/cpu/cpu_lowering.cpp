@@ -227,10 +227,10 @@ struct cpu_gemm
     std::string name() const { return "cpu::gemm"; }
     shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
 
-    template<class T>
+    template <class T>
     using matrix = blaze::CustomMatrix<T, blaze::unaligned, blaze::unpadded>; // NOLINT
 
-    template<class T>
+    template <class T>
     static auto make_mat(tensor_view<T> x)
     {
         const auto& s = x.get_shape();
@@ -241,7 +241,7 @@ struct cpu_gemm
         return matrix<T>{x.data(), s.lens()[0], s.lens()[1]};
     }
 
-    template<class T, class F>
+    template <class T, class F>
     static void visit_mat(tensor_view<T> x, F f)
     {
         auto mat = make_mat(x);
@@ -258,9 +258,9 @@ struct cpu_gemm
             visit_mat(amat, [&](const auto& a) {
                 visit_mat(bmat, [&](const auto& b) {
                     auto c = make_mat(cmat);
-                    if (op.alpha == 1.0 and op.beta == 0.0)
+                    if(op.alpha == 1.0 and op.beta == 0.0)
                         c = a * b;
-                    else 
+                    else
                         c = (a * b) * op.alpha + op.beta * c;
                 });
             });

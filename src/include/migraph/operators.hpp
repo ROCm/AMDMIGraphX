@@ -324,7 +324,7 @@ struct gemm
         auto t         = a.type();
 
         if(a.lens()[1] != b.lens()[0])
-            MIGRAPH_THROW("Inner dimensions do not match");
+            MIGRAPH_THROW("Inner dimensions do not match: {" + to_string_range(a.lens()) + "} x {" + to_string_range(b.lens()) + "}");
         return {t, {a.lens()[0], b.lens()[1]}};
     }
 

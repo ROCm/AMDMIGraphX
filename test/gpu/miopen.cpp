@@ -135,6 +135,46 @@ struct test_gemm
     }
 };
 
+struct test_gemm_transposeb
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto a = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {4, 5}});
+        auto b = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {3, 5}});
+        auto bt = p.add_instruction(migraph::transpose{{1, 0}}, b);
+        p.add_instruction(migraph::gemm{}, a, bt);
+        return p;
+    }
+};
+
+struct test_gemm_transposea
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto a = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {5, 4}});
+        auto b = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {5, 3}});
+        auto at = p.add_instruction(migraph::transpose{{1, 0}}, a);
+        p.add_instruction(migraph::gemm{}, at, b);
+        return p;
+    }
+};
+
+struct test_gemm_transposeab
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto a = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {5, 4}});
+        auto b = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {3, 5}});
+        auto at = p.add_instruction(migraph::transpose{{1, 0}}, a);
+        auto bt = p.add_instruction(migraph::transpose{{1, 0}}, b);
+        p.add_instruction(migraph::gemm{}, at, bt);
+        return p;
+    }
+};
+
 struct test_contiguous
 {
     migraph::program create_program() const
@@ -168,6 +208,9 @@ int main()
     verify_program<test_conv_relu>();
     verify_program<test_conv_pooling>();
     verify_program<test_gemm>();
+    verify_program<test_gemm_transposeb>();
+    verify_program<test_gemm_transposea>();
+    verify_program<test_gemm_transposeab>();
     verify_program<test_contiguous>();
     verify_program<test_transpose>();
 }

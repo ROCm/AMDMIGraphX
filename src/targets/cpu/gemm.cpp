@@ -29,18 +29,23 @@ static void visit_mat(tensor_view<T> x, F f)
         f(mat);
 }
 
-template<class T>
-struct is_fast_gemm_type
-: std::false_type
-{};
+template <class T>
+struct is_fast_gemm_type : std::false_type
+{
+};
 
-template<>
-struct is_fast_gemm_type<float>
-: std::true_type
-{};
+template <>
+struct is_fast_gemm_type<float> : std::true_type
+{
+};
 
-template<class T>
-void migemm_impl(tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, float alpha, float beta, std::true_type)
+template <class T>
+void migemm_impl(tensor_view<T> cmat,
+                 tensor_view<T> amat,
+                 tensor_view<T> bmat,
+                 float alpha,
+                 float beta,
+                 std::true_type)
 {
     visit_mat(amat, [&](const auto& a) {
         visit_mat(bmat, [&](const auto& b) {
@@ -53,8 +58,13 @@ void migemm_impl(tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, 
     });
 }
 
-template<class T>
-void migemm_impl(tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, float alpha, float beta, std::false_type)
+template <class T>
+void migemm_impl(tensor_view<T> cmat,
+                 tensor_view<T> amat,
+                 tensor_view<T> bmat,
+                 float alpha,
+                 float beta,
+                 std::false_type)
 {
     (void)cmat;
     (void)amat;
@@ -64,17 +74,18 @@ void migemm_impl(tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, 
     assert(true && "TODO");
 }
 
-template<class T>
-void migemm_impl(tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, float alpha, float beta)
+template <class T>
+void migemm_impl(
+    tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, float alpha, float beta)
 {
     migemm_impl(cmat, amat, bmat, alpha, beta, is_fast_gemm_type<T>{});
 }
 
-void migemm(const argument& c_arg, const argument& a_arg, const argument& b_arg, float alpha, float beta)
+void migemm(
+    const argument& c_arg, const argument& a_arg, const argument& b_arg, float alpha, float beta)
 {
-    visit_all(c_arg, a_arg, b_arg)([&](auto cmat, auto amat, auto bmat) {
-            migemm_impl(cmat, amat, bmat, alpha, beta);
-        });
+    visit_all(c_arg, a_arg, b_arg)(
+        [&](auto cmat, auto amat, auto bmat) { migemm_impl(cmat, amat, bmat, alpha, beta); });
 }
 
 } // namespace cpu

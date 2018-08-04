@@ -159,8 +159,8 @@ struct miopen_gemm
     {
         float alpha     = 1.0f;
         float beta      = 0.0f;
-        bool transa =  args[0].get_shape().transposed();
-        bool transb =  args[1].get_shape().transposed();
+        bool transa     = args[0].get_shape().transposed();
+        bool transb     = args[1].get_shape().transposed();
         rocblas_int lda = args[0].get_shape().strides()[transa ? 1 : 0];
         rocblas_int ldb = args[1].get_shape().strides()[transb ? 1 : 0];
         rocblas_int ldc = args[2].get_shape().strides()[0];

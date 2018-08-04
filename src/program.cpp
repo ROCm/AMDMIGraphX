@@ -118,11 +118,11 @@ shape program::get_parameter_shape(std::string name)
 std::unordered_map<std::string, shape> program::get_parameter_shapes() const
 {
     std::unordered_map<std::string, shape> result;
-    for(auto&& ins:impl->instructions)
+    for(auto&& ins : impl->instructions)
     {
         if(ins.op.name() == "@param")
         {
-            auto&& name = any_cast<builtin::param>(ins.op).parameter;
+            auto&& name  = any_cast<builtin::param>(ins.op).parameter;
             result[name] = ins.result;
         }
     }

@@ -20,7 +20,7 @@ migraph::argument run_cpu()
     auto p = v.create_program();
     p.compile(migraph::cpu::cpu_target{});
     migraph::program::parameter_map m;
-    for(auto&& x:p.get_parameter_shapes())
+    for(auto&& x : p.get_parameter_shapes())
     {
         m[x.first] = migraph::generate_argument(x.second);
     }
@@ -35,9 +35,9 @@ migraph::argument run_gpu()
     p.compile(migraph::gpu::target{});
 
     migraph::program::parameter_map m;
-    for(auto&& x:p.get_parameter_shapes())
+    for(auto&& x : p.get_parameter_shapes())
     {
-        m[x.first] =  migraph::gpu::to_gpu(migraph::generate_argument(x.second));
+        m[x.first] = migraph::gpu::to_gpu(migraph::generate_argument(x.second));
     }
 
     return migraph::gpu::from_gpu(p.eval(m));

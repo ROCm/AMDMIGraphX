@@ -71,6 +71,8 @@ struct program
 
     shape get_parameter_shape(std::string name);
 
+    std::unordered_map<std::string, shape> get_parameter_shapes() const;
+
     argument eval(parameter_map params) const;
 
     bool has_instruction(instruction_ref ins) const;

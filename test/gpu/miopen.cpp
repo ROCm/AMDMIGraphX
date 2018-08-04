@@ -19,7 +19,12 @@ migraph::argument run_cpu()
     V v;
     auto p = v.create_program();
     p.compile(migraph::cpu::cpu_target{});
-    return p.eval(v.create_params());
+    migraph::program::parameter_map m;
+    for(auto&& x:p.get_parameter_shapes())
+    {
+        m[x.first] = migraph::generate_argument(x.second);
+    }
+    return p.eval(m);
 }
 
 template <class V>
@@ -29,13 +34,11 @@ migraph::argument run_gpu()
     auto p = v.create_program();
     p.compile(migraph::gpu::target{});
 
-    auto m = v.create_params();
-    for(auto&& e : m)
+    migraph::program::parameter_map m;
+    for(auto&& x:p.get_parameter_shapes())
     {
-        e.second = migraph::gpu::to_gpu(e.second);
+        m[x.first] =  migraph::gpu::to_gpu(migraph::generate_argument(x.second));
     }
-
-    m["output"] = migraph::gpu::to_gpu(migraph::generate_argument(p.get_parameter_shape("output")));
 
     return migraph::gpu::from_gpu(p.eval(m));
 }
@@ -61,8 +64,6 @@ struct test_literals
         p.add_instruction(migraph::activation{"relu"}, conv);
         return p;
     }
-
-    migraph::program::parameter_map create_params() const { return {}; }
 };
 
 struct test_add
@@ -75,14 +76,6 @@ struct test_add
         auto y = p.add_parameter("y", s);
         p.add_instruction(migraph::add{}, x, y);
         return p;
-    }
-
-    migraph::program::parameter_map create_params() const
-    {
-        migraph::program::parameter_map m;
-        m["x"] = migraph::generate_argument({migraph::shape::float_type, {3}});
-        m["y"] = migraph::generate_argument({migraph::shape::float_type, {3}});
-        return m;
     }
 };
 
@@ -98,14 +91,6 @@ struct test_add_broadcast
         p.add_instruction(migraph::add{}, x, by);
         return p;
     }
-
-    migraph::program::parameter_map create_params() const
-    {
-        migraph::program::parameter_map m;
-        m["x"] = migraph::generate_argument({migraph::shape::float_type, {2, 2, 3}});
-        m["y"] = migraph::generate_argument({migraph::shape::float_type, {2, 2}});
-        return m;
-    }
 };
 
 struct test_conv_relu
@@ -119,14 +104,6 @@ struct test_conv_relu
         auto conv = p.add_instruction(migraph::convolution{}, input, weights);
         p.add_instruction(migraph::activation{"relu"}, conv);
         return p;
-    }
-
-    migraph::program::parameter_map create_params() const
-    {
-        migraph::program::parameter_map m;
-        m["x"] = migraph::generate_argument({migraph::shape::float_type, {4, 3, 3, 3}});
-        m["w"] = migraph::generate_argument({migraph::shape::float_type, {4, 3, 3, 3}});
-        return m;
     }
 };
 
@@ -144,14 +121,6 @@ struct test_conv_pooling
         p.add_instruction(migraph::activation{"relu"}, pooling);
         return p;
     }
-
-    migraph::program::parameter_map create_params() const
-    {
-        migraph::program::parameter_map m;
-        m["x"] = migraph::generate_argument({migraph::shape::float_type, {4, 3, 32, 32}});
-        m["w"] = migraph::generate_argument({migraph::shape::float_type, {4, 3, 3, 3}});
-        return m;
-    }
 };
 
 struct test_gemm
@@ -164,14 +133,6 @@ struct test_gemm
         p.add_instruction(migraph::gemm{}, a, b);
         return p;
     }
-
-    migraph::program::parameter_map create_params() const
-    {
-        migraph::program::parameter_map m;
-        m["a"] = migraph::generate_argument({migraph::shape::float_type, {4, 5}});
-        m["b"] = migraph::generate_argument({migraph::shape::float_type, {5, 3}});
-        return m;
-    }
 };
 
 struct test_contiguous
@@ -183,14 +144,6 @@ struct test_contiguous
         auto x = p.add_parameter("x", s);
         p.add_instruction(migraph::contiguous{}, x);
         return p;
-    }
-
-    migraph::program::parameter_map create_params() const
-    {
-        migraph::program::parameter_map m;
-        m["x"] =
-            migraph::generate_argument({migraph::shape::float_type, {4, 4, 4, 3}, {48, 4, 1, 16}});
-        return m;
     }
 };
 
@@ -205,13 +158,6 @@ struct test_transpose
         auto l                    = p.add_instruction(migraph::transpose{perm}, x);
         p.add_instruction(migraph::contiguous{}, l);
         return p;
-    }
-
-    migraph::program::parameter_map create_params() const
-    {
-        migraph::program::parameter_map m;
-        m["x"] = migraph::generate_argument({migraph::shape::float_type, {4, 3, 4, 4}});
-        return m;
     }
 };
 

@@ -5,7 +5,7 @@
 #include <migraph/operators.hpp>
 #include <migraph/shape_for_each.hpp>
 #include <migraph/iterator_for.hpp>
-#include <blaze/Blaze.h>
+#include <migraph/cpu/gemm.hpp>
 #include <unordered_map>
 
 namespace migraph {
@@ -227,44 +227,10 @@ struct cpu_gemm
     std::string name() const { return "cpu::gemm"; }
     shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
 
-    template <class T>
-    using matrix = blaze::CustomMatrix<T, blaze::unaligned, blaze::unpadded>; // NOLINT
-
-    template <class T>
-    static auto make_mat(tensor_view<T> x)
-    {
-        const auto& s = x.get_shape();
-        assert(s.lens().size() == 2);
-        assert(s.packed());
-        if(s.transposed())
-            return matrix<T>{x.data(), s.lens()[1], s.lens()[0]};
-        return matrix<T>{x.data(), s.lens()[0], s.lens()[1]};
-    }
-
-    template <class T, class F>
-    static void visit_mat(tensor_view<T> x, F f)
-    {
-        auto mat = make_mat(x);
-        if(x.get_shape().transposed())
-            f(blaze::trans(mat));
-        else
-            f(mat);
-    }
-
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        visit_all(result, args[0], args[1])([&](auto cmat, auto amat, auto bmat) {
-            visit_mat(amat, [&](const auto& a) {
-                visit_mat(bmat, [&](const auto& b) {
-                    auto c = make_mat(cmat);
-                    if(op.alpha == 1.0 and op.beta == 0.0)
-                        c = a * b;
-                    else
-                        c = (a * b) * op.alpha + op.beta * c;
-                });
-            });
-        });
+        migemm(result, args[0], args[1], op.alpha, op.beta);
         return result;
     }
 };

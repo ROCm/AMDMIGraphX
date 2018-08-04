@@ -2,6 +2,7 @@
 add_library(migraph_cpu
     cpu_target.cpp
     cpu_lowering.cpp
+    gemm.cpp
 )
 
 find_path(BLAZE_INCLUDE blaze/Blaze.h)

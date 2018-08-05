@@ -51,7 +51,7 @@ void migemm_impl(tensor_view<T> cmat,
     visit_mat(amat, [&](const auto& a) {
         visit_mat(bmat, [&](const auto& b) {
             auto c = make_mat(cmat);
-            c = (a * b) * alpha + beta * c;
+            c      = (a * b) * alpha + beta * c;
         });
     });
 }
@@ -72,13 +72,9 @@ void migemm_impl(tensor_view<T> cmat,
     assert(m == amat.get_shape().lens()[0]);
     assert(n == bmat.get_shape().lens()[1]);
 
-    dfor(m, n)([&](auto ii, auto jj)
-    {
+    dfor(m, n)([&](auto ii, auto jj) {
         double s = cmat(ii, jj) * beta;
-        dfor(k)([&](auto kk) 
-        {
-            s += amat(ii, kk) * bmat(kk, jj);
-        });
+        dfor(k)([&](auto kk) { s += amat(ii, kk) * bmat(kk, jj); });
         cmat(ii, jj) = alpha * s;
     });
 }

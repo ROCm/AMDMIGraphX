@@ -1,4 +1,5 @@
 #include <migraph/cpu/gemm.hpp>
+#include <migraph/dfor.hpp>
 #include <migraph/requires.hpp>
 #include <blaze/math/CustomMatrix.h>
 
@@ -50,10 +51,7 @@ void migemm_impl(tensor_view<T> cmat,
     visit_mat(amat, [&](const auto& a) {
         visit_mat(bmat, [&](const auto& b) {
             auto c = make_mat(cmat);
-            if(alpha == 1.0 and beta == 0.0)
-                c = a * b;
-            else
-                c = (a * b) * alpha + beta * c;
+            c = (a * b) * alpha + beta * c;
         });
     });
 }
@@ -66,12 +64,23 @@ void migemm_impl(tensor_view<T> cmat,
                  float beta,
                  std::false_type)
 {
-    (void)cmat;
-    (void)amat;
-    (void)bmat;
-    (void)alpha;
-    (void)beta;
-    assert(true && "TODO");
+    auto m = cmat.get_shape().lens()[0];
+    auto n = cmat.get_shape().lens()[1];
+    auto k = amat.get_shape().lens()[1];
+
+    assert(amat.get_shape().lens()[1] == bmat.get_shape().lens()[0]);
+    assert(m == amat.get_shape().lens()[0]);
+    assert(n == bmat.get_shape().lens()[1]);
+
+    dfor(m, n)([&](auto ii, auto jj)
+    {
+        double s = cmat(ii, jj) * beta;
+        dfor(k)([&](auto kk) 
+        {
+            s += amat(ii, kk) * bmat(kk, jj);
+        });
+        cmat(ii, jj) = alpha * s;
+    });
 }
 
 template <class T>

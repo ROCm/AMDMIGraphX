@@ -49,8 +49,9 @@ void verify_program()
 {
     auto cpu_arg = run_cpu<V>();
     auto gpu_arg = run_gpu<V>();
-    visit_all(cpu_arg, gpu_arg)([](auto cpu, auto gpu) { 
-        if(not test::verify_range(cpu, gpu)) {
+    visit_all(cpu_arg, gpu_arg)([](auto cpu, auto gpu) {
+        if(not test::verify_range(cpu, gpu))
+        {
             std::cout << "FAILED: " << migraph::get_type_name<V>() << std::endl;
         }
     });

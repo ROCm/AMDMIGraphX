@@ -14,10 +14,9 @@ static auto make_mat(tensor_view<T> x)
 {
     const auto& s = x.get_shape();
     assert(s.lens().size() == 2);
-    assert(s.packed());
     if(s.transposed())
-        return matrix<T>{x.data(), s.lens()[1], s.lens()[0]};
-    return matrix<T>{x.data(), s.lens()[0], s.lens()[1]};
+        return matrix<T>{x.data(), s.lens()[1], s.lens()[0], s.strides()[1]};
+    return matrix<T>{x.data(), s.lens()[0], s.lens()[1], s.strides()[0]};
 }
 
 template <class T, class F>

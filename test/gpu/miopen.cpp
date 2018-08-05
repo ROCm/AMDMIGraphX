@@ -141,6 +141,18 @@ struct test_gemm
     }
 };
 
+struct test_gemm_ld
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto a = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {4, 5}, {10, 1}});
+        auto b = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {5, 3}, {20, 1}});
+        p.add_instruction(migraph::gemm{}, a, b);
+        return p;
+    }
+};
+
 struct test_gemm_transposeb
 {
     migraph::program create_program() const
@@ -214,6 +226,7 @@ int main()
     verify_program<test_conv_relu>();
     verify_program<test_conv_pooling>();
     verify_program<test_gemm>();
+    // verify_program<test_gemm_ld>();
     verify_program<test_gemm_transposeb>();
     verify_program<test_gemm_transposea>();
     verify_program<test_gemm_transposeab>();

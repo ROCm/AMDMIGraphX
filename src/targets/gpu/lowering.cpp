@@ -30,8 +30,8 @@ struct miopen_batch_norm_inference
 
     argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
     {
-        auto x_desc = make_tensor(args[0].get_shape());
-        auto y_desc = make_tensor(output_shape);
+        auto x_desc  = make_tensor(args[0].get_shape());
+        auto y_desc  = make_tensor(output_shape);
         auto bn_desc = make_tensor(args[3].get_shape());
 
         float alpha = 1.0, beta = 0.0f;

@@ -388,8 +388,14 @@ struct miopen_apply
     {
         auto&& op   = any_cast<batch_norm_inference>(ins->op);
         auto output = insert_allocation(ins, ins->result);
-        prog->replace_instruction(
-            ins, miopen_batch_norm_inference{op}, ins->arguments.at(0), output);
+        prog->replace_instruction(ins,
+                                  miopen_batch_norm_inference{op},
+                                  ins->arguments.at(0),
+                                  ins->arguments.at(1),
+                                  ins->arguments.at(2),
+                                  ins->arguments.at(3),
+                                  ins->arguments.at(4),
+                                  output);
     }
 };
 

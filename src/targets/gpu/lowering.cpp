@@ -28,10 +28,11 @@ struct miopen_batch_norm_inference
             {inputs.at(0), inputs.at(1), inputs.at(2), inputs.at(3), inputs.at(4)});
     }
 
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
     {
         auto x_desc = make_tensor(args[0].get_shape());
         auto y_desc = make_tensor(output_shape);
+        auto bn_desc = make_tensor(args[3].get_shape());
 
         float alpha = 1.0, beta = 0.0f;
 
@@ -46,12 +47,12 @@ struct miopen_batch_norm_inference
                                                  args[0].implicit(),
                                                  y_desc.get(),
                                                  args[5].implicit(),
-                                                 bn_desc,
+                                                 bn_desc.get(),
                                                  args[3].implicit(),
                                                  args[4].implicit(),
                                                  args[1].implicit(),
                                                  args[2].implicit(),
-                                                 op.mode.epsilon);
+                                                 op.epsilon);
 
         return args[5];
     }

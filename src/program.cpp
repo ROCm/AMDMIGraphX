@@ -191,6 +191,11 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
     return result;
 }
 
+int program::get_size() const
+{
+    return (*impl).instructions.size();
+}
+
 bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }
 
 std::ostream& operator<<(std::ostream& os, const program& p)

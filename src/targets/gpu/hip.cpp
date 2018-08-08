@@ -16,6 +16,8 @@ hip_ptr allocate_gpu(std::size_t sz)
     void* result;
     // TODO: Check status
     hipMalloc(&result, sz);
+    if (result == nullptr)
+        throw std::runtime_error("can not allocate GPU memory");
     return hip_ptr{result};
 }
 

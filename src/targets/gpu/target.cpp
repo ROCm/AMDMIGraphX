@@ -1,5 +1,6 @@
 #include <migraph/gpu/target.hpp>
 #include <migraph/gpu/lowering.hpp>
+#include <migraph/optimize.hpp>
 #include <migraph/gpu/write_literals.hpp>
 #include <migraph/gpu/context.hpp>
 
@@ -8,7 +9,7 @@ namespace gpu {
 
 std::vector<pass> target::get_passes(migraph::context&) const
 {
-    return {lowering{}, write_literals{}};
+    return {lowering{}, optimize{}, write_literals{}};
 }
 
 std::string target::name() const { return "miopen"; }

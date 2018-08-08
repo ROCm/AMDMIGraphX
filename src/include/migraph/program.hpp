@@ -82,6 +82,8 @@ struct program
 
     void compile(const target& t);
 
+    int get_size()  const;
+
     friend std::ostream& operator<<(std::ostream& os, const program& p);
     friend bool operator==(const program& x, const program& y);
     friend bool operator!=(const program& x, const program& y) { return !(x == y); }

@@ -18,7 +18,36 @@ migraph::literal get_2x2()
     return migraph::literal{{migraph::shape::float_type, {2, 2}}, {1, 2, 3, 4}};
 }
 
+migraph::literal get_2x2_transposed()
+{
+    return migraph::literal{{migraph::shape::float_type, {2, 2}, {1, 2}}, {1, 2, 3, 4}};
+}
+
 migraph::literal get_2() { return migraph::literal{{migraph::shape::float_type, {2}}, {1, 2}}; }
+
+migraph::literal get_2_broadcasted() { return migraph::literal{{migraph::shape::float_type, {2}, {1, 0}}, {1, 2}}; }
+
+void literal_broadcast()
+{
+    migraph::program p;
+    p.add_literal(get_2_broadcasted());
+    EXPECT(not p.get_shape().standard());
+    EXPECT(p.get_shape().broadcasted());
+    p.compile(contiguous_target{});
+    EXPECT(p.get_shape().standard());
+    EXPECT(not p.get_shape().broadcasted());
+}
+
+void literal_transpose()
+{
+    migraph::program p;
+    p.add_literal(get_2x2_transposed());
+    EXPECT(not p.get_shape().standard());
+    EXPECT(p.get_shape().transposed());
+    p.compile(contiguous_target{});
+    EXPECT(p.get_shape().standard());
+    EXPECT(not p.get_shape().transposed());
+}
 
 void after_literal_transpose()
 {
@@ -84,6 +113,8 @@ void after_param_broadcast()
 
 int main()
 {
+    literal_broadcast();
+    literal_transpose();
     after_literal_transpose();
     after_literal_broadcast();
     after_param_transpose();

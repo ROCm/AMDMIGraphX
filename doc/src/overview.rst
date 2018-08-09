@@ -40,7 +40,7 @@ Of course, this program will always produce the same value which is quite uninte
     program p;
     instruction_ref x = p.add_parameter("x", {shape::int64_type});
     instruction_ref two = p.add_literal(2);
-    p.add_instruction(add{}, one, two);
+    p.add_instruction(add{}, x, two);
     p.compile(cpu::target{});
 
 This adds a parameter of type ``int64``, and compiles it for the ``cpu``. To run the program, we need to pass the parameter to it when we call `eval <migraph::program::eval>`::

@@ -61,9 +61,12 @@ struct shape
     std::size_t elements() const;
     std::size_t bytes() const;
 
+    /// Map multiple indices to space index
     std::size_t index(std::initializer_list<std::size_t> l) const;
+    /// Map multiple indices to space index
     std::size_t index(const std::vector<std::size_t>& l) const;
 
+    /// Map multiple indices from a range of iterator to a space index
     template <class Iterator>
     std::size_t index(Iterator start, Iterator last) const
     {
@@ -72,12 +75,16 @@ struct shape
         return std::inner_product(start, last, this->strides().begin(), std::size_t{0});
     }
 
-    // Map element index to space index
+    /// Map element index to space index
     std::size_t index(std::size_t i) const;
 
+    /// Returns true if the shape is packed with no padding
     bool packed() const;
+    /// Returns true is the shape has been transposed. That is the strides are not in descending order
     bool transposed() const;
+    /// Returns true if the shape is broadcasting a dimension. That is, one of the strides are zero
     bool broadcasted() const;
+    /// Returns true if the shape is in its standard format. That is, the shape is both packed and not transposed.
     bool standard() const;
 
     friend bool operator==(const shape& x, const shape& y);

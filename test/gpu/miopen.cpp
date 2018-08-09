@@ -17,17 +17,12 @@
 struct auto_eval
 {
     migraph::program* p;
-    migraph::program::parameter_map * m;
+    migraph::program::parameter_map* m;
     migraph::argument result;
 
-    auto_eval(migraph::program& pp, migraph::program::parameter_map& pm)
-    : p(&pp), m(&pm)
-    {}
+    auto_eval(migraph::program& pp, migraph::program::parameter_map& pm) : p(&pp), m(&pm) {}
 
-    migraph::argument operator()() const
-    {
-        return p->eval(*m);
-    }
+    migraph::argument operator()() const { return p->eval(*m); }
 
     ~auto_eval()
     {

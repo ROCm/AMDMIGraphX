@@ -14,6 +14,28 @@
 #include "test.hpp"
 #include "verify.hpp"
 
+struct auto_eval
+{
+    migraph::program* p;
+    migraph::program::parameter_map * m;
+    migraph::argument result;
+
+    auto_eval(migraph::program& pp, migraph::program::parameter_map& pm)
+    : p(&pp), m(&pm)
+    {}
+
+    migraph::argument operator()() const
+    {
+        return p->eval(*m);
+    }
+
+    ~auto_eval()
+    {
+        if(std::uncaught_exception())
+            std::cout << *p << std::endl;
+    }
+};
+
 template <class V>
 migraph::argument run_cpu()
 {
@@ -25,7 +47,7 @@ migraph::argument run_cpu()
     {
         m[x.first] = migraph::generate_argument(x.second);
     }
-    return p.eval(m);
+    return auto_eval(p, m)();
 }
 
 template <class V>
@@ -41,7 +63,7 @@ migraph::argument run_gpu()
         m[x.first] = migraph::gpu::to_gpu(migraph::generate_argument(x.second));
     }
 
-    return migraph::gpu::from_gpu(p.eval(m));
+    return migraph::gpu::from_gpu(auto_eval(p, m)());
 }
 
 template <class V>

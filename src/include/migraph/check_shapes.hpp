@@ -70,7 +70,35 @@ struct check_shapes
     const check_shapes& same_ndims() const
     {
         if(!this->same([](const shape& s) { return s.lens().size(); }))
-            MIGRAPH_THROW(prefix() + "Dimensions do not match");
+            MIGRAPH_THROW(prefix() + "Number of dimensions do not match");
+        return *this;
+    }
+
+    const check_shapes& standard() const
+    {
+        if(!this->all_of([](const shape& s) { return s.standard(); }))
+            MIGRAPH_THROW(prefix() + "Shapes are not in standard layout");
+        return *this;
+    }
+
+    const check_shapes& packed() const
+    {
+        if(!this->all_of([](const shape& s) { return s.packed(); }))
+            MIGRAPH_THROW(prefix() + "Shapes are not packed");
+        return *this;
+    }
+
+    const check_shapes& not_transposed() const
+    {
+        if(!this->all_of([](const shape& s) { return not s.transposed(); }))
+            MIGRAPH_THROW(prefix() + "Shapes are transposed");
+        return *this;
+    }
+
+    const check_shapes& not_broadcasted() const
+    {
+        // if(!this->all_of([](const shape& s) { return not s.broadcasted(); }))
+            // MIGRAPH_THROW(prefix() + "Shapes are broadcasted");
         return *this;
     }
 

@@ -5,16 +5,42 @@
 namespace migraph {
 namespace gpu {
 
+struct index
+{
+    std::size_t global;
+    std::size_t local;
+    std::size_t group;
+};
+
+template<class F>
+__global__ void launcher(F f)
+{
+    index idx{blockIdx.x * blockDim.x + threadIdx.x, threadIdx.x, blockIdx.x};
+    f(idx);
+}
+
+auto launch(std::size_t global, std::size_t local)
+{
+    return [&](auto f) {
+        assert(local > 0);
+        assert(global > 0);
+        using f_type = decltype(f);
+        dim3 nblocks(global / local);
+        dim3 nthreads(local);
+        hipLaunchKernelGGL((launcher<f_type>),
+                                   nblocks,
+                                   nthreads,
+                                   0,
+                                   nullptr,
+                                   f);
+    };
+}
+
 template <class F>
 void visit_tensor_size(std::size_t n, F f)
 {
     switch(n)
     {
-    case 0:
-    {
-        f(std::integral_constant<std::size_t, 0>{});
-        break;
-    }
     case 1:
     {
         f(std::integral_constant<std::size_t, 1>{});
@@ -86,48 +112,43 @@ struct hip_tensor_descriptor
     size_t strides[NDim] = {};
 };
 
-template <typename T, size_t NDim>
-__global__ void contiguous_gpu(const T* a,
-                               hip_tensor_descriptor<NDim> a_desc,
-                               T* at,
-                               hip_tensor_descriptor<NDim> at_desc,
-                               size_t nelements)
-{
-    for(size_t i = blockIdx.x * blockDim.x + threadIdx.x; i < nelements;
-        i += blockDim.x * gridDim.x)
-    {
-        hip_index<NDim> s = at_desc.multi(i);
-        size_t lidx       = a_desc.linear(s);
-        at[i]             = a[lidx];
-    }
-}
+// template <typename T, size_t NDim>
+// __global__ void contiguous_gpu(const T* a,
+//                                hip_tensor_descriptor<NDim> a_desc,
+//                                T* at,
+//                                hip_tensor_descriptor<NDim> at_desc,
+//                                size_t nelements)
+// {
+//     for(size_t i = blockIdx.x * blockDim.x + threadIdx.x; i < nelements;
+//         i += blockDim.x * gridDim.x)
+//     {
+//         hip_index<NDim> s = at_desc.multi(i);
+//         size_t lidx       = a_desc.linear(s);
+//         at[i]             = a[lidx];
+//     }
+// }
 
 void hip_contiguous(migraph::shape output_shape, migraph::argument arg, migraph::argument result)
 {
-    size_t ndim = output_shape.lens().size();
     visit_all(result, arg)([&](auto output, auto input) {
-        if(ndim == 4)
-        {
+        visit_tensor_size(output_shape.lens().size(), [&](auto ndim) {
             const auto& s = arg.get_shape();
-            hip_tensor_descriptor<4> a_desc(s.lens(), s.strides());
-            hip_tensor_descriptor<4> at_desc(output_shape.lens(), output_shape.strides());
-            dim3 nblocks(512);
-            dim3 nthreads(512);
-            hipLaunchKernelGGL((contiguous_gpu<int, 4>),
-                               nblocks,
-                               nthreads,
-                               0,
-                               nullptr,
-                               input.data(),
-                               a_desc,
-                               output.data(),
-                               at_desc,
-                               s.elements());
-        }
-        else
-        {
-            MIGRAPH_THROW("contiguous is only valid for 4D tensors");
-        }
+            hip_tensor_descriptor<ndim> a_desc(s.lens(), s.strides());
+            hip_tensor_descriptor<ndim> at_desc(output_shape.lens(), output_shape.strides());
+            auto* a = input.data();
+            auto* at = output.data();
+            auto nelements = s.elements();
+            std::size_t nlocal = 512;
+            std::size_t nglobal = 512*nlocal;
+
+            launch(nglobal, nlocal)([=](auto idx) mutable {
+                for(size_t i = idx.global; i < nelements; i += nglobal)
+                {
+                    size_t lidx       = a_desc.linear(at_desc.multi(i));
+                    at[i]             = a[lidx];
+                }
+            });
+        });
     });
 }
 } // namespace gpu

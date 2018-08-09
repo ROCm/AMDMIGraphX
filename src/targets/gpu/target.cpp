@@ -3,13 +3,22 @@
 #include <migraph/gpu/write_literals.hpp>
 #include <migraph/gpu/context.hpp>
 #include <migraph/check_context.hpp>
+#include <migraph/auto_contiguous.hpp>
 
 namespace migraph {
 namespace gpu {
 
 std::vector<pass> target::get_passes(migraph::context&) const
 {
-    return {lowering{}, write_literals{}, check_context<context>{}};
+    // clang-format off
+    return
+    {
+        auto_contiguous{},
+        lowering{},
+        write_literals{},
+        check_context<context>{}
+    };
+    // clang-format on
 }
 
 std::string target::name() const { return "miopen"; }

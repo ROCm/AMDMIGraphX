@@ -23,7 +23,7 @@ struct miopen_convolution
     std::string name() const { return "gpu::convolution"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(3);
+        check_shapes{inputs, *this}.has(3).standard();
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
     argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
@@ -74,7 +74,7 @@ struct miopen_pooling
     std::string name() const { return "gpu::pooling"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2);
+        check_shapes{inputs, *this}.has(2).standard();
         return op.compute_shape({inputs.at(1)});
     }
     argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
@@ -105,7 +105,7 @@ struct miopen_add
     std::string name() const { return "gpu::add"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(3);
+        check_shapes{inputs, *this}.has(3).not_broadcasted();
         return inputs.at(0);
     }
 
@@ -207,7 +207,7 @@ struct miopen_relu
     std::string name() const { return "gpu::relu"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2);
+        check_shapes{inputs, *this}.has(2).not_broadcasted();
         return inputs.at(1);
     }
 

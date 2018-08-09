@@ -38,6 +38,8 @@ struct instruction
             result = r;
             for(auto&& ins : output)
             {
+                assert(ins->op.name().front() != '@');
+                std::cout << ins->op.name() << std::endl;
                 ins->replace(compute_shape(ins->op, ins->arguments));
             }
         }
@@ -122,6 +124,7 @@ inline void backreference(instruction_ref ref)
 // TODO: Use const ref for vector
 inline shape compute_shape(operation op, std::vector<instruction_ref> args)
 {
+    std::cout << "compute_shape: " << op.name() << std::endl;
     std::vector<shape> shapes(args.size());
     std::transform(
         args.begin(), args.end(), shapes.begin(), [](instruction_ref i) { return i->result; });

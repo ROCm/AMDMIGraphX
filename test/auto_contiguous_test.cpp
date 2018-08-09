@@ -25,7 +25,10 @@ migraph::literal get_2x2_transposed()
 
 migraph::literal get_2() { return migraph::literal{{migraph::shape::float_type, {2}}, {1, 2}}; }
 
-migraph::literal get_2_broadcasted() { return migraph::literal{{migraph::shape::float_type, {2}, {1, 0}}, {1, 2}}; }
+migraph::literal get_2_broadcasted()
+{
+    return migraph::literal{{migraph::shape::float_type, {2}, {1, 0}}, {1, 2}};
+}
 
 void literal_broadcast()
 {

@@ -388,13 +388,23 @@ struct miopen_apply
     {
         auto&& op   = any_cast<batch_norm_inference>(ins->op);
         auto output = insert_allocation(ins, ins->result);
-        prog->replace_instruction(ins,
+        shape old_shape = ins->arguments.at(1)->get_shape();
+        std::vector<int64_t> new_shape{1,static_cast<int64_t>(old_shape.elements()),1,1};
+        auto arg1 = prog->insert_instruction(ins, migraph::reshape{new_shape}, 
+                      ins->arguments.at(1));
+        auto arg2 = prog->insert_instruction(ins, migraph::reshape{new_shape}, 
+                      ins->arguments.at(2));
+        auto arg3 = prog->insert_instruction(ins, migraph::reshape{new_shape}, 
+                      ins->arguments.at(3));
+        auto arg4 = prog->insert_instruction(ins, migraph::reshape{new_shape}, 
+                      ins->arguments.at(4));
+        prog->replace_instruction(ins, 
                                   miopen_batch_norm_inference{op},
                                   ins->arguments.at(0),
-                                  ins->arguments.at(1),
-                                  ins->arguments.at(2),
-                                  ins->arguments.at(3),
-                                  ins->arguments.at(4),
+                                  arg1,
+                                  arg2,
+                                  arg3,
+                                  arg4,
                                   output);
     }
 };

@@ -227,7 +227,7 @@ struct test_batchnorm_inference
         migraph::program p;
 
         migraph::shape s{migraph::shape::float_type, {batches, channels, height, width}};
-        migraph::shape vars{migraph::shape::float_type, {channels}};
+        migraph::shape vars{migraph::shape::float_type, {1,channels,1,1}};
         auto x        = p.add_parameter("x", s);
         auto mean     = p.add_parameter("mean", vars);
         auto variance = p.add_parameter("variance", vars);
@@ -260,7 +260,7 @@ void batch_norm_inference_test()
     const float output_val = scale_val * (x_val - mean_val) / (std::sqrt(variance_val)) + bias_val;
 
     migraph::shape s{migraph::shape::float_type, {batches, channels, height, width}};
-    migraph::shape vars{migraph::shape::float_type, {channels}};
+    migraph::shape vars{migraph::shape::float_type, {1,channels,1,1}};
     std::vector<float> x_data(width * height * channels * batches);
     std::vector<float> scale_data(channels);
     std::vector<float> bias_data(channels);
@@ -281,7 +281,10 @@ void batch_norm_inference_test()
 
     p.add_instruction(migraph::batch_norm_inference{}, x, mean, variance, scale, bias);
     p.compile(migraph::gpu::target{});
-    auto result = p.eval({});
+
+    migraph::program::parameter_map m;
+    m["output"] = migraph::gpu::to_gpu(migraph::generate_argument(p.get_parameter_shape("output")));
+    auto result = migraph::gpu::from_gpu(p.eval(m));
 
     std::vector<float> result_vector(width * height * channels * batches);
     std::vector<float> gold(width * height * channels * batches);
@@ -300,6 +303,6 @@ int main()
     verify_program<test_gemm>();
     verify_program<test_contiguous>();
     verify_program<test_transpose>();
-    // verify_program<test_batchnorm_inference>();
-    // batch_norm_inference_test();
+    verify_program<test_batchnorm_inference>();
+    batch_norm_inference_test();
 }

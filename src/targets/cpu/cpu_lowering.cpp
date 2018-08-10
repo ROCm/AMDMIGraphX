@@ -5,6 +5,7 @@
 #include <migraph/operators.hpp>
 #include <migraph/shape_for_each.hpp>
 #include <migraph/iterator_for.hpp>
+#include <migraph/cpu/gemm.hpp>
 #include <unordered_map>
 
 namespace migraph {
@@ -229,35 +230,7 @@ struct cpu_gemm
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        visit_all(result, args[0], args[1])([&](auto cmat, auto amat, auto bmat) {
-            auto m = amat.get_shape().lens()[0];
-            auto n = bmat.get_shape().lens()[1];
-            auto k = bmat.get_shape().lens()[0];
-
-            auto a = amat.data();
-            auto b = bmat.data();
-            auto c = cmat.data();
-            for(int ii = 0; ii < m; ii++)
-            {
-                for(int jj = 0; jj < n; jj++)
-                {
-                    c[ii * n + jj] = 0;
-                }
-            }
-            for(int ii = 0; ii < m; ii++)
-            {
-                for(int kk = 0; kk < k; kk++)
-                {
-                    auto aik  = a[ii * k + kk];
-                    auto* bkj = &b[kk * n];
-                    auto* cij = &c[ii * n];
-                    for(int jj = 0; jj < n; jj++, cij++, bkj++)
-                    {
-                        *cij += aik * (*bkj);
-                    }
-                }
-            }
-        });
+        migemm(result, args[0], args[1], op.alpha, op.beta);
         return result;
     }
 };

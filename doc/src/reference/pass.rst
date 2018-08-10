@@ -11,6 +11,11 @@ dead_code_elimination
 
 .. doxygenstruct:: migraph::dead_code_elimination
 
+auto_contiguous
+---------------
+
+.. doxygenstruct:: migraph::gpu::auto_contiguous
+
 write_literals
 --------------
 

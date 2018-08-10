@@ -227,7 +227,7 @@ struct test_batchnorm_inference
         migraph::program p;
 
         migraph::shape s{migraph::shape::float_type, {batches, channels, height, width}};
-        migraph::shape vars{migraph::shape::float_type, {1,channels,1,1}};
+        migraph::shape vars{migraph::shape::float_type, {1, channels, 1, 1}};
         auto x        = p.add_parameter("x", s);
         auto mean     = p.add_parameter("mean", vars);
         auto variance = p.add_parameter("variance", vars);
@@ -260,7 +260,7 @@ void batch_norm_inference_test()
     const float output_val = scale_val * (x_val - mean_val) / (std::sqrt(variance_val)) + bias_val;
 
     migraph::shape s{migraph::shape::float_type, {batches, channels, height, width}};
-    migraph::shape vars{migraph::shape::float_type, {1,channels,1,1}};
+    migraph::shape vars{migraph::shape::float_type, {1, channels, 1, 1}};
     std::vector<float> x_data(width * height * channels * batches);
     std::vector<float> scale_data(channels);
     std::vector<float> bias_data(channels);

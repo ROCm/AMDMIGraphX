@@ -99,10 +99,7 @@ struct instruction
                });
     }
 
-    shape get_shape() const
-    {
-        return result;
-    }
+    shape get_shape() const { return result; }
 
     friend bool operator==(instruction_ref ref, const instruction& i) { return i == ref; }
 

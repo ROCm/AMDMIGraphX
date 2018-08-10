@@ -29,6 +29,7 @@ struct tensor_view
     template <class... Ts, MIGRAPH_REQUIRES(std::is_integral<Ts>{}...)>
     const T& operator()(Ts... xs) const
     {
+        assert(std::vector<std::size_t>{static_cast<std::size_t>(xs)...} < m_shape.lens());
         assert(m_shape.index({static_cast<std::size_t>(xs)...}) < m_shape.bytes() / sizeof(T));
         return m_data[m_shape.index({static_cast<std::size_t>(xs)...})];
     }
@@ -36,6 +37,7 @@ struct tensor_view
     template <class... Ts, MIGRAPH_REQUIRES(std::is_integral<Ts>{}...)>
     T& operator()(Ts... xs)
     {
+        assert(std::vector<std::size_t>{static_cast<std::size_t>(xs)...} < m_shape.lens());
         assert(m_shape.index({static_cast<std::size_t>(xs)...}) < m_shape.bytes() / sizeof(T));
         return m_data[m_shape.index({static_cast<std::size_t>(xs)...})];
     }

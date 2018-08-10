@@ -202,15 +202,17 @@ struct miopen_gemm
     {
         float alpha     = 1.0f;
         float beta      = 0.0f;
-        rocblas_int lda = args[0].get_shape().lens()[1];
-        rocblas_int ldb = args[1].get_shape().lens()[1];
-        rocblas_int ldc = args[2].get_shape().lens()[1];
+        bool transa     = args[0].get_shape().transposed();
+        bool transb     = args[1].get_shape().transposed();
+        rocblas_int lda = args[0].get_shape().strides()[transa ? 1 : 0];
+        rocblas_int ldb = args[1].get_shape().strides()[transb ? 1 : 0];
+        rocblas_int ldc = args[2].get_shape().strides()[0];
         rocblas_int m   = output_shape.lens()[0];
         rocblas_int n   = output_shape.lens()[1];
         rocblas_int k   = args[0].get_shape().lens()[1];
         rocblas_sgemm(ctx.rbhandle.get(),
-                      rocblas_operation_none,
-                      rocblas_operation_none,
+                      transb ? rocblas_operation_transpose : rocblas_operation_none,
+                      transa ? rocblas_operation_transpose : rocblas_operation_none,
                       n,
                       m,
                       k,

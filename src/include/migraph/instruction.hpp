@@ -44,10 +44,7 @@ struct instruction
         }
     }
 
-    void recompute_shape()
-    {
-        replace(compute_shape(op, arguments));
-    }
+    void recompute_shape() { replace(compute_shape(op, arguments)); }
 
     void replace(std::vector<instruction_ref> args)
     {

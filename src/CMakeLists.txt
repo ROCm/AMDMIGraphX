@@ -4,8 +4,8 @@ add_library(migraph
     generate.cpp
     program.cpp
     shape.cpp
-    opt/optimize.cpp
     opt/memory_coloring.cpp
+    opt/memory_coloring_impl.cpp
 )
 rocm_clang_tidy_check(migraph)
 target_include_directories(migraph PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)

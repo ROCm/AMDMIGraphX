@@ -427,11 +427,11 @@ struct flatten
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs}.has(1);
-        if (axis == 0)
+        if(axis == 0)
         {
             return {inputs.at(0).type(), {1, inputs.at(0).elements()}};
         }
-        if (axis == 1)
+        if(axis == 1)
         {
             return {inputs.at(0).type(), {inputs.at(0).elements(), 1}};
         }

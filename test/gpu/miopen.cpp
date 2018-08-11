@@ -26,15 +26,14 @@ struct auto_print
     int index;
     auto_print(migraph::program& pp, int i) : p(pp), index(i)
     {
-        handlers()[index] = [this]{ std::cout << p << std::endl; };
+        handlers()[index] = [this] { std::cout << p << std::endl; };
     }
 
     ~auto_print()
     {
-        handlers()[index] = []{};
+        handlers()[index] = [] {};
     }
 };
-
 
 template <class V>
 migraph::argument run_cpu()
@@ -80,7 +79,8 @@ void verify_program()
         {
             std::cout << "what(): " << e.what() << std::endl;
         }
-        for(auto&& handle:handlers()) handle();
+        for(auto&& handle : handlers())
+            handle();
     });
     auto cpu_arg = run_cpu<V>();
     auto gpu_arg = run_gpu<V>();

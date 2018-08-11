@@ -55,10 +55,11 @@ program::replace_instruction(instruction_ref ins, operation op, std::vector<inst
     return ins;
 }
 
-instruction_ref program::replace_instructions(instruction_ref ins, instruction_ref start, instruction_ref last)
+instruction_ref
+program::replace_instructions(instruction_ref ins, instruction_ref start, instruction_ref last)
 {
     auto rep = std::prev(last);
-    for(auto&& out:ins->output)
+    for(auto&& out : ins->output)
     {
 
         if(std::find(start, last, out) == last)
@@ -67,7 +68,7 @@ instruction_ref program::replace_instructions(instruction_ref ins, instruction_r
             backreference(out);
         }
     }
-    if(ins->output.empty()) 
+    if(ins->output.empty())
         return remove_instruction(ins);
     return ins;
 }

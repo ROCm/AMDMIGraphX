@@ -39,15 +39,26 @@ struct instruction
             for(auto&& ins : output)
             {
                 assert(ins->op.name().front() != '@');
-                ins->replace(compute_shape(ins->op, ins->arguments));
+                ins->recompute_shape();
             }
         }
+    }
+
+    void recompute_shape()
+    {
+        replace(compute_shape(op, arguments));
     }
 
     void replace(std::vector<instruction_ref> args)
     {
         clear_arguments();
         arguments = std::move(args);
+    }
+
+    void replace_argument(instruction_ref old, instruction_ref new_ins)
+    {
+        std::replace(arguments.begin(), arguments.end(), old, new_ins);
+        recompute_shape();
     }
 
     void clear_arguments()

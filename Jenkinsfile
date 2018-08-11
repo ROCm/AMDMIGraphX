@@ -25,7 +25,7 @@ def rocmtestnode(variant, name, body) {
 
             }
         }
-        withDockerContainer(image: image, args: '--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE') {
+        withDockerContainer(image: image, args: '--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE --add-host="bzip2.org:46.235.226.80" --add-host="www.bzip2.org:46.235.226.80"') {
             timeout(time: 1, unit: 'HOURS') {
                 body(cmake_build)
             }

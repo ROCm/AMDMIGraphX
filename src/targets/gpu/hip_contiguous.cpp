@@ -21,7 +21,7 @@ __global__ void launcher(F f)
 
 auto launch(std::size_t global, std::size_t local)
 {
-    return [&](auto f) {
+    return [=](auto f) {
         assert(local > 0);
         assert(global > 0);
         using f_type = decltype(f);
@@ -106,22 +106,6 @@ struct hip_tensor_descriptor
     size_t lens[NDim]    = {};
     size_t strides[NDim] = {};
 };
-
-// template <typename T, size_t NDim>
-// __global__ void contiguous_gpu(const T* a,
-//                                hip_tensor_descriptor<NDim> a_desc,
-//                                T* at,
-//                                hip_tensor_descriptor<NDim> at_desc,
-//                                size_t nelements)
-// {
-//     for(size_t i = blockIdx.x * blockDim.x + threadIdx.x; i < nelements;
-//         i += blockDim.x * gridDim.x)
-//     {
-//         hip_index<NDim> s = at_desc.multi(i);
-//         size_t lidx       = a_desc.linear(s);
-//         at[i]             = a[lidx];
-//     }
-// }
 
 void hip_contiguous(migraph::shape output_shape, migraph::argument arg, migraph::argument result)
 {

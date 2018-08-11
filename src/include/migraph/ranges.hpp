@@ -17,6 +17,29 @@ void copy(Range&& r, Iterator it)
     std::copy(r.begin(), r.end(), it);
 }
 
+template<class Iterator>
+struct iterator_range
+{
+    Iterator start;
+    Iterator last;
+
+    Iterator begin() const
+    {
+        return start;
+    }
+
+    Iterator end() const
+    {
+        return last;
+    }
+};
+
+template<class Iterator>
+iterator_range<Iterator> range(Iterator start, Iterator last)
+{
+    return {start, last};
+}
+
 } // namespace migraph
 
 #endif

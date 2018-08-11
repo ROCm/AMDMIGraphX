@@ -14,35 +14,41 @@
 #include "test.hpp"
 #include "verify.hpp"
 
-struct auto_eval
+auto& handlers()
 {
-    migraph::program* p;
-    migraph::program::parameter_map* m;
-    migraph::argument result;
+    static std::array<std::function<void()>, 2> x = {};
+    return x;
+}
 
-    auto_eval(migraph::program& pp, migraph::program::parameter_map& pm) : p(&pp), m(&pm) {}
-
-    migraph::argument operator()() const { return p->eval(*m); }
-
-    ~auto_eval()
+struct auto_print
+{
+    migraph::program& p;
+    int index;
+    auto_print(migraph::program& pp, int i) : p(pp), index(i)
     {
-        if(std::uncaught_exception())
-            std::cout << *p << std::endl;
+        handlers()[index] = [this]{ std::cout << p << std::endl; };
+    }
+
+    ~auto_print()
+    {
+        handlers()[index] = []{};
     }
 };
+
 
 template <class V>
 migraph::argument run_cpu()
 {
     V v;
     auto p = v.create_program();
+    auto_print pp{p, 0};
     p.compile(migraph::cpu::cpu_target{});
     migraph::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
         m[x.first] = migraph::generate_argument(x.second);
     }
-    return auto_eval(p, m)();
+    return p.eval(m);
 }
 
 template <class V>
@@ -50,6 +56,7 @@ migraph::argument run_gpu()
 {
     V v;
     auto p = v.create_program();
+    auto_print pp{p, 1};
     p.compile(migraph::gpu::target{});
 
     migraph::program::parameter_map m;
@@ -58,12 +65,23 @@ migraph::argument run_gpu()
         m[x.first] = migraph::gpu::to_gpu(migraph::generate_argument(x.second));
     }
 
-    return migraph::gpu::from_gpu(auto_eval(p, m)());
+    return migraph::gpu::from_gpu(p.eval(m));
 }
 
 template <class V>
 void verify_program()
 {
+    std::set_terminate(+[] {
+        try
+        {
+            std::rethrow_exception(std::current_exception());
+        }
+        catch(const std::exception& e)
+        {
+            std::cout << "what(): " << e.what() << std::endl;
+        }
+        for(auto&& handle:handlers()) handle();
+    });
     auto cpu_arg = run_cpu<V>();
     auto gpu_arg = run_gpu<V>();
     visit_all(cpu_arg, gpu_arg)([](auto cpu, auto gpu) {

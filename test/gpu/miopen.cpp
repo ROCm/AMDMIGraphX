@@ -14,26 +14,27 @@
 #include "test.hpp"
 #include "verify.hpp"
 
-auto& handlers()
-{
-    static std::array<std::function<void()>, 2> x = {};
-    return x;
-}
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wglobal-constructors"
+#endif
 
 struct auto_print
 {
+    static std::array<std::function<void()>, 2> handlers;
     migraph::program& p;
     int index;
     auto_print(migraph::program& pp, int i) : p(pp), index(i)
     {
-        handlers()[index] = [this] { std::cout << p << std::endl; };
+        handlers[index] = [this] { std::cout << p << std::endl; };
     }
 
     ~auto_print()
     {
-        handlers()[index] = [] {};
+        handlers[index] = [] {};
     }
 };
+std::array<std::function<void()>, 2> auto_print::handlers = {};
 
 template <class V>
 migraph::argument run_cpu()
@@ -71,15 +72,17 @@ template <class V>
 void verify_program()
 {
     std::set_terminate(+[] {
+        std::cout << "FAILED: " << migraph::get_type_name<V>() << std::endl;
         try
         {
             std::rethrow_exception(std::current_exception());
         }
         catch(const std::exception& e)
         {
-            std::cout << "what(): " << e.what() << std::endl;
+            std::cout << "    what(): " << e.what() << std::endl;
         }
-        for(auto&& handle : handlers())
+        std::cout << std::endl;
+        for(auto&& handle : auto_print::handlers)
             handle();
     });
     auto cpu_arg = run_cpu<V>();
@@ -90,6 +93,7 @@ void verify_program()
             std::cout << "FAILED: " << migraph::get_type_name<V>() << std::endl;
         }
     });
+    std::set_terminate(nullptr);
 }
 
 struct test_literals

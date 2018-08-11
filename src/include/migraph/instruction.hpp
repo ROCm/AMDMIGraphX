@@ -75,8 +75,7 @@ struct instruction
 
     bool valid(instruction_ref start) const
     {
-        return valid() &&
-               std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
+        return valid() && std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
                    auto self = std::find(i->output.begin(), i->output.end(), *this);
                    return self != i->output.end() &&
                           std::distance(start, i) < std::distance(start, *self);
@@ -106,12 +105,10 @@ struct instruction
             }
         }
         return result == computed &&
-               std::all_of(output.begin(),
-                           output.end(),
-                           [&](instruction_ref i) {
-                               return std::find(i->arguments.begin(), i->arguments.end(), *this) !=
-                                      i->arguments.end();
-                           });
+               std::all_of(output.begin(), output.end(), [&](instruction_ref i) {
+                   return std::find(i->arguments.begin(), i->arguments.end(), *this) !=
+                          i->arguments.end();
+               });
     }
 
     friend bool operator==(instruction_ref ref, const instruction& i) { return i == ref; }
@@ -126,7 +123,7 @@ struct instruction
             output.push_back(ins);
     }
 
-    template<class T>
+    template <class T>
     void remove_output(const T& ins)
     {
         migraph::erase(output, ins);

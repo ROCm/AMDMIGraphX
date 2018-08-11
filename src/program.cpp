@@ -63,7 +63,7 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
     assert(has_instruction(rep));
     assert(ins != rep);
     // TODO: Should it be an error if the output is empty?
-    if(ins->output.empty()) 
+    if(ins->output.empty())
     {
         remove_instruction(ins);
         return rep;

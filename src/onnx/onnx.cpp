@@ -62,6 +62,7 @@ struct onnx_parser
         add_mem_op("Conv", &onnx_parser::parse_conv);
         add_mem_op("MaxPool", &onnx_parser::parse_pooling);
         add_mem_op("Reshape", &onnx_parser::parse_reshape);
+        add_mem_op("Flatten", &onnx_parser::parse_flatten);
         add_mem_op("BatchNormalization", &onnx_parser::parse_batchnorm);
     }
 
@@ -159,6 +160,17 @@ struct onnx_parser
             s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
         }
         return prog.add_instruction(op, args[0]);
+    }
+
+    instruction_ref
+    parse_flatten(std::string, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        uint64_t axis = 0;
+        if(contains(attributes, "axis"))
+        {
+            axis = parse_value(attributes.at("axis")).at<int>();
+        }
+        return prog.add_instruction(flatten{axis}, args[0]);
     }
 
     instruction_ref

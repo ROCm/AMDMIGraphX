@@ -422,7 +422,28 @@ struct neg : unary
 
 struct flatten
 {
+    uint64_t axis = 0;
     std::string name() const { return "flatten"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(1);
+        if (axis == 0)
+        {
+            return {inputs.at(0).type(), {1, inputs.at(0).elements()}};
+        }
+        if (axis == 1)
+        {
+            return {inputs.at(0).type(), {inputs.at(0).elements(), 1}};
+        }
+        else
+        {
+            MIGRAPH_THROW("axis can only be either 0 or 1");
+        }
+    }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        return {output_shape, std::move(args.front().data)};
+    }
 };
 
 struct broadcast

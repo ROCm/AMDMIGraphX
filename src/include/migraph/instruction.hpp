@@ -55,6 +55,7 @@ struct instruction
     void replace_argument(instruction_ref old, instruction_ref new_ins)
     {
         std::replace(arguments.begin(), arguments.end(), old, new_ins);
+        old->remove_output(*this);
         recompute_shape();
     }
 
@@ -62,7 +63,7 @@ struct instruction
     {
         for(auto&& arg : arguments)
         {
-            migraph::erase(arg->output, *this);
+            arg->remove_output(*this);
         }
         arguments.clear();
     }
@@ -73,6 +74,16 @@ struct instruction
     }
 
     bool valid(instruction_ref start) const
+    {
+        return valid() &&
+               std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
+                   auto self = std::find(i->output.begin(), i->output.end(), *this);
+                   return self != i->output.end() &&
+                          std::distance(start, i) < std::distance(start, *self);
+               });
+    }
+
+    bool valid() const
     {
         shape computed;
         if(op.name() == "@literal")
@@ -100,12 +111,7 @@ struct instruction
                            [&](instruction_ref i) {
                                return std::find(i->arguments.begin(), i->arguments.end(), *this) !=
                                       i->arguments.end();
-                           }) &&
-               std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
-                   auto self = std::find(i->output.begin(), i->output.end(), *this);
-                   return self != i->output.end() &&
-                          std::distance(start, i) < std::distance(start, *self);
-               });
+                           });
     }
 
     friend bool operator==(instruction_ref ref, const instruction& i) { return i == ref; }
@@ -113,6 +119,18 @@ struct instruction
     friend bool operator!=(const instruction& i, instruction_ref ref) { return !(i == ref); }
 
     friend bool operator!=(instruction_ref ref, const instruction& i) { return !(i == ref); }
+
+    void add_output(instruction_ref ins)
+    {
+        if(std::find(output.begin(), output.end(), ins) == output.end())
+            output.push_back(ins);
+    }
+
+    template<class T>
+    void remove_output(const T& ins)
+    {
+        migraph::erase(output, ins);
+    }
 
     operation op;
     shape result;
@@ -124,7 +142,7 @@ struct instruction
 inline void backreference(instruction_ref ref)
 {
     for(auto&& arg : ref->arguments)
-        arg->output.push_back(ref);
+        arg->add_output(ref);
 }
 
 // TODO: Move to a cpp file

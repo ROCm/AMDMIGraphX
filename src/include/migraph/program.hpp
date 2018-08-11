@@ -55,6 +55,9 @@ struct program
     instruction_ref
     replace_instructions(instruction_ref ins, instruction_ref start, instruction_ref last);
 
+    instruction_ref
+    replace_instruction(instruction_ref ins, instruction_ref start);
+
     instruction_ref remove_instruction(instruction_ref ins);
     instruction_ref remove_instructions(instruction_ref first, instruction_ref last);
 

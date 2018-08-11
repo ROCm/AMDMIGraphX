@@ -38,6 +38,7 @@ program::insert_instruction(instruction_ref ins, operation op, std::vector<instr
     auto result = impl->instructions.insert(ins, {op, r, args});
     backreference(result);
     assert(result->arguments == args);
+    assert(result->valid(begin()));
     return result;
 }
 
@@ -52,6 +53,7 @@ program::replace_instruction(instruction_ref ins, operation op, std::vector<inst
     shape r = compute_shape(op, args);
     ins->replace(op, r, args);
     backreference(ins);
+    assert(ins->valid(begin()));
     return ins;
 }
 
@@ -61,16 +63,25 @@ program::replace_instructions(instruction_ref ins, instruction_ref start, instru
     auto rep = std::prev(last);
     for(auto&& out : ins->output)
     {
-
         if(std::find(start, last, out) == last)
         {
             out->replace_argument(ins, rep);
             backreference(out);
         }
+        assert(out->valid(begin()));
     }
+    assert(rep->valid(begin()));
+    assert(ins->valid(begin()));
     if(ins->output.empty())
-        return remove_instruction(ins);
-    return ins;
+        remove_instruction(ins);
+    return rep;
+}
+
+instruction_ref
+program::replace_instruction(instruction_ref ins, instruction_ref start)
+{
+    assert(ins != start);
+    return replace_instructions(ins, start, std::next(start));
 }
 
 instruction_ref program::remove_instruction(instruction_ref ins)
@@ -182,7 +193,7 @@ void program::compile(const target& t)
         {
             auto index = std::distance(impl->instructions.begin(), invalid);
             MIGRAPH_THROW(p.name() + " pass produces invalid program at instruction " +
-                          std::to_string(index));
+                          std::to_string(index) + ": " + invalid->op.name());
         }
 #endif
     }

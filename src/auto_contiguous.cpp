@@ -14,9 +14,7 @@ void auto_contiguous::apply(program& p) const
         if(not s.standard())
         {
             auto c = p.insert_instruction(std::next(ins), contiguous{}, ins);
-            p.replace_instructions(ins, ins, std::next(c));
-            // auto prev = p.insert_instruction(ins, ins->op, ins->arguments);
-            // p.replace_instruction(ins, contiguous{}, prev);
+            p.replace_instruction(ins, c);
         }
     }
 }

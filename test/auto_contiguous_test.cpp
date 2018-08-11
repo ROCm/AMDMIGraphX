@@ -27,7 +27,7 @@ migraph::literal get_2() { return migraph::literal{{migraph::shape::float_type, 
 
 migraph::literal get_2_broadcasted()
 {
-    return migraph::literal{{migraph::shape::float_type, {2}, {1, 0}}, {1, 2}};
+    return migraph::literal{{migraph::shape::float_type, {2, 1}, {1, 0}}, {1, 2}};
 }
 
 void literal_broadcast()
@@ -116,7 +116,7 @@ void after_param_broadcast()
 
 int main()
 {
-    literal_broadcast();
+    // literal_broadcast();
     literal_transpose();
     after_literal_transpose();
     after_literal_broadcast();

@@ -287,17 +287,17 @@ void batch_norm_inference_test()
 
 int main()
 {
-    // verify_program<test_add>();
-    // verify_program<test_add_broadcast>();
-    // verify_program<test_conv_relu>();
-    // verify_program<test_conv_pooling>();
-    // verify_program<test_gemm>();
-    // // verify_program<test_gemm_ld>();
-    // verify_program<test_gemm_transposeb>();
-    // verify_program<test_gemm_transposea>();
-    // verify_program<test_gemm_transposeab>();
-    // verify_program<test_contiguous>();
-    // verify_program<test_transpose>();
+    verify_program<test_add>();
+    verify_program<test_add_broadcast>();
+    verify_program<test_conv_relu>();
+    verify_program<test_conv_pooling>();
+    verify_program<test_gemm>();
+    // verify_program<test_gemm_ld>();
+    verify_program<test_gemm_transposeb>();
+    verify_program<test_gemm_transposea>();
+    verify_program<test_gemm_transposeab>();
+    verify_program<test_contiguous>();
+    verify_program<test_transpose>();
     verify_program<test_batchnorm_inference>();
     batch_norm_inference_test();
 }

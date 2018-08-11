@@ -122,9 +122,9 @@ void replace_ins_test()
 {
     migraph::program p;
 
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    auto sum = p.add_instruction(sum_op{}, one, two);
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto sum   = p.add_instruction(sum_op{}, one, two);
     auto minus = p.add_instruction(minus_op{}, two, one);
     p.replace_instruction(sum, minus);
 

@@ -77,8 +77,7 @@ program::replace_instructions(instruction_ref ins, instruction_ref start, instru
     return rep;
 }
 
-instruction_ref
-program::replace_instruction(instruction_ref ins, instruction_ref start)
+instruction_ref program::replace_instruction(instruction_ref ins, instruction_ref start)
 {
     assert(ins != start);
     return replace_instructions(ins, start, std::next(start));

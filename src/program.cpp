@@ -57,30 +57,33 @@ program::replace_instruction(instruction_ref ins, operation op, std::vector<inst
     return ins;
 }
 
-instruction_ref
-program::replace_instructions(instruction_ref ins, instruction_ref start, instruction_ref last)
+instruction_ref program::replace_instruction(instruction_ref ins, instruction_ref rep)
 {
-    auto rep = std::prev(last);
+    assert(has_instruction(ins));
+    assert(has_instruction(rep));
+    assert(ins != rep);
+    // TODO: Should it be an error if the output is empty?
+    if(ins->output.empty()) 
+    {
+        remove_instruction(ins);
+        return rep;
+    }
     for(auto&& out : ins->output)
     {
-        if(std::find(start, last, out) == last)
+        // TODO: Check for possible cycles
+        if(out != rep)
         {
-            out->replace_argument(ins, rep);
-            backreference(out);
+            replace_argument(out, ins, rep);
         }
         assert(out->valid(begin()));
     }
-    assert(rep->valid(begin()));
+    // Replacement should not be dead code unless its the last instruction
+    assert(!rep->output.empty() or rep == std::prev(end()));
     assert(ins->valid(begin()));
     if(ins->output.empty())
         remove_instruction(ins);
+    assert(rep->valid(begin()));
     return rep;
-}
-
-instruction_ref program::replace_instruction(instruction_ref ins, instruction_ref start)
-{
-    assert(ins != start);
-    return replace_instructions(ins, start, std::next(start));
 }
 
 instruction_ref program::remove_instruction(instruction_ref ins)
@@ -126,7 +129,7 @@ instruction_ref program::add_parameter(std::string name, shape s)
     return impl->instructions.begin();
 }
 
-shape program::get_parameter_shape(std::string name)
+shape program::get_parameter_shape(std::string name) const
 {
     auto ins = std::find_if(
         impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
@@ -167,8 +170,8 @@ bool program::has_instruction(instruction_ref ins) const
                }) != impl->instructions.end();
 }
 
-instruction_ref program::begin() { return impl->instructions.begin(); }
-instruction_ref program::end() { return impl->instructions.end(); }
+instruction_ref program::begin() const { return impl->instructions.begin(); }
+instruction_ref program::end() const { return impl->instructions.end(); }
 
 shape program::get_shape() const { return impl->instructions.back().result; }
 

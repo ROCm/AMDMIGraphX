@@ -56,7 +56,6 @@ struct instruction
     {
         std::replace(arguments.begin(), arguments.end(), old, new_ins);
         old->remove_output(*this);
-        recompute_shape();
     }
 
     void clear_arguments()
@@ -140,6 +139,13 @@ inline void backreference(instruction_ref ref)
 {
     for(auto&& arg : ref->arguments)
         arg->add_output(ref);
+}
+
+inline void replace_argument(instruction_ref ins, instruction_ref old, instruction_ref new_ins)
+{
+    ins->replace_argument(old, new_ins);
+    backreference(ins);
+    ins->recompute_shape();
 }
 
 // TODO: Move to a cpp file

@@ -19,8 +19,8 @@ std::vector<pass> target::get_passes(migraph::context&) const
         simplify_reshapes{},
         lowering{},
         write_literals{},
-        dead_code_elimination{},
-        check_context<context>{}
+        check_context<context>{},
+        dead_code_elimination{}
     };
     // clang-format on
 }

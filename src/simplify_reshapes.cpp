@@ -10,10 +10,14 @@ namespace migraph {
 
 bool is_reshaper(const std::string& name)
 {
-    static const std::unordered_set<std::string> names = {"reshape",
-                                                          "transpose",
-                                                          // "broadcast",
-                                                          "contiguous"};
+    // clang-format off
+    static const std::unordered_set<std::string> names = {
+        "reshape",
+        "transpose",
+        // "broadcast",
+        "contiguous"
+    };
+    // clang-format on
     return contains(names, name);
 }
 

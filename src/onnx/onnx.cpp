@@ -285,12 +285,28 @@ struct onnx_parser
     void parse_graph(const onnx::GraphProto& graph)
     {
         nodes = get_nodes(graph);
+        std::unordered_map<std::string, size_t> initializer_data;
+        auto cnt = 0;
+        for(auto&& f : graph.initializer())
+        {
+            initializer_data[f.name()] = cnt++;
+        }
         for(auto&& input : graph.input())
         {
             const std::string& name = input.name();
-            // TODO: Get shape of input parameter
-            shape s            = parse_type(input.type());
-            instructions[name] = prog.add_parameter(name, s);
+            // Does the input have an initializer?
+            if(initializer_data.find(name) != initializer_data.end())
+            {
+                auto idx           = initializer_data[name];
+                auto t             = graph.initializer()[idx];
+                instructions[name] = prog.add_literal(parse_tensor(t));
+            }
+            else
+            {
+                // TODO: Get shape of input parameter
+                shape s            = parse_type(input.type());
+                instructions[name] = prog.add_parameter(name, s);
+            }
         }
         for(auto&& p : nodes)
         {

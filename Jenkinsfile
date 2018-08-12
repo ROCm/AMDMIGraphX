@@ -19,13 +19,13 @@ def rocmtestnode(variant, name, body) {
         }
         stage("image ${variant}") {
             try {
-                docker.build("${image}", '--add-host bzip2.org:46.235.226.80 --add-host www.bzip2.org:46.235.226.80 .')
+                docker.build("${image}", '.')
             } catch(Exception ex) {
-                docker.build("${image}", '--no-cache --add-host bzip2.org:46.235.226.80 --add-host www.bzip2.org:46.235.226.80 .')
+                docker.build("${image}", '--no-cache .')
 
             }
         }
-        withDockerContainer(image: image, args: '--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE --add-host="bzip2.org:46.235.226.80" --add-host="www.bzip2.org:46.235.226.80"') {
+        withDockerContainer(image: image, args: '--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE') {
             timeout(time: 1, unit: 'HOURS') {
                 body(cmake_build)
             }

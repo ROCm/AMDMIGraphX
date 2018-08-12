@@ -4,6 +4,8 @@
 #include <migraph/gpu/context.hpp>
 #include <migraph/check_context.hpp>
 #include <migraph/auto_contiguous.hpp>
+#include <migraph/dead_code_elimination.hpp>
+#include <migraph/simplify_reshapes.hpp>
 
 namespace migraph {
 namespace gpu {
@@ -14,8 +16,10 @@ std::vector<pass> target::get_passes(migraph::context&) const
     return
     {
         auto_contiguous{},
+        simplify_reshapes{},
         lowering{},
         write_literals{},
+        dead_code_elimination{},
         check_context<context>{}
     };
     // clang-format on

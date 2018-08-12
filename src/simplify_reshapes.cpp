@@ -10,12 +10,10 @@ namespace migraph {
 
 bool is_reshaper(const std::string& name)
 {
-    static const std::unordered_set<std::string> names = {
-        "reshape",
-        "transpose",
-        // "broadcast",
-        "contiguous"
-    };
+    static const std::unordered_set<std::string> names = {"reshape",
+                                                          "transpose",
+                                                          // "broadcast",
+                                                          "contiguous"};
     return contains(names, name);
 }
 
@@ -31,7 +29,7 @@ void simplify_reshapes::apply(program& p) const
             continue;
         // Gather reshapes
         std::vector<instruction_ref> reshapes{ins};
-        while(is_reshaper(reshapes.back()->op.name())) 
+        while(is_reshaper(reshapes.back()->op.name()))
         {
             assert(!reshapes.back()->arguments.empty());
             assert(p.has_instruction(reshapes.back()->arguments.front()));
@@ -39,17 +37,19 @@ void simplify_reshapes::apply(program& p) const
         }
 
         std::pair<instruction_ref, instruction_ref> r{p.end(), p.end()};
-        for(auto start:iterator_for(reshapes))
+        for(auto start : iterator_for(reshapes))
         {
             auto last = std::find_if(reshapes.rbegin(), reshapes.rend(), [&](auto&& i) {
                 return i->result == (*start)->result and i != (*start);
             });
-            if (last != reshapes.rend()) {
+            if(last != reshapes.rend())
+            {
                 r = std::make_pair(*start, *last);
                 break;
             }
         }
-        if(r.first != r.second) {
+        if(r.first != r.second)
+        {
             p.replace_instruction(r.first, r.second);
         }
     }

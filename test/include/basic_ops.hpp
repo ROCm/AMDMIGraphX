@@ -90,8 +90,5 @@ struct nop
         return {};
     }
 
-    migraph::shape compute_shape(std::vector<migraph::shape>) const
-    {
-        return {};
-    }
+    migraph::shape compute_shape(std::vector<migraph::shape>) const { return {}; }
 };

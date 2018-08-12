@@ -15,6 +15,49 @@
 namespace migraph {
 namespace gpu {
 
+struct miopen_batch_norm_inference
+{
+    batch_norm_inference op;
+
+    std::string name() const { return "gpu::batch_norm_inference"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(6);
+        return op.compute_shape(
+            {inputs.at(0), inputs.at(1), inputs.at(2), inputs.at(3), inputs.at(4)});
+    }
+
+    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
+    {
+        auto x_desc  = make_tensor(args[0].get_shape());
+        auto y_desc  = make_tensor(output_shape);
+        auto bn_desc = make_tensor(args[3].get_shape());
+
+        float alpha = 1.0, beta = 0.0f;
+
+        // TODO: adityaatluri
+        // create bn-scale-bias-mean-variance descriptor for
+        // miopen call
+        miopenBatchNormalizationForwardInference(ctx.handle.get(),
+                                                 miopenBatchNormMode_t(op.bn_mode),
+                                                 &alpha,
+                                                 &beta,
+                                                 x_desc.get(),
+                                                 args[0].implicit(),
+                                                 y_desc.get(),
+                                                 args[5].implicit(),
+                                                 bn_desc.get(),
+                                                 args[3].implicit(),
+                                                 args[4].implicit(),
+                                                 args[1].implicit(),
+                                                 args[2].implicit(),
+                                                 op.epsilon);
+
+        return args[5];
+    }
+};
+
 struct miopen_convolution
 {
     convolution op;
@@ -261,6 +304,12 @@ struct miopen_apply
             {
                 apply_contiguous(it);
             }
+            // TODO: adityaatluri
+            // tagging to easily find where code changed
+            else if(it->op.name() == "batch_norm_inference")
+            {
+                apply_batch_norm_inference(it);
+            }
         }
     }
 
@@ -333,6 +382,32 @@ struct miopen_apply
         auto&& op   = any_cast<contiguous>(ins->op);
         auto output = insert_allocation(ins, ins->result);
         prog->replace_instruction(ins, miopen_contiguous{op}, ins->arguments.at(0), output);
+    }
+
+    // TODO: adityaatluri
+    // Not sure how to write this. Review and fix required
+    void apply_batch_norm_inference(instruction_ref ins)
+    {
+        auto&& op       = any_cast<batch_norm_inference>(ins->op);
+        auto output     = insert_allocation(ins, ins->result);
+        shape old_shape = ins->arguments.at(1)->get_shape();
+        std::vector<int64_t> new_shape{1, static_cast<int64_t>(old_shape.elements()), 1, 1};
+        auto arg1 =
+            prog->insert_instruction(ins, migraph::reshape{new_shape}, ins->arguments.at(1));
+        auto arg2 =
+            prog->insert_instruction(ins, migraph::reshape{new_shape}, ins->arguments.at(2));
+        auto arg3 =
+            prog->insert_instruction(ins, migraph::reshape{new_shape}, ins->arguments.at(3));
+        auto arg4 =
+            prog->insert_instruction(ins, migraph::reshape{new_shape}, ins->arguments.at(4));
+        prog->replace_instruction(ins,
+                                  miopen_batch_norm_inference{op},
+                                  ins->arguments.at(0),
+                                  arg1,
+                                  arg2,
+                                  arg3,
+                                  arg4,
+                                  output);
     }
 };
 

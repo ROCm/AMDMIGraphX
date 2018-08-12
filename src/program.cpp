@@ -65,7 +65,6 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
     // TODO: Should it be an error if the output is empty?
     if(ins->output.empty())
     {
-        remove_instruction(ins);
         return rep;
     }
     for(auto&& out : ins->output)
@@ -80,8 +79,6 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
     // Replacement should not be dead code unless its the last instruction
     assert(!rep->output.empty() or rep == std::prev(end()));
     assert(ins->valid(begin()));
-    if(ins->output.empty())
-        remove_instruction(ins);
     assert(rep->valid(begin()));
     return rep;
 }

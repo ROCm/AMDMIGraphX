@@ -37,9 +37,6 @@ struct miopen_batch_norm_inference
 
         float alpha = 1.0, beta = 0.0f;
 
-        // TODO: adityaatluri
-        // create bn-scale-bias-mean-variance descriptor for
-        // miopen call
         miopenBatchNormalizationForwardInference(ctx.handle.get(),
                                                  miopenBatchNormMode_t(op.bn_mode),
                                                  &alpha,
@@ -328,8 +325,6 @@ struct miopen_apply
             {
                 apply_contiguous(it);
             }
-            // TODO: adityaatluri
-            // tagging to easily find where code changed
             else if(it->op.name() == "batch_norm_inference")
             {
                 apply_batch_norm_inference(it);
@@ -409,29 +404,24 @@ struct miopen_apply
         prog->replace_instruction(ins, miopen_contiguous{op}, ins->arguments.at(0), output);
     }
 
-    // TODO: adityaatluri
-    // Not sure how to write this. Review and fix required
     void apply_batch_norm_inference(instruction_ref ins)
     {
         auto&& op       = any_cast<batch_norm_inference>(ins->op);
         auto output     = insert_allocation(ins, ins->result);
         shape old_shape = ins->arguments.at(1)->get_shape();
         std::vector<int64_t> new_shape{1, static_cast<int64_t>(old_shape.elements()), 1, 1};
-        auto arg1 =
-            prog->insert_instruction(ins, migraph::reshape{new_shape}, ins->arguments.at(1));
-        auto arg2 =
-            prog->insert_instruction(ins, migraph::reshape{new_shape}, ins->arguments.at(2));
-        auto arg3 =
-            prog->insert_instruction(ins, migraph::reshape{new_shape}, ins->arguments.at(3));
-        auto arg4 =
-            prog->insert_instruction(ins, migraph::reshape{new_shape}, ins->arguments.at(4));
+        auto reshape_op = reshape{new_shape};
+        std::vector<instruction_ref> reshapes;
+        std::transform(ins->arguments.begin()+1, ins->arguments.end(), std::back_inserter(reshapes), [&](auto i) {
+            return prog->insert_instruction(ins, reshape_op, i);
+        });
         prog->replace_instruction(ins,
                                   miopen_batch_norm_inference{op},
                                   ins->arguments.at(0),
-                                  arg1,
-                                  arg2,
-                                  arg3,
-                                  arg4,
+                                  reshapes[0],
+                                  reshapes[1],
+                                  reshapes[2],
+                                  reshapes[3],
                                   output);
     }
 };

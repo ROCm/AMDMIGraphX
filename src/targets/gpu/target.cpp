@@ -10,14 +10,15 @@
 namespace migraph {
 namespace gpu {
 
-std::vector<pass> target::get_passes(migraph::context&) const
+std::vector<pass> target::get_passes(migraph::context& gctx) const
 {
+    auto& ctx = any_cast<context>(gctx);
     // clang-format off
     return
     {
         auto_contiguous{},
         simplify_reshapes{},
-        lowering{},
+        lowering{ctx},
         write_literals{},
         check_context<context>{},
         dead_code_elimination{}

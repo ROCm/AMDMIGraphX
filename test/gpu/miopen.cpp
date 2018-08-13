@@ -23,7 +23,7 @@ struct auto_print
 {
     static std::array<std::function<void()>, 2> handlers;
     int index;
-    template<class T>
+    template <class T>
     auto_print(T& x, int i) : index(i)
     {
         handlers[index] = [&x] { std::cout << x << std::endl; };

@@ -412,9 +412,10 @@ struct miopen_apply
         std::vector<int64_t> new_shape{1, static_cast<int64_t>(old_shape.elements()), 1, 1};
         auto reshape_op = reshape{new_shape};
         std::vector<instruction_ref> reshapes;
-        std::transform(ins->arguments.begin()+1, ins->arguments.end(), std::back_inserter(reshapes), [&](auto i) {
-            return prog->insert_instruction(ins, reshape_op, i);
-        });
+        std::transform(ins->arguments.begin() + 1,
+                       ins->arguments.end(),
+                       std::back_inserter(reshapes),
+                       [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
         prog->replace_instruction(ins,
                                   miopen_batch_norm_inference{op},
                                   ins->arguments.at(0),

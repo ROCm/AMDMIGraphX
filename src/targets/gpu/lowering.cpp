@@ -345,16 +345,12 @@ struct miopen_apply
 
     void apply_convolution(instruction_ref ins)
     {
-        auto&& op   = any_cast<convolution>(ins->op);
+        auto&& op = any_cast<convolution>(ins->op);
         auto conv = miopen_convolution{op, make_conv(op)};
         conv.compile(ctx, ins->result, ins->arguments);
         auto output = insert_allocation(ins, ins->result);
 
-        prog->replace_instruction(ins,
-                                  conv,
-                                  ins->arguments.at(0),
-                                  ins->arguments.at(1),
-                                  output);
+        prog->replace_instruction(ins, conv, ins->arguments.at(0), ins->arguments.at(1), output);
     }
 
     void apply_pooling(instruction_ref ins)

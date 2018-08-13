@@ -68,7 +68,7 @@ struct miopen_convolution
     std::string name() const { return "gpu::convolution"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(3).standard();
+        check_shapes{inputs, *this}.has(4).standard();
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
     argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
@@ -88,21 +88,27 @@ struct miopen_convolution
                                  algo,
                                  &beta,
                                  y_desc.get(),
+                                 args[3].implicit(),
                                  args[2].implicit(),
-                                 nullptr,
-                                 0);
-        return args[2];
+                                 args[2].get_shape().bytes());
+        return args[3];
     }
 
-    void compile(context& ctx, shape output_shape, std::vector<instruction_ref> inputs)
+    shape compile(context& ctx, shape output_shape, std::vector<instruction_ref> inputs)
     {
+        shape workspace_shape{};
         auto x_desc = make_tensor(inputs[0]->get_shape());
         auto w_desc = make_tensor(inputs[1]->get_shape());
         auto y_desc = make_tensor(output_shape);
 
+        std::size_t workspace_size = 0;
+        miopenConvolutionForwardGetWorkSpaceSize(ctx.handle.get(), x_desc.get(), w_desc.get(), cd.get(), y_desc.get(), &workspace_size);
+        workspace_shape = shape{shape::int8_type, {workspace_size}};
+
         auto x = to_gpu(generate_argument(inputs[0]->get_shape()));
         auto w = to_gpu(generate_argument(inputs[1]->get_shape()));
         auto y = to_gpu(generate_argument(output_shape));
+        auto workspace = allocate_gpu(workspace_shape);
 
         int algo_count;
         miopenConvAlgoPerf_t perf;
@@ -117,10 +123,11 @@ struct miopen_convolution
                                               1,
                                               &algo_count,
                                               &perf,
-                                              nullptr,
-                                              0,
+                                              workspace.implicit(),
+                                              workspace_size,
                                               false);
         algo = perf.fwd_algo;
+        return workspace_shape;
     }
 };
 
@@ -346,11 +353,14 @@ struct miopen_apply
     void apply_convolution(instruction_ref ins)
     {
         auto&& op = any_cast<convolution>(ins->op);
+
         auto conv = miopen_convolution{op, make_conv(op)};
-        conv.compile(ctx, ins->result, ins->arguments);
+        auto ws = conv.compile(ctx, ins->result, ins->arguments);
+
+        auto workspace = insert_allocation(ins, ws);
         auto output = insert_allocation(ins, ins->result);
 
-        prog->replace_instruction(ins, conv, ins->arguments.at(0), ins->arguments.at(1), output);
+        prog->replace_instruction(ins, conv, ins->arguments.at(0), ins->arguments.at(1), workspace, output);
     }
 
     void apply_pooling(instruction_ref ins)

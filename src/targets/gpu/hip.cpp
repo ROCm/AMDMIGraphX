@@ -11,10 +11,7 @@ namespace gpu {
 
 using hip_ptr = MIGRAPH_MANAGE_PTR(void, hipFree);
 
-std::string hip_error(int error)
-{
-    return hipGetErrorString(static_cast<hipError_t>(error));
-}
+std::string hip_error(int error) { return hipGetErrorString(static_cast<hipError_t>(error)); }
 
 hip_ptr allocate_gpu(std::size_t sz)
 {
@@ -54,7 +51,7 @@ hip_ptr write_to_gpu(const void* x, std::size_t sz)
 
 argument allocate_gpu(shape s)
 {
-    auto p = share(allocate_gpu(s.bytes()+1));
+    auto p = share(allocate_gpu(s.bytes() + 1));
     return {s, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
 }
 

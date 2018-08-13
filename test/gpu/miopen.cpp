@@ -22,11 +22,11 @@
 struct auto_print
 {
     static std::array<std::function<void()>, 2> handlers;
-    migraph::program& p;
     int index;
-    auto_print(migraph::program& pp, int i) : p(pp), index(i)
+    template<class T>
+    auto_print(T& x, int i) : index(i)
     {
-        handlers[index] = [this] { std::cout << p << std::endl; };
+        handlers[index] = [&x] { std::cout << x << std::endl; };
     }
 
     ~auto_print()

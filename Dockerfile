@@ -57,7 +57,6 @@ RUN ln -s $PREFIX /opt/rocm/hip
 RUN ln -s $PREFIX /opt/rocm/hcc
 
 # Install dependencies
-RUN cget -p $PREFIX ignore bzip2
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 RUN cget -p $PREFIX install -f /dev-requirements.txt

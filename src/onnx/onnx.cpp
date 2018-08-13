@@ -285,20 +285,19 @@ struct onnx_parser
     void parse_graph(const onnx::GraphProto& graph)
     {
         nodes = get_nodes(graph);
-        std::unordered_map<std::string, size_t> initializer_data;
+        std::unordered_map<std::string, onnx::TensorProto> initializer_data;
         auto cnt = 0;
         for(auto&& f : graph.initializer())
         {
-            initializer_data[f.name()] = cnt++;
+            initializer_data[f.name()] = f;
         }
         for(auto&& input : graph.input())
         {
             const std::string& name = input.name();
             // Does the input have an initializer?
-            if(initializer_data.find(name) != initializer_data.end())
+            if(contains(initializer_data, name))
             {
-                auto idx           = initializer_data[name];
-                auto t             = graph.initializer()[idx];
+                auto t             = initializer_data[name];
                 instructions[name] = prog.add_literal(parse_tensor(t));
             }
             else

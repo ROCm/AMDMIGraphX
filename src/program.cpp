@@ -200,6 +200,7 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
                            ins.arguments.end(),
                            values.begin(),
                            [&](instruction_ref i) { return results.at(std::addressof(*i)); });
+            std::cout << "Compute: " << ins.op.name() << std::endl;
             result = ins.op.compute(this->impl->ctx, ins.result, values);
         }
         results.emplace(std::addressof(ins), result);

@@ -99,6 +99,8 @@ struct instruction
                });
     }
 
+    shape get_shape() const { return result; }
+
     friend bool operator==(instruction_ref ref, const instruction& i) { return i == ref; }
 
     friend bool operator!=(const instruction& i, instruction_ref ref) { return !(i == ref); }

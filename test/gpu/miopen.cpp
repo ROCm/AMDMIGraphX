@@ -11,6 +11,9 @@
 
 #include <miopen/miopen.h>
 
+#include <future>
+#include <thread>
+
 #include "test.hpp"
 #include "verify.hpp"
 
@@ -18,6 +21,17 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #endif
+
+// An improved async, that doesn't block
+template <class Function>
+std::future<typename std::result_of<Function()>::type> detach_async(Function&& f)
+{
+    using result_type = typename std::result_of<Function()>::type;
+    std::packaged_task<result_type()> task(std::forward<Function>(f));
+    auto fut = task.get_future();
+    std::thread(std::move(task)).detach();
+    return std::move(fut);
+}
 
 struct auto_print
 {
@@ -85,9 +99,9 @@ void verify_program()
         for(auto&& handle : auto_print::handlers)
             handle();
     });
-    auto cpu_arg = run_cpu<V>();
+    auto cpu_arg_f = detach_async([] { return run_cpu<V>(); });
     auto gpu_arg = run_gpu<V>();
-    visit_all(cpu_arg, gpu_arg)([](auto cpu, auto gpu) {
+    visit_all(cpu_arg_f.get(), gpu_arg)([](auto cpu, auto gpu) {
         if(not test::verify_range(cpu, gpu))
         {
             std::cout << "FAILED: " << migraph::get_type_name<V>() << std::endl;

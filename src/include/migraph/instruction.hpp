@@ -24,6 +24,7 @@ struct instruction
 
     instruction(literal l) : op(builtin::literal{}), result(l.get_shape()), lit(std::move(l)) {}
 
+    // internal
     void replace(operation o, shape r, std::vector<instruction_ref> args)
     {
         op = o;
@@ -46,12 +47,14 @@ struct instruction
 
     void recompute_shape() { replace(compute_shape(op, arguments)); }
 
+    // internal
     void replace(std::vector<instruction_ref> args)
     {
         clear_arguments();
         arguments = std::move(args);
     }
 
+    // internal
     void replace_argument(instruction_ref old, instruction_ref new_ins)
     {
         std::replace(arguments.begin(), arguments.end(), old, new_ins);

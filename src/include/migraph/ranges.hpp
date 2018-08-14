@@ -17,6 +17,12 @@ void copy(Range&& r, Iterator it)
     std::copy(r.begin(), r.end(), it);
 }
 
+template <class Range, class T>
+void replace(Range&& r, const T& old, const T& new_x)
+{
+    std::replace(r.begin(), r.end(), old, new_x);
+}
+
 template <class Iterator>
 struct iterator_range
 {

@@ -94,7 +94,7 @@ struct pass_standard_op
 
     migraph::shape compute_shape(std::vector<migraph::shape> inputs) const
     {
-        for(auto&& input:inputs) 
+        for(auto&& input : inputs)
         {
             if(not input.standard())
                 throw std::runtime_error("Not standard shape");

@@ -38,7 +38,7 @@ void non_standard_op()
     EXPECT(std::distance(p.begin(), p.end()) == (count - 1));
 }
 
-int main() 
+int main()
 {
     standard_op();
     non_standard_op();

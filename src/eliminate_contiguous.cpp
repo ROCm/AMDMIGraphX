@@ -34,9 +34,9 @@ void eliminate_contiguous::apply(program& p) const
             if(ends_with(arg->op.name(), "contiguous"))
             {
                 auto new_args = args;
-                auto prev = arg->arguments.front();
+                auto prev     = arg->arguments.front();
                 replace(new_args, arg, prev);
-                if(try_compute_shape(ins->op, new_args)) 
+                if(try_compute_shape(ins->op, new_args))
                 {
                     replace_argument(ins, arg, prev);
                 }

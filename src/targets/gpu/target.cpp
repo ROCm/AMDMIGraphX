@@ -17,10 +17,13 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
     // clang-format off
     return
     {
+        dead_code_elimination{},
         auto_contiguous{},
         simplify_reshapes{},
+        dead_code_elimination{},
         lowering{ctx},
         eliminate_contiguous{},
+        dead_code_elimination{},
         write_literals{},
         check_context<context>{},
         dead_code_elimination{}

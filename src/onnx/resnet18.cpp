@@ -89,7 +89,7 @@ int main(int argc, char const* argv[])
     // auto input3 = migraph::generate_argument(s, 12345);
     // auto result = prog.eval({{"0", input3}});
     prog.compile(migraph::cpu::cpu_target{});
-    auto s = migraph::shape{migraph::shape::float_type, {1, 3, 32, 32}};
+    auto s      = migraph::shape{migraph::shape::float_type, {1, 3, 32, 32}};
     auto labels = imageset.first;
     auto input  = imageset.second;
     auto ptr    = input.data();
@@ -105,5 +105,4 @@ int main(int argc, char const* argv[])
             std::cout << x << "  ";
         std::cout << std::endl;
     }
-
 }

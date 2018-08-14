@@ -117,19 +117,19 @@ struct nop
     migraph::shape compute_shape(std::vector<migraph::shape>) const { return {}; }
 };
 
-migraph::literal get_2x2()
+inline migraph::literal get_2x2()
 {
     return migraph::literal{{migraph::shape::float_type, {2, 2}}, {1, 2, 3, 4}};
 }
 
-migraph::literal get_2x2_transposed()
+inline migraph::literal get_2x2_transposed()
 {
     return migraph::literal{{migraph::shape::float_type, {2, 2}, {1, 2}}, {1, 2, 3, 4}};
 }
 
-migraph::literal get_2() { return migraph::literal{{migraph::shape::float_type, {2}}, {1, 2}}; }
+inline migraph::literal get_2() { return migraph::literal{{migraph::shape::float_type, {2}}, {1, 2}}; }
 
-migraph::literal get_2_broadcasted()
+inline migraph::literal get_2_broadcasted()
 {
     return migraph::literal{{migraph::shape::float_type, {2, 1}, {1, 0}}, {1, 2}};
 }

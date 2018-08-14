@@ -36,7 +36,7 @@ std::vector<T> read_from_gpu(const void* x, std::size_t sz)
     std::vector<T> result(sz);
     auto status = hipMemcpy(result.data(), x, sz * sizeof(T), hipMemcpyDeviceToHost);
     if(status != hipSuccess)
-        MIGRAPH_THROW("Copy from gpu failed: " + hip_error(status));
+        MIGRAPH_THROW("Copy from gpu failed: " + hip_error(status)); // NOLINT
     return result;
 }
 

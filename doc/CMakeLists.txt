@@ -16,7 +16,7 @@ add_doxygen_doc(
     CALL_GRAPH YES
     CALLER_GRAPH YES
     BUILTIN_STL_SUPPORT YES
-    PROJECT_NAME RTGLib
+    PROJECT_NAME MIGraph
     SORT_MEMBERS_CTORS_1ST YES
     SOURCE_BROWSER YES
     GENERATE_TREEVIEW YES
@@ -26,15 +26,30 @@ add_doxygen_doc(
     EXTRACT_ALL YES
     ENUM_VALUES_PER_LINE 1
     FULL_PATH_NAMES YES
+    PREDEFINED DOXYGEN
 )
 
-# include(SphinxDoc)
-# add_sphinx_doc(src 
-#     BUILDER html 
-#     OUTPUT_DIR html 
-#     VARS 
-#         breathe_projects.proj=${DOXYGEN_OUTPUT}/xml
-#         breathe_default_project=proj
-#     DEPENDS doxygen
-# )
+include(SphinxDoc)
+add_sphinx_doc(src 
+    BUILDER html 
+    OUTPUT_DIR html 
+    VARS 
+        breathe_projects.proj=${DOXYGEN_OUTPUT}/xml
+        breathe_default_project=proj
+    DEPENDS doxygen
+)
+
+find_package(LATEX)
+if(LATEX_FOUND)
+    add_sphinx_doc(src 
+        BUILDER latex
+        OUTPUT_DIR pdf
+        VARS 
+            breathe_projects.proj=${DOXYGEN_OUTPUT}/xml
+            breathe_default_project=proj
+        DEPENDS doxygen
+    )
+else()
+    message("Latex builder not found. Latex builder is required only for building the PDF documentation for MIGraph and is not necessary for building the library, or any other components. To build PDF documentation run make in ${CMAKE_CURRENT_SOURCE_DIR}/pdf, once a latex builder is installed.")
+endif()
 

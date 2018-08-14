@@ -10,12 +10,12 @@ set(CTEST_PARALLEL_LEVEL ${N} CACHE STRING "CTest parallel level")
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j ${CTEST_PARALLEL_LEVEL} -C ${CMAKE_CFG_INTDIR})
 add_custom_target(tests)
 
-find_program(RTG_GDB gdb)
+find_program(MIGRAPH_GDB gdb)
 
-if(RTG_GDB)
-    set(RTG_TEST_GDB On CACHE BOOL "")
+if(MIGRAPH_GDB)
+    set(MIGRAPH_TEST_GDB On CACHE BOOL "")
 else()
-    set(RTG_TEST_GDB Off CACHE BOOL "")
+    set(MIGRAPH_TEST_GDB Off CACHE BOOL "")
 endif()
 
 set(SKIP_TESTS)
@@ -34,26 +34,32 @@ function(add_test_command NAME EXE)
                     %1 ${ARGN}")
         add_test(NAME ${NAME} COMMAND ${WINE_CMD} cmd /c "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmd" $<TARGET_FILE:${EXE}>)
     else()
-        if(RTG_TEST_GDB)
-            # add_test(NAME ${NAME} COMMAND ${RTG_GDB} 
+        if(MIGRAPH_TEST_GDB)
+            # add_test(NAME ${NAME} COMMAND ${MIGRAPH_GDB} 
             #     --batch
             #     --return-child-result
             #     -ex "set disable-randomization off"
             #     -ex run
             #     -ex backtrace
             #     --args $<TARGET_FILE:${EXE}> ${ARGN})
-            file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmake"
+            set(TEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/gdb/test_${NAME})
+            file(MAKE_DIRECTORY ${TEST_DIR})
+            file(GENERATE OUTPUT "${TEST_DIR}/run.cmake"
                 CONTENT "
-                execute_process(COMMAND $<TARGET_FILE:${EXE}> ${ARGN} RESULT_VARIABLE RESULT)
+                # Remove previous core dump
+                file(REMOVE ${TEST_DIR}/core)
+                execute_process(COMMAND $<TARGET_FILE:${EXE}> ${ARGN} WORKING_DIRECTORY ${TEST_DIR} RESULT_VARIABLE RESULT)
                 if(NOT RESULT EQUAL 0)
                     # TODO: check for core files based on pid when setting /proc/sys/kernel/core_uses_pid
-                    if(EXISTS core)
-                        execute_process(COMMAND ${RTG_GDB} $<TARGET_FILE:${EXE}> core -batch -ex bt)
+                    if(EXISTS ${TEST_DIR}/core)
+                        set(\$ENV{UBSAN_OPTIONS} print_stacktrace=1)
+                        set(\$ENV{ASAN_OPTIONS} print_stacktrace=1)
+                        execute_process(COMMAND ${MIGRAPH_GDB} $<TARGET_FILE:${EXE}> ${TEST_DIR}/core -batch -ex bt)
                     endif()
                     message(FATAL_ERROR \"Test failed\")
                 endif()
             ")
-            add_test(NAME ${NAME} COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmake")
+            add_test(NAME ${NAME} COMMAND ${CMAKE_COMMAND} -P "${TEST_DIR}/run.cmake")
         else()
             add_test(NAME ${NAME} COMMAND ${EXE} ${ARGN})
         endif()
@@ -78,7 +84,7 @@ function(add_test_executable TEST_NAME)
     add_dependencies(tests ${TEST_NAME})
     add_dependencies(check ${TEST_NAME})
     set_tests_properties(${TEST_NAME} PROPERTIES FAIL_REGULAR_EXPRESSION "FAILED")
-    target_link_libraries(${TEST_NAME} rtg rtg_cpu)
+    target_link_libraries(${TEST_NAME} migraph migraph_cpu migraph_onnx)
     target_include_directories(${TEST_NAME} PUBLIC include)
 endfunction(add_test_executable)
 
@@ -89,13 +95,42 @@ foreach(TEST ${TESTS})
     add_test_executable(test_${BASE_NAME} ${TEST})
 endforeach()
 
-if(RTG_ENABLE_MIOPEN)
-    # miopen tests
-    file(GLOB MIOPEN_TESTS miopen/*.cpp)
+if(MIGRAPH_ENABLE_GPU)
+    # gpu tests
+    file(GLOB GPU_TESTS gpu/*.cpp)
 
-    foreach(TEST ${MIOPEN_TESTS})
+    foreach(TEST ${GPU_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
-        add_test_executable(test_miopen_${BASE_NAME} ${TEST})
-        target_link_libraries(test_miopen_${BASE_NAME} rtg_miopen)
+        add_test_executable(test_gpu_${BASE_NAME} ${TEST})
+        target_link_libraries(test_gpu_${BASE_NAME} migraph_gpu)
     endforeach()
 endif()
+
+# Onnx test
+add_executable(test_onnx onnx/onnx_test.cpp)
+target_link_libraries(test_onnx migraph_onnx)
+target_include_directories(test_onnx PUBLIC include)
+add_test(NAME test_onnx COMMAND $<TARGET_FILE:test_onnx> WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/onnx) 
+add_dependencies(tests test_onnx)
+add_dependencies(check test_onnx)
+
+function(test_header NAME HEADER)
+
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp 
+        "#include <${HEADER}>\nint main() {}\n"
+    )
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-static-include-${NAME}.cpp 
+        "#include <${HEADER}>\n"
+    )
+    add_test_executable(${NAME}
+        ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp 
+        ${CMAKE_CURRENT_BINARY_DIR}/header-static-include-${NAME}.cpp
+    )
+endfunction()
+
+file(GLOB HEADERS ${CMAKE_SOURCE_DIR}/src/include/migraph/*.hpp)
+
+foreach(HEADER ${HEADERS})
+    get_filename_component(BASE_NAME ${HEADER} NAME_WE)
+    test_header(header_${BASE_NAME} migraph/${BASE_NAME}.hpp)
+endforeach()

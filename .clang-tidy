@@ -100,4 +100,4 @@ CheckOptions:
   # - key:             readability-identifier-naming.MacroDefinitionCase
   #   value:           UPPER_CASE
   # - key:             readability-identifier-naming.MacroDefinitionPrefix
-  #   value:           RTG_
+  #   value:           MIGRAPH_

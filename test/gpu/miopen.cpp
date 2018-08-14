@@ -100,7 +100,7 @@ void verify_program()
             handle();
     });
     auto cpu_arg_f = detach_async([] { return run_cpu<V>(); });
-    auto gpu_arg = run_gpu<V>();
+    auto gpu_arg   = run_gpu<V>();
     visit_all(cpu_arg_f.get(), gpu_arg)([](auto cpu, auto gpu) {
         if(not test::verify_range(cpu, gpu))
         {

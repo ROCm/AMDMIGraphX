@@ -1,16 +1,20 @@
-#include <rtg/program.hpp>
-#include <rtg/stringutils.hpp>
-#include <rtg/instruction.hpp>
+#include <migraph/program.hpp>
+#include <migraph/stringutils.hpp>
+#include <migraph/instruction.hpp>
 #include <iostream>
+#include <sstream>
 #include <algorithm>
 
-namespace rtg {
+namespace migraph {
 
 struct program_impl
 {
     // A list is used to keep references to an instruction stable
     std::list<instruction> instructions;
+    context ctx;
 };
+
+const operation& get_operation(instruction_ref ins) { return ins->op; }
 
 program::program() : impl(std::make_unique<program_impl>()) {}
 
@@ -28,11 +32,13 @@ program::insert_instruction(instruction_ref ins, operation op, std::vector<instr
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
            "Argument is not an exisiting instruction");
+    assert(not starts_with(op.name(), "@"));
     // TODO: Use move
     shape r     = compute_shape(op, args);
     auto result = impl->instructions.insert(ins, {op, r, args});
     backreference(result);
     assert(result->arguments == args);
+    assert(result->valid(begin()));
     return result;
 }
 
@@ -42,11 +48,64 @@ program::replace_instruction(instruction_ref ins, operation op, std::vector<inst
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
            "Argument is not an exisiting instruction");
+    assert(not starts_with(op.name(), "@"));
 
     shape r = compute_shape(op, args);
     ins->replace(op, r, args);
     backreference(ins);
+    assert(ins->valid(begin()));
     return ins;
+}
+
+instruction_ref program::replace_instruction(instruction_ref ins, instruction_ref rep)
+{
+    assert(has_instruction(ins));
+    assert(has_instruction(rep));
+    assert(ins != rep);
+    // TODO: Should it be an error if the output is empty?
+    if(ins->output.empty())
+    {
+        return rep;
+    }
+    for(auto&& out : ins->output)
+    {
+        // TODO: Check for possible cycles
+        if(out != rep)
+        {
+            replace_argument(out, ins, rep);
+        }
+        assert(out->valid(begin()));
+    }
+    // Replacement should not be dead code unless its the last instruction
+    assert(!rep->output.empty() or rep == std::prev(end()));
+    assert(ins->valid(begin()));
+    assert(rep->valid(begin()));
+    return rep;
+}
+
+instruction_ref program::remove_instruction(instruction_ref ins)
+{
+    assert(has_instruction(ins));
+    assert(ins->output.empty());
+    ins->clear_arguments();
+    return impl->instructions.erase(ins);
+}
+
+instruction_ref program::remove_instructions(instruction_ref first, instruction_ref last)
+{
+    if(first == last)
+        return first;
+    // TODO: Check every element
+    assert(has_instruction(first));
+    std::for_each(first, last, [&](instruction& ins) { ins.clear_arguments(); });
+    assert(std::all_of(first, last, [&](instruction& ins) { return ins.output.empty(); }));
+    return impl->instructions.erase(first, last);
+}
+
+instruction_ref program::move_instruction(instruction_ref src, instruction_ref dst)
+{
+    impl->instructions.splice(dst, impl->instructions, src);
+    return src;
 }
 
 instruction_ref program::add_literal(literal l)
@@ -67,7 +126,7 @@ instruction_ref program::add_parameter(std::string name, shape s)
     return impl->instructions.begin();
 }
 
-shape program::get_parameter_shape(std::string name)
+shape program::get_parameter_shape(std::string name) const
 {
     auto ins = std::find_if(
         impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
@@ -86,6 +145,20 @@ shape program::get_parameter_shape(std::string name)
         return {};
 }
 
+std::unordered_map<std::string, shape> program::get_parameter_shapes() const
+{
+    std::unordered_map<std::string, shape> result;
+    for(auto&& ins : impl->instructions)
+    {
+        if(ins.op.name() == "@param")
+        {
+            auto&& name  = any_cast<builtin::param>(ins.op).parameter;
+            result[name] = ins.result;
+        }
+    }
+    return result;
+}
+
 bool program::has_instruction(instruction_ref ins) const
 {
     return std::find_if(
@@ -94,27 +167,46 @@ bool program::has_instruction(instruction_ref ins) const
                }) != impl->instructions.end();
 }
 
-instruction_ref program::begin() { return impl->instructions.begin(); }
-instruction_ref program::end() { return impl->instructions.end(); }
+instruction_ref program::begin() const { return impl->instructions.begin(); }
+instruction_ref program::end() const { return impl->instructions.end(); }
+
+shape program::get_shape() const { return impl->instructions.back().result; }
 
 instruction_ref program::validate() const
 {
     return std::find_if(impl->instructions.begin(),
                         impl->instructions.end(),
-                        [](const instruction& i) { return i.valid(); });
+                        [&](const instruction& i) { return !i.valid(impl->instructions.begin()); });
 }
 
 void program::compile(const target& t)
 {
-    assert(this->validate() != impl->instructions.end());
-    t.apply(*this);
-    if(this->validate() == impl->instructions.end())
-        RTG_THROW("Invalid program from compilation");
+    assert(this->validate() == impl->instructions.end());
+    this->impl->ctx = t.get_context();
+    for(auto&& p : t.get_passes(this->impl->ctx))
+    {
+        p.apply(*this);
+#ifndef NDEBUG
+        auto invalid = this->validate();
+        if(invalid != impl->instructions.end())
+        {
+            auto index = std::distance(impl->instructions.begin(), invalid);
+            MIGRAPH_THROW(p.name() + " pass produces invalid program at instruction " +
+                          std::to_string(index) + ": " + invalid->op.name());
+        }
+#endif
+    }
+    auto invalid = this->validate();
+    if(invalid != impl->instructions.end())
+    {
+        auto index = std::distance(impl->instructions.begin(), invalid);
+        MIGRAPH_THROW("Invalid program from compilation at instruction " + std::to_string(index));
+    }
 }
 
 argument program::eval(std::unordered_map<std::string, argument> params) const
 {
-    assert(this->validate() != impl->instructions.end());
+    assert(this->validate() == impl->instructions.end());
     std::unordered_map<const instruction*, argument> results;
     argument result;
     for(auto& ins : impl->instructions)
@@ -138,12 +230,14 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
                            ins.arguments.end(),
                            values.begin(),
                            [&](instruction_ref i) { return results.at(std::addressof(*i)); });
-            result = ins.op.compute(ins.result, values);
+            result = ins.op.compute(this->impl->ctx, ins.result, values);
         }
         results.emplace(std::addressof(ins), result);
     }
     return result;
 }
+
+bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {
@@ -192,4 +286,4 @@ std::ostream& operator<<(std::ostream& os, const program& p)
     return os;
 }
 
-} // namespace rtg
+} // namespace migraph

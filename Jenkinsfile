@@ -1,12 +1,12 @@
 
 def rocmtestnode(variant, name, body) {
-    def image = 'rtglib'
+    def image = 'migraphlib'
     def cmake_build = { compiler, flags ->
         def cmd = """
             rm -rf build
             mkdir build
             cd build
-            CXX=${compiler} CXXFLAGS='-Werror' cmake -DCMAKE_CXX_FLAGS_DEBUG='-g -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined' ${flags} .. 
+            CXX=${compiler} CXXFLAGS='-Werror -Wno-fallback' cmake -DCMAKE_CXX_FLAGS_DEBUG='-g -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined' ${flags} .. 
             CTEST_PARALLEL_LEVEL=32 make -j32 all doc check
         """
         echo cmd
@@ -19,9 +19,9 @@ def rocmtestnode(variant, name, body) {
         }
         stage("image ${variant}") {
             try {
-                docker.build("${image}", ".")
+                docker.build("${image}", '.')
             } catch(Exception ex) {
-                docker.build("${image}", "--no-cache .")
+                docker.build("${image}", '--no-cache .')
 
             }
         }
@@ -92,10 +92,10 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     }
 }, clang: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Debug') {
-        cmake_build('/opt/rocm/bin/hcc', '-DCMAKE_BUILD_TYPE=debug')
+        cmake_build('hcc', '-DCMAKE_BUILD_TYPE=debug')
     }
     stage('Clang Release') {
-        cmake_build('/opt/rocm/bin/hcc', '-DCMAKE_BUILD_TYPE=release')
+        cmake_build('hcc', '-DCMAKE_BUILD_TYPE=release')
     }
 }, gcc: rocmnode('rocmtest') { cmake_build ->
     stage('GCC Debug') {

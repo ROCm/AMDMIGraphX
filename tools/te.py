@@ -63,6 +63,12 @@ struct ${struct_name}
         nullptr;
     }
 
+    const std::type_info& type_id() const
+    {
+        if(private_detail_te_handle_empty()) return typeid(std::nullptr_t);
+        else return private_detail_te_get_handle().type();
+    }
+
     ${nonvirtual_members}
 
 private:
@@ -118,11 +124,20 @@ private:
         {}
     };
 
+    bool private_detail_te_handle_empty() const
+    {
+        return private_detail_te_handle_mem_var == nullptr;
+    }
+
     const private_detail_te_handle_base_type & private_detail_te_get_handle () const
-    { return *private_detail_te_handle_mem_var; }
+    {
+        assert(private_detail_te_handle_mem_var != nullptr); 
+        return *private_detail_te_handle_mem_var; 
+    }
 
     private_detail_te_handle_base_type & private_detail_te_get_handle ()
     {
+        assert(private_detail_te_handle_mem_var != nullptr); 
         if (!private_detail_te_handle_mem_var.unique())
             private_detail_te_handle_mem_var = private_detail_te_handle_mem_var->clone();
         return *private_detail_te_handle_mem_var;
@@ -198,16 +213,21 @@ def internal_name(name):
     else:
         return name
 
-def generate_call(m, friend):
+def generate_call(m, friend, indirect):
     if m['name'].startswith('operator'):
         op = m['name'][8:]
         args = m['args']
         if ',' in args:
             return args.replace(',', op)
         else:
-            return string.Template('${op}${arga}').substitute(op=op, args=args)
+            return string.Template('${op}${args}').substitute(op=op, args=args)
     if friend:
         return string.Template('${name}(${args})').substitute(m)
+    if indirect:
+        if m['args']:
+            return string.Template('${default}(private_detail_te_value, ${args})').substitute(m)
+        else:
+            return string.Template('${default}(private_detail_te_value)').substitute(m)
     return string.Template('private_detail_te_value.${name}(${args})').substitute(m)
 
 def convert_member(d, struct_name):
@@ -219,7 +239,8 @@ def convert_member(d, struct_name):
             'member_const': '',
             'friend': '',
             'this': '(*this)',
-            'using': ''
+            'using': '',
+            'brief': ''
         }
         args = []
         params = []
@@ -227,9 +248,12 @@ def convert_member(d, struct_name):
         member_params = []
         skip = False
         friend = False
+        indirect = False
         if 'friend' in d[name]:
             friend = True
             skip = True
+        if 'default' in d[name]:
+            indirect = True
         for x in d[name]:
             t = d[name][x]
             if x == 'return':
@@ -239,8 +263,14 @@ def convert_member(d, struct_name):
                 member['member_const'] = 'const'
             elif x == 'friend':
                 member['friend'] = 'friend'
+            elif x == 'default':
+                member['default'] = t
             elif x == 'using':
                 member['using'] = 'using {};'.format(d[name]['using'])
+            elif x == '__brief__':
+                member['doc'] = '/// ' + t
+            elif x.startswith('__') and x.endswith('__'):
+                continue
             else:
                 use_member = not(skip and struct_name == trim_type_name(t))
                 arg_name = x
@@ -263,7 +293,7 @@ def convert_member(d, struct_name):
         member['params'] = ','.join(params)
         member['params'] = ','.join(params)
         member['member_params'] = ','.join(member_params)
-        member['call'] = generate_call(member, friend)
+        member['call'] = generate_call(member, friend, indirect)
         return member
     return None
 

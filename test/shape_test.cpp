@@ -1,31 +1,77 @@
 
-#include <rtg/shape.hpp>
+#include <migraph/shape.hpp>
 #include <array>
 #include <algorithm>
 #include <numeric>
 #include "test.hpp"
 
+void test_shape_default()
+{
+    migraph::shape s{};
+    EXPECT(s.elements() == 0);
+    EXPECT(s.bytes() == 0);
+}
+
 void test_shape_assign()
 {
-    rtg::shape s1{rtg::shape::float_type, {100, 32, 8, 8}};
-    rtg::shape s2 = s1; // NOLINT
+    migraph::shape s1{migraph::shape::float_type, {100, 32, 8, 8}};
+    migraph::shape s2 = s1; // NOLINT
     EXPECT(s1 == s2);
     EXPECT(!(s1 != s2));
 }
 
-void test_shape_default()
+void test_shape_packed_default()
 {
-    rtg::shape s1{};
-    rtg::shape s2{};
+    migraph::shape s{migraph::shape::float_type, {2, 2}};
+    EXPECT(s.standard());
+    EXPECT(s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
+void test_shape_packed()
+{
+    migraph::shape s{migraph::shape::float_type, {2, 2}, {2, 1}};
+    EXPECT(s.standard());
+    EXPECT(s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
+void test_shape_transposed()
+{
+    migraph::shape s{migraph::shape::float_type, {2, 2}, {1, 2}};
+    EXPECT(not s.standard());
+    EXPECT(s.packed());
+    EXPECT(s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
+void test_shape_broadcasted()
+{
+    migraph::shape s{migraph::shape::float_type, {2, 2}, {1, 0}};
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(s.broadcasted());
+}
+
+void test_shape_default_copy()
+{
+    migraph::shape s1{};
+    migraph::shape s2{};
     EXPECT(s1 == s2);
     EXPECT(!(s1 != s2));
 }
 
 void test_shape4()
 {
-    rtg::shape s{rtg::shape::float_type, {100, 32, 8, 8}};
+    migraph::shape s{migraph::shape::float_type, {100, 32, 8, 8}};
+    EXPECT(s.standard());
     EXPECT(s.packed());
-    EXPECT(s.type() == rtg::shape::float_type);
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
+    EXPECT(s.type() == migraph::shape::float_type);
     EXPECT(s.lens()[0] == 100);
     EXPECT(s.lens()[1] == 32);
     EXPECT(s.lens()[2] == 8);
@@ -67,9 +113,12 @@ void test_shape4_nonpacked()
                      strides.rbegin() + 1,
                      std::multiplies<std::size_t>());
 
-    rtg::shape s{rtg::shape::float_type, lens, strides};
-    EXPECT(!s.packed());
-    EXPECT(s.type() == rtg::shape::float_type);
+    migraph::shape s{migraph::shape::float_type, lens, strides};
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
+    EXPECT(s.type() == migraph::shape::float_type);
     EXPECT(s.lens()[0] == 100);
     EXPECT(s.lens()[1] == 32);
     EXPECT(s.lens()[2] == 8);
@@ -94,8 +143,13 @@ void test_shape4_nonpacked()
 
 int main()
 {
-    test_shape_assign();
     test_shape_default();
+    test_shape_assign();
+    test_shape_packed_default();
+    test_shape_packed();
+    test_shape_transposed();
+    test_shape_broadcasted();
+    test_shape_default_copy();
     test_shape4();
     test_shape4_nonpacked();
 }

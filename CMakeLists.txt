@@ -1,19 +1,21 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(rtglib)
+project(migraphlib)
 find_package(ROCM REQUIRED)
+
+option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "5.4")
-        message(FATAL_ERROR "RTGLib requires at least gcc 5.4")
+        message(FATAL_ERROR "MIGraph requires at least gcc 5.4")
     endif()
 endif()
 
 if(CMAKE_CXX_COMPILER MATCHES ".*hcc")
     message(STATUS "Enable miopen backend")
-    set(RTG_ENABLE_MIOPEN On CACHE BOOL "")
+    set(MIGRAPH_ENABLE_GPU On CACHE BOOL "")
 else()
-    set(RTG_ENABLE_MIOPEN Off CACHE BOOL "")
+    set(MIGRAPH_ENABLE_GPU Off CACHE BOOL "")
 endif()
 
 add_compile_options(-std=c++14)
@@ -83,8 +85,7 @@ rocm_enable_clang_tidy(
     HEADER_FILTER
         ".*hpp"
     EXTRA_ARGS
-        -DRTG_USE_CLANG_TIDY
-    ANALYZE_TEMPORARY_DTORS ON
+        -DMIGRAPH_USE_CLANG_TIDY
 
 )
 include(ROCMCppCheck)
@@ -106,7 +107,11 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/cpu/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/miopen/include
+    DEFINE
+        CPPCHECK=1
 )
+
+enable_testing()
 
 add_subdirectory(src)
 add_subdirectory(doc)

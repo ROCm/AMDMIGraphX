@@ -1,5 +1,5 @@
-#ifndef RTG_GUARD_VERIFY_HPP
-#define RTG_GUARD_VERIFY_HPP
+#ifndef MIGRAPH_GUARD_VERIFY_HPP
+#define MIGRAPH_GUARD_VERIFY_HPP
 
 #include <algorithm>
 #include <cmath>

@@ -19,8 +19,9 @@ int main(int argc, char const* argv[])
     prog.compile(migraph::gpu::target{});
     migraph::program::parameter_map m;
     auto s = migraph::shape{migraph::shape::float_type, {1, 3, 32, 32}};
-    m["output"] = migraph::gpu::to_gpu(migraph::generate_argument(prog.get_parameter_shape("output")));
-    m["0"] = migraph::gpu::to_gpu(migraph::generate_argument(s, 12345));
+    m["output"] =
+        migraph::gpu::to_gpu(migraph::generate_argument(prog.get_parameter_shape("output")));
+    m["0"]      = migraph::gpu::to_gpu(migraph::generate_argument(s, 12345));
     auto result = migraph::gpu::from_gpu(prog.eval(m));
 
     // // CPU target

@@ -39,3 +39,17 @@ add_sphinx_doc(src
     DEPENDS doxygen
 )
 
+find_package(LATEX)
+if(LATEX_FOUND)
+    add_sphinx_doc(src 
+        BUILDER latex
+        OUTPUT_DIR pdf
+        VARS 
+            breathe_projects.proj=${DOXYGEN_OUTPUT}/xml
+            breathe_default_project=proj
+        DEPENDS doxygen
+    )
+else()
+    message("Latex builder not found. Latex builder is required only for building the PDF documentation for MIGraph and is not necessary for building the library, or any other components. To build PDF documentation run make in ${CMAKE_CURRENT_SOURCE_DIR}/pdf, once a latex builder is installed.")
+endif()
+

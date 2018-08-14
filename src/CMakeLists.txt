@@ -2,6 +2,7 @@
 add_library(migraph 
     auto_contiguous.cpp
     dead_code_elimination.cpp
+    eliminate_contiguous.cpp
     generate.cpp
     program.cpp
     shape.cpp

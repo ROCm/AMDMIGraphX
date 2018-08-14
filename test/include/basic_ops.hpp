@@ -81,6 +81,30 @@ struct pass_op
     }
 };
 
+struct pass_standard_op
+{
+    std::string name() const { return "pass"; }
+    migraph::argument
+    compute(migraph::context&, migraph::shape, std::vector<migraph::argument> args) const
+    {
+        if(args.empty())
+            return {};
+        return args.front();
+    }
+
+    migraph::shape compute_shape(std::vector<migraph::shape> inputs) const
+    {
+        for(auto&& input:inputs) 
+        {
+            if(not input.standard())
+                throw std::runtime_error("Not standard shape");
+        }
+        if(inputs.empty())
+            return {};
+        return inputs.front();
+    }
+};
+
 struct nop
 {
     std::string name() const { return "nop"; }
@@ -92,3 +116,20 @@ struct nop
 
     migraph::shape compute_shape(std::vector<migraph::shape>) const { return {}; }
 };
+
+migraph::literal get_2x2()
+{
+    return migraph::literal{{migraph::shape::float_type, {2, 2}}, {1, 2, 3, 4}};
+}
+
+migraph::literal get_2x2_transposed()
+{
+    return migraph::literal{{migraph::shape::float_type, {2, 2}, {1, 2}}, {1, 2, 3, 4}};
+}
+
+migraph::literal get_2() { return migraph::literal{{migraph::shape::float_type, {2}}, {1, 2}}; }
+
+migraph::literal get_2_broadcasted()
+{
+    return migraph::literal{{migraph::shape::float_type, {2, 1}, {1, 0}}, {1, 2}};
+}

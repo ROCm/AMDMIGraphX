@@ -127,7 +127,10 @@ inline migraph::literal get_2x2_transposed()
     return migraph::literal{{migraph::shape::float_type, {2, 2}, {1, 2}}, {1, 2, 3, 4}};
 }
 
-inline migraph::literal get_2() { return migraph::literal{{migraph::shape::float_type, {2}}, {1, 2}}; }
+inline migraph::literal get_2()
+{
+    return migraph::literal{{migraph::shape::float_type, {2}}, {1, 2}};
+}
 
 inline migraph::literal get_2_broadcasted()
 {

@@ -15,8 +15,12 @@ void dead_code_elimination::apply(program& p) const
         // instruction
         if(ins == p.begin())
             continue;
+        const auto i = std::prev(ins);
+        // Skip instruction with empty shape as output
+        if(i->result.elements() == 0)
+            continue;
         // Skip the last instruction
-        if(std::prev(ins) == last)
+        if(i == last)
             break;
         fix([&](auto self, auto leaf) {
             assert(p.has_instruction(leaf));
@@ -28,7 +32,7 @@ void dead_code_elimination::apply(program& p) const
                 for(auto arg : args)
                     self(arg);
             }
-        })(std::prev(ins));
+        })(i);
     }
     p.remove_instructions(std::next(last), p.end());
 }

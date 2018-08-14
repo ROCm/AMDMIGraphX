@@ -9,7 +9,7 @@ namespace gpu {
 struct target
 {
     std::string name() const;
-    std::vector<pass> get_passes(migraph::context& ctx) const;
+    std::vector<pass> get_passes(migraph::context& gctx) const;
     migraph::context get_context() const;
 };
 

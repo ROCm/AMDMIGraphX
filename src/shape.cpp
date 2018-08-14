@@ -43,6 +43,8 @@ const std::vector<std::size_t>& shape::strides() const { return this->m_strides;
 std::size_t shape::elements() const
 {
     assert(this->lens().size() == this->strides().size());
+    if(this->lens().empty())
+        return 0;
     return std::accumulate(
         this->lens().begin(), this->lens().end(), std::size_t{1}, std::multiplies<std::size_t>());
 }
@@ -101,6 +103,8 @@ bool shape::standard() const { return this->m_standard; }
 std::size_t shape::element_space() const
 {
     assert(this->lens().size() == this->strides().size());
+    if(this->lens().empty())
+        return 0;
     return std::inner_product(this->lens().begin(),
                               this->lens().end(),
                               this->strides().begin(),

@@ -13,8 +13,8 @@ void auto_contiguous::apply(program& p) const
         shape s = ins->result;
         if(not s.standard())
         {
-            auto prev = p.insert_instruction(ins, ins->op, ins->arguments);
-            p.replace_instruction(ins, contiguous{}, prev);
+            auto c = p.insert_instruction(std::next(ins), contiguous{}, ins);
+            p.replace_instruction(ins, c);
         }
     }
 }

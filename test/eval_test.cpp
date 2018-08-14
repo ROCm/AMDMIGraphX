@@ -112,9 +112,43 @@ void replace_test()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.replace_instruction(sum, minus_op{}, two, one);
+    EXPECT(bool{p.validate() == p.end()});
 
     auto result = p.eval({});
     EXPECT(result == migraph::literal{1});
+    EXPECT(result != migraph::literal{3});
+}
+
+void replace_ins_test()
+{
+    migraph::program p;
+
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto sum   = p.add_instruction(sum_op{}, one, two);
+    auto minus = p.add_instruction(minus_op{}, two, one);
+    p.replace_instruction(sum, minus);
+    EXPECT(bool{p.validate() == p.end()});
+
+    auto result = p.eval({});
+    EXPECT(result == migraph::literal{1});
+    EXPECT(result != migraph::literal{3});
+}
+
+void replace_ins_test2()
+{
+    migraph::program p;
+
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto sum   = p.add_instruction(sum_op{}, one, two);
+    auto minus = p.add_instruction(minus_op{}, two, one);
+    p.add_instruction(pass_op{}, minus);
+    p.replace_instruction(two, sum);
+    EXPECT(bool{p.validate() == p.end()});
+
+    auto result = p.eval({});
+    EXPECT(result == migraph::literal{2});
     EXPECT(result != migraph::literal{3});
 }
 
@@ -129,6 +163,7 @@ void insert_replace_test()
 
     auto sum0 = p.insert_instruction(sum1, sum_op{}, two, two);
     p.replace_instruction(sum1, minus_op{}, sum0, two);
+    EXPECT(bool{p.validate() == p.end()});
 
     auto result = p.eval({});
     EXPECT(result == migraph::literal{4});
@@ -181,6 +216,8 @@ int main()
     print_test();
     param_test();
     replace_test();
+    replace_ins_test();
+    replace_ins_test2();
     insert_replace_test();
     target_test();
     reverse_target_test();

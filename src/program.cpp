@@ -32,11 +32,13 @@ program::insert_instruction(instruction_ref ins, operation op, std::vector<instr
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
            "Argument is not an exisiting instruction");
+    assert(not starts_with(op.name(), "@"));
     // TODO: Use move
     shape r     = compute_shape(op, args);
     auto result = impl->instructions.insert(ins, {op, r, args});
     backreference(result);
     assert(result->arguments == args);
+    assert(result->valid(begin()));
     return result;
 }
 
@@ -46,11 +48,39 @@ program::replace_instruction(instruction_ref ins, operation op, std::vector<inst
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
            "Argument is not an exisiting instruction");
+    assert(not starts_with(op.name(), "@"));
 
     shape r = compute_shape(op, args);
     ins->replace(op, r, args);
     backreference(ins);
+    assert(ins->valid(begin()));
     return ins;
+}
+
+instruction_ref program::replace_instruction(instruction_ref ins, instruction_ref rep)
+{
+    assert(has_instruction(ins));
+    assert(has_instruction(rep));
+    assert(ins != rep);
+    // TODO: Should it be an error if the output is empty?
+    if(ins->output.empty())
+    {
+        return rep;
+    }
+    for(auto&& out : ins->output)
+    {
+        // TODO: Check for possible cycles
+        if(out != rep)
+        {
+            replace_argument(out, ins, rep);
+        }
+        assert(out->valid(begin()));
+    }
+    // Replacement should not be dead code unless its the last instruction
+    assert(!rep->output.empty() or rep == std::prev(end()));
+    assert(ins->valid(begin()));
+    assert(rep->valid(begin()));
+    return rep;
 }
 
 instruction_ref program::remove_instruction(instruction_ref ins)
@@ -96,7 +126,7 @@ instruction_ref program::add_parameter(std::string name, shape s)
     return impl->instructions.begin();
 }
 
-shape program::get_parameter_shape(std::string name)
+shape program::get_parameter_shape(std::string name) const
 {
     auto ins = std::find_if(
         impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
@@ -137,8 +167,8 @@ bool program::has_instruction(instruction_ref ins) const
                }) != impl->instructions.end();
 }
 
-instruction_ref program::begin() { return impl->instructions.begin(); }
-instruction_ref program::end() { return impl->instructions.end(); }
+instruction_ref program::begin() const { return impl->instructions.begin(); }
+instruction_ref program::end() const { return impl->instructions.end(); }
 
 shape program::get_shape() const { return impl->instructions.back().result; }
 
@@ -162,7 +192,7 @@ void program::compile(const target& t)
         {
             auto index = std::distance(impl->instructions.begin(), invalid);
             MIGRAPH_THROW(p.name() + " pass produces invalid program at instruction " +
-                          std::to_string(index));
+                          std::to_string(index) + ": " + invalid->op.name());
         }
 #endif
     }

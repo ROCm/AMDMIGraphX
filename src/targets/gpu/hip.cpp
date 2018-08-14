@@ -11,11 +11,14 @@ namespace gpu {
 
 using hip_ptr = MIGRAPH_MANAGE_PTR(void, hipFree);
 
+std::string hip_error(int error) { return hipGetErrorString(static_cast<hipError_t>(error)); }
+
 hip_ptr allocate_gpu(std::size_t sz)
 {
     void* result;
-    // TODO: Check status
-    hipMalloc(&result, sz);
+    auto status = hipMalloc(&result, sz);
+    if(status != hipSuccess)
+        MIGRAPH_THROW("Gpu allocation failed: " + hip_error(status));
     return hip_ptr{result};
 }
 
@@ -31,34 +34,36 @@ template <class T>
 std::vector<T> read_from_gpu(const void* x, std::size_t sz)
 {
     std::vector<T> result(sz);
-    // TODO: Check status
-    hipMemcpy(result.data(), x, sz * sizeof(T), hipMemcpyDeviceToHost);
+    auto status = hipMemcpy(result.data(), x, sz * sizeof(T), hipMemcpyDeviceToHost);
+    if(status != hipSuccess)
+        MIGRAPH_THROW("Copy from gpu failed: " + hip_error(status));
     return result;
 }
 
 hip_ptr write_to_gpu(const void* x, std::size_t sz)
 {
     auto result = allocate_gpu(sz);
-    // TODO: Check status
-    hipMemcpy(result.get(), x, sz, hipMemcpyHostToDevice);
+    auto status = hipMemcpy(result.get(), x, sz, hipMemcpyHostToDevice);
+    if(status != hipSuccess)
+        MIGRAPH_THROW("Copy to gpu failed: " + hip_error(status));
     return result;
 }
 
-migraph::argument allocate_gpu(migraph::shape s)
+argument allocate_gpu(shape s)
 {
-    auto p = share(allocate_gpu(s.bytes()));
+    auto p = share(allocate_gpu(s.bytes() + 1));
     return {s, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
 }
 
-migraph::argument to_gpu(migraph::argument arg)
+argument to_gpu(argument arg)
 {
     auto p = share(write_to_gpu(arg.data(), arg.get_shape().bytes()));
     return {arg.get_shape(), [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
 }
 
-migraph::argument from_gpu(migraph::argument arg)
+argument from_gpu(argument arg)
 {
-    migraph::argument result;
+    argument result;
     arg.visit([&](auto x) {
         using type = typename decltype(x)::value_type;
         auto v     = read_from_gpu<type>(arg.data(), x.get_shape().bytes() / sizeof(type));

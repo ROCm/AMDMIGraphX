@@ -52,6 +52,8 @@ struct program
     instruction_ref
     replace_instruction(instruction_ref ins, operation op, std::vector<instruction_ref> args);
 
+    instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
+
     instruction_ref remove_instruction(instruction_ref ins);
     instruction_ref remove_instructions(instruction_ref first, instruction_ref last);
 
@@ -69,7 +71,7 @@ struct program
 
     instruction_ref add_parameter(std::string name, shape s);
 
-    shape get_parameter_shape(std::string name);
+    shape get_parameter_shape(std::string name) const;
 
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
@@ -77,8 +79,8 @@ struct program
 
     bool has_instruction(instruction_ref ins) const;
 
-    instruction_ref begin();
-    instruction_ref end();
+    instruction_ref begin() const;
+    instruction_ref end() const;
 
     shape get_shape() const;
 

@@ -80,3 +80,15 @@ struct pass_op
         return inputs.front();
     }
 };
+
+struct nop
+{
+    std::string name() const { return "nop"; }
+    migraph::argument
+    compute(migraph::context&, migraph::shape, std::vector<migraph::argument>) const
+    {
+        return {};
+    }
+
+    migraph::shape compute_shape(std::vector<migraph::shape>) const { return {}; }
+};

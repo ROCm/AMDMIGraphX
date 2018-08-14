@@ -5,6 +5,13 @@
 #include <numeric>
 #include "test.hpp"
 
+void test_shape_default()
+{
+    migraph::shape s{};
+    EXPECT(s.elements() == 0);
+    EXPECT(s.bytes() == 0);
+}
+
 void test_shape_assign()
 {
     migraph::shape s1{migraph::shape::float_type, {100, 32, 8, 8}};
@@ -49,7 +56,7 @@ void test_shape_broadcasted()
     EXPECT(s.broadcasted());
 }
 
-void test_shape_default()
+void test_shape_default_copy()
 {
     migraph::shape s1{};
     migraph::shape s2{};
@@ -136,12 +143,13 @@ void test_shape4_nonpacked()
 
 int main()
 {
+    test_shape_default();
     test_shape_assign();
     test_shape_packed_default();
     test_shape_packed();
     test_shape_transposed();
     test_shape_broadcasted();
-    test_shape_default();
+    test_shape_default_copy();
     test_shape4();
     test_shape4_nonpacked();
 }

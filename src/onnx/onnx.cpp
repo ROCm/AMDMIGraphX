@@ -29,7 +29,7 @@ struct unknown
     }
     argument compute(context&, shape, std::vector<argument>) const
     {
-        MIGRAPH_THROW("not computable");
+        MIGRAPH_THROW(name() + ": not computable");
     }
     friend std::ostream& operator<<(std::ostream& os, const unknown& x)
     {

@@ -5,7 +5,7 @@
 
 namespace migraph {
 
-template<class Duration, class F>
+template <class Duration, class F>
 auto time(F f)
 {
     auto start = std::chrono::steady_clock::now();

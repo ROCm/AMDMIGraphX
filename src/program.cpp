@@ -19,7 +19,7 @@ struct program_impl
 
 const operation& get_operation(instruction_ref ins) { return ins->op; }
 
-template<class F>
+template <class F>
 static void print_program(std::ostream& os, const program& p, F annonate)
 {
     std::unordered_map<const instruction*, std::string> names;
@@ -263,8 +263,11 @@ void program::compile(const target& t)
     }
 }
 
-template<class F>
-argument generic_eval(const program& p, context& ctx, std::unordered_map<std::string, argument> params, F trace)
+template <class F>
+argument generic_eval(const program& p,
+                      context& ctx,
+                      std::unordered_map<std::string, argument> params,
+                      F trace)
 {
     assert(p.validate() == p.end());
     std::unordered_map<const instruction*, argument> results;
@@ -306,7 +309,7 @@ bool operator==(const program& x, const program& y) { return to_string(x) == to_
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {
-    print_program(os, p, [](auto&&...){});
+    print_program(os, p, [](auto&&...) {});
     return os;
 }
 

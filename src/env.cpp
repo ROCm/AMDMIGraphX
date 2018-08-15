@@ -4,7 +4,7 @@
 
 namespace migraph {
 
-bool enabled(const char * name)
+bool enabled(const char* name)
 {
     auto e = env(name);
     if(e.empty())
@@ -12,7 +12,7 @@ bool enabled(const char * name)
     return contains({"1", "enable", "enabled", "yes", "true"}, e.front());
 }
 
-bool disabled(const char * name)
+bool disabled(const char* name)
 {
     auto e = env(name);
     if(e.empty())

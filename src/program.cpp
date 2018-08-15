@@ -19,6 +19,55 @@ struct program_impl
 
 const operation& get_operation(instruction_ref ins) { return ins->op; }
 
+template<class F>
+static void print_program(std::ostream& os, const program& p, F annonate)
+{
+    std::unordered_map<const instruction*, std::string> names;
+    int count = 0;
+
+    for(auto& ins : p)
+    {
+        std::string var_name = "@" + std::to_string(count);
+        if(ins.op.name() == "@param")
+        {
+            var_name = any_cast<builtin::param>(ins.op).parameter;
+        }
+
+        os << var_name << " = ";
+
+        os << ins.op;
+
+        if(ins.op.name() == "@literal")
+        {
+            if(ins.lit.get_shape().elements() > 10)
+                os << "{ ... }";
+            else
+                os << "{" << ins.lit << "}";
+        }
+
+        if(!ins.arguments.empty())
+        {
+            char delim = '(';
+            for(auto&& arg : ins.arguments)
+            {
+                assert(p.has_instruction(arg) && "Instruction not found");
+                os << delim << names.at(std::addressof(*arg));
+                delim = ',';
+            }
+            os << ")";
+        }
+
+        os << " -> " << ins.result;
+
+        annonate(os, ins, names);
+
+        os << std::endl;
+
+        names.emplace(std::addressof(ins), var_name);
+        count++;
+    }
+}
+
 program::program() : impl(std::make_unique<program_impl>()) {}
 
 program::program(program&&) noexcept = default;
@@ -214,24 +263,25 @@ void program::compile(const target& t)
     }
 }
 
-argument program::eval(std::unordered_map<std::string, argument> params) const
+template<class F>
+argument generic_eval(const program& p, context& ctx, std::unordered_map<std::string, argument> params, F trace)
 {
-    assert(this->validate() == impl->instructions.end());
+    assert(p.validate() == p.end());
     std::unordered_map<const instruction*, argument> results;
     argument result;
-    for(auto& ins : impl->instructions)
+    for(auto& ins : p)
     {
         if(ins.op.name() == "@literal")
         {
-            result = ins.lit.get_argument();
+            trace(ins, [&] { result = ins.lit.get_argument(); });
         }
         else if(ins.op.name() == "@param")
         {
-            result = params.at(any_cast<builtin::param>(ins.op).parameter);
+            trace(ins, [&] { result = params.at(any_cast<builtin::param>(ins.op).parameter); });
         }
         else if(ins.op.name() == "@outline")
         {
-            result = argument{ins.result, nullptr};
+            trace(ins, [&] { result = argument{ins.result, nullptr}; });
         }
         else
         {
@@ -240,59 +290,23 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
                            ins.arguments.end(),
                            values.begin(),
                            [&](instruction_ref i) { return results.at(std::addressof(*i)); });
-            result = ins.op.compute(this->impl->ctx, ins.result, values);
+            trace(ins, [&] { result = ins.op.compute(ctx, ins.result, values); });
         }
         results.emplace(std::addressof(ins), result);
     }
     return result;
 }
 
+argument program::eval(std::unordered_map<std::string, argument> params) const
+{
+    return generic_eval(*this, this->impl->ctx, params, [](auto&, auto f) { f(); });
+}
+
 bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {
-    std::unordered_map<const instruction*, std::string> names;
-    int count = 0;
-
-    for(auto& ins : p.impl->instructions)
-    {
-        std::string var_name = "@" + std::to_string(count);
-        if(ins.op.name() == "@param")
-        {
-            var_name = any_cast<builtin::param>(ins.op).parameter;
-        }
-
-        os << var_name << " = ";
-
-        os << ins.op;
-
-        if(ins.op.name() == "@literal")
-        {
-            if(ins.lit.get_shape().elements() > 10)
-                os << "{ ... }";
-            else
-                os << "{" << ins.lit << "}";
-        }
-
-        if(!ins.arguments.empty())
-        {
-            char delim = '(';
-            for(auto&& arg : ins.arguments)
-            {
-                assert(p.has_instruction(arg) && "Instruction not found");
-                os << delim << names.at(std::addressof(*arg));
-                delim = ',';
-            }
-            os << ")";
-        }
-
-        os << " -> " << ins.result;
-
-        os << std::endl;
-
-        names.emplace(std::addressof(ins), var_name);
-        count++;
-    }
+    print_program(os, p, [](auto&&...){});
     return os;
 }
 

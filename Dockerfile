@@ -59,7 +59,7 @@ RUN ln -s $PREFIX /opt/rocm/hcc
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
-RUN cget -p $PREFIX install -f /dev-requirements.txt
+RUN cget -p $PREFIX install -f /dev-requirements.txt -DMIOPEN_CACHE_DIR=""
 
 ENV LD_LIBRARY_PATH=$PREFIX/lib
 

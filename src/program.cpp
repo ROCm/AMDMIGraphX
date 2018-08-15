@@ -1,11 +1,14 @@
 #include <migraph/program.hpp>
 #include <migraph/stringutils.hpp>
 #include <migraph/instruction.hpp>
+#include <migraph/env.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
 
 namespace migraph {
+
+MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_TRACE_COMPILE)
 
 struct program_impl
 {
@@ -183,9 +186,15 @@ void program::compile(const target& t)
 {
     assert(this->validate() == impl->instructions.end());
     this->impl->ctx = t.get_context();
+    if(enabled(MIGRAPH_TRACE_COMPILE{}))
+        std::cout << *this << std::endl << std::endl;;
     for(auto&& p : t.get_passes(this->impl->ctx))
     {
+        if(enabled(MIGRAPH_TRACE_COMPILE{}))
+            std::cout << "Pass: " << p.name() << std::endl;
         p.apply(*this);
+        if(enabled(MIGRAPH_TRACE_COMPILE{}))
+            std::cout << *this << std::endl << std::endl;
 #ifndef NDEBUG
         auto invalid = this->validate();
         if(invalid != impl->instructions.end())

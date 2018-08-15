@@ -22,8 +22,10 @@ template <class String, class T>
 auto generic_find_impl(rank<2>, String&& s, const T& x) -> decltype(s.begin() + s.find(x), s.npos)
 {
     auto index = s.find(x);
-    if (index == s.npos) return s.end();
-    else return s.begin() + index;
+    if(index == s.npos)
+        return s.end();
+    else
+        return s.begin() + index;
 }
 
 template <class C, class T>

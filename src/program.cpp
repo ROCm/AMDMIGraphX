@@ -187,7 +187,8 @@ void program::compile(const target& t)
     assert(this->validate() == impl->instructions.end());
     this->impl->ctx = t.get_context();
     if(enabled(MIGRAPH_TRACE_COMPILE{}))
-        std::cout << *this << std::endl << std::endl;;
+        std::cout << *this << std::endl << std::endl;
+    ;
     for(auto&& p : t.get_passes(this->impl->ctx))
     {
         if(enabled(MIGRAPH_TRACE_COMPILE{}))

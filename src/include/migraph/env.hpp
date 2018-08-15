@@ -7,21 +7,24 @@
 namespace migraph {
 
 // Declare a cached environment variable
-#define MIGRAPH_DECLARE_ENV_VAR(x) \
-struct x { static const char* value() { return #x; } }; // NOLINT
+#define MIGRAPH_DECLARE_ENV_VAR(x)                \
+    struct x                                      \
+    {                                             \
+        static const char* value() { return #x; } \
+    }; // NOLINT
 
-bool enabled(const char * name);
-bool disabled(const char * name);
+bool enabled(const char* name);
+bool disabled(const char* name);
 std::vector<std::string> env(const char* name);
 
-template<class T>
+template <class T>
 bool enabled(T)
 {
     static const bool result = enabled(T::value());
     return result;
 }
 
-template<class T>
+template <class T>
 bool disabled(T)
 {
     static const bool result = disabled(T::value());

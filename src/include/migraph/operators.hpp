@@ -435,8 +435,10 @@ struct flatten
         }
         else if(axis < lens.size())
         {
-            auto x = std::accumulate(lens.begin(), lens.begin()+axis, std::size_t{1}, std::multiplies<>{});
-            auto y = std::accumulate(lens.begin()+axis, lens.end(), std::size_t{1}, std::multiplies<>{});
+            auto x = std::accumulate(
+                lens.begin(), lens.begin() + axis, std::size_t{1}, std::multiplies<>{});
+            auto y = std::accumulate(
+                lens.begin() + axis, lens.end(), std::size_t{1}, std::multiplies<>{});
             return {inputs.at(0).type(), {x, y}};
         }
         else

@@ -145,8 +145,8 @@ struct pooling
         const shape& input = inputs.at(0);
         auto t             = input.type();
 
-        assert(lengths[0] < (input.lens()[2] + 2 * padding[0]));
-        assert(lengths[1] < (input.lens()[3] + 2 * padding[1]));
+        assert(lengths[0] <= (input.lens()[2] + 2 * padding[0]));
+        assert(lengths[1] <= (input.lens()[3] + 2 * padding[1]));
 
         return {t,
                 {
@@ -154,12 +154,12 @@ struct pooling
                     input.lens()[1],
                     std::size_t(std::max<std::ptrdiff_t>(
                         1,
-                        std::ptrdiff_t(std::ceil((input.lens()[2] + 2 * padding[0] - lengths[0]) /
+                        std::ptrdiff_t(std::floor((input.lens()[2] + 2 * padding[0] - lengths[0]) /
                                                  static_cast<float>(stride[0]))) +
                             1)),
                     std::size_t(std::max<std::ptrdiff_t>(
                         1,
-                        std::ptrdiff_t(std::ceil((input.lens()[3] + 2 * padding[1] - lengths[1]) /
+                        std::ptrdiff_t(std::floor((input.lens()[3] + 2 * padding[1] - lengths[1]) /
                                                  static_cast<float>(stride[1]))) +
                             1)),
                 }};
@@ -236,6 +236,13 @@ struct transpose
     {
         return {output_shape, std::move(args.front().data)};
     }
+    friend std::ostream& operator<<(std::ostream& os, const transpose& op)
+    {
+        os << op.name() << "[";
+        os << "dims={" << stream_range(op.dims) << "}";
+        os << "]";
+        return os;
+    }
 };
 
 struct contiguous
@@ -305,7 +312,7 @@ struct reshape
     friend std::ostream& operator<<(std::ostream& os, const reshape& op)
     {
         os << op.name() << "[";
-        os << "dims={" << stream_range(op.dims) << "}, ";
+        os << "dims={" << stream_range(op.dims) << "}";
         os << "]";
         return os;
     }
@@ -443,6 +450,13 @@ struct flatten
     {
         return {output_shape, std::move(args.front().data)};
     }
+    friend std::ostream& operator<<(std::ostream& os, const flatten& op)
+    {
+        os << op.name() << "[";
+        os << "axis=" << op.axis;
+        os << "]";
+        return os;
+    }
 };
 struct broadcast
 {
@@ -475,6 +489,13 @@ struct broadcast
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         return {output_shape, std::move(args.at(1).data)};
+    }
+    friend std::ostream& operator<<(std::ostream& os, const broadcast& op)
+    {
+        os << op.name() << "[";
+        os << "axis=" << op.axis;
+        os << "]";
+        return os;
     }
 };
 

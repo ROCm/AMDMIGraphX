@@ -18,7 +18,7 @@ target_link_libraries(read_onnx migraph_onnx)
 
 add_executable(mnist mnist.cpp)
 rocm_clang_tidy_check(mnist)
-target_link_libraries(mnist migraph_cpu migraph_onnx)
+target_link_libraries(mnist migraph_cpu migraph_gpu migraph_onnx)
 
 add_executable(resnet18 resnet18.cpp)
 rocm_clang_tidy_check(resnet18)

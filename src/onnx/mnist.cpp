@@ -6,7 +6,8 @@
 
 #include <migraph/onnx.hpp>
 
-#include <migraph/cpu/cpu_target.hpp>
+#include <migraph/gpu/target.hpp>
+#include <migraph/gpu/hip.hpp>
 #include <migraph/generate.hpp>
 
 auto reverse_int(unsigned int i)
@@ -120,15 +121,19 @@ int main(int argc, char const* argv[])
 
         std::string file = argv[1];
         auto prog        = migraph::parse_onnx(file);
-        prog.compile(migraph::cpu::cpu_target{});
+        std::cout << prog << std::endl << std::endl;
+        prog.compile(migraph::gpu::target{});
         auto s = migraph::shape{migraph::shape::float_type, {1, 1, 28, 28}};
         std::cout << s << std::endl;
         auto ptr = input.data();
+        migraph::program::parameter_map m;
+        m["output"] =
+            migraph::gpu::to_gpu(migraph::generate_argument(prog.get_parameter_shape("output")));
         for(int i = 0; i < 20; i++)
         {
             std::cout << "label: " << labels[i] << "  ---->  ";
-            auto input3 = migraph::argument{s, &ptr[784 * i]};
-            auto result = prog.eval({{"Input3", input3}});
+            m["0"]      = migraph::gpu::to_gpu(migraph::argument{s, &ptr[784 * i]});
+            auto result = migraph::gpu::from_gpu(prog.eval(m));
             std::vector<float> logits;
             result.visit([&](auto output) { logits.assign(output.begin(), output.end()); });
             std::vector<float> probs = softmax(logits);

@@ -6,6 +6,7 @@
 #include <migraph/auto_contiguous.hpp>
 #include <migraph/dead_code_elimination.hpp>
 #include <migraph/simplify_reshapes.hpp>
+#include <migraph/eliminate_contiguous.hpp>
 
 namespace migraph {
 namespace gpu {
@@ -16,11 +17,16 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
     // clang-format off
     return
     {
+        //dead_code_elimination{},
         auto_contiguous{},
-        simplify_reshapes{},
+        //simplify_reshapes{},
+        //dead_code_elimination{},
         lowering{ctx},
+        //eliminate_contiguous{},
+        //dead_code_elimination{},
+        //write_literals{},
         write_literals{},
-        check_context<context>{},
+        //check_context<context>{},
         dead_code_elimination{}
     };
     // clang-format on

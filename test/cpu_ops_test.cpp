@@ -3,8 +3,8 @@
 #include <migraph/literal.hpp>
 #include <migraph/operators.hpp>
 #include <migraph/cpu/cpu_target.hpp>
+#include <migraph/verify.hpp>
 #include "test.hpp"
-#include "verify.hpp"
 
 void batch_norm_inference_test()
 {
@@ -43,7 +43,7 @@ void batch_norm_inference_test()
     std::fill(gold.begin(), gold.end(), output_val);
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    EXPECT(test::verify_range(result_vector, gold));
+    EXPECT(migraph::verify_range(result_vector, gold));
 }
 
 void exp_test()
@@ -57,7 +57,7 @@ void exp_test()
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0.36787944f, 1.f, 2.71828183f};
-    EXPECT(test::verify_range(results_vector, gold));
+    EXPECT(migraph::verify_range(results_vector, gold));
 }
 
 void sin_test()
@@ -71,7 +71,7 @@ void sin_test()
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {-0.84147098f, 0.f, 0.84147098f};
-    EXPECT(test::verify_range(results_vector, gold));
+    EXPECT(migraph::verify_range(results_vector, gold));
 }
 
 void cos_test()
@@ -85,7 +85,7 @@ void cos_test()
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0.54030231f, 1.f, 0.54030231f};
-    EXPECT(test::verify_range(results_vector, gold));
+    EXPECT(migraph::verify_range(results_vector, gold));
 }
 
 void tan_test()
@@ -99,7 +99,7 @@ void tan_test()
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {-1.55740772f, 0.0f, 1.55740772f};
-    EXPECT(test::verify_range(results_vector, gold));
+    EXPECT(migraph::verify_range(results_vector, gold));
 }
 
 void add_test()
@@ -114,7 +114,7 @@ void add_test()
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0, 2, 4};
-    EXPECT(test::verify_range(results_vector, gold));
+    EXPECT(migraph::verify_range(results_vector, gold));
 }
 
 void broadcast_test()
@@ -154,7 +154,7 @@ void add_broadcast_test()
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0, 1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8};
-    EXPECT(test::verify_range(results_vector, gold));
+    EXPECT(migraph::verify_range(results_vector, gold));
 }
 
 void sub_test()
@@ -169,7 +169,7 @@ void sub_test()
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {-2, -2, -2};
-    EXPECT(test::verify_range(results_vector, gold));
+    EXPECT(migraph::verify_range(results_vector, gold));
 }
 
 void mul_test()
@@ -184,7 +184,7 @@ void mul_test()
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {-1, 0, 3};
-    EXPECT(test::verify_range(results_vector, gold));
+    EXPECT(migraph::verify_range(results_vector, gold));
 }
 
 void div_test()
@@ -199,7 +199,7 @@ void div_test()
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {-1.f, 0.25f, 0.25f};
-    EXPECT(test::verify_range(results_vector, gold));
+    EXPECT(migraph::verify_range(results_vector, gold));
 }
 
 void reshape_test()
@@ -216,7 +216,7 @@ void reshape_test()
         auto result = p.eval({});
         std::vector<float> results_vector(3);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(test::verify_range(results_vector, data));
+        EXPECT(migraph::verify_range(results_vector, data));
     }
     {
         migraph::program p;
@@ -227,7 +227,7 @@ void reshape_test()
         auto result = p.eval({});
         std::vector<float> results_vector(3);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(test::verify_range(results_vector, data));
+        EXPECT(migraph::verify_range(results_vector, data));
     }
     {
         migraph::program p;
@@ -238,7 +238,7 @@ void reshape_test()
         auto result = p.eval({});
         std::vector<float> results_vector(3);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(test::verify_range(results_vector, data));
+        EXPECT(migraph::verify_range(results_vector, data));
     }
 }
 
@@ -406,7 +406,7 @@ void softmax_test()
     auto result = p.eval({});
     std::vector<float> results_vector(120);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(test::verify_range(results_vector, s));
+    EXPECT(migraph::verify_range(results_vector, s));
 }
 
 void conv2d_test()
@@ -469,7 +469,7 @@ void conv2d_test()
 
     std::vector<float> results_vector(16);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(test::verify_range(results_vector, s));
+    EXPECT(migraph::verify_range(results_vector, s));
 }
 
 void conv2d_padding_test()
@@ -525,7 +525,7 @@ void conv2d_padding_test()
 
     std::vector<float> results_vector(64);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(test::verify_range(results_vector, s));
+    EXPECT(migraph::verify_range(results_vector, s));
 }
 
 void conv2d_padding_stride_test()
@@ -586,7 +586,7 @@ void conv2d_padding_stride_test()
 
     std::vector<float> results_vector(16);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(test::verify_range(results_vector, s));
+    EXPECT(migraph::verify_range(results_vector, s));
 }
 
 void transpose_test()
@@ -604,10 +604,8 @@ void transpose_test()
         auto result = p.eval({});
 
         result.visit([&](auto output) {
-            std::vector<size_t> new_lens    = {1, 3, 2, 2};
-            std::vector<size_t> new_strides = {12, 1, 6, 3};
+            std::vector<size_t> new_lens = {1, 3, 2, 2};
             EXPECT(bool{output.get_shape().lens() == new_lens});
-            EXPECT(bool{output.get_shape().strides() == new_strides});
         });
     }
     {
@@ -622,7 +620,7 @@ void transpose_test()
         std::vector<float> results_vector(12);
         result2.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold = {0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11};
-        EXPECT(test::verify_range(results_vector, gold));
+        EXPECT(migraph::verify_range(results_vector, gold));
     }
 }
 
@@ -643,7 +641,7 @@ void contiguous_test()
     std::vector<size_t> new_lens    = {1, 3, 2, 2};
     std::vector<size_t> new_strides = {12, 1, 6, 3};
     std::vector<float> gold         = {1, 4, 7, 10, 2, 5, 8, 11, 3, 6, 9, 0};
-    EXPECT(test::verify_range(results_vector, gold));
+    EXPECT(migraph::verify_range(results_vector, gold));
 }
 
 int main()

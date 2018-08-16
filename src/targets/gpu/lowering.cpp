@@ -138,7 +138,7 @@ struct miopen_pooling
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2).standard();
-        return op.compute_shape({inputs.at(1)});
+        return op.compute_shape({inputs.at(0)});
     }
     argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
     {

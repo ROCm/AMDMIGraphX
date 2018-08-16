@@ -422,9 +422,28 @@ struct neg : unary
 
 struct flatten
 {
+    uint64_t axis = 0;
     std::string name() const { return "flatten"; }
-};
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(1);
+        auto&& lens = inputs.front().lens();
 
+        if(axis > lens.size())
+        {
+            MIGRAPH_THROW("axis for flatten must be less than tensor rank");
+        }
+        auto x =
+            std::accumulate(lens.begin(), lens.begin() + axis, std::size_t{1}, std::multiplies<>{});
+        auto y =
+            std::accumulate(lens.begin() + axis, lens.end(), std::size_t{1}, std::multiplies<>{});
+        return {inputs.at(0).type(), {x, y}};
+    }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        return {output_shape, std::move(args.front().data)};
+    }
+};
 struct broadcast
 {
     uint64_t axis = 0;

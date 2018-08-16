@@ -5,7 +5,6 @@
 #include <migraph/program.hpp>
 #include <migraph/onnx.hpp>
 #include "test.hpp"
-#include "verify.hpp"
 
 void pytorch_conv_bias_test()
 {

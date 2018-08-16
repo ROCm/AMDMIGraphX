@@ -10,6 +10,9 @@ typedef struct live_range {
     int offset; // offset to base pointer of allocated memory trunk.
     int vn;     // value number that identifies this live_range.
     int size;   // size of required memory in bytes
+#ifdef DEBUG_OPT
+    void dump();
+#endif    
 } T_live_range;
     
 typedef struct live_interval {
@@ -77,12 +80,13 @@ struct memory_coloring_impl {
         {
             int len1 = I1->get_end() - I1->get_begin();
             int len2 = I2->get_end() - I2->get_begin();
-            if (len1 < len2)
-                return true;
-            else if (I1->result.bytes() < I2->result.bytes())
-                return true;
-            else 
+            if (len1 != len2) {
+                return (len1 < len2) ? true : false;
+            } else if (I1->result.bytes() != I2->result.bytes()) {
+                return (I1->result.bytes() < I2->result.bytes()) ? true : false;
+            } else {
                 return I1->id > I2->id;
+            }
         }
         bool operator() (const T_live_range* I1, const T_live_range* I2) const
         {

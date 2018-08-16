@@ -49,6 +49,7 @@ bool memory_coloring_impl::allocate(T_live_interval* interval)
         conflict_queue.pop();
     }
     segment.offset = offset;
+    DEBUG(segment.dump());
     return true;
 }
 
@@ -158,11 +159,22 @@ void memory_coloring_impl::dump()
 }
 
 #define GET_INS_ENUM(x) (((x) >> 1) - 1)
+    
+void live_range::dump()
+{
+    std::cout << " segment:" << vn;
+    std::cout << " [" << GET_INS_ENUM(begin)  << ", " << GET_INS_ENUM(end) << "]";
+    if (offset != -1) {
+        std::cout << " mem:";
+        std::cout << " [" << offset << "," << offset + size << "]";
+    }
+    std::cout << std::endl;
+}
+    
 void live_interval::dump()
 {
     std::cout << "id:" << id;
-    std::cout << " segment:" << segment.vn;
-    std::cout << " [" << GET_INS_ENUM(segment.begin)  << ", " << GET_INS_ENUM(segment.end) << "]";
+    segment.dump();
     std::cout << " uses:";
     for (auto iter = use_points.begin(), end = use_points.end(); iter != end; ++iter) {
         int& use = *iter;
@@ -181,6 +193,7 @@ void live_interval::dump()
     std::cout << " " << result;
     std::cout << std::endl;
 }
+    
 #endif    
     
 } // namespace migraph

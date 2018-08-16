@@ -9,6 +9,7 @@
 #include <set>
 #include <list>
 #include <vector>
+#include <queue>
 
 #define DEBUG_OPT
 

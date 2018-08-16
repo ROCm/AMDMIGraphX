@@ -11,9 +11,8 @@ void expect_shape(migraph::shape expected, migraph::operation op, Ts... xs)
     migraph::program p;
     std::vector<migraph::shape> shapes{xs...};
     std::vector<migraph::instruction_ref> args(shapes.size());
-    std::transform(shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) {
-        return p.add_outline(s);
-    });
+    std::transform(
+        shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) { return p.add_outline(s); });
     p.add_instruction(op, args);
     if(p.get_shape() != expected)
     {
@@ -30,9 +29,8 @@ void throws_shape(migraph::operation op, Ts... xs)
     migraph::program p;
     std::vector<migraph::shape> shapes{xs...};
     std::vector<migraph::instruction_ref> args(shapes.size());
-    std::transform(shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) {
-        return p.add_outline(s);
-    });
+    std::transform(
+        shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) { return p.add_outline(s); });
     bool thrown = test::throws([&] { p.add_instruction(op, args); });
     if(not thrown)
     {

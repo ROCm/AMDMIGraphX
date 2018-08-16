@@ -18,14 +18,14 @@ auto read_cifar10_images(std::string full_path)
 
     const size_t nimages          = 10;
     const size_t nbytes_per_image = 3072;
-    std::vector<int8_t> raw_data(nimages * (nbytes_per_image + 1));
-    std::vector<int8_t> labels(nimages);
+    std::vector<uint8_t> raw_data(nimages * (nbytes_per_image + 1));
+    std::vector<uint8_t> labels(nimages);
     std::vector<float> data(nimages * nbytes_per_image);
     if(file.is_open())
     {
         file.read(reinterpret_cast<char*>(raw_data.data()),
-                  (nbytes_per_image + 1) * nimages * sizeof(int8_t));
-        int8_t* pimage = raw_data.data();
+                  (nbytes_per_image + 1) * nimages * sizeof(uint8_t));
+        uint8_t* pimage = raw_data.data();
         for(size_t i = 0; i < nimages; i++, pimage += nbytes_per_image)
         {
             labels[i] = *pimage++;
@@ -58,7 +58,7 @@ int main(int argc, char const* argv[])
     std::string file     = argv[1];
     std::string datafile = argv[2];
     auto prog            = migraph::parse_onnx(file);
-
+    std::cout << prog << std::endl;
     auto imageset = read_cifar10_images(datafile);
 
     // GPU target
@@ -80,6 +80,14 @@ int main(int argc, char const* argv[])
         std::vector<float> probs = softmax(logits);
         for(auto x : logits)
             std::cout << x << "  ";
+        std::cout << std::endl;
+        std::cout << std::endl;
+
+        for (int j = 0; j < 10; j++) {
+            std::cout << 255.0*input[i*3072+j] << "    ";
+        }
+        std::cout << std::endl;
+        std::cout << std::endl;
         std::cout << std::endl;
     }
 

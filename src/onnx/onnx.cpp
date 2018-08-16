@@ -286,7 +286,6 @@ struct onnx_parser
     {
         nodes = get_nodes(graph);
         std::unordered_map<std::string, onnx::TensorProto> initializer_data;
-        auto cnt = 0;
         for(auto&& f : graph.initializer())
         {
             initializer_data[f.name()] = f;

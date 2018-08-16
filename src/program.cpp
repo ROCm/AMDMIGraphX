@@ -2,6 +2,7 @@
 #include <migraph/stringutils.hpp>
 #include <migraph/instruction.hpp>
 #include <migraph/env.hpp>
+#include <migraph/time.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -59,7 +60,7 @@ static void print_program(std::ostream& os, const program& p, F annonate)
 
         os << " -> " << ins.result;
 
-        annonate(os, ins, names);
+        annonate(ins, names);
 
         os << std::endl;
 
@@ -303,6 +304,61 @@ argument generic_eval(const program& p,
 argument program::eval(std::unordered_map<std::string, argument> params) const
 {
     return generic_eval(*this, this->impl->ctx, params, [](auto&, auto f) { f(); });
+}
+
+void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
+{
+    using milliseconds = std::chrono::duration<double, std::milli>;
+    // Run once by itself
+    eval(params);
+    // Run and time entire program
+    double total_acc = 0;
+    for(std::size_t i = 0; i< n;i++)
+    {
+        total_acc += time<milliseconds>([&] {
+            eval(params);
+        });
+    }
+    std::unordered_map<const instruction*, double> ins_acc;
+    // Fill the map
+    generic_eval(*this, this->impl->ctx, params, [&](auto& ins, auto) {
+        ins_acc[std::addressof(ins)] = 0; 
+    });
+    // Run and time each instruction
+    for(std::size_t i = 0; i< n;i++)
+    {
+        generic_eval(*this, this->impl->ctx, params, [&](auto& ins, auto f) { 
+            ins_acc[std::addressof(ins)] += time<milliseconds>(f); 
+        });
+    }
+    // Run and time implicit overhead
+    double overhead_acc = 0;
+    for(std::size_t i = 0; i< n;i++)
+    {
+        overhead_acc += time<milliseconds>([&] {
+            generic_eval(*this, this->impl->ctx, params, [](auto&&...) {});
+        });
+    }
+
+    double total_time = total_acc / n;
+    double overhead_time = overhead_acc / n;
+    double overhead_percent = overhead_time*100.0 / total_time;
+    double total_instruction_time = 0.0;
+    for(auto&& p: ins_acc)
+        total_instruction_time += p.second / n;
+    double calculate_overhead_time = total_time - total_instruction_time;
+    double calculate_overhead_percent = calculate_overhead_time*100.0 / total_time;
+
+    print_program(os, *this, [&](auto& ins, auto&&) {
+        os << ": " << ins_acc[std::addressof(ins)] / n << "ms";
+    });
+
+    os << "Total time: " << total_time << "ms" << std::endl;
+    os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
+    os << "Overhead time: " << overhead_time << "ms" << ", " << calculate_overhead_time << "ms" << std::endl;
+    os << "Overhead: " << std::round(overhead_percent) << "%" << ", " << std::round(calculate_overhead_percent) << "%" << std::endl;
+
+
 }
 
 bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }

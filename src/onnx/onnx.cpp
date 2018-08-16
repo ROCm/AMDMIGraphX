@@ -60,8 +60,8 @@ struct onnx_parser
 
         add_mem_op("Constant", &onnx_parser::parse_constant);
         add_mem_op("Conv", &onnx_parser::parse_conv);
-        add_mem_op("MaxPool", &onnx_parser::parse_max_pooling);
-        add_mem_op("AveragePool", &onnx_parser::parse_average_pooling);
+        add_mem_op("MaxPool", &onnx_parser::parse_pooling);
+        add_mem_op("AveragePool", &onnx_parser::parse_pooling);
         add_mem_op("Reshape", &onnx_parser::parse_reshape);
         add_mem_op("Flatten", &onnx_parser::parse_flatten);
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
@@ -129,28 +129,9 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_max_pooling(std::string, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_pooling(std::string name, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        pooling op{"max"};
-        if(contains(attributes, "pads"))
-        {
-            copy(attributes["pads"].ints(), op.padding.begin());
-        }
-        if(contains(attributes, "strides"))
-        {
-            copy(attributes["strides"].ints(), op.stride.begin());
-        }
-        if(contains(attributes, "kernel_shape"))
-        {
-            copy(attributes["kernel_shape"].ints(), op.lengths.begin());
-        }
-        return prog.add_instruction(op, args);
-    }
-
-    instruction_ref
-    parse_average_pooling(std::string, attribute_map attributes, std::vector<instruction_ref> args)
-    {
-        pooling op{"average"};
+        pooling op{name == "MaxPool" ? "max" : "average"};
         if(contains(attributes, "pads"))
         {
             copy(attributes["pads"].ints(), op.padding.begin());
@@ -187,10 +168,10 @@ struct onnx_parser
     parse_flatten(std::string, attribute_map attributes, std::vector<instruction_ref> args)
     {
         uint64_t axis = 0;
-        // if(contains(attributes, "axis"))
-        // {
-        //     axis = parse_value(attributes.at("axis")).at<int>();
-        // }
+        if(contains(attributes, "axis"))
+        {
+            axis = parse_value(attributes.at("axis")).at<int>();
+        }
         return prog.add_instruction(flatten{axis}, args[0]);
     }
 

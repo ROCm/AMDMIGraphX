@@ -22,14 +22,15 @@ std::size_t get_available_gpu_memory()
     return free;
 }
 
-hip_ptr allocate_gpu(std::size_t sz, bool host=false)
+hip_ptr allocate_gpu(std::size_t sz, bool host = false)
 {
     if(sz > get_available_gpu_memory())
         MIGRAPH_THROW("Memory not available to allocate buffer: " + std::to_string(sz));
     void* result;
     auto status = host ? hipHostMalloc(&result, sz) : hipMalloc(&result, sz);
-    if(status != hipSuccess) {
-        if (host)
+    if(status != hipSuccess)
+    {
+        if(host)
             MIGRAPH_THROW("Gpu allocation failed: " + hip_error(status));
         else
             allocate_gpu(sz, true);
@@ -55,7 +56,7 @@ std::vector<T> read_from_gpu(const void* x, std::size_t sz)
     return result;
 }
 
-hip_ptr write_to_gpu(const void* x, std::size_t sz, bool host=false)
+hip_ptr write_to_gpu(const void* x, std::size_t sz, bool host = false)
 {
     auto result = allocate_gpu(sz, host);
     auto status = hipMemcpy(result.get(), x, sz, hipMemcpyHostToDevice);

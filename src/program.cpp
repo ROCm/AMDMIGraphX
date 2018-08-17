@@ -320,21 +320,30 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
     return generic_eval(*this, this->impl->ctx, params, [](auto&, auto f) { return f(); });
 }
 
+double common_average(const std::vector<double>& v)
+{
+    std::size_t n = v.size() / 4;
+    double total = std::accumulate(v.begin()+n, v.end()-n, 0.0);
+    return total / std::distance(v.begin()+n, v.end()-n);
+}
+
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
 {
     using milliseconds = std::chrono::duration<double, std::milli>;
     // Run once by itself
     eval(params);
     // Run and time entire program
-    double total_acc = 0;
+    std::vector<double> total_vec;
+    total_vec.reserve(n);
     for(std::size_t i = 0; i < n; i++)
     {
-        total_acc += time<milliseconds>([&] { eval(params); });
+        total_vec.push_back(time<milliseconds>([&] { eval(params); }));
     }
-    std::unordered_map<instruction_ref, double> ins_acc;
+    std::sort(total_vec.begin(), total_vec.end());
+    std::unordered_map<instruction_ref, std::vector<double>> ins_vec;
     // Fill the map
     generic_eval(*this, this->impl->ctx, params, [&](auto ins, auto) {
-        ins_acc[ins] = 0;
+        ins_vec[ins].reserve(n);
         return argument{};
     });
     // Run and time each instruction
@@ -342,30 +351,35 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     {
         generic_eval(*this, this->impl->ctx, params, [&](auto ins, auto f) {
             argument result;
-            ins_acc[ins] += time<milliseconds>([&] { result = f(); });
+            ins_vec[ins].push_back(time<milliseconds>([&] { result = f(); }));
             return result;
         });
     }
+    for(auto&& p : ins_vec)
+        std::sort(p.second.begin(), p.second.end());
     // Run and time implicit overhead
-    double overhead_acc = 0;
+    std::vector<double> overhead_vec;
+    overhead_vec.reserve(n);
     for(std::size_t i = 0; i < n; i++)
     {
-        overhead_acc += time<milliseconds>([&] {
+        overhead_vec.push_back(time<milliseconds>([&] {
             generic_eval(*this, this->impl->ctx, params, [](auto...) { return argument{}; });
-        });
+        }));
     }
 
-    double total_time             = total_acc / n;
-    double overhead_time          = overhead_acc / n;
+    double total_time             = common_average(total_vec);
+    double rate = std::ceil(1000.0 / total_time);
+    double overhead_time          = common_average(overhead_vec);
     double overhead_percent       = overhead_time * 100.0 / total_time;
     double total_instruction_time = 0.0;
-    for(auto&& p : ins_acc)
-        total_instruction_time += p.second / n;
+    for(auto&& p : ins_vec)
+        total_instruction_time += common_average(p.second);
     double calculate_overhead_time    = total_time - total_instruction_time;
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
 
-    print_program(os, *this, [&](auto ins, auto&&) { os << ": " << ins_acc[ins] / n << "ms"; });
+    print_program(os, *this, [&](auto ins, auto&&) { os << ": " << common_average(ins_vec[ins]) << "ms"; });
 
+    os << "Rate: " << rate << "/sec" << std::endl;
     os << "Total time: " << total_time << "ms" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
     os << "Overhead time: " << overhead_time << "ms"

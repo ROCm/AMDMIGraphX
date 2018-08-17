@@ -100,7 +100,7 @@ struct miopen_convolution
 
         std::size_t workspace_size = 0;
         miopenConvolutionForwardGetWorkSpaceSize(
-            ctx.handle.get(), x_desc.get(), w_desc.get(), cd.get(), y_desc.get(), &workspace_size);
+            ctx.handle.get(), w_desc.get(), x_desc.get(), cd.get(), y_desc.get(), &workspace_size);
         workspace_shape = shape{shape::int8_type, {workspace_size}};
 
         auto x         = to_gpu(generate_argument(inputs[0]->get_shape()));
@@ -108,7 +108,7 @@ struct miopen_convolution
         auto y         = to_gpu(generate_argument(output_shape));
         auto workspace = allocate_gpu(workspace_shape);
 
-        int algo_count;
+        int algo_count = 1;
         miopenConvAlgoPerf_t perf;
         miopenFindConvolutionForwardAlgorithm(ctx.handle.get(),
                                               x_desc.get(),
@@ -298,37 +298,45 @@ struct miopen_apply
     program* prog = nullptr;
     context ctx{};
 
+    void check_shape(shape x, instruction_ref i)
+    {
+        assert(x == i->get_shape());
+        (void)x;
+        (void)i;
+    }
+
     void apply()
     {
         for(auto it = prog->begin(); it != prog->end(); it++)
         {
+            auto s = it->get_shape();
             if(it->op.name() == "convolution")
             {
-                apply_convolution(it);
+                check_shape(s, apply_convolution(it));
             }
             else if(it->op.name() == "activation")
             {
-                apply_activation(it);
+                check_shape(s, apply_activation(it));
             }
             else if(it->op.name() == "pooling")
             {
-                apply_pooling(it);
+                check_shape(s, apply_pooling(it));
             }
             else if(it->op.name() == "add")
             {
-                apply_add(it);
+                check_shape(s, apply_add(it));
             }
             else if(it->op.name() == "gemm")
             {
-                apply_gemm(it);
+                check_shape(s, apply_gemm(it));
             }
             else if(it->op.name() == "contiguous")
             {
-                apply_contiguous(it);
+                check_shape(s, apply_contiguous(it));
             }
             else if(it->op.name() == "batch_norm_inference")
             {
-                apply_batch_norm_inference(it);
+                check_shape(s, apply_batch_norm_inference(it));
             }
         }
     }
@@ -347,7 +355,7 @@ struct miopen_apply
         }
     }
 
-    void apply_convolution(instruction_ref ins)
+    instruction_ref apply_convolution(instruction_ref ins)
     {
         auto&& op = any_cast<convolution>(ins->op);
 
@@ -357,55 +365,56 @@ struct miopen_apply
         auto workspace = insert_allocation(ins, ws, "workspace");
         auto output    = insert_allocation(ins, ins->result);
 
-        prog->replace_instruction(
+        return prog->replace_instruction(
             ins, conv, ins->arguments.at(0), ins->arguments.at(1), workspace, output);
     }
 
-    void apply_pooling(instruction_ref ins)
+    instruction_ref apply_pooling(instruction_ref ins)
     {
         auto&& op   = any_cast<pooling>(ins->op);
         auto pd     = make_pooling(op);
         auto output = insert_allocation(ins, ins->result);
 
-        prog->replace_instruction(
+        return prog->replace_instruction(
             ins, miopen_pooling{op, std::move(pd)}, ins->arguments.at(0), output);
     }
 
-    void apply_activation(instruction_ref ins)
+    instruction_ref apply_activation(instruction_ref ins)
     {
         auto&& op = any_cast<activation>(ins->op);
         auto ad   = make_relu();
         if(op.mode == "relu")
         {
             auto output = insert_allocation(ins, ins->result);
-            prog->replace_instruction(
+            return prog->replace_instruction(
                 ins, miopen_relu{std::move(ad)}, ins->arguments.at(0), output);
         }
+        return ins;
     }
 
-    void apply_add(instruction_ref ins)
+    instruction_ref apply_add(instruction_ref ins)
     {
         auto output = insert_allocation(ins, ins->result);
-        prog->replace_instruction(
+        return prog->replace_instruction(
             ins, miopen_add{}, ins->arguments.at(0), ins->arguments.at(1), output);
     }
 
-    void apply_gemm(instruction_ref ins)
+    instruction_ref apply_gemm(instruction_ref ins)
     {
         auto&& op   = any_cast<gemm>(ins->op);
         auto output = insert_allocation(ins, ins->result);
-        prog->replace_instruction(
+        return prog->replace_instruction(
             ins, miopen_gemm{op}, ins->arguments.at(0), ins->arguments.at(1), output);
     }
 
-    void apply_contiguous(instruction_ref ins)
+    instruction_ref apply_contiguous(instruction_ref ins)
     {
         auto&& op   = any_cast<contiguous>(ins->op);
         auto output = insert_allocation(ins, ins->result);
-        prog->replace_instruction(ins, miopen_contiguous{op}, ins->arguments.at(0), output);
+        return prog->replace_instruction(ins, miopen_contiguous{op}, ins->arguments.at(0), output);
     }
 
-    void apply_batch_norm_inference(instruction_ref ins)
+    instruction_ref apply_batch_norm_inference(instruction_ref ins)
     {
         auto&& op       = any_cast<batch_norm_inference>(ins->op);
         auto output     = insert_allocation(ins, ins->result);
@@ -417,7 +426,7 @@ struct miopen_apply
                        ins->arguments.end(),
                        std::back_inserter(reshapes),
                        [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
-        prog->replace_instruction(ins,
+        return prog->replace_instruction(ins,
                                   miopen_batch_norm_inference{op},
                                   ins->arguments.at(0),
                                   reshapes[0],

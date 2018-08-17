@@ -125,7 +125,7 @@ struct miopen_convolution
                                               workspace_size,
                                               false);
         algo = perf.fwd_algo;
-        return workspace_shape;
+        return algo == miopenConvolutionFwdAlgoWinograd ? shape{shape::int8_type, {0}} : workspace_shape;
     }
 };
 
@@ -332,7 +332,7 @@ struct miopen_apply
         }
     }
 
-    instruction_ref insert_allocation(instruction_ref ins, const shape& s)
+    instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag="")
     {
         if(ins == --prog->end())
         {
@@ -341,7 +341,7 @@ struct miopen_apply
         else
         {
             auto is     = prog->add_outline(s);
-            auto result = prog->insert_instruction(ins, hip_allocate{}, is);
+            auto result = prog->insert_instruction(ins, hip_allocate{tag}, is);
             return result;
         }
     }
@@ -353,7 +353,7 @@ struct miopen_apply
         auto conv = miopen_convolution{op, make_conv(op)};
         auto ws   = conv.compile(ctx, ins->result, ins->arguments);
 
-        auto workspace = insert_allocation(ins, ws);
+        auto workspace = insert_allocation(ins, ws, "workspace");
         auto output    = insert_allocation(ins, ins->result);
 
         prog->replace_instruction(

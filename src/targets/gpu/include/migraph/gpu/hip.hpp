@@ -14,6 +14,7 @@ migraph::argument from_gpu(migraph::argument arg);
 
 struct hip_allocate
 {
+    std::string tag{};
     std::string name() const { return "hip::allocate"; }
     shape compute_shape(std::vector<shape> inputs) const
     {

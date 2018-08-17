@@ -27,6 +27,7 @@ int main(int argc, char const* argv[])
         auto p           = migraph::parse_onnx(file);
         std::cout << "Compiling ... " << std::endl;
         p.compile(migraph::gpu::target{});
+        std::cout << "Allocating params ... " << std::endl;
         auto m = create_param_map(p);
         std::cout << "Running performance report ... " << std::endl;
         p.perf_report(std::cout, 10, m);

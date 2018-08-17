@@ -21,9 +21,9 @@ struct xorshf96_generator
         x ^= x << 1;
 
         unsigned long t = x;
-        x = y;
-        y = z;
-        z = t ^ x ^ y;
+        x               = y;
+        y               = z;
+        z               = t ^ x ^ y;
 
         return z;
     }

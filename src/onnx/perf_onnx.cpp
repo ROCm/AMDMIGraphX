@@ -24,7 +24,7 @@ int main(int argc, char const* argv[])
     if(argc > 1)
     {
         std::string file = argv[1];
-        std::size_t n = argc > 2 ? std::stoul(argv[2]) : 50;
+        std::size_t n    = argc > 2 ? std::stoul(argv[2]) : 50;
         auto p           = migraph::parse_onnx(file);
         std::cout << "Compiling ... " << std::endl;
         p.compile(migraph::gpu::target{});

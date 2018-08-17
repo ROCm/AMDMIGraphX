@@ -323,8 +323,8 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
 double common_average(const std::vector<double>& v)
 {
     std::size_t n = v.size() / 4;
-    double total = std::accumulate(v.begin()+n, v.end()-n, 0.0);
-    return total / std::distance(v.begin()+n, v.end()-n);
+    double total  = std::accumulate(v.begin() + n, v.end() - n, 0.0);
+    return total / std::distance(v.begin() + n, v.end() - n);
 }
 
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
@@ -368,7 +368,7 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     }
 
     double total_time             = common_average(total_vec);
-    double rate = std::ceil(1000.0 / total_time);
+    double rate                   = std::ceil(1000.0 / total_time);
     double overhead_time          = common_average(overhead_vec);
     double overhead_percent       = overhead_time * 100.0 / total_time;
     double total_instruction_time = 0.0;
@@ -377,7 +377,8 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     double calculate_overhead_time    = total_time - total_instruction_time;
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
 
-    print_program(os, *this, [&](auto ins, auto&&) { os << ": " << common_average(ins_vec[ins]) << "ms"; });
+    print_program(
+        os, *this, [&](auto ins, auto&&) { os << ": " << common_average(ins_vec[ins]) << "ms"; });
 
     os << "Rate: " << rate << "/sec" << std::endl;
     os << "Total time: " << total_time << "ms" << std::endl;

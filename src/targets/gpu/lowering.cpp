@@ -427,13 +427,13 @@ struct miopen_apply
                        std::back_inserter(reshapes),
                        [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
         return prog->replace_instruction(ins,
-                                  miopen_batch_norm_inference{op},
-                                  ins->arguments.at(0),
-                                  reshapes[0],
-                                  reshapes[1],
-                                  reshapes[2],
-                                  reshapes[3],
-                                  output);
+                                         miopen_batch_norm_inference{op},
+                                         ins->arguments.at(0),
+                                         reshapes[0],
+                                         reshapes[1],
+                                         reshapes[2],
+                                         reshapes[3],
+                                         output);
     }
 };
 

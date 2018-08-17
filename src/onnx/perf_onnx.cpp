@@ -25,8 +25,10 @@ int main(int argc, char const* argv[])
     {
         std::string file = argv[1];
         auto p           = migraph::parse_onnx(file);
+        std::cout << "Compiling ... " << std::endl;
         p.compile(migraph::gpu::target{});
         auto m = create_param_map(p);
+        std::cout << "Running performance report ... " << std::endl;
         p.perf_report(std::cout, 10, m);
     }
 }

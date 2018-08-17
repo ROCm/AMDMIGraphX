@@ -6,9 +6,9 @@
 namespace migraph {
 namespace gpu {
 
-migraph::argument allocate_gpu(migraph::shape s);
+migraph::argument allocate_gpu(migraph::shape s, bool host=false);
 
-migraph::argument to_gpu(migraph::argument arg);
+migraph::argument to_gpu(migraph::argument arg, bool host=false);
 
 migraph::argument from_gpu(migraph::argument arg);
 

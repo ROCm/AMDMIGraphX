@@ -16,9 +16,9 @@ struct xorshf96_generator
 
     constexpr T operator()()
     {
-        x ^= x << 16;
-        x ^= x >> 5;
-        x ^= x << 1;
+        x ^= x << 16U;
+        x ^= x >> 5U;
+        x ^= x << 1U;
 
         unsigned long t = x;
         x               = y;

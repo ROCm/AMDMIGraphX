@@ -21,14 +21,14 @@ void eliminate_workspace::apply(program& p) const
         if(ins->op.name() != "hip::allocate")
             continue;
         auto&& a = any_cast<hip_allocate>(ins->op);
-        if(a.tag == "workspace") 
+        if(a.tag == "workspace")
         {
             n = std::max(n, ins->get_shape().bytes());
             allocs.push_back(ins);
         }
     }
     auto ws = p.add_parameter("workspace", shape{shape::int8_type, {n}});
-    for(auto&& a:allocs) 
+    for(auto&& a : allocs)
     {
         p.replace_instruction(a, ws);
         p.remove_instruction(a);

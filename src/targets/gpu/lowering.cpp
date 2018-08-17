@@ -125,7 +125,8 @@ struct miopen_convolution
                                               workspace_size,
                                               false);
         algo = perf.fwd_algo;
-        return algo == miopenConvolutionFwdAlgoWinograd ? shape{shape::int8_type, {0}} : workspace_shape;
+        return algo == miopenConvolutionFwdAlgoWinograd ? shape{shape::int8_type, {0}}
+                                                        : workspace_shape;
     }
 };
 
@@ -332,7 +333,7 @@ struct miopen_apply
         }
     }
 
-    instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag="")
+    instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
     {
         if(ins == --prog->end())
         {

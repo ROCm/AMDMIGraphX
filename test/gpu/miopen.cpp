@@ -104,6 +104,7 @@ void verify_program()
     visit_all(cpu_arg_f.get(), gpu_arg)([](auto cpu, auto gpu) {
         if(not migraph::verify_range(cpu, gpu))
         {
+            // TODO: Check for nans
             std::cout << "FAILED: " << migraph::get_type_name<V>() << std::endl;
         }
     });

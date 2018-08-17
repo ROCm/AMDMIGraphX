@@ -165,4 +165,17 @@ inline shape compute_shape(operation op, std::vector<instruction_ref> args)
 
 } // namespace migraph
 
+namespace std
+{
+    template<> struct hash<migraph::instruction_ref>
+    {
+        using argument_type = migraph::instruction_ref;
+        using result_type = std::size_t;
+        result_type operator()(const argument_type& x) const noexcept
+        {
+            return std::hash<migraph::instruction*>{}(&*x);
+        }
+    };
+} // namespace std
+
 #endif

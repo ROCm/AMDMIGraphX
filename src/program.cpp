@@ -3,6 +3,7 @@
 #include <migraph/instruction.hpp>
 #include <migraph/env.hpp>
 #include <migraph/time.hpp>
+#include <migraph/iterator_for.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -23,48 +24,48 @@ const operation& get_operation(instruction_ref ins) { return ins->op; }
 template <class F>
 static void print_program(std::ostream& os, const program& p, F annonate)
 {
-    std::unordered_map<const instruction*, std::string> names;
+    std::unordered_map<instruction_ref, std::string> names;
     int count = 0;
 
-    for(auto& ins : p)
+    for(auto ins : iterator_for(p))
     {
         std::string var_name = "@" + std::to_string(count);
-        if(ins.op.name() == "@param")
+        if(ins->op.name() == "@param")
         {
-            var_name = any_cast<builtin::param>(ins.op).parameter;
+            var_name = any_cast<builtin::param>(ins->op).parameter;
         }
 
         os << var_name << " = ";
 
-        os << ins.op;
+        os << ins->op;
 
-        if(ins.op.name() == "@literal")
+        if(ins->op.name() == "@literal")
         {
-            if(ins.lit.get_shape().elements() > 10)
+            if(ins->lit.get_shape().elements() > 10)
                 os << "{ ... }";
             else
-                os << "{" << ins.lit << "}";
+                os << "{" << ins->lit << "}";
         }
 
-        if(!ins.arguments.empty())
+        if(!ins->arguments.empty())
         {
             char delim = '(';
-            for(auto&& arg : ins.arguments)
+            for(auto&& arg : ins->arguments)
             {
                 assert(p.has_instruction(arg) && "Instruction not found");
-                os << delim << names.at(std::addressof(*arg));
+                os << delim << names.at(arg);
                 delim = ',';
             }
             os << ")";
         }
 
-        os << " -> " << ins.result;
+        os << " -> " << ins->result;
 
         annonate(ins, names);
 
         os << std::endl;
 
-        names.emplace(std::addressof(ins), var_name);
+        names.emplace(ins, var_name);
         count++;
     }
 }
@@ -276,42 +277,44 @@ argument generic_eval(const program& p,
                       F trace)
 {
     assert(p.validate() == p.end());
-    std::unordered_map<const instruction*, argument> results;
-    results.reserve(p.size());
-    argument result;
+    std::unordered_map<instruction_ref, argument> results;
+    results.reserve(p.size()*2);
     std::vector<argument> values;
     values.reserve(16);
-    for(auto& ins : p)
+    for(auto ins : iterator_for(p))
     {
-        if(ins.op.name() == "@literal")
+        if(ins->op.name() == "@literal")
         {
-            trace(ins, [&] { result = ins.lit.get_argument(); });
+            results.emplace(ins, trace(ins, [&] { return ins->lit.get_argument(); }));
         }
-        else if(ins.op.name() == "@param")
+        else if(ins->op.name() == "@param")
         {
-            trace(ins, [&] { result = params.at(any_cast<builtin::param>(ins.op).parameter); });
+            results.emplace(ins, trace(ins, [&] { return params.at(any_cast<builtin::param>(ins->op).parameter); }));
         }
-        else if(ins.op.name() == "@outline")
+        else if(ins->op.name() == "@outline")
         {
-            trace(ins, [&] { result = argument{ins.result, nullptr}; });
+            results.emplace(ins, trace(ins, [&] { return argument{ins->result, nullptr}; }));
         }
         else
         {
-            values.resize(ins.arguments.size());
-            std::transform(ins.arguments.begin(),
-                           ins.arguments.end(),
+            values.resize(ins->arguments.size());
+            std::transform(ins->arguments.begin(),
+                           ins->arguments.end(),
                            values.begin(),
-                           [&](instruction_ref i) { return results.at(std::addressof(*i)); });
-            trace(ins, [&] { result = ins.op.compute(ctx, ins.result, values); });
+                           [&](instruction_ref i) {
+                                assert(results.find(i) != results.end());
+                                return results[i]; 
+                            });
+            results.emplace(ins, trace(ins, [&] { return ins->op.compute(ctx, ins->result, values); }));
         }
-        results.emplace(std::addressof(ins), result);
+        assert(results.find(ins) != results.end());
     }
-    return result;
+    return results.at(std::prev(p.end()));
 }
 
 argument program::eval(std::unordered_map<std::string, argument> params) const
 {
-    return generic_eval(*this, this->impl->ctx, params, [](auto&, auto f) { f(); });
+    return generic_eval(*this, this->impl->ctx, params, [](auto&, auto f) { return f(); });
 }
 
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
@@ -325,15 +328,19 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     {
         total_acc += time<milliseconds>([&] { eval(params); });
     }
-    std::unordered_map<const instruction*, double> ins_acc;
+    std::unordered_map<instruction_ref, double> ins_acc;
     // Fill the map
     generic_eval(
-        *this, this->impl->ctx, params, [&](auto& ins, auto) { ins_acc[std::addressof(ins)] = 0; });
+        *this, this->impl->ctx, params, [&](auto ins, auto) { ins_acc[ins] = 0; return argument{}; });
     // Run and time each instruction
     for(std::size_t i = 0; i < n; i++)
     {
-        generic_eval(*this, this->impl->ctx, params, [&](auto& ins, auto f) {
-            ins_acc[std::addressof(ins)] += time<milliseconds>(f);
+        generic_eval(*this, this->impl->ctx, params, [&](auto ins, auto f) {
+            argument result;
+            ins_acc[ins] += time<milliseconds>([&]{
+                result = f();
+            });
+            return result;
         });
     }
     // Run and time implicit overhead
@@ -341,7 +348,7 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     for(std::size_t i = 0; i < n; i++)
     {
         overhead_acc += time<milliseconds>(
-            [&] { generic_eval(*this, this->impl->ctx, params, [](auto&&...) {}); });
+            [&] { generic_eval(*this, this->impl->ctx, params, [](auto...) { return argument{}; }); });
     }
 
     double total_time             = total_acc / n;
@@ -353,8 +360,8 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     double calculate_overhead_time    = total_time - total_instruction_time;
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
 
-    print_program(os, *this, [&](auto& ins, auto&&) {
-        os << ": " << ins_acc[std::addressof(ins)] / n << "ms";
+    print_program(os, *this, [&](auto ins, auto&&) {
+        os << ": " << ins_acc[ins] / n << "ms";
     });
 
     os << "Total time: " << total_time << "ms" << std::endl;

@@ -16,12 +16,11 @@ struct xorshf96_generator
 
     constexpr T operator()()
     {
-        unsigned long t = 0;
         x ^= x << 16;
         x ^= x >> 5;
         x ^= x << 1;
 
-        t = x;
+        unsigned long t = x;
         x = y;
         y = z;
         z = t ^ x ^ y;
@@ -31,7 +30,7 @@ struct xorshf96_generator
 };
 
 template <class T>
-std::vector<T> generate_tensor_data(migraph::shape s, std::mt19937::result_type seed = 0)
+std::vector<T> generate_tensor_data(migraph::shape s, std::mt19937::result_type)
 {
     std::vector<T> result(s.elements());
     std::generate(result.begin(), result.end(), xorshf96_generator<T>{});

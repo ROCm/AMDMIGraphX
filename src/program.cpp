@@ -247,7 +247,7 @@ void program::compile(const target& t)
         if(enabled(MIGRAPH_TRACE_COMPILE{}))
             std::cout << *this << std::endl;
 #ifndef NDEBUG
-        if(enabled(MIGRAPH_TRACE_COMPILE{})) 
+        if(enabled(MIGRAPH_TRACE_COMPILE{}))
             std::cout << "Validate ..." << std::endl;
         auto invalid = this->validate();
         if(invalid != impl->instructions.end())
@@ -256,7 +256,7 @@ void program::compile(const target& t)
             MIGRAPH_THROW(p.name() + " pass produces invalid program at instruction " +
                           std::to_string(index) + ": " + invalid->op.name());
         }
-        if(enabled(MIGRAPH_TRACE_COMPILE{})) 
+        if(enabled(MIGRAPH_TRACE_COMPILE{}))
             std::cout << std::endl;
 #endif
     }

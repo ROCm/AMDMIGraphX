@@ -220,6 +220,7 @@ bool program::has_instruction(instruction_ref ins) const
                }) != impl->instructions.end();
 }
 
+std::size_t program::size() const { return impl->instructions.size(); }
 instruction_ref program::begin() const { return impl->instructions.begin(); }
 instruction_ref program::end() const { return impl->instructions.end(); }
 
@@ -276,7 +277,10 @@ argument generic_eval(const program& p,
 {
     assert(p.validate() == p.end());
     std::unordered_map<const instruction*, argument> results;
+    results.reserve(p.size());
     argument result;
+    std::vector<argument> values;
+    values.reserve(16);
     for(auto& ins : p)
     {
         if(ins.op.name() == "@literal")
@@ -293,7 +297,7 @@ argument generic_eval(const program& p,
         }
         else
         {
-            std::vector<argument> values(ins.arguments.size());
+            values.resize(ins.arguments.size());
             std::transform(ins.arguments.begin(),
                            ins.arguments.end(),
                            values.begin(),

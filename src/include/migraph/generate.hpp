@@ -11,9 +11,9 @@ template <class T>
 struct xorshf96_generator
 {
     unsigned long max = 31;
-    unsigned long x = 123456789;
-    unsigned long y = 362436069;
-    unsigned long z = 521288629;
+    unsigned long x   = 123456789;
+    unsigned long y   = 362436069;
+    unsigned long z   = 521288629;
 
     constexpr T operator()() noexcept
     {

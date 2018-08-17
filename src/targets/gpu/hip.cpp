@@ -13,12 +13,27 @@ using hip_ptr = MIGRAPH_MANAGE_PTR(void, hipFree);
 
 std::string hip_error(int error) { return hipGetErrorString(static_cast<hipError_t>(error)); }
 
-hip_ptr allocate_gpu(std::size_t sz)
+std::size_t get_available_gpu_memory()
 {
-    void* result;
-    auto status = hipMalloc(&result, sz);
+    size_t free, total;
+    auto status = hipMemGetInfo(&free, &total);
     if(status != hipSuccess)
-        MIGRAPH_THROW("Gpu allocation failed: " + hip_error(status));
+        MIGRAPH_THROW("Failed getting available memory: " + hip_error(status));
+    return free;
+}
+
+hip_ptr allocate_gpu(std::size_t sz, bool host=false)
+{
+    if(sz > get_available_gpu_memory())
+        MIGRAPH_THROW("Memory not available to allocate buffer: " + std::to_string(sz));
+    void* result;
+    auto status = host ? hipHostMalloc(&result, sz) : hipMalloc(&result, sz);
+    if(status != hipSuccess) {
+        if (host)
+            MIGRAPH_THROW("Gpu allocation failed: " + hip_error(status));
+        else
+            allocate_gpu(sz, true);
+    }
     return hip_ptr{result};
 }
 
@@ -40,24 +55,24 @@ std::vector<T> read_from_gpu(const void* x, std::size_t sz)
     return result;
 }
 
-hip_ptr write_to_gpu(const void* x, std::size_t sz)
+hip_ptr write_to_gpu(const void* x, std::size_t sz, bool host=false)
 {
-    auto result = allocate_gpu(sz);
+    auto result = allocate_gpu(sz, host);
     auto status = hipMemcpy(result.get(), x, sz, hipMemcpyHostToDevice);
     if(status != hipSuccess)
         MIGRAPH_THROW("Copy to gpu failed: " + hip_error(status));
     return result;
 }
 
-argument allocate_gpu(shape s)
+argument allocate_gpu(shape s, bool host)
 {
-    auto p = share(allocate_gpu(s.bytes() + 1));
+    auto p = share(allocate_gpu(s.bytes() + 1, host));
     return {s, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
 }
 
-argument to_gpu(argument arg)
+argument to_gpu(argument arg, bool host)
 {
-    auto p = share(write_to_gpu(arg.data(), arg.get_shape().bytes()));
+    auto p = share(write_to_gpu(arg.data(), arg.get_shape().bytes(), host));
     return {arg.get_shape(), [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
 }
 

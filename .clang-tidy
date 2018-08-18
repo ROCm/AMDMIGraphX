@@ -1,4 +1,6 @@
-CheckOptions:    
+CheckOptions: 
+  - key:             modernize-loop-convert.MinConfidence
+    value:           risky   
   - key:             modernize-loop-convert.NamingStyle
     value:           lower_case
   - key:             readability-function-size.BranchThreshold

@@ -10,7 +10,7 @@ namespace migraph {
 /// Represents exceptions that can be thrown by migraphlib
 struct exception : std::runtime_error
 {
-    exception(std::string msg = "") : std::runtime_error(msg) {}
+    exception(const std::string& msg = "") : std::runtime_error(msg) {}
 };
 
 /**
@@ -20,7 +20,7 @@ struct exception : std::runtime_error
  * @param message Custom message for the error
  * @return Exceptions
  */
-inline exception make_exception(std::string context, std::string message = "")
+inline exception make_exception(const std::string& context, const std::string& message = "")
 {
     return {context + ": " + message};
 }

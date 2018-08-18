@@ -34,7 +34,7 @@ struct program
     {
         return add_instruction(op, {args...});
     }
-    instruction_ref add_instruction(operation op, std::vector<instruction_ref> args);
+    instruction_ref add_instruction(const operation& op, std::vector<instruction_ref> args);
 
     template <class... Ts>
     instruction_ref insert_instruction(instruction_ref ins, operation op, Ts... args)
@@ -42,7 +42,7 @@ struct program
         return insert_instruction(ins, op, {args...});
     }
     instruction_ref
-    insert_instruction(instruction_ref ins, operation op, std::vector<instruction_ref> args);
+    insert_instruction(instruction_ref ins, const operation& op, std::vector<instruction_ref> args);
 
     template <class... Ts>
     instruction_ref replace_instruction(instruction_ref ins, operation op, Ts... args)
@@ -50,7 +50,7 @@ struct program
         return replace_instruction(ins, op, {args...});
     }
     instruction_ref
-    replace_instruction(instruction_ref ins, operation op, std::vector<instruction_ref> args);
+    replace_instruction(instruction_ref ins, const operation& op, std::vector<instruction_ref> args);
 
     instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
 
@@ -67,7 +67,7 @@ struct program
 
     instruction_ref add_literal(literal l);
 
-    instruction_ref add_outline(shape s);
+    instruction_ref add_outline(const shape& s);
 
     instruction_ref add_parameter(std::string name, shape s);
 

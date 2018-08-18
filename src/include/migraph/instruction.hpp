@@ -8,10 +8,11 @@
 #include <migraph/operation.hpp>
 #include <migraph/erase.hpp>
 #include <string>
+#include <utility>
 
 namespace migraph {
 
-shape compute_shape(operation op, std::vector<instruction_ref> args);
+shape compute_shape(const operation& op, const std::vector<instruction_ref>& args);
 
 struct instruction
 {
@@ -25,14 +26,14 @@ struct instruction
     instruction(literal l) : op(builtin::literal{}), result(l.get_shape()), lit(std::move(l)) {}
 
     // internal
-    void replace(operation o, shape r, std::vector<instruction_ref> args)
+    void replace(operation o, const shape& r, std::vector<instruction_ref> args)
     {
-        op = o;
-        replace(std::move(r));
+        op = std::move(o);
+        replace(r);
         replace(std::move(args));
     }
 
-    void replace(shape r)
+    void replace(const shape& r)
     {
         if(r != result)
         {
@@ -155,7 +156,7 @@ inline void replace_argument(instruction_ref ins, instruction_ref old, instructi
 
 // TODO: Move to a cpp file
 // TODO: Use const ref for vector
-inline shape compute_shape(operation op, std::vector<instruction_ref> args)
+inline shape compute_shape(const operation& op, const std::vector<instruction_ref>& args)
 {
     std::vector<shape> shapes(args.size());
     std::transform(

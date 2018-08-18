@@ -6,7 +6,7 @@ struct sum_op
 {
     std::string name() const { return "sum"; }
     migraph::argument
-    compute(migraph::context&, migraph::shape, std::vector<migraph::argument> args) const
+    compute(migraph::context&, const migraph::shape&, std::vector<migraph::argument> args) const
     {
         migraph::argument result;
         if(args.size() != 2)
@@ -36,7 +36,7 @@ struct minus_op
 {
     std::string name() const { return "minus"; }
     migraph::argument
-    compute(migraph::context&, migraph::shape, std::vector<migraph::argument> args) const
+    compute(migraph::context&, const migraph::shape&, std::vector<migraph::argument> args) const
     {
         migraph::argument result;
         if(args.size() != 2)
@@ -66,7 +66,7 @@ struct pass_op
 {
     std::string name() const { return "pass"; }
     migraph::argument
-    compute(migraph::context&, migraph::shape, std::vector<migraph::argument> args) const
+    compute(migraph::context&, const migraph::shape&, std::vector<migraph::argument> args) const
     {
         if(args.empty())
             return {};
@@ -85,7 +85,7 @@ struct pass_standard_op
 {
     std::string name() const { return "pass"; }
     migraph::argument
-    compute(migraph::context&, migraph::shape, std::vector<migraph::argument> args) const
+    compute(migraph::context&, const migraph::shape&, std::vector<migraph::argument> args) const
     {
         if(args.empty())
             return {};
@@ -109,12 +109,12 @@ struct nop
 {
     std::string name() const { return "nop"; }
     migraph::argument
-    compute(migraph::context&, migraph::shape, std::vector<migraph::argument>) const
+    compute(migraph::context&, const migraph::shape&, const std::vector<migraph::argument>&) const
     {
         return {};
     }
 
-    migraph::shape compute_shape(std::vector<migraph::shape>) const { return {}; }
+    migraph::shape compute_shape(const std::vector<migraph::shape>&) const { return {}; }
 };
 
 inline migraph::literal get_2x2()

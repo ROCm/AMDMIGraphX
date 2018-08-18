@@ -4,6 +4,7 @@
 #include <migraph/shape.hpp>
 #include <migraph/raw_data.hpp>
 #include <functional>
+#include <utility>
 
 namespace migraph {
 
@@ -18,16 +19,16 @@ struct argument : raw_data<argument>
 {
     argument() {}
 
-    argument(shape s) : m_shape(s)
+    argument(const shape& s) : m_shape(s)
     {
         std::vector<char> buffer(s.bytes());
         // TODO: Move vector
         data = [=]() mutable { return buffer.data(); };
     }
 
-    argument(shape s, std::function<char*()> d) : data(d), m_shape(s) {}
+    argument(shape s, std::function<char*()> d) : data(std::move(d)), m_shape(std::move(s)) {}
     template <class T>
-    argument(shape s, T* d) : data([d] { return reinterpret_cast<char*>(d); }), m_shape(s)
+    argument(shape s, T* d) : data([d] { return reinterpret_cast<char*>(d); }), m_shape(std::move(s))
     {
     }
 

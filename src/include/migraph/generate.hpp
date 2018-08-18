@@ -31,7 +31,7 @@ struct xorshf96_generator
 };
 
 template <class T>
-std::vector<T> generate_tensor_data(migraph::shape s, std::mt19937::result_type)
+std::vector<T> generate_tensor_data(const migraph::shape& s, std::mt19937::result_type)
 {
     std::vector<T> result(s.elements());
     std::generate(result.begin(), result.end(), xorshf96_generator<T>{});

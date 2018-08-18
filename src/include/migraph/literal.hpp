@@ -27,26 +27,29 @@ struct literal : raw_data<literal>
     }
 
     template <class T>
-    literal(shape s, const std::vector<T>& x) : buffer(std::make_unique<char[]>(s.bytes())), m_shape(s)
+    literal(shape s, const std::vector<T>& x)
+        : buffer(std::make_unique<char[]>(s.bytes())), m_shape(s)
     {
         static_assert(std::is_trivial<T>{}, "Literals can only be trivial types");
         fill(x.begin(), x.end());
     }
 
     template <class T>
-    literal(shape s, const std::initializer_list<T>& x) : buffer(std::make_unique<char[]>(s.bytes())), m_shape(s)
+    literal(shape s, const std::initializer_list<T>& x)
+        : buffer(std::make_unique<char[]>(s.bytes())), m_shape(s)
     {
         static_assert(std::is_trivial<T>{}, "Literals can only be trivial types");
         fill(x.begin(), x.end());
     }
 
     template <class Iterator>
-    literal(shape s, Iterator start, Iterator end) : buffer(std::make_unique<char[]>(s.bytes())), m_shape(s)
+    literal(shape s, Iterator start, Iterator end)
+        : buffer(std::make_unique<char[]>(s.bytes())), m_shape(s)
     {
         fill(start, end);
     }
 
-    literal(shape s, const char* x) : buffer(std::make_unique<char[]>(s.bytes())), m_shape(s) 
+    literal(shape s, const char* x) : buffer(std::make_unique<char[]>(s.bytes())), m_shape(s)
     {
         std::copy(x, x + s.bytes(), buffer.get());
     }

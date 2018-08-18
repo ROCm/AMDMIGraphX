@@ -6,7 +6,7 @@
 #include "test.hpp"
 
 template <class... Ts>
-void expect_shape(migraph::shape expected, migraph::operation op, Ts... xs)
+void expect_shape(const migraph::shape& expected, const migraph::operation& op, Ts... xs)
 {
     migraph::program p;
     std::vector<migraph::shape> shapes{xs...};
@@ -24,7 +24,7 @@ void expect_shape(migraph::shape expected, migraph::operation op, Ts... xs)
 }
 
 template <class... Ts>
-void throws_shape(migraph::operation op, Ts... xs)
+void throws_shape(const migraph::operation& op, Ts... xs)
 {
     migraph::program p;
     std::vector<migraph::shape> shapes{xs...};
@@ -46,7 +46,7 @@ struct always_false : std::false_type
 };
 
 template <class... Ts>
-void throws_shape(migraph::shape, Ts...)
+void throws_shape(const migraph::shape&, Ts...)
 {
     static_assert(always_false<Ts...>{},
                   "An expected shape should not be passed to throws_shape function");

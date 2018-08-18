@@ -70,7 +70,7 @@ rocm_enable_clang_tidy(
         -modernize-pass-by-value
         -modernize-use-default-member-init
         -modernize-use-transparent-functors
-        -performance-unnecessary-value-param
+        # -performance-unnecessary-value-param
         -readability-braces-around-statements
         -readability-else-after-return
         -readability-named-parameter

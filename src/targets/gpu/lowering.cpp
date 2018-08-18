@@ -12,6 +12,7 @@
 #include <migraph/iterator_for.hpp>
 #include <migraph/gpu/rocblas.hpp>
 #include <migraph/gpu/context.hpp>
+#include <utility>
 
 namespace migraph {
 namespace gpu {
@@ -22,14 +23,14 @@ struct miopen_batch_norm_inference
 
     std::string name() const { return "gpu::batch_norm_inference"; }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(6);
         return op.compute_shape(
             {inputs.at(0), inputs.at(1), inputs.at(2), inputs.at(3), inputs.at(4)});
     }
 
-    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         auto x_desc  = make_tensor(args[0].get_shape());
         auto y_desc  = make_tensor(output_shape);
@@ -63,12 +64,12 @@ struct miopen_convolution
     miopenConvFwdAlgorithm_t algo{};
 
     std::string name() const { return "gpu::convolution"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(4).standard();
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
-    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         auto x_desc = make_tensor(args[0].get_shape());
         auto w_desc = make_tensor(args[1].get_shape());
@@ -91,7 +92,7 @@ struct miopen_convolution
         return args[3];
     }
 
-    shape compile(context& ctx, shape output_shape, std::vector<instruction_ref> inputs)
+    shape compile(context& ctx, const shape& output_shape, std::vector<instruction_ref> inputs)
     {
         shape workspace_shape{};
         auto x_desc = make_tensor(inputs[0]->get_shape());
@@ -136,12 +137,12 @@ struct miopen_pooling
     shared<pooling_descriptor> pd;
 
     std::string name() const { return "gpu::pooling"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(2).standard();
         return op.compute_shape({inputs.at(0)});
     }
-    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         auto x_desc = make_tensor(args[0].get_shape());
         auto y_desc = make_tensor(output_shape);
@@ -167,13 +168,13 @@ struct miopen_pooling
 struct miopen_add
 {
     std::string name() const { return "gpu::add"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(3).not_broadcasted();
         return inputs.at(0);
     }
 
-    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         if(args[1].get_shape().broadcasted())
         {
@@ -214,12 +215,12 @@ struct miopen_gemm
 {
     gemm op;
     std::string name() const { return "gpu::convolution"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(3);
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
-    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         float alpha     = 1.0f;
         float beta      = 0.0f;
@@ -253,14 +254,14 @@ struct miopen_contiguous
 {
     contiguous op;
     std::string name() const { return "gpu::contiguous"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(2);
         return op.compute_shape({inputs.at(0)});
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, const std::vector<argument>& args) const
     {
-        hip_contiguous(output_shape, args.at(0), args.at(1));
+        hip_contiguous(std::move(output_shape), args.at(0), args.at(1));
         return args.at(1);
     }
 };
@@ -269,13 +270,13 @@ struct miopen_relu
 {
     shared<activation_descriptor> ad;
     std::string name() const { return "gpu::relu"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(2).not_broadcasted();
         return inputs.at(1);
     }
 
-    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         float alpha = 1, beta = 0;
         auto x_desc = make_tensor(args[0].get_shape());
@@ -350,7 +351,7 @@ struct miopen_apply
         else
         {
             auto is     = prog->add_outline(s);
-            auto result = prog->insert_instruction(ins, hip_allocate{tag}, is);
+            auto result = prog->insert_instruction(ins, hip_allocate{std::move(tag)}, is);
             return result;
         }
     }

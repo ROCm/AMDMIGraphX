@@ -7,6 +7,7 @@
 #include <migraph/iterator_for.hpp>
 #include <migraph/cpu/gemm.hpp>
 #include <unordered_map>
+#include <utility>
 
 namespace migraph {
 namespace cpu {
@@ -39,9 +40,9 @@ struct cpu_batch_norm_inference
 
     std::string name() const { return "cpu::batch_norm_inference"; }
 
-    shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument output{output_shape};
 
@@ -95,7 +96,7 @@ struct cpu_convolution
     convolution op;
 
     std::string name() const { return "cpu::convolution"; }
-    shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
@@ -161,8 +162,8 @@ struct cpu_pooling
     pooling op;
 
     std::string name() const { return "cpu::pooling_" + Op::name(); }
-    shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
@@ -208,8 +209,8 @@ struct cpu_contiguous
 {
     contiguous op;
     std::string name() const { return "cpu::contiguous"; }
-    shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
@@ -225,9 +226,9 @@ struct cpu_gemm
 {
     gemm op;
     std::string name() const { return "cpu::gemm"; }
-    shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         migemm(result, args[0], args[1], op.alpha, op.beta);
@@ -357,8 +358,8 @@ struct cpu_unary
 {
     Op op;
     std::string name() const { return op.name(); }
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    shape compute_shape(const std::vector<shape>& inputs) const { return inputs.front(); }
+    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         result.visit([&](auto output) {
@@ -373,8 +374,8 @@ struct cpu_unary
 struct softmax2d
 {
     std::string name() const { return "cpu::softmax2d"; }
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    shape compute_shape(const std::vector<shape>& inputs) const { return inputs.front(); }
+    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
@@ -449,8 +450,8 @@ struct cpu_binary
 {
     Op op;
     std::string name() const { return op.name(); }
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    shape compute_shape(const std::vector<shape>& inputs) const { return inputs.front(); }
+    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {

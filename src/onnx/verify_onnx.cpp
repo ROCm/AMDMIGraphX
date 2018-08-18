@@ -7,7 +7,7 @@
 #include <migraph/generate.hpp>
 #include <migraph/verify.hpp>
 
-migraph::argument run_cpu(std::string file)
+migraph::argument run_cpu(const std::string& file)
 {
     auto p = migraph::parse_onnx(file);
     p.compile(migraph::cpu::cpu_target{});
@@ -21,7 +21,7 @@ migraph::argument run_cpu(std::string file)
     return out;
 }
 
-migraph::argument run_gpu(std::string file)
+migraph::argument run_gpu(const std::string& file)
 {
     auto p = migraph::parse_onnx(file);
     p.compile(migraph::gpu::target{});

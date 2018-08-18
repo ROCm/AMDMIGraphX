@@ -7,6 +7,7 @@
 #include <iostream>
 #include <sstream>
 #include <algorithm>
+#include <utility>
 
 namespace migraph {
 
@@ -76,12 +77,12 @@ program::program(program&&) noexcept = default;
 program& program::operator=(program&&) noexcept = default;
 program::~program() noexcept                    = default;
 
-instruction_ref program::add_instruction(operation op, std::vector<instruction_ref> args)
+instruction_ref program::add_instruction(const operation& op, std::vector<instruction_ref> args)
 {
-    return insert_instruction(impl->instructions.end(), std::move(op), std::move(args));
+    return insert_instruction(impl->instructions.end(), op, std::move(args));
 }
 instruction_ref
-program::insert_instruction(instruction_ref ins, operation op, std::vector<instruction_ref> args)
+program::insert_instruction(instruction_ref ins, const operation& op, std::vector<instruction_ref> args)
 {
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
@@ -97,7 +98,7 @@ program::insert_instruction(instruction_ref ins, operation op, std::vector<instr
 }
 
 instruction_ref
-program::replace_instruction(instruction_ref ins, operation op, std::vector<instruction_ref> args)
+program::replace_instruction(instruction_ref ins, const operation& op, std::vector<instruction_ref> args)
 {
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
@@ -168,7 +169,7 @@ instruction_ref program::add_literal(literal l)
     return impl->instructions.begin();
 }
 
-instruction_ref program::add_outline(shape s)
+instruction_ref program::add_outline(const shape& s)
 {
     impl->instructions.push_front({builtin::outline{s}, s, {}});
     return impl->instructions.begin();
@@ -176,7 +177,7 @@ instruction_ref program::add_outline(shape s)
 
 instruction_ref program::add_parameter(std::string name, shape s)
 {
-    impl->instructions.push_front({builtin::param{std::move(name)}, s, {}});
+    impl->instructions.push_front({builtin::param{std::move(name)}, std::move(s), {}});
     return impl->instructions.begin();
 }
 
@@ -317,7 +318,7 @@ argument generic_eval(const program& p,
 
 argument program::eval(std::unordered_map<std::string, argument> params) const
 {
-    return generic_eval(*this, this->impl->ctx, params, [](auto&, auto f) { return f(); });
+    return generic_eval(*this, this->impl->ctx, std::move(params), [](auto&, auto f) { return f(); });
 }
 
 double common_average(const std::vector<double>& v)

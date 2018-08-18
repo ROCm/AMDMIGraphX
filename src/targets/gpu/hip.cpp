@@ -65,7 +65,7 @@ hip_ptr write_to_gpu(const void* x, std::size_t sz, bool host = false)
     return result;
 }
 
-argument allocate_gpu(shape s, bool host)
+argument allocate_gpu(const shape& s, bool host)
 {
     auto p = share(allocate_gpu(s.bytes() + 1, host));
     return {s, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};

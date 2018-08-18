@@ -6,6 +6,7 @@
 #include <migraph/requires.hpp>
 
 #include <iostream>
+#include <utility>
 
 namespace migraph {
 
@@ -14,7 +15,7 @@ struct tensor_view
 {
     using value_type = T;
     tensor_view() : m_data(nullptr) {}
-    tensor_view(shape s, T* d) : m_data(d), m_shape(s) {}
+    tensor_view(shape s, T* d) : m_data(d), m_shape(std::move(s)) {}
 
     const shape& get_shape() const { return this->m_shape; }
 

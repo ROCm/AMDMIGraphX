@@ -151,7 +151,7 @@ struct shape
 
     private:
     std::shared_ptr<const shape_impl> impl;
-    
+
     std::size_t element_space() const;
     std::string type_string() const;
 };

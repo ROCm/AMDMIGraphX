@@ -543,7 +543,10 @@ struct outline
         check_shapes{inputs, *this}.has(0);
         return s;
     }
-    argument compute(context&, const shape&, const std::vector<argument>&) const { return {s, nullptr}; }
+    argument compute(context&, const shape&, const std::vector<argument>&) const
+    {
+        return {s, nullptr};
+    }
 };
 
 } // namespace migraph

@@ -81,8 +81,9 @@ instruction_ref program::add_instruction(const operation& op, std::vector<instru
 {
     return insert_instruction(impl->instructions.end(), op, std::move(args));
 }
-instruction_ref
-program::insert_instruction(instruction_ref ins, const operation& op, std::vector<instruction_ref> args)
+instruction_ref program::insert_instruction(instruction_ref ins,
+                                            const operation& op,
+                                            std::vector<instruction_ref> args)
 {
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
@@ -97,8 +98,9 @@ program::insert_instruction(instruction_ref ins, const operation& op, std::vecto
     return result;
 }
 
-instruction_ref
-program::replace_instruction(instruction_ref ins, const operation& op, std::vector<instruction_ref> args)
+instruction_ref program::replace_instruction(instruction_ref ins,
+                                             const operation& op,
+                                             std::vector<instruction_ref> args)
 {
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
@@ -318,7 +320,8 @@ argument generic_eval(const program& p,
 
 argument program::eval(std::unordered_map<std::string, argument> params) const
 {
-    return generic_eval(*this, this->impl->ctx, std::move(params), [](auto&, auto f) { return f(); });
+    return generic_eval(
+        *this, this->impl->ctx, std::move(params), [](auto&, auto f) { return f(); });
 }
 
 double common_average(const std::vector<double>& v)

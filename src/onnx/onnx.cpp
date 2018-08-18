@@ -129,8 +129,9 @@ struct onnx_parser
         return prog.add_instruction(op, args);
     }
 
-    instruction_ref
-    parse_pooling(const std::string& name, attribute_map attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_pooling(const std::string& name,
+                                  attribute_map attributes,
+                                  std::vector<instruction_ref> args)
     {
         pooling op{name == "MaxPool" ? "max" : "average"};
         if(contains(attributes, "pads"))
@@ -176,8 +177,9 @@ struct onnx_parser
         return prog.add_instruction(flatten{axis}, args[0]);
     }
 
-    instruction_ref
-    parse_constant(const std::string&, attribute_map attributes, const std::vector<instruction_ref>&)
+    instruction_ref parse_constant(const std::string&,
+                                   attribute_map attributes,
+                                   const std::vector<instruction_ref>&)
     {
         literal v = parse_value(attributes.at("value"));
         return prog.add_literal(v);

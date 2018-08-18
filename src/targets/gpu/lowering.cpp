@@ -30,7 +30,8 @@ struct miopen_batch_norm_inference
             {inputs.at(0), inputs.at(1), inputs.at(2), inputs.at(3), inputs.at(4)});
     }
 
-    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         auto x_desc  = make_tensor(args[0].get_shape());
         auto y_desc  = make_tensor(output_shape);
@@ -69,7 +70,8 @@ struct miopen_convolution
         check_shapes{inputs, *this}.has(4).standard();
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
-    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         auto x_desc = make_tensor(args[0].get_shape());
         auto w_desc = make_tensor(args[1].get_shape());
@@ -142,7 +144,8 @@ struct miopen_pooling
         check_shapes{inputs, *this}.has(2).standard();
         return op.compute_shape({inputs.at(0)});
     }
-    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         auto x_desc = make_tensor(args[0].get_shape());
         auto y_desc = make_tensor(output_shape);
@@ -174,7 +177,8 @@ struct miopen_add
         return inputs.at(0);
     }
 
-    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         if(args[1].get_shape().broadcasted())
         {
@@ -220,7 +224,8 @@ struct miopen_gemm
         check_shapes{inputs, *this}.has(3);
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
-    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         float alpha     = 1.0f;
         float beta      = 0.0f;
@@ -276,7 +281,8 @@ struct miopen_relu
         return inputs.at(1);
     }
 
-    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         float alpha = 1, beta = 0;
         auto x_desc = make_tensor(args[0].get_shape());

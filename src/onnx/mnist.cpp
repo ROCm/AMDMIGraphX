@@ -20,7 +20,8 @@ auto reverse_int(unsigned int i)
            (static_cast<unsigned int>(c3) << 8u) + c4;
 };
 
-std::vector<float> read_mnist_images(const std::string& full_path, int& number_of_images, int& image_size)
+std::vector<float>
+read_mnist_images(const std::string& full_path, int& number_of_images, int& image_size)
 {
     using uchar = unsigned char;
 

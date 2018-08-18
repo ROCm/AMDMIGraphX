@@ -56,7 +56,8 @@ auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
 } // namespace operation_stream
 
 template <class T>
-argument compute_op(const T& x, context& ctx, const shape& output_shape, const std::vector<argument>& input)
+argument
+compute_op(const T& x, context& ctx, const shape& output_shape, const std::vector<argument>& input)
 {
     return x.compute(auto_any_cast(ctx), output_shape, input);
 }

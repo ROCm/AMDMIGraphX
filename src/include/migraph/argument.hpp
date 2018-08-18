@@ -28,7 +28,8 @@ struct argument : raw_data<argument>
 
     argument(shape s, std::function<char*()> d) : data(std::move(d)), m_shape(std::move(s)) {}
     template <class T>
-    argument(shape s, T* d) : data([d] { return reinterpret_cast<char*>(d); }), m_shape(std::move(s))
+    argument(shape s, T* d)
+        : data([d] { return reinterpret_cast<char*>(d); }), m_shape(std::move(s))
     {
     }
 

@@ -13,7 +13,10 @@ struct literal
 {
     std::string name() const { return "@literal"; }
     shape compute_shape(const std::vector<shape>&) const { MIGRAPH_THROW("builtin"); }
-    argument compute(context&, const shape&, const std::vector<argument>&) const { MIGRAPH_THROW("builtin"); }
+    argument compute(context&, const shape&, const std::vector<argument>&) const
+    {
+        MIGRAPH_THROW("builtin");
+    }
 };
 
 struct outline
@@ -21,7 +24,10 @@ struct outline
     shape s;
     std::string name() const { return "@outline"; }
     shape compute_shape(const std::vector<shape>&) const { return s; }
-    argument compute(context&, const shape&, const std::vector<argument>&) const { MIGRAPH_THROW("builtin"); }
+    argument compute(context&, const shape&, const std::vector<argument>&) const
+    {
+        MIGRAPH_THROW("builtin");
+    }
 };
 
 struct param
@@ -29,7 +35,10 @@ struct param
     std::string parameter;
     std::string name() const { return "@param"; }
     shape compute_shape(const std::vector<shape>&) const { MIGRAPH_THROW("builtin"); }
-    argument compute(context&, const shape&, const std::vector<argument>&) const { MIGRAPH_THROW("builtin"); }
+    argument compute(context&, const shape&, const std::vector<argument>&) const
+    {
+        MIGRAPH_THROW("builtin");
+    }
     friend std::ostream& operator<<(std::ostream& os, const param& op)
     {
         os << op.name() << ":" << op.parameter;

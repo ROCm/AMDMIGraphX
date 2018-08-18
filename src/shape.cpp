@@ -10,7 +10,6 @@ namespace migraph {
 
 struct shape_impl
 {
-
     static std::shared_ptr<shape_impl> default_shape()
     {
         static std::shared_ptr<shape_impl> result = std::make_shared<shape_impl>();

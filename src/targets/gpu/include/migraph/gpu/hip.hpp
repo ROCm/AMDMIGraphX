@@ -52,14 +52,18 @@ struct hip_sync
     std::string name() const { return "hip::sync"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        if(inputs.empty()) return {};
-        else return inputs.front();
+        if(inputs.empty())
+            return {};
+        else
+            return inputs.front();
     }
     argument compute(context&, const shape&, const std::vector<argument>& args) const
     {
         gpu_sync();
-        if(args.empty()) return {};
-        else return args.front();
+        if(args.empty())
+            return {};
+        else
+            return args.front();
     }
 };
 

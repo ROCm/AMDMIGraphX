@@ -376,13 +376,35 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     double overhead_time          = common_average(overhead_vec);
     double overhead_percent       = overhead_time * 100.0 / total_time;
     double total_instruction_time = 0.0;
-    for(auto&& p : ins_vec)
-        total_instruction_time += common_average(p.second);
+    std::unordered_map<std::string, double> op_times;
+    for(auto&& p : ins_vec) 
+    {
+        double avg = common_average(p.second);
+        op_times[p.first->op.name()] += avg;
+        total_instruction_time += avg;
+    }
     double calculate_overhead_time    = total_time - total_instruction_time;
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
 
     print_program(
-        os, *this, [&](auto ins, auto&&) { os << ": " << common_average(ins_vec[ins]) << "ms"; });
+        os, *this, [&](auto ins, auto&&) 
+        {
+            double avg = common_average(ins_vec[ins]);
+            double percent = std::ceil(100.0 * avg / total_instruction_time);
+            os << ": " << avg << "ms, " << percent << "%";
+        });
+
+    os << std::endl;
+    os << "Summary:" << std::endl;
+    for(auto&& p:op_times)
+    {
+        auto&& name = p.first;
+        double avg = p.second;
+        double percent = std::ceil(100.0 * avg / total_instruction_time);
+        os << name << ": " << avg << "ms, " << percent << "%" << std::endl;
+    }
+
+    os << std::endl;
 
     os << "Rate: " << rate << "/sec" << std::endl;
     os << "Total time: " << total_time << "ms" << std::endl;

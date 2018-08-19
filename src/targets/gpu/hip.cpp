@@ -88,10 +88,7 @@ argument from_gpu(argument arg)
     return result;
 }
 
-void gpu_sync()
-{
-    hipDeviceSynchronize();
-}
+void gpu_sync() { hipDeviceSynchronize(); }
 
 } // namespace gpu
 

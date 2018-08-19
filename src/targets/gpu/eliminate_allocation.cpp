@@ -25,8 +25,8 @@ void eliminate_allocation::apply(program& p) const
     auto mem = p.add_parameter("memory", shape{shape::int8_type, {n}});
     for(auto&& pp : allocs)
     {
-        auto ins = pp.first;
-        auto s = ins->get_shape();
+        auto ins    = pp.first;
+        auto s      = ins->get_shape();
         auto offset = pp.second;
         p.replace_instruction(ins, hip_load{s, offset}, mem);
     }

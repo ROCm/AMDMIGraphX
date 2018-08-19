@@ -330,6 +330,7 @@ struct miopen_apply
                 check_shape(s, apply_batch_norm_inference(it));
             }
         }
+        prog->insert_instruction(prog->end(), hip_sync{}, std::prev(prog->end()));
     }
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")

@@ -13,6 +13,8 @@ migraph::argument to_gpu(migraph::argument arg, bool host = false);
 
 migraph::argument from_gpu(migraph::argument arg);
 
+void gpu_sync();
+
 struct hip_allocate
 {
     std::string tag{};
@@ -41,6 +43,23 @@ struct hip_load
     argument compute(context&, const shape&, const std::vector<argument>& args) const
     {
         return {s, args[0].data() + offset};
+    }
+};
+
+struct hip_sync
+{
+    std::string tag{};
+    std::string name() const { return "hip::sync"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        if(inputs.empty()) return {};
+        else return inputs.front();
+    }
+    argument compute(context&, const shape&, const std::vector<argument>& args) const
+    {
+        gpu_sync();
+        if(args.empty()) return {};
+        else return args.front();
     }
 };
 

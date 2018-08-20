@@ -7,22 +7,23 @@
 
 namespace migraph {
 
-template<class T, MIGRAPH_REQUIRES(std::is_floating_point<T>{})>
+template <class T, MIGRAPH_REQUIRES(std::is_floating_point<T>{})>
 T normalize(T z)
 {
-    if(z == 0) return 0;
+    if(z == 0)
+        return 0;
     return (2.0 / z) - 1.0;
 }
 
-template<class T, MIGRAPH_REQUIRES(std::is_signed<T>{})>
+template <class T, MIGRAPH_REQUIRES(std::is_signed<T>{})>
 T normalize(T z)
 {
-    const auto max = std::numeric_limits<T>::max();
-    const auto half_max = max/2;
+    const auto max      = std::numeric_limits<T>::max();
+    const auto half_max = max / 2;
     return half_max - (z % max);
 }
 
-template<class T, MIGRAPH_REQUIRES(not std::is_signed<T>{} and std::is_integral<T>{})>
+template <class T, MIGRAPH_REQUIRES(not std::is_signed<T>{} and std::is_integral<T>{})>
 T normalize(T z)
 {
     const auto max = std::numeric_limits<T>::max();
@@ -48,7 +49,6 @@ struct xorshf96_generator
         z               = t ^ x ^ y;
 
         return normalize(z);
-
     }
 };
 

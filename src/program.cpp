@@ -331,7 +331,7 @@ double common_average(const std::vector<double>& v)
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
 {
     using milliseconds = std::chrono::duration<double, std::milli>;
-    auto& ctx = this->impl->ctx;
+    auto& ctx          = this->impl->ctx;
     // Run once by itself
     eval(params);
     ctx.finish();
@@ -340,7 +340,10 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     total_vec.reserve(n);
     for(std::size_t i = 0; i < n; i++)
     {
-        total_vec.push_back(time<milliseconds>([&] { eval(params); ctx.finish(); }));
+        total_vec.push_back(time<milliseconds>([&] {
+            eval(params);
+            ctx.finish();
+        }));
     }
     std::sort(total_vec.begin(), total_vec.end());
     std::unordered_map<instruction_ref, std::vector<double>> ins_vec;
@@ -354,7 +357,10 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     {
         generic_eval(*this, ctx, params, [&](auto ins, auto f) {
             argument result;
-            ins_vec[ins].push_back(time<milliseconds>([&] { result = f(); ctx.finish(); }));
+            ins_vec[ins].push_back(time<milliseconds>([&] {
+                result = f();
+                ctx.finish();
+            }));
             return result;
         });
     }
@@ -365,9 +371,8 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     overhead_vec.reserve(n);
     for(std::size_t i = 0; i < n; i++)
     {
-        overhead_vec.push_back(time<milliseconds>([&] {
-            generic_eval(*this, ctx, params, [](auto...) { return argument{}; });
-        }));
+        overhead_vec.push_back(time<milliseconds>(
+            [&] { generic_eval(*this, ctx, params, [](auto...) { return argument{}; }); }));
     }
 
     double total_time             = common_average(total_vec);

@@ -12,10 +12,7 @@ struct context
 {
     shared<miopen_handle> handle;
     shared<rocblas_handle_ptr> rbhandle;
-    void finish() const
-    {
-        gpu_sync();
-    }
+    void finish() const { gpu_sync(); }
 };
 
 } // namespace gpu

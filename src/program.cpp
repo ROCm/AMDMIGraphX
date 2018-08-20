@@ -237,23 +237,21 @@ instruction_ref program::validate() const
                         [&](const instruction& i) { return !i.valid(impl->instructions.begin()); });
 }
 
-void program::compile(const target& t)
+void program::compile(const target& t, tracer trace)
 {
     assert(this->validate() == impl->instructions.end());
     this->impl->ctx = t.get_context();
-    if(enabled(MIGRAPH_TRACE_COMPILE{}))
-        std::cout << *this << std::endl << std::endl;
-    ;
+    if(not trace.enabled() and enabled(MIGRAPH_TRACE_COMPILE{}))
+        trace = tracer{std::cout};
+    trace(*this);
+    trace();
     for(auto&& p : t.get_passes(this->impl->ctx))
     {
-        if(enabled(MIGRAPH_TRACE_COMPILE{}))
-            std::cout << "Pass: " << p.name() << std::endl;
+        trace("Pass: ", p.name());
         p.apply(*this);
-        if(enabled(MIGRAPH_TRACE_COMPILE{}))
-            std::cout << *this << std::endl;
+        trace(*this);
 #ifndef NDEBUG
-        if(enabled(MIGRAPH_TRACE_COMPILE{}))
-            std::cout << "Validate ..." << std::endl;
+        trace("Validate ...");
         auto invalid = this->validate();
         if(invalid != impl->instructions.end())
         {
@@ -261,8 +259,7 @@ void program::compile(const target& t)
             MIGRAPH_THROW(p.name() + " pass produces invalid program at instruction " +
                           std::to_string(index) + ": " + invalid->op.name());
         }
-        if(enabled(MIGRAPH_TRACE_COMPILE{}))
-            std::cout << std::endl;
+        trace();
 #endif
     }
     auto invalid = this->validate();

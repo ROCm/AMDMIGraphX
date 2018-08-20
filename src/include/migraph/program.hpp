@@ -8,6 +8,7 @@
 #include <migraph/builtin.hpp>
 #include <migraph/instruction_ref.hpp>
 #include <migraph/target.hpp>
+#include <migraph/tracer.hpp>
 #include <algorithm>
 #include <iostream>
 
@@ -88,7 +89,7 @@ struct program
 
     instruction_ref validate() const;
 
-    void compile(const target& t);
+    void compile(const target& t, tracer trace = tracer{});
 
     void perf_report(std::ostream& os, std::size_t n, parameter_map params) const;
 

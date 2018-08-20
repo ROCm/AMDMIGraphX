@@ -10,7 +10,7 @@ namespace migraph {
 template <class T>
 struct xorshf96_generator
 {
-    unsigned long max = 31;
+    long max = 16;
     unsigned long x   = 123456789;
     unsigned long y   = 362436069;
     unsigned long z   = 521288629;
@@ -26,7 +26,7 @@ struct xorshf96_generator
         y               = z;
         z               = t ^ x ^ y;
 
-        return z % max;
+        return z % max - (max + 1);
     }
 };
 

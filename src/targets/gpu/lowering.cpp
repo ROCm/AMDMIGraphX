@@ -250,6 +250,8 @@ struct miopen_contiguous
     }
     argument compute(context&, shape output_shape, const std::vector<argument>& args) const
     {
+        assert(output_shape == args[1].get_shape());
+        assert(output_shape.standard());
         hip_contiguous(std::move(output_shape), args.at(0), args.at(1));
         return args.at(1);
     }

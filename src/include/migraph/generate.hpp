@@ -10,10 +10,10 @@ namespace migraph {
 template <class T>
 struct xorshf96_generator
 {
-    long max = 16;
-    unsigned long x   = 123456789;
-    unsigned long y   = 362436069;
-    unsigned long z   = 521288629;
+    long max        = 16;
+    unsigned long x = 123456789;
+    unsigned long y = 362436069;
+    unsigned long z = 521288629;
 
     constexpr T operator()() noexcept
     {

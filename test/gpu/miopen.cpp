@@ -24,16 +24,20 @@
 
 // An improved async, that doesn't block
 template <class Function>
-std::future<typename std::result_of<Function()>::type> detach_async(Function&& f, bool parallel=true)
+std::future<typename std::result_of<Function()>::type> detach_async(Function&& f,
+                                                                    bool parallel = true)
 {
-    if(parallel){   
-    using result_type = typename std::result_of<Function()>::type;
-    std::packaged_task<result_type()> task(std::forward<Function>(f));
-    auto fut = task.get_future();
-    std::thread(std::move(task)).detach();
-    return std::move(fut);
-    } else {
-    return std::async(std::launch::deferred, std::move(f));
+    if(parallel)
+    {
+        using result_type = typename std::result_of<Function()>::type;
+        std::packaged_task<result_type()> task(std::forward<Function>(f));
+        auto fut = task.get_future();
+        std::thread(std::move(task)).detach();
+        return std::move(fut);
+    }
+    else
+    {
+        return std::async(std::launch::deferred, std::move(f));
     }
 }
 
@@ -57,10 +61,10 @@ std::array<std::function<void()>, 2> auto_print::handlers = {};
 void compile_check(migraph::program& p, migraph::target t)
 {
     auto name = t.name();
-    auto s = p.get_shape();
+    auto s    = p.get_shape();
     std::stringstream ss;
     p.compile(std::move(t), migraph::tracer{ss});
-    if(p.get_shape() != s) 
+    if(p.get_shape() != s)
     {
         std::cout << ss.str() << std::endl;
         throw std::runtime_error("Compiling program with " + name + " alters its shape");

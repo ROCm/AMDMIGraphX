@@ -18,7 +18,7 @@ struct requires_enum
 {
     enum e
     {
-        A = 0
+        a = 0
     };
 };
 
@@ -32,14 +32,14 @@ struct requires_enum
 #define MIGRAPH_REQUIRES(...)                                                                       \
     typename migraph::requires_enum<__LINE__>::e MIGRAPH_REQUIRES_CAT(                              \
         PrivateRequires,                                                                            \
-        __LINE__) = migraph::requires_enum<__LINE__>::A,                                            \
+        __LINE__) = migraph::requires_enum<__LINE__>::a,                                            \
         class     = typename std::enable_if<and_<__VA_ARGS__,                                       \
                                              MIGRAPH_REQUIRES_CAT(PrivateRequires, __LINE__) == \
-                                                 migraph::requires_enum<__LINE__>::A>{}>::type
+                                                 migraph::requires_enum<__LINE__>::a>{}>::type
 #else
 #define MIGRAPH_REQUIRES(...)                                             \
     typename migraph::requires_enum<__LINE__>::e MIGRAPH_REQUIRES_CAT(    \
-        PrivateRequires, __LINE__) = migraph::requires_enum<__LINE__>::A, \
+        PrivateRequires, __LINE__) = migraph::requires_enum<__LINE__>::a, \
                          class     = typename std::enable_if<and_<__VA_ARGS__>{}>::type
 #endif
 #endif

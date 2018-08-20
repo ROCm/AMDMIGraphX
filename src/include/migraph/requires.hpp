@@ -28,7 +28,7 @@ struct requires_enum
 #define MIGRAPH_REQUIRES(...) class = void
 #else
 #if 0
-// TODO: This current crashed on clang
+// TODO: This currently crashed on clang
 #define MIGRAPH_REQUIRES(...)                                                                       \
     typename migraph::requires_enum<__LINE__>::e MIGRAPH_REQUIRES_CAT(                              \
         PrivateRequires,                                                                            \

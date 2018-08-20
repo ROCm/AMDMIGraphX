@@ -6,8 +6,7 @@ namespace cpu {
 
 struct context
 {
-    void finish() const
-    {}
+    void finish() const {}
 };
 
 } // namespace cpu

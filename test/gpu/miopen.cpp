@@ -24,13 +24,17 @@
 
 // An improved async, that doesn't block
 template <class Function>
-std::future<typename std::result_of<Function()>::type> detach_async(Function&& f)
+std::future<typename std::result_of<Function()>::type> detach_async(Function&& f, bool parallel=true)
 {
+    if(parallel){   
     using result_type = typename std::result_of<Function()>::type;
     std::packaged_task<result_type()> task(std::forward<Function>(f));
     auto fut = task.get_future();
     std::thread(std::move(task)).detach();
     return std::move(fut);
+    } else {
+    return std::async(std::launch::deferred, std::move(f));
+    }
 }
 
 struct auto_print
@@ -50,13 +54,26 @@ struct auto_print
 };
 std::array<std::function<void()>, 2> auto_print::handlers = {};
 
+void compile_check(migraph::program& p, migraph::target t)
+{
+    auto name = t.name();
+    auto s = p.get_shape();
+    std::stringstream ss;
+    p.compile(std::move(t), migraph::tracer{ss});
+    if(p.get_shape() != s) 
+    {
+        std::cout << ss.str() << std::endl;
+        throw std::runtime_error("Compiling program with " + name + " alters its shape");
+    }
+}
+
 template <class V>
 migraph::argument run_cpu()
 {
     V v;
     auto p = v.create_program();
     auto_print pp{p, 0};
-    p.compile(migraph::cpu::cpu_target{});
+    compile_check(p, migraph::cpu::cpu_target{});
     migraph::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
@@ -71,7 +88,7 @@ migraph::argument run_gpu()
     V v;
     auto p = v.create_program();
     auto_print pp{p, 1};
-    p.compile(migraph::gpu::target{});
+    compile_check(p, migraph::gpu::target{});
 
     migraph::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
@@ -255,6 +272,7 @@ struct test_contiguous
         migraph::shape s{migraph::shape::float_type, {4, 4, 4, 3}, {48, 4, 1, 16}};
         auto x = p.add_parameter("x", s);
         p.add_instruction(migraph::contiguous{}, x);
+        EXPECT(p.get_shape().standard());
         return p;
     }
 };

@@ -212,6 +212,7 @@ struct cpu_contiguous
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
+        assert(output_shape.standard());
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
             shape_for_each(output.get_shape(), [&](const auto& idx) {

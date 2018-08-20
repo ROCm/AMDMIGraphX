@@ -7,36 +7,32 @@ namespace migraph {
 
 struct swallow
 {
-    template<class... Ts>
+    template <class... Ts>
     swallow(Ts&&...)
-    {}
+    {
+    }
 };
 
 struct tracer
 {
-    tracer()
-    {}
+    tracer() {}
 
-    tracer(std::ostream& s) : os(&s)
-    {}
+    tracer(std::ostream& s) : os(&s) {}
 
-    bool enabled() const
-    {
-        return os != nullptr;
-    }
+    bool enabled() const { return os != nullptr; }
 
-    template<class... Ts>
+    template <class... Ts>
     void operator()(const Ts&... xs) const
     {
-        if(os != nullptr) 
+        if(os != nullptr)
         {
             swallow{*os << xs...};
             *os << std::endl;
         }
     }
 
-private:
-    std::ostream * os = nullptr;
+    private:
+    std::ostream* os = nullptr;
 };
 
 } // namespace migraph

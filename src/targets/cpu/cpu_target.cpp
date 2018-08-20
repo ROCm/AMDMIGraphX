@@ -8,7 +8,7 @@ namespace cpu {
 
 std::string cpu_target::name() const { return "cpu"; }
 
-std::vector<pass> cpu_target::get_passes(context&) const
+std::vector<pass> cpu_target::get_passes(migraph::context&) const
 {
     return {auto_contiguous{}, cpu_lowering{}};
 }

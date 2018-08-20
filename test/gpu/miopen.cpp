@@ -127,6 +127,29 @@ void verify_program()
         {
             // TODO: Check for nans
             std::cout << "FAILED: " << migraph::get_type_name<V>() << std::endl;
+            // std::cout << cpu << std::endl;
+            // std::cout << gpu << std::endl;
+            if(migraph::range_zero(cpu))
+                std::cout << "Cpu data is all zeros" << std::endl;
+            if(migraph::range_zero(gpu))
+                std::cout << "Gpu data is all zeros" << std::endl;
+
+            auto idx = migraph::mismatch_idx(cpu, gpu, migraph::float_equal);
+            if(idx < migraph::range_distance(cpu))
+            {
+                std::cout << "Mismatch at " << idx << ": " << cpu[idx] << " != " << gpu[idx]
+                          << std::endl;
+            }
+
+            auto cpu_nan_idx = find_idx(cpu, migraph::not_finite);
+            if(cpu_nan_idx >= 0)
+                std::cout << "Non finite number found in cpu at " << cpu_nan_idx << ": "
+                          << cpu[cpu_nan_idx] << std::endl;
+
+            auto gpu_nan_idx = find_idx(gpu, migraph::not_finite);
+            if(gpu_nan_idx >= 0)
+                std::cout << "Non finite number found in gpu at " << gpu_nan_idx << ": "
+                          << gpu[gpu_nan_idx] << std::endl;
         }
     });
     std::set_terminate(nullptr);

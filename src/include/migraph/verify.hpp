@@ -7,7 +7,7 @@
 #include <iostream>
 #include <numeric>
 
-namespace test {
+namespace migraph {
 
 // Compute the value of a range
 template <class R>
@@ -64,12 +64,6 @@ struct not_finite_fn
     }
 };
 static constexpr not_finite_fn not_finite{};
-
-template <class T, class U>
-T as(T, U x)
-{
-    return x;
-}
 
 struct compare_mag_fn
 {
@@ -172,5 +166,5 @@ bool verify_range(R1&& r1, R2&& r2, double tolerance = 80)
     auto error       = rms_range(r1, r2);
     return error <= threshold;
 }
-} // namespace test
+} // namespace migraph
 #endif

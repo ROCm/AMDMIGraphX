@@ -78,7 +78,7 @@ int main(int argc, char const* argv[])
         std::vector<float> logits;
         result.visit([&](auto output) { logits.assign(output.begin(), output.end()); });
         std::vector<float> probs = softmax(logits);
-        for(auto x : logits)
+        for(auto x : probs)
             std::cout << x << "  ";
         std::cout << std::endl;
         std::cout << std::endl;

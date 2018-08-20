@@ -65,6 +65,7 @@ struct cpu_batch_norm_inference
 
                     dfor(num_batch, num_channels, image_height, image_width)(
                         [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
+                            assert((variance(c) + epsilon) > 0);
                             result(n, c, h, w) = gamma(c) * (buffer(n, c, h, w) - mean(c)) /
                                                      std::sqrt(variance(c) + epsilon) +
                                                  bias(c);
@@ -79,6 +80,7 @@ struct cpu_batch_norm_inference
 
                     dfor(num_batch, num_channels, image_height, image_width)(
                         [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
+                            assert((variance(c, h, w) + epsilon) > 0);
                             result(n, c, h, w) = gamma(c, h, w) *
                                                      (buffer(n, c, h, w) - mean(c, h, w)) /
                                                      std::sqrt(variance(c, h, w) + epsilon) +

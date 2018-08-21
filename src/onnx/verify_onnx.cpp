@@ -41,11 +41,11 @@ int main(int argc, char const* argv[])
     if(argc > 1)
     {
         std::string file = argv[1];
-        auto p = migraph::parse_onnx(file);
+        auto p           = migraph::parse_onnx(file);
         std::cout << p << std::endl;
 
-        auto x           = run_cpu(file);
-        auto y           = run_gpu(file);
+        auto x = run_cpu(file);
+        auto y = run_gpu(file);
         visit_all(x, y)([](auto cpu, auto gpu) {
             if(migraph::verify_range(cpu, gpu, 1))
             {

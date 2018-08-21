@@ -37,7 +37,7 @@ std::future<typename std::result_of<Function()>::type> detach_async(Function&& f
     }
     else
     {
-        return std::async(std::launch::deferred, std::move(f));
+        return std::async(std::launch::deferred, std::forward<Function>(f));
     }
 }
 
@@ -58,12 +58,12 @@ struct auto_print
 };
 std::array<std::function<void()>, 2> auto_print::handlers = {};
 
-void compile_check(migraph::program& p, migraph::target t)
+void compile_check(migraph::program& p, const migraph::target& t)
 {
     auto name = t.name();
     auto s    = p.get_shape();
     std::stringstream ss;
-    p.compile(std::move(t), migraph::tracer{ss});
+    p.compile(t, migraph::tracer{ss});
     if(p.get_shape() != s)
     {
         std::cout << ss.str() << std::endl;

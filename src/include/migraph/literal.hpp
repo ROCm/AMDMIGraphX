@@ -94,7 +94,7 @@ struct literal : raw_data<literal>
     }
 };
 
-template<class F>
+template <class F>
 literal transform(literal l, F f)
 {
     literal result;

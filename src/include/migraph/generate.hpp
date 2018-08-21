@@ -34,9 +34,9 @@ template <class T>
 struct xorshf96_generator
 {
     unsigned long seed = 0;
-    unsigned long x = 123456789;
-    unsigned long y = 362436069;
-    unsigned long z = 521288629 ^ seed;
+    unsigned long x    = 123456789;
+    unsigned long y    = 362436069;
+    unsigned long z    = 521288629 ^ seed;
 
     constexpr T operator()() noexcept
     {

@@ -41,17 +41,22 @@ int main(int argc, char const* argv[])
     if(argc > 1)
     {
         std::string file = argv[1];
+        auto p = migraph::parse_onnx(file);
+        std::cout << p << std::endl;
+
         auto x           = run_cpu(file);
         auto y           = run_gpu(file);
         visit_all(x, y)([](auto cpu, auto gpu) {
-            if(migraph::verify_range(cpu, gpu))
+            if(migraph::verify_range(cpu, gpu, 1))
             {
                 std::cout << "Passed" << std::endl;
             }
             else
             {
                 std::cout << "Not equal" << std::endl;
+                std::cout << "cpu:" << std::endl;
                 std::cout << cpu << std::endl;
+                std::cout << "gpu:" << std::endl;
                 std::cout << gpu << std::endl;
             }
 

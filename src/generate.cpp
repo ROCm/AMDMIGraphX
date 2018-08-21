@@ -27,7 +27,7 @@ literal generate_literal(shape s, unsigned long seed)
 // TODO: Move to literal.cpp
 literal abs(literal l)
 {
-    return transform(l, [](auto x) { return std::fabs(x); });
+    return transform(std::move(l), [](auto x) { return std::fabs(x); });
 }
 
 } // namespace migraph

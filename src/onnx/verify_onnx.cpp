@@ -47,7 +47,7 @@ int main(int argc, char const* argv[])
         auto x = run_cpu(file);
         auto y = run_gpu(file);
         visit_all(x, y)([](auto cpu, auto gpu) {
-            if(migraph::verify_range(cpu, gpu, 1))
+            if(migraph::verify_range(cpu, gpu))
             {
                 std::cout << "Passed" << std::endl;
             }

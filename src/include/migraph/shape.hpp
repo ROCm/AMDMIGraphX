@@ -5,10 +5,13 @@
 #include <cassert>
 #include <ostream>
 #include <numeric>
+#include <memory>
 
 #include <migraph/errors.hpp>
 
 namespace migraph {
+
+struct shape_impl;
 
 struct shape
 {
@@ -136,7 +139,7 @@ struct shape
     template <class Visitor>
     void visit_type(Visitor v) const
     {
-        switch(this->m_type)
+        switch(this->type())
         {
 #define MIGRAPH_SHAPE_VISITOR_CASE(x, t) \
     case x: v(as<t>()); return;
@@ -147,12 +150,8 @@ struct shape
     }
 
     private:
-    type_t m_type;
-    std::vector<std::size_t> m_lens;
-    std::vector<std::size_t> m_strides;
-    bool m_standard;
+    std::shared_ptr<const shape_impl> impl;
 
-    void calculate_strides();
     std::size_t element_space() const;
     std::string type_string() const;
 };

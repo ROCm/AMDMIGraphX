@@ -604,10 +604,8 @@ void transpose_test()
         auto result = p.eval({});
 
         result.visit([&](auto output) {
-            std::vector<size_t> new_lens    = {1, 3, 2, 2};
-            std::vector<size_t> new_strides = {12, 1, 6, 3};
+            std::vector<size_t> new_lens = {1, 3, 2, 2};
             EXPECT(bool{output.get_shape().lens() == new_lens});
-            EXPECT(bool{output.get_shape().strides() == new_strides});
         });
     }
     {

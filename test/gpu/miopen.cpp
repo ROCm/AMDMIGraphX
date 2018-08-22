@@ -104,6 +104,7 @@ void verify_program()
     visit_all(cpu_arg_f.get(), gpu_arg)([](auto cpu, auto gpu) {
         if(not migraph::verify_range(cpu, gpu))
         {
+            // TODO: Check for nans
             std::cout << "FAILED: " << migraph::get_type_name<V>() << std::endl;
         }
     });
@@ -272,6 +273,29 @@ struct test_transpose
     }
 };
 
+struct test_batchnorm_inference_2
+{
+    const size_t width    = 14;
+    const size_t height   = 14;
+    const size_t channels = 256;
+    const size_t batches  = 1;
+
+    migraph::program create_program() const
+    {
+        migraph::program p;
+
+        migraph::shape s{migraph::shape::float_type, {batches, channels, height, width}};
+        migraph::shape vars{migraph::shape::float_type, {channels}};
+        auto x        = p.add_parameter("x", s);
+        auto mean     = p.add_parameter("mean", vars);
+        auto variance = p.add_parameter("variance", vars);
+        auto scale    = p.add_parameter("scale", vars);
+        auto bias     = p.add_parameter("bias", vars);
+        p.add_instruction(migraph::batch_norm_inference{}, x, mean, variance, scale, bias);
+        return p;
+    }
+};
+
 struct test_batchnorm_inference
 {
     const size_t width    = 3;
@@ -309,4 +333,5 @@ int main()
     verify_program<test_contiguous>();
     verify_program<test_transpose>();
     verify_program<test_batchnorm_inference>();
+    verify_program<test_batchnorm_inference_2>();
 }

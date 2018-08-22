@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <functional>
 #include <array>
+#include <utility>
 #include <vector>
 
 #include <migraph/fallthrough.hpp>
@@ -27,7 +28,7 @@ struct unknown
         else
             return input.front();
     }
-    argument compute(context&, shape, std::vector<argument>) const
+    argument compute(context&, const shape&, const std::vector<argument>&) const
     {
         MIGRAPH_THROW("not computable");
     }
@@ -103,7 +104,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_conv(std::string, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         convolution op;
         if(contains(attributes, "pads"))
@@ -128,8 +129,9 @@ struct onnx_parser
         return prog.add_instruction(op, args);
     }
 
-    instruction_ref
-    parse_pooling(std::string name, attribute_map attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_pooling(const std::string& name,
+                                  attribute_map attributes,
+                                  std::vector<instruction_ref> args)
     {
         pooling op{name == "MaxPool" ? "max" : "average"};
         if(contains(attributes, "pads"))
@@ -144,30 +146,11 @@ struct onnx_parser
         {
             copy(attributes["kernel_shape"].ints(), op.lengths.begin());
         }
-        return prog.add_instruction(op, args);
+        return prog.add_instruction(op, std::move(args));
     }
 
     instruction_ref
-    parse_average_pooling(std::string, attribute_map attributes, std::vector<instruction_ref> args)
-    {
-        pooling op{"average"};
-        if(contains(attributes, "pads"))
-        {
-            copy(attributes["pads"].ints(), op.padding.begin());
-        }
-        if(contains(attributes, "strides"))
-        {
-            copy(attributes["strides"].ints(), op.stride.begin());
-        }
-        if(contains(attributes, "kernel_shape"))
-        {
-            copy(attributes["kernel_shape"].ints(), op.lengths.begin());
-        }
-        return prog.add_instruction(op, args);
-    }
-
-    instruction_ref
-    parse_reshape(std::string, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_reshape(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         reshape op;
         if(args.size() == 1)
@@ -184,7 +167,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_flatten(std::string, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_flatten(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         uint64_t axis = 0;
         if(contains(attributes, "axis"))
@@ -194,15 +177,16 @@ struct onnx_parser
         return prog.add_instruction(flatten{axis}, args[0]);
     }
 
-    instruction_ref
-    parse_constant(std::string, attribute_map attributes, std::vector<instruction_ref>)
+    instruction_ref parse_constant(const std::string&,
+                                   attribute_map attributes,
+                                   const std::vector<instruction_ref>&)
     {
         literal v = parse_value(attributes.at("value"));
         return prog.add_literal(v);
     }
 
     instruction_ref
-    parse_gemm(std::string, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_gemm(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         float alpha = 1.0f;
         float beta  = 0.0f;
@@ -238,7 +222,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_batchnorm(std::string, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_batchnorm(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         float epsilon                                 = 1e-5f;
         float momentum                                = 0.9f;
@@ -263,7 +247,7 @@ struct onnx_parser
                           : batch_norm_inference::per_activation;
         }
         batch_norm_inference op{epsilon, momentum, bn_mode, is_test};
-        return prog.add_instruction(op, args);
+        return prog.add_instruction(op, std::move(args));
     }
 
     void parse_from(std::istream& is)
@@ -312,7 +296,7 @@ struct onnx_parser
         }
     }
 
-    void parse_node(std::string name)
+    void parse_node(const std::string& name)
     {
         if(name.empty())
             MIGRAPH_THROW("Onnx node must have a name");

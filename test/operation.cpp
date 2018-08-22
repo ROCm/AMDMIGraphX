@@ -8,12 +8,12 @@ struct simple_operation
 {
     int data = 1;
     std::string name() const { return "simple"; }
-    migraph::shape compute_shape(std::vector<migraph::shape>) const
+    migraph::shape compute_shape(const std::vector<migraph::shape>&) const
     {
         MIGRAPH_THROW("not computable");
     }
     migraph::argument
-    compute(migraph::context&, migraph::shape, std::vector<migraph::argument>) const
+    compute(migraph::context&, const migraph::shape&, const std::vector<migraph::argument>&) const
     {
         MIGRAPH_THROW("not computable");
     }
@@ -27,12 +27,12 @@ struct simple_operation
 struct simple_operation_no_print
 {
     std::string name() const { return "simple"; }
-    migraph::shape compute_shape(std::vector<migraph::shape>) const
+    migraph::shape compute_shape(const std::vector<migraph::shape>&) const
     {
         MIGRAPH_THROW("not computable");
     }
     migraph::argument
-    compute(migraph::context&, migraph::shape, std::vector<migraph::argument>) const
+    compute(migraph::context&, const migraph::shape&, const std::vector<migraph::argument>&) const
     {
         MIGRAPH_THROW("not computable");
     }

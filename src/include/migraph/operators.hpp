@@ -7,12 +7,13 @@
 #include <migraph/stringutils.hpp>
 #include <migraph/streamutils.hpp>
 #include <cmath>
+#include <utility>
 
 namespace migraph {
 
 struct not_computable
 {
-    argument compute(context&, shape, std::vector<argument>) const
+    argument compute(context&, const shape&, const std::vector<argument>&) const
     {
         MIGRAPH_THROW("not computable");
     }
@@ -41,7 +42,7 @@ struct batch_norm_inference
         return inputs.front();
     }
 
-    argument compute(context&, shape, std::vector<argument>) const
+    argument compute(context&, const shape&, const std::vector<argument>&) const
     {
         MIGRAPH_THROW("not computable");
     }
@@ -114,7 +115,7 @@ struct convolution
         }
     }
 
-    argument compute(context&, shape, std::vector<argument>) const
+    argument compute(context&, const shape&, const std::vector<argument>&) const
     {
         MIGRAPH_THROW("not computable");
     }
@@ -145,8 +146,8 @@ struct pooling
         const shape& input = inputs.at(0);
         auto t             = input.type();
 
-        // assert(lengths[0] < (input.lens()[2] + 2 * padding[0]));
-        // assert(lengths[1] < (input.lens()[3] + 2 * padding[1]));
+        assert(lengths[0] <= (input.lens()[2] + 2 * padding[0]));
+        assert(lengths[1] <= (input.lens()[3] + 2 * padding[1]));
 
         return {t,
                 {
@@ -175,7 +176,7 @@ struct pooling
                 }};
     }
 
-    argument compute(context&, shape, std::vector<argument>) const
+    argument compute(context&, const shape&, const std::vector<argument>&) const
     {
         MIGRAPH_THROW("not computable");
     }
@@ -201,7 +202,7 @@ struct activation
         return inputs.front();
     }
 
-    argument compute(context&, shape, std::vector<argument>) const
+    argument compute(context&, const shape&, const std::vector<argument>&) const
     {
         MIGRAPH_THROW("not computable");
     }
@@ -244,7 +245,14 @@ struct transpose
     }
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
-        return {output_shape, std::move(args.front().data)};
+        return {std::move(output_shape), std::move(args.front().data)};
+    }
+    friend std::ostream& operator<<(std::ostream& os, const transpose& op)
+    {
+        os << op.name() << "[";
+        os << "dims={" << stream_range(op.dims) << "}";
+        os << "]";
+        return os;
     }
 };
 
@@ -262,7 +270,7 @@ struct contiguous
         }
         return {t, lens};
     }
-    argument compute(context&, shape, std::vector<argument>) const
+    argument compute(context&, const shape&, const std::vector<argument>&) const
     {
         MIGRAPH_THROW("not computable");
     }
@@ -309,13 +317,13 @@ struct reshape
 
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
-        return {output_shape, std::move(args.front().data)};
+        return {std::move(output_shape), std::move(args.front().data)};
     }
 
     friend std::ostream& operator<<(std::ostream& os, const reshape& op)
     {
         os << op.name() << "[";
-        os << "dims={" << stream_range(op.dims) << "}, ";
+        os << "dims={" << stream_range(op.dims) << "}";
         os << "]";
         return os;
     }
@@ -339,7 +347,7 @@ struct gemm
         return {t, {a.lens()[0], b.lens()[1]}};
     }
 
-    argument compute(context&, shape, std::vector<argument>) const
+    argument compute(context&, const shape&, const std::vector<argument>&) const
     {
         MIGRAPH_THROW("not computable");
     }
@@ -359,7 +367,7 @@ struct unary
         check_shapes{inputs}.has(1);
         return inputs.at(0);
     }
-    argument compute(context&, shape, std::vector<argument>) const
+    argument compute(context&, const shape&, const std::vector<argument>&) const
     {
         MIGRAPH_THROW("not computable");
     }
@@ -439,26 +447,26 @@ struct flatten
         check_shapes{inputs}.has(1);
         auto&& lens = inputs.front().lens();
 
-        if(axis == 0)
-        {
-            return {inputs.at(0).type(), {1, inputs.at(0).elements()}};
-        }
-        else if(axis < lens.size())
-        {
-            auto x = std::accumulate(
-                lens.begin(), lens.begin() + axis, std::size_t{1}, std::multiplies<>{});
-            auto y = std::accumulate(
-                lens.begin() + axis, lens.end(), std::size_t{1}, std::multiplies<>{});
-            return {inputs.at(0).type(), {x, y}};
-        }
-        else
+        if(axis > lens.size())
         {
             MIGRAPH_THROW("axis for flatten must be less than tensor rank");
         }
+        auto x =
+            std::accumulate(lens.begin(), lens.begin() + axis, std::size_t{1}, std::multiplies<>{});
+        auto y =
+            std::accumulate(lens.begin() + axis, lens.end(), std::size_t{1}, std::multiplies<>{});
+        return {inputs.at(0).type(), {x, y}};
     }
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
-        return {output_shape, std::move(args.front().data)};
+        return {std::move(output_shape), std::move(args.front().data)};
+    }
+    friend std::ostream& operator<<(std::ostream& os, const flatten& op)
+    {
+        os << op.name() << "[";
+        os << "axis=" << op.axis;
+        os << "]";
+        return os;
     }
 };
 struct broadcast
@@ -491,7 +499,14 @@ struct broadcast
     }
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
-        return {output_shape, std::move(args.at(1).data)};
+        return {std::move(output_shape), std::move(args.at(1).data)};
+    }
+    friend std::ostream& operator<<(std::ostream& os, const broadcast& op)
+    {
+        os << op.name() << "[";
+        os << "axis=" << op.axis;
+        os << "]";
+        return os;
     }
 };
 
@@ -503,7 +518,7 @@ struct binary
         check_shapes{inputs}.has(2).same_type().same_dims();
         return inputs.at(0);
     }
-    argument compute(context&, shape, std::vector<argument>) const
+    argument compute(context&, const shape&, const std::vector<argument>&) const
     {
         MIGRAPH_THROW("not computable");
     }
@@ -533,12 +548,15 @@ struct outline
 {
     shape s;
     std::string name() const { return "outline"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(0);
         return s;
     }
-    argument compute(context&, shape, std::vector<argument>) const { return {s, nullptr}; }
+    argument compute(context&, const shape&, const std::vector<argument>&) const
+    {
+        return {s, nullptr};
+    }
 };
 
 } // namespace migraph

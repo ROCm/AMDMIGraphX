@@ -61,52 +61,49 @@ int main(int argc, char const* argv[])
     std::cout << prog << std::endl;
     auto imageset = read_cifar10_images(datafile);
 
-    // GPU target
-    prog.compile(migraph::gpu::target{});
-    migraph::program::parameter_map m;
-    auto s = migraph::shape{migraph::shape::float_type, {1, 3, 32, 32}};
-    m["output"] =
-        migraph::gpu::to_gpu(migraph::generate_argument(prog.get_parameter_shape("output")));
-    auto labels = imageset.first;
-    auto input  = imageset.second;
-    auto ptr    = input.data();
-    for(int i = 0; i < 10; i++)
-    {
-        std::cout << "label: " << (uint32_t)labels[i] << "  ---->  ";
-        m["0"]      = migraph::gpu::to_gpu(migraph::argument{s, &ptr[3072 * i]});
-        auto result = migraph::gpu::from_gpu(prog.eval(m));
-        std::vector<float> logits;
-        result.visit([&](auto output) { logits.assign(output.begin(), output.end()); });
-        std::vector<float> probs = softmax(logits);
-        for(auto x : probs)
-            std::cout << x << "  ";
-        std::cout << std::endl;
-        std::cout << std::endl;
-
-        for (int j = 0; j < 10; j++) {
-            std::cout << 255.0*input[i*3072+j] << "    ";
-        }
-        std::cout << std::endl;
-        std::cout << std::endl;
-        std::cout << std::endl;
-    }
-
-    // // // CPU target
-    // prog.compile(migraph::cpu::cpu_target{});
-    // auto s      = migraph::shape{migraph::shape::float_type, {1, 3, 32, 32}};
+    // // GPU target
+    // prog.compile(migraph::gpu::target{});
+    // migraph::program::parameter_map m;
+    // auto s = migraph::shape{migraph::shape::float_type, {1, 3, 32, 32}};
+    // for(auto&& x : prog.get_parameter_shapes())
+    // {
+    //     m[x.first] = migraph::gpu::to_gpu(migraph::generate_argument(x.second));
+    // }
     // auto labels = imageset.first;
     // auto input  = imageset.second;
     // auto ptr    = input.data();
     // for(int i = 0; i < 10; i++)
     // {
     //     std::cout << "label: " << (uint32_t)labels[i] << "  ---->  ";
-    //     auto input3 = migraph::argument{s, &ptr[3072 * i]};
-    //     auto result = prog.eval({{"0", input3}});
+    //     m["0"]      = migraph::gpu::to_gpu(migraph::argument{s, &ptr[3072 * i]});
+    //     auto result = migraph::gpu::from_gpu(prog.eval(m));
     //     std::vector<float> logits;
     //     result.visit([&](auto output) { logits.assign(output.begin(), output.end()); });
     //     std::vector<float> probs = softmax(logits);
     //     for(auto x : logits)
-    //         std::cout << x << "  ";
+    //         //std::cout << x << "  ";
+    //         //std::cout << x << std::endl;
+    //         printf("%10.5e    ", x);
+    //     std::cout << std::endl;
     //     std::cout << std::endl;
     // }
+
+    // // CPU target
+    prog.compile(migraph::cpu::cpu_target{});
+    auto s      = migraph::shape{migraph::shape::float_type, {1, 3, 32, 32}};
+    auto labels = imageset.first;
+    auto input  = imageset.second;
+    auto ptr    = input.data();
+    for(int i = 0; i < 10; i++)
+    {
+        std::cout << "label: " << (uint32_t)labels[i] << "  ---->  ";
+        auto input3 = migraph::argument{s, &ptr[3072 * i]};
+        auto result = prog.eval({{"0", input3}});
+        std::vector<float> logits;
+        result.visit([&](auto output) { logits.assign(output.begin(), output.end()); });
+        std::vector<float> probs = softmax(logits);
+        for(auto x : logits)
+            printf("%10.5e    ", x);
+        std::cout << std::endl;
+    }
 }

@@ -12,6 +12,7 @@
 #include <migraph/iterator_for.hpp>
 #include <migraph/gpu/rocblas.hpp>
 #include <migraph/gpu/context.hpp>
+#include <utility>
 
 namespace migraph {
 namespace gpu {
@@ -22,14 +23,15 @@ struct miopen_batch_norm_inference
 
     std::string name() const { return "gpu::batch_norm_inference"; }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(6);
         return op.compute_shape(
             {inputs.at(0), inputs.at(1), inputs.at(2), inputs.at(3), inputs.at(4)});
     }
 
-    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         auto x_desc  = make_tensor(args[0].get_shape());
         auto y_desc  = make_tensor(output_shape);
@@ -63,12 +65,13 @@ struct miopen_convolution
     miopenConvFwdAlgorithm_t algo{};
 
     std::string name() const { return "gpu::convolution"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(4).standard();
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
-    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         auto x_desc = make_tensor(args[0].get_shape());
         auto w_desc = make_tensor(args[1].get_shape());
@@ -91,7 +94,7 @@ struct miopen_convolution
         return args[3];
     }
 
-    shape compile(context& ctx, shape output_shape, std::vector<instruction_ref> inputs)
+    shape compile(context& ctx, const shape& output_shape, std::vector<instruction_ref> inputs)
     {
         shape workspace_shape{};
         auto x_desc = make_tensor(inputs[0]->get_shape());
@@ -100,7 +103,7 @@ struct miopen_convolution
 
         std::size_t workspace_size = 0;
         miopenConvolutionForwardGetWorkSpaceSize(
-            ctx.handle.get(), x_desc.get(), w_desc.get(), cd.get(), y_desc.get(), &workspace_size);
+            ctx.handle.get(), w_desc.get(), x_desc.get(), cd.get(), y_desc.get(), &workspace_size);
         workspace_shape = shape{shape::int8_type, {workspace_size}};
 
         auto x         = to_gpu(generate_argument(inputs[0]->get_shape()));
@@ -108,7 +111,7 @@ struct miopen_convolution
         auto y         = to_gpu(generate_argument(output_shape));
         auto workspace = allocate_gpu(workspace_shape);
 
-        int algo_count;
+        int algo_count = 1;
         miopenConvAlgoPerf_t perf;
         miopenFindConvolutionForwardAlgorithm(ctx.handle.get(),
                                               x_desc.get(),
@@ -125,7 +128,8 @@ struct miopen_convolution
                                               workspace_size,
                                               false);
         algo = perf.fwd_algo;
-        return workspace_shape;
+        return algo == miopenConvolutionFwdAlgoWinograd ? shape{shape::int8_type, {0}}
+                                                        : workspace_shape;
     }
 };
 
@@ -135,12 +139,13 @@ struct miopen_pooling
     shared<pooling_descriptor> pd;
 
     std::string name() const { return "gpu::pooling"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(2).standard();
         return op.compute_shape({inputs.at(0)});
     }
-    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         auto x_desc = make_tensor(args[0].get_shape());
         auto y_desc = make_tensor(output_shape);
@@ -166,13 +171,14 @@ struct miopen_pooling
 struct miopen_add
 {
     std::string name() const { return "gpu::add"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(3).not_broadcasted();
         return inputs.at(0);
     }
 
-    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         if(args[1].get_shape().broadcasted())
         {
@@ -213,12 +219,13 @@ struct miopen_gemm
 {
     gemm op;
     std::string name() const { return "gpu::convolution"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(3);
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
-    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         float alpha     = 1.0f;
         float beta      = 0.0f;
@@ -252,14 +259,14 @@ struct miopen_contiguous
 {
     contiguous op;
     std::string name() const { return "gpu::contiguous"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(2);
         return op.compute_shape({inputs.at(0)});
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(context&, shape output_shape, const std::vector<argument>& args) const
     {
-        hip_contiguous(output_shape, args.at(0), args.at(1));
+        hip_contiguous(std::move(output_shape), args.at(0), args.at(1));
         return args.at(1);
     }
 };
@@ -268,13 +275,14 @@ struct miopen_relu
 {
     shared<activation_descriptor> ad;
     std::string name() const { return "gpu::relu"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(2).not_broadcasted();
         return inputs.at(1);
     }
 
-    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         float alpha = 1, beta = 0;
         auto x_desc = make_tensor(args[0].get_shape());
@@ -297,42 +305,50 @@ struct miopen_apply
     program* prog = nullptr;
     context ctx{};
 
+    void check_shape(shape x, instruction_ref i)
+    {
+        assert(x == i->get_shape());
+        (void)x;
+        (void)i;
+    }
+
     void apply()
     {
         for(auto it = prog->begin(); it != prog->end(); it++)
         {
+            auto s = it->get_shape();
             if(it->op.name() == "convolution")
             {
-                apply_convolution(it);
+                check_shape(s, apply_convolution(it));
             }
             else if(it->op.name() == "activation")
             {
-                apply_activation(it);
+                check_shape(s, apply_activation(it));
             }
             else if(it->op.name() == "pooling")
             {
-                apply_pooling(it);
+                check_shape(s, apply_pooling(it));
             }
             else if(it->op.name() == "add")
             {
-                apply_add(it);
+                check_shape(s, apply_add(it));
             }
             else if(it->op.name() == "gemm")
             {
-                apply_gemm(it);
+                check_shape(s, apply_gemm(it));
             }
             else if(it->op.name() == "contiguous")
             {
-                apply_contiguous(it);
+                check_shape(s, apply_contiguous(it));
             }
             else if(it->op.name() == "batch_norm_inference")
             {
-                apply_batch_norm_inference(it);
+                check_shape(s, apply_batch_norm_inference(it));
             }
         }
     }
 
-    instruction_ref insert_allocation(instruction_ref ins, const shape& s)
+    instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
     {
         if(ins == --prog->end())
         {
@@ -341,70 +357,71 @@ struct miopen_apply
         else
         {
             auto is     = prog->add_outline(s);
-            auto result = prog->insert_instruction(ins, hip_allocate{}, is);
+            auto result = prog->insert_instruction(ins, hip_allocate{std::move(tag)}, is);
             return result;
         }
     }
 
-    void apply_convolution(instruction_ref ins)
+    instruction_ref apply_convolution(instruction_ref ins)
     {
         auto&& op = any_cast<convolution>(ins->op);
 
         auto conv = miopen_convolution{op, make_conv(op)};
         auto ws   = conv.compile(ctx, ins->result, ins->arguments);
 
-        auto workspace = insert_allocation(ins, ws);
+        auto workspace = insert_allocation(ins, ws, "workspace");
         auto output    = insert_allocation(ins, ins->result);
 
-        prog->replace_instruction(
+        return prog->replace_instruction(
             ins, conv, ins->arguments.at(0), ins->arguments.at(1), workspace, output);
     }
 
-    void apply_pooling(instruction_ref ins)
+    instruction_ref apply_pooling(instruction_ref ins)
     {
         auto&& op   = any_cast<pooling>(ins->op);
         auto pd     = make_pooling(op);
         auto output = insert_allocation(ins, ins->result);
 
-        prog->replace_instruction(
+        return prog->replace_instruction(
             ins, miopen_pooling{op, std::move(pd)}, ins->arguments.at(0), output);
     }
 
-    void apply_activation(instruction_ref ins)
+    instruction_ref apply_activation(instruction_ref ins)
     {
         auto&& op = any_cast<activation>(ins->op);
         auto ad   = make_relu();
         if(op.mode == "relu")
         {
             auto output = insert_allocation(ins, ins->result);
-            prog->replace_instruction(
+            return prog->replace_instruction(
                 ins, miopen_relu{std::move(ad)}, ins->arguments.at(0), output);
         }
+        return ins;
     }
 
-    void apply_add(instruction_ref ins)
+    instruction_ref apply_add(instruction_ref ins)
     {
         auto output = insert_allocation(ins, ins->result);
-        prog->replace_instruction(
+        return prog->replace_instruction(
             ins, miopen_add{}, ins->arguments.at(0), ins->arguments.at(1), output);
     }
 
-    void apply_gemm(instruction_ref ins)
+    instruction_ref apply_gemm(instruction_ref ins)
     {
         auto&& op   = any_cast<gemm>(ins->op);
         auto output = insert_allocation(ins, ins->result);
-        prog->replace_instruction(
+        return prog->replace_instruction(
             ins, miopen_gemm{op}, ins->arguments.at(0), ins->arguments.at(1), output);
     }
 
-    void apply_contiguous(instruction_ref ins)
+    instruction_ref apply_contiguous(instruction_ref ins)
     {
         auto&& op   = any_cast<contiguous>(ins->op);
         auto output = insert_allocation(ins, ins->result);
-        prog->replace_instruction(ins, miopen_contiguous{op}, ins->arguments.at(0), output);
+        return prog->replace_instruction(ins, miopen_contiguous{op}, ins->arguments.at(0), output);
     }
 
-    void apply_batch_norm_inference(instruction_ref ins)
+    instruction_ref apply_batch_norm_inference(instruction_ref ins)
     {
         auto&& op       = any_cast<batch_norm_inference>(ins->op);
         auto output     = insert_allocation(ins, ins->result);
@@ -416,14 +433,14 @@ struct miopen_apply
                        ins->arguments.end(),
                        std::back_inserter(reshapes),
                        [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
-        prog->replace_instruction(ins,
-                                  miopen_batch_norm_inference{op},
-                                  ins->arguments.at(0),
-                                  reshapes[0],
-                                  reshapes[1],
-                                  reshapes[2],
-                                  reshapes[3],
-                                  output);
+        return prog->replace_instruction(ins,
+                                         miopen_batch_norm_inference{op},
+                                         ins->arguments.at(0),
+                                         reshapes[0],
+                                         reshapes[1],
+                                         reshapes[2],
+                                         reshapes[3],
+                                         output);
     }
 };
 

@@ -2,6 +2,7 @@
 #define MIGRAPH_GUARD_INSTRUCTION_REF_HPP
 
 #include <list>
+#include <functional>
 
 namespace migraph {
 

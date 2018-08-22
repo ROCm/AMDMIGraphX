@@ -36,9 +36,7 @@ include(ROCMClangTidy)
 rocm_enable_clang_tidy(
     CHECKS
         *
-        -cert-env33-c
         -android-cloexec-fopen
-        -cert-msc50-cpp
         -clang-analyzer-alpha.core.CastToStruct
         -clang-analyzer-optin.performance.Padding
         -clang-diagnostic-deprecated-declarations
@@ -72,7 +70,6 @@ rocm_enable_clang_tidy(
         -modernize-pass-by-value
         -modernize-use-default-member-init
         -modernize-use-transparent-functors
-        -performance-unnecessary-value-param
         -readability-braces-around-statements
         -readability-else-after-return
         -readability-named-parameter

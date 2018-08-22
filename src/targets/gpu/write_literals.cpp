@@ -30,7 +30,7 @@ void write_literals::apply(program& p) const
     {
         if(ins->op.name() == "@literal")
         {
-            argument a = to_gpu(ins->lit.get_argument());
+            argument a    = to_gpu(ins->lit.get_argument());
             std::size_t n = ctx->literals.size();
             ctx->literals.push_back(a);
             p.replace_instruction(ins, hip_load_literal{a.get_shape(), n});

@@ -48,10 +48,10 @@ struct miopen_batch_norm_inference
                                                  y_desc.get(),
                                                  args[5].implicit(),
                                                  bn_desc.get(),
-                                                 args[3].implicit(),
-                                                 args[4].implicit(),
                                                  args[1].implicit(),
                                                  args[2].implicit(),
+                                                 args[3].implicit(),
+                                                 args[4].implicit(),
                                                  op.epsilon);
 
         return args[5];

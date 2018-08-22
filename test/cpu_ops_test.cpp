@@ -34,7 +34,7 @@ void batch_norm_inference_test()
     auto mean     = p.add_literal(migraph::literal{vars, mean_data});
     auto variance = p.add_literal(migraph::literal{vars, variance_data});
 
-    p.add_instruction(migraph::batch_norm_inference{}, x, mean, variance, scale, bias);
+    p.add_instruction(migraph::batch_norm_inference{}, x, scale, bias, mean, variance);
     p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
 

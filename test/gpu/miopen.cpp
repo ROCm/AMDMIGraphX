@@ -345,11 +345,11 @@ struct test_batchnorm_inference_2
         migraph::shape s{migraph::shape::float_type, {batches, channels, height, width}};
         migraph::shape vars{migraph::shape::float_type, {channels}};
         auto x        = p.add_parameter("x", s);
-        auto mean     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 0)));
-        auto variance = p.add_literal(migraph::abs(migraph::generate_literal(vars, 1)));
-        auto scale    = p.add_literal(migraph::abs(migraph::generate_literal(vars, 2)));
-        auto bias     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 3)));
-        p.add_instruction(migraph::batch_norm_inference{}, x, mean, variance, scale, bias);
+        auto scale    = p.add_literal(migraph::abs(migraph::generate_literal(vars, 1)));
+        auto bias     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 2)));
+        auto mean     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 3)));
+        auto variance = p.add_literal(migraph::abs(migraph::generate_literal(vars, 4)));
+        p.add_instruction(migraph::batch_norm_inference{}, x, scale, bias, mean, variance);
         return p;
     }
 };
@@ -368,11 +368,11 @@ struct test_batchnorm_inference
         migraph::shape s{migraph::shape::float_type, {batches, channels, height, width}};
         migraph::shape vars{migraph::shape::float_type, {channels}};
         auto x        = p.add_parameter("x", s);
-        auto mean     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 0)));
-        auto variance = p.add_literal(migraph::abs(migraph::generate_literal(vars, 1)));
-        auto scale    = p.add_literal(migraph::abs(migraph::generate_literal(vars, 2)));
-        auto bias     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 3)));
-        p.add_instruction(migraph::batch_norm_inference{}, x, mean, variance, scale, bias);
+        auto scale    = p.add_literal(migraph::abs(migraph::generate_literal(vars, 1)));
+        auto bias     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 2)));
+        auto mean     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 3)));
+        auto variance = p.add_literal(migraph::abs(migraph::generate_literal(vars, 4)));
+        p.add_instruction(migraph::batch_norm_inference{}, x, scale, bias, mean, variance);
         return p;
     }
 };
@@ -385,16 +385,16 @@ struct test_conv_bn_relu_pooling
 
         migraph::shape xs{migraph::shape::float_type, {1, 3, 224, 224}};
         migraph::shape ws{migraph::shape::float_type, {64, 3, 7, 7}};
+        migraph::shape vars{migraph::shape::float_type, {64}};
         auto x    = p.add_parameter("x", xs);
         auto w    = p.add_parameter("w", ws);
         auto conv = p.add_instruction(migraph::convolution{{3, 3}, {2, 2}, {1, 1}}, x, w);
-        migraph::shape vars{migraph::shape::float_type, {64}};
-        auto mean     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 0)));
-        auto variance = p.add_literal(migraph::abs(migraph::generate_literal(vars, 1)));
-        auto scale    = p.add_literal(migraph::abs(migraph::generate_literal(vars, 2)));
-        auto bias     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 3)));
+        auto scale    = p.add_literal(migraph::abs(migraph::generate_literal(vars, 1)));
+        auto bias     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 2)));
+        auto mean     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 3)));
+        auto variance = p.add_literal(migraph::abs(migraph::generate_literal(vars, 4)));
         auto bn =
-            p.add_instruction(migraph::batch_norm_inference{}, conv, mean, variance, scale, bias);
+            p.add_instruction(migraph::batch_norm_inference{}, conv, scale, bias, mean, variance);
         auto relu = p.add_instruction(migraph::activation{"relu"}, bn);
         p.add_instruction(migraph::pooling{"average", {1, 1}, {2, 2}, {3, 3}}, relu);
         return p;

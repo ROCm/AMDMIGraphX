@@ -10,7 +10,7 @@ namespace gpu {
 
 struct write_literals
 {
-    context * ctx = nullptr;
+    context* ctx = nullptr;
     std::string name() const { return "gpu::write_literals"; }
 
     void apply(program& p) const;

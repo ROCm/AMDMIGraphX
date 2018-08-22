@@ -48,10 +48,10 @@ struct cpu_batch_norm_inference
 
         double epsilon           = op.epsilon;
         auto input               = args[0];
-        auto mini_batch_mean     = args[1];
-        auto mini_batch_variance = args[2];
-        auto arg_gamma           = args[3];
-        auto arg_bias            = args[4];
+        auto arg_gamma           = args[1];
+        auto arg_bias            = args[2];
+        auto mini_batch_mean     = args[3];
+        auto mini_batch_variance = args[4];
 
         auto num_batch    = output_shape.lens()[0];
         auto num_channels = output_shape.lens()[1];

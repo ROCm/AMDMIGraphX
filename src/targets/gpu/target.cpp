@@ -27,7 +27,7 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
         eliminate_workspace{},
         eliminate_contiguous{},
         dead_code_elimination{},
-        write_literals{},
+        write_literals{&ctx},
         eliminate_allocation{},
         check_context<context>{},
         dead_code_elimination{}

@@ -12,6 +12,7 @@ struct context
 {
     shared<miopen_handle> handle;
     shared<rocblas_handle_ptr> rbhandle;
+    std::vector<argument> literals{};
     void finish() const { gpu_sync(); }
 };
 

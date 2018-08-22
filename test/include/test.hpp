@@ -141,7 +141,7 @@ bool throws(F f)
 }
 
 template <class F, class Exception>
-bool throws(F f, std::string msg = "")
+bool throws(F f, const std::string& msg = "")
 {
     try
     {

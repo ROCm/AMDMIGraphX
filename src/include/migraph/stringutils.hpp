@@ -29,7 +29,7 @@ inline bool ends_with(const std::string& value, const std::string& suffix)
 }
 
 template <class Strings>
-inline std::string join_strings(Strings strings, std::string delim)
+inline std::string join_strings(Strings strings, const std::string& delim)
 {
     auto it = strings.begin();
     if(it == strings.end())
@@ -57,7 +57,7 @@ inline bool starts_with(const std::string& value, const std::string& prefix)
         return std::equal(prefix.begin(), prefix.end(), value.begin());
 }
 
-inline std::string remove_prefix(std::string s, std::string prefix)
+inline std::string remove_prefix(std::string s, const std::string& prefix)
 {
     if(starts_with(s, prefix))
         return s.substr(prefix.length());

@@ -5,10 +5,11 @@
 #include <migraph/iterator_for.hpp>
 #include <migraph/ranges.hpp>
 #include <migraph/stringutils.hpp>
+#include <utility>
 
 namespace migraph {
 
-bool try_compute_shape(operation op, std::vector<instruction_ref> args)
+bool try_compute_shape(const operation& op, const std::vector<instruction_ref>& args)
 {
     try
     {

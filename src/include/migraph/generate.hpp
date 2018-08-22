@@ -30,18 +30,14 @@ constexpr T normalize(unsigned long z)
     return z % max;
 }
 
-
-
 template <class T>
 struct xorshf96_generator
 {
-    unsigned long x    = 123456789;
-    unsigned long y    = 362436069;
+    unsigned long x = 123456789;
+    unsigned long y = 362436069;
     unsigned long z;
 
-    xorshf96_generator(unsigned long seed = 0)
-    : z(521288629ULL ^ seed)
-    {}
+    xorshf96_generator(unsigned long seed = 0) : z(521288629ULL ^ seed) {}
 
     constexpr T operator()() noexcept
     {

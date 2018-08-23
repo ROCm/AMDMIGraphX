@@ -17,12 +17,16 @@ namespace migraph {
 /// during `eval`.
 struct context
 {
+    /// Wait for any tasks in the context to complete
+    void finish() const;
 };
 
 #else
 
 <%
-interface('context')
+interface('context',
+    virtual('finish', returns='void', const=True)
+)
 %>
 
 #endif

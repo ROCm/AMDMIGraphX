@@ -7,6 +7,8 @@
 #include <iostream>
 #include <numeric>
 
+#include <migraph/float_equal.hpp>
+
 namespace migraph {
 
 // Compute the value of a range
@@ -101,7 +103,7 @@ auto range_distance(R1&& r1)
 template <class R1>
 bool range_zero(R1&& r1)
 {
-    return std::all_of(r1.begin(), r1.end(), [](auto x) { return x == 0; });
+    return std::all_of(r1.begin(), r1.end(), [](auto x) { return float_equal(x, 0); });
 }
 
 template <class R1, class R2, class T, class Reducer, class Product>

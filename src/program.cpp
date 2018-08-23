@@ -237,23 +237,21 @@ instruction_ref program::validate() const
                         [&](const instruction& i) { return !i.valid(impl->instructions.begin()); });
 }
 
-void program::compile(const target& t)
+void program::compile(const target& t, tracer trace)
 {
     assert(this->validate() == impl->instructions.end());
     this->impl->ctx = t.get_context();
-    if(enabled(MIGRAPH_TRACE_COMPILE{}))
-        std::cout << *this << std::endl << std::endl;
-    ;
+    if(not trace.enabled() and enabled(MIGRAPH_TRACE_COMPILE{}))
+        trace = tracer{std::cout};
+    trace(*this);
+    trace();
     for(auto&& p : t.get_passes(this->impl->ctx))
     {
-        if(enabled(MIGRAPH_TRACE_COMPILE{}))
-            std::cout << "Pass: " << p.name() << std::endl;
+        trace("Pass: ", p.name());
         p.apply(*this);
-        if(enabled(MIGRAPH_TRACE_COMPILE{}))
-            std::cout << *this << std::endl;
+        trace(*this);
 #ifndef NDEBUG
-        if(enabled(MIGRAPH_TRACE_COMPILE{}))
-            std::cout << "Validate ..." << std::endl;
+        trace("Validate ...");
         auto invalid = this->validate();
         if(invalid != impl->instructions.end())
         {
@@ -261,8 +259,7 @@ void program::compile(const target& t)
             MIGRAPH_THROW(p.name() + " pass produces invalid program at instruction " +
                           std::to_string(index) + ": " + invalid->op.name());
         }
-        if(enabled(MIGRAPH_TRACE_COMPILE{}))
-            std::cout << std::endl;
+        trace();
 #endif
     }
     auto invalid = this->validate();
@@ -334,28 +331,36 @@ double common_average(const std::vector<double>& v)
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
 {
     using milliseconds = std::chrono::duration<double, std::milli>;
+    auto& ctx          = this->impl->ctx;
     // Run once by itself
     eval(params);
+    ctx.finish();
     // Run and time entire program
     std::vector<double> total_vec;
     total_vec.reserve(n);
     for(std::size_t i = 0; i < n; i++)
     {
-        total_vec.push_back(time<milliseconds>([&] { eval(params); }));
+        total_vec.push_back(time<milliseconds>([&] {
+            eval(params);
+            ctx.finish();
+        }));
     }
     std::sort(total_vec.begin(), total_vec.end());
     std::unordered_map<instruction_ref, std::vector<double>> ins_vec;
     // Fill the map
-    generic_eval(*this, this->impl->ctx, params, [&](auto ins, auto) {
+    generic_eval(*this, ctx, params, [&](auto ins, auto) {
         ins_vec[ins].reserve(n);
         return argument{};
     });
     // Run and time each instruction
     for(std::size_t i = 0; i < n; i++)
     {
-        generic_eval(*this, this->impl->ctx, params, [&](auto ins, auto f) {
+        generic_eval(*this, ctx, params, [&](auto ins, auto f) {
             argument result;
-            ins_vec[ins].push_back(time<milliseconds>([&] { result = f(); }));
+            ins_vec[ins].push_back(time<milliseconds>([&] {
+                result = f();
+                ctx.finish();
+            }));
             return result;
         });
     }
@@ -366,9 +371,8 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     overhead_vec.reserve(n);
     for(std::size_t i = 0; i < n; i++)
     {
-        overhead_vec.push_back(time<milliseconds>([&] {
-            generic_eval(*this, this->impl->ctx, params, [](auto...) { return argument{}; });
-        }));
+        overhead_vec.push_back(time<milliseconds>(
+            [&] { generic_eval(*this, ctx, params, [](auto...) { return argument{}; }); }));
     }
 
     double total_time             = common_average(total_vec);
@@ -376,13 +380,33 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     double overhead_time          = common_average(overhead_vec);
     double overhead_percent       = overhead_time * 100.0 / total_time;
     double total_instruction_time = 0.0;
+    std::unordered_map<std::string, double> op_times;
     for(auto&& p : ins_vec)
-        total_instruction_time += common_average(p.second);
+    {
+        double avg = common_average(p.second);
+        op_times[p.first->op.name()] += avg;
+        total_instruction_time += avg;
+    }
     double calculate_overhead_time    = total_time - total_instruction_time;
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
 
-    print_program(
-        os, *this, [&](auto ins, auto&&) { os << ": " << common_average(ins_vec[ins]) << "ms"; });
+    print_program(os, *this, [&](auto ins, auto&&) {
+        double avg     = common_average(ins_vec[ins]);
+        double percent = std::ceil(100.0 * avg / total_instruction_time);
+        os << ": " << avg << "ms, " << percent << "%";
+    });
+
+    os << std::endl;
+    os << "Summary:" << std::endl;
+    for(auto&& p : op_times)
+    {
+        auto&& name    = p.first;
+        double avg     = p.second;
+        double percent = std::ceil(100.0 * avg / total_instruction_time);
+        os << name << ": " << avg << "ms, " << percent << "%" << std::endl;
+    }
+
+    os << std::endl;
 
     os << "Rate: " << rate << "/sec" << std::endl;
     os << "Total time: " << total_time << "ms" << std::endl;

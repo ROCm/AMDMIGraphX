@@ -16,8 +16,8 @@ void dead_code_elimination::apply(program& p) const
         if(ins == p.begin())
             continue;
         const auto i = std::prev(ins);
-        // Skip instruction with empty shape as output
-        if(i->result.elements() == 0)
+        // Skip instruction with empty shape as output unless its a builtin
+        if(i->result.elements() == 0 and not(i->op.name().front() == '@'))
             continue;
         // Skip the last instruction
         if(i == last)

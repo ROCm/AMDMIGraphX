@@ -18,6 +18,7 @@ target_link_libraries(migraph_device migraph hip::device)
 target_include_directories(migraph_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
 add_library(migraph_gpu
+    eliminate_allocation.cpp
     eliminate_workspace.cpp
     hip.cpp
     target.cpp

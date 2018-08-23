@@ -61,7 +61,7 @@ void pytorch_conv_bn_relu_maxpool()
     EXPECT(p == prog);
 }
 
-void pytorch_conv_relu_maxpoolX2()
+void pytorch_conv_relu_maxpool_x2()
 {
     migraph::program p;
     auto l0       = p.add_parameter("0", {migraph::shape::float_type, {1, 3, 32, 32}});
@@ -92,5 +92,5 @@ int main()
     pytorch_conv_bias_test();
     pytorch_conv_relu_maxpool();
     pytorch_conv_bn_relu_maxpool();
-    pytorch_conv_relu_maxpoolX2();
+    pytorch_conv_relu_maxpool_x2();
 }

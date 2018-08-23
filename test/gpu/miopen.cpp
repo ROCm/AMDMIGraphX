@@ -24,17 +24,44 @@
 
 // An improved async, that doesn't block
 template <class Function>
-std::future<typename std::result_of<Function()>::type> detach_async(Function&& f)
+std::future<typename std::result_of<Function()>::type> detach_async(Function&& f,
+                                                                    bool parallel = true)
 {
-    using result_type = typename std::result_of<Function()>::type;
-    std::packaged_task<result_type()> task(std::forward<Function>(f));
-    auto fut = task.get_future();
-    std::thread(std::move(task)).detach();
-    return std::move(fut);
+    if(parallel)
+    {
+        using result_type = typename std::result_of<Function()>::type;
+        std::packaged_task<result_type()> task(std::forward<Function>(f));
+        auto fut = task.get_future();
+        std::thread(std::move(task)).detach();
+        return std::move(fut);
+    }
+    else
+    {
+        return std::async(std::launch::deferred, std::forward<Function>(f));
+    }
 }
 
 struct auto_print
 {
+    static void set_terminate_handler(const std::string& name)
+    {
+        static std::string pname;
+        pname = name;
+        std::set_terminate(+[] {
+            std::cout << "FAILED: " << pname << std::endl;
+            try
+            {
+                std::rethrow_exception(std::current_exception());
+            }
+            catch(const std::exception& e)
+            {
+                std::cout << "    what(): " << e.what() << std::endl;
+            }
+            std::cout << std::endl;
+            for(auto&& handle : auto_print::handlers)
+                handle();
+        });
+    }
     static std::array<std::function<void()>, 2> handlers;
     int index;
     template <class T>
@@ -50,13 +77,26 @@ struct auto_print
 };
 std::array<std::function<void()>, 2> auto_print::handlers = {};
 
+void compile_check(migraph::program& p, const migraph::target& t)
+{
+    auto name = t.name();
+    auto s    = p.get_shape();
+    std::stringstream ss;
+    p.compile(t, migraph::tracer{ss});
+    if(p.get_shape() != s)
+    {
+        std::cout << ss.str() << std::endl;
+        throw std::runtime_error("Compiling program with " + name + " alters its shape");
+    }
+}
+
 template <class V>
 migraph::argument run_cpu()
 {
     V v;
     auto p = v.create_program();
     auto_print pp{p, 0};
-    p.compile(migraph::cpu::cpu_target{});
+    compile_check(p, migraph::cpu::cpu_target{});
     migraph::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
@@ -71,7 +111,7 @@ migraph::argument run_gpu()
     V v;
     auto p = v.create_program();
     auto_print pp{p, 1};
-    p.compile(migraph::gpu::target{});
+    compile_check(p, migraph::gpu::target{});
 
     migraph::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
@@ -82,32 +122,49 @@ migraph::argument run_gpu()
     return migraph::gpu::from_gpu(p.eval(m));
 }
 
-template <class V>
-void verify_program()
+void verify_args(const std::string& name,
+                 const migraph::argument& cpu_arg,
+                 const migraph::argument& gpu_arg)
 {
-    std::set_terminate(+[] {
-        std::cout << "FAILED: " << migraph::get_type_name<V>() << std::endl;
-        try
-        {
-            std::rethrow_exception(std::current_exception());
-        }
-        catch(const std::exception& e)
-        {
-            std::cout << "    what(): " << e.what() << std::endl;
-        }
-        std::cout << std::endl;
-        for(auto&& handle : auto_print::handlers)
-            handle();
-    });
-    auto cpu_arg_f = detach_async([] { return run_cpu<V>(); });
-    auto gpu_arg   = run_gpu<V>();
-    visit_all(cpu_arg_f.get(), gpu_arg)([](auto cpu, auto gpu) {
+    visit_all(cpu_arg, gpu_arg)([&](auto cpu, auto gpu) {
         if(not migraph::verify_range(cpu, gpu))
         {
             // TODO: Check for nans
-            std::cout << "FAILED: " << migraph::get_type_name<V>() << std::endl;
+            std::cout << "FAILED: " << name << std::endl;
+            // std::cout << cpu << std::endl;
+            // std::cout << gpu << std::endl;
+            if(migraph::range_zero(cpu))
+                std::cout << "Cpu data is all zeros" << std::endl;
+            if(migraph::range_zero(gpu))
+                std::cout << "Gpu data is all zeros" << std::endl;
+
+            auto idx = migraph::mismatch_idx(cpu, gpu, migraph::float_equal);
+            if(idx < migraph::range_distance(cpu))
+            {
+                std::cout << "Mismatch at " << idx << ": " << cpu[idx] << " != " << gpu[idx]
+                          << std::endl;
+            }
+
+            auto cpu_nan_idx = find_idx(cpu, migraph::not_finite);
+            if(cpu_nan_idx >= 0)
+                std::cout << "Non finite number found in cpu at " << cpu_nan_idx << ": "
+                          << cpu[cpu_nan_idx] << std::endl;
+
+            auto gpu_nan_idx = find_idx(gpu, migraph::not_finite);
+            if(gpu_nan_idx >= 0)
+                std::cout << "Non finite number found in gpu at " << gpu_nan_idx << ": "
+                          << gpu[gpu_nan_idx] << std::endl;
         }
     });
+}
+
+template <class V>
+void verify_program()
+{
+    auto_print::set_terminate_handler(migraph::get_type_name<V>());
+    auto cpu_arg_f = detach_async([] { return run_cpu<V>(); });
+    auto gpu_arg   = run_gpu<V>();
+    verify_args(migraph::get_type_name<V>(), cpu_arg_f.get(), gpu_arg);
     std::set_terminate(nullptr);
 }
 
@@ -255,6 +312,7 @@ struct test_contiguous
         migraph::shape s{migraph::shape::float_type, {4, 4, 4, 3}, {48, 4, 1, 16}};
         auto x = p.add_parameter("x", s);
         p.add_instruction(migraph::contiguous{}, x);
+        EXPECT(p.get_shape().standard());
         return p;
     }
 };
@@ -358,4 +416,5 @@ int main()
     verify_program<test_transpose>();
     verify_program<test_batchnorm_inference>();
     verify_program<test_batchnorm_inference_2>();
+    verify_program<test_conv_bn_relu_pooling>();
 }

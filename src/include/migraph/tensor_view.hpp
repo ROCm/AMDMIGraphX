@@ -94,13 +94,13 @@ struct tensor_view
     // TODO: Add iterators so it can handle nonstandard tensors
     T* begin()
     {
-        assert(this->m_shape.standard());
+        assert(this->m_shape.standard() or this->empty());
         return m_data;
     }
 
     T* end()
     {
-        assert(this->m_shape.standard());
+        assert(this->m_shape.standard() or this->empty());
         if(this->empty())
             return m_data;
         else
@@ -109,13 +109,13 @@ struct tensor_view
 
     const T* begin() const
     {
-        assert(this->m_shape.standard());
+        assert(this->m_shape.standard() or this->empty());
         return m_data;
     }
 
     const T* end() const
     {
-        assert(this->m_shape.standard());
+        assert(this->m_shape.standard() or this->empty());
         if(this->empty())
             return m_data;
         else

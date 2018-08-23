@@ -328,9 +328,9 @@ struct test_conv_bn_relu_pooling
         migraph::shape xs{migraph::shape::float_type, {1, 3, 224, 224}};
         migraph::shape ws{migraph::shape::float_type, {64, 3, 7, 7}};
         migraph::shape vars{migraph::shape::float_type, {64}};
-        auto x    = p.add_parameter("x", xs);
-        auto w    = p.add_parameter("w", ws);
-        auto conv = p.add_instruction(migraph::convolution{{3, 3}, {2, 2}, {1, 1}}, x, w);
+        auto x        = p.add_parameter("x", xs);
+        auto w        = p.add_parameter("w", ws);
+        auto conv     = p.add_instruction(migraph::convolution{{3, 3}, {2, 2}, {1, 1}}, x, w);
         auto scale    = p.add_literal(migraph::abs(migraph::generate_literal(vars, 1)));
         auto bias     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 2)));
         auto mean     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 3)));

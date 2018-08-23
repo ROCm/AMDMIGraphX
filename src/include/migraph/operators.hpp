@@ -550,6 +550,31 @@ struct div : binary
     std::string name() const { return "div"; }
 };
 
+struct get_mem_ptr 
+{
+    std::string name() const { return "get_mem_ptr:" + std::to_string(offset); }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        return inputs.at(1);
+    }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const {
+        return {output_shape, args.at(0).data() + offset};
+    }
+    std::size_t offset = 0;
+};
+
+struct write_literal
+{
+    std::string name() const { return "write_literal"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        return inputs.at(2);
+    }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const {
+        assert(false);
+    }
+};        
+
 struct outline
 {
     shape s;

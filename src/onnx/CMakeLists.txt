@@ -21,9 +21,9 @@ add_executable(mnist mnist.cpp)
 rocm_clang_tidy_check(mnist)
 target_link_libraries(mnist migraph_cpu migraph_gpu migraph_onnx)
 
-add_executable(resnet18 resnet18.cpp)
-rocm_clang_tidy_check(resnet18)
-target_link_libraries(resnet18 migraph_cpu migraph_gpu migraph_onnx)
+add_executable(cifar10 cifar10.cpp)
+rocm_clang_tidy_check(cifar10)
+target_link_libraries(cifar10 migraph_cpu migraph_gpu migraph_onnx)
 
 if(MIGRAPH_ENABLE_GPU)
 add_executable(verify_onnx verify_onnx.cpp)

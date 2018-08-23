@@ -94,6 +94,19 @@ struct literal : raw_data<literal>
     }
 };
 
+template <class F>
+literal transform(literal l, F f)
+{
+    literal result;
+    l.visit([&](auto x) {
+        using type = std::remove_cv_t<typename decltype(x)::value_type>;
+        std::vector<type> output(x.size(), 0.0);
+        std::transform(x.begin(), x.end(), output.begin(), f);
+        result = literal{l.get_shape(), output};
+    });
+    return result;
+}
+
 } // namespace migraph
 
 #endif

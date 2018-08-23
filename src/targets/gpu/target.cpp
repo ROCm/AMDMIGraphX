@@ -3,6 +3,7 @@
 #include <migraph/gpu/write_literals.hpp>
 #include <migraph/gpu/context.hpp>
 #include <migraph/gpu/eliminate_workspace.hpp>
+#include <migraph/gpu/eliminate_allocation.hpp>
 #include <migraph/check_context.hpp>
 #include <migraph/auto_contiguous.hpp>
 #include <migraph/dead_code_elimination.hpp>
@@ -18,16 +19,17 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
     // clang-format off
     return
     {
-        //dead_code_elimination{},
+        dead_code_elimination{},
         auto_contiguous{},
-        //simplify_reshapes{},
-        //dead_code_elimination{},
+        simplify_reshapes{},
+        dead_code_elimination{},
         lowering{ctx},
         eliminate_workspace{},
         eliminate_contiguous{},
         dead_code_elimination{},
-        write_literals{},
-        //check_context<context>{},
+        write_literals{&ctx},
+        eliminate_allocation{},
+        check_context<context>{},
         dead_code_elimination{}
     };
     // clang-format on

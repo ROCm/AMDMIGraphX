@@ -2,7 +2,7 @@
 
 namespace migraph {
 
-argument generate_argument(shape s, std::mt19937::result_type seed)
+argument generate_argument(shape s, unsigned long seed)
 {
     argument result;
     s.visit_type([&](auto as) {
@@ -13,7 +13,7 @@ argument generate_argument(shape s, std::mt19937::result_type seed)
     return result;
 }
 
-literal generate_literal(shape s, std::mt19937::result_type seed)
+literal generate_literal(shape s, unsigned long seed)
 {
     literal result;
     s.visit_type([&](auto as) {
@@ -22,6 +22,12 @@ literal generate_literal(shape s, std::mt19937::result_type seed)
         result     = {s, v};
     });
     return result;
+}
+
+// TODO: Move to literal.cpp
+literal abs(literal l)
+{
+    return transform(std::move(l), [](auto x) { return std::fabs(x); });
 }
 
 } // namespace migraph

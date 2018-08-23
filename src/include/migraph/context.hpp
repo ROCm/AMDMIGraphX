@@ -17,19 +17,21 @@ namespace migraph {
 /// during `eval`.
 struct context
 {
+    /// Wait for any tasks in the context to complete
+    void finish() const;
 };
 
 #else
 
 /*
-* Type-erased interface for:
-*
-* struct context
-* {
-
-* };
-*
-*/
+ * Type-erased interface for:
+ *
+ * struct context
+ * {
+ *      void finish() const;
+ * };
+ *
+ */
 
 struct context
 {
@@ -88,12 +90,20 @@ struct context
             return private_detail_te_get_handle().type();
     }
 
+    void finish() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().finish();
+    }
+
     private:
     struct private_detail_te_handle_base_type
     {
         virtual ~private_detail_te_handle_base_type() {}
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
+
+        virtual void finish() const = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -123,6 +133,8 @@ struct context
         }
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
+
+        void finish() const override { return private_detail_te_value.finish(); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };

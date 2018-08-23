@@ -6,50 +6,68 @@ void memory_coloring_impl::run()
     build();
     if (num_of_lives != 0) {
         DEBUG(dump("---Before memory coloring---"));
-        DEBUG(dump());
+        DEBUG(dump(p_program));
         // Coloring
         while (!alloc_queue.empty()) {
             T_live_interval* interval = alloc_queue.top();
             allocate(interval);
             alloc_queue.pop();
         }
-        for (int i = 0; i < num_of_lives; ++i)
+        rewrite();
+        DEBUG(verify());
+        for (int i = 0; i < num_of_lives; ++i) {
             free(live_intervals[i]);
+        }
     }
 }
 
 bool memory_coloring_impl::allocate(T_live_interval* interval)
 {
     shape s = interval->result;
-    int size = s.bytes();
+    std::size_t size = s.bytes();
     std::size_t element_size = size / s.elements();
     T_live_range& segment = interval->segment;
     int vn = segment.vn;
     std::priority_queue<T_live_range*, std::vector<T_live_range*>, ordering> conflict_queue;
+    std::unordered_map<long long, T_live_range*> offset2Live;
+    offset2Live.clear();    
 
     if (conflict_table.find(vn) != conflict_table.end()) {
         std::set<int>& vn_set = conflict_table[vn];
         for (auto iter = vn_set.begin(), end = vn_set.end(); iter != end; ++iter) {
             T_live_range* range = live_ranges[*iter];
-            if (range->offset != -1)
+            long long offset = range->offset;
+            if (offset != InvalidOffset) {
                 conflict_queue.push(range);
+                if (offset2Live.find(offset) == offset2Live.end()) {
+                    offset2Live[offset] = range;
+                } else {
+                    T_live_range* prev = offset2Live[offset];
+                    assert(prev->offset == offset);
+                    if (prev->size < range->size)
+                        offset2Live[offset] = range;
+                }
+            }
         }
     }
 
-    int offset = 0;
+    long long offset = 0;
     while (!conflict_queue.empty()) {
         T_live_range* range = conflict_queue.top();
-        int cur_offset = range->offset;
-        if ((cur_offset > offset) && (cur_offset - offset) >= size) {
-            break;
+        long long cur_offset = range->offset;
+        if (offset2Live[cur_offset] == range) {
+            if ((cur_offset > offset) && (cur_offset - offset) >= size) {
+                break;
+            }
+            offset = cur_offset + range->size;
+            if ((offset % element_size) != 0)
+                offset += (element_size - (offset % element_size));
         }
-        offset = cur_offset + range->size;
-        if ((offset % element_size) != 0)
-            offset += (element_size - (offset % element_size));
         conflict_queue.pop();
     }
     segment.offset = offset;
     DEBUG(segment.dump());
+    required_bytes = std::max(required_bytes, offset + segment.size);
     return true;
 }
 
@@ -62,9 +80,7 @@ void memory_coloring_impl::build()
     instruction_ref iter = std::prev(p_program->end());
     instruction_ref begin = p_program->begin();
     std::vector<instruction_ref> dead_instrs;
-    std::unordered_map<const instruction*, T_live_interval*> instr2Live;
     std::set<int> live_set;
-    T_live_interval* next_def = nullptr;
     // Build live intervals.
     do {
         const instruction* p_iter = &(*iter);
@@ -80,23 +96,25 @@ void memory_coloring_impl::build()
                 alloc_queue.push(def_interval);
                 range.begin = cur_points;
                 range.size = (iter->result).bytes();
-                next_def = def_interval;
                 live_set.erase(range.vn);
             } 
         } else if (!isParam(iter) && !isOutline(iter) && !isCheckContext(iter)) {
             isDead = true;
         }
+        int tieNdx = getInputTieNdx(iter);
         if (!iter->arguments.empty()) {
+            int cnt = -1;
             for (auto&& arg : iter->arguments) {
+                cnt++;
                 if (isParam(arg) || isOutline(arg)) {
                     if (isOutputParam(arg))
                         isDead = false;
                     continue;
                 }
                 const instruction* p_arg = &(*arg);
-                if (isAllocate(arg)) {
-                    // input is from hip::allocate, def is considered as use
-                    // and coalesce the live intervals.
+                if (cnt == tieNdx) {
+                    // input memory is used as this instruction's output.
+                    // def is considered as use. Coalesce the live intervals.
                     def_interval->addUse(cur_points);
                     instr2Live[p_arg] = def_interval;
                 } else if (instr2Live.find(p_arg) == instr2Live.end()) {
@@ -112,10 +130,6 @@ void memory_coloring_impl::build()
                     live_set.insert(max_value_number);
                     live_intervals[id] = interval;
                     live_ranges[max_value_number] = &(interval->segment);
-                    // Keep track of live intervals that are inactive when
-                    // next_def is enqueued.
-                    if (next_def != nullptr)
-                        next_def->inactive_afters.push_back(interval);
                 } else {
                     T_live_interval* interval = instr2Live[p_arg];
                     interval->addUse(cur_points);
@@ -129,11 +143,58 @@ void memory_coloring_impl::build()
         iter = std::prev(iter);
     } while (iter != begin);
 }
+
+void memory_coloring_impl::rewrite()
+{
+    instruction_ref end = p_program->end();
+    instruction_ref scratch_param = end;
+    for (auto ins : iterator_for(*p_program)) {
+        const instruction* p_iter = &(*ins);
+        if (isScratchParam(ins)) {
+            scratch_param = ins;
+            int allocated_bytes = ins->result.bytes();
+            if (allocated_bytes < required_bytes) {
+                std::cout << "required bytes: " << required_bytes << "allocated bytes: " << allocated_bytes << std::endl;
+                throw std::runtime_error("insufficent memory for MIGraph");
+            }
+#ifdef DEBUG_OPT
+            float frac = 1.0 * required_bytes/allocated_bytes*100;
+            std::cout << "memory usage percentage: " << to_string(frac) << "%" << std::endl;
+#endif            
+        }
+        if (instr2Live.find(p_iter) != instr2Live.end()) {
+            T_live_interval* interval = instr2Live[p_iter];
+            if (interval->get_offset() == InvalidOffset) {
+                DEBUG(assert(interval->get_begin() == InvalidOffset));
+                continue;
+            }
+            std::size_t offset = interval->get_offset();
+            if (isAllocate(ins)) {
+                if (scratch_param == end)
+                    throw std::runtime_error("missing scratch parameter");
+                p_program->replace_instruction(ins, get_mem_ptr{offset}, scratch_param, ins->arguments.at(0));
+            } else if (isLiteral(ins)) {
+                if (scratch_param == end)
+                    throw std::runtime_error("missing scratch parameter");
+                auto pre = p_program->add_literal(ins->lit);
+                auto index = p_program->add_literal(offset);
+                p_program->replace_instruction(ins, write_literal{}, scratch_param, index, pre);
+            }
+        }
+    }
+    DEBUG(dump("---After rewrite---"));
+    DEBUG(dump(p_program));
+}
  
 #ifdef DEBUG_OPT
 void memory_coloring_impl::dump(std::string str)
 {
     std::cout << str << std::endl;
+    
+}
+
+void memory_coloring_impl::dump(program* p_program)
+{
     std::cout << *p_program << std::endl;
 }
 
@@ -145,7 +206,7 @@ void memory_coloring_impl::dump()
             T_live_interval* interval = live_intervals[i];
             interval->dump();
         }
-        std::cout << "conflict table:" << std::endl;
+        std::cout << "---conflict table---" << std::endl;
         for (int i = 0; i <= max_value_number; ++i) {
             std::cout << " segment:" << i;
             std::cout << " =>";
@@ -158,15 +219,38 @@ void memory_coloring_impl::dump()
     }
 }
 
+void memory_coloring_impl::verify()
+{
+    if (num_of_lives > 0) {
+        for (int i = 0; i < num_of_lives; ++i) {
+            T_live_interval* interval = live_intervals[i];
+            T_live_range& segment = interval->segment;
+            if (segment.offset == InvalidOffset)
+                continue;
+            int vn = segment.vn;
+            if (conflict_table.find(vn) != conflict_table.end()) {
+                std::set<int>& vn_set = conflict_table[vn];
+                for (auto iter = vn_set.begin(), end = vn_set.end(); iter != end; ++iter) {
+                    T_live_range* range = live_ranges[*iter];
+                    if (range->offset == InvalidOffset)
+                        continue;
+                    if (!isDisjoin(*range, segment))
+                        assert(false);
+                }
+            }
+        }
+    }
+}
+
 #define GET_INS_ENUM(x) (((x) >> 1) - 1)
     
 void live_range::dump()
 {
     std::cout << " segment:" << vn;
     std::cout << " [" << GET_INS_ENUM(begin)  << ", " << GET_INS_ENUM(end) << "]";
-    if (offset != -1) {
+    if (offset != InvalidOffset) {
         std::cout << " mem:";
-        std::cout << " [" << offset << "," << offset + size << "]";
+        std::cout << " [" << offset << "," << offset + size - 1 << "]";
     }
     std::cout << std::endl;
 }
@@ -181,13 +265,6 @@ void live_interval::dump()
         std::cout << " " << GET_INS_ENUM(use) << ",";
     }
 
-    if (!inactive_afters.empty()) {
-        std::cout << " inactivate:";
-        for (auto iter = inactive_afters.begin(), end = inactive_afters.end(); iter != end; ++iter) {
-            T_live_interval*& interval = *iter;
-            std::cout << " " << interval->id << ",";
-        }
-    }
     if (isLiteral)
         std::cout << " literal";
     std::cout << " " << result;

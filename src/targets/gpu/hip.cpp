@@ -18,6 +18,8 @@ hip_ptr allocate_gpu(std::size_t sz)
     hipMalloc(&result, sz);
     if (result == nullptr)
         throw std::runtime_error("can not allocate GPU memory");
+    char * ptr = reinterpret_cast<char*>(result);
+    std::cout << "MIGraph allocated mem: [" << result << "," << ptr + sz -1 << "]" << std::endl;
     return hip_ptr{result};
 }
 
@@ -69,6 +71,11 @@ migraph::argument from_gpu(migraph::argument arg)
     return result;
 }
 
+void copy_to_gpu(char* dst, const char* src, std::size_t size)
+{
+    hipMemcpy(dst, src, size, hipMemcpyHostToDevice);
+}
+    
 } // namespace gpu
 
 } // namespace migraph

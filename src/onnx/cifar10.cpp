@@ -54,7 +54,7 @@ std::vector<float> softmax(std::vector<float> p)
 
 int main(int argc, char const* argv[])
 {
-    if (argc < 4)
+    if(argc < 4)
     {
         throw std::runtime_error("Usage:  cifar10 [gpu | cpu] <onnx file> <cifar10 data file>");
     }
@@ -65,7 +65,7 @@ int main(int argc, char const* argv[])
     std::cout << prog << std::endl;
     auto imageset = read_cifar10_images(datafile);
 
-    if (gpu_cpu == "gpu")
+    if(gpu_cpu == "gpu")
     {
         // GPU target
         prog.compile(migraph::gpu::target{});

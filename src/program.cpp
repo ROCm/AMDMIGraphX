@@ -292,7 +292,6 @@ argument generic_eval(const program& p,
         }
         else if(ins->op.name() == "@param")
         {
-            std::cout << ins->op.name() << std::endl;
             results.emplace(ins, trace(ins, [&] {
                                 return params.at(any_cast<builtin::param>(ins->op).parameter);
                             }));

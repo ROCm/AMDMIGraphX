@@ -42,15 +42,12 @@ auto nary_nonstandard_impl(F f, argument result, Arguments... args)
             });
         });
     });
-    
 }
 
 template <class... Arguments>
 auto nary_nonstandard(argument result, Arguments... args)
 {
-    return [=](auto f) {
-        return nary_nonstandard_impl(f, result, args...);
-    };
+    return [=](auto f) { return nary_nonstandard_impl(f, result, args...); };
 }
 
 template <class... Arguments>

@@ -91,9 +91,9 @@ instruction_ref program::insert_instruction(instruction_ref ins,
     assert(not starts_with(op.name(), "@"));
     // TODO: Use move
     shape r     = compute_shape(op, args);
-    auto result = impl->instructions.insert(ins, {op, r, args});
+    auto result = impl->instructions.insert(ins, {op, r, std::move(args)});
     backreference(result);
-    assert(result->arguments == args);
+    // assert(result->arguments == args);
     assert(result->valid(begin()));
     return result;
 }
@@ -108,7 +108,7 @@ instruction_ref program::replace_instruction(instruction_ref ins,
     assert(not starts_with(op.name(), "@"));
 
     shape r = compute_shape(op, args);
-    ins->replace(op, r, args);
+    ins->replace(op, r, std::move(args));
     backreference(ins);
     assert(ins->valid(begin()));
     return ins;

@@ -150,11 +150,3 @@ test_headers(migraph/cpu ${CMAKE_SOURCE_DIR}/src/targets/cpu/include/migraph/cpu
 if(MIGRAPH_ENABLE_GPU)
 test_headers(migraph/gpu ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraph/gpu/*.hpp)
 endif()
-
-# file(GLOB HEADERS ${CMAKE_SOURCE_DIR}/src/include/migraph/*.hpp)
-# file(GLOB HEADERS ${CMAKE_SOURCE_DIR}/src/targets/cpu/include/migraph/cpu/*.hpp)
-
-# foreach(HEADER ${HEADERS})
-#     get_filename_component(BASE_NAME ${HEADER} NAME_WE)
-#     test_header(header_${BASE_NAME} migraph/${BASE_NAME}.hpp)
-# endforeach()

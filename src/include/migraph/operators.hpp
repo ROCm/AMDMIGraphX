@@ -163,16 +163,6 @@ struct pooling
                         std::ptrdiff_t(std::floor((input.lens()[3] + 2 * padding[1] - lengths[1]) /
                                                   static_cast<float>(stride[1]))) +
                             1)),
-                    // std::size_t(std::max<std::ptrdiff_t>(
-                    //         1,
-                    //         std::ptrdiff_t((input.lens()[2] + 2 * padding[0] - lengths[0]) /
-                    //                                  static_cast<float>(stride[0])) +
-                    //         1)),
-                    // std::size_t(std::max<std::ptrdiff_t>(
-                    //         1,
-                    //         std::ptrdiff_t((input.lens()[3] + 2 * padding[1] - lengths[1]) /
-                    //                                  static_cast<float>(stride[1])) +
-                    //         1)),
                 }};
     }
 

@@ -11,6 +11,8 @@
 #include <migraph/gpu/hip.hpp>
 #include <migraph/generate.hpp>
 
+#include "softmax.h"
+
 auto read_cifar10_images(const std::string& full_path)
 {
     std::ifstream file(full_path, std::ios::binary);
@@ -40,16 +42,6 @@ auto read_cifar10_images(const std::string& full_path)
     {
         throw std::runtime_error("Cannot open file `" + full_path + "`!");
     }
-}
-
-std::vector<float> softmax(std::vector<float> p)
-{
-    size_t n = p.size();
-    std::vector<float> result(n);
-    std::transform(p.begin(), p.end(), result.begin(), [](auto x) { return std::exp(x); });
-    float s = std::accumulate(result.begin(), result.end(), 0.0f, std::plus<float>());
-    std::transform(result.begin(), result.end(), result.begin(), [=](auto x) { return x / s; });
-    return result;
 }
 
 int main(int argc, char const* argv[])
@@ -85,7 +77,7 @@ int main(int argc, char const* argv[])
             auto result = migraph::gpu::from_gpu(prog.eval(m));
             std::vector<float> logits;
             result.visit([&](auto output) { logits.assign(output.begin(), output.end()); });
-            std::vector<float> probs = softmax(logits);
+            std::vector<float> probs = softmax<float>(logits);
             for(auto x : probs)
                 std::cout << x << "    ";
             std::cout << std::endl << std::endl;
@@ -106,7 +98,7 @@ int main(int argc, char const* argv[])
             auto result = prog.eval({{"0", input3}});
             std::vector<float> logits;
             result.visit([&](auto output) { logits.assign(output.begin(), output.end()); });
-            std::vector<float> probs = softmax(logits);
+            std::vector<float> probs = softmax<float>(logits);
             for(auto x : probs)
                 std::cout << x << "    ";
             std::cout << std::endl;

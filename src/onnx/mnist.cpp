@@ -10,6 +10,8 @@
 #include <migraph/gpu/hip.hpp>
 #include <migraph/generate.hpp>
 
+#include "softmax.h"
+
 auto reverse_int(unsigned int i)
 {
     unsigned char c1, c2, c3, c4;
@@ -96,16 +98,6 @@ std::vector<int32_t> read_mnist_labels(const std::string& full_path, int& number
     {
         throw std::runtime_error("Unable to open file `" + full_path + "`!");
     }
-}
-
-std::vector<float> softmax(std::vector<float> p)
-{
-    size_t n = p.size();
-    std::vector<float> result(n);
-    std::transform(p.begin(), p.end(), result.begin(), [](auto x) { return std::exp(x); });
-    float s = std::accumulate(result.begin(), result.end(), 0.0f, std::plus<float>());
-    std::transform(result.begin(), result.end(), result.begin(), [=](auto x) { return x / s; });
-    return result;
 }
 
 int main(int argc, char const* argv[])

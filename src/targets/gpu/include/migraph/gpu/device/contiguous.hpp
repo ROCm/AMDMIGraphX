@@ -7,7 +7,7 @@ namespace migraph {
 namespace gpu {
 namespace device {
 
-void contiguous(argument arg, argument result);
+void contiguous(argument result, argument arg);
 
 } // namespace device
 } // namespace gpu

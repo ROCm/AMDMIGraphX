@@ -60,6 +60,18 @@ bool contains(const std::initializer_list<T>& c, const U& x)
     return generic_find(c, x) != c.end();
 }
 
+template <class C, class Predicate>
+bool all_of(const C& c, const Predicate& p)
+{
+    return std::all_of(c.begin(), c.end(), p);
+}
+
+template <class T, class Predicate>
+bool all_of(const std::initializer_list<T>& c, const Predicate& p)
+{
+    return std::all_of(c.begin(), c.end(), p);
+}
+
 template <class Range, class Iterator>
 void copy(Range&& r, Iterator it)
 {

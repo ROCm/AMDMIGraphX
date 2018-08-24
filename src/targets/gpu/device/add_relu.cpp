@@ -1,13 +1,13 @@
-#include <migraph/gpu/device/contiguous.hpp>
-#include <migraph/gpu/device/binary.hpp>
+#include <migraph/gpu/device/add_relu.hpp>
+#include <migraph/gpu/device/nary.hpp>
 
 namespace migraph {
 namespace gpu {
 namespace device {
 
-void add_relu(argument arg1, argument arg2, argument result)
+void add_relu(argument result, argument arg1, argument arg2)
 {
-    binary_standard(arg1, arg2, result, [](auto x, auto y) { return max(0, x + y); });
+    nary_standard(result, arg1, arg2)([](auto x, auto y) { return max(0, x + y); });
 }
 
 } // namespace device

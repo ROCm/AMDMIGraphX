@@ -8,7 +8,7 @@
 #include <migraph/gpu/miopen.hpp>
 #include <migraph/gpu/hip.hpp>
 #include <migraph/dfor.hpp>
-#include <migraph/gpu/kernels.hpp>
+#include <migraph/gpu/device/contiguous.hpp>
 #include <migraph/iterator_for.hpp>
 #include <migraph/gpu/rocblas.hpp>
 #include <migraph/gpu/context.hpp>
@@ -252,7 +252,7 @@ struct miopen_contiguous
     {
         assert(output_shape == args[1].get_shape());
         assert(output_shape.standard());
-        hip_contiguous(std::move(output_shape), args.at(0), args.at(1));
+        device::contiguous(std::move(output_shape), args.at(0), args.at(1));
         return args.at(1);
     }
 };

@@ -8,7 +8,7 @@ namespace device {
 
 void contiguous(argument result, argument arg)
 {
-    nary_nonstandard(result, arg)([](auto x) { return x; });
+    nary_nonstandard(std::move(result), std::move(arg))([](auto x) { return x; });
 }
 
 } // namespace device

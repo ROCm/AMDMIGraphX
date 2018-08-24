@@ -229,8 +229,8 @@ struct test_add_relu
     migraph::program create_program() const
     {
         migraph::program p;
-        auto x = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
-        auto y = p.add_parameter("y", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+        auto x   = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+        auto y   = p.add_parameter("y", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
         auto add = p.add_instruction(migraph::add{}, x, y);
         p.add_instruction(migraph::activation{"relu"}, add);
         return p;

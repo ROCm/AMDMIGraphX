@@ -15,7 +15,7 @@ struct hip_add_relu
         check_shapes{inputs}.has(3).standard();
         return inputs.front();
     }
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    argument compute(context&, const shape&, const std::vector<argument>& args) const
     {
         device::add_relu(args.at(0), args.at(1), args.at(2));
         return args.at(2);
@@ -24,7 +24,6 @@ struct hip_add_relu
 
 void fuse_ops::apply(program& p) const
 {
-    assert(ctx != nullptr);
     for(auto ins : iterator_for(p))
     {
         if(ins->op.name() != "gpu::relu")

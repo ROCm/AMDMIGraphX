@@ -21,7 +21,7 @@ __global__ void launcher(F f)
     f(idx);
 }
 
-auto launch(std::size_t global, std::size_t local)
+inline auto launch(std::size_t global, std::size_t local)
 {
     return [=](auto f) {
         assert(local > 0);
@@ -33,7 +33,7 @@ auto launch(std::size_t global, std::size_t local)
     };
 }
 
-auto gs_launch(std::size_t n, std::size_t local = 512)
+inline auto gs_launch(std::size_t n, std::size_t local = 512)
 {
     std::size_t groups  = 1 + n / local;
     std::size_t nglobal = std::min<std::size_t>(512, groups) * local;

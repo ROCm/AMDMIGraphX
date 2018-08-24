@@ -1,5 +1,6 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_KERNELS_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_KERNELS_HPP
+
+#ifndef MIGRAPH_GUARD_RTGLIB_DEVICE_ADD_RELU_HPP
+#define MIGRAPH_GUARD_RTGLIB_DEVICE_ADD_RELU_HPP
 
 #include <migraph/argument.hpp>
 
@@ -7,7 +8,7 @@ namespace migraph {
 namespace gpu {
 namespace device {
 
-void contiguous(argument arg, argument result);
+void add_relu(argument arg1, argument arg2, argument result);
 
 } // namespace device
 } // namespace gpu

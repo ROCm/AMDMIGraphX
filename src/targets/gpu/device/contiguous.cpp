@@ -1,14 +1,14 @@
 
 #include <migraph/gpu/device/contiguous.hpp>
-#include <migraph/gpu/device/unary.hpp>
+#include <migraph/gpu/device/nary.hpp>
 
 namespace migraph {
 namespace gpu {
 namespace device {
 
-void contiguous(argument arg, argument result)
+void contiguous(argument result, argument arg)
 {
-    unary_nonstandard(arg, result, [](auto x) { return x; });
+    nary_nonstandard(result, arg)([](auto x) { return x; });
 }
 
 } // namespace device

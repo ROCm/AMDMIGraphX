@@ -34,6 +34,14 @@ auto fix(F f)
     return fix<void>(f);
 }
 
+template<class... Ts>
+auto make_sequence(Ts... xs)
+{
+    return [=](auto f) {
+        return f(xs...);
+    };
+}
+
 } // namespace migraph
 
 #endif

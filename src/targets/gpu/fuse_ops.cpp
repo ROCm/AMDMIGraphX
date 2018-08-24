@@ -17,7 +17,7 @@ struct hip_add_relu
     }
     argument compute(context&, const shape&, const std::vector<argument>& args) const
     {
-        device::add_relu(args.at(0), args.at(1), args.at(2));
+        device::add_relu(args.at(2), args.at(0), args.at(1));
         return args.at(2);
     }
 };

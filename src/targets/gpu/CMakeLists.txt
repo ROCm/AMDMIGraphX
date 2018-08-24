@@ -22,6 +22,7 @@ target_include_directories(migraph_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURR
 add_library(migraph_gpu
     eliminate_allocation.cpp
     eliminate_workspace.cpp
+    fuse_ops.cpp
     hip.cpp
     target.cpp
     lowering.cpp

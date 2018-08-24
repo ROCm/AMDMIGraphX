@@ -1,9 +1,10 @@
 
 #include <hip/hip_runtime.h>
-#include <migraph/operators.hpp>
+#include <migraph/gpu/device/contiguous.hpp>
 
 namespace migraph {
 namespace gpu {
+namespace device {
 
 struct index
 {
@@ -107,7 +108,7 @@ struct hip_tensor_descriptor
     size_t strides[NDim] = {};
 };
 
-void hip_contiguous(migraph::shape output_shape, migraph::argument arg, migraph::argument result)
+void contiguous(shape output_shape, argument arg, argument result)
 {
     visit_all(result, arg)([&](auto output, auto input) {
         visit_tensor_size(output_shape.lens().size(), [&](auto ndim) {
@@ -130,5 +131,6 @@ void hip_contiguous(migraph::shape output_shape, migraph::argument arg, migraph:
         });
     });
 }
+} // namespace device
 } // namespace gpu
 } // namespace migraph

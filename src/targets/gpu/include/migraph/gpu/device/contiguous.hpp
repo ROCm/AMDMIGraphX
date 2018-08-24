@@ -5,11 +5,12 @@
 
 namespace migraph {
 namespace gpu {
+namespace device {
 
-void hip_contiguous(shape output_shape, argument arg, argument result);
+void contiguous(shape output_shape, argument arg, argument result);
 
+} // namespace device
 } // namespace gpu
-
 } // namespace migraph
 
 #endif

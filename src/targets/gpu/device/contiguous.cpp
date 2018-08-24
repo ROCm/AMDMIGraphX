@@ -1,36 +1,10 @@
 
-#include <hip/hip_runtime.h>
 #include <migraph/gpu/device/contiguous.hpp>
+#include <migraph/gpu/device/launch.hpp>
 
 namespace migraph {
 namespace gpu {
 namespace device {
-
-struct index
-{
-    std::size_t global;
-    std::size_t local;
-    std::size_t group;
-};
-
-template <class F>
-__global__ void launcher(F f)
-{
-    index idx{blockIdx.x * blockDim.x + threadIdx.x, threadIdx.x, blockIdx.x};
-    f(idx);
-}
-
-auto launch(std::size_t global, std::size_t local)
-{
-    return [=](auto f) {
-        assert(local > 0);
-        assert(global > 0);
-        using f_type = decltype(f);
-        dim3 nblocks(global / local);
-        dim3 nthreads(local);
-        hipLaunchKernelGGL((launcher<f_type>), nblocks, nthreads, 0, nullptr, f);
-    };
-}
 
 template <class F>
 void visit_tensor_size(std::size_t n, F f)
@@ -86,7 +60,7 @@ struct hip_tensor_descriptor
         for(size_t i = 0; i < NDim; i++)
             strides[i] = strides_ext[i];
     }
-    __device__ __host__ hip_index<NDim> multi(size_t idx)
+    __device__ __host__ hip_index<NDim> multi(size_t idx) const
     {
         hip_index<NDim> result{};
         size_t tidx = idx;
@@ -97,7 +71,7 @@ struct hip_tensor_descriptor
         }
         return result;
     }
-    __device__ __host__ size_t linear(hip_index<NDim> s)
+    __device__ __host__ size_t linear(hip_index<NDim> s) const
     {
         size_t idx = 0;
         for(size_t i = 0; i < NDim; i++)
@@ -117,16 +91,9 @@ void contiguous(shape output_shape, argument arg, argument result)
             hip_tensor_descriptor<ndim> at_desc(output_shape.lens(), output_shape.strides());
             auto* a             = input.data();
             auto* at            = output.data();
-            auto nelements      = s.elements();
-            std::size_t nlocal  = 512;
-            std::size_t nglobal = 512 * nlocal;
-
-            launch(nglobal, nlocal)([=](auto idx) mutable {
-                for(size_t i = idx.global; i < nelements; i += nglobal)
-                {
-                    size_t lidx = a_desc.linear(at_desc.multi(i));
-                    at[i]       = a[lidx];
-                }
+            gs_launch(s.elements())([=](auto i) {
+                size_t lidx = a_desc.linear(at_desc.multi(i));
+                at[i]       = a[lidx];
             });
         });
     });

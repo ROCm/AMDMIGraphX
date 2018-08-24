@@ -89,8 +89,8 @@ void contiguous(shape output_shape, argument arg, argument result)
             const auto& s = arg.get_shape();
             hip_tensor_descriptor<ndim> a_desc(s.lens(), s.strides());
             hip_tensor_descriptor<ndim> at_desc(output_shape.lens(), output_shape.strides());
-            auto* a             = input.data();
-            auto* at            = output.data();
+            auto* a  = input.data();
+            auto* at = output.data();
             gs_launch(s.elements())([=](auto i) {
                 size_t lidx = a_desc.linear(at_desc.multi(i));
                 at[i]       = a[lidx];

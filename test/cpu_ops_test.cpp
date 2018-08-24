@@ -659,7 +659,7 @@ int main()
     gemm_test<double>();
     reshape_test();
     transpose_test();
-    // contiguous_test();
+    contiguous_test();
     softmax_test();
     // maxpool_test();
     conv2d_test();

@@ -224,6 +224,19 @@ struct test_conv_relu
     }
 };
 
+struct test_add_relu
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto x = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+        auto y = p.add_parameter("y", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+        auto add = p.add_instruction(migraph::add{}, x, y);
+        p.add_instruction(migraph::activation{"relu"}, add);
+        return p;
+    }
+};
+
 struct test_conv_pooling
 {
     migraph::program create_program() const
@@ -406,6 +419,7 @@ int main()
     verify_program<test_add>();
     verify_program<test_add_broadcast>();
     verify_program<test_conv_relu>();
+    verify_program<test_add_relu>();
     verify_program<test_conv_pooling>();
     verify_program<test_gemm>();
     // verify_program<test_gemm_ld>();

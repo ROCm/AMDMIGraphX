@@ -11,6 +11,7 @@ if(NOT TARGET MIOpen)
 endif()
 
 add_library(migraph_device 
+    device/add_relu.cpp
     device/contiguous.cpp
 )
 rocm_clang_tidy_check(migraph_device)

@@ -252,7 +252,8 @@ struct miopen_contiguous
     {
         assert(output_shape == args[1].get_shape());
         assert(output_shape.standard());
-        device::contiguous(std::move(output_shape), args.at(0), args.at(1));
+        (void)output_shape;
+        device::contiguous(args.at(0), args.at(1));
         return args.at(1);
     }
 };

@@ -39,6 +39,7 @@ auto nary_nonstandard(argument result, Arguments... args)
 inline auto binary_broadcast(argument result, argument arg1, argument arg2)
 {
     return [=](auto f) {
+        // const auto& output_shape = result.get_shape();
         const auto& b_shape = arg2.get_shape();
         auto bdim           = std::distance(b_shape.strides().begin(),
                                   std::find_if(b_shape.strides().begin(),
@@ -63,13 +64,11 @@ inline auto binary_broadcast(argument result, argument arg1, argument arg2)
                     buffer[i] = yp[i];
                 }
                 __syncthreads();
-                for(size_t i = idx.local; i < bdim_len; i += nlocal)
+                for(size_t i = idx.global; i < n; i += nglobal)
                 {
-                    auto b = buffer[i];
-                    for(size_t j = idx.global; j < n; j += nglobal)
-                    {
-                        outp[j] = f(xp[j], b);
-                    }
+                    auto bidx = i % bdim_len; 
+                    auto b = buffer[bidx];
+                    outp[i] = f(xp[i], b);
                 }
             });
         });

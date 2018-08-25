@@ -210,6 +210,20 @@ struct test_add_broadcast
     }
 };
 
+struct test_add_broadcast2
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {3}};
+        auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 3, 4}});
+        auto y  = p.add_parameter("y", {migraph::shape::float_type, {3}});
+        auto by = p.add_instruction(migraph::broadcast{1}, x, y);
+        p.add_instruction(migraph::add{}, x, by);
+        return p;
+    }
+};
+
 struct test_conv_relu
 {
     migraph::program create_program() const
@@ -418,6 +432,7 @@ int main()
 {
     verify_program<test_add>();
     verify_program<test_add_broadcast>();
+    verify_program<test_add_broadcast2>();
     verify_program<test_conv_relu>();
     verify_program<test_add_relu>();
     verify_program<test_conv_pooling>();

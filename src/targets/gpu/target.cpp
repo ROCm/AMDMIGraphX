@@ -22,13 +22,13 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
     return
     {
         dead_code_elimination{},
+        fwd_conv_batchnorm_rewrite{},
+        dead_code_elimination{},
         auto_contiguous{},
         simplify_reshapes{},
         dead_code_elimination{},
-        fwd_conv_batchnorm_rewrite{},
-        dead_code_elimination{},
         lowering{ctx},
-        fuse_ops{},
+        // fuse_ops{},
         dead_code_elimination{},
         eliminate_workspace{},
         eliminate_contiguous{},

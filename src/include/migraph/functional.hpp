@@ -35,7 +35,7 @@ auto fix(F f)
 }
 
 template <class... Ts>
-auto make_sequence(Ts... xs)
+auto pack(Ts... xs)
 {
     return [=](auto f) { return f(xs...); };
 }

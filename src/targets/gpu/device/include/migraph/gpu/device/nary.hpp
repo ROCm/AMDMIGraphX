@@ -10,18 +10,6 @@ namespace migraph {
 namespace gpu {
 namespace device {
 
-template <class... Arguments>
-auto nary(argument result, Arguments... args)
-{
-    return [=](auto f) {
-        if(all_of({args...}, [](const shape& s) { return s.standard(); }))
-            nary_standard(result, args...)(f);
-        else
-            nary_nonstandard(result, args...)(f);
-
-    };
-}
-
 template <class F, class... Arguments>
 auto nary_nonstandard_impl(F f, argument result, Arguments... args)
 {
@@ -62,6 +50,18 @@ auto nary_standard(argument result, Arguments... args)
             gs_launch(output_shape.elements())(
                 [=](auto i) { data([&](auto... xps) { outp[i] = f(xps[i]...); }); });
         });
+    };
+}
+
+template <class... Arguments>
+auto nary(argument result, Arguments... args)
+{
+    return [=](auto f) {
+        if(all_of({args.get_shape()...}, [](const shape& s) { return s.standard(); }))
+            nary_standard(result, args...)(f);
+        else
+            nary_nonstandard(result, args...)(f);
+
     };
 }
 

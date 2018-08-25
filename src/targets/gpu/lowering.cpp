@@ -9,6 +9,7 @@
 #include <migraph/gpu/hip.hpp>
 #include <migraph/dfor.hpp>
 #include <migraph/gpu/device/contiguous.hpp>
+#include <migraph/gpu/device/add.hpp>
 #include <migraph/iterator_for.hpp>
 #include <migraph/gpu/rocblas.hpp>
 #include <migraph/gpu/context.hpp>
@@ -168,33 +169,19 @@ struct miopen_pooling
     }
 };
 
-struct miopen_add
+struct hip_add
 {
     std::string name() const { return "gpu::add"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs, *this}.has(3).not_broadcasted();
+        check_shapes{inputs, *this}.has(3);
         return inputs.at(0);
     }
 
     argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    compute(context&, const shape&, const std::vector<argument>& args) const
     {
-        float alpha = 1, beta = 0;
-        auto a_desc = make_tensor(args[0].get_shape());
-        auto b_desc = make_tensor(args[1].get_shape());
-        auto c_desc = make_tensor(output_shape);
-        miopenOpTensor(ctx.handle.get(),
-                       miopenTensorOpAdd,
-                       &alpha,
-                       a_desc.get(),
-                       args[0].implicit(),
-                       &alpha,
-                       b_desc.get(),
-                       args[1].implicit(),
-                       &beta,
-                       c_desc.get(),
-                       args[2].implicit());
+        device::add(args[2], args[0], args[1]);
         return args[2];
     }
 };
@@ -390,7 +377,7 @@ struct miopen_apply
     {
         auto output = insert_allocation(ins, ins->result);
         return prog->replace_instruction(
-            ins, miopen_add{}, ins->arguments.at(0), ins->arguments.at(1), output);
+            ins, hip_add{}, ins->arguments.at(0), ins->arguments.at(1), output);
     }
 
     instruction_ref apply_gemm(instruction_ref ins)

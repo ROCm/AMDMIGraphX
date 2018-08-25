@@ -98,9 +98,10 @@ migraph::argument run_cpu()
     auto_print pp{p, 0};
     compile_check(p, migraph::cpu::cpu_target{});
     migraph::program::parameter_map m;
+    int seed = 0;
     for(auto&& x : p.get_parameter_shapes())
     {
-        m[x.first] = migraph::generate_argument(x.second);
+        m[x.first] = migraph::generate_argument(x.second, seed++);
     }
     return p.eval(m);
 }
@@ -114,9 +115,10 @@ migraph::argument run_gpu()
     compile_check(p, migraph::gpu::target{});
 
     migraph::program::parameter_map m;
+    int seed = 0;
     for(auto&& x : p.get_parameter_shapes())
     {
-        m[x.first] = migraph::gpu::to_gpu(migraph::generate_argument(x.second));
+        m[x.first] = migraph::gpu::to_gpu(migraph::generate_argument(x.second, seed++));
     }
 
     return migraph::gpu::from_gpu(p.eval(m));

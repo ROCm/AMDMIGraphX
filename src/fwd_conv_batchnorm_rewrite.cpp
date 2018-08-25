@@ -35,7 +35,7 @@ void fwd_conv_batchnorm_rewrite::apply(program& p) const
         // Get convolution op
         auto conv_op      = conv_ins->op;
         auto weights_lens = weights.get_shape().lens();
-        auto conv_lens = conv_ins->get_shape().lens();
+        auto conv_lens    = conv_ins->get_shape().lens();
         argument new_weights{weights.get_shape()};
         argument new_bias{conv_ins->get_shape()};
         visit_all(weights, gamma, bias, mean, variance, new_weights, new_bias)(

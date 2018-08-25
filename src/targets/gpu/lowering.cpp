@@ -178,8 +178,7 @@ struct hip_add
         return inputs.at(0);
     }
 
-    argument
-    compute(context&, const shape&, const std::vector<argument>& args) const
+    argument compute(context&, const shape&, const std::vector<argument>& args) const
     {
         device::add(args[2], args[0], args[1]);
         return args[2];

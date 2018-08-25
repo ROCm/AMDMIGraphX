@@ -1,5 +1,6 @@
 #include <migraph/gpu/target.hpp>
 #include <migraph/gpu/lowering.hpp>
+#include <migraph/memory_coloring.hpp>
 #include <migraph/gpu/write_literals.hpp>
 #include <migraph/gpu/context.hpp>
 #include <migraph/gpu/eliminate_workspace.hpp>
@@ -24,11 +25,13 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
         simplify_reshapes{},
         dead_code_elimination{},
         lowering{ctx},
-        eliminate_workspace{},
+        memory_coloring{},
+            //        eliminate_workspace{},
         eliminate_contiguous{},
         dead_code_elimination{},
+
         write_literals{&ctx},
-        eliminate_allocation{},
+            //        eliminate_allocation{},
         check_context<context>{},
         dead_code_elimination{}
     };

@@ -320,6 +320,10 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
     return generic_eval(
         *this, this->impl->ctx, std::move(params), [](auto&, auto f) { return f(); });
 }
+int program::get_size() const
+{
+    return (*impl).instructions.size();
+}
 
 double common_average(const std::vector<double>& v)
 {

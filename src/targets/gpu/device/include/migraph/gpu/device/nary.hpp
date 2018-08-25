@@ -39,12 +39,12 @@ auto nary_nonstandard(argument result, Arguments... args)
 inline auto binary_broadcast(argument result, argument arg1, argument arg2)
 {
     return [=](auto f) {
-        const auto& b_shape      = arg2.get_shape();
-        auto bdim                = std::distance(b_shape.strides().begin(),
+        const auto& b_shape = arg2.get_shape();
+        auto bdim           = std::distance(b_shape.strides().begin(),
                                   std::find_if(b_shape.strides().begin(),
                                                b_shape.strides().end(),
                                                [](auto x) { return x != 0; }));
-        auto bdim_len            = b_shape.lens()[bdim];
+        auto bdim_len       = b_shape.lens()[bdim];
 
         visit_all(result, arg1, arg2)([&](auto output, auto input1, auto input2) {
             using type = std::remove_cv_t<typename decltype(output)::value_type>;
@@ -52,9 +52,9 @@ inline auto binary_broadcast(argument result, argument arg1, argument arg2)
             auto* yp   = input2.data();
             auto* outp = output.data();
 
-            const std::size_t nlocal = 256;
+            const std::size_t nlocal  = 256;
             const std::size_t nglobal = 256 * nlocal;
-            const std::size_t n = output.size();
+            const std::size_t n       = output.size();
 
             launch(nglobal, nlocal)([=](auto idx) __device__ {
                 __shared__ type buffer[2048];

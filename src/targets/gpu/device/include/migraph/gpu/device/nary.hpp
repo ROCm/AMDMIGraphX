@@ -39,33 +39,37 @@ auto nary_nonstandard(argument result, Arguments... args)
 inline auto binary_broadcast(argument result, argument arg1, argument arg2)
 {
     return [=](auto f) {
-        const auto& output_shape = result.get_shape();
         const auto& b_shape      = arg2.get_shape();
         auto bdim                = std::distance(b_shape.strides().begin(),
                                   std::find_if(b_shape.strides().begin(),
                                                b_shape.strides().end(),
                                                [](auto x) { return x != 0; }));
         auto bdim_len            = b_shape.lens()[bdim];
-        auto outer_size          = std::accumulate(output_shape.lens().begin(),
-                                          output_shape.lens().begin() + bdim + 1,
-                                          std::size_t{1},
-                                          std::multiplies<>{});
-        auto inner_size          = std::accumulate(output_shape.lens().begin() + bdim + 1,
-                                          output_shape.lens().end(),
-                                          std::size_t{1},
-                                          std::multiplies<>{});
 
         visit_all(result, arg1, arg2)([&](auto output, auto input1, auto input2) {
+            using type = std::remove_cv_t<typename decltype(output)::value_type>;
             auto* xp   = input1.data();
             auto* yp   = input2.data();
             auto* outp = output.data();
-            gs_launch(outer_size)([=](auto i) {
-                auto* outp2 = outp + i;
-                auto* xp2   = xp + i;
-                auto b      = yp[i % bdim_len];
-                for(std::size_t j = 0; j < inner_size; j++)
+
+            const std::size_t nlocal = 256;
+            const std::size_t nglobal = 256 * nlocal;
+            const std::size_t n = output.size();
+
+            launch(nglobal, nlocal)([=](auto idx) __device__ {
+                __shared__ type buffer[2048];
+                for(size_t i = idx.local; i < bdim_len; i += nlocal)
                 {
-                    outp2[j] = f(xp2[j], b);
+                    buffer[i] = yp[i];
+                }
+                __syncthreads();
+                for(size_t i = idx.local; i < bdim_len; i += nlocal)
+                {
+                    auto b = buffer[i];
+                    for(size_t j = idx.global; j < n; j += nglobal)
+                    {
+                        outp[j] = f(xp[j], b);
+                    }
                 }
             });
         });
@@ -114,6 +118,7 @@ inline auto nary(argument result, argument arg1, argument arg2)
     return [=](auto f) {
         // TODO: Check for one broadcast stride
         // TODO: Check result and arg1 shape is the same
+        // TODO: CHeck that broadcast shape doesnt have more than 2048 elements
         if(arg1.get_shape().standard() and arg2.get_shape().broadcasted() and
            std::count_if(arg2.get_shape().strides().begin(),
                          arg2.get_shape().strides().end(),

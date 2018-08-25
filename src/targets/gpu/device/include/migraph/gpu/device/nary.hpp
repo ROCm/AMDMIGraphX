@@ -108,7 +108,7 @@ auto nary(argument result, Arguments... args)
 {
     return nary_impl(result, args...);
 }
-#if 0
+
 inline auto nary(argument result, argument arg1, argument arg2)
 {
     return [=](auto f) {
@@ -124,7 +124,6 @@ inline auto nary(argument result, argument arg1, argument arg2)
         }
     };
 }
-#endif
 
 } // namespace device
 } // namespace gpu

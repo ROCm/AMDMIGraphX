@@ -66,9 +66,9 @@ inline auto binary_broadcast(argument result, argument arg1, argument arg2)
                 __syncthreads();
                 for(size_t i = idx.global; i < n; i += nglobal)
                 {
-                    auto bidx = i % bdim_len; 
-                    auto b = buffer[bidx];
-                    outp[i] = f(xp[i], b);
+                    auto bidx = i % bdim_len;
+                    auto b    = buffer[bidx];
+                    outp[i]   = f(xp[i], b);
                 }
             });
         });

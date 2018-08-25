@@ -63,7 +63,7 @@ constexpr void repeat_c_impl(F f, seq<Ns...>)
 
 } // namespace detail
 
-template<std::size_t N, class F>
+template <std::size_t N, class F>
 constexpr void repeat_c(F f)
 {
     detail::repeat_c_impl(f, detail::gens<N>{});

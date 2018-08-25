@@ -114,11 +114,14 @@ inline auto nary(argument result, argument arg1, argument arg2)
     return [=](auto f) {
         // TODO: Check for one broadcast stride
         // TODO: Check result and arg1 shape is the same
-        if(arg1.get_shape().standard() and arg2.get_shape().broadcasted() and std::count_if(arg2.get_shape().strides().begin(), arg2.get_shape().strides().end(), [](auto x) { return x != 0; }) == 1)
+        if(arg1.get_shape().standard() and arg2.get_shape().broadcasted() and
+           std::count_if(arg2.get_shape().strides().begin(),
+                         arg2.get_shape().strides().end(),
+                         [](auto x) { return x != 0; }) == 1)
         {
             binary_broadcast(result, arg1, arg2)(f);
         }
-        else 
+        else
         {
             nary_impl(result, arg1, arg2)(f);
         }

@@ -35,9 +35,9 @@ void fwd_conv_batchnorm_rewrite::apply(program& p) const
         // Get convolution op
         auto conv_op      = conv_ins->op;
         auto weights_lens = weights.get_shape().lens();
-        auto conv_lens    = conv_ins->get_shape().lens();
+        auto conv_lens = conv_ins->get_shape().lens();
         argument new_weights{weights.get_shape()};
-        argument new_bias{conv_ins->get_shape()};
+        argument new_bias{bias.get_shape()};
         visit_all(weights, gamma, bias, mean, variance, new_weights, new_bias)(
             [&](auto weights2,
                 auto gamma2,
@@ -51,9 +51,9 @@ void fwd_conv_batchnorm_rewrite::apply(program& p) const
                         new_weights2(k, c, h, w) =
                             gamma2(k) / std::sqrt(variance2(k) + epsilon) * weights2(k, c, h, w);
                     });
-                dfor(conv_lens[0], conv_lens[1], conv_lens[2], conv_lens[3])(
-                    [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
-                        new_bias2(n, c, h, w) =
+                dfor(new_bias.get_shape().elements())(
+                    [&](std::size_t c) {
+                        new_bias2(c) =
                             bias2(c) - (mean2(c) / std::sqrt(variance2(c) + epsilon));
                     });
             });
@@ -61,7 +61,8 @@ void fwd_conv_batchnorm_rewrite::apply(program& p) const
         auto l_weights = p.add_literal({weights.get_shape(), new_weights.data()});
         auto l_bias    = p.add_literal({new_bias.get_shape(), new_bias.data()});
         auto c = p.replace_instruction(conv_ins, conv_op, {conv_ins->arguments[0], l_weights});
-        p.replace_instruction(ins, add{}, {c, l_bias});
+        auto b = p.insert_instruction(ins, broadcast{1}, c, l_bias);
+        p.replace_instruction(ins, add{}, {c, b});
     }
 }
 } // namespace migraph

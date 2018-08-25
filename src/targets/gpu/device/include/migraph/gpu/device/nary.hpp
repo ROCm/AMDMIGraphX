@@ -16,9 +16,8 @@ auto nary_nonstandard_impl(F f, argument result, Arguments... args)
     const auto& output_shape = result.get_shape();
     visit_all(result, args...)([&](auto output, auto... inputs) {
         visit_tensor_size(output_shape.lens().size(), [&](auto ndim) {
-            auto data =
-                pack(std::make_pair(hip_tensor_descriptor<ndim>{inputs.get_shape()},
-                                    inputs.data())...);
+            auto data = pack(
+                std::make_pair(hip_tensor_descriptor<ndim>{inputs.get_shape()}, inputs.data())...);
             hip_tensor_descriptor<ndim> out_desc(output_shape);
             auto* outp = output.data();
             gs_launch(output_shape.elements())([=](auto i) {
@@ -57,8 +56,9 @@ auto nary(argument result, Arguments... args)
 {
     return [=](auto f) {
         bool standard = all_of({args.get_shape()...}, [](const shape& s) { return s.standard(); });
-        bool packed = all_of({args.get_shape()...}, [](const shape& s) { return s.packed(); });
-        bool same_shapes = all_of({args.get_shape()...}, [&](const shape& s) { return s == result.get_shape(); });
+        bool packed   = all_of({args.get_shape()...}, [](const shape& s) { return s.packed(); });
+        bool same_shapes =
+            all_of({args.get_shape()...}, [&](const shape& s) { return s == result.get_shape(); });
         if(standard or (packed and same_shapes))
             nary_standard(result, args...)(f);
         else

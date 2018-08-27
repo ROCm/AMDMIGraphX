@@ -33,7 +33,7 @@ inline auto launch(std::size_t global, std::size_t local)
     };
 }
 
-inline auto gs_launch(std::size_t n, std::size_t local = 256)
+inline auto gs_launch(std::size_t n, std::size_t local = 1024)
 {
     std::size_t groups  = 1 + n / local;
     std::size_t nglobal = std::min<std::size_t>(256, groups) * local;

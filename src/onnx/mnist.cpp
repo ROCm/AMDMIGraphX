@@ -10,7 +10,7 @@
 #include <migraph/gpu/hip.hpp>
 #include <migraph/generate.hpp>
 
-#include "softmax.h"
+#include "softmax.hpp"
 
 auto reverse_int(unsigned int i)
 {

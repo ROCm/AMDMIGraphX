@@ -11,7 +11,7 @@
 #include <migraph/gpu/hip.hpp>
 #include <migraph/generate.hpp>
 
-#include "softmax.h"
+#include "softmax.hpp"
 
 auto read_cifar10_images(const std::string& full_path)
 {

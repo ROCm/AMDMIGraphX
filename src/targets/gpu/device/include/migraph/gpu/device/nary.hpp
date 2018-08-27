@@ -10,6 +10,15 @@ namespace migraph {
 namespace gpu {
 namespace device {
 
+template<class T>
+using vec4 = T __attribute__((ext_vector_type(4)));
+
+template<class T>
+vec4<T>* as_vec4(T * x)
+{
+    return reinterpret_cast<vec4<T>*>(x);
+}
+
 template <class F, class... Arguments>
 auto nary_nonstandard_impl(F f, argument result, Arguments... args)
 {
@@ -49,13 +58,13 @@ inline auto binary_broadcast(argument result, argument arg1, argument arg2)
 
         visit_all(result, arg1, arg2)([&](auto output, auto input1, auto input2) {
             using type = std::remove_cv_t<typename decltype(output)::value_type>;
-            auto* xp   = input1.data();
+            auto* xp   = as_vec4(input1.data());
             auto* yp   = input2.data();
-            auto* outp = output.data();
+            auto* outp = as_vec4(output.data());
 
-            const std::size_t nlocal  = 256;
+            const std::size_t nlocal  = 1024;
             const std::size_t nglobal = 256 * nlocal;
-            const std::size_t n       = output.size();
+            const std::size_t n       = output.size() / 4;
 
             launch(nglobal, nlocal)([=](auto idx) __device__ {
                 __shared__ type buffer[2048];
@@ -66,9 +75,15 @@ inline auto binary_broadcast(argument result, argument arg1, argument arg2)
                 __syncthreads();
                 for(size_t i = idx.global; i < n; i += nglobal)
                 {
-                    auto bidx = i % bdim_len;
-                    auto b    = buffer[bidx];
-                    outp[i]   = f(xp[i], b);
+                    vec4<type> x = xp[i];
+                    vec4<type> out = outp[i];
+                    for(std::size_t j = 0;j < 4;j++) {
+                        auto gidx = i * 4 + j;
+                        auto bidx = gidx % bdim_len;
+                        auto b    = buffer[bidx];
+                        out[j]   = f(x[j], b);
+                    }
+
                 }
             });
         });

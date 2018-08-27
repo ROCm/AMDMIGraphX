@@ -10,11 +10,11 @@ namespace migraph {
 namespace gpu {
 namespace device {
 
-template<class T>
+template <class T>
 using vec4 = T __attribute__((ext_vector_type(4)));
 
-template<class T>
-vec4<T>* as_vec4(T * x)
+template <class T>
+vec4<T>* as_vec4(T* x)
 {
     return reinterpret_cast<vec4<T>*>(x);
 }
@@ -75,15 +75,15 @@ inline auto binary_broadcast(argument result, argument arg1, argument arg2)
                 __syncthreads();
                 for(size_t i = idx.global; i < n; i += nglobal)
                 {
-                    vec4<type> x = xp[i];
+                    vec4<type> x   = xp[i];
                     vec4<type> out = outp[i];
-                    for(std::size_t j = 0;j < 4;j++) {
+                    for(std::size_t j = 0; j < 4; j++)
+                    {
                         auto gidx = i * 4 + j;
                         auto bidx = gidx % bdim_len;
                         auto b    = buffer[bidx];
-                        out[j]   = f(x[j], b);
+                        out[j]    = f(x[j], b);
                     }
-
                 }
             });
         });

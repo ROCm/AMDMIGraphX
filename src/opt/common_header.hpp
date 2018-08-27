@@ -5,6 +5,7 @@
 #include <migraph/instruction.hpp>
 #include <migraph/operators.hpp>
 #include <migraph/iterator_for.hpp>
+#include <migraph/manage_ptr.hpp>
 
 #include <set>
 #include <list>
@@ -19,4 +20,4 @@
 #define DEBUG(s)
 #endif // DEBUG_OPT
 
-#endif  // MIGRAPH_GUARD_RTGLIB_COMMON_HEADER_HPP
+#endif // MIGRAPH_GUARD_RTGLIB_COMMON_HEADER_HPP

@@ -94,7 +94,5 @@ void copy_to_gpu(char* dst, const char* src, std::size_t size)
 {
     hipMemcpy(dst, src, size, hipMemcpyHostToDevice);
 }
-    
 } // namespace gpu
-
 } // namespace migraph

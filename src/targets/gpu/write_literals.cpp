@@ -37,13 +37,12 @@ void write_literals::apply(program& p) const
             p.replace_instruction(ins, hip_load_literal{a.get_shape(), n});
         }
 #else
-        if (ins->op.name() == "write_literal") {
+        if(ins->op.name() == "write_literal")
+        {
             p.replace_instruction(ins, hip_memcpy{}, ins->arguments);
         }
-#endif        
+#endif
     }
 }
-
 } // namespace gpu
-
 } // namespace migraph

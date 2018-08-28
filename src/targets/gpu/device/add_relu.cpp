@@ -8,7 +8,7 @@ namespace device {
 void add_relu(argument result, argument arg1, argument arg2)
 {
     nary(std::move(result), std::move(arg1), std::move(arg2))(
-        [](auto x, auto y) { return max(0, x + y); });
+        [](auto x, auto y) { return std::max<decltype(x + y)>(0, x + y); });
 }
 
 } // namespace device

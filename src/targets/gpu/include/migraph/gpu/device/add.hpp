@@ -8,7 +8,7 @@ namespace migraph {
 namespace gpu {
 namespace device {
 
-void add(argument result, argument arg1, argument arg2);
+void add(const argument& result, const argument& arg1, const argument& arg2);
 
 } // namespace device
 } // namespace gpu

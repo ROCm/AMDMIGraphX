@@ -77,7 +77,7 @@ struct auto_print
 };
 std::array<std::function<void()>, 2> auto_print::handlers = {};
 
-template<class T>
+template <class T>
 auto get_hash(const T& x)
 {
     return std::hash<T>{}(x);

@@ -57,7 +57,7 @@ auto nary_nonstandard(argument result, Arguments... args)
     return [=](auto f) { return nary_nonstandard_impl(f, result, args...); };
 }
 
-inline auto binary_broadcast_vec(argument result, argument arg1, argument arg2)
+inline auto binary_broadcast_vec(const argument& result, const argument& arg1, const argument& arg2)
 {
     return [=](auto f) {
         const auto& output_shape = result.get_shape();
@@ -109,7 +109,7 @@ inline auto binary_broadcast_vec(argument result, argument arg1, argument arg2)
     };
 }
 
-inline auto binary_broadcast(argument result, argument arg1, argument arg2)
+inline auto binary_broadcast(const argument& result, const argument& arg1, const argument& arg2)
 {
     return [=](auto f) {
         const auto& output_shape = result.get_shape();
@@ -217,7 +217,7 @@ auto nary(argument result, Arguments... args)
     return nary_impl(result, args...);
 }
 
-inline auto nary(argument result, argument arg1, argument arg2)
+inline auto nary(const argument& result, const argument& arg1, const argument& arg2)
 {
     return [=](auto f) {
         // TODO: Check result and arg1 shape is the same

@@ -83,7 +83,7 @@ inline auto binary_broadcast_vec(argument result, argument arg1, argument arg2)
             const std::size_t bdim_vec_len = bdim_len / vec_size;
 
             launch(nglobal, nlocal)([=](auto idx) __device__ {
-                __shared__ vec4<type> buffer[2048 / vec_size];
+                MIGRAPH_DEVICE_SHARED vec4<type> buffer[2048 / vec_size];
                 // Load bias into LDS
                 for(size_t i = idx.local; i < bdim_vec_len; i += nlocal)
                 {
@@ -133,7 +133,7 @@ inline auto binary_broadcast(argument result, argument arg1, argument arg2)
             const std::size_t n       = output.size();
 
             launch(nglobal, nlocal)([=](auto idx) __device__ {
-                __shared__ type buffer[2048];
+                MIGRAPH_DEVICE_SHARED type buffer[2048];
                 // Load bias into LDS
                 for(size_t i = idx.local; i < bdim_len; i += nlocal)
                 {

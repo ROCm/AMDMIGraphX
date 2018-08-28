@@ -48,6 +48,14 @@ inline auto gs_launch(std::size_t n, std::size_t local = 1024)
     };
 }
 
+// Workaround hcc's broken tile_static macro
+#ifdef tile_static
+#undef tile_static
+#define MIGRAPH_DEVICE_SHARED __attribute__((tile_static))
+#else
+#define MIGRAPH_DEVICE_SHARED __shared__
+#endif
+
 } // namespace device
 } // namespace gpu
 } // namespace migraph

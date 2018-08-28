@@ -27,7 +27,7 @@ template <class T>
 vec4<T> vec4_load(T* x, size_t i)
 {
     vec4<T> result;
-    auto n = i * 4;
+    auto n    = i * 4;
     result[0] = x[n + 0];
     result[1] = x[n + 1];
     result[2] = x[n + 2];
@@ -85,9 +85,9 @@ inline auto binary_broadcast(argument result, argument arg1, argument arg2)
             auto* yp   = input2.data();
             auto* outp = output.data();
 
-            const std::size_t nlocal       = 1024;
-            const std::size_t nglobal      = 256 * nlocal;
-            const std::size_t n            = output.size();
+            const std::size_t nlocal  = 1024;
+            const std::size_t nglobal = 256 * nlocal;
+            const std::size_t n       = output.size();
 
             launch(nglobal, nlocal)([=](auto idx) __device__ {
                 __shared__ type buffer[2048];
@@ -100,10 +100,10 @@ inline auto binary_broadcast(argument result, argument arg1, argument arg2)
                 // Process the data
                 for(size_t i = idx.global; i < n; i += nglobal)
                 {
-                    auto bidx      = i % bdim_len;
-                    auto b         = buffer[bidx];
-                    type x   = xp[i];
-                    outp[i] = f(x, b);
+                    auto bidx = i % bdim_len;
+                    auto b    = buffer[bidx];
+                    type x    = xp[i];
+                    outp[i]   = f(x, b);
                 }
             });
 #else
@@ -131,7 +131,7 @@ inline auto binary_broadcast(argument result, argument arg1, argument arg2)
                 {
                     buffer[bdim_vec_len][i] = yp[bdim_vec_len][i];
                 }
-                for(size_t i = idx.local; i < (vec_size-bdim_vec_rem); i += nlocal)
+                for(size_t i = idx.local; i < (vec_size - bdim_vec_rem); i += nlocal)
                 {
                     buffer[bdim_vec_len][i] = yp[0][i];
                 }
@@ -224,15 +224,16 @@ inline auto nary(argument result, argument arg1, argument arg2)
                          arg2.get_shape().strides().end(),
                          [](auto x) { return x != 0; }) == 1)
         {
-            auto not_zero = [](auto x) { return x != 0; };
+            auto not_zero       = [](auto x) { return x != 0; };
             const auto& strides = arg2.get_shape().strides();
-            auto stride_it = std::find_if(strides.begin(),
-                         strides.end(), not_zero);
-            auto stride_idx = std::distance(strides.begin(), stride_it);
-            auto stride_len = arg2.get_shape().lens()[stride_idx];
+            auto stride_it      = std::find_if(strides.begin(), strides.end(), not_zero);
+            auto stride_idx     = std::distance(strides.begin(), stride_it);
+            auto stride_len     = arg2.get_shape().lens()[stride_idx];
             // TODO: Dont require disibility by 4
             bool divisible_by_4 = (stride_len % 4 == 0) and (arg1.get_shape().elements() % 4 == 0);
-            if(divisible_by_4 and stride_len <= 2048 and std::none_of(std::next(stride_it), strides.end(), not_zero)) {
+            if(divisible_by_4 and stride_len <= 2048 and
+               std::none_of(std::next(stride_it), strides.end(), not_zero))
+            {
                 binary_broadcast(result, arg1, arg2)(f);
                 return;
             }

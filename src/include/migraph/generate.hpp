@@ -12,9 +12,9 @@ constexpr T normalize(unsigned long z)
 {
     if(z == 0)
         return 0;
-    const auto max = 32768;
-    const double range      = max / 2;
-    double result = (z % max) / range;
+    const auto max     = 32768;
+    const double range = max / 2;
+    double result      = (z % max) / range;
     result -= 1;
     return result;
 }

@@ -6,6 +6,7 @@
 #include <migraph/argument.hpp>
 #include <migraph/tensor_view.hpp>
 #include <migraph/raw_data.hpp>
+#include <migraph/make_shared_array.hpp>
 
 #include <memory>
 
@@ -20,7 +21,7 @@ struct literal : raw_data<literal>
     literal() {}
 
     template <class T>
-    literal(T x) : buffer(std::make_unique<char[]>(sizeof(T))), m_shape(shape::get_type<T>{})
+    literal(T x) : buffer(make_shared_array<char>(sizeof(T))), m_shape(shape::get_type<T>{})
     {
         static_assert(std::is_trivial<T>{}, "Literals can only be trivial types");
         *(reinterpret_cast<T*>(buffer.get())) = x;
@@ -28,7 +29,7 @@ struct literal : raw_data<literal>
 
     template <class T>
     literal(const shape& s, const std::vector<T>& x)
-        : buffer(std::make_unique<char[]>(s.bytes())), m_shape(s)
+        : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
     {
         static_assert(std::is_trivial<T>{}, "Literals can only be trivial types");
         fill(x.begin(), x.end());
@@ -36,7 +37,7 @@ struct literal : raw_data<literal>
 
     template <class T>
     literal(const shape& s, const std::initializer_list<T>& x)
-        : buffer(std::make_unique<char[]>(s.bytes())), m_shape(s)
+        : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
     {
         static_assert(std::is_trivial<T>{}, "Literals can only be trivial types");
         fill(x.begin(), x.end());
@@ -44,12 +45,12 @@ struct literal : raw_data<literal>
 
     template <class Iterator>
     literal(const shape& s, Iterator start, Iterator end)
-        : buffer(std::make_unique<char[]>(s.bytes())), m_shape(s)
+        : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
     {
         fill(start, end);
     }
 
-    literal(const shape& s, const char* x) : buffer(std::make_unique<char[]>(s.bytes())), m_shape(s)
+    literal(const shape& s, const char* x) : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
     {
         std::copy(x, x + s.bytes(), buffer.get());
     }

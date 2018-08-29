@@ -11,7 +11,7 @@
 #include <vector>
 #include <queue>
 
-#define DEBUG_OPT
+//#define DEBUG_OPT
 
 #ifdef DEBUG_OPT
 #define DEBUG(s) s

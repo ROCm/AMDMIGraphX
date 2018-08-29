@@ -7,9 +7,9 @@
 namespace migraph {
 
 inline void verify_args(const std::string& name,
-                 const argument& cpu_arg,
-                 const argument& gpu_arg,
-                 double tolerance = 80)
+                        const argument& cpu_arg,
+                        const argument& gpu_arg,
+                        double tolerance = 80)
 {
     visit_all(cpu_arg, gpu_arg)([&](auto cpu, auto gpu) {
         if(not verify_range(cpu, gpu, tolerance))

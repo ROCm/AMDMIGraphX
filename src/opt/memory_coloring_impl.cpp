@@ -28,7 +28,7 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
     if(size == 0)
         return false;
     std::size_t element_size = size / s.elements();
-    live_range& segment    = interval->segment;
+    live_range& segment      = interval->segment;
     int vn                   = segment.vn;
     std::priority_queue<live_range*, std::vector<live_range*>, ordering> conflict_queue;
     std::unordered_map<long long, live_range*> offset2_live;
@@ -38,9 +38,9 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
     {
         std::set<int>& vn_set = conflict_table[vn];
         for(auto& iter : vn_set)
-            {
+        {
             live_range* range = live_ranges[iter];
-            long long offset    = range->offset;
+            long long offset  = range->offset;
             if(offset != InvalidOffset)
             {
                 conflict_queue.push(range);
@@ -62,7 +62,7 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
     long long offset = 0;
     while(!conflict_queue.empty())
     {
-        live_range* range  = conflict_queue.top();
+        live_range* range    = conflict_queue.top();
         long long cur_offset = range->offset;
         if(offset2_live[cur_offset] == range)
         {
@@ -93,6 +93,7 @@ void memory_coloring_impl::build()
         std::vector<instruction_ref> dead_instrs;
         std::set<int> live_set;
         // Build live intervals.
+        live_intervals.resize(num_of_instrs);
         do
         {
             const instruction* p_iter = &(*iter);
@@ -104,8 +105,8 @@ void memory_coloring_impl::build()
                 bool is_lit  = is_literal(iter);
                 if(is_allocate(iter) || is_lit)
                 {
-                    live_range& range     = def_interval->segment;
-                    def_interval->result    = iter->result;
+                    live_range& range        = def_interval->segment;
+                    def_interval->result     = iter->result;
                     def_interval->is_literal = is_lit;
                     alloc_queue.push(def_interval);
                     range.begin = cur_points;
@@ -142,8 +143,8 @@ void memory_coloring_impl::build()
                     else if(instr2_live.find(p_arg) == instr2_live.end())
                     {
                         // First time see a use, create a live interval.
-                        int id = num_of_lives++;
-                        interval_ptr interval(new live_interval());
+                        int id                = num_of_lives++;
+                        interval_ptr interval = &(live_intervals[id]);
                         interval->id          = id;
                         interval->segment.end = cur_points;
                         interval->segment.vn  = ++max_value_number;
@@ -151,7 +152,6 @@ void memory_coloring_impl::build()
                         instr2_live[p_arg] = interval;
                         add_conflicts(live_set, max_value_number);
                         live_set.insert(max_value_number);
-                        live_intervals[id]            = interval;
                         live_ranges[max_value_number] = &(interval->segment);
                     }
                     else
@@ -220,8 +220,8 @@ void memory_coloring_impl::dump_intervals()
         std::cout << "---live intervals ---" << std::endl;
         for(int i = 0; i < num_of_lives; ++i)
         {
-            interval_ptr interval = live_intervals[i];
-            interval->dump();
+            live_interval& interval = live_intervals[i];
+            interval.dump();
         }
         std::cout << "---conflict table---" << std::endl;
         for(int i = 0; i <= max_value_number; ++i)
@@ -244,8 +244,8 @@ void memory_coloring_impl::verify()
     {
         for(int i = 0; i < num_of_lives; ++i)
         {
-            interval_ptr interval = live_intervals[i];
-            live_range& segment = interval->segment;
+            live_interval& interval = live_intervals[i];
+            live_range& segment     = interval.segment;
             if(segment.offset == InvalidOffset)
                 continue;
             int vn = segment.vn;
@@ -265,12 +265,12 @@ void memory_coloring_impl::verify()
     }
 }
 
-#define GET_INS_ENUM(x) ( ((x) > 0) ? (((x) >> 1) - 1) : InvalidOffset)
+#define GET_INS_ENUM(x) (((x) > 0) ? (((x) >> 1) - 1) : InvalidOffset)
 
 void live_range::dump()
 {
     std::cout << " segment:" << vn;
-    std::cout << " [" << GET_INS_ENUM(begin)  << ", " << GET_INS_ENUM(end) << "]";
+    std::cout << " [" << GET_INS_ENUM(begin) << ", " << GET_INS_ENUM(end) << "]";
     if(offset != InvalidOffset)
     {
         std::cout << " mem:";

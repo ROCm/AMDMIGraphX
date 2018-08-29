@@ -20,13 +20,11 @@ struct live_range
 
 struct live_interval
 {
-    live_interval()
+    live_interval() : segment({-1, -1, InvalidOffset, -1, 0})
     {
-        id        = -1;
+        id         = -1;
         is_literal = false;
-        segment   = {-1, -1, InvalidOffset, -1, 0};
     }
-    ~live_interval() {}
 
     void add_use(int use) { use_points.push_front(use); }
     int get_begin() const { return segment.begin; }
@@ -44,23 +42,14 @@ struct live_interval
     bool is_literal;
 };
 
-//   #define unique_interval_ptr std::unique_ptr<live_interval>
 #define interval_ptr live_interval*
 
 struct memory_coloring_impl
 {
-    memory_coloring_impl() { init(); }
-    memory_coloring_impl(program* p) : p_program(p)
+    memory_coloring_impl(program* p) : p_program(p) { init(); }
+    void init()
     {
-        init();
-    }
-    ~memory_coloring_impl() {
-        for(int i = 0; i < num_of_lives; ++i)
-            free(live_intervals[i]);
-    }
-    void init() {
         instr2_live.clear();
-        live_intervals.clear();
         live_ranges.clear();
         conflict_table.clear();
         num_of_lives     = 0;
@@ -85,10 +74,6 @@ struct memory_coloring_impl
     bool is_output_param(const instruction_ref ins)
     {
         return is_param(ins) && any_cast<builtin::param>(ins->op).parameter == "output";
-    }
-    bool is_scratch_param(const instruction_ref ins)
-    {
-        return is_param(ins) && any_cast<builtin::param>(ins->op).parameter == "scratch";
     }
     bool is_allocate(const instruction_ref ins) { return ins->op.name() == "hip::allocate"; }
     bool is_outline(const instruction_ref ins) { return ins->op.name() == "@outline"; }
@@ -148,8 +133,8 @@ struct memory_coloring_impl
     };
     program* p_program;
     std::unordered_map<const instruction*, interval_ptr> instr2_live;
-    // Map live interval Id to live interval.
-    std::unordered_map<int, interval_ptr> live_intervals;
+    // universe of live intervals.
+    std::vector<live_interval> live_intervals;
     // Map live range value number to live range.
     std::unordered_map<int, live_range*> live_ranges;
     // Map live range value number to a set of conflicting live ranges' value numbers.

@@ -5,7 +5,6 @@
 #include <migraph/instruction.hpp>
 #include <migraph/operators.hpp>
 #include <migraph/iterator_for.hpp>
-#include <migraph/manage_ptr.hpp>
 
 #include <set>
 #include <list>

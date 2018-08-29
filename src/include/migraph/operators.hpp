@@ -551,7 +551,7 @@ struct write_literal
     shape compute_shape(std::vector<shape> inputs) const { return inputs.at(2); }
     argument compute(context&, shape, std::vector<argument>) const
     {
-        assert(false);
+        MIGRAPH_THROW("not computable");
     }
 };
 

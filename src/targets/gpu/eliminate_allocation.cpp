@@ -20,7 +20,7 @@ void eliminate_allocation::apply(program& p) const
             continue;
         allocs.emplace_back(ins, n);
         std::size_t size = ins->get_shape().bytes();
-        n += size + (size % 4);
+        n += size + (size % 32);
     }
     auto mem = p.add_parameter("memory", shape{shape::int8_type, {n}});
     for(auto&& pp : allocs)

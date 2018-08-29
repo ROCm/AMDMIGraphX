@@ -12,7 +12,7 @@ struct hip_add_relu
     std::string name() const { return "hip::add_relu"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs}.has(3).standard();
+        check_shapes{inputs, *this}.has(3);
         return inputs.front();
     }
     argument compute(context&, const shape&, const std::vector<argument>& args) const

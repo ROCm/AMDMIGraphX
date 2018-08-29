@@ -2,6 +2,7 @@
 #define MIGRAPH_GUARD_RTGLIB_DEAVICE_TENSOR_HPP
 
 #include <hip/hip_runtime.h>
+#include <migraph/functional.hpp>
 
 namespace migraph {
 namespace gpu {
@@ -53,14 +54,13 @@ template <size_t NDim>
 struct hip_tensor_descriptor
 {
     __device__ __host__ hip_tensor_descriptor() = default;
-    template <typename T, typename V>
-    __device__ __host__ hip_tensor_descriptor(const T& lens_ext, const V& strides_ext)
+
+    hip_tensor_descriptor(const shape& s)
     {
-        for(size_t i = 0; i < NDim; i++)
-            lens[i] = lens_ext[i];
-        for(size_t i = 0; i < NDim; i++)
-            strides[i] = strides_ext[i];
+        std::copy(s.lens().begin(), s.lens().end(), lens);
+        std::copy(s.strides().begin(), s.strides().end(), strides);
     }
+
     __device__ __host__ hip_index<NDim> multi(size_t idx) const
     {
         hip_index<NDim> result{};

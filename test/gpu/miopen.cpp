@@ -77,6 +77,12 @@ struct auto_print
 };
 std::array<std::function<void()>, 2> auto_print::handlers = {};
 
+template <class T>
+auto get_hash(const T& x)
+{
+    return std::hash<T>{}(x);
+}
+
 void compile_check(migraph::program& p, const migraph::target& t)
 {
     auto name = t.name();
@@ -100,7 +106,7 @@ migraph::argument run_cpu()
     migraph::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
-        m[x.first] = migraph::generate_argument(x.second);
+        m[x.first] = migraph::generate_argument(x.second, get_hash(x.first));
     }
     return p.eval(m);
 }
@@ -112,11 +118,10 @@ migraph::argument run_gpu()
     auto p = v.create_program();
     auto_print pp{p, 1};
     compile_check(p, migraph::gpu::target{});
-
     migraph::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
-        m[x.first] = migraph::gpu::to_gpu(migraph::generate_argument(x.second));
+        m[x.first] = migraph::gpu::to_gpu(migraph::generate_argument(x.second, get_hash(x.first)));
     }
 
     return migraph::gpu::from_gpu(p.eval(m));
@@ -131,8 +136,10 @@ void verify_args(const std::string& name,
         {
             // TODO: Check for nans
             std::cout << "FAILED: " << name << std::endl;
-            // std::cout << cpu << std::endl;
-            // std::cout << gpu << std::endl;
+            if(cpu.size() < 32)
+                std::cout << "cpu:" << cpu << std::endl;
+            if(gpu.size() < 32)
+                std::cout << "gpu:" << gpu << std::endl;
             if(migraph::range_zero(cpu))
                 std::cout << "Cpu data is all zeros" << std::endl;
             if(migraph::range_zero(gpu))
@@ -154,6 +161,7 @@ void verify_args(const std::string& name,
             if(gpu_nan_idx >= 0)
                 std::cout << "Non finite number found in gpu at " << gpu_nan_idx << ": "
                           << gpu[gpu_nan_idx] << std::endl;
+            std::cout << std::endl;
         }
     });
 }
@@ -205,6 +213,62 @@ struct test_add_broadcast
         auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 2, 3}});
         auto y  = p.add_parameter("y", {migraph::shape::float_type, {2, 2}});
         auto by = p.add_instruction(migraph::broadcast{0}, x, y);
+        p.add_instruction(migraph::add{}, x, by);
+        return p;
+    }
+};
+
+struct test_add_broadcast2
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {3}};
+        auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 3, 4}});
+        auto y  = p.add_parameter("y", {migraph::shape::float_type, {3}});
+        auto by = p.add_instruction(migraph::broadcast{1}, x, y);
+        p.add_instruction(migraph::add{}, x, by);
+        return p;
+    }
+};
+
+struct test_add_broadcast3
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {3}};
+        auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 4, 5}});
+        auto y  = p.add_parameter("y", {migraph::shape::float_type, {4}});
+        auto by = p.add_instruction(migraph::broadcast{1}, x, y);
+        p.add_instruction(migraph::add{}, x, by);
+        return p;
+    }
+};
+
+struct test_add_broadcast4
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {3}};
+        auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 3, 5}});
+        auto y  = p.add_parameter("y", {migraph::shape::float_type, {3}});
+        auto by = p.add_instruction(migraph::broadcast{1}, x, y);
+        p.add_instruction(migraph::add{}, x, by);
+        return p;
+    }
+};
+
+struct test_add_broadcast5
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {3}};
+        auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 4, 8}});
+        auto y  = p.add_parameter("y", {migraph::shape::float_type, {4}});
+        auto by = p.add_instruction(migraph::broadcast{1}, x, y);
         p.add_instruction(migraph::add{}, x, by);
         return p;
     }
@@ -418,6 +482,10 @@ int main()
 {
     verify_program<test_add>();
     verify_program<test_add_broadcast>();
+    verify_program<test_add_broadcast2>();
+    verify_program<test_add_broadcast3>();
+    verify_program<test_add_broadcast4>();
+    verify_program<test_add_broadcast5>();
     verify_program<test_conv_relu>();
     verify_program<test_add_relu>();
     verify_program<test_conv_pooling>();

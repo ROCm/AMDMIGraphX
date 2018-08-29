@@ -136,7 +136,9 @@ void memory_coloring_impl::build()
                     {
                         // input memory is used as this instruction's output.
                         // def is considered as use. Coalesce the live intervals.
-                        DEBUG(assert(def_interval != nullptr));
+#ifndef NDEBUG
+                        assert(def_interval != nullptr);
+#endif
                         def_interval->add_use(cur_points);
                         instr2_live[p_arg] = def_interval;
                     }
@@ -158,7 +160,9 @@ void memory_coloring_impl::build()
                     {
                         interval_ptr interval = instr2_live[p_arg];
                         interval->add_use(cur_points);
-                        DEBUG(assert(live_set.find(interval->id) != live_set.end()));
+#ifndef NDEBUG
+                        assert(live_set.find(interval->id) != live_set.end());
+#endif
                     }
                 }
             }
@@ -186,8 +190,9 @@ void memory_coloring_impl::rewrite()
             interval_ptr interval = instr2_live[p_iter];
             if(interval->get_offset() == InvalidOffset)
             {
-                DEBUG(assert((interval->get_begin() == InvalidOffset) ||
-                             interval->result.bytes() == 0));
+#ifndef NDEBUG
+                assert((interval->get_begin() == InvalidOffset) || interval->result.bytes() == 0);
+#endif
                 continue;
             }
             std::size_t offset = interval->get_offset();

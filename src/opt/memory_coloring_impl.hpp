@@ -94,14 +94,13 @@ struct memory_coloring_impl
         }
         return last_allocate;
     }
+#ifdef DEBUG_OPT    
     bool is_disjoin(live_range& range1, live_range& range2)
     {
         long long end1 = range1.offset + range1.size - 1;
         long long end2 = range2.offset + range2.size - 1;
         return ((end1 < range2.offset) || (end2 < range1.offset));
     }
-
-#ifdef DEBUG_OPT
     void dump(const std::string);
     void dump_program();
     void dump_intervals();

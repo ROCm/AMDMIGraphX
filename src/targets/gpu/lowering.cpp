@@ -9,6 +9,7 @@
 #include <migraph/gpu/hip.hpp>
 #include <migraph/dfor.hpp>
 #include <migraph/gpu/device/contiguous.hpp>
+#include <migraph/gpu/device/add.hpp>
 #include <migraph/iterator_for.hpp>
 #include <migraph/gpu/rocblas.hpp>
 #include <migraph/gpu/context.hpp>
@@ -165,6 +166,23 @@ struct miopen_pooling
                              0);
 
         return args[1];
+    }
+};
+
+struct hip_add
+{
+    std::string name() const { return "gpu::add"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        // check_shapes{inputs, *this}.has(3).standard();
+        check_shapes{inputs, *this}.has(3);
+        return inputs.at(0);
+    }
+
+    argument compute(context&, const shape&, const std::vector<argument>& args) const
+    {
+        device::add(args[2], args[0], args[1]);
+        return args[2];
     }
 };
 
@@ -390,7 +408,7 @@ struct miopen_apply
     {
         auto output = insert_allocation(ins, ins->result);
         return prog->replace_instruction(
-            ins, miopen_add{}, ins->arguments.at(0), ins->arguments.at(1), output);
+            ins, hip_add{}, ins->arguments.at(0), ins->arguments.at(1), output);
     }
 
     instruction_ref apply_gemm(instruction_ref ins)

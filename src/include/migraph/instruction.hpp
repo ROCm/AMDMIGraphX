@@ -115,6 +115,11 @@ struct instruction
     }
 
     shape get_shape() const { return result; }
+    const literal& get_literal() const
+    {
+        assert(op.name() == "@literal");
+        return lit;
+    }
 
     friend bool operator==(instruction_ref ref, const instruction& i) { return i == ref; }
 

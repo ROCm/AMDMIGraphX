@@ -5,7 +5,7 @@
 #include <migraph/gpu/target.hpp>
 #include <migraph/gpu/hip.hpp>
 #include <migraph/generate.hpp>
-#include <migraph/verify.hpp>
+#include <migraph/verify_args.hpp>
 
 migraph::argument run_cpu(const std::string& file)
 {
@@ -46,20 +46,6 @@ int main(int argc, char const* argv[])
 
         auto x = run_cpu(file);
         auto y = run_gpu(file);
-        visit_all(x, y)([](auto cpu, auto gpu) {
-            if(migraph::verify_range(cpu, gpu, 100))
-            {
-                std::cout << "Passed" << std::endl;
-            }
-            else
-            {
-                std::cout << "Not equal" << std::endl;
-                std::cout << "cpu:" << std::endl;
-                std::cout << cpu << std::endl;
-                std::cout << "gpu:" << std::endl;
-                std::cout << gpu << std::endl;
-            }
-
-        });
+        migraph::verify_args(file, x, y, 100);
     }
 }

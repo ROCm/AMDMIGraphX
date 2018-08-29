@@ -8,7 +8,7 @@
 #include <migraph/gpu/hip.hpp>
 #include <migraph/manage_ptr.hpp>
 #include <migraph/type_name.hpp>
-#include <migraph/verify.hpp>
+#include <migraph/verify_args.hpp>
 
 #include <miopen/miopen.h>
 
@@ -125,45 +125,6 @@ migraph::argument run_gpu()
     }
 
     return migraph::gpu::from_gpu(p.eval(m));
-}
-
-void verify_args(const std::string& name,
-                 const migraph::argument& cpu_arg,
-                 const migraph::argument& gpu_arg)
-{
-    visit_all(cpu_arg, gpu_arg)([&](auto cpu, auto gpu) {
-        if(not migraph::verify_range(cpu, gpu))
-        {
-            // TODO: Check for nans
-            std::cout << "FAILED: " << name << std::endl;
-            if(cpu.size() < 32)
-                std::cout << "cpu:" << cpu << std::endl;
-            if(gpu.size() < 32)
-                std::cout << "gpu:" << gpu << std::endl;
-            if(migraph::range_zero(cpu))
-                std::cout << "Cpu data is all zeros" << std::endl;
-            if(migraph::range_zero(gpu))
-                std::cout << "Gpu data is all zeros" << std::endl;
-
-            auto idx = migraph::mismatch_idx(cpu, gpu, migraph::float_equal);
-            if(idx < migraph::range_distance(cpu))
-            {
-                std::cout << "Mismatch at " << idx << ": " << cpu[idx] << " != " << gpu[idx]
-                          << std::endl;
-            }
-
-            auto cpu_nan_idx = find_idx(cpu, migraph::not_finite);
-            if(cpu_nan_idx >= 0)
-                std::cout << "Non finite number found in cpu at " << cpu_nan_idx << ": "
-                          << cpu[cpu_nan_idx] << std::endl;
-
-            auto gpu_nan_idx = find_idx(gpu, migraph::not_finite);
-            if(gpu_nan_idx >= 0)
-                std::cout << "Non finite number found in gpu at " << gpu_nan_idx << ": "
-                          << gpu[gpu_nan_idx] << std::endl;
-            std::cout << std::endl;
-        }
-    });
 }
 
 template <class V>

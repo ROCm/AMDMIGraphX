@@ -2,16 +2,9 @@
 #define MIGRAPH_GUARD_RTGLIB_TRACER_HPP
 
 #include <ostream>
+#include <migraph/functional.hpp>
 
 namespace migraph {
-
-struct swallow
-{
-    template <class... Ts>
-    swallow(Ts&&...)
-    {
-    }
-};
 
 struct tracer
 {

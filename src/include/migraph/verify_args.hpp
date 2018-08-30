@@ -12,10 +12,12 @@ inline void verify_args(const std::string& name,
                         double tolerance = 80)
 {
     visit_all(cpu_arg, gpu_arg)([&](auto cpu, auto gpu) {
-        if(not verify_range(cpu, gpu, tolerance))
+        double error;
+        if(not verify_range(cpu, gpu, tolerance, &error))
         {
             // TODO: Check for nans
             std::cout << "FAILED: " << name << std::endl;
+            std::cout << "error: " << error << std::endl;
             if(cpu.size() < 32)
                 std::cout << "cpu:" << cpu << std::endl;
             if(gpu.size() < 32)

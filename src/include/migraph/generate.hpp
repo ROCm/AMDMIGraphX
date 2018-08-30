@@ -12,7 +12,7 @@ constexpr T normalize(unsigned long z)
 {
     if(z == 0)
         return 0;
-    const auto max     = 32768;
+    const auto max     = 2048;
     const double range = max / 2; // NOLINT
     double result      = (z % max) / range;
     result -= 1;

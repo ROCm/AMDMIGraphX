@@ -3,6 +3,7 @@ add_library(migraph
     auto_contiguous.cpp
     dead_code_elimination.cpp
     eliminate_contiguous.cpp
+    fwd_conv_batchnorm_rewrite.cpp
     env.cpp
     generate.cpp
     program.cpp

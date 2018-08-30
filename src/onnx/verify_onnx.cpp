@@ -14,7 +14,7 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-template<class F>
+template <class F>
 migraph::argument run_cpu(F f)
 {
     auto p = f();
@@ -29,7 +29,7 @@ migraph::argument run_cpu(F f)
     return out;
 }
 
-template<class F>
+template <class F>
 migraph::argument run_gpu(F f)
 {
     auto p = f();
@@ -45,8 +45,8 @@ migraph::argument run_gpu(F f)
     return migraph::gpu::from_gpu(out);
 }
 
-template<class F>
-void verify_program(const std::string & name, F f, double tolerance = 100)
+template <class F>
+void verify_program(const std::string& name, F f, double tolerance = 100)
 {
     auto x = run_cpu(f);
     auto y = run_gpu(f);
@@ -55,7 +55,7 @@ void verify_program(const std::string & name, F f, double tolerance = 100)
 
 void verify_instructions(const migraph::program& prog, double tolerance = 100)
 {
-    for(auto&& ins:prog)
+    for(auto&& ins : prog)
     {
         if(ins.op.name().front() == '@')
             continue;
@@ -68,23 +68,24 @@ void verify_instructions(const migraph::program& prog, double tolerance = 100)
         auto create_program = [&] {
             migraph::program p;
             std::vector<migraph::instruction_ref> inputs;
-            for(auto&& arg:ins.arguments)
+            for(auto&& arg : ins.arguments)
             {
                 if(arg->op.name() == "@literal")
                     inputs.push_back(p.add_literal(arg->lit));
                 else
-                    inputs.push_back(p.add_parameter(std::to_string(inputs.size()), arg->get_shape()));
+                    inputs.push_back(
+                        p.add_parameter(std::to_string(inputs.size()), arg->get_shape()));
             }
             p.add_instruction(ins.op, inputs);
             return p;
         };
-        try 
+        try
         {
             std::cout << "Verify: " << ins.op.name() << std::endl;
             std::cout << create_program() << std::endl;
             verify_program(ins.op.name(), create_program, tolerance);
         }
-        catch(...) 
+        catch(...)
         {
             std::cout << "Instruction " << ins.op.name() << " threw an exception." << std::endl;
             throw;
@@ -94,7 +95,7 @@ void verify_instructions(const migraph::program& prog, double tolerance = 100)
 
 int main(int argc, char const* argv[])
 {
-    std::vector<std::string> args(argv+1, argv+argc);
+    std::vector<std::string> args(argv + 1, argv + argc);
     if(not args.empty())
     {
         std::string file = args.front();

@@ -220,7 +220,7 @@ struct miopen_add
 struct miopen_gemm
 {
     gemm op;
-    std::string name() const { return "gpu::convolution"; }
+    std::string name() const { return "gpu::gemm"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(3);
@@ -355,7 +355,7 @@ struct miopen_apply
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
     {
-        if(ins == --prog->end())
+        if(ins == --prog->end() and not tag.empty())
         {
             return prog->add_parameter("output", s);
         }

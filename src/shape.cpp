@@ -117,14 +117,14 @@ std::size_t shape::index(std::size_t i) const
         return i;
     else
     {
-        std::size_t s = 1;
+        std::size_t s      = 1;
         std::size_t result = 0;
-        for(std::size_t j = 0;j < this->lens().size();j++)
+        for(std::size_t j = 0; j < this->lens().size(); j++)
         {
-            const std::size_t k = this->lens().size() - j - 1;
+            const std::size_t k      = this->lens().size() - j - 1;
             const std::size_t stride = this->strides()[k];
-            const std::size_t len = this->lens()[k];
-            const std::size_t idx = (i % (s * len)) / s;
+            const std::size_t len    = this->lens()[k];
+            const std::size_t idx    = (i % (s * len)) / s;
             result += stride * idx;
             s *= len;
         }

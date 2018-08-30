@@ -22,7 +22,7 @@ migraph::argument run_cpu(F f)
     migraph::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
-        m[x.first] = migraph::generate_argument(x.second);
+        m[x.first] = migraph::generate_argument(x.second, get_hash(x.first));
     }
     auto out = p.eval(m);
     std::cout << p << std::endl;
@@ -53,7 +53,7 @@ void verify_program(const std::string& name, F f, double tolerance = 100)
     migraph::verify_args(name, x, y, tolerance);
 }
 
-void verify_instructions(const migraph::program& prog, double tolerance = 100)
+void verify_instructions(const migraph::program& prog, double tolerance = 80)
 {
     for(auto&& ins : prog)
     {

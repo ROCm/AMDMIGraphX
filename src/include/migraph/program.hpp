@@ -100,7 +100,6 @@ struct program
     private:
     std::unique_ptr<program_impl> impl;
 };
-
 } // namespace migraph
 
 #endif

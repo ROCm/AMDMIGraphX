@@ -33,10 +33,10 @@ inline auto launch(std::size_t global, std::size_t local)
     };
 }
 
-inline auto gs_launch(std::size_t n, std::size_t local = 512)
+inline auto gs_launch(std::size_t n, std::size_t local = 1024)
 {
     std::size_t groups  = 1 + n / local;
-    std::size_t nglobal = std::min<std::size_t>(512, groups) * local;
+    std::size_t nglobal = std::min<std::size_t>(256, groups) * local;
 
     return [=](auto f) {
         launch(nglobal, local)([=](auto idx) {
@@ -47,6 +47,14 @@ inline auto gs_launch(std::size_t n, std::size_t local = 512)
         });
     };
 }
+
+// Workaround hcc's broken tile_static macro
+#ifdef tile_static
+#undef tile_static
+#define MIGRAPH_DEVICE_SHARED __attribute__((tile_static))
+#else
+#define MIGRAPH_DEVICE_SHARED __shared__
+#endif
 
 } // namespace device
 } // namespace gpu

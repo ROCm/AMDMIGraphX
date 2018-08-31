@@ -12,7 +12,11 @@ constexpr T normalize(unsigned long z)
 {
     if(z == 0)
         return 0;
-    return (2.0 / z) - 1.0;
+    const auto max     = 2048;
+    const double range = max / 2; // NOLINT
+    double result      = (z % max) / range;
+    result -= 1;
+    return result;
 }
 
 template <class T, MIGRAPH_REQUIRES(std::is_signed<T>{} and not std::is_floating_point<T>{})>
@@ -55,10 +59,28 @@ struct xorshf96_generator
 };
 
 template <class T>
+struct xorshift_generator
+{
+    unsigned long x;
+
+    xorshift_generator(unsigned long seed = 0) : x(521288629ULL ^ seed) {}
+
+    constexpr T operator()() noexcept
+    {
+        x ^= x >> 12U;
+        x ^= x << 25U;
+        x ^= x >> 27U;
+        return normalize<T>(x * 0x2545F4914F6CDD1D);
+    }
+};
+
+template <class T>
 std::vector<T> generate_tensor_data(const migraph::shape& s, unsigned long seed = 0)
 {
     std::vector<T> result(s.elements());
     std::generate(result.begin(), result.end(), xorshf96_generator<T>{seed});
+    // std::generate(result.begin(), result.end(), [&]{ return seed % 7; });
+    // std::generate(result.begin(), result.end(), []{ return 1; });
     return result;
 }
 

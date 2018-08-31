@@ -11,6 +11,7 @@ if(NOT TARGET MIOpen)
 endif()
 
 add_library(migraph_device 
+    device/add.cpp
     device/add_relu.cpp
     device/contiguous.cpp
 )

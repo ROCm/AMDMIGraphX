@@ -11,12 +11,12 @@
 #include <vector>
 #include <queue>
 
-//#define DEBUG_OPT
+//#define MIGRAPH_DEBUG_OPT
 
-#ifdef DEBUG_OPT
-#define DEBUG(s) s
+#ifdef MIGRAPH_DEBUG_OPT
+#define MIGRAPH_DEBUG(s) s
 #else
-#define DEBUG(s)
-#endif // DEBUG_OPT
+#define MIGRAPH_DEBUG(s)
+#endif // MIGRAPH_DEBUG_OPT
 
 #endif // MIGRAPH_GUARD_RTGLIB_COMMON_HEADER_HPP

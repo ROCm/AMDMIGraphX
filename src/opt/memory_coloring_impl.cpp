@@ -1,14 +1,15 @@
 #include "memory_coloring_impl.hpp"
 
 namespace migraph {
+
 void memory_coloring_impl::run()
 {
     build();
     if(num_of_lives != 0)
     {
-        DEBUG(dump("---Before memory coloring---"));
-        DEBUG(dump_program());
-        DEBUG(dump_intervals());
+        MIGRAPH_DEBUG(dump("---Before memory coloring---"));
+        MIGRAPH_DEBUG(dump_program());
+        MIGRAPH_DEBUG(dump_intervals());
         // Coloring
         while(!alloc_queue.empty())
         {
@@ -17,7 +18,7 @@ void memory_coloring_impl::run()
             alloc_queue.pop();
         }
         rewrite();
-        DEBUG(verify());
+        MIGRAPH_DEBUG(verify());
     }
 }
 
@@ -77,101 +78,94 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
         conflict_queue.pop();
     }
     segment.offset = offset;
-    DEBUG(segment.dump());
+    MIGRAPH_DEBUG(segment.dump());
     required_bytes = std::max(required_bytes, offset + segment.size);
     return true;
 }
 
 void memory_coloring_impl::build()
 {
-    int num_of_instrs = p_program->get_size();
-    if(num_of_instrs > 0)
+    std::size_t num_of_instrs = p_program->size();
+    if(num_of_instrs == 0)
+        return;
+
+    int cur_points        = num_of_instrs * 2;
+    instruction_ref iter  = std::prev(p_program->end());
+    instruction_ref begin = p_program->begin();
+    std::vector<instruction_ref> dead_instrs;
+    std::set<int> live_set;
+    // Build live intervals.
+    live_intervals.resize(num_of_instrs);
+    do
     {
-        int cur_points        = num_of_instrs * 2;
-        instruction_ref iter  = std::prev(p_program->end());
-        instruction_ref begin = p_program->begin();
-        std::vector<instruction_ref> dead_instrs;
-        std::set<int> live_set;
-        // Build live intervals.
-        live_intervals.resize(num_of_instrs);
-        do
+        const instruction* p_iter = &(*iter);
+        interval_ptr def_interval = nullptr;
+        bool is_dead              = false;
+        if(instr2_live.find(p_iter) != instr2_live.end())
         {
-            const instruction* p_iter = &(*iter);
-            interval_ptr def_interval = nullptr;
-            bool is_dead              = false;
-            if(instr2_live.find(p_iter) != instr2_live.end())
+            def_interval = instr2_live[p_iter];
+            bool is_lit  = is_literal(iter);
+            if(is_allocate(iter) || is_lit)
             {
-                def_interval = instr2_live[p_iter];
-                bool is_lit  = is_literal(iter);
-                if(is_allocate(iter) || is_lit)
-                {
-                    live_range& range        = def_interval->segment;
-                    def_interval->result     = iter->result;
-                    def_interval->is_literal = is_lit;
-                    alloc_queue.push(def_interval);
-                    range.begin = cur_points;
-                    range.size  = (iter->result).bytes();
-                    live_set.erase(range.vn);
-                }
+                live_range& range        = def_interval->segment;
+                def_interval->result     = iter->result;
+                def_interval->is_literal = is_lit;
+                alloc_queue.push(def_interval);
+                range.begin = cur_points;
+                range.size  = (iter->result).bytes();
+                live_set.erase(range.vn);
             }
-            else if(!is_param(iter) && !is_outline(iter) && !is_check_context(iter))
+        }
+        else if(!is_param(iter) && !is_outline(iter) && !is_check_context(iter))
+        {
+            is_dead = true;
+        }
+        int tie_ndx = get_input_tie_ndx(iter);
+        int cnt     = -1;
+        for(auto&& arg : iter->arguments)
+        {
+            cnt++;
+            if(is_param(arg) || is_outline(arg))
             {
-                is_dead = true;
+                if(is_output_param(arg))
+                    is_dead = false;
+                continue;
             }
-            int tie_ndx = get_input_tie_ndx(iter);
-            if(!iter->arguments.empty())
+            const instruction* p_arg = &(*arg);
+            if(cnt == tie_ndx)
             {
-                int cnt = -1;
-                for(auto&& arg : iter->arguments)
-                {
-                    cnt++;
-                    if(is_param(arg) || is_outline(arg))
-                    {
-                        if(is_output_param(arg))
-                            is_dead = false;
-                        continue;
-                    }
-                    const instruction* p_arg = &(*arg);
-                    if(cnt == tie_ndx)
-                    {
-                        // input memory is used as this instruction's output.
-                        // def is considered as use. Coalesce the live intervals.
-#ifndef NDEBUG
-                        assert(def_interval != nullptr);
-#endif
-                        def_interval->add_use(cur_points);
-                        instr2_live[p_arg] = def_interval;
-                    }
-                    else if(instr2_live.find(p_arg) == instr2_live.end())
-                    {
-                        // First time see a use, create a live interval.
-                        int id                = num_of_lives++;
-                        interval_ptr interval = &(live_intervals[id]);
-                        interval->id          = id;
-                        interval->segment.end = cur_points;
-                        interval->segment.vn  = ++max_value_number;
-                        interval->add_use(cur_points);
-                        instr2_live[p_arg] = interval;
-                        add_conflicts(live_set, max_value_number);
-                        live_set.insert(max_value_number);
-                        live_ranges[max_value_number] = &(interval->segment);
-                    }
-                    else
-                    {
-                        interval_ptr interval = instr2_live[p_arg];
-                        interval->add_use(cur_points);
-#ifndef NDEBUG
-                        assert(live_set.find(interval->id) != live_set.end());
-#endif
-                    }
-                }
+                // input memory is used as this instruction's output.
+                // def is considered as use. Coalesce the live intervals.
+                assert(def_interval != nullptr);
+                def_interval->add_use(cur_points);
+                instr2_live[p_arg] = def_interval;
             }
-            if(is_dead)
-                dead_instrs.push_back(iter);
-            cur_points -= 2;
-            iter = std::prev(iter);
-        } while(iter != begin);
-    }
+            else if(instr2_live.find(p_arg) == instr2_live.end())
+            {
+                // First time see a use, create a live interval.
+                int id                = num_of_lives++;
+                interval_ptr interval = &(live_intervals[id]);
+                interval->id          = id;
+                interval->segment.end = cur_points;
+                interval->segment.vn  = ++max_value_number;
+                interval->add_use(cur_points);
+                instr2_live[p_arg] = interval;
+                add_conflicts(live_set, max_value_number);
+                live_set.insert(max_value_number);
+                live_ranges[max_value_number] = &(interval->segment);
+            }
+            else
+            {
+                interval_ptr interval = instr2_live[p_arg];
+                interval->add_use(cur_points);
+                assert(live_set.find(interval->id) != live_set.end());
+            }
+        }
+        if(is_dead)
+            dead_instrs.push_back(iter);
+        cur_points -= 2;
+        iter = std::prev(iter);
+    } while(iter != begin);
 }
 
 void memory_coloring_impl::rewrite()
@@ -190,9 +184,7 @@ void memory_coloring_impl::rewrite()
             interval_ptr interval = instr2_live[p_iter];
             if(interval->get_offset() == InvalidOffset)
             {
-#ifndef NDEBUG
                 assert((interval->get_begin() == InvalidOffset) || interval->result.bytes() == 0);
-#endif
                 continue;
             }
             std::size_t offset = interval->get_offset();
@@ -209,11 +201,11 @@ void memory_coloring_impl::rewrite()
             }
         }
     }
-    DEBUG(dump("---After rewrite---"));
-    DEBUG(dump_program());
+    MIGRAPH_DEBUG(dump("---After rewrite---"));
+    MIGRAPH_DEBUG(dump_program());
 }
 
-#ifdef DEBUG_OPT
+#ifdef MIGRAPH_DEBUG_OPT
 void memory_coloring_impl::dump(const std::string str) { std::cout << str << std::endl; }
 
 void memory_coloring_impl::dump_program() { std::cout << *p_program << std::endl; }

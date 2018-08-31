@@ -534,6 +534,27 @@ struct div : binary
     std::string name() const { return "div"; }
 };
 
+struct get_mem_ptr
+{
+    std::string name() const { return "get_mem_ptr:" + std::to_string(offset); }
+    shape compute_shape(std::vector<shape> inputs) const { return inputs.at(1); }
+    argument compute(context&, const shape& output_shape, const std::vector<argument>& args) const
+    {
+        return {std::move(output_shape), args.at(0).data() + offset};
+    }
+    std::size_t offset = 0;
+};
+
+struct write_literal
+{
+    std::string name() const { return "write_literal"; }
+    shape compute_shape(std::vector<shape> inputs) const { return inputs.at(2); }
+    argument compute(context&, const shape&, const std::vector<argument>&) const
+    {
+        MIGRAPH_THROW("not computable");
+    }
+};
+
 struct outline
 {
     shape s;
@@ -548,7 +569,6 @@ struct outline
         return {s, nullptr};
     }
 };
-
 } // namespace migraph
 
 #endif

@@ -58,7 +58,9 @@ std::vector<T> read_from_gpu(const void* x, std::size_t sz)
 
 hip_ptr write_to_gpu(const void* x, std::size_t sz, bool host = false)
 {
+
     auto result = allocate_gpu(sz, host);
+    // gpu_sync();
     auto status = hipMemcpy(result.get(), x, sz, hipMemcpyHostToDevice);
     if(status != hipSuccess)
         MIGRAPH_THROW("Copy to gpu failed: " + hip_error(status));
@@ -90,6 +92,9 @@ argument from_gpu(argument arg)
 
 void gpu_sync() { hipDeviceSynchronize(); }
 
+void copy_to_gpu(char* dst, const char* src, std::size_t size)
+{
+    hipMemcpy(dst, src, size, hipMemcpyHostToDevice);
+}
 } // namespace gpu
-
 } // namespace migraph

@@ -108,7 +108,9 @@ struct miopen_convolution
         workspace_shape = shape{shape::int8_type, {workspace_size}};
 
         auto x         = to_gpu(generate_argument(inputs[0]->get_shape()));
+        gpu_sync();
         auto w         = to_gpu(generate_argument(inputs[1]->get_shape()));
+        gpu_sync();
         auto y         = to_gpu(generate_argument(output_shape));
         auto workspace = allocate_gpu(workspace_shape);
 

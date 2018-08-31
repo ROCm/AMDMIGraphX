@@ -4,7 +4,7 @@
 
 namespace migraph {
 
-#define InvalidOffset (-1)
+static const int InvalidOffset = -1;
 
 struct live_range
 {
@@ -13,7 +13,7 @@ struct live_range
     long long offset; // offset to base pointer of allocated memory trunk.
     int vn;           // value number that identifies this live_range.
     long long size;   // size of required memory in bytes
-#ifdef DEBUG_OPT
+#ifdef MIGRAPH_DEBUG_OPT
     void dump();
 #endif
 };
@@ -31,7 +31,7 @@ struct live_interval
     int get_end() const { return segment.end; }
     long long get_offset() const { return segment.offset; }
 
-#ifdef DEBUG_OPT
+#ifdef MIGRAPH_DEBUG_OPT
     void dump();
 #endif
 
@@ -42,12 +42,11 @@ struct live_interval
     bool is_literal;
 };
 
-#define interval_ptr live_interval*
+typedef live_interval* interval_ptr;
 
 struct memory_coloring_impl
 {
-    memory_coloring_impl(program* p) : p_program(p) { init(); }
-    void init()
+    memory_coloring_impl(program* p) : p_program(p)
     {
         instr2_live.clear();
         live_ranges.clear();
@@ -70,16 +69,19 @@ struct memory_coloring_impl
     void rewrite();
 
     private:
-    bool is_param(const instruction_ref ins) { return ins->op.name() == "@param"; }
-    bool is_output_param(const instruction_ref ins)
+    static bool is_param(const instruction_ref ins) { return ins->op.name() == "@param"; }
+    static bool is_output_param(const instruction_ref ins)
     {
         return is_param(ins) && any_cast<builtin::param>(ins->op).parameter == "output";
     }
-    bool is_allocate(const instruction_ref ins) { return ins->op.name() == "hip::allocate"; }
-    bool is_outline(const instruction_ref ins) { return ins->op.name() == "@outline"; }
-    bool is_literal(const instruction_ref ins) { return ins->op.name() == "@literal"; }
-    bool is_check_context(const instruction_ref ins) { return ins->op.name() == "check_context"; }
-    bool is_transpose(const instruction_ref ins) { return ins->op.name() == "transpose"; }
+    static bool is_allocate(const instruction_ref ins) { return ins->op.name() == "hip::allocate"; }
+    static bool is_outline(const instruction_ref ins) { return ins->op.name() == "@outline"; }
+    static bool is_literal(const instruction_ref ins) { return ins->op.name() == "@literal"; }
+    static bool is_check_context(const instruction_ref ins)
+    {
+        return ins->op.name() == "check_context";
+    }
+    static bool is_transpose(const instruction_ref ins) { return ins->op.name() == "transpose"; }
     int get_input_tie_ndx(const instruction_ref ins)
     {
         if(is_transpose(ins))
@@ -94,8 +96,8 @@ struct memory_coloring_impl
         }
         return last_allocate;
     }
-#ifdef DEBUG_OPT    
-    bool is_disjoin(live_range& range1, live_range& range2)
+#ifdef MIGRAPH_DEBUG_OPT
+    static bool is_disjoin(live_range& range1, live_range& range2)
     {
         long long end1 = range1.offset + range1.size - 1;
         long long end2 = range2.offset + range2.size - 1;

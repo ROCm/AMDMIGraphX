@@ -93,8 +93,6 @@ struct program
 
     void perf_report(std::ostream& os, std::size_t n, parameter_map params) const;
 
-    int get_size() const;
-
     friend std::ostream& operator<<(std::ostream& os, const program& p);
     friend bool operator==(const program& x, const program& y);
     friend bool operator!=(const program& x, const program& y) { return !(x == y); }

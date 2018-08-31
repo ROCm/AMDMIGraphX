@@ -179,6 +179,7 @@ instruction_ref program::add_outline(const shape& s)
 
 instruction_ref program::add_parameter(std::string name, shape s)
 {
+    assert(get_parameter_shape(name) == shape{});
     impl->instructions.push_front({builtin::param{std::move(name)}, std::move(s), {}});
     return impl->instructions.begin();
 }

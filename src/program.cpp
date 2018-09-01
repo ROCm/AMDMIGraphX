@@ -425,4 +425,5 @@ std::ostream& operator<<(std::ostream& os, const program& p)
     print_program(os, p, [](auto&&...) {});
     return os;
 }
+
 } // namespace migraph

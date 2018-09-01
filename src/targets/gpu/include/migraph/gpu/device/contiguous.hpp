@@ -1,12 +1,16 @@
 #ifndef MIGRAPH_GUARD_MIGRAPHLIB_KERNELS_HPP
 #define MIGRAPH_GUARD_MIGRAPHLIB_KERNELS_HPP
+
+#include <migraph/argument.hpp>
+
 namespace migraph {
 namespace gpu {
+namespace device {
 
-void hip_contiguous(migraph::shape output_shape, migraph::argument arg, migraph::argument result);
+void contiguous(argument result, argument arg);
 
+} // namespace device
 } // namespace gpu
-
 } // namespace migraph
 
 #endif

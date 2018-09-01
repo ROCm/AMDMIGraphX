@@ -91,9 +91,9 @@ instruction_ref program::insert_instruction(instruction_ref ins,
     assert(not starts_with(op.name(), "@"));
     // TODO: Use move
     shape r     = compute_shape(op, args);
-    auto result = impl->instructions.insert(ins, {op, r, args});
+    auto result = impl->instructions.insert(ins, {op, r, std::move(args)});
     backreference(result);
-    assert(result->arguments == args);
+    // assert(result->arguments == args);
     assert(result->valid(begin()));
     return result;
 }
@@ -108,7 +108,7 @@ instruction_ref program::replace_instruction(instruction_ref ins,
     assert(not starts_with(op.name(), "@"));
 
     shape r = compute_shape(op, args);
-    ins->replace(op, r, args);
+    ins->replace(op, r, std::move(args));
     backreference(ins);
     assert(ins->valid(begin()));
     return ins;
@@ -179,6 +179,7 @@ instruction_ref program::add_outline(const shape& s)
 
 instruction_ref program::add_parameter(std::string name, shape s)
 {
+    assert(get_parameter_shape(name) == shape{});
     impl->instructions.push_front({builtin::param{std::move(name)}, std::move(s), {}});
     return impl->instructions.begin();
 }
@@ -319,10 +320,6 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
 {
     return generic_eval(
         *this, this->impl->ctx, std::move(params), [](auto&, auto f) { return f(); });
-}
-int program::get_size() const
-{
-    return (*impl).instructions.size();
 }
 
 double common_average(const std::vector<double>& v)

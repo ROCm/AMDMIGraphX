@@ -8,7 +8,8 @@
 #include <migraph/gpu/miopen.hpp>
 #include <migraph/gpu/hip.hpp>
 #include <migraph/dfor.hpp>
-#include <migraph/gpu/kernels.hpp>
+#include <migraph/gpu/device/contiguous.hpp>
+#include <migraph/gpu/device/add.hpp>
 #include <migraph/iterator_for.hpp>
 #include <migraph/gpu/rocblas.hpp>
 #include <migraph/gpu/context.hpp>
@@ -168,6 +169,23 @@ struct miopen_pooling
     }
 };
 
+struct hip_add
+{
+    std::string name() const { return "gpu::add"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        // check_shapes{inputs, *this}.has(3).standard();
+        check_shapes{inputs, *this}.has(3);
+        return inputs.at(0);
+    }
+
+    argument compute(context&, const shape&, const std::vector<argument>& args) const
+    {
+        device::add(args[2], args[0], args[1]);
+        return args[2];
+    }
+};
+
 struct miopen_add
 {
     std::string name() const { return "gpu::add"; }
@@ -202,7 +220,7 @@ struct miopen_add
 struct miopen_gemm
 {
     gemm op;
-    std::string name() const { return "gpu::convolution"; }
+    std::string name() const { return "gpu::gemm"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(3);
@@ -252,7 +270,8 @@ struct miopen_contiguous
     {
         assert(output_shape == args[1].get_shape());
         assert(output_shape.standard());
-        hip_contiguous(std::move(output_shape), args.at(0), args.at(1));
+        (void)output_shape;
+        device::contiguous(args.at(1), args.at(0));
         return args.at(1);
     }
 };
@@ -336,7 +355,7 @@ struct miopen_apply
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
     {
-        if(ins == --prog->end())
+        if(ins == --prog->end() and not tag.empty())
         {
             return prog->add_parameter("output", s);
         }
@@ -389,7 +408,7 @@ struct miopen_apply
     {
         auto output = insert_allocation(ins, ins->result);
         return prog->replace_instruction(
-            ins, miopen_add{}, ins->arguments.at(0), ins->arguments.at(1), output);
+            ins, hip_add{}, ins->arguments.at(0), ins->arguments.at(1), output);
     }
 
     instruction_ref apply_gemm(instruction_ref ins)

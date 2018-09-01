@@ -234,7 +234,7 @@ struct onnx_parser
         }
         if(contains(attributes, "momentum"))
         {
-            epsilon = parse_value(attributes.at("momentum")).at<float>();
+            momentum = parse_value(attributes.at("momentum")).at<float>();
         }
         if(contains(attributes, "is_test"))
         {

@@ -28,7 +28,6 @@ void write_literals::apply(program& p) const
     assert(ctx != nullptr);
     for(auto ins : iterator_for(p))
     {
-#if 0        
         if(ins->op.name() == "@literal")
         {
             argument a    = to_gpu(ins->lit.get_argument());
@@ -36,13 +35,9 @@ void write_literals::apply(program& p) const
             ctx->literals.push_back(a);
             p.replace_instruction(ins, hip_load_literal{a.get_shape(), n});
         }
-#else
-        if(ins->op.name() == "write_literal")
-        {
-            p.replace_instruction(ins, hip_memcpy{}, ins->arguments);
-        }
-#endif
     }
 }
+
 } // namespace gpu
+
 } // namespace migraph

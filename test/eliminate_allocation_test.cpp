@@ -24,7 +24,9 @@ struct allocate
         migraph::check_shapes{inputs}.has(0);
         return s;
     }
-    migraph::argument compute(migraph::context&, const migraph::shape& output_shape, const std::vector<migraph::argument>&) const
+    migraph::argument compute(migraph::context&,
+                              const migraph::shape& output_shape,
+                              const std::vector<migraph::argument>&) const
     {
         return {output_shape};
     }
@@ -44,7 +46,7 @@ void basic()
 
     p.compile(eliminate_allocation_target{});
     EXPECT(p.get_shape() == migraph::shape{migraph::shape::float_type, {200}});
-    EXPECT(p.get_parameter_shape("memory").bytes() == (8*4 + 40*4 + 200*4));
+    EXPECT(p.get_parameter_shape("memory").bytes() == (8 * 4 + 40 * 4 + 200 * 4));
 }
 
 void aligned()
@@ -61,7 +63,7 @@ void aligned()
 
     p.compile(eliminate_allocation_target{});
     EXPECT(p.get_shape() == migraph::shape{migraph::shape::float_type, {200}});
-    EXPECT(p.get_parameter_shape("memory").bytes() == (32 + 32 + 200*4));
+    EXPECT(p.get_parameter_shape("memory").bytes() == (32 + 32 + 200 * 4));
 }
 
 void unaligned()
@@ -78,7 +80,7 @@ void unaligned()
 
     p.compile(eliminate_allocation_target{1});
     EXPECT(p.get_shape() == migraph::shape{migraph::shape::float_type, {200}});
-    EXPECT(p.get_parameter_shape("memory").bytes() == (1*4 + 2*4 + 200*4));
+    EXPECT(p.get_parameter_shape("memory").bytes() == (1 * 4 + 2 * 4 + 200 * 4));
 }
 
 void float_aligned()
@@ -95,7 +97,7 @@ void float_aligned()
 
     p.compile(eliminate_allocation_target{4});
     EXPECT(p.get_shape() == migraph::shape{migraph::shape::float_type, {200}});
-    EXPECT(p.get_parameter_shape("memory").bytes() == (1*4 + 2*4 + 200*4));
+    EXPECT(p.get_parameter_shape("memory").bytes() == (1 * 4 + 2 * 4 + 200 * 4));
 }
 
 int main()

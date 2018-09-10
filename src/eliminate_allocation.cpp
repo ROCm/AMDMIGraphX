@@ -17,7 +17,7 @@ void eliminate_allocation::apply(program& p) const
         if(ins->op.name() != allocation_op)
             continue;
         allocs.emplace_back(ins, n);
-        std::size_t size = ins->get_shape().bytes();
+        std::size_t size    = ins->get_shape().bytes();
         std::size_t padding = (alignment - (size % alignment)) % alignment;
         n += size + padding;
     }

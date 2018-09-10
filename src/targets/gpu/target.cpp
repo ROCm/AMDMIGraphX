@@ -3,7 +3,7 @@
 #include <migraph/gpu/write_literals.hpp>
 #include <migraph/gpu/context.hpp>
 #include <migraph/gpu/eliminate_workspace.hpp>
-#include <migraph/gpu/eliminate_allocation.hpp>
+#include <migraph/eliminate_allocation.hpp>
 #include <migraph/gpu/fuse_ops.hpp>
 #include <migraph/check_context.hpp>
 #include <migraph/auto_contiguous.hpp>
@@ -34,7 +34,7 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
         eliminate_contiguous{},
         dead_code_elimination{},
         write_literals{&ctx},
-        eliminate_allocation{},
+        eliminate_allocation{""},
         check_context<context>{},
         dead_code_elimination{}
     };

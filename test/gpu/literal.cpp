@@ -5,7 +5,7 @@
 #include <migraph/gpu/target.hpp>
 #include <migraph/gpu/hip.hpp>
 
-void gpu_literal_test() 
+void gpu_literal_test()
 {
     migraph::program p;
     auto lit = generate_literal(migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
@@ -15,7 +15,4 @@ void gpu_literal_test()
     EXPECT(lit == migraph::gpu::from_gpu(result));
 }
 
-int main()
-{
-    gpu_literal_test();
-}
+int main() { gpu_literal_test(); }

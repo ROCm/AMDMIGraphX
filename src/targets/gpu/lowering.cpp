@@ -355,7 +355,7 @@ struct miopen_apply
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
     {
-        if(ins == --prog->end() and not tag.empty())
+        if(ins == --prog->end() and tag.empty())
         {
             return prog->add_parameter("output", s);
         }

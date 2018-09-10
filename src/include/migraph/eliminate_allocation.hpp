@@ -7,14 +7,13 @@
 namespace migraph {
 struct program;
 
-namespace gpu {
-
 struct eliminate_allocation
 {
+    std::string allocation_op{};
+    std::size_t alignment = 32;
     std::string name() const { return "eliminate_allocation"; }
     void apply(program& p) const;
 };
-} // namespace gpu
 } // namespace migraph
 
 #endif

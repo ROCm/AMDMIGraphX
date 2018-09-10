@@ -31,7 +31,10 @@ void fuse_ops::apply(program& p) const
         auto add_ins = ins->arguments.front();
         if(add_ins->op.name() != "gpu::add")
             continue;
-        p.replace_instruction(ins, hip_add_relu{}, add_ins->arguments);
+        auto args = add_ins->arguments;
+        // Use the allocation from the relu operator
+        args.back() = ins->arguments.back();
+        p.replace_instruction(ins, hip_add_relu{}, args);
     }
 }
 

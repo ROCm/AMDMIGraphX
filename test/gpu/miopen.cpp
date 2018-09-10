@@ -123,7 +123,7 @@ migraph::argument run_gpu()
     {
         m[x.first] = migraph::gpu::to_gpu(migraph::generate_argument(x.second, get_hash(x.first)));
     }
-
+    EXPECT(bool{m.find("output") != m.end()});
     return migraph::gpu::from_gpu(p.eval(m));
 }
 
@@ -231,6 +231,19 @@ struct test_add_broadcast5
         auto y  = p.add_parameter("y", {migraph::shape::float_type, {4}});
         auto by = p.add_instruction(migraph::broadcast{1}, x, y);
         p.add_instruction(migraph::add{}, x, by);
+        return p;
+    }
+};
+
+struct test_conv
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto input = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+        auto weights =
+            p.add_parameter("w", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+        p.add_instruction(migraph::convolution{}, input, weights);
         return p;
     }
 };
@@ -482,6 +495,7 @@ int main()
     verify_program<test_add_broadcast3>();
     verify_program<test_add_broadcast4>();
     verify_program<test_add_broadcast5>();
+    verify_program<test_conv>();
     verify_program<test_conv_relu>();
     verify_program<test_add_relu>();
     verify_program<test_conv_pooling>();

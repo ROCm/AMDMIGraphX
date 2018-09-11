@@ -538,7 +538,7 @@ struct load
 {
     shape s;
     std::size_t offset = 0;
-    std::string name() const { return "load"; }
+    std::string name() const { return "load:"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs}.has(1);
@@ -547,6 +547,18 @@ struct load
     argument compute(context&, const shape&, const std::vector<argument>& args) const
     {
         return {s, args[0].data() + offset};
+    }
+};    
+
+struct write_literal
+{
+    std::size_t offset = 0;
+    bool pre_copy = false;
+    std::string name() const { return "write_literal"; }
+    shape compute_shape(std::vector<shape> inputs) const { return inputs.at(1); }
+    argument compute(context&, const shape&, const std::vector<argument>&) const
+    {
+        MIGRAPH_THROW("not computable");
     }
 };
 

@@ -6,12 +6,16 @@
 #include <migraph/iterator_for.hpp>
 #include <migraph/ranges.hpp>
 #include <migraph/stringutils.hpp>
+#include <migraph/pass_config.hpp>
 
 namespace migraph {
 namespace gpu {
 
 void eliminate_workspace::apply(program& p) const
 {
+    if (!enabled(MIGRAPH_DISABLE_MEMORY_COLORING{}))
+        return;
+    
     std::size_t n = 0;
     std::vector<instruction_ref> allocs;
     for(auto ins : iterator_for(p))

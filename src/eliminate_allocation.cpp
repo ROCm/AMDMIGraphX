@@ -4,12 +4,17 @@
 #include <migraph/operators.hpp>
 #include <migraph/iterator_for.hpp>
 #include <migraph/ranges.hpp>
+#include <migraph/stringutils.hpp>
+#include <migraph/pass_config.hpp>
 
 namespace migraph {
 
 void eliminate_allocation::apply(program& p) const
 {
     assert(alignment > 0);
+    if (!enabled(MIGRAPH_DISABLE_MEMORY_COLORING{}))
+        return;
+
     std::size_t n = 0;
     std::vector<std::pair<instruction_ref, std::size_t>> allocs;
     for(auto ins : iterator_for(p))

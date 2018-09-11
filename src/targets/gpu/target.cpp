@@ -1,5 +1,7 @@
 #include <migraph/gpu/target.hpp>
 #include <migraph/gpu/lowering.hpp>
+#include <migraph/memory_coloring.hpp>
+#include <migraph/gpu/lowering_memory_coloring.hpp>
 #include <migraph/gpu/write_literals.hpp>
 #include <migraph/gpu/context.hpp>
 #include <migraph/gpu/eliminate_workspace.hpp>
@@ -14,7 +16,7 @@
 
 namespace migraph {
 namespace gpu {
-
+    
 std::vector<pass> target::get_passes(migraph::context& gctx) const
 {
     auto& ctx = any_cast<context>(gctx);
@@ -28,6 +30,8 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
         simplify_reshapes{},
         dead_code_elimination{},
         lowering{ctx},
+        memory_coloring{},
+        lowering_memory_coloring{&ctx},
         fuse_ops{},
         dead_code_elimination{},
         eliminate_workspace{},
@@ -43,10 +47,10 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
 
 std::string target::name() const { return "miopen"; }
 
-migraph::context target::get_context() const
+migraph::context target::get_context(parameter_map params) const
 {
     return context{share(make_obj<miopen_handle>(&miopenCreate)),
-                   share(create_rocblas_handle_ptr())};
+            share(create_rocblas_handle_ptr()), params, {}};
 }
 
 } // namespace gpu

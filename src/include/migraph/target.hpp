@@ -8,13 +8,16 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <unordered_map>
 #include <migraph/context.hpp>
 #include <migraph/pass.hpp>
+#include <migraph/argument.hpp>
 
 namespace migraph {
-
+using parameter_map = std::unordered_map<std::string, argument>;
+    
 #ifdef DOXYGEN
-
+    
 /// An interface for a compilation target
 struct target
 {
@@ -33,7 +36,7 @@ struct target
      * @brief Construct a context for the target.
      * @return The context to be used during compilation and execution.
      */
-    context get_context() const;
+    context get_context(parameter_map params = parameter_map()) const;
 };
 
 #else
@@ -119,10 +122,10 @@ struct target
         return (*this).private_detail_te_get_handle().get_passes(ctx);
     }
 
-    context get_context() const
+    context get_context(parameter_map params = parameter_map()) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().get_context();
+        return (*this).private_detail_te_get_handle().get_context(params);
     }
 
     private:
@@ -134,7 +137,7 @@ struct target
 
         virtual std::string name() const                         = 0;
         virtual std::vector<pass> get_passes(context& ctx) const = 0;
-        virtual context get_context() const                      = 0;
+        virtual context get_context(parameter_map params = parameter_map()) const                      = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -173,7 +176,7 @@ struct target
             return private_detail_te_value.get_passes(ctx);
         }
 
-        context get_context() const override { return private_detail_te_value.get_context(); }
+        context get_context(parameter_map params = parameter_map()) const override { return private_detail_te_value.get_context(params); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };

@@ -203,6 +203,25 @@ shape program::get_parameter_shape(std::string name) const
         return {};
 }
 
+instruction_ref program::get_parameter(std::string name) const
+{
+    auto ins = std::find_if(
+        impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
+            if(x.op.name() == "@param")
+            {
+                return any_cast<builtin::param>(x.op).parameter == name;
+            }
+            else
+            {
+                return false;
+            }
+        });
+    if(ins != this->end())
+        return ins;
+    else
+        return this->end();   
+}
+
 std::unordered_map<std::string, shape> program::get_parameter_shapes() const
 {
     std::unordered_map<std::string, shape> result;
@@ -238,10 +257,10 @@ instruction_ref program::validate() const
                         [&](const instruction& i) { return !i.valid(impl->instructions.begin()); });
 }
 
-void program::compile(const target& t, tracer trace)
+void program::compile(const target& t, tracer trace, parameter_map params)
 {
     assert(this->validate() == impl->instructions.end());
-    this->impl->ctx = t.get_context();
+    this->impl->ctx = t.get_context(params);
     if(not trace.enabled() and enabled(MIGRAPH_TRACE_COMPILE{}))
         trace = tracer{std::cout};
     trace(*this);

@@ -38,7 +38,7 @@
     <message>
         <id>useStlAlgorithms</id>
         <severity>style</severity>
-        <summary>Use std::equal instead</summary>
+        <summary>Use std::equal_range instead</summary>
     </message>
 </rule>
 <rule>

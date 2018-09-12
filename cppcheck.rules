@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<rule>
+    <tokenlist>define</tokenlist>
+    <pattern>define [0-9A-Z_^a-z]*[a-z]</pattern>
+    <message>
+        <id>defineUpperCase</id>
+        <severity>style</severity>
+        <summary>Macros must be uppercase</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>define</tokenlist>
+    <pattern>define (MIGRAP|[^H]{6})[^H][^_]</pattern>
+    <message>
+        <id>definePrefix</id>
+        <severity>style</severity>
+        <summary>Macros must be prefixed with MIGRAPH_</summary>
+    </message>
+</rule>
+<rule>
+    <pattern>memcpy \(</pattern>
+    <message>
+        <id>useStlAlgorithms</id>
+        <severity>style</severity>
+        <summary>Use std::copy instead of memcpy</summary>
+    </message>
+</rule>
+<rule>
+    <pattern>memset \(</pattern>
+    <message>
+        <id>useStlAlgorithms</id>
+        <severity>style</severity>
+        <summary>Use std::fill instead of memset</summary>
+    </message>
+</rule>

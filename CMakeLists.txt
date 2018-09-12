@@ -77,7 +77,7 @@ rocm_enable_clang_tidy(
 )
 include(ROCMCppCheck)
 rocm_enable_cppcheck(
-    CHECKS 
+    CHECKS
         warning
         style
         performance
@@ -89,7 +89,10 @@ rocm_enable_cppcheck(
         noExplicitConstructor
         passedByValue
         unusedStructMember
+        definePrefix:*test/include/test.hpp
     FORCE
+    RULE_FILE
+        ${CMAKE_CURRENT_SOURCE_DIR}/cppcheck.rules
     SOURCES
         src/
         test/

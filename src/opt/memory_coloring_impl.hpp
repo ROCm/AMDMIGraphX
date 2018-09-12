@@ -119,7 +119,7 @@ struct memory_coloring_impl
         long long end2 = range2.offset + range2.size - 1;
         return ((end1 < range2.offset) || (end2 < range1.offset));
     }
-    void dump(const std::string);
+    void dump(const std::string&);
     void dump_program();
     void dump_intervals();
     void verify();

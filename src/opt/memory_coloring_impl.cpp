@@ -223,7 +223,7 @@ void memory_coloring_impl::rewrite()
             else if(is_literal(ins))
             {
                 auto pre   = p_program->add_literal(ins->lit);
-                bool pre_copy = (interval->get_begin() < earliest_end_point) ? true : false;
+                bool pre_copy = (interval->get_begin() < earliest_end_point);
                 p_program->replace_instruction(ins, write_literal{offset, pre_copy}, scratch_param, pre);
             }
         }
@@ -236,7 +236,7 @@ void memory_coloring_impl::rewrite()
 // map liveness tracking point to instruction enum.    
 #define GET_INS_ENUM(x) (((x) > 0) ? (((x) >> 1) - 1) : InvalidOffset)
     
-void memory_coloring_impl::dump(const std::string str) { std::cout << str << std::endl; }
+void memory_coloring_impl::dump(const std::string& str) { std::cout << str << std::endl; }
 
 void memory_coloring_impl::dump_program() { std::cout << *p_program << std::endl; }
 

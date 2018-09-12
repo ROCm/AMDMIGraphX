@@ -174,14 +174,16 @@ struct cpu_im2col
                     // compute linear index for output
                     std::size_t ldx = ioutput * col_width + joutput;
                     std::size_t p   = 0;
-                    dfor(channels, kernel_h, kernel_w)(
-                        [&](std::size_t c, std::size_t koffset, std::size_t loffset) {
-                            int idx = iinput + koffset - kdiv2_h;
-                            int jdx = jinput + loffset - kdiv2_w;
-                            col(ldx, p) = ((idx >= 0) && (idx < height) && (jdx >= 0) && (jdx < width)) ?
-                              input(0, c, idx, jdx) : 0;
-                            p++;
-                        });
+                    dfor(channels,
+                         kernel_h,
+                         kernel_w)([&](std::size_t c, std::size_t koffset, std::size_t loffset) {
+                        int idx     = iinput + koffset - kdiv2_h;
+                        int jdx     = jinput + loffset - kdiv2_w;
+                        col(ldx, p) = ((idx >= 0) && (idx < height) && (jdx >= 0) && (jdx < width))
+                                          ? input(0, c, idx, jdx)
+                                          : 0;
+                        p++;
+                    });
                 }
             }
         });

@@ -1,5 +1,29 @@
 <?xml version="1.0"?>
 <rule>
+    <pattern> [;{}] [*] \w+? (\+\+|\-\-) ; </pattern>
+    <message>
+        <id>UnusedDeref</id>
+        <severity>style</severity>
+        <summary>Redundant * found, "*p++" is the same as "*(p++)".</summary>
+    </message>
+</rule>
+<rule>
+    <pattern> if \( ([!] )*?(strlen) \( \w+? \) ([>] [0] )*?\) { </pattern>
+    <message>
+        <id>StrlenEmptyString</id>
+        <severity>performance</severity>
+        <summary>Using strlen() to check if a string is empty is not efficient.</summary>
+    </message>
+</rule>
+<rule>
+    <pattern> [;{}] [*] \w+? (\+\+|\-\-) ; </pattern>
+    <message>
+        <id>UnusedDeref</id>
+        <severity>style</severity>
+        <summary>Redundant * found, "*p++" is the same as "*(p++)".</summary>
+    </message>
+</rule>
+<rule>
     <tokenlist>define</tokenlist>
     <pattern>define [0-9A-Z_^a-z]*[a-z]</pattern>
     <message>

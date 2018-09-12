@@ -18,11 +18,11 @@
     </message>
 </rule>
 <rule>
-    <pattern>memcpy \(</pattern>
+    <pattern>(memcpy|strcpy|strncpy|strcat|strncat) \(</pattern>
     <message>
         <id>useStlAlgorithms</id>
         <severity>style</severity>
-        <summary>Use std::copy instead of memcpy</summary>
+        <summary>Use std::copy instead</summary>
     </message>
 </rule>
 <rule>
@@ -30,6 +30,39 @@
     <message>
         <id>useStlAlgorithms</id>
         <severity>style</severity>
-        <summary>Use std::fill instead of memset</summary>
+        <summary>Use std::fill instead</summary>
+    </message>
+</rule>
+<rule>
+    <pattern>memcmp \(</pattern>
+    <message>
+        <id>useStlAlgorithms</id>
+        <severity>style</severity>
+        <summary>Use std::equal instead</summary>
+    </message>
+</rule>
+<rule>
+    <pattern>memchr \(</pattern>
+    <message>
+        <id>useStlAlgorithms</id>
+        <severity>style</severity>
+        <summary>Use std::find instead</summary>
+    </message>
+</rule>
+<rule>
+    <pattern>(fclose|free|hipFree) \(</pattern>
+    <message>
+        <id>useManagePointer</id>
+        <severity>style</severity>
+        <summary>Use manage pointer for resource management</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern>! !</pattern>
+    <message>
+        <id>doubleNegative</id>
+        <severity>style</severity>
+        <summary>Double negative is always positive</summary>
     </message>
 </rule>

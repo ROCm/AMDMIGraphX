@@ -11,6 +11,7 @@ if(NOT TARGET MIOpen)
 endif()
 
 add_library(migraph_device 
+    device/add.cpp
     device/add_relu.cpp
     device/contiguous.cpp
 )
@@ -20,7 +21,6 @@ target_include_directories(migraph_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRE
 target_include_directories(migraph_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
 
 add_library(migraph_gpu
-    eliminate_allocation.cpp
     eliminate_workspace.cpp
     fuse_ops.cpp
     hip.cpp

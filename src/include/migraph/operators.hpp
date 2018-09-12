@@ -579,6 +579,22 @@ struct div : binary
     std::string name() const { return "div"; }
 };
 
+struct load
+{
+    shape s;
+    std::size_t offset = 0;
+    std::string name() const { return "load"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs}.has(1);
+        return s;
+    }
+    argument compute(context&, const shape&, const std::vector<argument>& args) const
+    {
+        return {s, args[0].data() + offset};
+    }
+};
+
 struct outline
 {
     shape s;

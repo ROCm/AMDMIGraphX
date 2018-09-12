@@ -140,7 +140,7 @@ std::size_t mismatch_diff(R1&& r1, R2&& r2, T diff)
 {
     return mismatch_idx(r1, r2, [&](auto x, auto y) {
         auto d = abs_diff(x, y);
-        return !(d > diff && d < diff);
+        return float_equal(d, diff);
     });
 }
 

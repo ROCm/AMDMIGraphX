@@ -125,7 +125,7 @@ struct target
     context get_context(parameter_map params = parameter_map()) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().get_context(params);
+        return (*this).private_detail_te_get_handle().get_context(std::move(params));
     }
 
     private:
@@ -137,7 +137,7 @@ struct target
 
         virtual std::string name() const                         = 0;
         virtual std::vector<pass> get_passes(context& ctx) const = 0;
-        virtual context get_context(parameter_map params = parameter_map()) const                      = 0;
+        virtual context get_context(parameter_map params) const                      = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -176,7 +176,7 @@ struct target
             return private_detail_te_value.get_passes(ctx);
         }
 
-        context get_context(parameter_map params = parameter_map()) const override { return private_detail_te_value.get_context(params); }
+        context get_context(parameter_map params) const override { return private_detail_te_value.get_context(params); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };

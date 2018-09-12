@@ -69,7 +69,6 @@ def rocmnode(body) {
 rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Tidy') {
         sh '''
-            sed -i 's/  #/ /g' .clang-tidy
             rm -rf build
             mkdir build
             cd build

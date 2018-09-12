@@ -131,7 +131,8 @@ struct convolution
     }
 };
 
-struct im2col {
+struct im2col
+{
     std::array<std::size_t, 2> padding  = {{0, 0}};
     std::array<std::size_t, 2> stride   = {{1, 1}};
     std::array<std::size_t, 2> dilation = {{1, 1}};
@@ -146,28 +147,27 @@ struct im2col {
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        auto input = inputs[0];
-        auto weights = inputs[1];
-        auto batch_size = input.lens()[0];
+        auto input          = inputs[0];
+        auto weights        = inputs[1];
+        auto batch_size     = input.lens()[0];
         auto input_channels = weights.lens()[1];
-        auto kernel_height = weights.lens()[2];
-        auto kernel_width = weights.lens()[3];
+        auto kernel_height  = weights.lens()[2];
+        auto kernel_width   = weights.lens()[3];
         check_shapes{inputs, *this}.has(2);
-        if (batch_size != 1) MIGRAPH_THROW("im2col only support batch_size 1");
+        if(batch_size != 1)
+            MIGRAPH_THROW("im2col only support batch_size 1");
         auto output_height = std::size_t(std::max<std::ptrdiff_t>(
-                1,
-                (input.lens()[2] - (1 + dilation[0] * (kernel_height - 1)) +
-                 2 * padding[0]) /
-                stride[0] +
+            1,
+            (input.lens()[2] - (1 + dilation[0] * (kernel_height - 1)) + 2 * padding[0]) /
+                    stride[0] +
                 1));
-        auto output_width = std::size_t(std::max<std::ptrdiff_t>(
-                1,
-                (input.lens()[3] - (1 + dilation[1] * (kernel_width - 1)) +
-                 2 * padding[1]) /
-                stride[1] +
+        auto output_width  = std::size_t(std::max<std::ptrdiff_t>(
+            1,
+            (input.lens()[3] - (1 + dilation[1] * (kernel_width - 1)) + 2 * padding[1]) /
+                    stride[1] +
                 1));
-        auto channels_col = kernel_height*kernel_width*input_channels;
-        return {input.type(), {output_height*output_width, channels_col}};
+        auto channels_col  = kernel_height * kernel_width * input_channels;
+        return {input.type(), {output_height * output_width, channels_col}};
     }
 
     argument compute(context&, const shape&, const std::vector<argument>&) const
@@ -175,7 +175,6 @@ struct im2col {
         MIGRAPH_THROW("not computable");
     }
 };
-
 
 struct pooling
 {

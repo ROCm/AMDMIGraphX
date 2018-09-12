@@ -1,8 +1,9 @@
 pfultz2/rocm-recipes
-danmar/cppcheck@d9f9bdda7344e80585f71141be7797055d7987f3
+pcre
+danmar/cppcheck@399a90c00e6c37be195bb7155b8e2c84d51f40aa -DHAVE_RULES=1
 ROCm-Developer-Tools/HIP@3a41f286203968421c557338d6fb39c36f3c717c
 # Needed for clang-ocl
-RadeonOpenCompute/rocm-cmake@3f43e2d493f24abbab4dc189a9ab12cc3ad33baf --build
+RadeonOpenCompute/rocm-cmake@d82a77c --build
 RadeonOpenCompute/clang-ocl@a180592885ecae5b8beadf667c633c246cec82b6
 # python/cpython@v3.6.6 -X autotools -H sha256:92aa914572c695c0aeb01b0a214813f414da4b51a371234df514a74761f2bb36
 -f requirements.txt

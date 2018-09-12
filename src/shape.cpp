@@ -116,15 +116,20 @@ std::size_t shape::index(std::size_t i) const
     if(this->standard())
         return i;
     else
-        return std::inner_product(this->lens().begin(),
-                                  this->lens().end(),
-                                  this->strides().begin(),
-                                  std::size_t{0},
-                                  std::plus<std::size_t>{},
-                                  [&](std::size_t len, std::size_t stride) {
-                                      assert(stride > 0 and len > 0);
-                                      return ((i / stride) % len) * stride;
-                                  });
+    {
+        std::size_t s      = 1;
+        std::size_t result = 0;
+        for(std::size_t j = 0; j < this->lens().size(); j++)
+        {
+            const std::size_t k      = this->lens().size() - j - 1;
+            const std::size_t stride = this->strides()[k];
+            const std::size_t len    = this->lens()[k];
+            const std::size_t idx    = (i % (s * len)) / s;
+            result += stride * idx;
+            s *= len;
+        }
+        return result;
+    }
 }
 bool shape::packed() const { return this->elements() == this->element_space(); }
 

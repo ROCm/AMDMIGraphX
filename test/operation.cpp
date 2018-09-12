@@ -43,7 +43,9 @@ void operation_copy_test()
     simple_operation s{};
     migraph::operation op1 = s;   // NOLINT
     migraph::operation op2 = op1; // NOLINT
+    // cppcheck-suppress duplicateExpression
     EXPECT(s.name() == op1.name());
+    // cppcheck-suppress duplicateExpression
     EXPECT(op2.name() == op1.name());
 }
 

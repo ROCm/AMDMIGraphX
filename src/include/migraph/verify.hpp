@@ -140,7 +140,7 @@ std::size_t mismatch_diff(R1&& r1, R2&& r2, T diff)
 {
     return mismatch_idx(r1, r2, [&](auto x, auto y) {
         auto d = abs_diff(x, y);
-        return !(d > diff && d < diff);
+        return float_equal(d, diff);
     });
 }
 
@@ -162,10 +162,12 @@ double rms_range(R1&& r1, R2&& r2)
 }
 
 template <class R1, class R2>
-bool verify_range(R1&& r1, R2&& r2, double tolerance = 80)
+bool verify_range(R1&& r1, R2&& r2, double tolerance = 80, double* out_error = nullptr)
 {
     double threshold = std::numeric_limits<range_value<R1>>::epsilon() * tolerance;
     auto error       = rms_range(r1, r2);
+    if(out_error != nullptr)
+        *out_error = error;
     return error <= threshold;
 }
 } // namespace migraph

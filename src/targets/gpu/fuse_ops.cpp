@@ -12,7 +12,7 @@ struct hip_add_relu
     std::string name() const { return "hip::add_relu"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs}.has(3).standard();
+        check_shapes{inputs, *this}.has(3);
         return inputs.front();
     }
     argument compute(context&, const shape&, const std::vector<argument>& args) const
@@ -31,7 +31,10 @@ void fuse_ops::apply(program& p) const
         auto add_ins = ins->arguments.front();
         if(add_ins->op.name() != "gpu::add")
             continue;
-        p.replace_instruction(ins, hip_add_relu{}, add_ins->arguments);
+        auto args = add_ins->arguments;
+        // Use the allocation from the relu operator
+        args.back() = ins->arguments.back();
+        p.replace_instruction(ins, hip_add_relu{}, args);
     }
 }
 

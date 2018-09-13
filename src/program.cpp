@@ -219,7 +219,7 @@ instruction_ref program::get_parameter(std::string name) const
     if(ins != this->end())
         return ins;
     else
-        return this->end();   
+        return this->end();
 }
 
 std::unordered_map<std::string, shape> program::get_parameter_shapes() const
@@ -260,7 +260,7 @@ instruction_ref program::validate() const
 void program::compile(const target& t, tracer trace, parameter_map params)
 {
     assert(this->validate() == impl->instructions.end());
-    this->impl->ctx = t.get_context(params);
+    this->impl->ctx = t.get_context(std::move(params));
     if(not trace.enabled() and enabled(MIGRAPH_TRACE_COMPILE{}))
         trace = tracer{std::cout};
     trace(*this);
@@ -444,5 +444,4 @@ std::ostream& operator<<(std::ostream& os, const program& p)
     print_program(os, p, [](auto&&...) {});
     return os;
 }
-
 } // namespace migraph

@@ -26,9 +26,9 @@ struct hip_load_literal
 
 void write_literals::apply(program& p) const
 {
-    if (!enabled(MIGRAPH_DISABLE_MEMORY_COLORING{}))
+    if(!enabled(MIGRAPH_DISABLE_MEMORY_COLORING{}))
         return;
-    
+
     assert(ctx != nullptr);
     for(auto ins : iterator_for(p))
     {
@@ -41,7 +41,5 @@ void write_literals::apply(program& p) const
         }
     }
 }
-
 } // namespace gpu
-
 } // namespace migraph

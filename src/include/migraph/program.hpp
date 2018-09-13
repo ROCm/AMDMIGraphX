@@ -18,9 +18,7 @@ struct program_impl;
 
 const operation& get_operation(instruction_ref ins);
 
-
-
-    /**
+/**
  * @brief Stores the instruction stream
  */
 struct program
@@ -104,7 +102,6 @@ struct program
     private:
     std::unique_ptr<program_impl> impl;
 };
-
 } // namespace migraph
 
 #endif

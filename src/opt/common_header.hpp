@@ -14,15 +14,13 @@
 
 namespace migraph {
 
-#define MIGRAPH_DEBUG_OPT
+//#define MIGRAPH_DEBUG_OPT
 
 #ifdef MIGRAPH_DEBUG_OPT
 #define MIGRAPH_DEBUG(s) s
 #else
 #define MIGRAPH_DEBUG(s)
 #endif // MIGRAPH_DEBUG_OPT
-
-
 } // namespace migraph
 
 #endif // MIGRAPH_GUARD_RTGLIB_COMMON_HEADER_HPP

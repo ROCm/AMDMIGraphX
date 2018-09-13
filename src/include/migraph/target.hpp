@@ -15,9 +15,9 @@
 
 namespace migraph {
 using parameter_map = std::unordered_map<std::string, argument>;
-    
+
 #ifdef DOXYGEN
-    
+
 /// An interface for a compilation target
 struct target
 {
@@ -137,7 +137,7 @@ struct target
 
         virtual std::string name() const                         = 0;
         virtual std::vector<pass> get_passes(context& ctx) const = 0;
-        virtual context get_context(parameter_map params) const                      = 0;
+        virtual context get_context(parameter_map params) const  = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -176,7 +176,10 @@ struct target
             return private_detail_te_value.get_passes(ctx);
         }
 
-        context get_context(parameter_map params) const override { return private_detail_te_value.get_context(params); }
+        context get_context(parameter_map params) const override
+        {
+            return private_detail_te_value.get_context(params);
+        }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -244,7 +247,6 @@ inline const ValueType& any_cast(const target& x)
 }
 
 #endif
-
 } // namespace migraph
 
 #endif

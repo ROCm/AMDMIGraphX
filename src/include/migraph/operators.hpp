@@ -548,12 +548,12 @@ struct load
     {
         return {s, args[0].data() + offset};
     }
-};    
+};
 
 struct write_literal
 {
     std::size_t offset = 0;
-    bool pre_copy = false;
+    bool pre_copy      = false;
     std::string name() const { return "write_literal"; }
     shape compute_shape(std::vector<shape> inputs) const { return inputs.at(1); }
     argument compute(context&, const shape&, const std::vector<argument>&) const
@@ -576,7 +576,6 @@ struct outline
         return {s, nullptr};
     }
 };
-
 } // namespace migraph
 
 #endif

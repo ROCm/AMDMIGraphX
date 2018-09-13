@@ -7,13 +7,12 @@
 namespace migraph {
 namespace cpu {
 using parameter_map = std::unordered_map<std::string, argument>;
-    
+
 struct context
 {
     parameter_map params;
     void finish() const {}
 };
-
 } // namespace cpu
 } // namespace migraph
 

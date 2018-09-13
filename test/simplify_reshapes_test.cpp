@@ -11,7 +11,7 @@ struct simplify_reshapes_target
     {
         return {migraph::simplify_reshapes{}, migraph::dead_code_elimination{}};
     }
-    migraph::context get_context() const { return {}; }
+    migraph::context get_context(migraph::parameter_map) const { return {}; }
 };
 
 void double_contig()

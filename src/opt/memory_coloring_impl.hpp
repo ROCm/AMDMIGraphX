@@ -4,7 +4,7 @@
 
 namespace migraph {
 
-static const int InvalidOffset = -1;
+static const int invalid_offset = -1;
 
 struct live_range
 {
@@ -20,11 +20,11 @@ struct live_range
 
 struct live_interval
 {
-    live_interval() : segment({InvalidOffset, InvalidOffset, InvalidOffset, InvalidOffset, 0})
+    live_interval() : segment({invalid_offset, invalid_offset, invalid_offset, invalid_offset, 0})
     {
-        id         = InvalidOffset;
-        def_point  = InvalidOffset;
-        is_literal = false;
+        id               = invalid_offset;
+        def_point        = invalid_offset;
+        is_literal       = false;
         is_live_on_entry = false;
     }
 
@@ -46,7 +46,7 @@ struct live_interval
     bool is_live_on_entry;
 };
 
-typedef live_interval* interval_ptr;
+using interval_ptr = live_interval*;
 
 struct memory_coloring_impl
 {
@@ -93,7 +93,7 @@ struct memory_coloring_impl
     int get_input_tie_ndx(const instruction_ref ins)
     {
         std::string name = ins->op.name();
-        if (operand_alias.find(name) != operand_alias.end())
+        if(operand_alias.find(name) != operand_alias.end())
             return operand_alias[name];
 
         int cnt           = -1;
@@ -104,16 +104,14 @@ struct memory_coloring_impl
             if(is_allocate(arg) || is_output_param(arg))
                 last_allocate = cnt;
         }
-        if (last_allocate != -1)
-            operand_alias[name] = last_allocate;
-        else
-            assert("unknown operand alias");
+        assert((last_allocate != -1));
+        operand_alias[name] = last_allocate;
         return last_allocate;
     }
 #ifdef MIGRAPH_DEBUG_OPT
     static bool is_disjoin(live_range& range1, live_range& range2)
     {
-        if ((range1.size == 0) || (range2.size == 0))
+        if((range1.size == 0) || (range2.size == 0))
             return false;
         long long end1 = range1.offset + range1.size - 1;
         long long end2 = range2.offset + range2.size - 1;

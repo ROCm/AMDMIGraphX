@@ -12,7 +12,7 @@ namespace migraph {
 void eliminate_allocation::apply(program& p) const
 {
     assert(alignment > 0);
-    if (!enabled(MIGRAPH_DISABLE_MEMORY_COLORING{}))
+    if(!enabled(MIGRAPH_DISABLE_MEMORY_COLORING{}))
         return;
 
     std::size_t n = 0;

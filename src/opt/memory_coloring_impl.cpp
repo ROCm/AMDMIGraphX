@@ -43,7 +43,7 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
         {
             live_range* range = live_ranges[iter];
             long long offset  = range->offset;
-            if(offset != InvalidOffset)
+            if(offset != invalid_offset)
             {
                 conflict_queue.push(range);
                 if(offset2_live.find(offset) == offset2_live.end())
@@ -64,11 +64,13 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
     long long offset = 0;
     while(!conflict_queue.empty())
     {
-        live_range* range    = conflict_queue.top();
+        live_range* range     = conflict_queue.top();
         long long iter_offset = range->offset;
-        if (offset > iter_offset) {
+        if(offset > iter_offset)
+        {
             offset = std::max(offset, iter_offset + range->size);
-        } else if (offset2_live[iter_offset] == range)
+        }
+        else if(offset2_live[iter_offset] == range)
         {
             if((iter_offset > offset) && (iter_offset - offset) >= size)
             {
@@ -94,7 +96,7 @@ void memory_coloring_impl::build()
         return;
 
     int cur_points        = num_of_instrs * 2;
-    instruction_ref iter  = std::prev(p_program->end());
+    instruction_ref iter  = p_program->end();
     instruction_ref begin = p_program->begin();
     std::vector<instruction_ref> dead_instrs;
     std::set<int> live_set;
@@ -102,6 +104,7 @@ void memory_coloring_impl::build()
     live_intervals.resize(num_of_instrs);
     do
     {
+        iter                      = std::prev(iter);
         const instruction* p_iter = &(*iter);
         interval_ptr def_interval = nullptr;
         bool is_dead              = false;
@@ -115,9 +118,9 @@ void memory_coloring_impl::build()
                 def_interval->result     = iter->result;
                 def_interval->is_literal = is_lit;
                 alloc_queue.push(def_interval);
-                range.begin = cur_points;
+                range.begin             = cur_points;
                 def_interval->def_point = cur_points;
-                range.size  = (iter->result).bytes();
+                range.size              = (iter->result).bytes();
                 live_set.erase(range.vn);
             }
         }
@@ -134,17 +137,17 @@ void memory_coloring_impl::build()
             {
                 if(is_output_param(arg))
                     is_dead = false;
-                if (def_interval != nullptr) {
+                if(def_interval != nullptr)
+                {
                     def_interval->is_live_on_entry = true;
                 }
                 continue;
             }
             const instruction* p_arg = &(*arg);
-            if(cnt == tie_ndx)
+            if(cnt == tie_ndx && (def_interval != nullptr))
             {
                 // input memory is used as this instruction's output.
                 // def is considered as use. Coalesce the live intervals.
-                assert(def_interval != nullptr);
                 def_interval->add_use(cur_points);
                 instr2_live[p_arg] = def_interval;
             }
@@ -161,7 +164,7 @@ void memory_coloring_impl::build()
                 add_conflicts(live_set, max_value_number);
                 live_set.insert(max_value_number);
                 live_ranges[max_value_number] = &(interval->segment);
-                earliest_end_point = cur_points;
+                earliest_end_point            = cur_points;
             }
             else
             {
@@ -173,21 +176,21 @@ void memory_coloring_impl::build()
         if(is_dead)
             dead_instrs.push_back(iter);
         cur_points -= 2;
-        iter = std::prev(iter);
     } while(iter != begin);
 }
 
 void memory_coloring_impl::register_operand_alias()
 {
     operand_alias["hip::allocate"] = -1;
-    operand_alias["@outline"] = -1;
+    operand_alias["@outline"]      = -1;
     operand_alias["check_context"] = -1;
-    operand_alias["@literal"] = -1;
-    operand_alias["@param"] = -1;
-    operand_alias["transpose"] = 0;
-    operand_alias["flatten"] = 0;
-    operand_alias["broadcast"] = 1;
-    operand_alias["reshape"] = 0;
+    operand_alias["@literal"]      = -1;
+    operand_alias["@param"]        = -1;
+    operand_alias["transpose"]     = 0;
+    operand_alias["flatten"]       = 0;
+    operand_alias["broadcast"]     = 1;
+    operand_alias["reshape"]       = 0;
+    operand_alias["pass"]          = 0;
 }
 
 void memory_coloring_impl::rewrite()
@@ -204,27 +207,30 @@ void memory_coloring_impl::rewrite()
         if(instr2_live.find(p_iter) != instr2_live.end())
         {
             interval_ptr interval = instr2_live[p_iter];
-            if (interval->get_begin() == InvalidOffset)
+            if(interval->get_begin() == invalid_offset)
                 continue;
-            
+
             std::size_t offset = 0;
-            if(interval->get_offset() == InvalidOffset)
+            if(interval->get_offset() == invalid_offset)
             {
                 assert(interval->result.bytes() == 0);
-            } else {
+            }
+            else
+            {
                 offset = interval->get_offset();
             }
-            
+
             if(is_allocate(ins))
             {
                 p_program->replace_instruction(
-                                               ins, load{ins->arguments.at(0)->result, offset}, scratch_param);
+                    ins, load{ins->arguments.at(0)->result, offset}, scratch_param);
             }
             else if(is_literal(ins))
             {
-                auto pre   = p_program->add_literal(ins->lit);
+                auto pre      = p_program->add_literal(ins->lit);
                 bool pre_copy = (interval->get_begin() < earliest_end_point);
-                p_program->replace_instruction(ins, write_literal{offset, pre_copy}, scratch_param, pre);
+                p_program->replace_instruction(
+                    ins, write_literal{offset, pre_copy}, scratch_param, pre);
             }
         }
     }
@@ -233,9 +239,7 @@ void memory_coloring_impl::rewrite()
 }
 
 #ifdef MIGRAPH_DEBUG_OPT
-// map liveness tracking point to instruction enum.    
-#define GET_INS_ENUM(x) (((x) > 0) ? (((x) >> 1) - 1) : InvalidOffset)
-    
+
 void memory_coloring_impl::dump(const std::string& str) { std::cout << str << std::endl; }
 
 void memory_coloring_impl::dump_program() { std::cout << *p_program << std::endl; }
@@ -274,12 +278,14 @@ void memory_coloring_impl::verify()
             live_interval& interval = live_intervals[i];
             live_range& segment     = interval.segment;
 
-            if (segment.begin == InvalidOffset) {
+            if(segment.begin == invalid_offset)
+            {
                 assert(interval.is_live_on_entry);
                 continue;
             }
 
-            if(segment.offset == InvalidOffset) {
+            if(segment.offset == invalid_offset)
+            {
                 continue;
             }
             int vn = segment.vn;
@@ -289,7 +295,7 @@ void memory_coloring_impl::verify()
                 for(auto& iter : vn_set)
                 {
                     live_range* range = live_ranges[iter];
-                    if(range->offset == InvalidOffset)
+                    if(range->offset == invalid_offset)
                         continue;
                     if(!is_disjoin(*range, segment))
                         assert(false);
@@ -298,12 +304,23 @@ void memory_coloring_impl::verify()
         }
     }
 }
-    
+
+// map liveness tracking point to instruction enum.
+static int get_ins_enum(int x)
+{
+    if(x > 0)
+    {
+        return (x / 2) - 1;
+    }
+    else
+        return invalid_offset;
+}
+
 void live_range::dump()
 {
     std::cout << " segment:" << vn;
-    std::cout << " [" << GET_INS_ENUM(begin) << ", " << GET_INS_ENUM(end) << "]";
-    if(offset != InvalidOffset)
+    std::cout << " [" << get_ins_enum(begin) << ", " << get_ins_enum(end) << "]";
+    if(offset != invalid_offset)
     {
         std::cout << " mem:";
         std::cout << " [" << offset << "," << offset + size - 1 << "]";
@@ -318,10 +335,10 @@ void live_interval::dump()
     std::cout << " uses:";
     for(auto& iter : use_points)
     {
-        std::cout << " " << GET_INS_ENUM(iter) << ",";
+        std::cout << " " << get_ins_enum(iter) << ",";
     }
     std::cout << " def:";
-    std::cout << " " << GET_INS_ENUM(def_point);
+    std::cout << " " << get_ins_enum(def_point);
 
     if(is_literal)
         std::cout << " literal";

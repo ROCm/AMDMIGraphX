@@ -19,9 +19,7 @@ struct context
     std::vector<argument> literals{};
     void finish() const { gpu_sync(); }
 };
-
 } // namespace gpu
-
 } // namespace migraph
 
 #endif

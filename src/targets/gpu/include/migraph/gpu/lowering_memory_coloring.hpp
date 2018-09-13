@@ -15,9 +15,7 @@ struct lowering_memory_coloring
 
     void apply(program& p) const;
 };
-
 } // namespace gpu
-
 } // namespace migraph
 
 #endif

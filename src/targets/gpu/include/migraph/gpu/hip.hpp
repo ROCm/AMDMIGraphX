@@ -15,7 +15,7 @@ migraph::argument from_gpu(migraph::argument arg);
 
 void gpu_sync();
 
-void copy_to_gpu(char* dst, const char* src, std::size_t size);    
+void copy_to_gpu(char* dst, const char* src, std::size_t size);
 
 struct hip_allocate
 {
@@ -73,17 +73,15 @@ struct hip_memcpy
     shape compute_shape(std::vector<shape> inputs) const { return inputs.at(1); }
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
-        char* dst           = args.at(0).data() + offset;
-        const char* src     = args.at(1).data();
-        std::size_t size    = args.at(1).get_shape().bytes();
+        char* dst        = args.at(0).data() + offset;
+        const char* src  = args.at(1).data();
+        std::size_t size = args.at(1).get_shape().bytes();
         copy_to_gpu(dst, src, size);
-        return {output_shape, dst};
+        return {std::move(output_shape), dst};
     }
     std::size_t offset = 0;
 };
-
 } // namespace gpu
-
 } // namespace migraph
 
 #endif

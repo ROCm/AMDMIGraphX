@@ -6,9 +6,9 @@
 #include <migraph/gpu/hip.hpp>
 
 #include <unordered_map>
-
 namespace migraph {
 namespace gpu {
+
 using parameter_map = std::unordered_map<std::string, argument>;
 struct context
 {

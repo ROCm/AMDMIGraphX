@@ -10,7 +10,7 @@ struct id_target
 {
     std::string name() const { return "id"; }
     std::vector<migraph::pass> get_passes(migraph::context&) const { return {}; }
-    migraph::context get_context(migraph::parameter_map) const { return {}; }
+    migraph::context get_context() const { return {}; }
 };
 
 struct reverse_pass
@@ -37,7 +37,7 @@ struct reverse_target
 {
     std::string name() const { return "reverse"; }
     std::vector<migraph::pass> get_passes(migraph::context&) const { return {reverse_pass{}}; }
-    migraph::context get_context(migraph::parameter_map) const { return {}; }
+    migraph::context get_context() const { return {}; }
 };
 
 struct double_reverse_target
@@ -47,7 +47,7 @@ struct double_reverse_target
     {
         return {reverse_pass{}, reverse_pass{}};
     }
-    migraph::context get_context(migraph::parameter_map) const { return {}; }
+    migraph::context get_context() const { return {}; }
 };
 
 void literal_test1()

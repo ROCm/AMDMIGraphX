@@ -10,7 +10,7 @@ struct target
 {
     std::string name() const;
     std::vector<pass> get_passes(migraph::context& gctx) const;
-    migraph::context get_context(parameter_map params = parameter_map()) const;
+    migraph::context get_context() const;
 };
 } // namespace gpu
 } // namespace migraph

@@ -10,7 +10,7 @@ struct memory_coloring_target
     {
         return {migraph::memory_coloring{}};
     }
-    migraph::context get_context(migraph::parameter_map) const { return {}; }
+    migraph::context get_context() const { return {}; }
 };
 
 int main()

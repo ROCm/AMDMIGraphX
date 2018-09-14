@@ -28,7 +28,7 @@ struct program
     program& operator=(program&&) noexcept;
     ~program() noexcept;
 
-    using parameter_map = migraph::parameter_map;
+    using parameter_map = std::unordered_map<std::string, argument>;
 
     template <class... Ts>
     instruction_ref add_instruction(operation op, Ts... args)
@@ -91,7 +91,7 @@ struct program
 
     instruction_ref validate() const;
 
-    void compile(const target& t, tracer trace = tracer{}, parameter_map params = parameter_map());
+    void compile(const target& t, tracer trace = tracer{});
 
     void perf_report(std::ostream& os, std::size_t n, parameter_map params) const;
 

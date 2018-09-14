@@ -29,32 +29,10 @@ void lowering_memory_coloring::apply(program& p) const
     if(scratch_ins == p.end())
         return;
 
-    bool can_resolve_addr = false;
-    argument base_ptr;
-    shape s_scratch = scratch_ins->result;
-
-    if(ctx->params.find("scratch") == ctx->params.end())
-    {
-        // scratch memory is not passed in, allocate memory here.
-        can_resolve_addr = true;
-        base_ptr         = allocate_gpu(s_scratch, false);
-    }
-    else
-    {
-        argument a = ctx->params["scratch"];
-        assert((a.get_shape().bytes() >= s_scratch.bytes()) && "insufficent scratch memory");
-        if(!a.empty())
-        {
-            // scratch memory is passed in and already has a known address.
-            can_resolve_addr = true;
-            base_ptr         = a;
-        }
-    }
-    if(can_resolve_addr)
-    {
-        ctx->scratch = base_ptr;
-        scratch_ins  = p.replace_instruction(scratch_ins, gen_base_addr{s_scratch});
-    }
+    shape s_scratch   = scratch_ins->result;
+    argument base_ptr = allocate_gpu(s_scratch, false);
+    ctx->scratch      = base_ptr;
+    scratch_ins       = p.replace_instruction(scratch_ins, gen_base_addr{s_scratch});
 
     for(auto ins : iterator_for(p))
     {
@@ -69,7 +47,7 @@ void lowering_memory_coloring::apply(program& p) const
             auto&& a           = any_cast<write_literal>(ins->op);
             std::size_t offset = a.offset;
 
-            if(can_resolve_addr && a.pre_copy)
+            if(a.pre_copy)
             {
                 char* dst       = base_ptr.data() + offset;
                 const char* src = arg1->lit.data();

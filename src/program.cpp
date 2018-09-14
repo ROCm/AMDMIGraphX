@@ -257,10 +257,10 @@ instruction_ref program::validate() const
                         [&](const instruction& i) { return !i.valid(impl->instructions.begin()); });
 }
 
-void program::compile(const target& t, tracer trace, parameter_map params)
+void program::compile(const target& t, tracer trace)
 {
     assert(this->validate() == impl->instructions.end());
-    this->impl->ctx = t.get_context(std::move(params));
+    this->impl->ctx = t.get_context();
     if(not trace.enabled() and enabled(MIGRAPH_TRACE_COMPILE{}))
         trace = tracer{std::cout};
     trace(*this);

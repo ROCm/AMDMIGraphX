@@ -12,7 +12,7 @@ struct eliminate_allocation_target
     {
         return {migraph::eliminate_allocation{"allocate", align}, migraph::dead_code_elimination{}};
     }
-    migraph::context get_context(migraph::parameter_map) const { return {}; }
+    migraph::context get_context() const { return {}; }
 };
 
 struct allocate

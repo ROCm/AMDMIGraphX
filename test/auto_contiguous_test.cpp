@@ -10,7 +10,7 @@ struct contiguous_target
     {
         return {migraph::auto_contiguous{}};
     }
-    migraph::context get_context(migraph::parameter_map) const { return {}; }
+    migraph::context get_context() const { return {}; }
 };
 
 void literal_broadcast()

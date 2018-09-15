@@ -70,7 +70,8 @@ auto compute_op(rank<1>,
 template <class T>
 argument compute_op(rank<0>, const T& x, context&, const shape&, const std::vector<argument>&)
 {
-    MIGRAPH_THROW("Not computable: " + x.name());
+    std::string name = x.name();
+    MIGRAPH_THROW("Not computable: " + name);
 }
 
 template <class T>

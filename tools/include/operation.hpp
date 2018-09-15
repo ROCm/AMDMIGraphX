@@ -57,16 +57,18 @@ auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
 } // namespace operation_stream
 
 template <class T>
-auto
-compute_op(rank<1>, const T& x, context& ctx, const shape& output_shape, const std::vector<argument>& input)
--> decltype(x.compute(auto_any_cast(ctx), output_shape, input))
+auto compute_op(rank<1>,
+                const T& x,
+                context& ctx,
+                const shape& output_shape,
+                const std::vector<argument>& input)
+    -> decltype(x.compute(auto_any_cast(ctx), output_shape, input))
 {
     return x.compute(auto_any_cast(ctx), output_shape, input);
 }
 
 template <class T>
-argument
-compute_op(rank<0>, const T& x, context&, const shape&, const std::vector<argument>&)
+argument compute_op(rank<0>, const T& x, context&, const shape&, const std::vector<argument>&)
 {
     MIGRAPH_THROW("Not computable: " + x.name());
 }

@@ -39,7 +39,10 @@ void incomplete_args()
     EXPECT(bool{p.validate() == ins});
 }
 
-MIGRAPH_ROB(access_ins_arguments, std::vector<migraph::instruction_ref>, migraph::instruction, arguments)
+MIGRAPH_ROB(access_ins_arguments,
+            std::vector<migraph::instruction_ref>,
+            migraph::instruction,
+            arguments)
 
 void invalid_args()
 {

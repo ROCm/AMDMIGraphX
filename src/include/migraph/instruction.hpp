@@ -138,12 +138,14 @@ struct instruction
         ins->recompute_shape();
     }
 
-    static void replace(instruction_ref ins, operation o, const shape& r, std::vector<instruction_ref> args)
+    static void
+    replace(instruction_ref ins, operation o, const shape& r, std::vector<instruction_ref> args)
     {
         ins->replace(o, r, std::move(args));
         backreference(ins);
     }
-private:
+
+    private:
     // internal
     void replace(operation o, const shape& r, std::vector<instruction_ref> args)
     {

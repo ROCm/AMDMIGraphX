@@ -290,7 +290,8 @@ argument generic_eval(const program& p,
         else if(ins->name() == "@param")
         {
             results.emplace(ins, trace(ins, [&] {
-                                return params.at(any_cast<builtin::param>(ins->get_operator()).parameter);
+                                return params.at(
+                                    any_cast<builtin::param>(ins->get_operator()).parameter);
                             }));
         }
         else if(ins->name() == "@outline")
@@ -305,8 +306,9 @@ argument generic_eval(const program& p,
                     assert(results.find(i) != results.end());
                     return results[i];
                 });
-            results.emplace(
-                ins, trace(ins, [&] { return ins->get_operator().compute(ctx, ins->get_shape(), values); }));
+            results.emplace(ins, trace(ins, [&] {
+                                return ins->get_operator().compute(ctx, ins->get_shape(), values);
+                            }));
         }
         assert(results.find(ins) != results.end());
     }

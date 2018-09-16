@@ -42,10 +42,10 @@ static void print_program(std::ostream& os, const program& p, F annonate)
 
         if(ins->name() == "@literal")
         {
-            if(ins->lit.get_shape().elements() > 10)
+            if(ins->get_literal().get_shape().elements() > 10)
                 os << "{ ... }";
             else
-                os << "{" << ins->lit << "}";
+                os << "{" << ins->get_literal() << "}";
         }
 
         if(!ins->inputs().empty())
@@ -286,7 +286,7 @@ argument generic_eval(const program& p,
     {
         if(ins->name() == "@literal")
         {
-            results.emplace(ins, trace(ins, [&] { return ins->lit.get_argument(); }));
+            results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
         }
         else if(ins->name() == "@param")
         {

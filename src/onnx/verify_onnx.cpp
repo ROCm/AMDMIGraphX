@@ -71,7 +71,7 @@ void verify_instructions(const migraph::program& prog, double tolerance = 80)
             for(auto&& arg : ins.inputs())
             {
                 if(arg->name() == "@literal")
-                    inputs.push_back(p.add_literal(arg->lit));
+                    inputs.push_back(p.add_literal(arg->get_literal()));
                 else
                     inputs.push_back(
                         p.add_parameter(std::to_string(inputs.size()), arg->get_shape()));

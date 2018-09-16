@@ -160,7 +160,7 @@ struct onnx_parser
         }
         if(args.size() == 2)
         {
-            literal s = args[1]->lit;
+            literal s = args[1]->get_literal();
             s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
         }
         return prog.add_instruction(op, args[0]);

@@ -28,7 +28,7 @@ void write_literals::apply(program& p) const
     assert(ctx != nullptr);
     for(auto ins : iterator_for(p))
     {
-        if(ins->op.name() == "@literal")
+        if(ins->name() == "@literal")
         {
             argument a    = to_gpu(ins->lit.get_argument());
             std::size_t n = ctx->literals.size();

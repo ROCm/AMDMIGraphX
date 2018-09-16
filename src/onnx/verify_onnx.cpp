@@ -57,20 +57,20 @@ void verify_instructions(const migraph::program& prog, double tolerance = 80)
 {
     for(auto&& ins : prog)
     {
-        if(ins.op.name().front() == '@')
+        if(ins.name().front() == '@')
             continue;
-        if(ins.op.name() == "broadcast")
+        if(ins.name() == "broadcast")
             continue;
-        if(ins.op.name() == "transpose")
+        if(ins.name() == "transpose")
             continue;
-        if(ins.op.name() == "reshape")
+        if(ins.name() == "reshape")
             continue;
         auto create_program = [&] {
             migraph::program p;
             std::vector<migraph::instruction_ref> inputs;
             for(auto&& arg : ins.arguments)
             {
-                if(arg->op.name() == "@literal")
+                if(arg->name() == "@literal")
                     inputs.push_back(p.add_literal(arg->lit));
                 else
                     inputs.push_back(
@@ -81,13 +81,13 @@ void verify_instructions(const migraph::program& prog, double tolerance = 80)
         };
         try
         {
-            std::cout << "Verify: " << ins.op.name() << std::endl;
+            std::cout << "Verify: " << ins.name() << std::endl;
             std::cout << create_program() << std::endl;
-            verify_program(ins.op.name(), create_program, tolerance);
+            verify_program(ins.name(), create_program, tolerance);
         }
         catch(...)
         {
-            std::cout << "Instruction " << ins.op.name() << " threw an exception." << std::endl;
+            std::cout << "Instruction " << ins.name() << " threw an exception." << std::endl;
             throw;
         }
     }

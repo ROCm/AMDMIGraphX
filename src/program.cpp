@@ -31,7 +31,7 @@ static void print_program(std::ostream& os, const program& p, F annonate)
     for(auto ins : iterator_for(p))
     {
         std::string var_name = "@" + std::to_string(count);
-        if(ins->op.name() == "@param")
+        if(ins->name() == "@param")
         {
             var_name = any_cast<builtin::param>(ins->op).parameter;
         }
@@ -40,7 +40,7 @@ static void print_program(std::ostream& os, const program& p, F annonate)
 
         os << ins->op;
 
-        if(ins->op.name() == "@literal")
+        if(ins->name() == "@literal")
         {
             if(ins->lit.get_shape().elements() > 10)
                 os << "{ ... }";
@@ -188,7 +188,7 @@ shape program::get_parameter_shape(std::string name) const
 {
     auto ins = std::find_if(
         impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
-            if(x.op.name() == "@param")
+            if(x.name() == "@param")
             {
                 return any_cast<builtin::param>(x.op).parameter == name;
             }
@@ -208,7 +208,7 @@ std::unordered_map<std::string, shape> program::get_parameter_shapes() const
     std::unordered_map<std::string, shape> result;
     for(auto&& ins : impl->instructions)
     {
-        if(ins.op.name() == "@param")
+        if(ins.name() == "@param")
         {
             auto&& name  = any_cast<builtin::param>(ins.op).parameter;
             result[name] = ins.result;
@@ -258,7 +258,7 @@ void program::compile(const target& t, tracer trace)
         {
             auto index = std::distance(impl->instructions.begin(), invalid);
             MIGRAPH_THROW(p.name() + " pass produces invalid program at instruction " +
-                          std::to_string(index) + ": " + invalid->op.name());
+                          std::to_string(index) + ": " + invalid->name());
         }
         trace();
 #endif
@@ -284,17 +284,17 @@ argument generic_eval(const program& p,
     values.reserve(16);
     for(auto ins : iterator_for(p))
     {
-        if(ins->op.name() == "@literal")
+        if(ins->name() == "@literal")
         {
             results.emplace(ins, trace(ins, [&] { return ins->lit.get_argument(); }));
         }
-        else if(ins->op.name() == "@param")
+        else if(ins->name() == "@param")
         {
             results.emplace(ins, trace(ins, [&] {
                                 return params.at(any_cast<builtin::param>(ins->op).parameter);
                             }));
         }
-        else if(ins->op.name() == "@outline")
+        else if(ins->name() == "@outline")
         {
             results.emplace(ins, trace(ins, [&] { return argument{ins->result, nullptr}; }));
         }
@@ -385,7 +385,7 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     for(auto&& p : ins_vec)
     {
         double avg = common_average(p.second);
-        op_times[p.first->op.name()] += avg;
+        op_times[p.first->name()] += avg;
         total_instruction_time += avg;
     }
     double calculate_overhead_time    = total_time - total_instruction_time;

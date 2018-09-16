@@ -18,7 +18,7 @@ void eliminate_workspace::apply(program& p) const
     {
         if(ins->output.size() != 1)
             continue;
-        if(ins->op.name() != "hip::allocate")
+        if(ins->name() != "hip::allocate")
             continue;
         auto&& a = any_cast<hip_allocate>(ins->op);
         if(a.tag == "workspace")

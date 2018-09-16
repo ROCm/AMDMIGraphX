@@ -28,8 +28,8 @@ struct operation
     /// exception.
     shape compute_shape(const std::vector<shape>& input) const;
     /**
-     * @brief This performs the operation's computation. 
-     * 
+     * @brief This performs the operation's computation.
+     *
      * This method can be optional when the operation is only used as a placeholder to be lowered
      * later on.
      *

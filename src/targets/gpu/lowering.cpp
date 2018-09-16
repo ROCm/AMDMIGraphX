@@ -322,31 +322,31 @@ struct miopen_apply
         for(auto it = prog->begin(); it != prog->end(); it++)
         {
             auto s = it->get_shape();
-            if(it->op.name() == "convolution")
+            if(it->name() == "convolution")
             {
                 check_shape(s, apply_convolution(it));
             }
-            else if(it->op.name() == "activation")
+            else if(it->name() == "activation")
             {
                 check_shape(s, apply_activation(it));
             }
-            else if(it->op.name() == "pooling")
+            else if(it->name() == "pooling")
             {
                 check_shape(s, apply_pooling(it));
             }
-            else if(it->op.name() == "add")
+            else if(it->name() == "add")
             {
                 check_shape(s, apply_add(it));
             }
-            else if(it->op.name() == "gemm")
+            else if(it->name() == "gemm")
             {
                 check_shape(s, apply_gemm(it));
             }
-            else if(it->op.name() == "contiguous")
+            else if(it->name() == "contiguous")
             {
                 check_shape(s, apply_contiguous(it));
             }
-            else if(it->op.name() == "batch_norm_inference")
+            else if(it->name() == "batch_norm_inference")
             {
                 check_shape(s, apply_batch_norm_inference(it));
             }

@@ -32,7 +32,7 @@ void eliminate_contiguous::apply(program& p) const
         {
             // TODO: Pass in names for the operator in the constructor instead
             // of using ends_with
-            if(ends_with(arg->op.name(), "contiguous"))
+            if(ends_with(arg->name(), "contiguous"))
             {
                 auto new_args = args;
                 auto prev     = arg->arguments.front();

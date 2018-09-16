@@ -26,10 +26,10 @@ void fuse_ops::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
     {
-        if(ins->op.name() != "gpu::relu")
+        if(ins->name() != "gpu::relu")
             continue;
         auto add_ins = ins->arguments.front();
-        if(add_ins->op.name() != "gpu::add")
+        if(add_ins->name() != "gpu::add")
             continue;
         auto args = add_ins->arguments;
         // Use the allocation from the relu operator

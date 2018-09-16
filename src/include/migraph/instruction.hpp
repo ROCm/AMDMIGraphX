@@ -32,7 +32,7 @@ struct instruction
             result = r;
             for(auto&& ins : output)
             {
-                assert(ins->op.name().front() != '@');
+                assert(ins->name().front() != '@');
                 ins->recompute_shape();
             }
         }

@@ -579,17 +579,17 @@ struct cpu_apply
         init();
         for(auto it : iterator_for(*prog))
         {
-            if(it->op.name() == "activation")
+            if(it->name() == "activation")
             {
                 apply_activation(it);
             }
-            else if(it->op.name() == "pooling")
+            else if(it->name() == "pooling")
             {
                 apply_pooling(it);
             }
-            else if(apply_map.count(it->op.name()) > 0)
+            else if(apply_map.count(it->name()) > 0)
             {
-                apply_map.at(it->op.name())(it);
+                apply_map.at(it->name())(it);
             }
         }
     }

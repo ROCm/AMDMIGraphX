@@ -25,15 +25,15 @@ void simplify_reshapes::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
     {
-        if(not is_reshaper(ins->op.name()))
+        if(not is_reshaper(ins->name()))
             continue;
         if(ins->output.size() != 1)
             continue;
-        if(is_reshaper(ins->output.front()->op.name()))
+        if(is_reshaper(ins->output.front()->name()))
             continue;
         // Gather reshapes
         std::vector<instruction_ref> reshapes{ins};
-        while(is_reshaper(reshapes.back()->op.name()))
+        while(is_reshaper(reshapes.back()->name()))
         {
             assert(!reshapes.back()->arguments.empty());
             assert(p.has_instruction(reshapes.back()->arguments.front()));

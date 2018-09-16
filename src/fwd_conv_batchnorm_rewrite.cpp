@@ -10,17 +10,17 @@ void fwd_conv_batchnorm_rewrite::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
     {
-        if(ins->op.name() != "batch_norm_inference")
+        if(ins->name() != "batch_norm_inference")
             continue;
         if(not std::all_of(ins->arguments.begin() + 1, ins->arguments.end(), [](auto arg) {
-               return arg->op.name() == "@literal";
+               return arg->name() == "@literal";
            }))
             continue;
 
         auto conv_ins = ins->arguments[0];
-        if(conv_ins->op.name() != "convolution")
+        if(conv_ins->name() != "convolution")
             continue;
-        if(conv_ins->arguments[1]->op.name() != "@literal")
+        if(conv_ins->arguments[1]->name() != "@literal")
             continue;
         // Get scale, bias, mean, variance from instruction_ref
         const auto& gamma    = ins->arguments[1]->get_literal();

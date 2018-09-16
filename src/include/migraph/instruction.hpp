@@ -99,25 +99,13 @@ struct instruction
         return lit;
     }
 
-    const operation& get_operator() const
-    {
-        return op;
-    }
+    const operation& get_operator() const { return op; }
 
-    std::string name() const
-    {
-        return op.name();
-    }
+    std::string name() const { return op.name(); }
 
-    const std::vector<instruction_ref>& inputs() const
-    {
-        return arguments;
-    }
+    const std::vector<instruction_ref>& inputs() const { return arguments; }
 
-    const std::vector<instruction_ref>& outputs() const
-    {
-        return output;
-    }
+    const std::vector<instruction_ref>& outputs() const { return output; }
 
     friend bool operator==(instruction_ref ref, const instruction& i) { return i == ref; }
 
@@ -150,7 +138,7 @@ struct instruction
         std::replace(arguments.begin(), arguments.end(), old, new_ins);
         old->remove_output(*this);
     }
-    
+
     // internal
     void replace(operation o, const shape& r, std::vector<instruction_ref> args)
     {

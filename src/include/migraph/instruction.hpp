@@ -25,14 +25,6 @@ struct instruction
 
     instruction(literal l) : op(builtin::literal{}), result(l.get_shape()), lit(std::move(l)) {}
 
-    // internal
-    void replace(operation o, const shape& r, std::vector<instruction_ref> args)
-    {
-        op = std::move(o);
-        replace(r);
-        replace(std::move(args));
-    }
-
     void replace(const shape& r)
     {
         if(r != result)
@@ -47,20 +39,6 @@ struct instruction
     }
 
     void recompute_shape() { replace(compute_shape(op, arguments)); }
-
-    // internal
-    void replace(std::vector<instruction_ref> args)
-    {
-        clear_arguments();
-        arguments = std::move(args);
-    }
-
-    // internal
-    void replace_argument(instruction_ref old, instruction_ref new_ins)
-    {
-        std::replace(arguments.begin(), arguments.end(), old, new_ins);
-        old->remove_output(*this);
-    }
 
     void clear_arguments()
     {
@@ -121,6 +99,26 @@ struct instruction
         return lit;
     }
 
+    const operation& get_operator() const
+    {
+        return op;
+    }
+
+    std::string name() const
+    {
+        return op.name();
+    }
+
+    const std::vector<instruction_ref>& inputs() const
+    {
+        return arguments;
+    }
+
+    const std::vector<instruction_ref>& outputs() const
+    {
+        return output;
+    }
+
     friend bool operator==(instruction_ref ref, const instruction& i) { return i == ref; }
 
     friend bool operator!=(const instruction& i, instruction_ref ref) { return !(i == ref); }
@@ -137,6 +135,28 @@ struct instruction
     void remove_output(const T& ins)
     {
         migraph::erase(output, ins);
+    }
+
+    // internal
+    void replace(std::vector<instruction_ref> args)
+    {
+        clear_arguments();
+        arguments = std::move(args);
+    }
+
+    // internal
+    void replace_argument(instruction_ref old, instruction_ref new_ins)
+    {
+        std::replace(arguments.begin(), arguments.end(), old, new_ins);
+        old->remove_output(*this);
+    }
+    
+    // internal
+    void replace(operation o, const shape& r, std::vector<instruction_ref> args)
+    {
+        op = std::move(o);
+        replace(r);
+        replace(std::move(args));
     }
 
     operation op;
@@ -160,7 +180,6 @@ inline void replace_argument(instruction_ref ins, instruction_ref old, instructi
 }
 
 // TODO: Move to a cpp file
-// TODO: Use const ref for vector
 inline shape compute_shape(const operation& op, const std::vector<instruction_ref>& args)
 {
     std::vector<shape> shapes(args.size());

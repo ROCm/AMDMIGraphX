@@ -28,12 +28,12 @@ void fwd_conv_batchnorm_rewrite::apply(program& p) const
         const auto& mean     = ins->inputs()[3]->get_literal();
         const auto& variance = ins->inputs()[4]->get_literal();
         // Get epsilon
-        auto bn_op   = any_cast<batch_norm_inference>(ins->op);
+        auto bn_op   = any_cast<batch_norm_inference>(ins->get_operator());
         auto epsilon = bn_op.epsilon;
         // Get convolution weights
         const auto& weights = conv_ins->inputs()[1]->get_literal();
         // Get convolution op
-        auto conv_op      = conv_ins->op;
+        auto conv_op      = conv_ins->get_operator();
         auto weights_lens = weights.get_shape().lens();
         auto conv_lens    = conv_ins->get_shape().lens();
         argument new_weights{weights.get_shape()};

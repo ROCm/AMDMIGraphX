@@ -37,7 +37,7 @@ void eliminate_contiguous::apply(program& p) const
                 auto new_args = args;
                 auto prev     = arg->inputs().front();
                 replace(new_args, arg, prev);
-                if(try_compute_shape(ins->op, new_args))
+                if(try_compute_shape(ins->get_operator(), new_args))
                 {
                     instruction::replace_argument(ins, arg, prev);
                 }

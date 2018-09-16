@@ -76,7 +76,7 @@ void verify_instructions(const migraph::program& prog, double tolerance = 80)
                     inputs.push_back(
                         p.add_parameter(std::to_string(inputs.size()), arg->get_shape()));
             }
-            p.add_instruction(ins.op, inputs);
+            p.add_instruction(ins.get_operator(), inputs);
             return p;
         };
         try

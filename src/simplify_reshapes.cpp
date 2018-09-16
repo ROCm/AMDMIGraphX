@@ -35,9 +35,9 @@ void simplify_reshapes::apply(program& p) const
         std::vector<instruction_ref> reshapes{ins};
         while(is_reshaper(reshapes.back()->name()))
         {
-            assert(!reshapes.back()->arguments.empty());
-            assert(p.has_instruction(reshapes.back()->arguments.front()));
-            reshapes.push_back(reshapes.back()->arguments.front());
+            assert(!reshapes.back()->inputs().empty());
+            assert(p.has_instruction(reshapes.back()->inputs().front()));
+            reshapes.push_back(reshapes.back()->inputs().front());
         }
 
         std::pair<instruction_ref, instruction_ref> r{p.end(), p.end()};

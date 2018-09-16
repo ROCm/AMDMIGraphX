@@ -68,7 +68,7 @@ void verify_instructions(const migraph::program& prog, double tolerance = 80)
         auto create_program = [&] {
             migraph::program p;
             std::vector<migraph::instruction_ref> inputs;
-            for(auto&& arg : ins.arguments)
+            for(auto&& arg : ins.inputs())
             {
                 if(arg->name() == "@literal")
                     inputs.push_back(p.add_literal(arg->lit));

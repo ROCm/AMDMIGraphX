@@ -87,8 +87,8 @@ struct instruction
         }
         return result == computed &&
                std::all_of(output.begin(), output.end(), [&](instruction_ref i) {
-                   return std::find(i->arguments.begin(), i->arguments.end(), *this) !=
-                          i->arguments.end();
+                   return std::find(i->inputs().begin(), i->inputs().end(), *this) !=
+                          i->inputs().end();
                });
     }
 
@@ -156,7 +156,7 @@ struct instruction
 
 inline void backreference(instruction_ref ref)
 {
-    for(auto&& arg : ref->arguments)
+    for(auto&& arg : ref->inputs())
         arg->add_output(ref);
 }
 

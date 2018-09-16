@@ -597,30 +597,30 @@ struct cpu_apply
     template <class T>
     void apply_simple_op(instruction_ref ins)
     {
-        prog->replace_instruction(ins, T{}, ins->arguments);
+        prog->replace_instruction(ins, T{}, ins->inputs());
     }
 
     template <class T, class Op>
     void apply_extend_op(instruction_ref ins)
     {
         auto&& op = any_cast<Op>(ins->op);
-        prog->replace_instruction(ins, T{op}, ins->arguments);
+        prog->replace_instruction(ins, T{op}, ins->inputs());
     }
 
     void apply_activation(instruction_ref ins)
     {
         auto&& op = any_cast<activation>(ins->op);
         if(op.mode == "relu")
-            prog->replace_instruction(ins, cpu_unary<relu_op>{}, ins->arguments);
+            prog->replace_instruction(ins, cpu_unary<relu_op>{}, ins->inputs());
     }
 
     void apply_pooling(instruction_ref ins)
     {
         auto&& op = any_cast<pooling>(ins->op);
         if(op.mode == "max")
-            prog->replace_instruction(ins, cpu_pooling<max_pool>{op}, ins->arguments);
+            prog->replace_instruction(ins, cpu_pooling<max_pool>{op}, ins->inputs());
         else if(op.mode == "average")
-            prog->replace_instruction(ins, cpu_pooling<avg_pool>{op}, ins->arguments);
+            prog->replace_instruction(ins, cpu_pooling<avg_pool>{op}, ins->inputs());
     }
 };
 

@@ -172,7 +172,7 @@ inline shape compute_shape(const operation& op, const std::vector<instruction_re
 {
     std::vector<shape> shapes(args.size());
     std::transform(
-        args.begin(), args.end(), shapes.begin(), [](instruction_ref i) { return i->result; });
+        args.begin(), args.end(), shapes.begin(), [](instruction_ref i) { return i->get_shape(); });
     return op.compute_shape(shapes);
 }
 

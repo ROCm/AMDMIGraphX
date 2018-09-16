@@ -44,7 +44,7 @@ void simplify_reshapes::apply(program& p) const
         for(auto start : iterator_for(reshapes))
         {
             auto last = std::find_if(reshapes.rbegin(), reshapes.rend(), [&](auto&& i) {
-                return i->result == (*start)->result and i != (*start);
+                return i->get_shape() == (*start)->get_shape() and i != (*start);
             });
             if(last != reshapes.rend())
             {

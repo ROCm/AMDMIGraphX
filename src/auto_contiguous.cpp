@@ -10,7 +10,7 @@ void auto_contiguous::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
     {
-        shape s = ins->result;
+        shape s = ins->get_shape();
         if(not s.standard())
         {
             auto c = p.insert_instruction(std::next(ins), contiguous{}, ins);

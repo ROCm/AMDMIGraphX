@@ -24,7 +24,7 @@ void dead_code_elimination::apply(program& p) const
             break;
         fix([&](auto self, auto leaf) {
             assert(p.has_instruction(leaf));
-            if(leaf->output.empty())
+            if(leaf->outputs().empty())
             {
                 auto args = leaf->inputs();
                 leaf->clear_arguments();

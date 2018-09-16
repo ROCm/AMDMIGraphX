@@ -120,11 +120,11 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
     assert(has_instruction(rep));
     assert(ins != rep);
     // TODO: Should it be an error if the output is empty?
-    if(ins->output.empty())
+    if(ins->outputs().empty())
     {
         return rep;
     }
-    for(auto&& out : ins->output)
+    for(auto&& out : ins->outputs())
     {
         // TODO: Check for possible cycles
         if(out != rep)
@@ -134,7 +134,7 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
         assert(out->valid(begin()));
     }
     // Replacement should not be dead code unless its the last instruction
-    assert(!rep->output.empty() or rep == std::prev(end()));
+    assert(!rep->outputs().empty() or rep == std::prev(end()));
     assert(ins->valid(begin()));
     assert(rep->valid(begin()));
     return rep;
@@ -143,7 +143,7 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
 instruction_ref program::remove_instruction(instruction_ref ins)
 {
     assert(has_instruction(ins));
-    assert(ins->output.empty());
+    assert(ins->outputs().empty());
     ins->clear_arguments();
     return impl->instructions.erase(ins);
 }
@@ -155,7 +155,7 @@ instruction_ref program::remove_instructions(instruction_ref first, instruction_
     // TODO: Check every element
     assert(has_instruction(first));
     std::for_each(first, last, [&](instruction& ins) { ins.clear_arguments(); });
-    assert(std::all_of(first, last, [&](instruction& ins) { return ins.output.empty(); }));
+    assert(std::all_of(first, last, [&](instruction& ins) { return ins.outputs().empty(); }));
     return impl->instructions.erase(first, last);
 }
 

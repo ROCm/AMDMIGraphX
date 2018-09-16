@@ -57,8 +57,8 @@ struct instruction
     bool valid(instruction_ref start) const
     {
         return valid() && std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
-                   auto self = std::find(i->output.begin(), i->output.end(), *this);
-                   return self != i->output.end() &&
+                   auto self = std::find(i->outputs().begin(), i->outputs().end(), *this);
+                   return self != i->outputs().end() &&
                           std::distance(start, i) < std::distance(start, *self);
                });
     }

@@ -16,7 +16,7 @@ void eliminate_workspace::apply(program& p) const
     std::vector<instruction_ref> allocs;
     for(auto ins : iterator_for(p))
     {
-        if(ins->output.size() != 1)
+        if(ins->outputs().size() != 1)
             continue;
         if(ins->name() != "hip::allocate")
             continue;

@@ -27,9 +27,9 @@ void simplify_reshapes::apply(program& p) const
     {
         if(not is_reshaper(ins->name()))
             continue;
-        if(ins->output.size() != 1)
+        if(ins->outputs().size() != 1)
             continue;
-        if(is_reshaper(ins->output.front()->name()))
+        if(is_reshaper(ins->outputs().front()->name()))
             continue;
         // Gather reshapes
         std::vector<instruction_ref> reshapes{ins};

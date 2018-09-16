@@ -15,19 +15,19 @@ struct stowed
 template <class Tag>
 typename Tag::type stowed<Tag>::value;
 
-template <class Tag, typename Tag::type x>
+template <class Tag, typename Tag::type X>
 struct stow_private
 {
-    stow_private() { stowed<Tag>::value = x; }
+    stow_private() noexcept { stowed<Tag>::value = X; }
     static stow_private instance;
 };
-template <class Tag, typename Tag::type x>
-stow_private<Tag, x> stow_private<Tag, x>::instance;
+template <class Tag, typename Tag::type X>
+stow_private<Tag, X> stow_private<Tag, X>::instance;
 
 template <class C, class T>
 struct mem_data_ptr
 {
-    typedef T(C::*type);
+    using type = T C::*;
 };
 
 #define MIGRAPH_ROB(name, Type, C, mem)                \

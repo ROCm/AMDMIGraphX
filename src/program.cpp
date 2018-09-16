@@ -92,7 +92,7 @@ instruction_ref program::insert_instruction(instruction_ref ins,
     // TODO: Use move
     shape r     = compute_shape(op, args);
     auto result = impl->instructions.insert(ins, {op, r, std::move(args)});
-    backreference(result);
+    instruction::backreference(result);
     // assert(result->inputs() == args);
     assert(result->valid(begin()));
     return result;
@@ -109,7 +109,7 @@ instruction_ref program::replace_instruction(instruction_ref ins,
 
     shape r = compute_shape(op, args);
     ins->replace(op, r, std::move(args));
-    backreference(ins);
+    instruction::backreference(ins);
     assert(ins->valid(begin()));
     return ins;
 }
@@ -129,7 +129,7 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
         // TODO: Check for possible cycles
         if(out != rep)
         {
-            replace_argument(out, ins, rep);
+            instruction::replace_argument(out, ins, rep);
         }
         assert(out->valid(begin()));
     }

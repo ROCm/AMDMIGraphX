@@ -125,6 +125,27 @@ struct instruction
         migraph::erase(output, ins);
     }
 
+    static void backreference(instruction_ref ref)
+    {
+        for(auto&& arg : ref->inputs())
+            arg->add_output(ref);
+    }
+
+    static void replace_argument(instruction_ref ins, instruction_ref old, instruction_ref new_ins)
+    {
+        ins->replace_argument(old, new_ins);
+        backreference(ins);
+        ins->recompute_shape();
+    }
+
+    // internal
+    void replace(operation o, const shape& r, std::vector<instruction_ref> args)
+    {
+        op = std::move(o);
+        replace(r);
+        replace(std::move(args));
+    }
+
     // internal
     void replace(std::vector<instruction_ref> args)
     {
@@ -139,33 +160,12 @@ struct instruction
         old->remove_output(*this);
     }
 
-    // internal
-    void replace(operation o, const shape& r, std::vector<instruction_ref> args)
-    {
-        op = std::move(o);
-        replace(r);
-        replace(std::move(args));
-    }
-
     operation op;
     shape result;
     std::vector<instruction_ref> output;
     std::vector<instruction_ref> arguments;
     literal lit;
 };
-
-inline void backreference(instruction_ref ref)
-{
-    for(auto&& arg : ref->inputs())
-        arg->add_output(ref);
-}
-
-inline void replace_argument(instruction_ref ins, instruction_ref old, instruction_ref new_ins)
-{
-    ins->replace_argument(old, new_ins);
-    backreference(ins);
-    ins->recompute_shape();
-}
 
 // TODO: Move to a cpp file
 inline shape compute_shape(const operation& op, const std::vector<instruction_ref>& args)

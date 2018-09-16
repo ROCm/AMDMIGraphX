@@ -39,7 +39,7 @@ void eliminate_contiguous::apply(program& p) const
                 replace(new_args, arg, prev);
                 if(try_compute_shape(ins->op, new_args))
                 {
-                    replace_argument(ins, arg, prev);
+                    instruction::replace_argument(ins, arg, prev);
                 }
             }
         }

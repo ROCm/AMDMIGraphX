@@ -301,15 +301,13 @@ argument generic_eval(const program& p,
         else
         {
             values.resize(ins->inputs().size());
-            std::transform(ins->inputs().begin(),
-                           ins->inputs().end(),
-                           values.begin(),
-                           [&](instruction_ref i) {
-                               assert(results.find(i) != results.end());
-                               return results[i];
-                           });
-            results.emplace(ins,
-                            trace(ins, [&] { return ins->op.compute(ctx, ins->get_shape(), values); }));
+            std::transform(
+                ins->inputs().begin(), ins->inputs().end(), values.begin(), [&](instruction_ref i) {
+                    assert(results.find(i) != results.end());
+                    return results[i];
+                });
+            results.emplace(
+                ins, trace(ins, [&] { return ins->op.compute(ctx, ins->get_shape(), values); }));
         }
         assert(results.find(ins) != results.end());
     }

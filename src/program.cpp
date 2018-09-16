@@ -60,7 +60,7 @@ static void print_program(std::ostream& os, const program& p, F annonate)
             os << ")";
         }
 
-        os << " -> " << ins->result;
+        os << " -> " << ins->get_shape();
 
         annonate(ins, names);
 
@@ -198,7 +198,7 @@ shape program::get_parameter_shape(std::string name) const
             }
         });
     if(ins != this->end())
-        return ins->result;
+        return ins->get_shape();
     else
         return {};
 }
@@ -211,7 +211,7 @@ std::unordered_map<std::string, shape> program::get_parameter_shapes() const
         if(ins.name() == "@param")
         {
             auto&& name  = any_cast<builtin::param>(ins.op).parameter;
-            result[name] = ins.result;
+            result[name] = ins.get_shape();
         }
     }
     return result;
@@ -229,7 +229,7 @@ std::size_t program::size() const { return impl->instructions.size(); }
 instruction_ref program::begin() const { return impl->instructions.begin(); }
 instruction_ref program::end() const { return impl->instructions.end(); }
 
-shape program::get_shape() const { return impl->instructions.back().result; }
+shape program::get_shape() const { return impl->instructions.back().get_shape(); }
 
 instruction_ref program::validate() const
 {
@@ -296,7 +296,7 @@ argument generic_eval(const program& p,
         }
         else if(ins->name() == "@outline")
         {
-            results.emplace(ins, trace(ins, [&] { return argument{ins->result, nullptr}; }));
+            results.emplace(ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
         }
         else
         {
@@ -309,7 +309,7 @@ argument generic_eval(const program& p,
                                return results[i];
                            });
             results.emplace(ins,
-                            trace(ins, [&] { return ins->op.compute(ctx, ins->result, values); }));
+                            trace(ins, [&] { return ins->op.compute(ctx, ins->get_shape(), values); }));
         }
         assert(results.find(ins) != results.end());
     }

@@ -372,13 +372,13 @@ struct miopen_apply
         auto&& op = any_cast<convolution>(ins->op);
 
         auto conv = miopen_convolution{op, make_conv(op)};
-        auto ws   = conv.compile(ctx, ins->get_shape(), ins->arguments);
+        auto ws   = conv.compile(ctx, ins->get_shape(), ins->inputs());
 
         auto workspace = insert_allocation(ins, ws, "workspace");
         auto output    = insert_allocation(ins, ins->get_shape());
 
         return prog->replace_instruction(
-            ins, conv, ins->arguments.at(0), ins->arguments.at(1), workspace, output);
+            ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
     }
 
     instruction_ref apply_pooling(instruction_ref ins)
@@ -388,7 +388,7 @@ struct miopen_apply
         auto output = insert_allocation(ins, ins->get_shape());
 
         return prog->replace_instruction(
-            ins, miopen_pooling{op, std::move(pd)}, ins->arguments.at(0), output);
+            ins, miopen_pooling{op, std::move(pd)}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_activation(instruction_ref ins)
@@ -399,7 +399,7 @@ struct miopen_apply
         {
             auto output = insert_allocation(ins, ins->get_shape());
             return prog->replace_instruction(
-                ins, miopen_relu{std::move(ad)}, ins->arguments.at(0), output);
+                ins, miopen_relu{std::move(ad)}, ins->inputs().at(0), output);
         }
         return ins;
     }
@@ -408,7 +408,7 @@ struct miopen_apply
     {
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(
-            ins, hip_add{}, ins->arguments.at(0), ins->arguments.at(1), output);
+            ins, hip_add{}, ins->inputs().at(0), ins->inputs().at(1), output);
     }
 
     instruction_ref apply_gemm(instruction_ref ins)
@@ -416,31 +416,31 @@ struct miopen_apply
         auto&& op   = any_cast<gemm>(ins->op);
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(
-            ins, miopen_gemm{op}, ins->arguments.at(0), ins->arguments.at(1), output);
+            ins, miopen_gemm{op}, ins->inputs().at(0), ins->inputs().at(1), output);
     }
 
     instruction_ref apply_contiguous(instruction_ref ins)
     {
         auto&& op   = any_cast<contiguous>(ins->op);
         auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(ins, miopen_contiguous{op}, ins->arguments.at(0), output);
+        return prog->replace_instruction(ins, miopen_contiguous{op}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_batch_norm_inference(instruction_ref ins)
     {
         auto&& op       = any_cast<batch_norm_inference>(ins->op);
         auto output     = insert_allocation(ins, ins->get_shape());
-        shape old_shape = ins->arguments.at(1)->get_shape();
+        shape old_shape = ins->inputs().at(1)->get_shape();
         std::vector<int64_t> new_shape{1, static_cast<int64_t>(old_shape.elements()), 1, 1};
         auto reshape_op = reshape{new_shape};
         std::vector<instruction_ref> reshapes;
-        std::transform(ins->arguments.begin() + 1,
-                       ins->arguments.end(),
+        std::transform(ins->inputs().begin() + 1,
+                       ins->inputs().end(),
                        std::back_inserter(reshapes),
                        [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
         return prog->replace_instruction(ins,
                                          miopen_batch_norm_inference{op},
-                                         ins->arguments.at(0),
+                                         ins->inputs().at(0),
                                          reshapes[0],
                                          reshapes[1],
                                          reshapes[2],

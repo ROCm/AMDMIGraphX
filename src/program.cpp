@@ -48,10 +48,10 @@ static void print_program(std::ostream& os, const program& p, F annonate)
                 os << "{" << ins->lit << "}";
         }
 
-        if(!ins->arguments.empty())
+        if(!ins->inputs().empty())
         {
             char delim = '(';
-            for(auto&& arg : ins->arguments)
+            for(auto&& arg : ins->inputs())
             {
                 assert(p.has_instruction(arg) && "Instruction not found");
                 os << delim << names.at(arg);
@@ -93,7 +93,7 @@ instruction_ref program::insert_instruction(instruction_ref ins,
     shape r     = compute_shape(op, args);
     auto result = impl->instructions.insert(ins, {op, r, std::move(args)});
     backreference(result);
-    // assert(result->arguments == args);
+    // assert(result->inputs() == args);
     assert(result->valid(begin()));
     return result;
 }
@@ -300,9 +300,9 @@ argument generic_eval(const program& p,
         }
         else
         {
-            values.resize(ins->arguments.size());
-            std::transform(ins->arguments.begin(),
-                           ins->arguments.end(),
+            values.resize(ins->inputs().size());
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
                            values.begin(),
                            [&](instruction_ref i) {
                                assert(results.find(i) != results.end());

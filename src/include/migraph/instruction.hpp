@@ -25,13 +25,13 @@ struct instruction
     void recompute_shape();
 
     void clear_arguments();
-    
+
     friend bool operator==(const instruction& i, instruction_ref ref);
 
     bool valid(instruction_ref start) const;
 
     bool valid() const;
-    
+
     shape get_shape() const;
     const literal& get_literal() const;
 
@@ -67,10 +67,10 @@ struct instruction
 
     // internal
     void replace(std::vector<instruction_ref> args);
-    
+
     // internal
     void replace_argument(instruction_ref old, instruction_ref new_ins);
-    
+
     operation op;
     shape result;
     std::vector<instruction_ref> output;

@@ -28,13 +28,16 @@ struct operation
     /// exception.
     shape compute_shape(const std::vector<shape>& input) const;
     /**
-     * @brief This performs the operation's computation
+     * @brief This performs the operation's computation.
+     *
+     * This method can be optional when the operation is only used as a placeholder to be lowered
+     * later on.
      *
      * @param ctx This is the context created by the `target` during compilation. Implementations
      * can use the target's `context` class rather than the `context` interface class.
      * @param output This is the output shape. It is equivalent to running `compute_shape` with each
      * `shape` of the `argument`.
-     * @param input This is the `argument` result from the previous instuction's computation.
+     * @param input This is the `argument` result from the previous instruction's computation.
      * @return Return an `argument` of the result computation. The `shape` of `argument` should be
      * the same the `output` shape.
      */

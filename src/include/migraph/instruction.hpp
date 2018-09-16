@@ -141,7 +141,7 @@ struct instruction
     static void
     replace(instruction_ref ins, operation o, const shape& r, std::vector<instruction_ref> args)
     {
-        ins->replace(o, r, std::move(args));
+        ins->replace(std::move(o), r, std::move(args));
         backreference(ins);
     }
 

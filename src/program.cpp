@@ -20,7 +20,7 @@ struct program_impl
     context ctx;
 };
 
-const operation& get_operation(instruction_ref ins) { return ins->op; }
+const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
 
 template <class F>
 static void print_program(std::ostream& os, const program& p, F annonate)
@@ -33,12 +33,12 @@ static void print_program(std::ostream& os, const program& p, F annonate)
         std::string var_name = "@" + std::to_string(count);
         if(ins->name() == "@param")
         {
-            var_name = any_cast<builtin::param>(ins->op).parameter;
+            var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
         }
 
         os << var_name << " = ";
 
-        os << ins->op;
+        os << ins->get_operator();
 
         if(ins->name() == "@literal")
         {
@@ -108,8 +108,7 @@ instruction_ref program::replace_instruction(instruction_ref ins,
     assert(not starts_with(op.name(), "@"));
 
     shape r = compute_shape(op, args);
-    ins->replace(op, r, std::move(args));
-    instruction::backreference(ins);
+    instruction::replace(ins, op, r, std::move(args));
     assert(ins->valid(begin()));
     return ins;
 }
@@ -190,7 +189,7 @@ shape program::get_parameter_shape(std::string name) const
         impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
             if(x.name() == "@param")
             {
-                return any_cast<builtin::param>(x.op).parameter == name;
+                return any_cast<builtin::param>(x.get_operator()).parameter == name;
             }
             else
             {
@@ -210,7 +209,7 @@ std::unordered_map<std::string, shape> program::get_parameter_shapes() const
     {
         if(ins.name() == "@param")
         {
-            auto&& name  = any_cast<builtin::param>(ins.op).parameter;
+            auto&& name  = any_cast<builtin::param>(ins.get_operator()).parameter;
             result[name] = ins.get_shape();
         }
     }
@@ -291,7 +290,7 @@ argument generic_eval(const program& p,
         else if(ins->name() == "@param")
         {
             results.emplace(ins, trace(ins, [&] {
-                                return params.at(any_cast<builtin::param>(ins->op).parameter);
+                                return params.at(any_cast<builtin::param>(ins->get_operator()).parameter);
                             }));
         }
         else if(ins->name() == "@outline")
@@ -307,7 +306,7 @@ argument generic_eval(const program& p,
                     return results[i];
                 });
             results.emplace(
-                ins, trace(ins, [&] { return ins->op.compute(ctx, ins->get_shape(), values); }));
+                ins, trace(ins, [&] { return ins->get_operator().compute(ctx, ins->get_shape(), values); }));
         }
         assert(results.find(ins) != results.end());
     }

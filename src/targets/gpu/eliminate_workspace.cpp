@@ -20,7 +20,7 @@ void eliminate_workspace::apply(program& p) const
             continue;
         if(ins->name() != "hip::allocate")
             continue;
-        auto&& a = any_cast<hip_allocate>(ins->op);
+        auto&& a = any_cast<hip_allocate>(ins->get_operator());
         if(a.tag == "workspace")
         {
             n = std::max(n, ins->get_shape().bytes());

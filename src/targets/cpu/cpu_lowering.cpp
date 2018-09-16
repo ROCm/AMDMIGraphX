@@ -603,20 +603,20 @@ struct cpu_apply
     template <class T, class Op>
     void apply_extend_op(instruction_ref ins)
     {
-        auto&& op = any_cast<Op>(ins->op);
+        auto&& op = any_cast<Op>(ins->get_operator());
         prog->replace_instruction(ins, T{op}, ins->inputs());
     }
 
     void apply_activation(instruction_ref ins)
     {
-        auto&& op = any_cast<activation>(ins->op);
+        auto&& op = any_cast<activation>(ins->get_operator());
         if(op.mode == "relu")
             prog->replace_instruction(ins, cpu_unary<relu_op>{}, ins->inputs());
     }
 
     void apply_pooling(instruction_ref ins)
     {
-        auto&& op = any_cast<pooling>(ins->op);
+        auto&& op = any_cast<pooling>(ins->get_operator());
         if(op.mode == "max")
             prog->replace_instruction(ins, cpu_pooling<max_pool>{op}, ins->inputs());
         else if(op.mode == "average")

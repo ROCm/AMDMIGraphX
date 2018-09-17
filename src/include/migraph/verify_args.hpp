@@ -48,7 +48,7 @@ inline void verify_args(const std::string& name,
                           << gpu[gpu_nan_idx] << std::endl;
             std::cout << std::endl;
         }
-        else 
+        else
         {
             if(range_zero(cpu))
                 std::cout << "Cpu data is all zeros" << std::endl;

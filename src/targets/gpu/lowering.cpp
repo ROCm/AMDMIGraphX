@@ -438,7 +438,7 @@ struct miopen_apply
 
     instruction_ref apply_softmax(instruction_ref ins)
     {
-        auto&& op = any_cast<softmax>(ins->get_operator());
+        auto&& op   = any_cast<softmax>(ins->get_operator());
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(ins, miopen_softmax{op}, ins->inputs().at(0), output);
     }

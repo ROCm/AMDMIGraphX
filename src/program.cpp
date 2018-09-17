@@ -318,17 +318,19 @@ argument generic_eval(const program& p,
 
 argument program::eval(std::unordered_map<std::string, argument> params) const
 {
-    if(enabled(MIGRAPH_TRACE_EVAL{})) {
-        auto& ctx          = this->impl->ctx;
-        return generic_eval(*this, this->impl->ctx, std::move(params), [&](auto& ins, auto f) { 
+    if(enabled(MIGRAPH_TRACE_EVAL{}))
+    {
+        auto& ctx = this->impl->ctx;
+        return generic_eval(*this, this->impl->ctx, std::move(params), [&](auto& ins, auto f) {
             ctx.finish();
             std::cout << "Run instruction: " << ins->name() << std::endl;
             return f();
         });
-        
-    } else {
-        return generic_eval(*this, this->impl->ctx, std::move(params), [](auto&, auto f) { return f(); });
-        
+    }
+    else
+    {
+        return generic_eval(
+            *this, this->impl->ctx, std::move(params), [](auto&, auto f) { return f(); });
     }
 }
 

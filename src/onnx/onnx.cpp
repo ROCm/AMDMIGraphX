@@ -28,10 +28,6 @@ struct unknown
         else
             return input.front();
     }
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
-    }
     friend std::ostream& operator<<(std::ostream& os, const unknown& x)
     {
         os << x.name();
@@ -57,7 +53,9 @@ struct onnx_parser
         add_generic_op("MatMul", gemm{});
         add_generic_op("Mul", mul{});
         add_generic_op("Relu", activation{"relu"});
+        add_generic_op("Softmax", softmax{});
         add_generic_op("Sub", sub{});
+        add_generic_op("Sum", add{});
 
         add_mem_op("Constant", &onnx_parser::parse_constant);
         add_mem_op("Conv", &onnx_parser::parse_conv);

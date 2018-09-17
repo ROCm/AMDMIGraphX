@@ -305,6 +305,34 @@ struct miopen_relu
     }
 };
 
+struct miopen_softmax
+{
+    softmax op;
+    std::string name() const { return "gpu::softmax"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(2).standard();
+        return inputs.at(1);
+    }
+
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    {
+        float alpha = 1, beta = 0;
+        auto x_desc = make_tensor(args[0].get_shape());
+        auto y_desc = make_tensor(output_shape);
+        miopenSoftmaxForward(ctx.handle.get(),
+                                &alpha,
+                                x_desc.get(),
+                                args[0].implicit(),
+                                &beta,
+                                y_desc.get(),
+                                args[1].implicit());
+
+        return args[1];
+    }
+};
+
 struct miopen_apply
 {
     program* prog = nullptr;
@@ -349,6 +377,10 @@ struct miopen_apply
             else if(it->name() == "batch_norm_inference")
             {
                 check_shape(s, apply_batch_norm_inference(it));
+            }
+            else if(it->name() == "softmax")
+            {
+                check_shape(s, apply_softmax(it));
             }
         }
     }
@@ -402,6 +434,13 @@ struct miopen_apply
                 ins, miopen_relu{std::move(ad)}, ins->inputs().at(0), output);
         }
         return ins;
+    }
+
+    instruction_ref apply_softmax(instruction_ref ins)
+    {
+        auto output = insert_allocation(ins, ins->get_shape());
+            return prog->replace_instruction(
+                ins, miopen_softmax{}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_add(instruction_ref ins)

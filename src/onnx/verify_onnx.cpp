@@ -93,6 +93,32 @@ void verify_instructions(const migraph::program& prog, double tolerance = 80)
     }
 }
 
+template<class F>
+void verify_reduced(F f, int n, double tolerance = 80)
+{
+    
+    auto create_program = [&] {
+        migraph::program p = f();
+        auto last = std::prev(p.end(), n+1);
+        p.remove_instructions(last, p.end());
+        return p;
+    };
+    std::cout << "Verify: " << std::endl;
+    std::cout << create_program() << std::endl;
+    verify_program(std::to_string(n), create_program, tolerance);
+}
+
+template<class F>
+void verify_reduced_program(F f, double tolerance = 80)
+{
+    migraph::program p = f();
+    auto n = std::distance(p.begin(), p.end());
+    for(int i=0;i<n;i++) 
+    {
+        verify_reduced(f, i, tolerance);
+    }
+}
+
 int main(int argc, char const* argv[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
@@ -105,6 +131,10 @@ int main(int argc, char const* argv[])
         if(std::any_of(args.begin(), args.end(), [](const auto& s) { return s == "-i"; }))
         {
             verify_instructions(p);
+        }
+        else if(std::any_of(args.begin(), args.end(), [](const auto& s) { return s == "-r"; }))
+        {
+            verify_reduced_program([&] { return migraph::parse_onnx(file); });
         }
         else
         {

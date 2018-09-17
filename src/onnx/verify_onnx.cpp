@@ -51,6 +51,8 @@ void verify_program(const std::string& name, F f, double tolerance = 100)
     auto x = run_cpu(f);
     auto y = run_gpu(f);
     migraph::verify_args(name, x, y, tolerance);
+    // std::cout << "cpu: " << x << std::endl;
+    // std::cout << "gpu: " << y << std::endl;
 }
 
 void verify_instructions(const migraph::program& prog, double tolerance = 80)

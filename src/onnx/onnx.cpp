@@ -102,7 +102,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_softmax(const std::string&, attribute_map, std::vector<instruction_ref> args)
+    parse_softmax(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         auto dims = args.front()->get_shape().lens();
         auto r = prog.add_instruction(reshape{{long(dims[0]), 1, 1, long(dims[1])}}, args.front());

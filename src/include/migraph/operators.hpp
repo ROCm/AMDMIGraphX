@@ -413,11 +413,6 @@ struct atan : unary
     std::string name() const { return "atan"; }
 };
 
-struct softmax : unary
-{
-    std::string name() const { return "softmax"; }
-};
-
 struct tanh : unary
 {
     std::string name() const { return "tanh"; }
@@ -431,6 +426,16 @@ struct sigmoid : unary
 struct neg : unary
 {
     std::string name() const { return "neg"; }
+};
+
+struct softmax
+{
+    std::string name() const { return "softmax"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(1).only_dims(4);
+        return inputs.at(0);
+    }
 };
 
 struct flatten

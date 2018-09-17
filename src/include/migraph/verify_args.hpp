@@ -27,6 +27,9 @@ inline void verify_args(const std::string& name,
             if(range_zero(gpu))
                 std::cout << "Gpu data is all zeros" << std::endl;
 
+            auto mxdiff = max_diff(cpu, gpu);
+            std::cout << "Max diff: " << mxdiff << std::endl;
+
             auto idx = mismatch_idx(cpu, gpu, float_equal);
             if(idx < range_distance(cpu))
             {

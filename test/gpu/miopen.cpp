@@ -240,7 +240,18 @@ struct test_softmax
     migraph::program create_program() const
     {
         migraph::program p;
-        auto x = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {5, 3, 4, 2}});
+        auto x   = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {5, 3, 4, 2}});
+        p.add_instruction(migraph::softmax{}, x);
+        return p;
+    }
+};
+
+struct test_softmax2
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto x   = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {1, 1000}});
         p.add_instruction(migraph::softmax{}, x);
         return p;
     }
@@ -527,6 +538,9 @@ int main()
     verify_program<test_add_broadcast3>();
     verify_program<test_add_broadcast4>();
     verify_program<test_add_broadcast5>();
+    verify_program<test_softmax>();
+    // TODO: Add reshapes to make this a valid test case
+    // verify_program<test_softmax2>();
     verify_program<test_conv>();
     verify_program<test_conv_relu>();
     verify_program<test_add_relu>();

@@ -312,7 +312,7 @@ struct miopen_softmax
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(2).standard();
-        return inputs.at(1);
+        return op.compute_shape({inputs.at(0)});
     }
 
     argument
@@ -438,8 +438,9 @@ struct miopen_apply
 
     instruction_ref apply_softmax(instruction_ref ins)
     {
+        auto&& op = any_cast<softmax>(ins->get_operator());
         auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(ins, miopen_softmax{}, ins->inputs().at(0), output);
+        return prog->replace_instruction(ins, miopen_softmax{op}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_add(instruction_ref ins)

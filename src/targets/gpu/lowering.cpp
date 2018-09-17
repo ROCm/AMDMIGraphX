@@ -322,12 +322,12 @@ struct miopen_softmax
         auto x_desc = make_tensor(args[0].get_shape());
         auto y_desc = make_tensor(output_shape);
         miopenSoftmaxForward(ctx.handle.get(),
-                                &alpha,
-                                x_desc.get(),
-                                args[0].implicit(),
-                                &beta,
-                                y_desc.get(),
-                                args[1].implicit());
+                             &alpha,
+                             x_desc.get(),
+                             args[0].implicit(),
+                             &beta,
+                             y_desc.get(),
+                             args[1].implicit());
 
         return args[1];
     }
@@ -439,8 +439,7 @@ struct miopen_apply
     instruction_ref apply_softmax(instruction_ref ins)
     {
         auto output = insert_allocation(ins, ins->get_shape());
-            return prog->replace_instruction(
-                ins, miopen_softmax{}, ins->inputs().at(0), output);
+        return prog->replace_instruction(ins, miopen_softmax{}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_add(instruction_ref ins)

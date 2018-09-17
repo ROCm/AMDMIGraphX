@@ -240,7 +240,7 @@ struct test_softmax
     migraph::program create_program() const
     {
         migraph::program p;
-        auto x   = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {5, 3, 4, 2}});
+        auto x = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {5, 3, 4, 2}});
         p.add_instruction(migraph::softmax{}, x);
         return p;
     }

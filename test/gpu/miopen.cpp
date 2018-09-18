@@ -97,10 +97,10 @@ void compile_check(migraph::program& p, const migraph::target& t)
 }
 
 template <class V>
-migraph::argument run_cpu()
+migraph::argument run_cpu(migraph::program& p)
 {
     V v;
-    auto p = v.create_program();
+    p = v.create_program();
     auto_print pp{p, 0};
     compile_check(p, migraph::cpu::cpu_target{});
     migraph::program::parameter_map m;
@@ -112,10 +112,10 @@ migraph::argument run_cpu()
 }
 
 template <class V>
-migraph::argument run_gpu()
+migraph::argument run_gpu(migraph::program& p)
 {
     V v;
-    auto p = v.create_program();
+    p = v.create_program();
     auto_print pp{p, 1};
     compile_check(p, migraph::gpu::target{});
     migraph::program::parameter_map m;
@@ -131,9 +131,20 @@ template <class V>
 void verify_program()
 {
     auto_print::set_terminate_handler(migraph::get_type_name<V>());
-    auto cpu_arg_f = detach_async([] { return run_cpu<V>(); });
-    auto gpu_arg   = run_gpu<V>();
-    verify_args(migraph::get_type_name<V>(), cpu_arg_f.get(), gpu_arg);
+    migraph::program cpu_prog;
+    migraph::program gpu_prog;
+    auto cpu_arg_f = detach_async([&] { return run_cpu<V>(cpu_prog); });
+    auto gpu_arg   = run_gpu<V>(gpu_prog);
+    bool passed = verify_args(migraph::get_type_name<V>(), cpu_arg_f.get(), gpu_arg);
+    if(not passed)
+    {
+        V v;
+        auto p = v.create_program();
+        std::cout << p << std::endl;
+        std::cout << "cpu:\n" << cpu_prog << std::endl;
+        std::cout << "gpu:\n" << gpu_prog << std::endl;
+        std::cout << std::endl;
+    }
     std::set_terminate(nullptr);
 }
 

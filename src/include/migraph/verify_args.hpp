@@ -6,14 +6,16 @@
 
 namespace migraph {
 
-inline void verify_args(const std::string& name,
+inline bool verify_args(const std::string& name,
                         const argument& cpu_arg,
                         const argument& gpu_arg,
                         double tolerance = 80)
 {
+    bool passed = true;
     visit_all(cpu_arg, gpu_arg)([&](auto cpu, auto gpu) {
         double error;
-        if(not verify_range(cpu, gpu, tolerance, &error))
+        passed = verify_range(cpu, gpu, tolerance, &error);
+        if(not passed)
         {
             // TODO: Check for nans
             std::cout << "FAILED: " << name << std::endl;
@@ -74,9 +76,10 @@ inline void verify_args(const std::string& name,
             if(gpu_nan_idx >= 0)
                 std::cout << "Non finite number found in gpu at " << gpu_nan_idx << ": "
                           << gpu[gpu_nan_idx] << std::endl;
-            std::cout << std::endl;
+            // std::cout << std::endl;
         }
     });
+    return passed;
 }
 
 } // namespace migraph

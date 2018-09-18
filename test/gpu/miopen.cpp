@@ -135,7 +135,7 @@ void verify_program()
     migraph::program gpu_prog;
     auto cpu_arg_f = detach_async([&] { return run_cpu<V>(cpu_prog); });
     auto gpu_arg   = run_gpu<V>(gpu_prog);
-    bool passed = verify_args(migraph::get_type_name<V>(), cpu_arg_f.get(), gpu_arg);
+    bool passed    = verify_args(migraph::get_type_name<V>(), cpu_arg_f.get(), gpu_arg);
     if(not passed)
     {
         V v;

@@ -13,7 +13,9 @@ struct cpu_target
     std::vector<pass> get_passes(migraph::context& ctx) const;
     migraph::context get_context() const { return context{}; }
 };
+    
 } // namespace cpu
+    
 } // namespace migraph
 
 #endif

@@ -270,6 +270,20 @@ struct test_conv
     }
 };
 
+struct test_conv2
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto input =
+            p.add_parameter("x", migraph::shape{migraph::shape::float_type, {1, 512, 28, 28}});
+        auto weights =
+            p.add_parameter("w", migraph::shape{migraph::shape::float_type, {256, 512, 1, 1}});
+        p.add_instruction(migraph::convolution{{0, 0}, {1, 1}, {1, 1}}, input, weights);
+        return p;
+    }
+};
+
 struct test_conv_relu
 {
     migraph::program create_program() const
@@ -541,6 +555,7 @@ int main()
     verify_program<test_softmax>();
     verify_program<test_softmax2>();
     verify_program<test_conv>();
+    verify_program<test_conv2>();
     verify_program<test_conv_relu>();
     verify_program<test_add_relu>();
     verify_program<test_conv_pooling>();

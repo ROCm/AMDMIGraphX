@@ -22,9 +22,9 @@ if(MIGRAPH_ENABLE_GPU)
 add_subdirectory(targets/gpu)
 endif()
 
-#install (TARGETS migraph
-#   LIBRARY DESTINATION /opt/rocm/lib)
+install (TARGETS migraph
+   LIBRARY DESTINATION /opt/rocm/lib)
 
-#install (DIRECTORY include/migraph DESTINATION /opt/rocm/include)
+install (DIRECTORY include/migraph DESTINATION /opt/rocm/include)
  
 

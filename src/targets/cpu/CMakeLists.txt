@@ -14,7 +14,7 @@ target_include_directories(migraph_cpu PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_
 target_include_directories(migraph_cpu PRIVATE ${BLAZE_INCLUDE})
 target_compile_definitions(migraph_cpu PRIVATE -DBLAZE_USE_CPP_THREADS)
 
-#install (TARGETS migraph_cpu
-#  LIBRARY DESTINATION /opt/rocm/lib)
-#install (DIRECTORY include/migraph DESTINATION /opt/rocm/include)
+install (TARGETS migraph_cpu
+  LIBRARY DESTINATION /opt/rocm/lib)
+install (DIRECTORY include/migraph DESTINATION /opt/rocm/include)
 

@@ -30,7 +30,7 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
         simplify_reshapes{},
         dead_code_elimination{},
         lowering{ctx},
-        memory_coloring{},
+        memory_coloring{"hip::allocate"},
         lowering_memory_coloring{&ctx},
         fuse_ops{},
         dead_code_elimination{},

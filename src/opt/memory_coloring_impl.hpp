@@ -50,7 +50,7 @@ using interval_ptr = live_interval*;
 
 struct memory_coloring_impl
 {
-    memory_coloring_impl(program* p) : p_program(p)
+    memory_coloring_impl(program* p, std::string alloc_op) : p_program(p), allocation_op(std::move(alloc_op))
     {
         instr2_live.clear();
         live_ranges.clear();
@@ -81,7 +81,7 @@ struct memory_coloring_impl
     {
         return is_param(ins) && any_cast<builtin::param>(ins->op).parameter == "output";
     }
-    static bool is_allocate(const instruction_ref ins) { return ins->op.name() == "hip::allocate"; }
+    bool is_allocate(const instruction_ref ins) { return ins->op.name() == allocation_op; }
     static bool is_outline(const instruction_ref ins) { return ins->op.name() == "@outline"; }
     static bool is_literal(const instruction_ref ins) { return ins->op.name() == "@literal"; }
     static bool is_check_context(const instruction_ref ins)
@@ -95,7 +95,12 @@ struct memory_coloring_impl
         std::string name = ins->op.name();
         if(operand_alias.find(name) != operand_alias.end())
             return operand_alias[name];
-
+        if(is_allocate(ins))
+        {
+            // This happens to custom allocators.
+            operand_alias[name] = -1;
+            return -1;
+        }
         int cnt           = -1;
         int last_allocate = -1;
         for(auto&& arg : ins->arguments)
@@ -104,7 +109,7 @@ struct memory_coloring_impl
             if(is_allocate(arg) || is_output_param(arg))
                 last_allocate = cnt;
         }
-        assert((last_allocate != -1));
+        assert(last_allocate != -1);
         operand_alias[name] = last_allocate;
         return last_allocate;
     }
@@ -163,6 +168,7 @@ struct memory_coloring_impl
     long long required_bytes;
     // The earliest program point where an live interval ends.
     int earliest_end_point;
+    std::string allocation_op{};
 };
 } // namespace migraph
 #endif

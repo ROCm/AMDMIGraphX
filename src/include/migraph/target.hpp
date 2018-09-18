@@ -241,6 +241,7 @@ inline const ValueType& any_cast(const target& x)
 }
 
 #endif
+
 } // namespace migraph
 
 #endif

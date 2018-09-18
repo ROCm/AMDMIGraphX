@@ -215,6 +215,7 @@ inline const ValueType& any_cast(const pass& x)
 }
 
 #endif
+
 } // namespace migraph
 
 #endif

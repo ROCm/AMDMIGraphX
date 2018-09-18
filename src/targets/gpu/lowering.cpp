@@ -129,8 +129,7 @@ struct miopen_convolution
                                               workspace_size,
                                               false);
         algo = perf.fwd_algo;
-        return algo == miopenConvolutionFwdAlgoWinograd ? shape{shape::int8_type, {0}}
-                                                        : workspace_shape;
+        return shape{shape::int8_type, {perf.memory}};
     }
 };
 

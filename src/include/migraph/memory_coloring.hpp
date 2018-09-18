@@ -9,6 +9,7 @@ struct program;
 
 struct memory_coloring
 {
+    std::string allocation_op{};
     std::string name() const { return "memory coloring"; }
     void apply(program& p) const;
 };

@@ -131,6 +131,15 @@ struct miopen_convolution
         algo = perf.fwd_algo;
         return shape{shape::int8_type, {perf.memory}};
     }
+
+    friend std::ostream& operator<<(std::ostream& os, const miopen_convolution& self)
+    {
+        os << self.name() << "[";
+        os << self.op << ", ";
+        os << "algo=" << self.algo;
+        os << "]";
+        return os;
+    }
 };
 
 struct miopen_pooling

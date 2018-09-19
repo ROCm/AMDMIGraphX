@@ -2,7 +2,6 @@
 #include <migraph/iterator_for.hpp>
 #include <migraph/gpu/hip.hpp>
 #include <migraph/instruction.hpp>
-#include <migraph/pass_config.hpp>
 
 namespace migraph {
 

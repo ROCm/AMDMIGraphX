@@ -26,7 +26,6 @@ add_library(migraph_gpu
     hip.cpp
     target.cpp
     lowering.cpp
-    lowering_memory_coloring.cpp
     write_literals.cpp
     rocblas.cpp
 )

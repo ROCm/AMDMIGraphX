@@ -60,6 +60,7 @@ struct memory_coloring_impl
         required_bytes   = 0;
         operand_alias.clear();
         earliest_end_point = -1;
+        latest_end_point = -1;
     }
     bool allocate(interval_ptr);
     void add_conflicts(std::set<int>& live_set, int val)
@@ -168,6 +169,8 @@ struct memory_coloring_impl
     long long required_bytes;
     // The earliest program point where an live interval ends.
     int earliest_end_point;
+    // The latest program point where an live interval ends.
+    int latest_end_point;
     std::string allocation_op{};
 };
 } // namespace migraph

@@ -83,6 +83,13 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
             offset += (element_size - (offset % element_size));
         conflict_queue.pop();
     }
+#if 1
+    if (interval->get_end() == latest_end_point) {
+        offset = required_bytes;
+        if((offset % element_size) != 0)
+            offset += (element_size - (offset % element_size));
+    }
+#endif    
     segment.offset = offset;
     MIGRAPH_DEBUG(segment.dump());
     required_bytes = std::max(required_bytes, offset + segment.size);
@@ -165,6 +172,8 @@ void memory_coloring_impl::build()
                 live_set.insert(max_value_number);
                 live_ranges[max_value_number] = &(interval->segment);
                 earliest_end_point            = cur_points;
+                if (latest_end_point == -1)
+                    latest_end_point = cur_points;
             }
             else
             {

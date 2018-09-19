@@ -50,7 +50,8 @@ using interval_ptr = live_interval*;
 
 struct memory_coloring_impl
 {
-    memory_coloring_impl(program* p, std::string alloc_op) : p_program(p), allocation_op(std::move(alloc_op))
+    memory_coloring_impl(program* p, std::string alloc_op)
+        : p_program(p), allocation_op(std::move(alloc_op))
     {
         instr2_live.clear();
         live_ranges.clear();
@@ -60,7 +61,8 @@ struct memory_coloring_impl
         required_bytes   = 0;
         operand_alias.clear();
         earliest_end_point = -1;
-        latest_end_point = -1;
+        latest_end_point   = -1;
+        unify_literals     = false;
     }
     bool allocate(interval_ptr);
     void add_conflicts(std::set<int>& live_set, int val)
@@ -171,6 +173,8 @@ struct memory_coloring_impl
     int earliest_end_point;
     // The latest program point where an live interval ends.
     int latest_end_point;
+    // Whether to unify literals into coloring.
+    bool unify_literals;
     std::string allocation_op{};
 };
 } // namespace migraph

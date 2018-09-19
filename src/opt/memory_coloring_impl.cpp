@@ -83,13 +83,6 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
             offset += (element_size - (offset % element_size));
         conflict_queue.pop();
     }
-#if 1
-    if (interval->get_end() == latest_end_point) {
-        offset = required_bytes;
-        if((offset % element_size) != 0)
-            offset += (element_size - (offset % element_size));
-    }
-#endif    
     segment.offset = offset;
     MIGRAPH_DEBUG(segment.dump());
     required_bytes = std::max(required_bytes, offset + segment.size);
@@ -124,7 +117,8 @@ void memory_coloring_impl::build()
                 live_range& range        = def_interval->segment;
                 def_interval->result     = iter->result;
                 def_interval->is_literal = is_lit;
-                alloc_queue.push(def_interval);
+                if(!is_lit || unify_literals)
+                    alloc_queue.push(def_interval);
                 range.begin             = cur_points;
                 def_interval->def_point = cur_points;
                 range.size              = (iter->result).bytes();
@@ -172,7 +166,7 @@ void memory_coloring_impl::build()
                 live_set.insert(max_value_number);
                 live_ranges[max_value_number] = &(interval->segment);
                 earliest_end_point            = cur_points;
-                if (latest_end_point == -1)
+                if(latest_end_point == -1)
                     latest_end_point = cur_points;
             }
             else
@@ -217,6 +211,9 @@ void memory_coloring_impl::rewrite()
         {
             interval_ptr interval = instr2_live[p_iter];
             if(interval->get_begin() == invalid_offset)
+                continue;
+
+            if(!unify_literals && interval->is_literal)
                 continue;
 
             std::size_t offset = 0;

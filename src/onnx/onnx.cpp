@@ -351,9 +351,10 @@ struct onnx_parser
         if(node.name().empty())
         {
             std::string generated = "migraph_unnamed_node";
-            return std::accumulate(node.output().begin(), node.output().end(), generated, [](auto x, auto y) {
-                return x + "_" + y;
-            });
+            return std::accumulate(node.output().begin(),
+                                   node.output().end(),
+                                   generated,
+                                   [](auto x, auto y) { return x + "_" + y; });
         }
         return node.name();
     }
@@ -487,7 +488,10 @@ struct onnx_parser
         }
         std::vector<std::size_t> dims;
         auto&& tensor_dims = t.tensor_type().shape().dim();
-        std::transform(tensor_dims.begin(), tensor_dims.end(), std::back_inserter(dims), [](auto&& d) { return d.dim_value(); });
+        std::transform(tensor_dims.begin(),
+                       tensor_dims.end(),
+                       std::back_inserter(dims),
+                       [](auto&& d) { return d.dim_value(); });
         return {shape_type, dims};
     }
 };

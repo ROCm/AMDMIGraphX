@@ -107,11 +107,11 @@ struct miopen_convolution
             ctx.handle.get(), w_desc.get(), x_desc.get(), cd.get(), y_desc.get(), &workspace_size);
         workspace_shape = shape{shape::int8_type, {workspace_size}};
 
-        auto x         = to_gpu(generate_argument(inputs[0]->get_shape()));
+        auto x = to_gpu(generate_argument(inputs[0]->get_shape()));
         gpu_sync();
-        auto w         = to_gpu(generate_argument(inputs[1]->get_shape()));
+        auto w = to_gpu(generate_argument(inputs[1]->get_shape()));
         gpu_sync();
-        auto y         = to_gpu(generate_argument(output_shape));
+        auto y = to_gpu(generate_argument(output_shape));
         gpu_sync();
         auto workspace = allocate_gpu(workspace_shape);
 
@@ -453,7 +453,5 @@ struct miopen_apply
 };
 
 void lowering::apply(program& p) const { miopen_apply{&p, ctx}.apply(); }
-
 } // namespace gpu
-
 } // namespace migraph

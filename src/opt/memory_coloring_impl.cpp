@@ -239,7 +239,7 @@ void memory_coloring_impl::rewrite()
                 bool pre_copy = (interval->get_begin() < earliest_end_point);
                 p_program->replace_instruction(
                     ins, write_literal{offset, pre_copy}, scratch_param, pre);
-#endif                
+#endif
             }
         }
     }

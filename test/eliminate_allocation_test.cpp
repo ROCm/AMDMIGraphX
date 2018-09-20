@@ -102,6 +102,7 @@ void float_aligned()
 
 int main()
 {
+    setenv("MIGRAPH_DISABLE_MEMORY_COLORING", "1", 1);
     basic();
     aligned();
     unaligned();

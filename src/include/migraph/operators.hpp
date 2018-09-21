@@ -311,6 +311,111 @@ struct contiguous
     }
 };
 
+struct slice
+{
+    std::vector<int64_t> axes;
+    std::vector<int64_t> starts;
+    std::vector<int64_t> ends;
+    std::string name() const { return "slice"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        auto input_shape = inputs[0];
+        auto t = input_shape.type();
+        auto old_lens = input_shape.lens();
+        auto old_strides = input_shape.strides();
+        std::vector<int64_t> t_axes(old_lens.size());
+        if (axes.size() == 0) {
+            std::iota(t_axes.begin(), t_axes.end(), 0);
+        }
+        else {
+            std::copy(axes.begin(), axes.end(), t_axes.begin());
+        }
+        if (starts.size() || t_axes.size() != ends.size()) {
+            MIGRAPH_THROW("inconsistent sizes");
+        }
+        std::vector<std::size_t> new_lens;
+        std::copy(old_lens.begin(), old_lens.end(), new_lens.begin());
+        auto fix_index = [&] (std::size_t axis, int64_t index) {
+            auto r = std::min(index, static_cast<int64_t>(old_lens[axis]-1));
+            if (r < 0) r+= old_lens[axis];
+            return r;
+        };
+        for (std::size_t i = 0; i < t_axes.size(); i++) {
+            auto axis = t_axes[i];
+            new_lens[axis] = fix_index(axis, ends[i]) - fix_index(axis, starts[i]); 
+        }
+        return shape{t, new_lens, old_strides};
+    }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        return {std::move(output_shape), std::move(args.front().data)};
+    }
+};
+
+struct squeeze
+{
+    std::vector<int64_t> axes;
+    std::string name() const { return "squeeze"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        auto input_shape = inputs[0];
+        auto type = input_shape.type();
+        auto old_lens = input_shape.lens();
+        for (auto axis : axes) {
+            if (input_shape.lens()[axis] != 1) {
+                MIGRAPH_THROW("squeeze axis dimension should be equal to 1");
+            }
+        }
+        std::vector<std::size_t> new_lens;
+        if (axes.size() == 0) {
+            for (std::size_t i = 0; i < old_lens.size(); i++) {
+                if (old_lens[i] != 1)
+                    new_lens.push_back(old_lens[i]);
+            }
+        }
+        else {
+            for (std::size_t i = 0; i < old_lens.size(); i++) {
+                if (std::find(axes.begin(), axes.end(), i)
+                   == axes.end()) {
+                    new_lens.push_back(old_lens[i]);
+                }
+            }
+        }
+        return shape{type, new_lens};
+    }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        return {std::move(output_shape), std::move(args.front().data)};
+    }    
+};
+
+struct unsqueeze
+{
+    std::vector<int64_t> axes;
+    std::string name() const { return "unsqueeze"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        auto input_shape = inputs[0];
+        auto type = input_shape.type();
+        auto old_lens = input_shape.lens();
+        std::size_t new_size = old_lens.size() + axes.size();
+        std::vector<std::size_t> new_lens(new_size);
+        std::size_t p = 0;
+        for (std::size_t i = 0; i < new_size; i++) {
+            if (std::find(axes.begin(), axes.end(), i) != axes.end()) {
+                new_lens[i] = 1;
+            } else {
+                new_lens[i] = old_lens[p++];
+            }
+        }
+        return shape{type, new_lens};
+    }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        return {std::move(output_shape), std::move(args.front().data)};
+    }
+};
+
 struct reshape
 {
     std::vector<int64_t> dims;

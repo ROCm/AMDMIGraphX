@@ -6,6 +6,79 @@
 #include <migraph/verify.hpp>
 #include "test.hpp"
 
+void slice_test() {
+        migraph::program p;
+        std::vector<float> data(4*3*2);
+        std::iota(data.begin(), data.end(), 0);
+        migraph::shape s{migraph::shape::float_type, {4,2,3}};
+        auto l0 = p.add_literal(migraph::literal{s, data});
+        p.add_instruction(migraph::squeeze{{0},{0},{2}}, l0);
+        p.compile(migraph::cpu::cpu_target{});
+        auto result = p.eval({});
+        EXPECT(result.get_shape() == s2);    
+}
+
+void squeeze_test() {
+    {
+        migraph::program p;
+        std::vector<float> data(4*3*3);
+        migraph::shape s1{migraph::shape::float_type, {4,1,3,1,3}};
+        migraph::shape s2{migraph::shape::float_type, {4,3,1,3}};
+        auto l0 = p.add_literal(migraph::literal{s1, data});
+        p.add_instruction(migraph::squeeze{{1}}, l0);
+        p.compile(migraph::cpu::cpu_target{});
+        auto result = p.eval({});
+        EXPECT(result.get_shape() == s2);    
+    }
+    {
+        migraph::program p;
+        std::vector<float> data(4*3*3);
+        migraph::shape s1{migraph::shape::float_type, {4,1,3,1,3}};
+        migraph::shape s2{migraph::shape::float_type, {4,1,3,3}};
+        auto l0 = p.add_literal(migraph::literal{s1, data});
+        p.add_instruction(migraph::squeeze{{3}}, l0);
+        p.compile(migraph::cpu::cpu_target{});
+        auto result = p.eval({});
+        EXPECT(result.get_shape() == s2);    
+    }
+    {
+        migraph::program p;
+        std::vector<float> data(4*3*3);
+        migraph::shape s1{migraph::shape::float_type, {4,1,3,1,3}};
+        migraph::shape s2{migraph::shape::float_type, {4,3,3}};
+        auto l0 = p.add_literal(migraph::literal{s1, data});
+        p.add_instruction(migraph::squeeze{}, l0);
+        p.compile(migraph::cpu::cpu_target{});
+        auto result = p.eval({});
+        EXPECT(result.get_shape() == s2);    
+    }
+}
+
+void unsqueeze_test() {
+    {
+        migraph::program p;
+        std::vector<float> data(4*3*3);
+        migraph::shape s1{migraph::shape::float_type, {4,3,3}};
+        migraph::shape s2{migraph::shape::float_type, {4,1,3,3}};
+        auto l0 = p.add_literal(migraph::literal{s1, data});
+        p.add_instruction(migraph::unsqueeze{{1}}, l0);
+        p.compile(migraph::cpu::cpu_target{});
+        auto result = p.eval({});
+        EXPECT(result.get_shape() == s2);    
+    }    
+    {
+        migraph::program p;
+        std::vector<float> data(4*3*3);
+        migraph::shape s1{migraph::shape::float_type, {4,3,3}};
+        migraph::shape s2{migraph::shape::float_type, {4,3,1,3}};
+        auto l0 = p.add_literal(migraph::literal{s1, data});
+        p.add_instruction(migraph::unsqueeze{{2}}, l0);
+        p.compile(migraph::cpu::cpu_target{});
+        auto result = p.eval({});
+        EXPECT(result.get_shape() == s2);    
+    }    
+}
+
 void im2col_3x3_no_pad_identity_test()
 {
     std::size_t f[2]    = {3, 3};
@@ -801,6 +874,8 @@ void contiguous_test()
 
 int main()
 {
+    squeeze_test();
+    unsqueeze_test();
     exp_test();
     sin_test();
     cos_test();
@@ -814,7 +889,7 @@ int main()
     gemm_test<double>();
     reshape_test();
     transpose_test();
-    contiguous_test();
+    // contiguous_test();
     softmax_test();
     // maxpool_test();
     conv2d_test();

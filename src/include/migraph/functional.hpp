@@ -100,24 +100,22 @@ auto pack(Ts... xs)
     return [=](auto f) { return f(xs...); };
 }
 
-template<class F, class T>
+template <class F, class T>
 auto fold_impl(F&&, T&& x)
 {
     return x;
 }
 
-template<class F, class T, class U, class... Ts>
+template <class F, class T, class U, class... Ts>
 auto fold_impl(F&& f, T&& x, U&& y, Ts&&... xs)
 {
     return fold_impl(f, f(std::forward<T>(x), std::forward<U>(y)), std::forward<Ts>(xs)...);
 }
 
-template<class F>
+template <class F>
 auto fold(F f)
 {
-    return [=](auto&&... xs) {
-        return fold_impl(f, std::forward<decltype(xs)>(xs)...);
-    };
+    return [=](auto&&... xs) { return fold_impl(f, std::forward<decltype(xs)>(xs)...); };
 }
 
 } // namespace migraph

@@ -61,12 +61,24 @@ constexpr void repeat_c_impl(F f, seq<Ns...>)
     swallow{(f(std::integral_constant<std::size_t, Ns>{}), 0)...};
 }
 
+template <class F, std::size_t... Ns>
+constexpr auto sequence_c_impl(F&& f, seq<Ns...>)
+{
+    return f(std::integral_constant<std::size_t, Ns>{}...);
+}
+
 } // namespace detail
 
 template <std::size_t N, class F>
 constexpr void repeat_c(F f)
 {
     detail::repeat_c_impl(f, detail::gens<N>{});
+}
+
+template <std::size_t N, class F>
+constexpr auto sequence_c(F&& f)
+{
+    return detail::sequence_c_impl(f, detail::gens<N>{});
 }
 
 /// Implements a fix-point combinator
@@ -86,6 +98,26 @@ template <class... Ts>
 auto pack(Ts... xs)
 {
     return [=](auto f) { return f(xs...); };
+}
+
+template<class F, class T>
+auto fold_impl(F&&, T&& x)
+{
+    return x;
+}
+
+template<class F, class T, class U, class... Ts>
+auto fold_impl(F&& f, T&& x, U&& y, Ts&&... xs)
+{
+    return fold_impl(f, f(std::forward<T>(x), std::forward<U>(y)), std::forward<Ts>(xs)...);
+}
+
+template<class F>
+auto fold(F f)
+{
+    return [=](auto&&... xs) {
+        return fold_impl(f, std::forward<decltype(xs)>(xs)...);
+    };
 }
 
 } // namespace migraph

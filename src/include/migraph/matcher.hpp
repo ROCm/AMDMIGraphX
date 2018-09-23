@@ -5,7 +5,7 @@
 #include <migraph/ranges.hpp>
 #include <migraph/instruction.hpp>
 #include <migraph/program.hpp>
-#include <migraph/type_name.hpp>
+#include <migraph/iterator_for.hpp>
 #include <unordered_map>
 
 namespace migraph {
@@ -184,6 +184,24 @@ matcher_result match_instruction(program& p, instruction_ref ins, M&& m)
     result.result       = m.match(ctx, ins);
     result.instructions = ctx.instructions;
     return result;
+}
+
+template<class... Ms>
+void find_matches(program& p, Ms&&... ms)
+{
+    for(auto ins:iterator_for(p))
+    {
+        bool match = false;
+        each_args([&](auto&& m) {
+            if(match) 
+                return;
+            auto r = match_instruction(p, ins, m.matcher());
+            if(r.result == p.end())
+                return;
+            m.apply(r);
+            match = true;
+        }, ms...);
+    }
 }
 
 template <class... Ts>

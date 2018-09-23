@@ -311,6 +311,45 @@ void match_bind1()
     EXPECT(bool{r.result == pass});
 }
 
+struct match_find_sum
+{
+    migraph::instruction_ref ins;
+    auto matcher() const
+    {
+        return matchers::name("sum");
+    }
+
+    void apply(matchers::matcher_result r) const
+    {
+        EXPECT(bool{r.result == ins});
+    }
+};
+
+struct match_find_literal
+{
+    migraph::instruction_ref ins;
+    auto matcher() const
+    {
+        return matchers::name("@literal");
+    }
+
+    void apply(matchers::matcher_result r) const
+    {
+        EXPECT(bool{r.result != ins});
+        EXPECT(r.result->name() == "@literal");
+    }
+};
+
+void match_finder()
+{
+    migraph::program p;
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum = p.add_instruction(sum_op{}, one, two);
+    p.add_instruction(pass_op{}, sum);
+    matchers::find_matches(p, match_find_sum{sum}, match_find_literal{sum});
+}
+
 int main()
 {
     match1();
@@ -339,4 +378,6 @@ int main()
     match_none_of();
 
     match_bind1();
+
+    match_finder();
 }

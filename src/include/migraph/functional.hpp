@@ -81,6 +81,12 @@ constexpr auto sequence_c(F&& f)
     return detail::sequence_c_impl(f, detail::gens<N>{});
 }
 
+template <class F, class... Ts>
+constexpr void each_args(F f, Ts&&... xs)
+{
+    swallow{(f(std::forward<Ts>(xs)), 0)...};
+}
+
 /// Implements a fix-point combinator
 template <class R, class F>
 detail::fix_f<R, F> fix(F f)

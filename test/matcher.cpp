@@ -6,12 +6,12 @@
 namespace matchers = migraph::matchers;
 
 template <class M>
-migraph::matcher_result find_match(migraph::program& p, M&& m)
+migraph::matchers::matcher_result find_match(migraph::program& p, M&& m)
 {
-    migraph::matcher_result result;
+    migraph::matchers::matcher_result result;
     for(auto ins : migraph::iterator_for(p))
     {
-        result = migraph::match_instruction(p, ins, m);
+        result = migraph::matchers::match_instruction(p, ins, m);
         if(result.result != p.end())
             return result;
     }

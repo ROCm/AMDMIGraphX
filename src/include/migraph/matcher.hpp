@@ -10,6 +10,8 @@
 
 namespace migraph {
 
+namespace matchers {
+
 struct matcher_context
 {
     matcher_context(instruction_ref i) : last(i) {}
@@ -156,7 +158,7 @@ basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
     {                                                                 \
         instruction_ref match(__VA_ARGS__) const;                     \
     };                                                                \
-    const constexpr auto name = migraph::basic_matcher<name##_m>{{}}; \
+    const constexpr auto name = migraph::matchers::basic_matcher<name##_m>{{}}; \
     inline instruction_ref name##_m::match(__VA_ARGS__) const
 
 #define MIGRAPH_PRED_MATCHER(name, ...)                                                  \
@@ -164,7 +166,7 @@ basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
     {                                                                                    \
         bool operator()(__VA_ARGS__) const;                                              \
     };                                                                                   \
-    const constexpr auto name = migraph::basic_matcher<predicate_matcher<name##_m>>{{}}; \
+    const constexpr auto name = migraph::matchers::basic_matcher<predicate_matcher<name##_m>>{{}}; \
     inline bool name##_m::operator()(__VA_ARGS__) const
 
 struct matcher_result
@@ -183,8 +185,6 @@ matcher_result match_instruction(program& p, instruction_ref ins, M&& m)
     result.instructions = ctx.instructions;
     return result;
 }
-
-namespace matchers {
 
 template <class... Ts>
 auto all_of(Ts... ms)

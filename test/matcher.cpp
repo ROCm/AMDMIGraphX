@@ -314,24 +314,15 @@ void match_bind1()
 struct match_find_sum
 {
     migraph::instruction_ref ins;
-    auto matcher() const
-    {
-        return matchers::name("sum");
-    }
+    auto matcher() const { return matchers::name("sum"); }
 
-    void apply(matchers::matcher_result r) const
-    {
-        EXPECT(bool{r.result == ins});
-    }
+    void apply(matchers::matcher_result r) const { EXPECT(bool{r.result == ins}); }
 };
 
 struct match_find_literal
 {
     migraph::instruction_ref ins;
-    auto matcher() const
-    {
-        return matchers::name("@literal");
-    }
+    auto matcher() const { return matchers::name("@literal"); }
 
     void apply(matchers::matcher_result r) const
     {

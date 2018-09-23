@@ -186,21 +186,23 @@ matcher_result match_instruction(program& p, instruction_ref ins, M&& m)
     return result;
 }
 
-template<class... Ms>
+template <class... Ms>
 void find_matches(program& p, Ms&&... ms)
 {
-    for(auto ins:iterator_for(p))
+    for(auto ins : iterator_for(p))
     {
         bool match = false;
-        each_args([&](auto&& m) {
-            if(match) 
-                return;
-            auto r = match_instruction(p, ins, m.matcher());
-            if(r.result == p.end())
-                return;
-            m.apply(r);
-            match = true;
-        }, ms...);
+        each_args(
+            [&](auto&& m) {
+                if(match)
+                    return;
+                auto r = match_instruction(p, ins, m.matcher());
+                if(r.result == p.end())
+                    return;
+                m.apply(r);
+                match = true;
+            },
+            ms...);
     }
 }
 

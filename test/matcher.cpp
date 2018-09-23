@@ -258,7 +258,7 @@ void match_all_of()
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
     auto m = matchers::name("sum")(matchers::all_of(matchers::arg(0)(matchers::name("@literal")),
-                                   matchers::arg(1)(matchers::name("@literal"))));
+                                                    matchers::arg(1)(matchers::name("@literal"))));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
 }
@@ -271,7 +271,7 @@ void match_any_of()
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
     auto m = matchers::name("sum")(matchers::any_of(matchers::arg(0)(matchers::name("sum")),
-                                   matchers::arg(1)(matchers::name("@literal"))));
+                                                    matchers::arg(1)(matchers::name("@literal"))));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
 }
@@ -284,7 +284,7 @@ void match_none_of()
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
     auto m = matchers::name("sum")(matchers::none_of(matchers::arg(0)(matchers::name("sum")),
-                                   matchers::arg(1)(matchers::name("sum"))));
+                                                     matchers::arg(1)(matchers::name("sum"))));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
 }

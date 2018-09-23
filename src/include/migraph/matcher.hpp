@@ -179,7 +179,7 @@ matcher_result match_instruction(program& p, instruction_ref ins, M&& m)
     assert(ins != p.end());
     matcher_result result;
     matcher_context ctx{p.end()};
-    result.result = m.match(ctx, ins);
+    result.result       = m.match(ctx, ins);
     result.instructions = ctx.instructions;
     return result;
 }

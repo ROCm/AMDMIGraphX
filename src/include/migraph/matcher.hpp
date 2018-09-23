@@ -184,18 +184,6 @@ matcher_result match_instruction(program& p, instruction_ref ins, M&& m)
     return result;
 }
 
-template <class T, class... Ts>
-std::array<T, sizeof...(Ts) + 1> make_array(T x, Ts... xs)
-{
-    return {x, xs...};
-}
-
-template <class... Ts>
-bool all_of_eager(Ts... xs)
-{
-    return make_array((xs, true)...) == make_array(static_cast<bool>(xs)...);
-}
-
 namespace matchers {
 
 template <class... Ts>

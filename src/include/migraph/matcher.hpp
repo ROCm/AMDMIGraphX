@@ -22,6 +22,7 @@ struct matcher_context
     instruction_ref last;
 };
 
+/// Convert a predicate function into a matcher
 template <class P>
 struct predicate_matcher
 {
@@ -36,6 +37,7 @@ struct predicate_matcher
     }
 };
 
+/// Convert a function into a matcher
 template <class F>
 struct function_matcher
 {
@@ -48,12 +50,14 @@ struct function_matcher
     }
 };
 
+/// Convert a function into a matcher
 template <class F>
 function_matcher<F> make_function_matcher(F f)
 {
     return {f};
 }
 
+/// Converts a matcher to bind the instruction to name
 template <class M>
 auto bind_match(M m, std::string name)
 {
@@ -66,6 +70,7 @@ auto bind_match(M m, std::string name)
         });
 }
 
+/// Convert a matcher to a bindable matcher
 template <class M>
 struct bindable_matcher
 {
@@ -79,18 +84,21 @@ struct bindable_matcher
     }
 };
 
+/// Create a bindable matcher
 template <class M>
 bindable_matcher<M> make_bindable_matcher(M m)
 {
     return {m};
 }
 
+/// Create a bindable matcher from a function
 template <class F>
 bindable_matcher<function_matcher<F>> make_bf_matcher(F f)
 {
     return {{f}};
 }
 
+/// Create a bindable matcher from a predicate function
 template <class F>
 bindable_matcher<predicate_matcher<F>> make_bp_matcher(F f)
 {
@@ -104,6 +112,7 @@ struct id_matcher
     instruction_ref match(matcher_context&, instruction_ref ins) const { return ins; }
 };
 
+/// The basic matcher provides the all_of composability of the matcher
 template <class M>
 struct basic_matcher
 {
@@ -136,24 +145,28 @@ struct basic_matcher
     }
 };
 
+/// Create a basic matcher from a matcher
 template <class M>
 basic_matcher<M> make_basic_matcher(M m)
 {
     return {m};
 }
 
+/// Create a basic matcher from a function
 template <class F>
 basic_matcher<function_matcher<F>> make_basic_fun_matcher(F f)
 {
     return {{f}};
 }
 
+/// Create a basic matcher from a predicate function
 template <class P>
 basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
 {
     return {{p}};
 }
 
+/// This macro takes care of the boilerplate for defining a matcher
 #define MIGRAPH_BASIC_MATCHER(name, ...)                                        \
     struct name##_m                                                             \
     {                                                                           \
@@ -162,6 +175,7 @@ basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
     const constexpr auto name = migraph::matchers::basic_matcher<name##_m>{{}}; \
     inline instruction_ref name##_m::match(__VA_ARGS__) const
 
+/// This macro takes care of the boilerplate for defining a predicate matcher
 #define MIGRAPH_PRED_MATCHER(name, ...)                                                            \
     struct name##_m                                                                                \
     {                                                                                              \
@@ -176,6 +190,7 @@ struct matcher_result
     instruction_ref result;
 };
 
+/// Match a single instruction
 template <class M>
 matcher_result match_instruction(program& p, instruction_ref ins, M&& m)
 {
@@ -187,6 +202,7 @@ matcher_result match_instruction(program& p, instruction_ref ins, M&& m)
     return result;
 }
 
+/// Find matches in a program
 template <class... Ms>
 void find_matches(program& p, Ms&&... ms)
 {

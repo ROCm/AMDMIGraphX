@@ -250,7 +250,7 @@ void match_args7()
     EXPECT(bool{r.result == pass});
 }
 
-void match_all_of()
+void match_all_of1()
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -263,7 +263,20 @@ void match_all_of()
     EXPECT(bool{r.result == sum});
 }
 
-void match_any_of()
+void match_all_of2()
+{
+    migraph::program p;
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum = p.add_instruction(sum_op{}, one, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = matchers::name("sum")(matchers::all_of(matchers::arg(0)(matchers::name("sum")),
+                                                    matchers::arg(1)(matchers::name("@literal"))));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == p.end()});
+}
+
+void match_any_of1()
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -276,7 +289,20 @@ void match_any_of()
     EXPECT(bool{r.result == sum});
 }
 
-void match_none_of()
+void match_any_of2()
+{
+    migraph::program p;
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum = p.add_instruction(sum_op{}, one, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = matchers::name("sum")(matchers::any_of(matchers::arg(0)(matchers::name("sum")),
+                                                    matchers::arg(1)(matchers::name("sum"))));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == p.end()});
+}
+
+void match_none_of1()
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -287,6 +313,19 @@ void match_none_of()
                                                      matchers::arg(1)(matchers::name("sum"))));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
+}
+
+void match_none_of2()
+{
+    migraph::program p;
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum = p.add_instruction(sum_op{}, one, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = matchers::name("sum")(matchers::none_of(matchers::arg(0)(matchers::name("@literal")),
+                                                     matchers::arg(1)(matchers::name("@literal"))));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == p.end()});
 }
 
 void match_bind1()
@@ -364,10 +403,15 @@ int main()
     match_args6();
     match_args7();
 
-    match_all_of();
-    match_any_of();
-    match_none_of();
+    match_all_of1();
+    match_all_of2();
 
+    match_any_of1();
+    match_any_of2();
+
+    match_none_of1();
+    match_none_of2();
+    
     match_bind1();
 
     match_finder();

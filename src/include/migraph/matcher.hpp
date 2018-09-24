@@ -254,8 +254,9 @@ template <class... Ts>
 auto any_of(Ts... ms)
 {
     return make_bf_matcher([=](matcher_context& ctx, instruction_ref ins) {
-        bool matches = fold(
-            [&](auto x, auto y) { return x or y.match(ctx, ins) != ctx.not_found(); })(false, ms...);
+        bool matches = fold([&](auto x, auto y) {
+            return x or y.match(ctx, ins) != ctx.not_found();
+        })(false, ms...);
         if(matches)
             return ins;
         return ctx.not_found();

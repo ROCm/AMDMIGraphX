@@ -57,7 +57,7 @@ function_matcher<F> make_function_matcher(F f)
 template <class M>
 auto bind_match(M m, std::string name)
 {
-    return make_function_matcher([=](matcher_context& ctx, instruction_ref ins) {
+    return make_function_matcher([=, name=std::move(name)](matcher_context& ctx, instruction_ref ins) {
         auto result = m.match(ctx, ins);
         if(result != ctx.not_found())
             ctx.instructions.emplace(name, ins);
@@ -70,7 +70,7 @@ struct bindable_matcher
 {
     M m;
 
-    auto bind(std::string name) { return bind_match(m, name); }
+    auto bind(std::string name) { return bind_match(m, std::move(name)); }
 
     instruction_ref match(matcher_context& ctx, instruction_ref ins) const
     {
@@ -194,6 +194,7 @@ void find_matches(program& p, Ms&&... ms)
         bool match = false;
         each_args(
             [&](auto&& m) {
+                // cppcheck-suppress knownConditionTrueFalse
                 if(match)
                     return;
                 auto r = match_instruction(p, ins, m.matcher());
@@ -248,7 +249,7 @@ MIGRAPH_PRED_MATCHER(standard_shape, instruction_ref ins) { return ins->get_shap
 
 inline auto name(std::string name)
 {
-    return make_basic_pred_matcher([=](instruction_ref ins) { return ins->name() == name; });
+    return make_basic_pred_matcher([=, name=std::move(name)](instruction_ref ins) { return ins->name() == name; });
 }
 
 inline auto arg(std::size_t i)

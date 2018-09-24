@@ -7,6 +7,7 @@ add_library(migraph
     fwd_conv_batchnorm_rewrite.cpp
     env.cpp
     generate.cpp
+    instruction.cpp
     program.cpp
     shape.cpp
     simplify_reshapes.cpp

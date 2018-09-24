@@ -8,6 +8,7 @@
 #include <type_traits>
 #include <utility>
 #include <migraph/shape.hpp>
+#include <migraph/rank.hpp>
 #include <migraph/argument.hpp>
 #include <migraph/context.hpp>
 #include <migraph/auto_any_cast.hpp>
@@ -27,13 +28,16 @@ struct operation
     /// exception.
     shape compute_shape(const std::vector<shape>& input) const;
     /**
-     * @brief This performs the operation's computation
+     * @brief This performs the operation's computation.
+     *
+     * This method can be optional when the operation is only used as a placeholder to be lowered
+     * later on.
      *
      * @param ctx This is the context created by the `target` during compilation. Implementations
      * can use the target's `context` class rather than the `context` interface class.
      * @param output This is the output shape. It is equivalent to running `compute_shape` with each
      * `shape` of the `argument`.
-     * @param input This is the `argument` result from the previous instuction's computation.
+     * @param input This is the `argument` result from the previous instruction's computation.
      * @return Return an `argument` of the result computation. The `shape` of `argument` should be
      * the same the `output` shape.
      */
@@ -56,10 +60,28 @@ auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
 } // namespace operation_stream
 
 template <class T>
+auto compute_op(rank<1>,
+                const T& x,
+                context& ctx,
+                const shape& output_shape,
+                const std::vector<argument>& input)
+    -> decltype(x.compute(auto_any_cast(ctx), output_shape, input))
+{
+    return x.compute(auto_any_cast(ctx), output_shape, input);
+}
+
+template <class T>
+argument compute_op(rank<0>, const T& x, context&, const shape&, const std::vector<argument>&)
+{
+    std::string name = x.name();
+    MIGRAPH_THROW("Not computable: " + name);
+}
+
+template <class T>
 argument
 compute_op(const T& x, context& ctx, const shape& output_shape, const std::vector<argument>& input)
 {
-    return x.compute(auto_any_cast(ctx), output_shape, input);
+    return compute_op(rank<1>{}, x, ctx, output_shape, input);
 }
 
 /*

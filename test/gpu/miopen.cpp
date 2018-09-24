@@ -97,10 +97,10 @@ void compile_check(migraph::program& p, const migraph::target& t)
 }
 
 template <class V>
-migraph::argument run_cpu()
+migraph::argument run_cpu(migraph::program& p)
 {
     V v;
-    auto p = v.create_program();
+    p = v.create_program();
     auto_print pp{p, 0};
     compile_check(p, migraph::cpu::cpu_target{});
     migraph::program::parameter_map m;
@@ -112,10 +112,10 @@ migraph::argument run_cpu()
 }
 
 template <class V>
-migraph::argument run_gpu()
+migraph::argument run_gpu(migraph::program& p)
 {
     V v;
-    auto p = v.create_program();
+    p = v.create_program();
     auto_print pp{p, 1};
     compile_check(p, migraph::gpu::target{});
     migraph::program::parameter_map m;
@@ -131,9 +131,20 @@ template <class V>
 void verify_program()
 {
     auto_print::set_terminate_handler(migraph::get_type_name<V>());
-    auto cpu_arg_f = detach_async([] { return run_cpu<V>(); });
-    auto gpu_arg   = run_gpu<V>();
-    verify_args(migraph::get_type_name<V>(), cpu_arg_f.get(), gpu_arg);
+    migraph::program cpu_prog;
+    migraph::program gpu_prog;
+    auto cpu_arg_f = detach_async([&] { return run_cpu<V>(cpu_prog); });
+    auto gpu_arg   = run_gpu<V>(gpu_prog);
+    bool passed    = verify_args(migraph::get_type_name<V>(), cpu_arg_f.get(), gpu_arg);
+    if(not passed)
+    {
+        V v;
+        auto p = v.create_program();
+        std::cout << p << std::endl;
+        std::cout << "cpu:\n" << cpu_prog << std::endl;
+        std::cout << "gpu:\n" << gpu_prog << std::endl;
+        std::cout << std::endl;
+    }
     std::set_terminate(nullptr);
 }
 
@@ -235,6 +246,28 @@ struct test_add_broadcast5
     }
 };
 
+struct test_softmax
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto x = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {5, 3, 4, 2}});
+        p.add_instruction(migraph::softmax{}, x);
+        return p;
+    }
+};
+
+struct test_softmax2
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto x = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {1, 1000, 1, 1}});
+        p.add_instruction(migraph::softmax{}, x);
+        return p;
+    }
+};
+
 struct test_conv
 {
     migraph::program create_program() const
@@ -244,6 +277,20 @@ struct test_conv
         auto weights =
             p.add_parameter("w", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
         p.add_instruction(migraph::convolution{}, input, weights);
+        return p;
+    }
+};
+
+struct test_conv2
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto input =
+            p.add_parameter("x", migraph::shape{migraph::shape::float_type, {1, 512, 28, 28}});
+        auto weights =
+            p.add_parameter("w", migraph::shape{migraph::shape::float_type, {256, 512, 1, 1}});
+        p.add_instruction(migraph::convolution{{0, 0}, {1, 1}, {1, 1}}, input, weights);
         return p;
     }
 };
@@ -428,6 +475,27 @@ struct test_batchnorm_inference
     }
 };
 
+struct test_conv_bn
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+
+        migraph::shape xs{migraph::shape::float_type, {1, 3, 224, 224}};
+        migraph::shape ws{migraph::shape::float_type, {64, 3, 7, 7}};
+        migraph::shape vars{migraph::shape::float_type, {64}};
+        auto x        = p.add_parameter("x", xs);
+        auto w        = p.add_parameter("w", ws);
+        auto conv     = p.add_instruction(migraph::convolution{{3, 3}, {2, 2}, {1, 1}}, x, w);
+        auto scale    = p.add_literal(migraph::abs(migraph::generate_literal(vars, 1)));
+        auto bias     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 2)));
+        auto mean     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 3)));
+        auto variance = p.add_literal(migraph::abs(migraph::generate_literal(vars, 4)));
+        p.add_instruction(migraph::batch_norm_inference{}, conv, scale, bias, mean, variance);
+        return p;
+    }
+};
+
 struct test_conv_bn_relu_pooling
 {
     migraph::program create_program() const
@@ -495,7 +563,10 @@ int main()
     verify_program<test_add_broadcast3>();
     verify_program<test_add_broadcast4>();
     verify_program<test_add_broadcast5>();
+    verify_program<test_softmax>();
+    verify_program<test_softmax2>();
     verify_program<test_conv>();
+    verify_program<test_conv2>();
     verify_program<test_conv_relu>();
     verify_program<test_add_relu>();
     verify_program<test_conv_pooling>();
@@ -508,6 +579,7 @@ int main()
     verify_program<test_transpose>();
     verify_program<test_batchnorm_inference>();
     verify_program<test_batchnorm_inference_2>();
+    verify_program<test_conv_bn>();
     verify_program<test_conv_bn_relu_pooling>();
     verify_program<test_conv_bn_relu_pooling2>();
 }

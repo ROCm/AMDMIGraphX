@@ -41,11 +41,6 @@ struct batch_norm_inference
         check_shapes{inputs, *this}.has(5);
         return inputs.front();
     }
-
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
-    }
 };
 
 struct convolution
@@ -115,11 +110,6 @@ struct convolution
         }
     }
 
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
-    }
-
     friend std::ostream& operator<<(std::ostream& os, const convolution& op)
     {
         os << op.name() << "[";
@@ -128,6 +118,46 @@ struct convolution
         os << "dilation={" << stream_range(op.dilation) << "}";
         os << "]";
         return os;
+    }
+};
+
+struct im2col
+{
+    std::array<std::size_t, 2> padding  = {{0, 0}};
+    std::array<std::size_t, 2> stride   = {{1, 1}};
+    std::array<std::size_t, 2> dilation = {{1, 1}};
+    enum padding_mode_t
+    {
+        default_, // NOLINT
+        same,
+        valid
+    };
+
+    std::string name() const { return "im2col"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        auto input          = inputs[0];
+        auto weights        = inputs[1];
+        auto batch_size     = input.lens()[0];
+        auto input_channels = weights.lens()[1];
+        auto kernel_height  = weights.lens()[2];
+        auto kernel_width   = weights.lens()[3];
+        check_shapes{inputs, *this}.has(2);
+        if(batch_size != 1)
+            MIGRAPH_THROW("im2col only support batch_size 1");
+        auto output_height = std::size_t(std::max<std::ptrdiff_t>(
+            1,
+            (input.lens()[2] - (1 + dilation[0] * (kernel_height - 1)) + 2 * padding[0]) /
+                    stride[0] +
+                1));
+        auto output_width  = std::size_t(std::max<std::ptrdiff_t>(
+            1,
+            (input.lens()[3] - (1 + dilation[1] * (kernel_width - 1)) + 2 * padding[1]) /
+                    stride[1] +
+                1));
+        auto channels_col  = kernel_height * kernel_width * input_channels;
+        return {input.type(), {output_height * output_width, channels_col}};
     }
 };
 
@@ -166,11 +196,6 @@ struct pooling
                 }};
     }
 
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
-    }
-
     friend std::ostream& operator<<(std::ostream& os, const pooling& op)
     {
         os << op.name() << "[";
@@ -190,11 +215,6 @@ struct activation
     {
         check_shapes{inputs, *this}.has(1);
         return inputs.front();
-    }
-
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
     }
     friend std::ostream& operator<<(std::ostream& os, const activation& op)
     {
@@ -260,10 +280,6 @@ struct contiguous
         }
         return {t, lens};
     }
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
-    }
 };
 
 struct reshape
@@ -304,12 +320,10 @@ struct reshape
             MIGRAPH_THROW("Wrong number of elements for reshape");
         return s;
     }
-
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
-
     friend std::ostream& operator<<(std::ostream& os, const reshape& op)
     {
         os << op.name() << "[";
@@ -337,11 +351,6 @@ struct gemm
         return {t, {a.lens()[0], b.lens()[1]}};
     }
 
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
-    }
-
     friend std::ostream& operator<<(std::ostream& os, const gemm& op)
     {
         os << op.name() << "[";
@@ -356,10 +365,6 @@ struct unary
     {
         check_shapes{inputs}.has(1);
         return inputs.at(0);
-    }
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
     }
 };
 
@@ -408,11 +413,6 @@ struct atan : unary
     std::string name() const { return "atan"; }
 };
 
-struct softmax : unary
-{
-    std::string name() const { return "softmax"; }
-};
-
 struct tanh : unary
 {
     std::string name() const { return "tanh"; }
@@ -426,6 +426,16 @@ struct sigmoid : unary
 struct neg : unary
 {
     std::string name() const { return "neg"; }
+};
+
+struct softmax
+{
+    std::string name() const { return "softmax"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(1).only_dims(4);
+        return inputs.at(0);
+    }
 };
 
 struct flatten
@@ -507,10 +517,6 @@ struct binary
     {
         check_shapes{inputs}.has(2).same_type().same_dims();
         return inputs.at(0);
-    }
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
     }
 };
 

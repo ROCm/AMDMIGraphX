@@ -351,11 +351,10 @@ struct onnx_parser
         if(node.name().empty())
         {
             std::string generated = "migraph_unnamed_node";
-            for(auto&& output : node.output())
-            {
-                generated += "_" + output;
-            }
-            return generated;
+            return std::accumulate(node.output().begin(),
+                                   node.output().end(),
+                                   generated,
+                                   [](auto x, auto y) { return x + "_" + y; });
         }
         return node.name();
     }
@@ -488,11 +487,11 @@ struct onnx_parser
             break; // throw std::runtime_error("Unsupported type COMPLEX128");
         }
         std::vector<std::size_t> dims;
-        // TODO: USe std::transform
-        for(auto&& d : t.tensor_type().shape().dim())
-        {
-            dims.push_back(d.dim_value());
-        }
+        auto&& tensor_dims = t.tensor_type().shape().dim();
+        std::transform(tensor_dims.begin(),
+                       tensor_dims.end(),
+                       std::back_inserter(dims),
+                       [](auto&& d) { return d.dim_value(); });
         return {shape_type, dims};
     }
 };

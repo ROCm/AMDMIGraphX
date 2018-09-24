@@ -6,6 +6,132 @@
 #include <migraph/verify.hpp>
 #include "test.hpp"
 
+void im2col_3x3_no_pad_identity_test()
+{
+    std::size_t f[2]    = {3, 3};
+    std::size_t size[2] = {3, 3};
+    std::array<std::size_t, 2> padding{{0, 0}};
+    std::array<std::size_t, 2> stride{{1, 1}};
+    std::array<std::size_t, 2> dilation{{1, 1}};
+    std::size_t channels = 1;
+
+    std::vector<int32_t> weights(channels * f[0] * f[1]);
+    std::vector<int32_t> input(channels * size[0] * size[1]);
+    std::iota(input.begin(), input.end(), 0);
+
+    migraph::program p;
+    migraph::shape s_image{migraph::shape::int32_type, {1, channels, size[0], size[1]}};
+    migraph::shape s_weights{migraph::shape::int32_type, {1, channels, f[0], f[1]}};
+    auto l_image   = p.add_literal(migraph::literal{s_image, input});
+    auto l_weights = p.add_literal(migraph::literal{s_weights, weights});
+    p.add_instruction(migraph::im2col{padding, stride, dilation}, l_image, l_weights);
+    p.compile(migraph::cpu::cpu_target{});
+    auto result = p.eval({});
+
+    std::size_t col_height = (size[0] - f[0] + 2 * padding[0]) / stride[0] + 1;
+    std::size_t col_width  = (size[1] - f[1] + 2 * padding[1]) / stride[1] + 1;
+    std::vector<float> results_vector(channels * f[0] * f[1] * col_height * col_width);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraph::verify_range(results_vector, input));
+}
+
+void im2col_3x3_no_pad_test()
+{
+    std::size_t f[2]    = {3, 3};
+    std::size_t size[2] = {4, 4};
+    std::array<std::size_t, 2> padding{{0, 0}};
+    std::array<std::size_t, 2> stride{{1, 1}};
+    std::array<std::size_t, 2> dilation{{1, 1}};
+    std::size_t channels = 1;
+
+    std::vector<int32_t> weights(channels * f[0] * f[1]);
+    std::vector<int32_t> input(channels * size[0] * size[1]);
+    std::iota(input.begin(), input.end(), 0);
+
+    migraph::program p;
+    migraph::shape s_image{migraph::shape::int32_type, {1, channels, size[0], size[1]}};
+    migraph::shape s_weights{migraph::shape::int32_type, {1, channels, f[0], f[1]}};
+    auto l_image   = p.add_literal(migraph::literal{s_image, input});
+    auto l_weights = p.add_literal(migraph::literal{s_weights, weights});
+    p.add_instruction(migraph::im2col{padding, stride, dilation}, l_image, l_weights);
+    p.compile(migraph::cpu::cpu_target{});
+    auto result = p.eval({});
+
+    std::vector<int> correct = {0, 1, 2, 4, 5, 6,  8,  9,  10, 1, 2, 3, 5, 6,  7,  9,  10, 11,
+                                4, 5, 6, 8, 9, 10, 12, 13, 14, 5, 6, 7, 9, 10, 11, 13, 14, 15};
+
+    std::size_t col_height = (size[0] - f[0] + 2 * padding[0]) / stride[0] + 1;
+    std::size_t col_width  = (size[1] - f[1] + 2 * padding[1]) / stride[1] + 1;
+    std::vector<float> results_vector(channels * f[0] * f[1] * col_height * col_width);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraph::verify_range(results_vector, correct));
+}
+
+void im2col_3x3_stride_2_no_pad_test()
+{
+    std::size_t f[2]    = {3, 3};
+    std::size_t size[2] = {6, 6};
+    std::array<std::size_t, 2> padding{{0, 0}};
+    std::array<std::size_t, 2> stride{{2, 2}};
+    std::array<std::size_t, 2> dilation{{1, 1}};
+    std::size_t channels = 1;
+
+    std::vector<int32_t> weights(channels * f[0] * f[1]);
+    std::vector<int32_t> input(channels * size[0] * size[1]);
+    std::iota(input.begin(), input.end(), 0);
+
+    migraph::program p;
+    migraph::shape s_image{migraph::shape::int32_type, {1, channels, size[0], size[1]}};
+    migraph::shape s_weights{migraph::shape::int32_type, {1, channels, f[0], f[1]}};
+    auto l_image   = p.add_literal(migraph::literal{s_image, input});
+    auto l_weights = p.add_literal(migraph::literal{s_weights, weights});
+    p.add_instruction(migraph::im2col{padding, stride, dilation}, l_image, l_weights);
+    p.compile(migraph::cpu::cpu_target{});
+    auto result = p.eval({});
+
+    std::vector<int> correct = {0,  1,  2,  6,  7,  8,  12, 13, 14, 2,  3,  4,
+                                8,  9,  10, 14, 15, 16, 12, 13, 14, 18, 19, 20,
+                                24, 25, 26, 14, 15, 16, 20, 21, 22, 26, 27, 28};
+
+    std::size_t col_height = (size[0] - f[0] + 2 * padding[0]) / stride[0] + 1;
+    std::size_t col_width  = (size[1] - f[1] + 2 * padding[1]) / stride[1] + 1;
+    std::vector<float> results_vector(channels * f[0] * f[1] * col_height * col_width);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraph::verify_range(results_vector, correct));
+}
+
+void im2col_3x3_with_padding_test()
+{
+    std::size_t f[2]    = {3, 3};
+    std::size_t size[2] = {2, 2};
+    std::array<std::size_t, 2> padding{{1, 1}};
+    std::array<std::size_t, 2> stride{{1, 1}};
+    std::array<std::size_t, 2> dilation{{1, 1}};
+    std::size_t channels = 1;
+
+    std::vector<int32_t> weights(channels * f[0] * f[1]);
+    std::vector<int32_t> input(channels * size[0] * size[1]);
+    std::iota(input.begin(), input.end(), 0);
+
+    migraph::program p;
+    migraph::shape s_image{migraph::shape::int32_type, {1, channels, size[0], size[1]}};
+    migraph::shape s_weights{migraph::shape::int32_type, {1, channels, f[0], f[1]}};
+    auto l_image   = p.add_literal(migraph::literal{s_image, input});
+    auto l_weights = p.add_literal(migraph::literal{s_weights, weights});
+    p.add_instruction(migraph::im2col{padding, stride, dilation}, l_image, l_weights);
+    p.compile(migraph::cpu::cpu_target{});
+    auto result = p.eval({});
+
+    std::vector<int> correct = {0, 0, 0, 0, 0, 1, 0, 2, 3, 0, 0, 0, 0, 1, 0, 2, 3, 0,
+                                0, 0, 1, 0, 2, 3, 0, 0, 0, 0, 1, 0, 2, 3, 0, 0, 0, 0};
+
+    std::size_t col_height = (size[0] - f[0] + 2 * padding[0]) / stride[0] + 1;
+    std::size_t col_width  = (size[1] - f[1] + 2 * padding[1]) / stride[1] + 1;
+    std::vector<float> results_vector(channels * f[0] * f[1] * col_height * col_width);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraph::verify_range(results_vector, correct));
+}
+
 void batch_norm_inference_test()
 {
     migraph::program p;
@@ -44,6 +170,35 @@ void batch_norm_inference_test()
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     EXPECT(migraph::verify_range(result_vector, gold));
+}
+
+void im2col_3x3_with_channels_identity_test()
+{
+    std::size_t f[2]    = {3, 3};
+    std::size_t size[2] = {3, 3};
+    std::array<std::size_t, 2> padding{{0, 0}};
+    std::array<std::size_t, 2> stride{{1, 1}};
+    std::array<std::size_t, 2> dilation{{1, 1}};
+    std::size_t channels = 2;
+
+    std::vector<int32_t> weights(channels * f[0] * f[1]);
+    std::vector<int32_t> input(channels * size[0] * size[1]);
+    std::iota(input.begin(), input.end(), 0);
+
+    migraph::program p;
+    migraph::shape s_image{migraph::shape::int32_type, {1, channels, size[0], size[1]}};
+    migraph::shape s_weights{migraph::shape::int32_type, {1, channels, f[0], f[1]}};
+    auto l_image   = p.add_literal(migraph::literal{s_image, input});
+    auto l_weights = p.add_literal(migraph::literal{s_weights, weights});
+    p.add_instruction(migraph::im2col{padding, stride, dilation}, l_image, l_weights);
+    p.compile(migraph::cpu::cpu_target{});
+    auto result = p.eval({});
+
+    std::size_t col_height = (size[0] - f[0] + 2 * padding[0]) / stride[0] + 1;
+    std::size_t col_width  = (size[1] - f[1] + 2 * padding[1]) / stride[1] + 1;
+    std::vector<float> results_vector(channels * f[0] * f[1] * col_height * col_width);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraph::verify_range(results_vector, input));
 }
 
 void exp_test()
@@ -666,4 +821,9 @@ int main()
     conv2d_padding_test();
     conv2d_padding_stride_test();
     batch_norm_inference_test();
+    im2col_3x3_no_pad_identity_test();
+    im2col_3x3_no_pad_test();
+    im2col_3x3_stride_2_no_pad_test();
+    im2col_3x3_with_channels_identity_test();
+    im2col_3x3_with_padding_test();
 }

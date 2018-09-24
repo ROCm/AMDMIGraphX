@@ -27,19 +27,19 @@ void eliminate_contiguous::apply(program& p) const
     for(auto ins : iterator_for(p))
     {
         // Make a copy so we can modify it while we iterate
-        auto args = ins->arguments;
-        for(auto arg : ins->arguments)
+        auto args = ins->inputs();
+        for(auto arg : ins->inputs())
         {
             // TODO: Pass in names for the operator in the constructor instead
             // of using ends_with
-            if(ends_with(arg->op.name(), "contiguous"))
+            if(ends_with(arg->name(), "contiguous"))
             {
                 auto new_args = args;
-                auto prev     = arg->arguments.front();
+                auto prev     = arg->inputs().front();
                 replace(new_args, arg, prev);
-                if(try_compute_shape(ins->op, new_args))
+                if(try_compute_shape(ins->get_operator(), new_args))
                 {
-                    replace_argument(ins, arg, prev);
+                    instruction::replace_argument(ins, arg, prev);
                 }
             }
         }

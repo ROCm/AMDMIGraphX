@@ -2,6 +2,7 @@
 #include <migraph/instruction.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
+#include <rob.hpp>
 
 void simple_test()
 {
@@ -38,6 +39,11 @@ void incomplete_args()
     EXPECT(bool{p.validate() == ins});
 }
 
+MIGRAPH_ROB(access_ins_arguments,
+            std::vector<migraph::instruction_ref>,
+            migraph::instruction,
+            arguments)
+
 void invalid_args()
 {
     migraph::program p;
@@ -45,7 +51,7 @@ void invalid_args()
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto ins = p.add_instruction(sum_op{}, one, two);
-    ins->arguments.clear();
+    access_ins_arguments(*ins).clear();
     EXPECT(bool{p.validate() == p.begin()});
 }
 

@@ -19,7 +19,7 @@ void eliminate_allocation::apply(program& p) const
     std::vector<std::pair<instruction_ref, std::size_t>> allocs;
     for(auto ins : iterator_for(p))
     {
-        if(ins->op.name() != allocation_op)
+        if(ins->name() != allocation_op)
             continue;
         allocs.emplace_back(ins, n);
         std::size_t size    = ins->get_shape().bytes();

@@ -22,16 +22,6 @@ add_compile_options(-std=c++14)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)
-# Override clang-tidy to not find the version from hcc
-# find_program(CLANG_TIDY_EXE 
-#     NAMES 
-#         clang-tidy
-#         clang-tidy-5.0
-#         clang-tidy-6.0
-#         clang-tidy-7.0
-#     PATHS
-#         /usr/local/opt/llvm/bin
-# )
 include(ROCMClangTidy)
 rocm_enable_clang_tidy(
     CHECKS
@@ -87,8 +77,11 @@ rocm_enable_clang_tidy(
 )
 include(ROCMCppCheck)
 rocm_enable_cppcheck(
-    CHECKS 
-        all
+    CHECKS
+        warning
+        style
+        performance
+        portability
     SUPPRESS 
         ConfigurationNotChecked
         unmatchedSuppression
@@ -96,7 +89,10 @@ rocm_enable_cppcheck(
         noExplicitConstructor
         passedByValue
         unusedStructMember
+        definePrefix:*test/include/test.hpp
     FORCE
+    RULE_FILE
+        ${CMAKE_CURRENT_SOURCE_DIR}/cppcheck.rules
     SOURCES
         src/
         test/

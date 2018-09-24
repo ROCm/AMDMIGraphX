@@ -8,6 +8,8 @@
 #include <iso646.h>
 #endif
 
+#include <migraph/requires.hpp>
+
 namespace migraph {
 
 template <class... Ts>
@@ -15,12 +17,18 @@ using common_type = typename std::common_type<Ts...>::type;
 
 struct float_equal_fn
 {
-    template <class T>
+    template <class T, MIGRAPH_REQUIRES(std::is_floating_point<T>{})>
     static bool apply(T x, T y)
     {
         return std::isfinite(x) and std::isfinite(y) and
                std::nextafter(x, std::numeric_limits<T>::lowest()) <= y and
                std::nextafter(x, std::numeric_limits<T>::max()) >= y;
+    }
+
+    template <class T, MIGRAPH_REQUIRES(not std::is_floating_point<T>{})>
+    static bool apply(T x, T y)
+    {
+        return x == y;
     }
 
     template <class T, class U>

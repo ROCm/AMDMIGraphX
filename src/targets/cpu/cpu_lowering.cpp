@@ -579,17 +579,17 @@ struct cpu_apply
         init();
         for(auto it : iterator_for(*prog))
         {
-            if(it->op.name() == "activation")
+            if(it->name() == "activation")
             {
                 apply_activation(it);
             }
-            else if(it->op.name() == "pooling")
+            else if(it->name() == "pooling")
             {
                 apply_pooling(it);
             }
-            else if(apply_map.count(it->op.name()) > 0)
+            else if(apply_map.count(it->name()) > 0)
             {
-                apply_map.at(it->op.name())(it);
+                apply_map.at(it->name())(it);
             }
         }
     }
@@ -597,30 +597,30 @@ struct cpu_apply
     template <class T>
     void apply_simple_op(instruction_ref ins)
     {
-        prog->replace_instruction(ins, T{}, ins->arguments);
+        prog->replace_instruction(ins, T{}, ins->inputs());
     }
 
     template <class T, class Op>
     void apply_extend_op(instruction_ref ins)
     {
-        auto&& op = any_cast<Op>(ins->op);
-        prog->replace_instruction(ins, T{op}, ins->arguments);
+        auto&& op = any_cast<Op>(ins->get_operator());
+        prog->replace_instruction(ins, T{op}, ins->inputs());
     }
 
     void apply_activation(instruction_ref ins)
     {
-        auto&& op = any_cast<activation>(ins->op);
+        auto&& op = any_cast<activation>(ins->get_operator());
         if(op.mode == "relu")
-            prog->replace_instruction(ins, cpu_unary<relu_op>{}, ins->arguments);
+            prog->replace_instruction(ins, cpu_unary<relu_op>{}, ins->inputs());
     }
 
     void apply_pooling(instruction_ref ins)
     {
-        auto&& op = any_cast<pooling>(ins->op);
+        auto&& op = any_cast<pooling>(ins->get_operator());
         if(op.mode == "max")
-            prog->replace_instruction(ins, cpu_pooling<max_pool>{op}, ins->arguments);
+            prog->replace_instruction(ins, cpu_pooling<max_pool>{op}, ins->inputs());
         else if(op.mode == "average")
-            prog->replace_instruction(ins, cpu_pooling<avg_pool>{op}, ins->arguments);
+            prog->replace_instruction(ins, cpu_pooling<avg_pool>{op}, ins->inputs());
     }
 };
 

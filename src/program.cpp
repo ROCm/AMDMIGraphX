@@ -12,6 +12,7 @@
 namespace migraph {
 
 MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_TRACE_COMPILE)
+MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_TRACE_EVAL)
 
 struct program_impl
 {
@@ -20,7 +21,7 @@ struct program_impl
     context ctx;
 };
 
-const operation& get_operation(instruction_ref ins) { return ins->op; }
+const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
 
 template <class F>
 static void print_program(std::ostream& os, const program& p, F annonate)
@@ -31,27 +32,27 @@ static void print_program(std::ostream& os, const program& p, F annonate)
     for(auto ins : iterator_for(p))
     {
         std::string var_name = "@" + std::to_string(count);
-        if(ins->op.name() == "@param")
+        if(ins->name() == "@param")
         {
-            var_name = any_cast<builtin::param>(ins->op).parameter;
+            var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
         }
 
         os << var_name << " = ";
 
-        os << ins->op;
+        os << ins->get_operator();
 
-        if(ins->op.name() == "@literal")
+        if(ins->name() == "@literal")
         {
-            if(ins->lit.get_shape().elements() > 10)
+            if(ins->get_literal().get_shape().elements() > 10)
                 os << "{ ... }";
             else
-                os << "{" << ins->lit << "}";
+                os << "{" << ins->get_literal() << "}";
         }
 
-        if(!ins->arguments.empty())
+        if(!ins->inputs().empty())
         {
             char delim = '(';
-            for(auto&& arg : ins->arguments)
+            for(auto&& arg : ins->inputs())
             {
                 assert(p.has_instruction(arg) && "Instruction not found");
                 os << delim << names.at(arg);
@@ -60,7 +61,7 @@ static void print_program(std::ostream& os, const program& p, F annonate)
             os << ")";
         }
 
-        os << " -> " << ins->result;
+        os << " -> " << ins->get_shape();
 
         annonate(ins, names);
 
@@ -92,8 +93,8 @@ instruction_ref program::insert_instruction(instruction_ref ins,
     // TODO: Use move
     shape r     = compute_shape(op, args);
     auto result = impl->instructions.insert(ins, {op, r, std::move(args)});
-    backreference(result);
-    // assert(result->arguments == args);
+    instruction::backreference(result);
+    // assert(result->inputs() == args);
     assert(result->valid(begin()));
     return result;
 }
@@ -108,8 +109,7 @@ instruction_ref program::replace_instruction(instruction_ref ins,
     assert(not starts_with(op.name(), "@"));
 
     shape r = compute_shape(op, args);
-    ins->replace(op, r, std::move(args));
-    backreference(ins);
+    instruction::replace(ins, op, r, std::move(args));
     assert(ins->valid(begin()));
     return ins;
 }
@@ -120,21 +120,21 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
     assert(has_instruction(rep));
     assert(ins != rep);
     // TODO: Should it be an error if the output is empty?
-    if(ins->output.empty())
+    if(ins->outputs().empty())
     {
         return rep;
     }
-    for(auto&& out : ins->output)
+    for(auto&& out : ins->outputs())
     {
         // TODO: Check for possible cycles
         if(out != rep)
         {
-            replace_argument(out, ins, rep);
+            instruction::replace_argument(out, ins, rep);
         }
         assert(out->valid(begin()));
     }
     // Replacement should not be dead code unless its the last instruction
-    assert(!rep->output.empty() or rep == std::prev(end()));
+    assert(!rep->outputs().empty() or rep == std::prev(end()));
     assert(ins->valid(begin()));
     assert(rep->valid(begin()));
     return rep;
@@ -143,7 +143,7 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
 instruction_ref program::remove_instruction(instruction_ref ins)
 {
     assert(has_instruction(ins));
-    assert(ins->output.empty());
+    assert(ins->outputs().empty());
     ins->clear_arguments();
     return impl->instructions.erase(ins);
 }
@@ -155,7 +155,7 @@ instruction_ref program::remove_instructions(instruction_ref first, instruction_
     // TODO: Check every element
     assert(has_instruction(first));
     std::for_each(first, last, [&](instruction& ins) { ins.clear_arguments(); });
-    assert(std::all_of(first, last, [&](instruction& ins) { return ins.output.empty(); }));
+    assert(std::all_of(first, last, [&](instruction& ins) { return ins.outputs().empty(); }));
     return impl->instructions.erase(first, last);
 }
 
@@ -188,9 +188,9 @@ shape program::get_parameter_shape(std::string name) const
 {
     auto ins = std::find_if(
         impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
-            if(x.op.name() == "@param")
+            if(x.name() == "@param")
             {
-                return any_cast<builtin::param>(x.op).parameter == name;
+                return any_cast<builtin::param>(x.get_operator()).parameter == name;
             }
             else
             {
@@ -198,7 +198,7 @@ shape program::get_parameter_shape(std::string name) const
             }
         });
     if(ins != this->end())
-        return ins->result;
+        return ins->get_shape();
     else
         return {};
 }
@@ -208,10 +208,10 @@ std::unordered_map<std::string, shape> program::get_parameter_shapes() const
     std::unordered_map<std::string, shape> result;
     for(auto&& ins : impl->instructions)
     {
-        if(ins.op.name() == "@param")
+        if(ins.name() == "@param")
         {
-            auto&& name  = any_cast<builtin::param>(ins.op).parameter;
-            result[name] = ins.result;
+            auto&& name  = any_cast<builtin::param>(ins.get_operator()).parameter;
+            result[name] = ins.get_shape();
         }
     }
     return result;
@@ -229,7 +229,7 @@ std::size_t program::size() const { return impl->instructions.size(); }
 instruction_ref program::begin() const { return impl->instructions.begin(); }
 instruction_ref program::end() const { return impl->instructions.end(); }
 
-shape program::get_shape() const { return impl->instructions.back().result; }
+shape program::get_shape() const { return impl->instructions.back().get_shape(); }
 
 instruction_ref program::validate() const
 {
@@ -258,7 +258,7 @@ void program::compile(const target& t, tracer trace)
         {
             auto index = std::distance(impl->instructions.begin(), invalid);
             MIGRAPH_THROW(p.name() + " pass produces invalid program at instruction " +
-                          std::to_string(index) + ": " + invalid->op.name());
+                          std::to_string(index) + ": " + invalid->name());
         }
         trace();
 #endif
@@ -284,32 +284,32 @@ argument generic_eval(const program& p,
     values.reserve(16);
     for(auto ins : iterator_for(p))
     {
-        if(ins->op.name() == "@literal")
+        if(ins->name() == "@literal")
         {
-            results.emplace(ins, trace(ins, [&] { return ins->lit.get_argument(); }));
+            results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
         }
-        else if(ins->op.name() == "@param")
+        else if(ins->name() == "@param")
         {
             results.emplace(ins, trace(ins, [&] {
-                                return params.at(any_cast<builtin::param>(ins->op).parameter);
+                                return params.at(
+                                    any_cast<builtin::param>(ins->get_operator()).parameter);
                             }));
         }
-        else if(ins->op.name() == "@outline")
+        else if(ins->name() == "@outline")
         {
-            results.emplace(ins, trace(ins, [&] { return argument{ins->result, nullptr}; }));
+            results.emplace(ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
         }
         else
         {
-            values.resize(ins->arguments.size());
-            std::transform(ins->arguments.begin(),
-                           ins->arguments.end(),
-                           values.begin(),
-                           [&](instruction_ref i) {
-                               assert(results.find(i) != results.end());
-                               return results[i];
-                           });
-            results.emplace(ins,
-                            trace(ins, [&] { return ins->op.compute(ctx, ins->result, values); }));
+            values.resize(ins->inputs().size());
+            std::transform(
+                ins->inputs().begin(), ins->inputs().end(), values.begin(), [&](instruction_ref i) {
+                    assert(results.find(i) != results.end());
+                    return results[i];
+                });
+            results.emplace(ins, trace(ins, [&] {
+                                return ins->get_operator().compute(ctx, ins->get_shape(), values);
+                            }));
         }
         assert(results.find(ins) != results.end());
     }
@@ -318,8 +318,20 @@ argument generic_eval(const program& p,
 
 argument program::eval(std::unordered_map<std::string, argument> params) const
 {
-    return generic_eval(
-        *this, this->impl->ctx, std::move(params), [](auto&, auto f) { return f(); });
+    if(enabled(MIGRAPH_TRACE_EVAL{}))
+    {
+        auto& ctx = this->impl->ctx;
+        return generic_eval(*this, this->impl->ctx, std::move(params), [&](auto& ins, auto f) {
+            ctx.finish();
+            std::cout << "Run instruction: " << ins->name() << std::endl;
+            return f();
+        });
+    }
+    else
+    {
+        return generic_eval(
+            *this, this->impl->ctx, std::move(params), [](auto&, auto f) { return f(); });
+    }
 }
 
 double common_average(const std::vector<double>& v)
@@ -385,7 +397,7 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     for(auto&& p : ins_vec)
     {
         double avg = common_average(p.second);
-        op_times[p.first->op.name()] += avg;
+        op_times[p.first->name()] += avg;
         total_instruction_time += avg;
     }
     double calculate_overhead_time    = total_time - total_instruction_time;

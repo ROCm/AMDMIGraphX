@@ -3,18 +3,9 @@
 
 #include <algorithm>
 #include <initializer_list>
+#include <migraph/rank.hpp>
 
 namespace migraph {
-
-template <int N>
-struct rank : rank<N - 1>
-{
-};
-
-template <>
-struct rank<0>
-{
-};
 
 namespace detail {
 

@@ -30,11 +30,11 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
         lowering{ctx},
         fuse_ops{},
         dead_code_elimination{},
-        eliminate_workspace{},
         eliminate_contiguous{},
         dead_code_elimination{},
         write_literals{&ctx},
-        eliminate_allocation{""},
+        eliminate_workspace{},
+        eliminate_allocation{"hip::allocate"},
         check_context<context>{},
         dead_code_elimination{}
     };

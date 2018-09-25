@@ -16,11 +16,11 @@ void eliminate_workspace::apply(program& p) const
     std::vector<instruction_ref> allocs;
     for(auto ins : iterator_for(p))
     {
-        if(ins->output.size() != 1)
+        if(ins->outputs().size() != 1)
             continue;
-        if(ins->op.name() != "hip::allocate")
+        if(ins->name() != "hip::allocate")
             continue;
-        auto&& a = any_cast<hip_allocate>(ins->op);
+        auto&& a = any_cast<hip_allocate>(ins->get_operator());
         if(a.tag == "workspace")
         {
             n = std::max(n, ins->get_shape().bytes());

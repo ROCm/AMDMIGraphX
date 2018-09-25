@@ -41,11 +41,6 @@ struct batch_norm_inference
         check_shapes{inputs, *this}.has(5);
         return inputs.front();
     }
-
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
-    }
 };
 
 struct convolution
@@ -115,11 +110,6 @@ struct convolution
         }
     }
 
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
-    }
-
     friend std::ostream& operator<<(std::ostream& os, const convolution& op)
     {
         os << op.name() << "[";
@@ -169,11 +159,6 @@ struct im2col
         auto channels_col  = kernel_height * kernel_width * input_channels;
         return {input.type(), {output_height * output_width, channels_col}};
     }
-
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
-    }
 };
 
 struct pooling
@@ -211,11 +196,6 @@ struct pooling
                 }};
     }
 
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
-    }
-
     friend std::ostream& operator<<(std::ostream& os, const pooling& op)
     {
         os << op.name() << "[";
@@ -235,11 +215,6 @@ struct activation
     {
         check_shapes{inputs, *this}.has(1);
         return inputs.front();
-    }
-
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
     }
     friend std::ostream& operator<<(std::ostream& os, const activation& op)
     {
@@ -304,10 +279,6 @@ struct contiguous
             MIGRAPH_THROW("Number of dimensions should exceed 1");
         }
         return {t, lens};
-    }
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
     }
 };
 
@@ -497,12 +468,10 @@ struct reshape
             MIGRAPH_THROW("Wrong number of elements for reshape");
         return s;
     }
-
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
-
     friend std::ostream& operator<<(std::ostream& os, const reshape& op)
     {
         os << op.name() << "[";
@@ -530,11 +499,6 @@ struct gemm
         return {t, {a.lens()[0], b.lens()[1]}};
     }
 
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
-    }
-
     friend std::ostream& operator<<(std::ostream& os, const gemm& op)
     {
         os << op.name() << "[";
@@ -549,10 +513,6 @@ struct unary
     {
         check_shapes{inputs}.has(1);
         return inputs.at(0);
-    }
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
     }
 };
 
@@ -601,11 +561,6 @@ struct atan : unary
     std::string name() const { return "atan"; }
 };
 
-struct softmax : unary
-{
-    std::string name() const { return "softmax"; }
-};
-
 struct tanh : unary
 {
     std::string name() const { return "tanh"; }
@@ -619,6 +574,16 @@ struct sigmoid : unary
 struct neg : unary
 {
     std::string name() const { return "neg"; }
+};
+
+struct softmax
+{
+    std::string name() const { return "softmax"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(1).only_dims(4);
+        return inputs.at(0);
+    }
 };
 
 struct flatten
@@ -700,10 +665,6 @@ struct binary
     {
         check_shapes{inputs}.has(2).same_type().same_dims();
         return inputs.at(0);
-    }
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        MIGRAPH_THROW("not computable");
     }
 };
 

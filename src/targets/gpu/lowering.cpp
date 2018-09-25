@@ -129,8 +129,16 @@ struct miopen_convolution
                                               workspace_size,
                                               false);
         algo = perf.fwd_algo;
-        return algo == miopenConvolutionFwdAlgoWinograd ? shape{shape::int8_type, {0}}
-                                                        : workspace_shape;
+        return shape{shape::int8_type, {perf.memory}};
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const miopen_convolution& self)
+    {
+        os << self.name() << "[";
+        os << self.op << ", ";
+        os << "algo=" << self.algo;
+        os << "]";
+        return os;
     }
 };
 
@@ -305,6 +313,34 @@ struct miopen_relu
     }
 };
 
+struct miopen_softmax
+{
+    softmax op;
+    std::string name() const { return "gpu::softmax"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(2).standard();
+        return op.compute_shape({inputs.at(0)});
+    }
+
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    {
+        float alpha = 1, beta = 0;
+        auto x_desc = make_tensor(args[0].get_shape());
+        auto y_desc = make_tensor(output_shape);
+        miopenSoftmaxForward(ctx.handle.get(),
+                             &alpha,
+                             x_desc.get(),
+                             args[0].implicit(),
+                             &beta,
+                             y_desc.get(),
+                             args[1].implicit());
+
+        return args[1];
+    }
+};
+
 struct miopen_apply
 {
     program* prog = nullptr;
@@ -322,33 +358,37 @@ struct miopen_apply
         for(auto it = prog->begin(); it != prog->end(); it++)
         {
             auto s = it->get_shape();
-            if(it->op.name() == "convolution")
+            if(it->name() == "convolution")
             {
                 check_shape(s, apply_convolution(it));
             }
-            else if(it->op.name() == "activation")
+            else if(it->name() == "activation")
             {
                 check_shape(s, apply_activation(it));
             }
-            else if(it->op.name() == "pooling")
+            else if(it->name() == "pooling")
             {
                 check_shape(s, apply_pooling(it));
             }
-            else if(it->op.name() == "add")
+            else if(it->name() == "add")
             {
                 check_shape(s, apply_add(it));
             }
-            else if(it->op.name() == "gemm")
+            else if(it->name() == "gemm")
             {
                 check_shape(s, apply_gemm(it));
             }
-            else if(it->op.name() == "contiguous")
+            else if(it->name() == "contiguous")
             {
                 check_shape(s, apply_contiguous(it));
             }
-            else if(it->op.name() == "batch_norm_inference")
+            else if(it->name() == "batch_norm_inference")
             {
                 check_shape(s, apply_batch_norm_inference(it));
+            }
+            else if(it->name() == "softmax")
+            {
+                check_shape(s, apply_softmax(it));
             }
         }
     }
@@ -369,78 +409,85 @@ struct miopen_apply
 
     instruction_ref apply_convolution(instruction_ref ins)
     {
-        auto&& op = any_cast<convolution>(ins->op);
+        auto&& op = any_cast<convolution>(ins->get_operator());
 
         auto conv = miopen_convolution{op, make_conv(op)};
-        auto ws   = conv.compile(ctx, ins->result, ins->arguments);
+        auto ws   = conv.compile(ctx, ins->get_shape(), ins->inputs());
 
         auto workspace = insert_allocation(ins, ws, "workspace");
-        auto output    = insert_allocation(ins, ins->result);
+        auto output    = insert_allocation(ins, ins->get_shape());
 
         return prog->replace_instruction(
-            ins, conv, ins->arguments.at(0), ins->arguments.at(1), workspace, output);
+            ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
     }
 
     instruction_ref apply_pooling(instruction_ref ins)
     {
-        auto&& op   = any_cast<pooling>(ins->op);
+        auto&& op   = any_cast<pooling>(ins->get_operator());
         auto pd     = make_pooling(op);
-        auto output = insert_allocation(ins, ins->result);
+        auto output = insert_allocation(ins, ins->get_shape());
 
         return prog->replace_instruction(
-            ins, miopen_pooling{op, std::move(pd)}, ins->arguments.at(0), output);
+            ins, miopen_pooling{op, std::move(pd)}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_activation(instruction_ref ins)
     {
-        auto&& op = any_cast<activation>(ins->op);
+        auto&& op = any_cast<activation>(ins->get_operator());
         auto ad   = make_relu();
         if(op.mode == "relu")
         {
-            auto output = insert_allocation(ins, ins->result);
+            auto output = insert_allocation(ins, ins->get_shape());
             return prog->replace_instruction(
-                ins, miopen_relu{std::move(ad)}, ins->arguments.at(0), output);
+                ins, miopen_relu{std::move(ad)}, ins->inputs().at(0), output);
         }
         return ins;
     }
 
+    instruction_ref apply_softmax(instruction_ref ins)
+    {
+        auto&& op   = any_cast<softmax>(ins->get_operator());
+        auto output = insert_allocation(ins, ins->get_shape());
+        return prog->replace_instruction(ins, miopen_softmax{op}, ins->inputs().at(0), output);
+    }
+
     instruction_ref apply_add(instruction_ref ins)
     {
-        auto output = insert_allocation(ins, ins->result);
+        auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(
-            ins, hip_add{}, ins->arguments.at(0), ins->arguments.at(1), output);
+            ins, hip_add{}, ins->inputs().at(0), ins->inputs().at(1), output);
     }
 
     instruction_ref apply_gemm(instruction_ref ins)
     {
-        auto&& op   = any_cast<gemm>(ins->op);
-        auto output = insert_allocation(ins, ins->result);
+        auto&& op   = any_cast<gemm>(ins->get_operator());
+        auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(
-            ins, miopen_gemm{op}, ins->arguments.at(0), ins->arguments.at(1), output);
+            ins, miopen_gemm{op}, ins->inputs().at(0), ins->inputs().at(1), output);
     }
 
     instruction_ref apply_contiguous(instruction_ref ins)
     {
-        auto&& op   = any_cast<contiguous>(ins->op);
-        auto output = insert_allocation(ins, ins->result);
-        return prog->replace_instruction(ins, miopen_contiguous{op}, ins->arguments.at(0), output);
+        auto&& op   = any_cast<contiguous>(ins->get_operator());
+        auto output = insert_allocation(ins, ins->get_shape());
+        return prog->replace_instruction(ins, miopen_contiguous{op}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_batch_norm_inference(instruction_ref ins)
     {
-        auto&& op       = any_cast<batch_norm_inference>(ins->op);
-        auto output     = insert_allocation(ins, ins->result);
-        shape old_shape = ins->arguments.at(1)->get_shape();
+        auto&& op       = any_cast<batch_norm_inference>(ins->get_operator());
+        auto output     = insert_allocation(ins, ins->get_shape());
+        shape old_shape = ins->inputs().at(1)->get_shape();
         std::vector<int64_t> new_shape{1, static_cast<int64_t>(old_shape.elements()), 1, 1};
         auto reshape_op = reshape{new_shape};
         std::vector<instruction_ref> reshapes;
-        std::transform(ins->arguments.begin() + 1,
-                       ins->arguments.end(),
+        std::transform(ins->inputs().begin() + 1,
+                       ins->inputs().end(),
                        std::back_inserter(reshapes),
                        [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
         return prog->replace_instruction(ins,
                                          miopen_batch_norm_inference{op},
-                                         ins->arguments.at(0),
+                                         ins->inputs().at(0),
                                          reshapes[0],
                                          reshapes[1],
                                          reshapes[2],

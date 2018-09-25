@@ -115,13 +115,13 @@ void memory_coloring_impl::build()
             if(is_allocate(iter) || is_lit)
             {
                 live_range& range        = def_interval->segment;
-                def_interval->result     = iter->result;
+                def_interval->result     = iter->get_shape();
                 def_interval->is_literal = is_lit;
                 if(!is_lit || unify_literals)
                     alloc_queue.push(def_interval);
                 range.begin             = cur_points;
                 def_interval->def_point = cur_points;
-                range.size              = (iter->result).bytes();
+                range.size              = (iter->get_shape()).bytes();
                 live_set.erase(range.vn);
             }
         }
@@ -131,7 +131,7 @@ void memory_coloring_impl::build()
         }
         int tie_ndx = get_input_tie_ndx(iter);
         int cnt     = -1;
-        for(auto&& arg : iter->arguments)
+        for(auto&& arg : iter->inputs())
         {
             cnt++;
             if(is_param(arg) || is_outline(arg))
@@ -228,9 +228,9 @@ void memory_coloring_impl::rewrite()
 
             if(is_allocate(ins))
             {
-                if(!ins->arguments.empty())
+                if(!ins->inputs().empty())
                     p_program->replace_instruction(
-                        ins, load{ins->arguments.at(0)->result, offset}, scratch_param);
+                        ins, load{ins->inputs().at(0)->get_shape(), offset}, scratch_param);
             }
             else if(is_literal(ins))
             {

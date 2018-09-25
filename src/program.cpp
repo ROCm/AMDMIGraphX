@@ -207,9 +207,9 @@ instruction_ref program::get_parameter(std::string name) const
 {
     auto ins = std::find_if(
         impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
-            if(x.op.name() == "@param")
+            if(x.name() == "@param")
             {
-                return any_cast<builtin::param>(x.op).parameter == name;
+                return any_cast<builtin::param>(x.get_operator()).parameter == name;
             }
             else
             {

@@ -79,23 +79,23 @@ struct memory_coloring_impl
     void rewrite();
 
     private:
-    static bool is_param(const instruction_ref ins) { return ins->op.name() == "@param"; }
+    static bool is_param(const instruction_ref ins) { return ins->name() == "@param"; }
     static bool is_output_param(const instruction_ref ins)
     {
-        return is_param(ins) && any_cast<builtin::param>(ins->op).parameter == "output";
+        return is_param(ins) && any_cast<builtin::param>(ins->get_operator()).parameter == "output";
     }
-    bool is_allocate(const instruction_ref ins) { return ins->op.name() == allocation_op; }
-    static bool is_outline(const instruction_ref ins) { return ins->op.name() == "@outline"; }
-    static bool is_literal(const instruction_ref ins) { return ins->op.name() == "@literal"; }
+    bool is_allocate(const instruction_ref ins) { return ins->name() == allocation_op; }
+    static bool is_outline(const instruction_ref ins) { return ins->name() == "@outline"; }
+    static bool is_literal(const instruction_ref ins) { return ins->name() == "@literal"; }
     static bool is_check_context(const instruction_ref ins)
     {
-        return ins->op.name() == "check_context";
+        return ins->name() == "check_context";
     }
 
     // get operand alias info.  This is a temporary workaround.
     int get_input_tie_ndx(const instruction_ref ins)
     {
-        std::string name = ins->op.name();
+        std::string name = ins->name();
         if(operand_alias.find(name) != operand_alias.end())
             return operand_alias[name];
         if(is_allocate(ins))
@@ -106,7 +106,7 @@ struct memory_coloring_impl
         }
         int cnt           = -1;
         int last_allocate = -1;
-        for(auto&& arg : ins->arguments)
+        for(auto&& arg : ins->inputs())
         {
             cnt++;
             if(is_allocate(arg) || is_output_param(arg))

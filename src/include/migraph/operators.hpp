@@ -317,43 +317,71 @@ struct slice
     std::vector<int64_t> starts;
     std::vector<int64_t> ends;
     std::string name() const { return "slice"; }
+
+    auto fix_index(const std::vector<std::size_t>& lens, std::size_t axis, int64_t index) const
+    {
+        std::size_t r = std::min(index, static_cast<int64_t>(lens[axis]));
+        if(r < 0)
+            r += lens[axis];
+        return r;
+    }
+
+    auto compute_offset(const shape& s) const
+    {
+        const std::vector<std::size_t>& lens    = s.lens();
+        const std::vector<std::size_t>& strides = s.strides();
+        auto offset                             = 0;
+        if(axes.size() > 0)
+        {
+            for(std::size_t i = 0; i < axes.size(); i++)
+            {
+                auto axis = axes[i];
+                offset += fix_index(lens, axis, starts[i]) * strides[axis];
+            }
+        }
+        else
+        {
+            for(std::size_t axis = 0; axis < lens.size(); axis++)
+            {
+                offset += fix_index(lens, axis, starts[axis]) * strides[axis];
+            }
+        }
+        return offset;
+    }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
         auto input_shape = inputs[0];
         auto t           = input_shape.type();
         auto old_lens    = input_shape.lens();
         auto old_strides = input_shape.strides();
-        std::vector<int64_t> t_axes(old_lens.size());
-        if(axes.size() == 0)
-        {
-            std::iota(t_axes.begin(), t_axes.end(), 0);
-        }
-        else
-        {
-            std::copy(axes.begin(), axes.end(), t_axes.begin());
-        }
-        if(starts.size() || t_axes.size() != ends.size())
+        // std::vector<int64_t> t_axes(old_lens.size());
+        // if(axes.size() == 0)
+        // {
+        //     std::iota(t_axes.begin(), t_axes.end(), 0);
+        // }
+        // else
+        // {
+        //     std::copy(axes.begin(), axes.end(), t_axes.begin());
+        // }
+        if(starts.size() != axes.size() || axes.size() != ends.size())
         {
             MIGRAPH_THROW("inconsistent sizes");
         }
-        std::vector<std::size_t> new_lens;
-        std::copy(old_lens.begin(), old_lens.end(), new_lens.begin());
-        auto fix_index = [&](std::size_t axis, int64_t index) {
-            auto r = std::min(index, static_cast<int64_t>(old_lens[axis] - 1));
-            if(r < 0)
-                r += old_lens[axis];
-            return r;
-        };
-        for(std::size_t i = 0; i < t_axes.size(); i++)
+        std::vector<std::size_t> new_lens = old_lens;
+        for(std::size_t i = 0; i < axes.size(); i++)
         {
-            auto axis      = t_axes[i];
-            new_lens[axis] = fix_index(axis, ends[i]) - fix_index(axis, starts[i]);
+            auto axis = axes[i];
+            new_lens[axis] =
+                fix_index(old_lens, axis, ends[i]) - fix_index(old_lens, axis, starts[i]);
         }
         return shape{t, new_lens, old_strides};
     }
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
-        return {std::move(output_shape), std::move(args.front().data)};
+        auto input  = args[0];
+        auto offset = compute_offset(input.get_shape()) * output_shape.type_size();
+        return {std::move(output_shape), [=] { return input.data() + offset; }};
     }
 };
 

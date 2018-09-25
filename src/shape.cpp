@@ -98,6 +98,12 @@ std::size_t shape::bytes() const
     this->visit_type([&](auto as) { n = as.size(); });
     return n * this->element_space();
 }
+std::size_t shape::type_size() const
+{
+    std::size_t n = 0;
+    this->visit_type([&](auto as) { n = as.size(); });
+    return n;
+}
 std::size_t shape::index(std::initializer_list<std::size_t> l) const
 {
     assert(l.size() <= this->lens().size());

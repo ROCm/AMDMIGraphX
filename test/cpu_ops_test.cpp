@@ -8,15 +8,42 @@
 
 void slice_test()
 {
-    migraph::program p;
-    std::vector<float> data(4 * 3 * 2);
-    std::iota(data.begin(), data.end(), 0);
-    migraph::shape s{migraph::shape::float_type, {4, 2, 3}};
-    auto l0 = p.add_literal(migraph::literal{s, data});
-    p.add_instruction(migraph::squeeze{{0}, {0}, {2}}, l0);
-    p.compile(migraph::cpu::cpu_target{});
-    auto result = p.eval({});
-    EXPECT(result.get_shape() == s2);
+    {
+        migraph::program p;
+        std::vector<int> data(2 * 2 * 3);
+        std::iota(data.begin(), data.end(), 0);
+        migraph::shape s{migraph::shape::int32_type, {2, 2, 3}};
+        auto l0 = p.add_literal(migraph::literal{s, data});
+        p.add_instruction(migraph::slice{{2}, {1}, {3}}, l0);
+        migraph::shape s2{migraph::shape::int32_type, {2, 2, 2}, {6, 3, 1}};
+        EXPECT(p.get_shape() == s2);
+        p.compile(migraph::cpu::cpu_target{});
+        migraph::shape sresult{migraph::shape::int32_type, {2, 2, 2}, {4, 2, 1}};
+        auto result           = p.eval({});
+        std::vector<int> gold = {1, 2, 4, 5, 7, 8, 10, 11};
+        std::vector<int> results_vector(2 * 2 * 2);
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        EXPECT(migraph::verify_range(results_vector, gold));
+        EXPECT(result.get_shape() == sresult);
+    }
+    {
+        migraph::program p;
+        std::vector<int> data(2 * 2 * 3);
+        std::iota(data.begin(), data.end(), 0);
+        migraph::shape s{migraph::shape::int32_type, {2, 2, 3}};
+        auto l0 = p.add_literal(migraph::literal{s, data});
+        p.add_instruction(migraph::slice{{0, 1, 2}, {0, 0, 0}, {2, 2, 2}}, l0);
+        migraph::shape s2{migraph::shape::int32_type, {2, 2, 2}, {6, 3, 1}};
+        EXPECT(p.get_shape() == s2);
+        p.compile(migraph::cpu::cpu_target{});
+        migraph::shape sresult{migraph::shape::int32_type, {2, 2, 2}, {4, 2, 1}};
+        auto result           = p.eval({});
+        std::vector<int> gold = {0, 1, 3, 4, 6, 7, 9, 10};
+        std::vector<int> results_vector(2 * 2 * 2);
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        EXPECT(migraph::verify_range(results_vector, gold));
+        EXPECT(result.get_shape() == sresult);
+    }
 }
 
 void squeeze_test()
@@ -877,6 +904,7 @@ void contiguous_test()
 
 int main()
 {
+    slice_test();
     squeeze_test();
     unsqueeze_test();
     exp_test();

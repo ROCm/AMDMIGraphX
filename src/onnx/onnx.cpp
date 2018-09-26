@@ -48,13 +48,13 @@ struct onnx_parser
 
     onnx_parser()
     {
-        add_generic_op("Add", add{});
-        add_generic_op("Div", div{});
-        add_generic_op("MatMul", gemm{});
-        add_generic_op("Mul", mul{});
-        add_generic_op("Relu", activation{"relu"});
-        add_generic_op("Sub", sub{});
-        add_generic_op("Sum", add{});
+        add_generic_op("Add", op::add{});
+        add_generic_op("Div", op::div{});
+        add_generic_op("MatMul", op::gemm{});
+        add_generic_op("Mul", op::mul{});
+        add_generic_op("Relu", op::activation{"relu"});
+        add_generic_op("Sub", op::sub{});
+        add_generic_op("Sum", op::add{});
 
         add_mem_op("Constant", &onnx_parser::parse_constant);
         add_mem_op("Conv", &onnx_parser::parse_conv);
@@ -93,7 +93,7 @@ struct onnx_parser
                     uint64_t axis = (contains(attributes, "axis"))
                                         ? parse_value(attributes.at("axis")).at<uint64_t>()
                                         : 0;
-                    auto l = prog.add_instruction(broadcast{axis}, args);
+                    auto l = prog.add_instruction(op::broadcast{axis}, args);
                     return prog.add_instruction(x, args[0], l);
                 }
             }
@@ -105,15 +105,15 @@ struct onnx_parser
     parse_softmax(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         auto dims = args.front()->get_shape().lens();
-        auto r = prog.add_instruction(reshape{{long(dims[0]), long(dims[1]), 1, 1}}, args.front());
-        auto s = prog.add_instruction(softmax{}, r);
-        return prog.add_instruction(reshape{{long(dims[0]), long(dims[1])}}, s);
+        auto r = prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1]), 1, 1}}, args.front());
+        auto s = prog.add_instruction(op::softmax{}, r);
+        return prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1])}}, s);
     }
 
     instruction_ref
     parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        convolution op;
+        op::convolution op;
         if(contains(attributes, "pads"))
         {
             copy(attributes["pads"].ints(), op.padding.begin());
@@ -130,8 +130,8 @@ struct onnx_parser
         {
             uint64_t axis = 1;
             auto l1       = prog.add_instruction(op, args[0], args[1]);
-            auto l2       = prog.add_instruction(broadcast{axis}, l1, args[2]);
-            return prog.add_instruction(add{}, l1, l2);
+            auto l2       = prog.add_instruction(op::broadcast{axis}, l1, args[2]);
+            return prog.add_instruction(op::add{}, l1, l2);
         }
         return prog.add_instruction(op, args);
     }
@@ -140,7 +140,7 @@ struct onnx_parser
                                   attribute_map attributes,
                                   std::vector<instruction_ref> args)
     {
-        pooling op{name == "MaxPool" ? "max" : "average"};
+        op::pooling op{name == "MaxPool" ? "max" : "average"};
         if(contains(attributes, "pads"))
         {
             copy(attributes["pads"].ints(), op.padding.begin());
@@ -159,7 +159,7 @@ struct onnx_parser
     instruction_ref
     parse_reshape(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        reshape op;
+        op::reshape op;
         if(args.size() == 1)
         {
             literal s = parse_value(attributes.at("shape"));
@@ -181,7 +181,7 @@ struct onnx_parser
         {
             axis = parse_value(attributes.at("axis")).at<int>();
         }
-        return prog.add_instruction(flatten{axis}, args[0]);
+        return prog.add_instruction(op::flatten{axis}, args[0]);
     }
 
     instruction_ref parse_constant(const std::string&,
@@ -216,16 +216,16 @@ struct onnx_parser
             transb = parse_value(attributes.at("transB")).at<bool>();
         }
         std::vector<int64_t> perm = {1, 0};
-        auto l1 = (transa) ? prog.add_instruction(transpose{perm}, args[0]) : args[0];
-        auto l2 = (transb) ? prog.add_instruction(transpose{perm}, args[1]) : args[1];
+        auto l1 = (transa) ? prog.add_instruction(op::transpose{perm}, args[0]) : args[0];
+        auto l2 = (transb) ? prog.add_instruction(op::transpose{perm}, args[1]) : args[1];
         if(args.size() == 3)
         {
             uint64_t axis = 1;
-            auto l3       = prog.add_instruction(gemm{alpha, beta}, l1, l2);
-            auto l4       = prog.add_instruction(broadcast{axis}, l3, args[2]);
-            return prog.add_instruction(add{}, l3, l4);
+            auto l3       = prog.add_instruction(op::gemm{alpha, beta}, l1, l2);
+            auto l4       = prog.add_instruction(op::broadcast{axis}, l3, args[2]);
+            return prog.add_instruction(op::add{}, l3, l4);
         }
-        return prog.add_instruction(gemm{alpha, beta}, l1, l2);
+        return prog.add_instruction(op::gemm{alpha, beta}, l1, l2);
     }
 
     instruction_ref
@@ -233,7 +233,7 @@ struct onnx_parser
     {
         float epsilon                                 = 1e-5f;
         float momentum                                = 0.9f;
-        batch_norm_inference::bn_infer_mode_t bn_mode = batch_norm_inference::spatial;
+        op::batch_norm_inference::bn_infer_mode_t bn_mode = op::batch_norm_inference::spatial;
         bool is_test                                  = false;
         if(contains(attributes, "epsilon"))
         {
@@ -250,10 +250,10 @@ struct onnx_parser
         if(contains(attributes, "spatial"))
         {
             bn_mode = (parse_value(attributes.at("spatial")).at<uint64_t>() > 0)
-                          ? batch_norm_inference::spatial
-                          : batch_norm_inference::per_activation;
+                          ? op::batch_norm_inference::spatial
+                          : op::batch_norm_inference::per_activation;
         }
-        batch_norm_inference op{epsilon, momentum, bn_mode, is_test};
+        op::batch_norm_inference op{epsilon, momentum, bn_mode, is_test};
         return prog.add_instruction(op, std::move(args));
     }
 

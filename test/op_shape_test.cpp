@@ -57,9 +57,9 @@ void batch_norm_inference_shape()
     const size_t channels = 3;
     migraph::shape s{migraph::shape::float_type, {4, channels, 3, 3}};
     migraph::shape vars{migraph::shape::float_type, {channels}};
-    expect_shape(s, migraph::batch_norm_inference{}, s, vars, vars, vars, vars);
-    throws_shape(migraph::batch_norm_inference{}, s);
-    throws_shape(migraph::batch_norm_inference{}, s, vars, vars, vars, vars, vars);
+    expect_shape(s, migraph::op::batch_norm_inference{}, s, vars, vars, vars, vars);
+    throws_shape(migraph::op::batch_norm_inference{}, s);
+    throws_shape(migraph::op::batch_norm_inference{}, s, vars, vars, vars, vars, vars);
 }
 
 void convolution_shape()
@@ -67,33 +67,33 @@ void convolution_shape()
     migraph::shape output{migraph::shape::float_type, {4, 4, 1, 1}};
     migraph::shape input{migraph::shape::float_type, {4, 3, 3, 3}};
     migraph::shape weights{migraph::shape::float_type, {4, 3, 3, 3}};
-    expect_shape(output, migraph::convolution{}, input, weights);
-    throws_shape(migraph::convolution{}, input);
+    expect_shape(output, migraph::op::convolution{}, input, weights);
+    throws_shape(migraph::op::convolution{}, input);
 
     migraph::shape input2{migraph::shape::float_type, {3, 3}};
     migraph::shape weights2{migraph::shape::float_type, {3, 3}};
-    throws_shape(migraph::convolution{}, input2, weights2);
-    throws_shape(migraph::convolution{}, input2, weights);
+    throws_shape(migraph::op::convolution{}, input2, weights2);
+    throws_shape(migraph::op::convolution{}, input2, weights);
 }
 
 void transpose_shape()
 {
     migraph::shape input{migraph::shape::float_type, {2, 2}};
     migraph::shape output{migraph::shape::float_type, {2, 2}, {1, 2}};
-    expect_shape(input, migraph::transpose{{0, 1}}, input);
-    expect_shape(output, migraph::transpose{{1, 0}}, input);
-    throws_shape(migraph::transpose{{1, 2}}, input);
+    expect_shape(input, migraph::op::transpose{{0, 1}}, input);
+    expect_shape(output, migraph::op::transpose{{1, 0}}, input);
+    throws_shape(migraph::op::transpose{{1, 2}}, input);
 }
 
 void contiguous_shape()
 {
     migraph::shape output{migraph::shape::float_type, {2, 2}};
     migraph::shape input{migraph::shape::float_type, {2, 2}, {1, 2}};
-    expect_shape(output, migraph::contiguous{}, input);
-    throws_shape(migraph::contiguous{}, input, input);
+    expect_shape(output, migraph::op::contiguous{}, input);
+    throws_shape(migraph::op::contiguous{}, input, input);
 
     migraph::shape single{migraph::shape::float_type, {2}};
-    throws_shape(migraph::contiguous{}, single);
+    throws_shape(migraph::op::contiguous{}, single);
 }
 
 void reshape_shape()
@@ -105,12 +105,12 @@ void reshape_shape()
         std::vector<std::size_t> lens(new_shape.size());
         std::copy(new_shape.begin(), new_shape.end(), lens.begin());
         migraph::shape output{migraph::shape::float_type, lens};
-        expect_shape(output, migraph::reshape{new_shape}, input);
+        expect_shape(output, migraph::op::reshape{new_shape}, input);
     }
 
     for(auto&& new_shape : std::vector<std::vector<int64_t>>{{8, 3, 2, 2}, {1, 3, -1, -1}})
     {
-        throws_shape(migraph::reshape{new_shape}, input);
+        throws_shape(migraph::op::reshape{new_shape}, input);
     }
 }
 
@@ -118,16 +118,16 @@ void flatten_shape()
 {
     migraph::shape input{migraph::shape::float_type, {2, 4, 6, 8}};
     expect_shape(
-        migraph::shape{migraph::shape::float_type, {1, 2 * 4 * 6 * 8}}, migraph::flatten{0}, input);
+        migraph::shape{migraph::shape::float_type, {1, 2 * 4 * 6 * 8}}, migraph::op::flatten{0}, input);
     expect_shape(
-        migraph::shape{migraph::shape::float_type, {2, 4 * 6 * 8}}, migraph::flatten{1}, input);
+        migraph::shape{migraph::shape::float_type, {2, 4 * 6 * 8}}, migraph::op::flatten{1}, input);
     expect_shape(
-        migraph::shape{migraph::shape::float_type, {2 * 4, 6 * 8}}, migraph::flatten{2}, input);
+        migraph::shape{migraph::shape::float_type, {2 * 4, 6 * 8}}, migraph::op::flatten{2}, input);
     expect_shape(
-        migraph::shape{migraph::shape::float_type, {2 * 4 * 6, 8}}, migraph::flatten{3}, input);
+        migraph::shape{migraph::shape::float_type, {2 * 4 * 6, 8}}, migraph::op::flatten{3}, input);
     expect_shape(
-        migraph::shape{migraph::shape::float_type, {2 * 4 * 6 * 8, 1}}, migraph::flatten{4}, input);
-    throws_shape(migraph::flatten{5}, input);
+        migraph::shape{migraph::shape::float_type, {2 * 4 * 6 * 8, 1}}, migraph::op::flatten{4}, input);
+    throws_shape(migraph::op::flatten{5}, input);
 }
 
 int main()

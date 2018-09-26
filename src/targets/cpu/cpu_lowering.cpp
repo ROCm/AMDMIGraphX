@@ -36,7 +36,7 @@ T zero(const T&)
 //
 struct cpu_batch_norm_inference
 {
-    batch_norm_inference op;
+    op::batch_norm_inference op;
 
     std::string name() const { return "cpu::batch_norm_inference"; }
 
@@ -58,7 +58,7 @@ struct cpu_batch_norm_inference
         auto image_height = output_shape.lens()[2];
         auto image_width  = output_shape.lens()[3];
 
-        if(op.bn_mode == batch_norm_inference::spatial)
+        if(op.bn_mode == op::batch_norm_inference::spatial)
         {
             visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
                 [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
@@ -73,7 +73,7 @@ struct cpu_batch_norm_inference
                 });
         }
 
-        if(op.bn_mode == batch_norm_inference::per_activation)
+        if(op.bn_mode == op::batch_norm_inference::per_activation)
         {
             visit_all(output, input, mini_batch_mean, mini_batch_mean, arg_gamma, arg_bias)(
                 [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
@@ -95,7 +95,7 @@ struct cpu_batch_norm_inference
 
 struct cpu_convolution
 {
-    convolution op;
+    op::convolution op;
 
     std::string name() const { return "cpu::convolution"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
@@ -136,7 +136,7 @@ struct cpu_convolution
 
 struct cpu_im2col
 {
-    im2col op;
+    op::im2col op;
 
     static std::string name() { return "cpu::im2col"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
@@ -218,7 +218,7 @@ struct avg_pool
 template <class Op>
 struct cpu_pooling
 {
-    pooling op;
+    op::pooling op;
 
     std::string name() const { return "cpu::pooling_" + Op::name(); }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
@@ -266,7 +266,7 @@ struct cpu_pooling
 
 struct cpu_contiguous
 {
-    contiguous op;
+    op::contiguous op;
     std::string name() const { return "cpu::contiguous"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
@@ -284,7 +284,7 @@ struct cpu_contiguous
 
 struct cpu_gemm
 {
-    gemm op;
+    op::gemm op;
     std::string name() const { return "cpu::gemm"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
@@ -551,12 +551,12 @@ struct cpu_apply
 
     void init()
     {
-        apply_map["im2col"]      = extend_op<cpu_im2col, im2col>();
-        apply_map["convolution"] = extend_op<cpu_convolution, convolution>();
-        apply_map["gemm"]        = extend_op<cpu_gemm, gemm>();
+        apply_map["im2col"]      = extend_op<cpu_im2col, op::im2col>();
+        apply_map["convolution"] = extend_op<cpu_convolution, op::convolution>();
+        apply_map["gemm"]        = extend_op<cpu_gemm, op::gemm>();
         apply_map["batch_norm_inference"] =
-            extend_op<cpu_batch_norm_inference, batch_norm_inference>();
-        apply_map["contiguous"] = extend_op<cpu_contiguous, contiguous>();
+            extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
+        apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
 
         apply_map["identity"] = simple_op<cpu_unary<identity_op>>();
         apply_map["tanh"]     = simple_op<cpu_unary<tanh_op>>();
@@ -609,14 +609,14 @@ struct cpu_apply
 
     void apply_activation(instruction_ref ins)
     {
-        auto&& op = any_cast<activation>(ins->get_operator());
+        auto&& op = any_cast<op::activation>(ins->get_operator());
         if(op.mode == "relu")
             prog->replace_instruction(ins, cpu_unary<relu_op>{}, ins->inputs());
     }
 
     void apply_pooling(instruction_ref ins)
     {
-        auto&& op = any_cast<pooling>(ins->get_operator());
+        auto&& op = any_cast<op::pooling>(ins->get_operator());
         if(op.mode == "max")
             prog->replace_instruction(ins, cpu_pooling<max_pool>{op}, ins->inputs());
         else if(op.mode == "average")

@@ -570,7 +570,6 @@ struct outline
         return {s, nullptr};
     }
 };
-
 } // namespace migraph
 
 #endif

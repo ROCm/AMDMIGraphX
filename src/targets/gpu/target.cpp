@@ -1,5 +1,6 @@
 #include <migraph/gpu/target.hpp>
 #include <migraph/gpu/lowering.hpp>
+#include <migraph/memory_coloring.hpp>
 #include <migraph/gpu/write_literals.hpp>
 #include <migraph/gpu/context.hpp>
 #include <migraph/gpu/eliminate_workspace.hpp>
@@ -28,6 +29,7 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
         simplify_reshapes{},
         dead_code_elimination{},
         lowering{ctx},
+        memory_coloring{"hip::allocate"},
         fuse_ops{},
         dead_code_elimination{},
         eliminate_contiguous{},
@@ -45,10 +47,8 @@ std::string target::name() const { return "miopen"; }
 
 migraph::context target::get_context() const
 {
-    return context{share(make_obj<miopen_handle>(&miopenCreate)),
-                   share(create_rocblas_handle_ptr())};
+    return context{
+        share(make_obj<miopen_handle>(&miopenCreate)), share(create_rocblas_handle_ptr()), {}};
 }
-
 } // namespace gpu
-
 } // namespace migraph

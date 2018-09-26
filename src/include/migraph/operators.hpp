@@ -365,12 +365,10 @@ struct squeeze
         auto input_shape = inputs[0];
         auto type        = input_shape.type();
         auto old_lens    = input_shape.lens();
-        for(auto axis : axes)
+        if(std::any_of(
+               axes.begin(), axes.end(), [&](auto axis) { return input_shape.lens()[axis] != 1; }))
         {
-            if(input_shape.lens()[axis] != 1)
-            {
-                MIGRAPH_THROW("squeeze axis dimension should be equal to 1");
-            }
+            MIGRAPH_THROW("squeeze axis dimension should be equal to 1");
         }
         std::vector<std::size_t> new_lens;
         if(axes.empty())

@@ -217,7 +217,7 @@ void find_matches(program& p, Ms&&... ms)
                 auto r = match_instruction(p, ins, m.matcher());
                 if(r.result == p.end())
                     return;
-                m.apply(r);
+                m.apply(p, r);
                 match = true;
             },
             ms...);

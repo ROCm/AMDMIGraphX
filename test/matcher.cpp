@@ -355,7 +355,7 @@ struct match_find_sum
     migraph::instruction_ref ins;
     auto matcher() const { return matchers::name("sum"); }
 
-    void apply(matchers::matcher_result r) const { EXPECT(bool{r.result == ins}); }
+    void apply(migraph::program&, matchers::matcher_result r) const { EXPECT(bool{r.result == ins}); }
 };
 
 struct match_find_literal
@@ -363,7 +363,7 @@ struct match_find_literal
     migraph::instruction_ref ins;
     auto matcher() const { return matchers::name("@literal"); }
 
-    void apply(matchers::matcher_result r) const
+    void apply(migraph::program&, matchers::matcher_result r) const
     {
         EXPECT(bool{r.result != ins});
         EXPECT(r.result->name() == "@literal");

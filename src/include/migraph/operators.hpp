@@ -291,10 +291,10 @@ struct slice
 
     auto fix_index(const std::vector<std::size_t>& lens, std::size_t axis, int64_t index) const
     {
-        std::size_t r = std::min(index, static_cast<int64_t>(lens[axis]));
+        int64_t r = std::min(index, static_cast<int64_t>(lens[axis]));
         if(r < 0)
             r += lens[axis];
-        return r;
+        return std::size_t(r);
     }
 
     auto compute_offset(const shape& s) const
@@ -302,7 +302,7 @@ struct slice
         const std::vector<std::size_t>& lens    = s.lens();
         const std::vector<std::size_t>& strides = s.strides();
         auto offset                             = 0;
-        if(axes.size() > 0)
+        if(!axes.empty())
         {
             for(std::size_t i = 0; i < axes.size(); i++)
             {
@@ -322,10 +322,10 @@ struct slice
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        auto input_shape = inputs[0];
-        auto t           = input_shape.type();
-        auto old_lens    = input_shape.lens();
-        auto old_strides = input_shape.strides();
+        auto input_shape        = inputs[0];
+        auto t                  = input_shape.type();
+        const auto& old_lens    = input_shape.lens();
+        const auto& old_strides = input_shape.strides();
         // std::vector<int64_t> t_axes(old_lens.size());
         // if(axes.size() == 0)
         // {
@@ -373,7 +373,7 @@ struct squeeze
             }
         }
         std::vector<std::size_t> new_lens;
-        if(axes.size() == 0)
+        if(axes.empty())
         {
             for(std::size_t i = 0; i < old_lens.size(); i++)
             {

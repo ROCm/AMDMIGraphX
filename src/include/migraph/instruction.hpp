@@ -71,13 +71,13 @@ struct instruction
     // internal
     void replace_argument(instruction_ref old, instruction_ref new_ins);
 
-    public:
     operation op;
     shape result;
     std::vector<instruction_ref> output;
     std::vector<instruction_ref> arguments;
     literal lit;
 };
+
 } // namespace migraph
 
 namespace std {

@@ -134,6 +134,63 @@ struct cpu_convolution
     }
 };
 
+struct cpu_im2col
+{
+    im2col op;
+
+    static std::string name() { return "cpu::im2col"; }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+
+    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        auto input_shape   = args[0].get_shape();
+        auto weights_shape = args[1].get_shape();
+        visit_all(result, args[0])([&](auto col, auto input) {
+            const std::size_t& height   = input_shape.lens()[2];
+            const std::size_t& width    = input_shape.lens()[3];
+            const std::size_t& channels = weights_shape.lens()[1];
+            const std::size_t& kernel_h = weights_shape.lens()[2];
+            const std::size_t& kernel_w = weights_shape.lens()[3];
+            const std::size_t& pad_h    = op.padding[0];
+            const std::size_t& pad_w    = op.padding[1];
+            const std::size_t& stride_h = op.stride[0];
+            const std::size_t& stride_w = op.stride[1];
+
+            int kdiv2_h, kdiv2_w;
+            kdiv2_h = kernel_h / 2;
+            kdiv2_w = kernel_w / 2;
+            // calculate output sizes
+            const std::size_t col_height = (height - kernel_h + 2 * pad_h) / stride_h + 1;
+            const std::size_t col_width  = (width - kernel_w + 2 * pad_w) / stride_w + 1;
+            // account for padding for the starting position of the input pixels
+            std::size_t iinput = kdiv2_h - pad_h;
+            // loop over output pixels (ioutput, joutput)
+            for(std::size_t ioutput = 0; ioutput < col_height; ioutput++, iinput += stride_h)
+            {
+                std::size_t jinput = kdiv2_w - pad_w;
+                for(std::size_t joutput = 0; joutput < col_width; joutput++, jinput += stride_w)
+                {
+                    // compute linear index for output
+                    std::size_t ldx = ioutput * col_width + joutput;
+                    std::size_t p   = 0;
+                    dfor(channels,
+                         kernel_h,
+                         kernel_w)([&](std::size_t c, std::size_t koffset, std::size_t loffset) {
+                        int idx     = iinput + koffset - kdiv2_h;
+                        int jdx     = jinput + loffset - kdiv2_w;
+                        col(ldx, p) = ((idx >= 0) && (idx < height) && (jdx >= 0) && (jdx < width))
+                                          ? input(0, c, idx, jdx)
+                                          : 0;
+                        p++;
+                    });
+                }
+            }
+        });
+        return result;
+    }
+};
+
 struct max_pool
 {
     static std::string name() { return "max"; }
@@ -494,6 +551,7 @@ struct cpu_apply
 
     void init()
     {
+        apply_map["im2col"]      = extend_op<cpu_im2col, im2col>();
         apply_map["convolution"] = extend_op<cpu_convolution, convolution>();
         apply_map["gemm"]        = extend_op<cpu_gemm, gemm>();
         apply_map["batch_norm_inference"] =
@@ -521,17 +579,17 @@ struct cpu_apply
         init();
         for(auto it : iterator_for(*prog))
         {
-            if(it->op.name() == "activation")
+            if(it->name() == "activation")
             {
                 apply_activation(it);
             }
-            else if(it->op.name() == "pooling")
+            else if(it->name() == "pooling")
             {
                 apply_pooling(it);
             }
-            else if(apply_map.count(it->op.name()) > 0)
+            else if(apply_map.count(it->name()) > 0)
             {
-                apply_map.at(it->op.name())(it);
+                apply_map.at(it->name())(it);
             }
         }
     }
@@ -539,30 +597,30 @@ struct cpu_apply
     template <class T>
     void apply_simple_op(instruction_ref ins)
     {
-        prog->replace_instruction(ins, T{}, ins->arguments);
+        prog->replace_instruction(ins, T{}, ins->inputs());
     }
 
     template <class T, class Op>
     void apply_extend_op(instruction_ref ins)
     {
-        auto&& op = any_cast<Op>(ins->op);
-        prog->replace_instruction(ins, T{op}, ins->arguments);
+        auto&& op = any_cast<Op>(ins->get_operator());
+        prog->replace_instruction(ins, T{op}, ins->inputs());
     }
 
     void apply_activation(instruction_ref ins)
     {
-        auto&& op = any_cast<activation>(ins->op);
+        auto&& op = any_cast<activation>(ins->get_operator());
         if(op.mode == "relu")
-            prog->replace_instruction(ins, cpu_unary<relu_op>{}, ins->arguments);
+            prog->replace_instruction(ins, cpu_unary<relu_op>{}, ins->inputs());
     }
 
     void apply_pooling(instruction_ref ins)
     {
-        auto&& op = any_cast<pooling>(ins->op);
+        auto&& op = any_cast<pooling>(ins->get_operator());
         if(op.mode == "max")
-            prog->replace_instruction(ins, cpu_pooling<max_pool>{op}, ins->arguments);
+            prog->replace_instruction(ins, cpu_pooling<max_pool>{op}, ins->inputs());
         else if(op.mode == "average")
-            prog->replace_instruction(ins, cpu_pooling<avg_pool>{op}, ins->arguments);
+            prog->replace_instruction(ins, cpu_pooling<avg_pool>{op}, ins->inputs());
     }
 };
 

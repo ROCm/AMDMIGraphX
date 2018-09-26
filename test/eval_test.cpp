@@ -21,13 +21,13 @@ struct reverse_pass
     {
         for(auto ins : migraph::iterator_for(p))
         {
-            if(ins->op.name() == "sum")
+            if(ins->name() == "sum")
             {
-                p.replace_instruction(ins, minus_op{}, ins->arguments);
+                p.replace_instruction(ins, minus_op{}, ins->inputs());
             }
-            else if(ins->op.name() == "minus")
+            else if(ins->name() == "minus")
             {
-                p.replace_instruction(ins, sum_op{}, ins->arguments);
+                p.replace_instruction(ins, sum_op{}, ins->inputs());
             }
         }
     }

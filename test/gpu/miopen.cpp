@@ -512,8 +512,8 @@ struct test_conv_bn_relu_pooling
         auto bias     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 2)));
         auto mean     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 3)));
         auto variance = p.add_literal(migraph::abs(migraph::generate_literal(vars, 4)));
-        auto bn =
-            p.add_instruction(migraph::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
+        auto bn       = p.add_instruction(
+            migraph::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
         auto relu = p.add_instruction(migraph::op::activation{"relu"}, bn);
         p.add_instruction(migraph::op::pooling{"average", {1, 1}, {2, 2}, {3, 3}}, relu);
         return p;
@@ -530,7 +530,8 @@ struct test_conv_bn_relu_pooling2
         auto bias     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 2 + channels)));
         auto mean     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 3 + channels)));
         auto variance = p.add_literal(migraph::abs(migraph::generate_literal(vars, 4 + channels)));
-        return p.add_instruction(migraph::op::batch_norm_inference{}, x, scale, bias, mean, variance);
+        return p.add_instruction(
+            migraph::op::batch_norm_inference{}, x, scale, bias, mean, variance);
     }
     migraph::program create_program() const
     {

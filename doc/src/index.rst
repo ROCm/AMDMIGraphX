@@ -7,15 +7,11 @@ Welcome to MIGraph's documentation!
 ===================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
 
-   overview
-   reference/data
-   reference/operators
-   reference/program
-   reference/targets
-   reference/pass
+   user_guide
+   developer_guide
 
 
 Indices and tables

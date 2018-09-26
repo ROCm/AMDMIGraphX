@@ -71,7 +71,7 @@ struct instruction
     // internal
     void replace_argument(instruction_ref old, instruction_ref new_ins);
 
-    public:
+    private:
     operation op;
     shape result;
     std::vector<instruction_ref> output;

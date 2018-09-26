@@ -271,6 +271,11 @@ inline auto name(std::string name)
         [ =, name = std::move(name) ](instruction_ref ins) { return ins->name() == name; });
 }
 
+inline auto nargs(std::size_t n)
+{
+    return make_basic_pred_matcher([=](instruction_ref ins) { return ins->inputs().size() == n; });
+}
+
 inline auto arg(std::size_t i)
 {
     return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
@@ -289,7 +294,7 @@ struct args_impl_ints
 template <std::size_t... Ns, class... Ms>
 auto args_impl(args_impl_ints<Ns...>, Ms... ms)
 {
-    return matchers::all_of(arg(Ns)(ms)...);
+    return matchers::all_of(nargs(sizeof...(Ns)), arg(Ns)(ms)...);
 }
 
 template <class... Ms>

@@ -191,7 +191,7 @@ void match_args3()
     auto m = matchers::name("sum")(matchers::args(matchers::name("@literal")),
                                    matchers::standard_shape());
     auto r = find_match(p, m);
-    EXPECT(bool{r.result == sum});
+    EXPECT(bool{r.result == p.end()});
 }
 
 void match_args4()

@@ -68,11 +68,11 @@ void test2()
     migraph::program p;
     auto input = p.add_parameter("input", migraph::shape{migraph::shape::float_type, {16}});
 
-    auto a0    = p.add_outline(migraph::shape{migraph::shape::float_type, {128}});
-    auto a1    = p.add_instruction(allocate{}, a0);
-    auto p1    = p.add_instruction(pass_memory{}, input, a1);
-    auto a2    = p.add_outline(migraph::shape{migraph::shape::float_type, {40}});
-    auto p2    = p.add_instruction(allocate{}, a2);
+    auto a0 = p.add_outline(migraph::shape{migraph::shape::float_type, {128}});
+    auto a1 = p.add_instruction(allocate{}, a0);
+    auto p1 = p.add_instruction(pass_memory{}, input, a1);
+    auto a2 = p.add_outline(migraph::shape{migraph::shape::float_type, {40}});
+    auto p2 = p.add_instruction(allocate{}, a2);
     p.add_instruction(pass_memory{}, p1, p2);
     p.compile(memory_coloring_target{});
     EXPECT(p.get_parameter_shape("scratch").bytes() == 672);
@@ -96,7 +96,6 @@ void test3()
     EXPECT(p.get_parameter_shape("scratch").bytes() == 704);
 }
 
-
 // Like the previous test, but this tests a zero workspace memory allocation
 void test4()
 {
@@ -112,7 +111,6 @@ void test4()
     p.compile(memory_coloring_target{});
     EXPECT(p.get_parameter_shape("scratch").bytes() == 672);
 }
-
 
 int main()
 {

@@ -10,6 +10,7 @@
 #include <utility>
 
 namespace migraph {
+namespace op {
 
 struct not_computable
 {
@@ -571,6 +572,7 @@ struct outline
     }
 };
 
+} // namespace op
 } // namespace migraph
 
 #endif

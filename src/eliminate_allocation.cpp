@@ -27,7 +27,7 @@ void eliminate_allocation::apply(program& p) const
         auto ins    = pp.first;
         auto s      = ins->get_shape();
         auto offset = pp.second;
-        p.replace_instruction(ins, load{s, offset}, mem);
+        p.replace_instruction(ins, op::load{s, offset}, mem);
     }
 }
 } // namespace migraph

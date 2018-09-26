@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.5)
 
+if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
+    message(FATAL_ERROR "The binary and source directroy cannot be the same")
+endif()
+
 project(migraphlib)
 find_package(ROCM REQUIRED)
 

@@ -51,45 +51,73 @@ void verify_program(const std::string& name, F f, double tolerance = 100)
     auto x = run_cpu(f);
     auto y = run_gpu(f);
     migraph::verify_args(name, x, y, tolerance);
+    // std::cout << "cpu: " << x << std::endl;
+    // std::cout << "gpu: " << y << std::endl;
 }
 
 void verify_instructions(const migraph::program& prog, double tolerance = 80)
 {
     for(auto&& ins : prog)
     {
-        if(ins.op.name().front() == '@')
+        if(ins.name().front() == '@')
             continue;
-        if(ins.op.name() == "broadcast")
+        if(ins.name() == "broadcast")
             continue;
-        if(ins.op.name() == "transpose")
+        if(ins.name() == "transpose")
             continue;
-        if(ins.op.name() == "reshape")
+        if(ins.name() == "reshape")
             continue;
         auto create_program = [&] {
             migraph::program p;
             std::vector<migraph::instruction_ref> inputs;
-            for(auto&& arg : ins.arguments)
+            for(auto&& arg : ins.inputs())
             {
-                if(arg->op.name() == "@literal")
-                    inputs.push_back(p.add_literal(arg->lit));
+                if(arg->name() == "@literal")
+                    inputs.push_back(p.add_literal(arg->get_literal()));
                 else
                     inputs.push_back(
                         p.add_parameter(std::to_string(inputs.size()), arg->get_shape()));
             }
-            p.add_instruction(ins.op, inputs);
+            p.add_instruction(ins.get_operator(), inputs);
             return p;
         };
         try
         {
-            std::cout << "Verify: " << ins.op.name() << std::endl;
+            std::cout << "Verify: " << ins.name() << std::endl;
             std::cout << create_program() << std::endl;
-            verify_program(ins.op.name(), create_program, tolerance);
+            verify_program(ins.name(), create_program, tolerance);
         }
         catch(...)
         {
-            std::cout << "Instruction " << ins.op.name() << " threw an exception." << std::endl;
+            std::cout << "Instruction " << ins.name() << " threw an exception." << std::endl;
             throw;
         }
+    }
+}
+
+template <class F>
+void verify_reduced(F f, int n, double tolerance = 80)
+{
+
+    auto create_program = [&] {
+        migraph::program p = f();
+        auto last          = std::prev(p.end(), n + 1);
+        p.remove_instructions(last, p.end());
+        return p;
+    };
+    std::cout << "Verify: " << std::endl;
+    std::cout << create_program() << std::endl;
+    verify_program(std::to_string(n), create_program, tolerance);
+}
+
+template <class F>
+void verify_reduced_program(F f, double tolerance = 80)
+{
+    migraph::program p = f();
+    auto n             = std::distance(p.begin(), p.end());
+    for(int i = 0; i < n; i++)
+    {
+        verify_reduced(f, i, tolerance);
     }
 }
 
@@ -105,6 +133,10 @@ int main(int argc, char const* argv[])
         if(std::any_of(args.begin(), args.end(), [](const auto& s) { return s == "-i"; }))
         {
             verify_instructions(p);
+        }
+        else if(std::any_of(args.begin(), args.end(), [](const auto& s) { return s == "-r"; }))
+        {
+            verify_reduced_program([&] { return migraph::parse_onnx(file); });
         }
         else
         {

@@ -1,0 +1,92 @@
+<?xml version="1.0"?>
+<rule>
+    <pattern> [;{}] [*] \w+? (\+\+|\-\-) ; </pattern>
+    <message>
+        <id>UnusedDeref</id>
+        <severity>style</severity>
+        <summary>Redundant * found, "*p++" is the same as "*(p++)".</summary>
+    </message>
+</rule>
+<rule>
+    <pattern> if \( ([!] )*?(strlen) \( \w+? \) ([>] [0] )*?\) { </pattern>
+    <message>
+        <id>StrlenEmptyString</id>
+        <severity>performance</severity>
+        <summary>Using strlen() to check if a string is empty is not efficient.</summary>
+    </message>
+</rule>
+<rule>
+    <pattern> [;{}] [*] \w+? (\+\+|\-\-) ; </pattern>
+    <message>
+        <id>UnusedDeref</id>
+        <severity>style</severity>
+        <summary>Redundant * found, "*p++" is the same as "*(p++)".</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>define</tokenlist>
+    <pattern>define [0-9A-Z_^a-z]*[a-z]</pattern>
+    <message>
+        <id>defineUpperCase</id>
+        <severity>style</severity>
+        <summary>Macros must be uppercase</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>define</tokenlist>
+    <pattern>define (MIGRAP|[^H]{6})[^H][^_]</pattern>
+    <message>
+        <id>definePrefix</id>
+        <severity>style</severity>
+        <summary>Macros must be prefixed with MIGRAPH_</summary>
+    </message>
+</rule>
+<rule>
+    <pattern>(memcpy|strcpy|strncpy|strcat|strncat) \(</pattern>
+    <message>
+        <id>useStlAlgorithms</id>
+        <severity>style</severity>
+        <summary>Use std::copy instead</summary>
+    </message>
+</rule>
+<rule>
+    <pattern>memset \(</pattern>
+    <message>
+        <id>useStlAlgorithms</id>
+        <severity>style</severity>
+        <summary>Use std::fill instead</summary>
+    </message>
+</rule>
+<rule>
+    <pattern>memcmp \(</pattern>
+    <message>
+        <id>useStlAlgorithms</id>
+        <severity>style</severity>
+        <summary>Use std::equal_range instead</summary>
+    </message>
+</rule>
+<rule>
+    <pattern>memchr \(</pattern>
+    <message>
+        <id>useStlAlgorithms</id>
+        <severity>style</severity>
+        <summary>Use std::find instead</summary>
+    </message>
+</rule>
+<rule>
+    <pattern>(fclose|free|hipFree) \(</pattern>
+    <message>
+        <id>useManagePointer</id>
+        <severity>style</severity>
+        <summary>Use manage pointer for resource management</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern>! !</pattern>
+    <message>
+        <id>doubleNegative</id>
+        <severity>style</severity>
+        <summary>Double negative is always positive</summary>
+    </message>
+</rule>

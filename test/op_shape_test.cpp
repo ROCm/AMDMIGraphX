@@ -117,16 +117,18 @@ void reshape_shape()
 void flatten_shape()
 {
     migraph::shape input{migraph::shape::float_type, {2, 4, 6, 8}};
-    expect_shape(
-        migraph::shape{migraph::shape::float_type, {1, 2 * 4 * 6 * 8}}, migraph::op::flatten{0}, input);
+    expect_shape(migraph::shape{migraph::shape::float_type, {1, 2 * 4 * 6 * 8}},
+                 migraph::op::flatten{0},
+                 input);
     expect_shape(
         migraph::shape{migraph::shape::float_type, {2, 4 * 6 * 8}}, migraph::op::flatten{1}, input);
     expect_shape(
         migraph::shape{migraph::shape::float_type, {2 * 4, 6 * 8}}, migraph::op::flatten{2}, input);
     expect_shape(
         migraph::shape{migraph::shape::float_type, {2 * 4 * 6, 8}}, migraph::op::flatten{3}, input);
-    expect_shape(
-        migraph::shape{migraph::shape::float_type, {2 * 4 * 6 * 8, 1}}, migraph::op::flatten{4}, input);
+    expect_shape(migraph::shape{migraph::shape::float_type, {2 * 4 * 6 * 8, 1}},
+                 migraph::op::flatten{4},
+                 input);
     throws_shape(migraph::op::flatten{5}, input);
 }
 

@@ -72,7 +72,7 @@ void pytorch_conv_relu_maxpool_x2()
     auto l4       = p.add_instruction(migraph::op::broadcast{axis}, l3, l2);
     auto l5       = p.add_instruction(migraph::op::add{}, l3, l4);
     auto l6       = p.add_instruction(migraph::op::activation{"relu"}, l5);
-    auto l7       = p.add_instruction(migraph::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{2, 2}}}, l6);
+    auto l7 = p.add_instruction(migraph::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{2, 2}}}, l6);
 
     auto l8  = p.add_parameter("3", {migraph::shape::float_type, {1, 5, 5, 5}});
     auto l9  = p.add_parameter("4", {migraph::shape::float_type, {1}});

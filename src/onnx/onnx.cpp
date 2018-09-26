@@ -105,7 +105,8 @@ struct onnx_parser
     parse_softmax(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         auto dims = args.front()->get_shape().lens();
-        auto r = prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1]), 1, 1}}, args.front());
+        auto r =
+            prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1]), 1, 1}}, args.front());
         auto s = prog.add_instruction(op::softmax{}, r);
         return prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1])}}, s);
     }
@@ -231,10 +232,10 @@ struct onnx_parser
     instruction_ref
     parse_batchnorm(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        float epsilon                                 = 1e-5f;
-        float momentum                                = 0.9f;
+        float epsilon                                     = 1e-5f;
+        float momentum                                    = 0.9f;
         op::batch_norm_inference::bn_infer_mode_t bn_mode = op::batch_norm_inference::spatial;
-        bool is_test                                  = false;
+        bool is_test                                      = false;
         if(contains(attributes, "epsilon"))
         {
             epsilon = parse_value(attributes.at("epsilon")).at<float>();

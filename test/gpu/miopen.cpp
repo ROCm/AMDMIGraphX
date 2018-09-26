@@ -157,8 +157,8 @@ struct test_literals
             generate_literal(migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}}));
         auto weights = p.add_literal(
             generate_literal(migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}}));
-        auto conv = p.add_instruction(migraph::convolution{}, input, weights);
-        p.add_instruction(migraph::activation{"relu"}, conv);
+        auto conv = p.add_instruction(migraph::op::convolution{}, input, weights);
+        p.add_instruction(migraph::op::activation{"relu"}, conv);
         return p;
     }
 };
@@ -171,7 +171,7 @@ struct test_add
         migraph::shape s{migraph::shape::float_type, {3}};
         auto x = p.add_parameter("x", s);
         auto y = p.add_parameter("y", s);
-        p.add_instruction(migraph::add{}, x, y);
+        p.add_instruction(migraph::op::add{}, x, y);
         return p;
     }
 };
@@ -184,8 +184,8 @@ struct test_add_broadcast
         migraph::shape s{migraph::shape::float_type, {3}};
         auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 2, 3}});
         auto y  = p.add_parameter("y", {migraph::shape::float_type, {2, 2}});
-        auto by = p.add_instruction(migraph::broadcast{0}, x, y);
-        p.add_instruction(migraph::add{}, x, by);
+        auto by = p.add_instruction(migraph::op::broadcast{0}, x, y);
+        p.add_instruction(migraph::op::add{}, x, by);
         return p;
     }
 };
@@ -198,8 +198,8 @@ struct test_add_broadcast2
         migraph::shape s{migraph::shape::float_type, {3}};
         auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 3, 4}});
         auto y  = p.add_parameter("y", {migraph::shape::float_type, {3}});
-        auto by = p.add_instruction(migraph::broadcast{1}, x, y);
-        p.add_instruction(migraph::add{}, x, by);
+        auto by = p.add_instruction(migraph::op::broadcast{1}, x, y);
+        p.add_instruction(migraph::op::add{}, x, by);
         return p;
     }
 };
@@ -212,8 +212,8 @@ struct test_add_broadcast3
         migraph::shape s{migraph::shape::float_type, {3}};
         auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 4, 5}});
         auto y  = p.add_parameter("y", {migraph::shape::float_type, {4}});
-        auto by = p.add_instruction(migraph::broadcast{1}, x, y);
-        p.add_instruction(migraph::add{}, x, by);
+        auto by = p.add_instruction(migraph::op::broadcast{1}, x, y);
+        p.add_instruction(migraph::op::add{}, x, by);
         return p;
     }
 };
@@ -226,8 +226,8 @@ struct test_add_broadcast4
         migraph::shape s{migraph::shape::float_type, {3}};
         auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 3, 5}});
         auto y  = p.add_parameter("y", {migraph::shape::float_type, {3}});
-        auto by = p.add_instruction(migraph::broadcast{1}, x, y);
-        p.add_instruction(migraph::add{}, x, by);
+        auto by = p.add_instruction(migraph::op::broadcast{1}, x, y);
+        p.add_instruction(migraph::op::add{}, x, by);
         return p;
     }
 };
@@ -240,8 +240,8 @@ struct test_add_broadcast5
         migraph::shape s{migraph::shape::float_type, {3}};
         auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 4, 8}});
         auto y  = p.add_parameter("y", {migraph::shape::float_type, {4}});
-        auto by = p.add_instruction(migraph::broadcast{1}, x, y);
-        p.add_instruction(migraph::add{}, x, by);
+        auto by = p.add_instruction(migraph::op::broadcast{1}, x, y);
+        p.add_instruction(migraph::op::add{}, x, by);
         return p;
     }
 };
@@ -252,7 +252,7 @@ struct test_softmax
     {
         migraph::program p;
         auto x = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {5, 3, 4, 2}});
-        p.add_instruction(migraph::softmax{}, x);
+        p.add_instruction(migraph::op::softmax{}, x);
         return p;
     }
 };
@@ -263,7 +263,7 @@ struct test_softmax2
     {
         migraph::program p;
         auto x = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {1, 1000, 1, 1}});
-        p.add_instruction(migraph::softmax{}, x);
+        p.add_instruction(migraph::op::softmax{}, x);
         return p;
     }
 };
@@ -276,7 +276,7 @@ struct test_conv
         auto input = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
         auto weights =
             p.add_parameter("w", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
-        p.add_instruction(migraph::convolution{}, input, weights);
+        p.add_instruction(migraph::op::convolution{}, input, weights);
         return p;
     }
 };
@@ -290,7 +290,7 @@ struct test_conv2
             p.add_parameter("x", migraph::shape{migraph::shape::float_type, {1, 512, 28, 28}});
         auto weights =
             p.add_parameter("w", migraph::shape{migraph::shape::float_type, {256, 512, 1, 1}});
-        p.add_instruction(migraph::convolution{{0, 0}, {1, 1}, {1, 1}}, input, weights);
+        p.add_instruction(migraph::op::convolution{{0, 0}, {1, 1}, {1, 1}}, input, weights);
         return p;
     }
 };
@@ -303,8 +303,8 @@ struct test_conv_relu
         auto input = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
         auto weights =
             p.add_parameter("w", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
-        auto conv = p.add_instruction(migraph::convolution{}, input, weights);
-        p.add_instruction(migraph::activation{"relu"}, conv);
+        auto conv = p.add_instruction(migraph::op::convolution{}, input, weights);
+        p.add_instruction(migraph::op::activation{"relu"}, conv);
         return p;
     }
 };
@@ -316,8 +316,8 @@ struct test_add_relu
         migraph::program p;
         auto x   = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
         auto y   = p.add_parameter("y", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
-        auto add = p.add_instruction(migraph::add{}, x, y);
-        p.add_instruction(migraph::activation{"relu"}, add);
+        auto add = p.add_instruction(migraph::op::add{}, x, y);
+        p.add_instruction(migraph::op::activation{"relu"}, add);
         return p;
     }
 };
@@ -331,9 +331,9 @@ struct test_conv_pooling
             p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 32, 32}});
         auto weights =
             p.add_parameter("w", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
-        auto conv    = p.add_instruction(migraph::convolution{}, input, weights);
-        auto pooling = p.add_instruction(migraph::pooling{"max"}, conv);
-        p.add_instruction(migraph::activation{"relu"}, pooling);
+        auto conv    = p.add_instruction(migraph::op::convolution{}, input, weights);
+        auto pooling = p.add_instruction(migraph::op::pooling{"max"}, conv);
+        p.add_instruction(migraph::op::activation{"relu"}, pooling);
         return p;
     }
 };
@@ -345,7 +345,7 @@ struct test_gemm
         migraph::program p;
         auto a = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {4, 5}});
         auto b = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {5, 3}});
-        p.add_instruction(migraph::gemm{}, a, b);
+        p.add_instruction(migraph::op::gemm{}, a, b);
         return p;
     }
 };
@@ -357,7 +357,7 @@ struct test_gemm_ld
         migraph::program p;
         auto a = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {4, 5}, {10, 1}});
         auto b = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {5, 3}, {20, 1}});
-        p.add_instruction(migraph::gemm{}, a, b);
+        p.add_instruction(migraph::op::gemm{}, a, b);
         return p;
     }
 };
@@ -369,8 +369,8 @@ struct test_gemm_transposeb
         migraph::program p;
         auto a  = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {4, 5}});
         auto b  = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {3, 5}});
-        auto bt = p.add_instruction(migraph::transpose{{1, 0}}, b);
-        p.add_instruction(migraph::gemm{}, a, bt);
+        auto bt = p.add_instruction(migraph::op::transpose{{1, 0}}, b);
+        p.add_instruction(migraph::op::gemm{}, a, bt);
         return p;
     }
 };
@@ -382,8 +382,8 @@ struct test_gemm_transposea
         migraph::program p;
         auto a  = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {5, 4}});
         auto b  = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {5, 3}});
-        auto at = p.add_instruction(migraph::transpose{{1, 0}}, a);
-        p.add_instruction(migraph::gemm{}, at, b);
+        auto at = p.add_instruction(migraph::op::transpose{{1, 0}}, a);
+        p.add_instruction(migraph::op::gemm{}, at, b);
         return p;
     }
 };
@@ -395,9 +395,9 @@ struct test_gemm_transposeab
         migraph::program p;
         auto a  = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {5, 4}});
         auto b  = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {3, 5}});
-        auto at = p.add_instruction(migraph::transpose{{1, 0}}, a);
-        auto bt = p.add_instruction(migraph::transpose{{1, 0}}, b);
-        p.add_instruction(migraph::gemm{}, at, bt);
+        auto at = p.add_instruction(migraph::op::transpose{{1, 0}}, a);
+        auto bt = p.add_instruction(migraph::op::transpose{{1, 0}}, b);
+        p.add_instruction(migraph::op::gemm{}, at, bt);
         return p;
     }
 };
@@ -409,7 +409,7 @@ struct test_contiguous
         migraph::program p;
         migraph::shape s{migraph::shape::float_type, {4, 4, 4, 3}, {48, 4, 1, 16}};
         auto x = p.add_parameter("x", s);
-        p.add_instruction(migraph::contiguous{}, x);
+        p.add_instruction(migraph::op::contiguous{}, x);
         EXPECT(p.get_shape().standard());
         return p;
     }
@@ -423,8 +423,8 @@ struct test_transpose
         migraph::shape s{migraph::shape::float_type, {4, 3, 4, 4}};
         auto x                    = p.add_parameter("x", s);
         std::vector<int64_t> perm = {0, 2, 3, 1};
-        auto l                    = p.add_instruction(migraph::transpose{perm}, x);
-        p.add_instruction(migraph::contiguous{}, l);
+        auto l                    = p.add_instruction(migraph::op::transpose{perm}, x);
+        p.add_instruction(migraph::op::contiguous{}, l);
         return p;
     }
 };
@@ -447,7 +447,7 @@ struct test_batchnorm_inference_2
         auto bias     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 2)));
         auto mean     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 3)));
         auto variance = p.add_literal(migraph::abs(migraph::generate_literal(vars, 4)));
-        p.add_instruction(migraph::batch_norm_inference{}, x, scale, bias, mean, variance);
+        p.add_instruction(migraph::op::batch_norm_inference{}, x, scale, bias, mean, variance);
         return p;
     }
 };
@@ -470,7 +470,7 @@ struct test_batchnorm_inference
         auto bias     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 2)));
         auto mean     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 3)));
         auto variance = p.add_literal(migraph::abs(migraph::generate_literal(vars, 4)));
-        p.add_instruction(migraph::batch_norm_inference{}, x, scale, bias, mean, variance);
+        p.add_instruction(migraph::op::batch_norm_inference{}, x, scale, bias, mean, variance);
         return p;
     }
 };
@@ -486,12 +486,12 @@ struct test_conv_bn
         migraph::shape vars{migraph::shape::float_type, {64}};
         auto x        = p.add_parameter("x", xs);
         auto w        = p.add_parameter("w", ws);
-        auto conv     = p.add_instruction(migraph::convolution{{3, 3}, {2, 2}, {1, 1}}, x, w);
+        auto conv     = p.add_instruction(migraph::op::convolution{{3, 3}, {2, 2}, {1, 1}}, x, w);
         auto scale    = p.add_literal(migraph::abs(migraph::generate_literal(vars, 1)));
         auto bias     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 2)));
         auto mean     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 3)));
         auto variance = p.add_literal(migraph::abs(migraph::generate_literal(vars, 4)));
-        p.add_instruction(migraph::batch_norm_inference{}, conv, scale, bias, mean, variance);
+        p.add_instruction(migraph::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
         return p;
     }
 };
@@ -507,15 +507,15 @@ struct test_conv_bn_relu_pooling
         migraph::shape vars{migraph::shape::float_type, {64}};
         auto x        = p.add_parameter("x", xs);
         auto w        = p.add_parameter("w", ws);
-        auto conv     = p.add_instruction(migraph::convolution{{3, 3}, {2, 2}, {1, 1}}, x, w);
+        auto conv     = p.add_instruction(migraph::op::convolution{{3, 3}, {2, 2}, {1, 1}}, x, w);
         auto scale    = p.add_literal(migraph::abs(migraph::generate_literal(vars, 1)));
         auto bias     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 2)));
         auto mean     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 3)));
         auto variance = p.add_literal(migraph::abs(migraph::generate_literal(vars, 4)));
         auto bn =
-            p.add_instruction(migraph::batch_norm_inference{}, conv, scale, bias, mean, variance);
-        auto relu = p.add_instruction(migraph::activation{"relu"}, bn);
-        p.add_instruction(migraph::pooling{"average", {1, 1}, {2, 2}, {3, 3}}, relu);
+            p.add_instruction(migraph::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
+        auto relu = p.add_instruction(migraph::op::activation{"relu"}, bn);
+        p.add_instruction(migraph::op::pooling{"average", {1, 1}, {2, 2}, {3, 3}}, relu);
         return p;
     }
 };
@@ -530,7 +530,7 @@ struct test_conv_bn_relu_pooling2
         auto bias     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 2 + channels)));
         auto mean     = p.add_literal(migraph::abs(migraph::generate_literal(vars, 3 + channels)));
         auto variance = p.add_literal(migraph::abs(migraph::generate_literal(vars, 4 + channels)));
-        return p.add_instruction(migraph::batch_norm_inference{}, x, scale, bias, mean, variance);
+        return p.add_instruction(migraph::op::batch_norm_inference{}, x, scale, bias, mean, variance);
     }
     migraph::program create_program() const
     {
@@ -542,15 +542,15 @@ struct test_conv_bn_relu_pooling2
         migraph::shape ws2{migraph::shape::float_type, {2048, 1024, 1, 1}};
         auto x1    = p.add_parameter("x1", xs1);
         auto w1    = p.add_parameter("w1", ws1);
-        auto conv1 = p.add_instruction(migraph::convolution{{0, 0}, {1, 1}, {1, 1}}, x1, w1);
+        auto conv1 = p.add_instruction(migraph::op::convolution{{0, 0}, {1, 1}, {1, 1}}, x1, w1);
         auto bn1   = add_bn(p, conv1, 2048);
         auto x2    = p.add_parameter("x2", xs2);
         auto w2    = p.add_parameter("w2", ws2);
-        auto conv2 = p.add_instruction(migraph::convolution{{0, 0}, {2, 2}, {1, 1}}, x2, w2);
+        auto conv2 = p.add_instruction(migraph::op::convolution{{0, 0}, {2, 2}, {1, 1}}, x2, w2);
         auto bn2   = add_bn(p, conv2, 2048);
-        auto add   = p.add_instruction(migraph::add{}, bn1, bn2);
-        auto relu  = p.add_instruction(migraph::activation{"relu"}, add);
-        p.add_instruction(migraph::pooling{"average", {1, 1}, {2, 2}, {3, 3}}, relu);
+        auto add   = p.add_instruction(migraph::op::add{}, bn1, bn2);
+        auto relu  = p.add_instruction(migraph::op::activation{"relu"}, add);
+        p.add_instruction(migraph::op::pooling{"average", {1, 1}, {2, 2}, {3, 3}}, relu);
         return p;
     }
 };

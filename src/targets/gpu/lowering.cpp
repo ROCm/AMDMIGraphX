@@ -20,7 +20,7 @@ namespace gpu {
 
 struct miopen_batch_norm_inference
 {
-    batch_norm_inference op;
+    op::batch_norm_inference op;
 
     std::string name() const { return "gpu::batch_norm_inference"; }
 
@@ -61,7 +61,7 @@ struct miopen_batch_norm_inference
 
 struct miopen_convolution
 {
-    convolution op;
+    op::convolution op;
     shared<convolution_descriptor> cd;
     miopenConvFwdAlgorithm_t algo{};
 
@@ -144,7 +144,7 @@ struct miopen_convolution
 
 struct miopen_pooling
 {
-    pooling op;
+    op::pooling op;
     shared<pooling_descriptor> pd;
 
     std::string name() const { return "gpu::pooling"; }
@@ -227,7 +227,7 @@ struct miopen_add
 
 struct miopen_gemm
 {
-    gemm op;
+    op::gemm op;
     std::string name() const { return "gpu::gemm"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
@@ -267,7 +267,7 @@ struct miopen_gemm
 
 struct miopen_contiguous
 {
-    contiguous op;
+    op::contiguous op;
     std::string name() const { return "gpu::contiguous"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
@@ -315,7 +315,7 @@ struct miopen_relu
 
 struct miopen_softmax
 {
-    softmax op;
+    op::softmax op;
     std::string name() const { return "gpu::softmax"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
@@ -409,7 +409,7 @@ struct miopen_apply
 
     instruction_ref apply_convolution(instruction_ref ins)
     {
-        auto&& op = any_cast<convolution>(ins->get_operator());
+        auto&& op = any_cast<op::convolution>(ins->get_operator());
 
         auto conv = miopen_convolution{op, make_conv(op)};
         auto ws   = conv.compile(ctx, ins->get_shape(), ins->inputs());
@@ -423,7 +423,7 @@ struct miopen_apply
 
     instruction_ref apply_pooling(instruction_ref ins)
     {
-        auto&& op   = any_cast<pooling>(ins->get_operator());
+        auto&& op   = any_cast<op::pooling>(ins->get_operator());
         auto pd     = make_pooling(op);
         auto output = insert_allocation(ins, ins->get_shape());
 
@@ -433,7 +433,7 @@ struct miopen_apply
 
     instruction_ref apply_activation(instruction_ref ins)
     {
-        auto&& op = any_cast<activation>(ins->get_operator());
+        auto&& op = any_cast<op::activation>(ins->get_operator());
         auto ad   = make_relu();
         if(op.mode == "relu")
         {
@@ -446,7 +446,7 @@ struct miopen_apply
 
     instruction_ref apply_softmax(instruction_ref ins)
     {
-        auto&& op   = any_cast<softmax>(ins->get_operator());
+        auto&& op   = any_cast<op::softmax>(ins->get_operator());
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(ins, miopen_softmax{op}, ins->inputs().at(0), output);
     }
@@ -460,7 +460,7 @@ struct miopen_apply
 
     instruction_ref apply_gemm(instruction_ref ins)
     {
-        auto&& op   = any_cast<gemm>(ins->get_operator());
+        auto&& op   = any_cast<op::gemm>(ins->get_operator());
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(
             ins, miopen_gemm{op}, ins->inputs().at(0), ins->inputs().at(1), output);
@@ -468,18 +468,18 @@ struct miopen_apply
 
     instruction_ref apply_contiguous(instruction_ref ins)
     {
-        auto&& op   = any_cast<contiguous>(ins->get_operator());
+        auto&& op   = any_cast<op::contiguous>(ins->get_operator());
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(ins, miopen_contiguous{op}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_batch_norm_inference(instruction_ref ins)
     {
-        auto&& op       = any_cast<batch_norm_inference>(ins->get_operator());
+        auto&& op       = any_cast<op::batch_norm_inference>(ins->get_operator());
         auto output     = insert_allocation(ins, ins->get_shape());
         shape old_shape = ins->inputs().at(1)->get_shape();
         std::vector<int64_t> new_shape{1, static_cast<int64_t>(old_shape.elements()), 1, 1};
-        auto reshape_op = reshape{new_shape};
+        auto reshape_op = op::reshape{new_shape};
         std::vector<instruction_ref> reshapes;
         std::transform(ins->inputs().begin() + 1,
                        ins->inputs().end(),

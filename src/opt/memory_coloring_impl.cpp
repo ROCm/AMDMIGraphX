@@ -228,9 +228,9 @@ void memory_coloring_impl::rewrite()
 
             if(is_allocate(ins))
             {
-                assert(!ins->arguments.empty());
+                assert(!ins->inputs().empty());
                 p_program->replace_instruction(
-                    ins, load{ins->arguments.at(0)->result, offset}, scratch_param);
+                    ins, load{ins->inputs().at(0)->get_shape(), offset}, scratch_param);
             }
             else if(is_literal(ins))
             {

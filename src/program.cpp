@@ -203,6 +203,25 @@ shape program::get_parameter_shape(std::string name) const
         return {};
 }
 
+instruction_ref program::get_parameter(std::string name) const
+{
+    auto ins = std::find_if(
+        impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
+            if(x.name() == "@param")
+            {
+                return any_cast<builtin::param>(x.get_operator()).parameter == name;
+            }
+            else
+            {
+                return false;
+            }
+        });
+    if(ins != this->end())
+        return ins;
+    else
+        return this->end();
+}
+
 std::unordered_map<std::string, shape> program::get_parameter_shapes() const
 {
     std::unordered_map<std::string, shape> result;
@@ -437,5 +456,4 @@ std::ostream& operator<<(std::ostream& os, const program& p)
     print_program(os, p, [](auto&&...) {});
     return os;
 }
-
 } // namespace migraph

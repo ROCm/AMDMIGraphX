@@ -375,10 +375,10 @@ struct squeeze
         std::vector<std::size_t> new_lens;
         if(axes.empty())
         {
-            for(std::size_t i = 0; i < old_lens.size(); i++)
+            for (unsigned long len : old_lens)
             {
-                if(old_lens[i] != 1)
-                    new_lens.push_back(old_lens[i]);
+                if(len != 1)
+                    new_lens.push_back(len);
             }
         }
         else

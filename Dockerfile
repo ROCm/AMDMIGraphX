@@ -6,8 +6,11 @@ ARG PREFIX=/usr/local
 RUN dpkg --add-architecture i386
 
 # Add rocm repository
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y curl apt-utils wget
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y curl apt-utils wget software-properties-common
 RUN curl https://raw.githubusercontent.com/RadeonOpenCompute/ROCm-docker/master/add-rocm.sh | bash
+
+# Add ubuntu toolchain
+RUN apt-get update && add-apt-repository ppa:ubuntu-toolchain-r/test -y
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
@@ -19,6 +22,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     cmake \
     curl \
     doxygen \
+    g++-7 \
     gdb \
     git \
     hsa-rocr-dev \
@@ -26,14 +30,14 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     lcov \
     libelf-dev \
     libncurses5-dev \
-    libpthread-stubs0-dev \
     libnuma-dev \
+    libpthread-stubs0-dev \
     python \
     python-dev \
     python-pip \
-    rocminfo \
     rocm-opencl \
     rocm-opencl-dev \
+    rocminfo \
     software-properties-common \
     wget && \
     apt-get clean && \

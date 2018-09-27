@@ -97,11 +97,15 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Release') {
         cmake_build('hcc', '-DCMAKE_BUILD_TYPE=release')
     }
-}, gcc: rocmnode('rocmtest') { cmake_build ->
-    stage('GCC Debug') {
+}, gcc5: rocmnode('rocmtest') { cmake_build ->
+    stage('GCC 5 Debug') {
         cmake_build('g++-5', '-DCMAKE_BUILD_TYPE=debug')
     }
-    stage('GCC Release') {
+    stage('GCC 5 Release') {
         cmake_build('g++-5', '-DCMAKE_BUILD_TYPE=release')
+    }
+}, gcc7: rocmnode('rocmtest') { cmake_build ->
+    stage('GCC 7 Debug') {
+        cmake_build('g++-7', '-DCMAKE_BUILD_TYPE=debug')
     }
 }

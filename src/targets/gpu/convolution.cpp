@@ -12,8 +12,9 @@ shape miopen_convolution::compute_shape(const std::vector<shape>& inputs) const
     check_shapes{inputs, *this}.has(4).standard();
     return op.compute_shape({inputs.at(0), inputs.at(1)});
 }
-argument
-miopen_convolution::compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+argument miopen_convolution::compute(context& ctx,
+                                     const shape& output_shape,
+                                     const std::vector<argument>& args) const
 {
     auto x_desc = make_tensor(args[0].get_shape());
     auto w_desc = make_tensor(args[1].get_shape());
@@ -36,7 +37,9 @@ miopen_convolution::compute(context& ctx, const shape& output_shape, const std::
     return args[3];
 }
 
-shape miopen_convolution::compile(context& ctx, const shape& output_shape, std::vector<instruction_ref> inputs)
+shape miopen_convolution::compile(context& ctx,
+                                  const shape& output_shape,
+                                  std::vector<instruction_ref> inputs)
 {
     shape workspace_shape{};
     auto x_desc = make_tensor(inputs[0]->get_shape());
@@ -76,4 +79,3 @@ shape miopen_convolution::compile(context& ctx, const shape& output_shape, std::
 } // namespace gpu
 
 } // namespace migraph
-

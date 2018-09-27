@@ -12,8 +12,9 @@ shape miopen_gemm::compute_shape(const std::vector<shape>& inputs) const
     check_shapes{inputs, *this}.has(3);
     return op.compute_shape({inputs.at(0), inputs.at(1)});
 }
-argument
-miopen_gemm::compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+argument miopen_gemm::compute(context& ctx,
+                              const shape& output_shape,
+                              const std::vector<argument>& args) const
 {
     float alpha     = 1.0f;
     float beta      = 0.0f;
@@ -45,4 +46,3 @@ miopen_gemm::compute(context& ctx, const shape& output_shape, const std::vector<
 } // namespace gpu
 
 } // namespace migraph
-

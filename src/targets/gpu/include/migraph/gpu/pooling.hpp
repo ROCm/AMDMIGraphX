@@ -20,7 +20,6 @@
 namespace migraph {
 namespace gpu {
 
-
 struct miopen_pooling
 {
     pooling op;

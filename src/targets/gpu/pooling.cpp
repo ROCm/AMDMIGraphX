@@ -12,8 +12,9 @@ shape miopen_pooling::compute_shape(const std::vector<shape>& inputs) const
     check_shapes{inputs, *this}.has(2).standard();
     return op.compute_shape({inputs.at(0)});
 }
-argument
-miopen_pooling::compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+argument miopen_pooling::compute(context& ctx,
+                                 const shape& output_shape,
+                                 const std::vector<argument>& args) const
 {
     auto x_desc = make_tensor(args[0].get_shape());
     auto y_desc = make_tensor(output_shape);
@@ -38,4 +39,3 @@ miopen_pooling::compute(context& ctx, const shape& output_shape, const std::vect
 } // namespace gpu
 
 } // namespace migraph
-

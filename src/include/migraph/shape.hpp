@@ -63,6 +63,7 @@ struct shape
     const std::vector<std::size_t>& strides() const;
     std::size_t elements() const;
     std::size_t bytes() const;
+    std::size_t type_size() const;
 
     /// Map multiple indices to space index
     std::size_t index(std::initializer_list<std::size_t> l) const;

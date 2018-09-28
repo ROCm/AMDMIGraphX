@@ -3,6 +3,7 @@ def rocmtestnode(variant, name, body) {
     def image = 'migraphlib'
     def cmake_build = { compiler, flags ->
         def cmd = """
+            ulimit -c unlimited
             rm -rf build
             mkdir build
             cd build

@@ -109,7 +109,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
 }, gcc7: rocmnode('rocmtest') { cmake_build ->
     stage('GCC 7 Debug') {
         def linker_flags = '-fuse-ld=gold'
-        def cmake_linker_flags = "-DCMAKE_EXE_LINKER_FLAGS='${linker_flags}' -DCMAKE_SHARED_LINKER_FLAGS='${linker_flags}' -DCMAKE_STATIC_LINKER_FLAGS='${linker_flags}'"
+        def cmake_linker_flags = "-DCMAKE_EXE_LINKER_FLAGS='${linker_flags}' -DCMAKE_SHARED_LINKER_FLAGS='${linker_flags}'"
         // TODO: Add bounds-strict
         def sanitizers = "undefined,address"
         cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='-g -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}'")

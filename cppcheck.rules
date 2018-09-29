@@ -90,3 +90,201 @@
         <summary>Double negative is always positive</summary>
     </message>
 </rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[if \( \w+ (\||&) \w+ \)]]></pattern>
+    <message>
+        <id>BitwiseOperatorInConditional</id>
+        <severity>style</severity>
+        <summary>Bitwise operator found in if statement.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[if \( [^)]+ \) { if \( [^)]+ \) ({[^{}]*(?1)*[^{}]*}) }]]></pattern>
+    <message>
+        <id>CollapsibleIfStatements</id>
+        <severity>style</severity>
+        <summary>These two if statements can be collapsed into one.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[catch \( [^())]+ \) { }]]></pattern>
+    <message>
+        <id>EmptyCatchStatement</id>
+        <severity>style</severity>
+        <summary>An empty catch statement.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[do { } while \(]]></pattern>
+    <message>
+        <id>EmptyDoWhileStatement</id>
+        <severity>style</severity>
+        <summary>Empty do-while.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[else { }]]></pattern>
+    <message>
+        <id>EmptyElseBlock</id>
+        <severity>style</severity>
+        <summary>Empty else statement can be safely removed.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[for \( [^()]+ \) { }]]></pattern>
+    <message>
+        <id>EmptyForStatement</id>
+        <severity>style</severity>
+        <summary>Empty for statement.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[if \( [^()]+ \) { }]]></pattern>
+    <message>
+        <id>EmptyIfStatement</id>
+        <severity>style</severity>
+        <summary>Empty if statement.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[switch \( [^()]+ \) { }]]></pattern>
+    <message>
+        <id>EmptySwitchStatement</id>
+        <severity>style</severity>
+        <summary>Empty switch statement.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[while \( [^()]+ \) { }]]></pattern>
+    <message>
+        <id>EmptyWhileStatement</id>
+        <severity>style</severity>
+        <summary>Empty while statement.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[ for \( ; [^;]+ ; \)]]></pattern>
+    <message>
+        <id>ForLoopShouldBeWhileLoop</id>
+        <severity>style</severity>
+        <summary>For loop should be written as a while loop.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern>goto</pattern>
+    <message>
+        <id>GotoStatement</id>
+        <severity>style</severity>
+        <summary>Goto considered harmful.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[if \( \w+ != \w+ \) ({[^{}]*(?1)*[^{}]*}) else { (?!if)]]></pattern>
+    <message>
+        <id>InvertedLogic</id>
+        <severity>style</severity>
+        <summary>It is cleaner to invert the logic.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[if \( ! \w+ \) ({[^{}]*(?1)*[^{}]*}) else { (?!if)]]></pattern>
+    <message>
+        <id>InvertedLogic</id>
+        <severity>style</severity>
+        <summary>It is cleaner to invert the logic.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[\w+ != \w+ \?]]></pattern>
+    <message>
+        <id>InvertedLogic</id>
+        <severity>style</severity>
+        <summary>It is cleaner to invert the logic.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[! \w+ \?]]></pattern>
+    <message>
+        <id>InvertedLogic</id>
+        <severity>style</severity>
+        <summary>It is cleaner to invert the logic.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[\? (true|false) : (true|false)]]></pattern>
+    <message>
+        <id>RedundantConditionalOperator</id>
+        <severity>style</severity>
+        <summary>Conditional operator is redundant.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[if \( [^()]+ \) { return (true|false) ; } else { return (true|false) ; }]]></pattern>
+    <message>
+        <id>RedundantIfStatement</id>
+        <severity>style</severity>
+        <summary>The if statement is redundant.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[for \( \w+ (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = \w+ \[ \1 \] ; }]]></pattern>
+    <message>
+        <id>useStlAlgorithm</id>
+        <severity>style</severity>
+        <summary>Considering using std::copy instead.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[for \( \w+ (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = \w+ ; }]]></pattern>
+    <message>
+        <id>useStlAlgorithm</id>
+        <severity>style</severity>
+        <summary>Considering using std::fill instead.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[for \( \w+ (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = (\w+ :: )*\w+ \( \) ; }]]></pattern>
+    <message>
+        <id>useStlAlgorithm</id>
+        <severity>style</severity>
+        <summary>Considering using std::generate instead.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[for \( \w+ (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = (\w+ :: )*\w+ \( \w+ \[ \1 \] \) ; }]]></pattern>
+    <message>
+        <id>useStlAlgorithm</id>
+        <severity>style</severity>
+        <summary>Considering using std::transform instead.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[for \( \w+ (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = (\w+ :: )*\w+ \( \w+ \[ \1 \] , \w+ \[ \1 \] \) ; }]]></pattern>
+    <message>
+        <id>useStlAlgorithm</id>
+        <severity>style</severity>
+        <summary>Considering using std::transform instead.</summary>
+    </message>
+</rule>

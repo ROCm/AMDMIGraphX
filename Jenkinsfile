@@ -93,7 +93,8 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     }
 }, clang: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Debug') {
-        def sanitizers = "undefined,integer"
+        // TODO: Enanle integer
+        def sanitizers = "undefined"
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=debug -DCMAKE_CXX_FLAGS_DEBUG='-g -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}'")
     }
     stage('Clang Release') {

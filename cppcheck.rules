@@ -245,6 +245,15 @@
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[if \( [^()]+ \) { [^{}]* (return|throw|break|continue) [^;]* ; } else {]]></pattern>
+    <message>
+        <id>UnnecessaryElseStatement</id>
+        <severity>style</severity>
+        <summary>Else statement is not necessary.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
     <pattern><![CDATA[for \( \w+ (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = \w+ \[ \1 \] ; }]]></pattern>
     <message>
         <id>useStlAlgorithm</id>

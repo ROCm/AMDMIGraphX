@@ -37,7 +37,5 @@ void write_literals::apply(program& p) const
         }
     }
 }
-
 } // namespace gpu
-
 } // namespace migraph

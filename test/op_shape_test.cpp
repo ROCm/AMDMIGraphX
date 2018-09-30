@@ -132,6 +132,19 @@ void flatten_shape()
     throws_shape(migraph::op::flatten{5}, input);
 }
 
+void slice_shape()
+{
+    migraph::shape input{migraph::shape::int32_type, {2, 2, 3}};
+    expect_shape(migraph::shape{migraph::shape::int32_type, {2, 2, 2}, {6, 3, 1}},
+                 migraph::op::slice{{2}, {1}, {3}},
+                 input);
+    expect_shape(migraph::shape{migraph::shape::int32_type, {2, 2, 2}, {6, 3, 1}},
+                 migraph::op::slice{{0, 1, 2}, {0, 0, 1}, {2, 2, 3}},
+                 input);
+    expect_shape(migraph::shape{migraph::shape::int32_type, {2, 2, 1}, {6, 3, 1}},
+                 migraph::op::slice{{2}, {2}, {10}},
+                 input);
+}
 int main()
 {
     batch_norm_inference_shape();
@@ -140,4 +153,5 @@ int main()
     contiguous_shape();
     reshape_shape();
     flatten_shape();
+    slice_shape();
 }

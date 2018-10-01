@@ -35,6 +35,7 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
         dead_code_elimination{},
         write_literals{&ctx},
         memory_coloring{"hip::allocate"},
+        lowering_memory_coloring{&ctx},            
         eliminate_workspace{},
         eliminate_allocation{"hip::allocate"},
         check_context<context>{},

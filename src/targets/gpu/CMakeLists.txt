@@ -36,16 +36,17 @@ add_library(migraph_gpu
     batchnorm.cpp
     write_literals.cpp
     rocblas.cpp
+    lowering_memory_coloring.cpp
 )
 rocm_clang_tidy_check(migraph_gpu)
 target_link_libraries(migraph_gpu migraph MIOpen migraph_device roc::rocblas)
 target_include_directories(migraph_gpu PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
-#install (TARGETS migraph_gpu
-#  LIBRARY DESTINATION /opt/rocm/lib)
-#install (DIRECTORY include/migraph DESTINATION /opt/rocm/include)
+install (TARGETS migraph_gpu
+  LIBRARY DESTINATION /opt/rocm/lib)
+install (DIRECTORY include/migraph DESTINATION /opt/rocm/include)
 
-#install (TARGETS migraph_device
-#  LIBRARY DESTINATION /opt/rocm/lib)
-#install (DIRECTORY include/migraph DESTINATION /opt/rocm/include)
+install (TARGETS migraph_device
+  LIBRARY DESTINATION /opt/rocm/lib)
+install (DIRECTORY include/migraph DESTINATION /opt/rocm/include)
 

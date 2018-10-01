@@ -138,11 +138,11 @@ struct memory_coloring_impl
             int len2 = i2->get_end() - i2->get_begin();
             if(len1 != len2)
             {
-                return (len1 < len2) ? true : false;
+                return (len1 < len2);
             }
             else if(i1->result.bytes() != i2->result.bytes())
             {
-                return (i1->result.bytes() < i2->result.bytes()) ? true : false;
+                return (i1->result.bytes() < i2->result.bytes());
             }
             else
             {

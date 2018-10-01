@@ -35,10 +35,7 @@ std::future<typename std::result_of<Function()>::type> detach_async(Function&& f
         std::thread(std::move(task)).detach();
         return std::move(fut);
     }
-    else
-    {
-        return std::async(std::launch::deferred, std::forward<Function>(f));
-    }
+    return std::async(std::launch::deferred, std::forward<Function>(f));
 }
 
 struct auto_print

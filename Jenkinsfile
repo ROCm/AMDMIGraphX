@@ -3,10 +3,11 @@ def rocmtestnode(variant, name, body) {
     def image = 'migraphlib'
     def cmake_build = { compiler, flags ->
         def cmd = """
+            ulimit -c unlimited
             rm -rf build
             mkdir build
             cd build
-            CXX=${compiler} CXXFLAGS='-Werror -Wno-fallback' cmake -DCMAKE_CXX_FLAGS_DEBUG='-g -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined' ${flags} .. 
+            CXX=${compiler} CXXFLAGS='-Werror -Wno-fallback' cmake ${flags} .. 
             CTEST_PARALLEL_LEVEL=32 make -j32 all doc check
         """
         echo cmd
@@ -92,16 +93,26 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     }
 }, clang: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Debug') {
-        cmake_build('hcc', '-DCMAKE_BUILD_TYPE=debug')
+        // TODO: Enanle integer
+        def sanitizers = "undefined"
+        cmake_build("hcc", "-DCMAKE_BUILD_TYPE=debug -DCMAKE_CXX_FLAGS_DEBUG='-g -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}'")
     }
     stage('Clang Release') {
-        cmake_build('hcc', '-DCMAKE_BUILD_TYPE=release')
+        cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release")
     }
-}, gcc: rocmnode('rocmtest') { cmake_build ->
-    stage('GCC Debug') {
-        cmake_build('g++-5', '-DCMAKE_BUILD_TYPE=debug')
+}, gcc5: rocmnode('rocmtest') { cmake_build ->
+    stage('GCC 5 Debug') {
+        cmake_build("g++-5", "-DCMAKE_BUILD_TYPE=debug")
     }
-    stage('GCC Release') {
-        cmake_build('g++-5', '-DCMAKE_BUILD_TYPE=release')
+    stage('GCC 5 Release') {
+        cmake_build("g++-5", "-DCMAKE_BUILD_TYPE=release")
+    }
+}, gcc7: rocmnode('rocmtest') { cmake_build ->
+    stage('GCC 7 Debug') {
+        def linker_flags = '-fuse-ld=gold'
+        def cmake_linker_flags = "-DCMAKE_EXE_LINKER_FLAGS='${linker_flags}' -DCMAKE_SHARED_LINKER_FLAGS='${linker_flags}'"
+        // TODO: Add bounds-strict
+        def sanitizers = "undefined,address"
+        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='-g -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}'")
     }
 }

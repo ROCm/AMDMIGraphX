@@ -22,7 +22,7 @@ namespace gpu {
 
 struct miopen_softmax
 {
-    softmax op;
+    op::softmax op;
     std::string name() const { return "gpu::softmax"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument

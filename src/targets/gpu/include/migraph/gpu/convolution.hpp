@@ -22,7 +22,7 @@ namespace gpu {
 
 struct miopen_convolution
 {
-    convolution op;
+    op::convolution op;
     shared<convolution_descriptor> cd;
     miopenConvFwdAlgorithm_t algo{};
 

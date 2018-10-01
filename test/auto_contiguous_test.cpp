@@ -41,7 +41,7 @@ void after_literal_transpose()
     auto l = p.add_literal(get_2x2());
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
-    auto t = p.add_instruction(migraph::transpose{{1, 0}}, l);
+    auto t = p.add_instruction(migraph::op::transpose{{1, 0}}, l);
     p.add_instruction(pass_op{}, t);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().transposed());
@@ -57,7 +57,7 @@ void after_literal_broadcast()
     auto l2 = p.add_literal(get_2());
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().broadcasted());
-    auto b = p.add_instruction(migraph::broadcast{}, l1, l2);
+    auto b = p.add_instruction(migraph::op::broadcast{}, l1, l2);
     p.add_instruction(pass_op{}, b);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().broadcasted());
@@ -72,7 +72,7 @@ void after_param_transpose()
     auto l = p.add_parameter("2x2", {migraph::shape::float_type, {2, 2}});
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
-    auto t = p.add_instruction(migraph::transpose{{1, 0}}, l);
+    auto t = p.add_instruction(migraph::op::transpose{{1, 0}}, l);
     p.add_instruction(pass_op{}, t);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().transposed());
@@ -88,7 +88,7 @@ void after_param_broadcast()
     auto l2 = p.add_parameter("2", {migraph::shape::float_type, {2}});
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().broadcasted());
-    auto b = p.add_instruction(migraph::broadcast{}, l1, l2);
+    auto b = p.add_instruction(migraph::op::broadcast{}, l1, l2);
     p.add_instruction(pass_op{}, b);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().broadcasted());

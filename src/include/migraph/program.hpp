@@ -75,6 +75,8 @@ struct program
 
     shape get_parameter_shape(std::string name) const;
 
+    instruction_ref get_parameter(std::string name) const;
+
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
     argument eval(parameter_map params) const;
@@ -100,7 +102,6 @@ struct program
     private:
     std::unique_ptr<program_impl> impl;
 };
-
 } // namespace migraph
 
 #endif

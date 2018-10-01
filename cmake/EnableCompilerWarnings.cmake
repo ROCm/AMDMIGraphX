@@ -68,6 +68,19 @@ else()
 
             -Wno-sign-compare
         )
+        # Flags for gcc 7
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+            if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "7.0")
+                list(APPEND CMAKE_COMPILER_WARNINGS 
+                -Wduplicated-branches
+                -Wduplicated-cond
+                -Wno-noexcept-type
+                -Wodr
+                -Wshift-negative-value
+                -Wshift-overflow=2
+            )
+            endif()
+        endif()
         if (CMAKE_${COMPILER}_COMPILER_ID MATCHES "Clang")
             list(APPEND CMAKE_COMPILER_WARNINGS
                 -Weverything

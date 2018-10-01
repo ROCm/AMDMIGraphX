@@ -22,7 +22,7 @@ namespace gpu {
 
 struct miopen_contiguous
 {
-    contiguous op;
+    op::contiguous op;
     std::string name() const { return "gpu::contiguous"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument compute(context&, shape output_shape, const std::vector<argument>& args) const;

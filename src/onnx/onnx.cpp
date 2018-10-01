@@ -93,7 +93,8 @@ struct onnx_parser
                     uint64_t axis = (contains(attributes, "axis"))
                                         ? parse_value(attributes.at("axis")).at<uint64_t>()
                                         : 0;
-                    auto l = prog.add_instruction(op::broadcast{axis, args[0]->get_shape()}, args[1]);
+                    auto l =
+                        prog.add_instruction(op::broadcast{axis, args[0]->get_shape()}, args[1]);
                     return prog.add_instruction(x, args[0], l);
                 }
             }

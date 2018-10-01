@@ -1,5 +1,6 @@
 #include <migraph/auto_contiguous.hpp>
 #include <migraph/operators.hpp>
+#include <migraph/instruction.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -57,7 +58,7 @@ void after_literal_broadcast()
     auto l2 = p.add_literal(get_2());
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().broadcasted());
-    auto b = p.add_instruction(migraph::op::broadcast{}, l1, l2);
+    auto b = p.add_instruction(migraph::op::broadcast{0, l1->get_shape()}, l2);
     p.add_instruction(pass_op{}, b);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().broadcasted());
@@ -88,7 +89,7 @@ void after_param_broadcast()
     auto l2 = p.add_parameter("2", {migraph::shape::float_type, {2}});
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().broadcasted());
-    auto b = p.add_instruction(migraph::op::broadcast{}, l1, l2);
+    auto b = p.add_instruction(migraph::op::broadcast{0, l1->get_shape()}, l2);
     p.add_instruction(pass_op{}, b);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().broadcasted());

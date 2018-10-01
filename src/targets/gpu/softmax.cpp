@@ -13,8 +13,9 @@ shape miopen_softmax::compute_shape(const std::vector<shape>& inputs) const
     return op.compute_shape({inputs.at(0)});
 }
 
-argument
-miopen_softmax::compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+argument miopen_softmax::compute(context& ctx,
+                                 const shape& output_shape,
+                                 const std::vector<argument>& args) const
 {
     float alpha = 1, beta = 0;
     auto x_desc = make_tensor(args[0].get_shape());

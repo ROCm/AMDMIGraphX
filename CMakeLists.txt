@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 
-if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
-    message(FATAL_ERROR "The binary and source directroy cannot be the same")
-endif()
+#if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
+#    message(FATAL_ERROR "The binary and source directroy cannot be the same")
+#endif()
 
 project(migraphlib)
 find_package(ROCM REQUIRED)
@@ -22,7 +22,7 @@ else()
     set(MIGRAPH_ENABLE_GPU Off CACHE BOOL "")
 endif()
 
-add_compile_options(-std=c++14)
+add_compile_options(-std=c++14 -g -O1)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)

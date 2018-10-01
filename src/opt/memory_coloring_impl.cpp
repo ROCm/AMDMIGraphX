@@ -4,6 +4,8 @@ namespace migraph {
 
 void memory_coloring_impl::run()
 {
+    if (enabled(MIGRAPH_UNIFY_MEMORY_COLORING{}))
+        unify_literals = true;
     MIGRAPH_DEBUG(dump("---Before memory coloring---"));
     MIGRAPH_DEBUG(dump_program());
     register_operand_alias();
@@ -232,14 +234,12 @@ void memory_coloring_impl::rewrite()
                 p_program->replace_instruction(
                     ins, op::load{ins->inputs().at(0)->get_shape(), offset}, scratch_param);
             }
-            else if(is_literal(ins))
+            else if(is_literal(ins) && unify_literals)
             {
-#if 0                
-                auto pre      = p_program->add_literal(ins->lit);
+                auto pre      = p_program->add_literal(ins->get_literal());
                 bool pre_copy = (interval->get_begin() < earliest_end_point);
                 p_program->replace_instruction(
                     ins, write_literal{offset, pre_copy}, scratch_param, pre);
-#endif
             }
         }
     }

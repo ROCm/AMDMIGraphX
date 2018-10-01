@@ -22,7 +22,7 @@ namespace gpu {
 
 struct miopen_batch_norm_inference
 {
-    batch_norm_inference op;
+    op::batch_norm_inference op;
     std::string name() const { return "gpu::batch_norm_inference"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument

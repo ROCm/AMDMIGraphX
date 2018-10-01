@@ -22,7 +22,7 @@ namespace gpu {
 
 struct miopen_pooling
 {
-    pooling op;
+    op::pooling op;
     shared<pooling_descriptor> pd;
 
     std::string name() const { return "gpu::pooling"; }

@@ -44,7 +44,7 @@ inline tensor_descriptor make_tensor(const migraph::shape& s)
     return t;
 }
 
-inline convolution_descriptor make_conv(const migraph::convolution& op)
+inline convolution_descriptor make_conv(const migraph::op::convolution& op)
 {
     auto c = make_obj<convolution_descriptor>(&miopenCreateConvolutionDescriptor);
     miopenInitConvolutionDescriptor(c.get(),
@@ -58,7 +58,7 @@ inline convolution_descriptor make_conv(const migraph::convolution& op)
     return c;
 }
 
-inline pooling_descriptor make_pooling(const migraph::pooling& op)
+inline pooling_descriptor make_pooling(const migraph::op::pooling& op)
 {
     miopenPoolingMode_t mode;
     if(op.mode == "max")

@@ -18,9 +18,9 @@ void double_contig()
 {
     migraph::program p;
     auto l  = p.add_literal(get_2x2());
-    auto t1 = p.add_instruction(migraph::transpose{{1, 0}}, l);
-    auto c1 = p.add_instruction(migraph::contiguous{}, t1);
-    auto c2 = p.add_instruction(migraph::contiguous{}, c1);
+    auto t1 = p.add_instruction(migraph::op::transpose{{1, 0}}, l);
+    auto c1 = p.add_instruction(migraph::op::contiguous{}, t1);
+    auto c2 = p.add_instruction(migraph::op::contiguous{}, c1);
     p.add_instruction(pass_op{}, c2);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
@@ -36,8 +36,8 @@ void double_transpose()
 {
     migraph::program p;
     auto l  = p.add_literal(get_2x2());
-    auto t1 = p.add_instruction(migraph::transpose{{1, 0}}, l);
-    auto t2 = p.add_instruction(migraph::transpose{{1, 0}}, t1);
+    auto t1 = p.add_instruction(migraph::op::transpose{{1, 0}}, l);
+    auto t2 = p.add_instruction(migraph::op::transpose{{1, 0}}, t1);
     p.add_instruction(pass_op{}, t2);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
@@ -53,10 +53,10 @@ void double_transpose_contig()
 {
     migraph::program p;
     auto l  = p.add_literal(get_2x2());
-    auto t1 = p.add_instruction(migraph::transpose{{1, 0}}, l);
-    auto c1 = p.add_instruction(migraph::contiguous{}, t1);
-    auto t2 = p.add_instruction(migraph::transpose{{1, 0}}, c1);
-    auto c2 = p.add_instruction(migraph::contiguous{}, t2);
+    auto t1 = p.add_instruction(migraph::op::transpose{{1, 0}}, l);
+    auto c1 = p.add_instruction(migraph::op::contiguous{}, t1);
+    auto t2 = p.add_instruction(migraph::op::transpose{{1, 0}}, c1);
+    auto c2 = p.add_instruction(migraph::op::contiguous{}, t2);
     p.add_instruction(pass_op{}, c2);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
@@ -72,7 +72,7 @@ void single_transpose()
 {
     migraph::program p;
     auto l  = p.add_literal(get_2x2());
-    auto t1 = p.add_instruction(migraph::transpose{{1, 0}}, l);
+    auto t1 = p.add_instruction(migraph::op::transpose{{1, 0}}, l);
     p.add_instruction(pass_op{}, t1);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().transposed());
@@ -88,8 +88,8 @@ void double_transpose_sin_pass()
 {
     migraph::program p;
     auto l  = p.add_literal(get_2x2());
-    auto t1 = p.add_instruction(migraph::transpose{{1, 0}}, l);
-    p.add_instruction(migraph::transpose{{1, 0}}, t1);
+    auto t1 = p.add_instruction(migraph::op::transpose{{1, 0}}, l);
+    p.add_instruction(migraph::op::transpose{{1, 0}}, t1);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
     p.compile(simplify_reshapes_target{});
@@ -106,7 +106,7 @@ void single_transpose_sin_pass()
 {
     migraph::program p;
     auto l = p.add_literal(get_2x2());
-    p.add_instruction(migraph::transpose{{1, 0}}, l);
+    p.add_instruction(migraph::op::transpose{{1, 0}}, l);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().transposed());
     p.compile(simplify_reshapes_target{});

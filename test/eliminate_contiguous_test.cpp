@@ -18,8 +18,8 @@ void standard_op()
 {
     migraph::program p;
     auto l = p.add_literal(get_2x2());
-    auto t = p.add_instruction(migraph::transpose{{1, 0}}, l);
-    auto c = p.add_instruction(migraph::contiguous{}, t);
+    auto t = p.add_instruction(migraph::op::transpose{{1, 0}}, l);
+    auto c = p.add_instruction(migraph::op::contiguous{}, t);
     p.add_instruction(pass_standard_op{}, c);
     auto count = std::distance(p.begin(), p.end());
     p.compile(eliminate_contiguous_target{});
@@ -30,8 +30,8 @@ void non_standard_op()
 {
     migraph::program p;
     auto l = p.add_literal(get_2x2());
-    auto t = p.add_instruction(migraph::transpose{{1, 0}}, l);
-    auto c = p.add_instruction(migraph::contiguous{}, t);
+    auto t = p.add_instruction(migraph::op::transpose{{1, 0}}, l);
+    auto c = p.add_instruction(migraph::op::contiguous{}, t);
     p.add_instruction(pass_op{}, c);
     auto count = std::distance(p.begin(), p.end());
     p.compile(eliminate_contiguous_target{});

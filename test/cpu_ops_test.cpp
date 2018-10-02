@@ -2,6 +2,7 @@
 #include <vector>
 #include <migraph/literal.hpp>
 #include <migraph/operators.hpp>
+#include <migraph/instruction.hpp>
 #include <migraph/cpu/cpu_target.hpp>
 #include <migraph/verify.hpp>
 #include "test.hpp"
@@ -385,7 +386,7 @@ void broadcast_test()
     uint64_t axis = 0;
     auto l1       = p.add_literal(migraph::literal{a_shape, a_data});
     auto l2       = p.add_literal(migraph::literal{b_shape, b_data});
-    p.add_instruction(migraph::op::broadcast{axis}, l1, l2);
+    p.add_instruction(migraph::op::broadcast{axis, l1->get_shape()}, l2);
     p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
     auto output = result.get<int32_t>();
@@ -404,7 +405,7 @@ void add_broadcast_test()
     uint64_t axis = 0;
     auto l1       = p.add_literal(migraph::literal{a_shape, a_data});
     auto l2       = p.add_literal(migraph::literal{b_shape, b_data});
-    auto l3       = p.add_instruction(migraph::op::broadcast{axis}, l1, l2);
+    auto l3       = p.add_instruction(migraph::op::broadcast{axis, l1->get_shape()}, l2);
     p.add_instruction(migraph::op::add{}, l1, l3);
     p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});

@@ -9,6 +9,7 @@
 #include <migraph/manage_ptr.hpp>
 #include <migraph/type_name.hpp>
 #include <migraph/verify_args.hpp>
+#include <migraph/instruction.hpp>
 
 #include <miopen/miopen.h>
 
@@ -181,7 +182,7 @@ struct test_add_broadcast
         migraph::shape s{migraph::shape::float_type, {3}};
         auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 2, 3}});
         auto y  = p.add_parameter("y", {migraph::shape::float_type, {2, 2}});
-        auto by = p.add_instruction(migraph::op::broadcast{0}, x, y);
+        auto by = p.add_instruction(migraph::op::broadcast{0, x->get_shape()}, y);
         p.add_instruction(migraph::op::add{}, x, by);
         return p;
     }
@@ -195,7 +196,7 @@ struct test_add_broadcast2
         migraph::shape s{migraph::shape::float_type, {3}};
         auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 3, 4}});
         auto y  = p.add_parameter("y", {migraph::shape::float_type, {3}});
-        auto by = p.add_instruction(migraph::op::broadcast{1}, x, y);
+        auto by = p.add_instruction(migraph::op::broadcast{1, x->get_shape()}, y);
         p.add_instruction(migraph::op::add{}, x, by);
         return p;
     }
@@ -209,7 +210,7 @@ struct test_add_broadcast3
         migraph::shape s{migraph::shape::float_type, {3}};
         auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 4, 5}});
         auto y  = p.add_parameter("y", {migraph::shape::float_type, {4}});
-        auto by = p.add_instruction(migraph::op::broadcast{1}, x, y);
+        auto by = p.add_instruction(migraph::op::broadcast{1, x->get_shape()}, y);
         p.add_instruction(migraph::op::add{}, x, by);
         return p;
     }
@@ -223,7 +224,7 @@ struct test_add_broadcast4
         migraph::shape s{migraph::shape::float_type, {3}};
         auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 3, 5}});
         auto y  = p.add_parameter("y", {migraph::shape::float_type, {3}});
-        auto by = p.add_instruction(migraph::op::broadcast{1}, x, y);
+        auto by = p.add_instruction(migraph::op::broadcast{1, x->get_shape()}, y);
         p.add_instruction(migraph::op::add{}, x, by);
         return p;
     }
@@ -237,7 +238,7 @@ struct test_add_broadcast5
         migraph::shape s{migraph::shape::float_type, {3}};
         auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 4, 8}});
         auto y  = p.add_parameter("y", {migraph::shape::float_type, {4}});
-        auto by = p.add_instruction(migraph::op::broadcast{1}, x, y);
+        auto by = p.add_instruction(migraph::op::broadcast{1, x->get_shape()}, y);
         p.add_instruction(migraph::op::add{}, x, by);
         return p;
     }

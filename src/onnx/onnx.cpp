@@ -93,7 +93,8 @@ struct onnx_parser
                     uint64_t axis = (contains(attributes, "axis"))
                                         ? parse_value(attributes.at("axis")).at<uint64_t>()
                                         : 0;
-                    auto l = prog.add_instruction(op::broadcast{axis}, args);
+                    auto l =
+                        prog.add_instruction(op::broadcast{axis, args[0]->get_shape()}, args[1]);
                     return prog.add_instruction(x, args[0], l);
                 }
             }
@@ -131,7 +132,7 @@ struct onnx_parser
         {
             uint64_t axis = 1;
             auto l1       = prog.add_instruction(op, args[0], args[1]);
-            auto l2       = prog.add_instruction(op::broadcast{axis}, l1, args[2]);
+            auto l2       = prog.add_instruction(op::broadcast{axis, l1->get_shape()}, args[2]);
             return prog.add_instruction(op::add{}, l1, l2);
         }
         return prog.add_instruction(op, args);
@@ -223,7 +224,7 @@ struct onnx_parser
         {
             uint64_t axis = 1;
             auto l3       = prog.add_instruction(op::gemm{alpha, beta}, l1, l2);
-            auto l4       = prog.add_instruction(op::broadcast{axis}, l3, args[2]);
+            auto l4       = prog.add_instruction(op::broadcast{axis, l3->get_shape()}, args[2]);
             return prog.add_instruction(op::add{}, l3, l4);
         }
         return prog.add_instruction(op::gemm{alpha, beta}, l1, l2);

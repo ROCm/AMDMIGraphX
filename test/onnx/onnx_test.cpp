@@ -3,6 +3,7 @@
 #include <migraph/literal.hpp>
 #include <migraph/operators.hpp>
 #include <migraph/program.hpp>
+#include <migraph/instruction.hpp>
 #include <migraph/onnx.hpp>
 #include "test.hpp"
 
@@ -14,7 +15,7 @@ void pytorch_conv_bias_test()
     auto l2       = p.add_parameter("2", {migraph::shape::float_type, {1}});
     uint64_t axis = 1;
     auto l3       = p.add_instruction(migraph::op::convolution{}, l0, l1);
-    auto l4       = p.add_instruction(migraph::op::broadcast{axis}, l3, l2);
+    auto l4       = p.add_instruction(migraph::op::broadcast{axis, l3->get_shape()}, l2);
     p.add_instruction(migraph::op::add{}, l3, l4);
 
     auto prog = migraph::parse_onnx("conv.onnx");
@@ -29,7 +30,7 @@ void pytorch_conv_relu_maxpool()
     auto l2       = p.add_parameter("2", {migraph::shape::float_type, {1}});
     uint64_t axis = 1;
     auto l3       = p.add_instruction(migraph::op::convolution{}, l0, l1);
-    auto l4       = p.add_instruction(migraph::op::broadcast{axis}, l3, l2);
+    auto l4       = p.add_instruction(migraph::op::broadcast{axis, l3->get_shape()}, l2);
     auto l5       = p.add_instruction(migraph::op::add{}, l3, l4);
     auto l6       = p.add_instruction(migraph::op::activation{"relu"}, l5);
     p.add_instruction(migraph::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{2, 2}}}, l6);
@@ -51,7 +52,7 @@ void pytorch_conv_bn_relu_maxpool()
     auto p6       = p.add_parameter("6", {migraph::shape::float_type, {1}});
     uint64_t axis = 1;
     auto l3       = p.add_instruction(migraph::op::convolution{}, l0, l1);
-    auto l4       = p.add_instruction(migraph::op::broadcast{axis}, l3, l2);
+    auto l4       = p.add_instruction(migraph::op::broadcast{axis, l3->get_shape()}, l2);
     auto l5       = p.add_instruction(migraph::op::add{}, l3, l4);
     auto l6       = p.add_instruction(migraph::op::batch_norm_inference{}, l5, p3, p4, p5, p6);
     auto l7       = p.add_instruction(migraph::op::activation{"relu"}, l6);
@@ -69,7 +70,7 @@ void pytorch_conv_relu_maxpool_x2()
     auto l2       = p.add_parameter("2", {migraph::shape::float_type, {5}});
     uint64_t axis = 1;
     auto l3       = p.add_instruction(migraph::op::convolution{}, l0, l1);
-    auto l4       = p.add_instruction(migraph::op::broadcast{axis}, l3, l2);
+    auto l4       = p.add_instruction(migraph::op::broadcast{axis, l3->get_shape()}, l2);
     auto l5       = p.add_instruction(migraph::op::add{}, l3, l4);
     auto l6       = p.add_instruction(migraph::op::activation{"relu"}, l5);
     auto l7 = p.add_instruction(migraph::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{2, 2}}}, l6);
@@ -77,7 +78,7 @@ void pytorch_conv_relu_maxpool_x2()
     auto l8  = p.add_parameter("3", {migraph::shape::float_type, {1, 5, 5, 5}});
     auto l9  = p.add_parameter("4", {migraph::shape::float_type, {1}});
     auto l10 = p.add_instruction(migraph::op::convolution{}, l7, l8);
-    auto l11 = p.add_instruction(migraph::op::broadcast{axis}, l10, l9);
+    auto l11 = p.add_instruction(migraph::op::broadcast{axis, l10->get_shape()}, l9);
     auto l12 = p.add_instruction(migraph::op::add{}, l10, l11);
     auto l13 = p.add_instruction(migraph::op::activation{"relu"}, l12);
     p.add_instruction(migraph::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{2, 2}}}, l13);

@@ -618,34 +618,36 @@ struct flatten
 struct broadcast
 {
     uint64_t axis = 0;
+    shape broadcast_shape;
     std::string name() const { return "broadcast"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        auto t      = inputs.at(0).type();
-        auto result = inputs.at(0);
-        auto input  = inputs.at(1);
+        auto t     = inputs.at(0).type();
+        auto input = inputs.at(0);
 
-        std::vector<size_t> bcast_strides(result.lens().size(), 0);
+        std::vector<size_t> bcast_strides(broadcast_shape.lens().size(), 0);
 
-        if(std::all_of(
-               result.lens().cbegin(), result.lens().cend(), [&](auto x) { return x == 1; }))
+        if(std::all_of(broadcast_shape.lens().cbegin(), broadcast_shape.lens().cend(), [&](auto x) {
+               return x == 1;
+           }))
         {
             if(axis != 0)
                 MIGRAPH_THROW("when broadcasting tensor of size 1, axis should be 0");
-            return {t, result.lens(), std::move(bcast_strides)};
+            return {t, broadcast_shape.lens(), std::move(bcast_strides)};
         }
         else
         {
-            assert(result.lens().size() - axis >= input.lens().size());
-            if(!std::equal(input.lens().begin(), input.lens().end(), result.lens().begin() + axis))
+            assert(broadcast_shape.lens().size() - axis >= input.lens().size());
+            if(!std::equal(
+                   input.lens().begin(), input.lens().end(), broadcast_shape.lens().begin() + axis))
                 MIGRAPH_THROW("when broadcasting success sizes must match");
             std::copy(input.strides().begin(), input.strides().end(), bcast_strides.begin() + axis);
-            return {t, result.lens(), std::move(bcast_strides)};
+            return {t, broadcast_shape.lens(), std::move(bcast_strides)};
         }
     }
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
-        return {std::move(output_shape), std::move(args.at(1).data)};
+        return {std::move(output_shape), std::move(args.at(0).data)};
     }
     friend std::ostream& operator<<(std::ostream& os, const broadcast& op)
     {

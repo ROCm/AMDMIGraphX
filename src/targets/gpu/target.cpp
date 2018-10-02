@@ -1,6 +1,7 @@
 #include <migraph/gpu/target.hpp>
 #include <migraph/gpu/lowering.hpp>
 #include <migraph/memory_coloring.hpp>
+#include <migraph/gpu/lowering_memory_coloring.hpp>
 #include <migraph/gpu/write_literals.hpp>
 #include <migraph/gpu/context.hpp>
 #include <migraph/gpu/eliminate_workspace.hpp>

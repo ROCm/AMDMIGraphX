@@ -26,6 +26,14 @@ add_library(migraph_gpu
     hip.cpp
     target.cpp
     lowering.cpp
+    gemm.cpp
+    pooling.cpp
+    convolution.cpp
+    softmax.cpp
+    contiguous.cpp
+    relu.cpp
+    add.cpp
+    batchnorm.cpp
     write_literals.cpp
     rocblas.cpp
 )

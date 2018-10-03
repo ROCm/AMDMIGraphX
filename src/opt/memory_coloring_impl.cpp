@@ -14,13 +14,16 @@ void memory_coloring_impl::run()
     {
         MIGRAPH_DEBUG(dump_intervals());
         // Coloring
+        bool did_it = false;
         while(!alloc_queue.empty())
         {
             interval_ptr interval = alloc_queue.top();
-            allocate(interval);
+            if (allocate(interval))
+                did_it = true;
             alloc_queue.pop();
         }
-        rewrite();
+        if (did_it)
+            rewrite();
         MIGRAPH_DEBUG(verify());
     }
 }

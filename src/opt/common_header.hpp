@@ -14,7 +14,7 @@
 
 namespace migraph {
 
-//#define MIGRAPH_DEBUG_OPT
+#define MIGRAPH_DEBUG_OPT
 
 #ifdef MIGRAPH_DEBUG_OPT
 #define MIGRAPH_DEBUG(s) s

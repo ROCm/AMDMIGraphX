@@ -17,8 +17,9 @@ using pooling_descriptor     = MIGRAPH_MANAGE_PTR(miopenPoolingDescriptor_t,
                                               miopenDestroyPoolingDescriptor);
 using activation_descriptor  = MIGRAPH_MANAGE_PTR(miopenActivationDescriptor_t,
                                                  miopenDestroyActivationDescriptor);
-using fusion_plan_descriptor = MIGRAPH_MANAGE_PTR(miopenFusionPlanDescriptor_t, miopenDestroyFusionPlan);
-using fused_operator_args = MIGRAPH_MANAGE_PTR(miopenOperatorArgs_t, miopenDestroyOperatorArgs);
+using fusion_plan_descriptor = MIGRAPH_MANAGE_PTR(miopenFusionPlanDescriptor_t,
+                                                  miopenDestroyFusionPlan);
+using fused_operator_args    = MIGRAPH_MANAGE_PTR(miopenOperatorArgs_t, miopenDestroyOperatorArgs);
 
 template <class Result, class F, class... Ts>
 Result make_obj(F f, Ts... xs)

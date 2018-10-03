@@ -23,13 +23,15 @@ void lowering_memory_coloring::apply(program& p) const
 {
     if(enabled(MIGRAPH_DISABLE_MEMORY_COLORING{}))
         return;
+    if (!enabled(MIGRAPH_UNIFY_MEMORY_COLORING{}))
+        return;
 
     assert(ctx != nullptr);
     auto scratch_ins = p.get_parameter("scratch");
     if(scratch_ins == p.end())
         return;
 
-    shape s_scratch   = scratch_ins->outputs().at(0)->get_shape();
+    shape s_scratch   = scratch_ins->get_shape();
     argument base_ptr = allocate_gpu(s_scratch, false);
     ctx->scratch      = base_ptr;
     scratch_ins       = p.replace_instruction(scratch_ins, gen_base_addr{s_scratch});
@@ -47,7 +49,8 @@ void lowering_memory_coloring::apply(program& p) const
             auto&& a           = any_cast<op::write_literal>(ins->get_operator());
             std::size_t offset = a.offset;
 
-            if(a.pre_copy)
+            //            if(a.pre_copy)
+            if (0)
             {
                 char* dst       = base_ptr.data() + offset;
                 const char* src = arg1->get_literal().data();

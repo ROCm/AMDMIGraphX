@@ -2,6 +2,7 @@
 #include <migraph/iterator_for.hpp>
 #include <migraph/gpu/hip.hpp>
 #include <migraph/instruction.hpp>
+#include <migraph/pass_config.hpp>
 
 namespace migraph {
 
@@ -25,6 +26,10 @@ struct hip_load_literal
 
 void write_literals::apply(program& p) const
 {
+    
+    if (!enabled(MIGRAPH_DISABLE_MEMORY_COLORING{})
+        && enabled(MIGRAPH_UNIFY_MEMORY_COLORING{}))
+        return;
     assert(ctx != nullptr);
     for(auto ins : iterator_for(p))
     {

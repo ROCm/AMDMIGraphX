@@ -3,15 +3,15 @@
 #include <test.hpp>
 #include <basic_ops.hpp>
 
-namespace matchers = migraph::matchers;
+namespace match = migraph::match;
 
 template <class M>
-migraph::matchers::matcher_result find_match(migraph::program& p, M&& m)
+migraph::match::matcher_result find_match(migraph::program& p, M&& m)
 {
-    migraph::matchers::matcher_result result;
+    migraph::match::matcher_result result;
     for(auto ins : migraph::iterator_for(p))
     {
-        result = migraph::matchers::match_instruction(p, ins, m);
+        result = migraph::match::match_instruction(p, ins, m);
         if(result.result != p.end())
             return result;
     }
@@ -22,7 +22,7 @@ void match1()
 {
     migraph::program p;
     auto l = p.add_literal(1);
-    auto m = matchers::standard_shape();
+    auto m = match::standard_shape();
     auto r = find_match(p, m);
     EXPECT(bool{r.result == l});
 }
@@ -34,7 +34,7 @@ void match_name1()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m = matchers::name("sum");
+    auto m = match::name("sum");
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
 }
@@ -46,7 +46,7 @@ void match_name2()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m = matchers::name("min");
+    auto m = match::name("min");
     auto r = find_match(p, m);
     EXPECT(bool{r.result == p.end()});
 }
@@ -58,7 +58,7 @@ void match_name3()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m = matchers::name("sum")(matchers::standard_shape());
+    auto m = match::name("sum")(match::standard_shape());
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
 }
@@ -70,8 +70,7 @@ void match_arg1()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m = matchers::name("sum")(matchers::arg(0)(matchers::name("@literal")),
-                                   matchers::standard_shape());
+    auto m = match::name("sum")(match::arg(0)(match::name("@literal")), match::standard_shape());
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
 }
@@ -83,8 +82,7 @@ void match_arg2()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m =
-        matchers::name("sum")(matchers::arg(0)(matchers::name("sum")), matchers::standard_shape());
+    auto m = match::name("sum")(match::arg(0)(match::name("sum")), match::standard_shape());
     auto r = find_match(p, m);
     EXPECT(bool{r.result == p.end()});
 }
@@ -96,8 +94,7 @@ void match_arg3()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m = matchers::name("sum")(matchers::arg(1)(matchers::name("@literal")),
-                                   matchers::standard_shape());
+    auto m = match::name("sum")(match::arg(1)(match::name("@literal")), match::standard_shape());
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
 }
@@ -109,9 +106,8 @@ void match_arg4()
     auto two  = p.add_literal(2);
     auto sum  = p.add_instruction(sum_op{}, one, two);
     auto pass = p.add_instruction(pass_op{}, sum);
-    auto m =
-        matchers::name("pass")(matchers::arg(0)(matchers::name("sum")), matchers::standard_shape());
-    auto r = find_match(p, m);
+    auto m    = match::name("pass")(match::arg(0)(match::name("sum")), match::standard_shape());
+    auto r    = find_match(p, m);
     EXPECT(bool{r.result == pass});
 }
 
@@ -122,8 +118,7 @@ void match_arg5()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m =
-        matchers::name("pass")(matchers::arg(1)(matchers::name("sum")), matchers::standard_shape());
+    auto m = match::name("pass")(match::arg(1)(match::name("sum")), match::standard_shape());
     auto r = find_match(p, m);
     EXPECT(bool{r.result == p.end()});
 }
@@ -135,7 +130,7 @@ void match_arg6()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m = matchers::name("sum")(matchers::arg(0)(matchers::name("@literal")));
+    auto m = match::name("sum")(match::arg(0)(match::name("@literal")));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
 }
@@ -147,8 +142,8 @@ void match_arg7()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m = matchers::name("sum")(matchers::arg(0)(matchers::name("@literal")),
-                                   matchers::arg(1)(matchers::name("@literal")));
+    auto m = match::name("sum")(match::arg(0)(match::name("@literal")),
+                                match::arg(1)(match::name("@literal")));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
 }
@@ -160,9 +155,8 @@ void match_args1()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m = matchers::name("sum")(
-        matchers::args(matchers::name("@literal"), matchers::name("@literal")),
-        matchers::standard_shape());
+    auto m = match::name("sum")(match::args(match::name("@literal"), match::name("@literal")),
+                                match::standard_shape());
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
 }
@@ -174,9 +168,8 @@ void match_args2()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m =
-        matchers::name("sum")(matchers::args(matchers::name("@literal"), matchers::name("sum")),
-                              matchers::standard_shape());
+    auto m = match::name("sum")(match::args(match::name("@literal"), match::name("sum")),
+                                match::standard_shape());
     auto r = find_match(p, m);
     EXPECT(bool{r.result == p.end()});
 }
@@ -188,8 +181,7 @@ void match_args3()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m = matchers::name("sum")(matchers::args(matchers::name("@literal")),
-                                   matchers::standard_shape());
+    auto m = match::name("sum")(match::args(match::name("@literal")), match::standard_shape());
     auto r = find_match(p, m);
     EXPECT(bool{r.result == p.end()});
 }
@@ -202,9 +194,8 @@ void match_args4()
     auto sum1 = p.add_instruction(sum_op{}, one, two);
     auto sum2 = p.add_instruction(sum_op{}, sum1, two);
     p.add_instruction(pass_op{}, sum2);
-    auto m =
-        matchers::name("sum")(matchers::args(matchers::name("sum"), matchers::name("@literal")),
-                              matchers::standard_shape());
+    auto m = match::name("sum")(match::args(match::name("sum"), match::name("@literal")),
+                                match::standard_shape());
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum2});
 }
@@ -216,9 +207,8 @@ void match_args5()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m =
-        matchers::name("sum")(matchers::args(matchers::name("sum"), matchers::name("@literal")),
-                              matchers::standard_shape());
+    auto m = match::name("sum")(match::args(match::name("sum"), match::name("@literal")),
+                                match::standard_shape());
     auto r = find_match(p, m);
     EXPECT(bool{r.result == p.end()});
 }
@@ -230,9 +220,8 @@ void match_args6()
     auto two  = p.add_literal(2);
     auto sum  = p.add_instruction(sum_op{}, one, two);
     auto pass = p.add_instruction(pass_op{}, sum);
-    auto m =
-        matchers::name("pass")(matchers::args(matchers::name("sum")), matchers::standard_shape());
-    auto r = find_match(p, m);
+    auto m    = match::name("pass")(match::args(match::name("sum")), match::standard_shape());
+    auto r    = find_match(p, m);
     EXPECT(bool{r.result == pass});
 }
 
@@ -243,9 +232,9 @@ void match_args7()
     auto two  = p.add_literal(2);
     auto sum  = p.add_instruction(sum_op{}, one, two);
     auto pass = p.add_instruction(pass_op{}, sum);
-    auto m    = matchers::name("pass")(matchers::args(matchers::name("sum")(matchers::args(
-                                        matchers::name("@literal"), matchers::name("@literal")))),
-                                    matchers::standard_shape());
+    auto m    = match::name("pass")(match::args(match::name("sum")(match::args(
+                                     match::name("@literal"), match::name("@literal")))),
+                                 match::standard_shape());
     auto r    = find_match(p, m);
     EXPECT(bool{r.result == pass});
 }
@@ -257,8 +246,8 @@ void match_all_of1()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m = matchers::name("sum")(matchers::all_of(matchers::arg(0)(matchers::name("@literal")),
-                                                    matchers::arg(1)(matchers::name("@literal"))));
+    auto m = match::name("sum")(match::all_of(match::arg(0)(match::name("@literal")),
+                                              match::arg(1)(match::name("@literal"))));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
 }
@@ -270,8 +259,8 @@ void match_all_of2()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m = matchers::name("sum")(matchers::all_of(matchers::arg(0)(matchers::name("sum")),
-                                                    matchers::arg(1)(matchers::name("@literal"))));
+    auto m = match::name("sum")(
+        match::all_of(match::arg(0)(match::name("sum")), match::arg(1)(match::name("@literal"))));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == p.end()});
 }
@@ -283,8 +272,8 @@ void match_any_of1()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m = matchers::name("sum")(matchers::any_of(matchers::arg(0)(matchers::name("sum")),
-                                                    matchers::arg(1)(matchers::name("@literal"))));
+    auto m = match::name("sum")(
+        match::any_of(match::arg(0)(match::name("sum")), match::arg(1)(match::name("@literal"))));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
 }
@@ -296,8 +285,8 @@ void match_any_of2()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m = matchers::name("sum")(matchers::any_of(matchers::arg(0)(matchers::name("sum")),
-                                                    matchers::arg(1)(matchers::name("sum"))));
+    auto m = match::name("sum")(
+        match::any_of(match::arg(0)(match::name("sum")), match::arg(1)(match::name("sum"))));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == p.end()});
 }
@@ -309,8 +298,8 @@ void match_none_of1()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m = matchers::name("sum")(matchers::none_of(matchers::arg(0)(matchers::name("sum")),
-                                                     matchers::arg(1)(matchers::name("sum"))));
+    auto m = match::name("sum")(
+        match::none_of(match::arg(0)(match::name("sum")), match::arg(1)(match::name("sum"))));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
 }
@@ -322,8 +311,8 @@ void match_none_of2()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m = matchers::name("sum")(matchers::none_of(matchers::arg(0)(matchers::name("@literal")),
-                                                     matchers::arg(1)(matchers::name("@literal"))));
+    auto m = match::name("sum")(match::none_of(match::arg(0)(match::name("@literal")),
+                                               match::arg(1)(match::name("@literal"))));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == p.end()});
 }
@@ -335,12 +324,11 @@ void match_bind1()
     auto two  = p.add_literal(2);
     auto sum  = p.add_instruction(sum_op{}, one, two);
     auto pass = p.add_instruction(pass_op{}, sum);
-    auto m    = matchers::name("pass")(
-                 matchers::args(
-                     matchers::name("sum")(matchers::args(matchers::name("@literal").bind("one"),
-                                                          matchers::name("@literal").bind("two")))
-                         .bind("sum")),
-                 matchers::standard_shape())
+    auto m    = match::name("pass")(
+                 match::args(match::name("sum")(match::args(match::name("@literal").bind("one"),
+                                                            match::name("@literal").bind("two")))
+                                 .bind("sum")),
+                 match::standard_shape())
                  .bind("pass");
     auto r = find_match(p, m);
     EXPECT(bool{r.instructions.at("one") == one});
@@ -353,20 +341,17 @@ void match_bind1()
 struct match_find_sum
 {
     migraph::instruction_ref ins;
-    auto matcher() const { return matchers::name("sum"); }
+    auto matcher() const { return match::name("sum"); }
 
-    void apply(migraph::program&, matchers::matcher_result r) const
-    {
-        EXPECT(bool{r.result == ins});
-    }
+    void apply(migraph::program&, match::matcher_result r) const { EXPECT(bool{r.result == ins}); }
 };
 
 struct match_find_literal
 {
     migraph::instruction_ref ins;
-    auto matcher() const { return matchers::name("@literal"); }
+    auto matcher() const { return match::name("@literal"); }
 
-    void apply(migraph::program&, matchers::matcher_result r) const
+    void apply(migraph::program&, match::matcher_result r) const
     {
         EXPECT(bool{r.result != ins});
         EXPECT(r.result->name() == "@literal");
@@ -380,7 +365,7 @@ void match_finder()
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    matchers::find_matches(p, match_find_sum{sum}, match_find_literal{sum});
+    match::find_matches(p, match_find_sum{sum}, match_find_literal{sum});
 }
 
 int main()

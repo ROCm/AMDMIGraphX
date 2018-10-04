@@ -10,7 +10,7 @@
 
 namespace migraph {
 
-namespace matchers {
+namespace match {
 
 struct matcher_context
 {
@@ -167,21 +167,21 @@ basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
 }
 
 /// This macro takes care of the boilerplate for defining a matcher
-#define MIGRAPH_BASIC_MATCHER(name, ...)                                        \
-    struct name##_m                                                             \
-    {                                                                           \
-        instruction_ref match(__VA_ARGS__) const;                               \
-    };                                                                          \
-    const constexpr auto name = migraph::matchers::basic_matcher<name##_m>{{}}; \
+#define MIGRAPH_BASIC_MATCHER(name, ...)                                     \
+    struct name##_m                                                          \
+    {                                                                        \
+        instruction_ref match(__VA_ARGS__) const;                            \
+    };                                                                       \
+    const constexpr auto name = migraph::match::basic_matcher<name##_m>{{}}; \
     inline instruction_ref name##_m::match(__VA_ARGS__) const
 
 /// This macro takes care of the boilerplate for defining a predicate matcher
-#define MIGRAPH_PRED_MATCHER(name, ...)                                                            \
-    struct name##_m                                                                                \
-    {                                                                                              \
-        bool operator()(__VA_ARGS__) const;                                                        \
-    };                                                                                             \
-    const constexpr auto name = migraph::matchers::basic_matcher<predicate_matcher<name##_m>>{{}}; \
+#define MIGRAPH_PRED_MATCHER(name, ...)                                                         \
+    struct name##_m                                                                             \
+    {                                                                                           \
+        bool operator()(__VA_ARGS__) const;                                                     \
+    };                                                                                          \
+    const constexpr auto name = migraph::match::basic_matcher<predicate_matcher<name##_m>>{{}}; \
     inline bool name##_m::operator()(__VA_ARGS__) const
 
 struct matcher_result
@@ -294,7 +294,7 @@ struct args_impl_ints
 template <std::size_t... Ns, class... Ms>
 auto args_impl(args_impl_ints<Ns...>, Ms... ms)
 {
-    return matchers::all_of(nargs(sizeof...(Ns)), arg(Ns)(ms)...);
+    return match::all_of(nargs(sizeof...(Ns)), arg(Ns)(ms)...);
 }
 
 template <class... Ms>
@@ -306,7 +306,7 @@ auto args(Ms... ms)
     });
 }
 
-} // namespace matchers
+} // namespace match
 
 } // namespace migraph
 

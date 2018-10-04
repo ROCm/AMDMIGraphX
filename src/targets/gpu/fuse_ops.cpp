@@ -1,5 +1,5 @@
 #include <migraph/gpu/fuse_ops.hpp>
-#include <migraph/iterator_for.hpp>
+#include <migraph/matcher.hpp>
 #include <migraph/gpu/device/add_relu.hpp>
 #include <migraph/instruction.hpp>
 
@@ -22,20 +22,24 @@ struct hip_add_relu
     }
 };
 
-void fuse_ops::apply(program& p) const
+struct match_add_relu
 {
-    for(auto ins : iterator_for(p))
-    {
-        if(ins->name() != "gpu::relu")
-            continue;
-        auto add_ins = ins->inputs().front();
-        if(add_ins->name() != "gpu::add")
-            continue;
+    auto matcher() const { return match::name("gpu::relu")(match::args(match::name("gpu::add").bind("add"))); }
+
+    void apply(program& p, match::matcher_result r) const 
+    { 
+        auto add_ins = r.instructions["add"];
+        auto ins = r.result;
         auto args = add_ins->inputs();
         // Use the allocation from the relu operator
         args.back() = ins->inputs().back();
         p.replace_instruction(ins, hip_add_relu{}, args);
     }
+};
+
+void fuse_ops::apply(program& p) const
+{
+    match::find_matches(p, match_add_relu{});
 }
 
 } // namespace gpu

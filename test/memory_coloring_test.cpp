@@ -1,5 +1,6 @@
 #include <migraph/memory_coloring.hpp>
 #include <migraph/operators.hpp>
+#include <migraph/generate.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -112,10 +113,22 @@ void test4()
     EXPECT(p.get_parameter_shape("scratch").bytes() == 672);
 }
 
+void literal_test()
+{
+    migraph::program p;
+    auto lit = generate_literal(migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+    p.add_literal(lit);
+    p.compile(memory_coloring_target{});
+    auto result = p.eval({});
+    EXPECT(lit == result);
+}
+
 int main()
 {
     test1();
     test2();
     test3();
     test4();
+
+    literal_test();
 }

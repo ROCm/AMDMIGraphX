@@ -184,17 +184,17 @@ void memory_coloring_impl::build()
 
 void memory_coloring_impl::register_operand_alias()
 {
-    operand_alias["hip::allocate"] = -1;
+    operand_alias["hip::allocate"]     = -1;
     operand_alias["hip::load_literal"] = -1;
-    operand_alias["@outline"]      = -1;
-    operand_alias["check_context"] = -1;
-    operand_alias["@literal"]      = -1;
-    operand_alias["@param"]        = -1;
-    operand_alias["transpose"]     = 0;
-    operand_alias["flatten"]       = 0;
-    operand_alias["broadcast"]     = 1;
-    operand_alias["reshape"]       = 0;
-    operand_alias["pass"]          = 0;
+    operand_alias["@outline"]          = -1;
+    operand_alias["check_context"]     = -1;
+    operand_alias["@literal"]          = -1;
+    operand_alias["@param"]            = -1;
+    operand_alias["transpose"]         = 0;
+    operand_alias["flatten"]           = 0;
+    operand_alias["broadcast"]         = 1;
+    operand_alias["reshape"]           = 0;
+    operand_alias["pass"]              = 0;
 }
 
 void memory_coloring_impl::rewrite()

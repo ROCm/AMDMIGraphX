@@ -76,7 +76,7 @@ struct bindable_matcher
 {
     M m;
 
-    auto bind(std::string name) { return bind_match(m, std::move(name)); }
+    auto bind(std::string name) const { return bind_match(m, std::move(name)); }
 
     instruction_ref match(matcher_context& ctx, instruction_ref ins) const
     {
@@ -137,7 +137,7 @@ struct basic_matcher
         });
     }
 
-    auto bind(std::string name) { return bind_match(m, name); }
+    auto bind(std::string name) const { return bind_match(m, std::move(name)); }
 
     instruction_ref match(matcher_context& ctx, instruction_ref ins) const
     {
@@ -181,7 +181,7 @@ basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
     {                                                                                           \
         bool operator()(__VA_ARGS__) const;                                                     \
     };                                                                                          \
-    const constexpr auto name = migraph::match::basic_matcher<predicate_matcher<name##_m>>{{}}; \
+    const constexpr auto name = migraph::match::basic_matcher<migraph::match::predicate_matcher<name##_m>>{{}}; \
     inline bool name##_m::operator()(__VA_ARGS__) const
 
 struct matcher_result
@@ -310,7 +310,7 @@ auto args(Ms... ms)
     });
 }
 
-auto either_arg(std::size_t i, std::size_t j)
+inline auto either_arg(std::size_t i, std::size_t j)
 {
     return [=](auto m1, auto m2) {
         return match::any_of(match::all_of(arg(i)(m1), arg(j)(m2)),

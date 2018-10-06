@@ -96,7 +96,8 @@ inline fusion_plan_descriptor make_fusion_plan(const shape& input)
 // Temporary hack to workaround memory problems in miopen
 inline fusion_plan_descriptor make_fusion_plan(const tensor_descriptor& input)
 {
-    return make_obj<fusion_plan_descriptor>(&miopenCreateFusionPlan, miopenVerticalFusion, input.get());
+    return make_obj<fusion_plan_descriptor>(
+        &miopenCreateFusionPlan, miopenVerticalFusion, input.get());
 }
 
 inline fused_operator_args make_fused_args()

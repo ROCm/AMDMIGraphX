@@ -264,7 +264,10 @@ auto any_of(Ts... ms)
 }
 
 MIGRAPH_PRED_MATCHER(standard_shape, instruction_ref ins) { return ins->get_shape().standard(); }
-MIGRAPH_PRED_MATCHER(broadcast_shape, instruction_ref ins) { return ins->get_shape().broadcasted(); }
+MIGRAPH_PRED_MATCHER(broadcast_shape, instruction_ref ins)
+{
+    return ins->get_shape().broadcasted();
+}
 
 inline auto name(std::string name)
 {

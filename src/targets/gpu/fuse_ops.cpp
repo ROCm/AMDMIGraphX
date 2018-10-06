@@ -167,11 +167,10 @@ struct match_conv_bias
     context* ctx = nullptr;
     auto matcher() const
     {
-        return match::name("gpu::add")(match::any_of(
-            match::all_of(match::arg(0)(match::broadcast_shape().bind("bias")),
-                          match::arg(1)(match::name("gpu::convolution").bind("conv"))),
-            match::all_of(match::arg(1)(match::broadcast_shape().bind("bias")),
-                          match::arg(0)(match::name("gpu::convolution").bind("conv")))));
+        return match::name("gpu::add")(match::either_arg(0, 1)(
+            match::broadcast_shape().bind("bias"),
+            match::name("gpu::convolution").bind("conv")
+        ));
     }
 
     void apply(program& p, match::matcher_result r) const

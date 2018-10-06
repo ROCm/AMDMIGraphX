@@ -310,6 +310,16 @@ auto args(Ms... ms)
     });
 }
 
+auto either_arg(std::size_t i, std::size_t j)
+{
+    return [=](auto m1, auto m2) {
+        return match::any_of(
+            match::all_of(arg(i)(m1), arg(j)(m2)), 
+            match::all_of(arg(j)(m1), arg(i)(m2))
+        );
+    };
+}
+
 } // namespace match
 
 } // namespace migraph

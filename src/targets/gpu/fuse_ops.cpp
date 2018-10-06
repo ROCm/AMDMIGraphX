@@ -239,11 +239,11 @@ struct miopen_conv_bias_relu
     }
 };
 
-template<class... Ms>
+template <class... Ms>
 auto conv_bias(Ms... ms)
 {
     return match::name("gpu::add")(
-            match::either_arg(0, 1)(bias_shape().bind("bias"), fusable_conv().bind("conv")), ms...);
+        match::either_arg(0, 1)(bias_shape().bind("bias"), fusable_conv().bind("conv")), ms...);
 }
 
 struct match_conv_bias
@@ -277,10 +277,7 @@ struct match_conv_bias
 struct match_conv_bias_relu
 {
     context* ctx = nullptr;
-    auto matcher() const
-    {
-        return match::name("gpu::relu")(conv_bias());
-    }
+    auto matcher() const { return match::name("gpu::relu")(conv_bias()); }
 
     void apply(program& p, match::matcher_result r) const
     {

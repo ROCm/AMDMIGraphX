@@ -176,12 +176,13 @@ basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
     inline instruction_ref name##_m::match(__VA_ARGS__) const
 
 /// This macro takes care of the boilerplate for defining a predicate matcher
-#define MIGRAPH_PRED_MATCHER(name, ...)                                                         \
-    struct name##_m                                                                             \
-    {                                                                                           \
-        bool operator()(__VA_ARGS__) const;                                                     \
-    };                                                                                          \
-    const constexpr auto name = migraph::match::basic_matcher<migraph::match::predicate_matcher<name##_m>>{{}}; \
+#define MIGRAPH_PRED_MATCHER(name, ...)                                                 \
+    struct name##_m                                                                     \
+    {                                                                                   \
+        bool operator()(__VA_ARGS__) const;                                             \
+    };                                                                                  \
+    const constexpr auto name =                                                         \
+        migraph::match::basic_matcher<migraph::match::predicate_matcher<name##_m>>{{}}; \
     inline bool name##_m::operator()(__VA_ARGS__) const
 
 struct matcher_result

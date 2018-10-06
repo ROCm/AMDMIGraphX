@@ -17,7 +17,7 @@ struct fusion
     // Used as a temporary hack to keep descriptor references alive
     std::vector<std::shared_ptr<void>> storage;
 
-    template<class T>
+    template <class T>
     auto keep_alive(T x)
     {
         auto result = share(std::move(x));
@@ -29,10 +29,9 @@ struct fusion
     // : fp(make_fusion_plan(input))
     {
         auto t = make_tensor(input);
-        fp = make_fusion_plan(t);
+        fp     = make_fusion_plan(t);
         keep_alive(std::move(t));
     }
-
 
     op_t operator[](std::size_t i) const
     {
@@ -43,16 +42,13 @@ struct fusion
         return result;
     }
 
-    auto get() const
-    {
-        return fp.get();
-    }
+    auto get() const { return fp.get(); }
 
     op_t create_bias(const shape& bias)
     {
         op_t result;
-        auto b = shape{bias.type(), {1, bias.lens().at(1), 1, 1}};
-        auto t = keep_alive(make_tensor(b));
+        auto b      = shape{bias.type(), {1, bias.lens().at(1), 1, 1}};
+        auto t      = keep_alive(make_tensor(b));
         auto status = miopenCreateOpBiasForward(fp.get(), &result, t.get());
         if(status != miopenStatusSuccess)
             MIGRAPH_THROW("Creating operator failed");
@@ -71,14 +67,13 @@ struct fusion
     op_t create_conv(const op::convolution& op, const shape& weights)
     {
         op_t result;
-        auto cd = keep_alive(make_conv(op));
-        auto t = keep_alive(make_tensor(weights));
+        auto cd     = keep_alive(make_conv(op));
+        auto t      = keep_alive(make_tensor(weights));
         auto status = miopenCreateOpConvForward(fp.get(), &result, cd.get(), t.get());
         if(status != miopenStatusSuccess)
             MIGRAPH_THROW("Creating operator failed");
         return result;
     }
-
 };
 
 struct hip_add_relu
@@ -121,8 +116,7 @@ struct miopen_conv_bias
     fusion::op_t conv;
     fusion::op_t bias;
 
-    miopen_conv_bias(op::convolution c, shape input, shape weights, shape b)
-    : op(c), f(input)
+    miopen_conv_bias(op::convolution c, shape input, shape weights, shape b) : op(c), f(input)
     {
         f.create_conv(op, weights);
         f.create_bias(b);
@@ -135,15 +129,22 @@ struct miopen_conv_bias
         // TODO: Check slices
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
-    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
-        auto fargs = make_fused_args();
+        auto fargs  = make_fused_args();
         float alpha = 1, beta = 0;
         auto x = make_tensor(args[0].get_shape());
         auto y = make_tensor(output_shape);
         miopenSetOpArgsConvForward(fargs.get(), conv, &alpha, &beta, args[1].implicit());
         miopenSetOpArgsBiasForward(fargs.get(), bias, &alpha, &beta, args[3].implicit());
-        miopenExecuteFusionPlan(ctx.handle.get(), f.get(), x.get(), args[0].implicit(), y.get(), args[4].implicit(), fargs.get());
+        miopenExecuteFusionPlan(ctx.handle.get(),
+                                f.get(),
+                                x.get(),
+                                args[0].implicit(),
+                                y.get(),
+                                args[4].implicit(),
+                                fargs.get());
         return args.at(4);
     }
 
@@ -163,36 +164,39 @@ struct miopen_conv_bias
 
 struct match_conv_bias
 {
-    context * ctx = nullptr;
+    context* ctx = nullptr;
     auto matcher() const
     {
         return match::name("gpu::add")(match::any_of(
-            match::all_of(match::arg(0)(match::broadcast_shape().bind("bias")), match::arg(1)(match::name("gpu::convolution").bind("conv"))),
-            match::all_of(match::arg(1)(match::broadcast_shape().bind("bias")), match::arg(0)(match::name("gpu::convolution").bind("conv")))
-        ));
+            match::all_of(match::arg(0)(match::broadcast_shape().bind("bias")),
+                          match::arg(1)(match::name("gpu::convolution").bind("conv"))),
+            match::all_of(match::arg(1)(match::broadcast_shape().bind("bias")),
+                          match::arg(0)(match::name("gpu::convolution").bind("conv")))));
     }
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto conv_ins = r.instructions["conv"];
-        auto bias_ins = r.instructions["bias"];
-        auto input_ins = conv_ins->inputs().at(0);
+        auto conv_ins    = r.instructions["conv"];
+        auto bias_ins    = r.instructions["bias"];
+        auto input_ins   = conv_ins->inputs().at(0);
         auto weights_ins = conv_ins->inputs().at(1);
-        auto conv_op = any_cast<miopen_convolution>(conv_ins->get_operator()).op;
-        auto ins     = r.result;
-        auto alloc_ins = ins->inputs().back();
-        auto old_ws_ins    = conv_ins->inputs().at(2);
+        auto conv_op     = any_cast<miopen_convolution>(conv_ins->get_operator()).op;
+        auto ins         = r.result;
+        auto alloc_ins   = ins->inputs().back();
+        auto old_ws_ins  = conv_ins->inputs().at(2);
 
-        miopen_conv_bias cb{conv_op, input_ins->get_shape(), weights_ins->get_shape(), bias_ins->get_shape()};
+        miopen_conv_bias cb{
+            conv_op, input_ins->get_shape(), weights_ins->get_shape(), bias_ins->get_shape()};
         // TODO: Insert ws allocation
-        auto ws   = cb.compile(*ctx);
+        auto ws = cb.compile(*ctx);
 
         p.replace_instruction(ins, cb, input_ins, weights_ins, old_ws_ins, bias_ins, alloc_ins);
     }
 };
 
-void fuse_ops::apply(program& p) const { 
-    match::find_matches(p, match_add_relu{}, match_conv_bias{ctx}); 
+void fuse_ops::apply(program& p) const
+{
+    match::find_matches(p, match_add_relu{}, match_conv_bias{ctx});
 }
 
 } // namespace gpu

@@ -12,14 +12,15 @@ struct check_shapes
     const shape* end;
     const std::string name;
 
-    check_shapes(const shape* b, const shape* e, const std::string& n)
-    : begin(b), end(e), name(n)
-    {}
+    check_shapes(const shape* b, const shape* e, const std::string& n) : begin(b), end(e), name(n)
+    {
+    }
 
-    check_shapes(const std::vector<shape>& s) : begin(s.data()), end(s.data()+s.size()) {}
+    check_shapes(const std::vector<shape>& s) : begin(s.data()), end(s.data() + s.size()) {}
 
     template <class Op>
-    check_shapes(const std::vector<shape>& s, const Op& op) : begin(s.data()), end(s.data()+s.size()), name(op.name())
+    check_shapes(const std::vector<shape>& s, const Op& op)
+        : begin(s.data()), end(s.data() + s.size()), name(op.name())
     {
     }
 
@@ -35,9 +36,9 @@ struct check_shapes
     {
         assert(begin != nullptr);
         assert(end != nullptr);
-        if(end-begin != n)
+        if(end - begin != n)
             MIGRAPH_THROW(prefix() + "Wrong number of arguments: expected " + std::to_string(n) +
-                          " but given " + std::to_string(end-begin));
+                          " but given " + std::to_string(end - begin));
         return *this;
     }
 
@@ -45,7 +46,7 @@ struct check_shapes
     {
         assert(begin != nullptr);
         assert(end != nullptr);
-        if(begin!=end)
+        if(begin != end)
         {
             if(begin->lens().size() != n)
                 MIGRAPH_THROW(prefix() + "Only " + std::to_string(n) + "d supported");
@@ -114,7 +115,7 @@ struct check_shapes
     {
         assert(begin != nullptr);
         assert(end != nullptr);
-        if(begin==end)
+        if(begin == end)
             return true;
         auto&& key = f(*begin);
         return this->all_of([&](const shape& s) { return f(s) == key; });
@@ -131,19 +132,13 @@ struct check_shapes
     const shape* get(long i)
     {
         if(i < 0)
-            return end-i;
-        return begin+i;
+            return end - i;
+        return begin + i;
     }
 
-    check_shapes slice(long start)
-    {
-        return {get(start), end, name};
-    }
+    check_shapes slice(long start) { return {get(start), end, name}; }
 
-    check_shapes slice(long start, long last)
-    {
-        return {get(start), get(last), name};
-    }
+    check_shapes slice(long start, long last) { return {get(start), get(last), name}; }
 };
 
 } // namespace migraph

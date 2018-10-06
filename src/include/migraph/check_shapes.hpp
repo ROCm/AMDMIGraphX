@@ -8,13 +8,18 @@ namespace migraph {
 
 struct check_shapes
 {
-    const std::vector<shape>* shapes;
+    const shape* begin;
+    const shape* end;
     const std::string name;
 
-    check_shapes(const std::vector<shape>& s) : shapes(&s) {}
+    check_shapes(const shape* b, const shape* e, const std::string& n)
+    : begin(b), end(e), name(n)
+    {}
+
+    check_shapes(const std::vector<shape>& s) : begin(s.data()), end(s.data()+s.size()) {}
 
     template <class Op>
-    check_shapes(const std::vector<shape>& s, const Op& op) : shapes(&s), name(op.name())
+    check_shapes(const std::vector<shape>& s, const Op& op) : begin(s.data()), end(s.data()+s.size()), name(op.name())
     {
     }
 
@@ -28,19 +33,21 @@ struct check_shapes
 
     const check_shapes& has(std::size_t n) const
     {
-        assert(shapes != nullptr);
-        if(shapes->size() != n)
+        assert(begin != nullptr);
+        assert(end != nullptr);
+        if(end-begin != n)
             MIGRAPH_THROW(prefix() + "Wrong number of arguments: expected " + std::to_string(n) +
-                          " but given " + std::to_string(shapes->size()));
+                          " but given " + std::to_string(end-begin));
         return *this;
     }
 
     const check_shapes& only_dims(std::size_t n) const
     {
-        assert(shapes != nullptr);
-        if(!shapes->empty())
+        assert(begin != nullptr);
+        assert(end != nullptr);
+        if(begin!=end)
         {
-            if(shapes->front().lens().size() != n)
+            if(begin->lens().size() != n)
                 MIGRAPH_THROW(prefix() + "Only " + std::to_string(n) + "d supported");
         }
         return *this;
@@ -105,18 +112,37 @@ struct check_shapes
     template <class F>
     bool same(F f) const
     {
-        assert(shapes != nullptr);
-        if(shapes->empty())
+        assert(begin != nullptr);
+        assert(end != nullptr);
+        if(begin==end)
             return true;
-        auto&& key = f(shapes->front());
+        auto&& key = f(*begin);
         return this->all_of([&](const shape& s) { return f(s) == key; });
     }
 
     template <class Predicate>
     bool all_of(Predicate p) const
     {
-        assert(shapes != nullptr);
-        return std::all_of(shapes->begin(), shapes->end(), p);
+        assert(begin != nullptr);
+        assert(end != nullptr);
+        return std::all_of(begin, end, p);
+    }
+
+    const shape* get(long i)
+    {
+        if(i < 0)
+            return end-i;
+        return begin+i;
+    }
+
+    check_shapes slice(long start)
+    {
+        return {get(start), end, name};
+    }
+
+    check_shapes slice(long start, long last)
+    {
+        return {get(start), get(last), name};
     }
 };
 

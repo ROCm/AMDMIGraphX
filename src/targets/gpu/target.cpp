@@ -29,7 +29,7 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
         simplify_reshapes{},
         dead_code_elimination{},
         lowering{ctx},
-        fuse_ops{},
+        fuse_ops{&ctx},
         dead_code_elimination{},
         eliminate_contiguous{},
         dead_code_elimination{},

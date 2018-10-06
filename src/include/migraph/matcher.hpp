@@ -270,6 +270,13 @@ MIGRAPH_PRED_MATCHER(broadcast_shape, instruction_ref ins)
     return ins->get_shape().broadcasted();
 }
 
+MIGRAPH_BASIC_MATCHER(output, matcher_context& ctx, instruction_ref ins)
+{
+    if(ins->outputs().size() == 1)
+        return ins->outputs().front();
+    return ctx.not_found();
+}
+
 inline auto name(std::string name)
 {
     return make_basic_pred_matcher(

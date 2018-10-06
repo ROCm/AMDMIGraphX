@@ -76,6 +76,34 @@ struct fusion
     }
 };
 
+MIGRAPH_PRED_MATCHER(bias_shape, instruction_ref ins)
+{
+    auto&& s = ins->get_shape();
+    return s.broadcasted() and 
+        s.strides().size() == 4 and 
+        s.strides()[0] == 0 and
+        s.strides()[1] != 0 and
+        s.strides()[2] == 0 and
+        s.strides()[3] == 0;
+}
+
+// TODO: Move to another header
+template<class T, class... Ts>
+std::array<T, sizeof...(Ts)+1> make_array(T x, Ts... xs)
+{
+    return {std::move(x), std::move(static_cast<T>(xs))...};
+} 
+
+MIGRAPH_PRED_MATCHER(fusable_conv, instruction_ref ins)
+{
+    if(ins->name() != "gpu::convolution")
+        return false;
+    auto op = any_cast<miopen_convolution>(ins->get_operator()).op;
+    return op.padding == make_array<size_t>(0, 0) and
+        op.stride == make_array<size_t>(1, 1) and
+        op.dilation == make_array<size_t>(1, 1);
+}
+
 struct hip_add_relu
 {
     std::string name() const { return "hip::add_relu"; }
@@ -168,17 +196,17 @@ struct match_conv_bias
     auto matcher() const
     {
         return match::name("gpu::add")(match::either_arg(0, 1)(
-            match::broadcast_shape().bind("bias"), match::name("gpu::convolution").bind("conv")));
+            bias_shape().bind("bias"), fusable_conv().bind("conv")));
     }
 
     void apply(program& p, match::matcher_result r) const
     {
         auto conv_ins    = r.instructions["conv"];
         auto bias_ins    = r.instructions["bias"];
+        auto ins         = r.result;
         auto input_ins   = conv_ins->inputs().at(0);
         auto weights_ins = conv_ins->inputs().at(1);
         auto conv_op     = any_cast<miopen_convolution>(conv_ins->get_operator()).op;
-        auto ins         = r.result;
         auto alloc_ins   = ins->inputs().back();
         auto old_ws_ins  = conv_ins->inputs().at(2);
 

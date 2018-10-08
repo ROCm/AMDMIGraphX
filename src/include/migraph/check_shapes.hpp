@@ -32,13 +32,20 @@ struct check_shapes
             return name + ": ";
     }
 
-    const check_shapes& has(std::size_t n) const
+    std::size_t size() const
     {
+        if (begin == end)
+            return 0;
         assert(begin != nullptr);
         assert(end != nullptr);
-        if(end - begin != n)
+        return end - begin;
+    }
+
+    const check_shapes& has(std::size_t n) const
+    {
+        if(size() != n)
             MIGRAPH_THROW(prefix() + "Wrong number of arguments: expected " + std::to_string(n) +
-                          " but given " + std::to_string(end - begin));
+                          " but given " + std::to_string(size()));
         return *this;
     }
 
@@ -113,10 +120,10 @@ struct check_shapes
     template <class F>
     bool same(F f) const
     {
-        assert(begin != nullptr);
-        assert(end != nullptr);
         if(begin == end)
             return true;
+        assert(begin != nullptr);
+        assert(end != nullptr);
         auto&& key = f(*begin);
         return this->all_of([&](const shape& s) { return f(s) == key; });
     }
@@ -124,6 +131,8 @@ struct check_shapes
     template <class Predicate>
     bool all_of(Predicate p) const
     {
+        if(begin == end)
+            return true;
         assert(begin != nullptr);
         assert(end != nullptr);
         return std::all_of(begin, end, p);
@@ -131,6 +140,10 @@ struct check_shapes
 
     const shape* get(long i)
     {
+        if(i >= size())
+            MIGRAPH_THROW(prefix() + "Accessing shape out of bounds");
+        assert(begin != nullptr);
+        assert(end != nullptr);
         if(i < 0)
             return end - i;
         return begin + i;

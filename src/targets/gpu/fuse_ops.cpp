@@ -176,7 +176,7 @@ struct miopen_conv_bias
     fusion::op_t conv;
     fusion::op_t bias;
 
-    miopen_conv_bias(op::convolution c, shape input, shape weights, shape b) : op(c), f(input)
+    miopen_conv_bias(op::convolution c, const shape& input, const shape& weights, const shape& b) : op(c), f(input)
     {
         conv = f.create_conv(op, weights);
         bias = f.create_bias(b);
@@ -213,7 +213,7 @@ struct miopen_conv_bias_relu
     fusion::op_t bias;
     fusion::op_t relu;
 
-    miopen_conv_bias_relu(op::convolution c, shape input, shape weights, shape b) : op(c), f(input)
+    miopen_conv_bias_relu(op::convolution c, const shape& input, const shape& weights, const shape& b) : op(c), f(input)
     {
         conv = f.create_conv(op, weights);
         bias = f.create_bias(b);
@@ -281,7 +281,7 @@ struct match_conv_bias
 
     void apply(program& p, match::matcher_result r) const
     {
-        apply_conv_bias<miopen_conv_bias>(*ctx, p, r);
+        apply_conv_bias<miopen_conv_bias>(*ctx, p, std::move(r));
     }
 };
 
@@ -292,7 +292,7 @@ struct match_conv_bias_relu
 
     void apply(program& p, match::matcher_result r) const
     {
-        apply_conv_bias<miopen_conv_bias_relu>(*ctx, p, r);
+        apply_conv_bias<miopen_conv_bias_relu>(*ctx, p, std::move(r));
     }
 };
 

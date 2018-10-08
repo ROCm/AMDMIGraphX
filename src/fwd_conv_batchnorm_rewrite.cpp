@@ -52,7 +52,7 @@ void fwd_conv_batchnorm_rewrite::apply(program& p) const
                             gamma2(k) / std::sqrt(variance2(k) + epsilon) * weights2(k, c, h, w);
                     });
                 dfor(new_bias.get_shape().elements())([&](std::size_t c) {
-                    new_bias2(c) = bias2(c) - (mean2(c) / std::sqrt(variance2(c) + epsilon));
+                    new_bias2(c) = bias2(c) - (gamma2(c) * mean2(c) / std::sqrt(variance2(c) + epsilon));
                 });
             });
         // Replace convolution instruction with updated weights

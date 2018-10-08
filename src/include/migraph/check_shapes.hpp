@@ -34,7 +34,7 @@ struct check_shapes
 
     std::size_t size() const
     {
-        if (begin == end)
+        if(begin == end)
             return 0;
         assert(begin != nullptr);
         assert(end != nullptr);

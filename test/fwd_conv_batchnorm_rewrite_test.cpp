@@ -34,17 +34,19 @@ void fwd_conv_batchnorm_rewrite_test()
     migraph::shape ws{migraph::shape::float_type, {1, 3, 3, 3}};
     migraph::shape vars{migraph::shape::float_type, {1}};
 
-    auto create_program = [&] () { 
-        migraph::program p;
-        auto x        = p.add_literal(xs, xdata);
-        auto w        = p.add_literal(ws, wdata);
-        auto conv     = p.add_instruction(migraph::op::convolution{{0, 0}, {1, 1}, {1, 1}}, x, w);
-        auto scale    = p.add_literal(migraph::literal{vars, {3.0f}});
-        auto bias     = p.add_literal(migraph::literal{vars, {8.1f}});
-        auto mean     = p.add_literal(migraph::literal{vars, {4.0f}});
-        auto variance = p.add_literal(migraph::literal{vars, {37.11f}});
-        p.add_instruction(migraph::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
-    }
+    auto create_program =
+        [&]() {
+            migraph::program p;
+            auto x     = p.add_literal(xs, xdata);
+            auto w     = p.add_literal(ws, wdata);
+            auto conv  = p.add_instruction(migraph::op::convolution{{0, 0}, {1, 1}, {1, 1}}, x, w);
+            auto scale = p.add_literal(migraph::literal{vars, {3.0f}});
+            auto bias  = p.add_literal(migraph::literal{vars, {8.1f}});
+            auto mean  = p.add_literal(migraph::literal{vars, {4.0f}});
+            auto variance = p.add_literal(migraph::literal{vars, {37.11f}});
+            p.add_instruction(
+                migraph::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
+        }
 
     migraph::program p1 = create_program();
     migraph::program p2 = create_program();

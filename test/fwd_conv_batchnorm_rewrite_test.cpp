@@ -46,7 +46,8 @@ void fwd_conv_batchnorm_rewrite_test()
             auto variance = p.add_literal(migraph::literal{vars, {37.11f}});
             p.add_instruction(
                 migraph::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
-        }
+            return p;
+        };
 
     migraph::program p1 = create_program();
     migraph::program p2 = create_program();

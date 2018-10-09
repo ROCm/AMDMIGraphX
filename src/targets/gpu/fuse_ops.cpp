@@ -252,9 +252,11 @@ struct miopen_conv_bias_relu
 template <class... Ms>
 auto conv_bias(Ms... ms)
 {
-    return match::name("gpu::add")(match::either_arg(0, 1)(match::arg(0)(bias_shape(match::output())).bind("bias"),
-                                                           fusable_conv(match::output()).bind("conv")), match::output(),
-                                   ms...);
+    return match::name("gpu::add")(
+        match::either_arg(0, 1)(match::arg(0)(bias_shape(match::output())).bind("bias"),
+                                fusable_conv(match::output()).bind("conv")),
+        match::output(),
+        ms...);
 }
 
 template <class Op>

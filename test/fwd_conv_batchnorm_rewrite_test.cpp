@@ -33,29 +33,21 @@ void fwd_conv_batchnorm_rewrite_test()
     migraph::shape xs{migraph::shape::float_type, {1, 3, 6, 6}};
     migraph::shape ws{migraph::shape::float_type, {1, 3, 3, 3}};
     migraph::shape vars{migraph::shape::float_type, {1}};
-    migraph::program p1;
-    migraph::program p2;
-    {
-        auto x        = p1.add_literal(xs, xdata);
-        auto w        = p1.add_literal(ws, wdata);
-        auto conv     = p1.add_instruction(migraph::op::convolution{{0, 0}, {1, 1}, {1, 1}}, x, w);
-        auto scale    = p1.add_literal(migraph::literal{vars, {3.0f}});
-        auto bias     = p1.add_literal(migraph::literal{vars, {8.1f}});
-        auto mean     = p1.add_literal(migraph::literal{vars, {4.0f}});
-        auto variance = p1.add_literal(migraph::literal{vars, {37.11f}});
-        p1.add_instruction(migraph::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
+
+    auto create_program = [&] () { 
+        migraph::program p;
+        auto x        = p.add_literal(xs, xdata);
+        auto w        = p.add_literal(ws, wdata);
+        auto conv     = p.add_instruction(migraph::op::convolution{{0, 0}, {1, 1}, {1, 1}}, x, w);
+        auto scale    = p.add_literal(migraph::literal{vars, {3.0f}});
+        auto bias     = p.add_literal(migraph::literal{vars, {8.1f}});
+        auto mean     = p.add_literal(migraph::literal{vars, {4.0f}});
+        auto variance = p.add_literal(migraph::literal{vars, {37.11f}});
+        p.add_instruction(migraph::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
     }
-    {
-        auto x        = p2.add_literal(xs, xdata);
-        auto w        = p2.add_literal(ws, wdata);
-        auto conv     = p2.add_instruction(migraph::op::convolution{{0, 0}, {1, 1}, {1, 1}}, x, w);
-        auto scale    = p2.add_literal(migraph::literal{vars, {3.0f}});
-        auto bias     = p2.add_literal(migraph::literal{vars, {8.1f}});
-        auto mean     = p2.add_literal(migraph::literal{vars, {4.0f}});
-        auto variance = p2.add_literal(migraph::literal{vars, {37.11f}});
-        p2.add_instruction(migraph::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
-    }
-    std::cout << p1 << std::endl;
+
+    migraph::program p1 = create_program();
+    migraph::program p2 = create_program();
     migraph::fwd_conv_batchnorm_rewrite opt;
     opt.apply(p2);
     p1.compile(migraph::cpu::cpu_target{});

@@ -14,7 +14,7 @@ struct match_const_add
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto ins = r.result;
+        auto ins  = r.result;
         auto arg1 = ins->inputs().at(0)->get_literal();
         auto arg2 = ins->inputs().at(1)->get_literal();
 
@@ -23,9 +23,6 @@ struct match_const_add
     }
 };
 
-void constant_propagate::apply(program& p) const
-{
-    match::find_matches(p, match_const_add{});
-}
+void constant_propagate::apply(program& p) const { match::find_matches(p, match_const_add{}); }
 
 } // namespace migraph

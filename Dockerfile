@@ -65,6 +65,9 @@ ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 RUN cget -p $PREFIX install -f /dev-requirements.txt -DMIOPEN_CACHE_DIR=""
 
+ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
+ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db
+
 ENV LD_LIBRARY_PATH=$PREFIX/lib
 
 # Install doc requirements

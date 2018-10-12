@@ -18,20 +18,22 @@ struct find_add_lit_broadcast
     }
     auto add_lit_broadcast(std::string x, std::string y) const
     {
-        return match::name("add")(match::either_arg(0, 1)(lit_broadcast().bind(x), not_lit_broadcast().bind(y)));
+        return match::name("add")(
+            match::either_arg(0, 1)(lit_broadcast().bind(x), not_lit_broadcast().bind(y)));
     }
     auto matcher() const
     {
-        return match::name("add")(match::args(add_lit_broadcast("a", "x"), add_lit_broadcast("b", "y")));
+        return match::name("add")(
+            match::args(add_lit_broadcast("a", "x"), add_lit_broadcast("b", "y")));
     }
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto ins  = r.result;
-        auto x_ins    = r.instructions["x"];
-        auto y_ins    = r.instructions["y"];
-        auto a_ins    = r.instructions["a"];
-        auto b_ins    = r.instructions["b"];
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+        auto y_ins = r.instructions["y"];
+        auto a_ins = r.instructions["a"];
+        auto b_ins = r.instructions["b"];
 
         if(a_ins->name() != b_ins->name())
             return;
@@ -41,9 +43,10 @@ struct find_add_lit_broadcast
         {
             if(a_ins->inputs().at(0)->get_shape() != b_ins->inputs().at(0)->get_shape())
                 return;
-            auto op     = a_ins->get_operator();
-            auto presum = p.insert_instruction(ins, op::add{}, a_ins->inputs().at(0), b_ins->inputs().at(0));
-            sumab       = p.insert_instruction(ins, op, presum);
+            auto op = a_ins->get_operator();
+            auto presum =
+                p.insert_instruction(ins, op::add{}, a_ins->inputs().at(0), b_ins->inputs().at(0));
+            sumab = p.insert_instruction(ins, op, presum);
         }
         else
         {

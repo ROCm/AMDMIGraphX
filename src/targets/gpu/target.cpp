@@ -10,6 +10,8 @@
 #include <migraph/auto_contiguous.hpp>
 #include <migraph/dead_code_elimination.hpp>
 #include <migraph/simplify_reshapes.hpp>
+#include <migraph/simplify_algebra.hpp>
+#include <migraph/constant_propagate.hpp>
 #include <migraph/eliminate_contiguous.hpp>
 #include <migraph/fwd_conv_batchnorm_rewrite.hpp>
 
@@ -24,6 +26,10 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
     {
         dead_code_elimination{},
         fwd_conv_batchnorm_rewrite{},
+        dead_code_elimination{},
+        simplify_algebra{},
+        dead_code_elimination{},
+        constant_propagate{},
         dead_code_elimination{},
         auto_contiguous{},
         simplify_reshapes{},

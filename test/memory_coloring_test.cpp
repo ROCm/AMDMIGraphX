@@ -135,7 +135,11 @@ void test5()
     p.add_instruction(migraph::op::transpose{{1,0}}, ll);
     p.add_instruction(pass_memory{}, input, a1);
     p.compile(memory_coloring_target{});
-    EXPECT(p.get_parameter_shape("scratch").bytes() == 528);
+    char* val = getenv("MIGRAPH_UNIFY_MEMORY_COLORING");
+    if ((val != nullptr) && (atoi(val) != 0))
+        EXPECT(p.get_parameter_shape("scratch").bytes() == 528);
+    else
+        EXPECT(p.get_parameter_shape("scratch").bytes() == 512);
 }
 
 int main()

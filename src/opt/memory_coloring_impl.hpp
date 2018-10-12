@@ -61,7 +61,6 @@ struct memory_coloring_impl
         required_bytes   = 0;
         operand_alias.clear();
         earliest_end_point = -1;
-        latest_end_point   = -1;
         unify_literals     = false;
     }
     bool allocate(interval_ptr);
@@ -171,8 +170,6 @@ struct memory_coloring_impl
     long long required_bytes;
     // The earliest program point where an live interval ends.
     int earliest_end_point;
-    // The latest program point where an live interval ends.
-    int latest_end_point;
     // Whether to unify literals into coloring.
     bool unify_literals;
     std::string allocation_op{};

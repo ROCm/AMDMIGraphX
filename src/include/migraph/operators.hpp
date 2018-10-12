@@ -707,7 +707,6 @@ struct load
 struct write_literal
 {
     std::size_t offset = 0;
-    bool pre_copy      = false;
     std::string name() const { return "write_literal"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -719,7 +718,7 @@ struct write_literal
         MIGRAPH_THROW("not computable");
     }
 };
-    
+
 struct outline
 {
     shape s;
@@ -734,7 +733,6 @@ struct outline
         return {s, nullptr};
     }
 };
-
 } // namespace op
 } // namespace migraph
 

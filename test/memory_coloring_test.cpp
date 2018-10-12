@@ -123,12 +123,27 @@ void literal_test()
     EXPECT(lit == result);
 }
 
+void test5()
+{
+    migraph::program p;
+    std::vector<float> a_data;
+    migraph::shape a_shape{migraph::shape::float_type, {2, 2}};
+    auto input = p.add_parameter("input", migraph::shape{migraph::shape::float_type, {16}});
+    auto ll = p.add_literal(migraph::literal{a_shape, a_data});
+    auto a0 = p.add_outline(migraph::shape{migraph::shape::float_type, {128}});
+    auto a1 = p.add_instruction(allocate{}, a0);
+    p.add_instruction(migraph::op::transpose{{1,0}}, ll);
+    p.add_instruction(pass_memory{}, input, a1);
+    p.compile(memory_coloring_target{});
+    EXPECT(p.get_parameter_shape("scratch").bytes() == 528);
+}
+
 int main()
 {
     test1();
     test2();
     test3();
     test4();
-
     literal_test();
+    test5();
 }

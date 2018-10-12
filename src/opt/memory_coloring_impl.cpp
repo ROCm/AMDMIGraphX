@@ -4,7 +4,7 @@ namespace migraph {
 
 void memory_coloring_impl::run()
 {
-    if (enabled(MIGRAPH_UNIFY_MEMORY_COLORING{}))
+    if(enabled(MIGRAPH_UNIFY_MEMORY_COLORING{}))
         unify_literals = true;
     MIGRAPH_DEBUG(dump("---Before memory coloring---"));
     MIGRAPH_DEBUG(dump_program());
@@ -18,11 +18,11 @@ void memory_coloring_impl::run()
         while(!alloc_queue.empty())
         {
             interval_ptr interval = alloc_queue.top();
-            if (allocate(interval))
+            if(allocate(interval))
                 did_it = true;
             alloc_queue.pop();
         }
-        if (did_it)
+        if(did_it)
             rewrite();
         MIGRAPH_DEBUG(verify());
     }
@@ -171,8 +171,6 @@ void memory_coloring_impl::build()
                 live_set.insert(max_value_number);
                 live_ranges[max_value_number] = &(interval->segment);
                 earliest_end_point            = cur_points;
-                if(latest_end_point == -1)
-                    latest_end_point = cur_points;
             }
             else
             {
@@ -240,10 +238,8 @@ void memory_coloring_impl::rewrite()
             }
             else if(is_literal(ins) && unify_literals)
             {
-                auto pre      = p_program->add_literal(ins->get_literal());
-                bool pre_copy = (interval->get_begin() < earliest_end_point);
-                p_program->replace_instruction(
-                                               ins, op::write_literal{offset, pre_copy}, scratch_param, pre);
+                auto pre = p_program->add_literal(ins->get_literal());
+                p_program->replace_instruction(ins, op::write_literal{offset}, scratch_param, pre);
             }
         }
     }

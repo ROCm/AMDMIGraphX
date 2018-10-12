@@ -23,7 +23,7 @@ void lowering_memory_coloring::apply(program& p) const
 {
     if(enabled(MIGRAPH_DISABLE_MEMORY_COLORING{}))
         return;
-    if (!enabled(MIGRAPH_UNIFY_MEMORY_COLORING{}))
+    if(!enabled(MIGRAPH_UNIFY_MEMORY_COLORING{}))
         return;
 
     assert(ctx != nullptr);
@@ -41,28 +41,11 @@ void lowering_memory_coloring::apply(program& p) const
         if(ins->get_operator().name() == "write_literal")
         {
             const std::vector<instruction_ref>& args = ins->inputs();
-            instruction_ref arg0               = args.at(0);
-            instruction_ref arg1               = args.at(1);
-
-            shape s_arg1       = arg1->get_shape();
-            std::size_t size   = s_arg1.bytes();
+            instruction_ref arg0                     = args.at(0);
+            instruction_ref arg1                     = args.at(1);
             auto&& a           = any_cast<op::write_literal>(ins->get_operator());
             std::size_t offset = a.offset;
-
-            //            if(a.pre_copy)
-            if (0)
-            {
-                char* dst       = base_ptr.data() + offset;
-                const char* src = arg1->get_literal().data();
-                copy_to_gpu(dst, src, size);
-                gpu_sync();
-                p.replace_instruction(ins, op::load{s_arg1, offset}, scratch_ins);
-                p.remove_instruction(arg1);
-            }
-            else
-            {
-                p.replace_instruction(ins, hip_memcpy{offset}, arg0, arg1);
-            }
+            p.replace_instruction(ins, hip_memcpy{offset}, arg0, arg1);
         }
     }
     //    std::cout << p << std::endl;

@@ -264,6 +264,8 @@ auto any_of(Ts... ms)
     });
 }
 
+MIGRAPH_PRED_MATCHER(any, instruction_ref) { return true; }
+MIGRAPH_PRED_MATCHER(none, instruction_ref) { return false; }
 MIGRAPH_PRED_MATCHER(standard_shape, instruction_ref ins) { return ins->get_shape().standard(); }
 MIGRAPH_PRED_MATCHER(broadcast_shape, instruction_ref ins)
 {

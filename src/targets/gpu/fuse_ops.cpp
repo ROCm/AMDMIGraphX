@@ -314,7 +314,7 @@ template <class... Ms>
 auto conv_bias(Ms... ms)
 {
     return match::name("gpu::add")(
-        match::either_arg(0, 1)(match::arg(0)(bias_shape(match::output())).bind("bias"),
+        match::either_arg(0, 1)(bias_shape(match::output()).bind("bias"),
                                 fusable_conv(match::output()).bind("conv")),
         match::output(),
         ms...);
@@ -369,8 +369,8 @@ void fuse_ops::apply(program& p) const
     // clang-format off
     match::find_matches(p, 
         match_triadd{},
-        match_conv_bias_relu{ctx},
-        match_conv_bias{ctx}
+        // match_conv_bias_relu{ctx},
+        // match_conv_bias{ctx},
         match_add_relu{}
     );
     // clang-format on

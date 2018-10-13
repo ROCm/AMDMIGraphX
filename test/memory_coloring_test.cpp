@@ -129,14 +129,15 @@ void test5()
     std::vector<float> a_data;
     migraph::shape a_shape{migraph::shape::float_type, {2, 2}};
     auto input = p.add_parameter("input", migraph::shape{migraph::shape::float_type, {16}});
-    auto ll = p.add_literal(migraph::literal{a_shape, a_data});
-    auto a0 = p.add_outline(migraph::shape{migraph::shape::float_type, {128}});
-    auto a1 = p.add_instruction(allocate{}, a0);
-    p.add_instruction(migraph::op::transpose{{1,0}}, ll);
+    auto ll    = p.add_literal(migraph::literal{a_shape, a_data});
+    auto a0    = p.add_outline(migraph::shape{migraph::shape::float_type, {128}});
+    auto a1    = p.add_instruction(allocate{}, a0);
+    p.add_instruction(migraph::op::transpose{{1, 0}}, ll);
     p.add_instruction(pass_memory{}, input, a1);
     p.compile(memory_coloring_target{});
     char* val = getenv("MIGRAPH_UNIFY_MEMORY_COLORING");
-    if ((val != nullptr) && (atoi(val) != 0))
+    char* end;
+    if((val != nullptr) && (strtol(val, &end, 10) != 0))
         EXPECT(p.get_parameter_shape("scratch").bytes() == 528);
     else
         EXPECT(p.get_parameter_shape("scratch").bytes() == 512);

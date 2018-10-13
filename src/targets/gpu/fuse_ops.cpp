@@ -185,7 +185,8 @@ struct match_add_relu
 {
     auto matcher() const
     {
-        return match::name("gpu::relu")(match::arg(0)(match::any_of(match::name("gpu::add"), match::name("hip::triadd")).bind("add")));
+        return match::name("gpu::relu")(match::arg(0)(
+            match::any_of(match::name("gpu::add"), match::name("hip::triadd")).bind("add")));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -206,14 +207,15 @@ struct match_triadd
 {
     auto matcher() const
     {
-        return match::name("gpu::add")(match::either_arg(0, 1)(match::name("gpu::add").bind("add"), match::any().bind("input")));
+        return match::name("gpu::add")(match::either_arg(0, 1)(match::name("gpu::add").bind("add"),
+                                                               match::any().bind("input")));
     }
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto add_ins = r.instructions["add"];
-        auto input_ins = r.instructions["input"];
-        auto ins     = r.result;
+        auto add_ins        = r.instructions["add"];
+        auto input_ins      = r.instructions["input"];
+        auto ins            = r.result;
         auto args           = add_ins->inputs();
         auto is_broadcasted = [](auto arg) { return arg->get_shape().broadcasted(); };
         if(std::count_if(args.begin(), args.end(), is_broadcasted) > 1)

@@ -185,9 +185,8 @@ struct match_add_relu
 {
     auto matcher() const
     {
-        return match::name("gpu::relu")(
-            match::arg(0)(
-                match::any_of(match::name("gpu::add"), match::name("hip::triadd")).bind("add")));
+        return match::name("gpu::relu")(match::arg(0)(
+            match::any_of(match::name("gpu::add"), match::name("hip::triadd")).bind("add")));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -356,10 +355,7 @@ struct match_conv_bias
 struct match_conv_bias_relu
 {
     context* ctx = nullptr;
-    auto matcher() const
-    {
-        return match::name("gpu::relu")(match::arg(0)(conv_bias()));
-    }
+    auto matcher() const { return match::name("gpu::relu")(match::arg(0)(conv_bias())); }
 
     void apply(program& p, match::matcher_result r) const
     {

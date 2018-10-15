@@ -180,9 +180,9 @@ struct test_triadd
     {
         migraph::program p;
         migraph::shape s{migraph::shape::float_type, {3}};
-        auto x = p.add_parameter("x", s);
-        auto y = p.add_parameter("y", s);
-        auto z = p.add_parameter("z", s);
+        auto x   = p.add_parameter("x", s);
+        auto y   = p.add_parameter("y", s);
+        auto z   = p.add_parameter("z", s);
         auto sum = p.add_instruction(migraph::op::add{}, x, y);
         p.add_instruction(migraph::op::add{}, sum, z);
         return p;
@@ -196,10 +196,10 @@ struct test_triadd2
         migraph::program p;
         migraph::shape s{migraph::shape::float_type, {2, 3}};
         migraph::shape b{migraph::shape::float_type, {3}};
-        auto x = p.add_parameter("x", s);
-        auto y = p.add_parameter("y", s);
-        auto z = p.add_parameter("z", b);
-        auto zb = p.add_instruction(migraph::op::broadcast{1, s}, z);
+        auto x   = p.add_parameter("x", s);
+        auto y   = p.add_parameter("y", s);
+        auto z   = p.add_parameter("z", b);
+        auto zb  = p.add_instruction(migraph::op::broadcast{1, s}, z);
         auto sum = p.add_instruction(migraph::op::add{}, x, y);
         p.add_instruction(migraph::op::add{}, sum, zb);
         return p;
@@ -282,10 +282,10 @@ struct test_triadd_broadcast
     {
         migraph::program p;
         migraph::shape s{migraph::shape::float_type, {3}};
-        auto x  = p.add_parameter("x", {migraph::shape::float_type, {2, 2, 3}});
-        auto y  = p.add_parameter("y", {migraph::shape::float_type, {2, 2}});
-        auto z  = p.add_parameter("z", {migraph::shape::float_type, {2, 2, 3}});
-        auto by = p.add_instruction(migraph::op::broadcast{0, x->get_shape()}, y);
+        auto x   = p.add_parameter("x", {migraph::shape::float_type, {2, 2, 3}});
+        auto y   = p.add_parameter("y", {migraph::shape::float_type, {2, 2}});
+        auto z   = p.add_parameter("z", {migraph::shape::float_type, {2, 2, 3}});
+        auto by  = p.add_instruction(migraph::op::broadcast{0, x->get_shape()}, y);
         auto sum = p.add_instruction(migraph::op::add{}, x, by);
         p.add_instruction(migraph::op::add{}, sum, z);
         return p;

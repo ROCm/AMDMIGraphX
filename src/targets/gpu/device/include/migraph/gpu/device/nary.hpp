@@ -121,11 +121,11 @@ void trinary_broadcast_impl(
     auto bdim_stride      = output_shape.strides()[bdim];
     auto bdim_next_stride = bdim_stride * bdim_len;
 
-    visit_all(result, arg1, arg2)([&](auto output, auto input1, auto input2) {
+    visit_all(result, arg1, arg2, arg3)([&](auto output, auto input1, auto input2, auto input3) {
         using type = std::remove_cv_t<typename decltype(output)::value_type>;
         auto* xp   = input1.data();
         auto* yp   = input2.data();
-        auto* zp   = input2.data();
+        auto* zp   = input3.data();
         auto* outp = output.data();
 
         const std::size_t nlocal  = 1024;

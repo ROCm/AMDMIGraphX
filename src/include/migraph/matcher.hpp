@@ -279,6 +279,15 @@ MIGRAPH_BASIC_MATCHER(output, matcher_context& ctx, instruction_ref ins)
     return ctx.not_found();
 }
 
+MIGRAPH_BASIC_MATCHER(used_once, matcher_context& ctx, instruction_ref ins)
+{
+    if(ins->outputs().size() == 1)
+        return ins;
+    if(ins->outputs().empty() and std::next(ins) == ctx.not_found())
+        return ins;
+    return ctx.not_found();
+}
+
 inline auto name(std::string name)
 {
     return make_basic_pred_matcher(

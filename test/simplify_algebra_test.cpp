@@ -14,13 +14,12 @@ struct simplify_algebra_target
     migraph::context get_context() const { return {}; }
 };
 
-
 void simplify_add1()
 {
     migraph::program p1;
     {
-        auto x = p1.add_parameter("x", {migraph::shape::int32_type, {1}});
-        auto y = p1.add_parameter("y", {migraph::shape::int32_type, {1}});
+        auto x    = p1.add_parameter("x", {migraph::shape::int32_type, {1}});
+        auto y    = p1.add_parameter("y", {migraph::shape::int32_type, {1}});
         auto one  = p1.add_literal(1);
         auto two  = p1.add_literal(2);
         auto sum1 = p1.add_instruction(migraph::op::add{}, x, one);
@@ -32,8 +31,8 @@ void simplify_add1()
 
     migraph::program p2;
     {
-        auto x = p2.add_parameter("x", {migraph::shape::int32_type, {1}});
-        auto y = p2.add_parameter("y", {migraph::shape::int32_type, {1}});
+        auto x    = p2.add_parameter("x", {migraph::shape::int32_type, {1}});
+        auto y    = p2.add_parameter("y", {migraph::shape::int32_type, {1}});
         auto one  = p2.add_literal(1);
         auto two  = p2.add_literal(2);
         auto sum1 = p2.add_instruction(migraph::op::add{}, one, two);
@@ -48,8 +47,8 @@ void simplify_add2()
 {
     migraph::program p1;
     {
-        auto x = p1.add_parameter("x", {migraph::shape::int32_type, {1}});
-        auto y = p1.add_parameter("y", {migraph::shape::int32_type, {1}});
+        auto x    = p1.add_parameter("x", {migraph::shape::int32_type, {1}});
+        auto y    = p1.add_parameter("y", {migraph::shape::int32_type, {1}});
         auto one  = p1.add_literal(1);
         auto two  = p1.add_literal(2);
         auto sum1 = p1.add_instruction(migraph::op::add{}, one, x);
@@ -61,8 +60,8 @@ void simplify_add2()
 
     migraph::program p2;
     {
-        auto x = p2.add_parameter("x", {migraph::shape::int32_type, {1}});
-        auto y = p2.add_parameter("y", {migraph::shape::int32_type, {1}});
+        auto x    = p2.add_parameter("x", {migraph::shape::int32_type, {1}});
+        auto y    = p2.add_parameter("y", {migraph::shape::int32_type, {1}});
         auto one  = p2.add_literal(1);
         auto two  = p2.add_literal(2);
         auto sum1 = p2.add_instruction(migraph::op::add{}, one, two);
@@ -77,7 +76,7 @@ void simplify_add3()
 {
     migraph::program p1;
     {
-        auto x = p1.add_parameter("x", {migraph::shape::int32_type, {1}});
+        auto x    = p1.add_parameter("x", {migraph::shape::int32_type, {1}});
         auto one  = p1.add_literal(1);
         auto two  = p1.add_literal(2);
         auto sum1 = p1.add_instruction(migraph::op::add{}, one, x);
@@ -89,7 +88,7 @@ void simplify_add3()
 
     migraph::program p2;
     {
-        auto x = p2.add_parameter("x", {migraph::shape::int32_type, {1}});
+        auto x    = p2.add_parameter("x", {migraph::shape::int32_type, {1}});
         auto one  = p2.add_literal(1);
         auto two  = p2.add_literal(2);
         auto sum1 = p2.add_instruction(migraph::op::add{}, one, x);
@@ -104,8 +103,8 @@ void simplify_add4()
 {
     migraph::program p1;
     {
-        auto x = p1.add_parameter("x", {migraph::shape::int32_type, {1}});
-        auto y = p1.add_parameter("y", {migraph::shape::int32_type, {1}});
+        auto x    = p1.add_parameter("x", {migraph::shape::int32_type, {1}});
+        auto y    = p1.add_parameter("y", {migraph::shape::int32_type, {1}});
         auto one  = p1.add_literal(1);
         auto two  = p1.add_literal(2);
         auto sum1 = p1.add_instruction(migraph::op::add{}, one, x);
@@ -117,8 +116,8 @@ void simplify_add4()
 
     migraph::program p2;
     {
-        auto x = p2.add_parameter("x", {migraph::shape::int32_type, {1}});
-        auto y = p2.add_parameter("y", {migraph::shape::int32_type, {1}});
+        auto x    = p2.add_parameter("x", {migraph::shape::int32_type, {1}});
+        auto y    = p2.add_parameter("y", {migraph::shape::int32_type, {1}});
         auto one  = p2.add_literal(1);
         auto two  = p2.add_literal(2);
         auto sum1 = p2.add_instruction(migraph::op::add{}, one, two);
@@ -129,7 +128,7 @@ void simplify_add4()
     EXPECT(p1 == p2);
 }
 
-int main() 
+int main()
 {
     simplify_add1();
     simplify_add2();

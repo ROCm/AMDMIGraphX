@@ -289,24 +289,27 @@ struct concat
     std::string name() const { return "concat"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        if (inputs.empty())
+        if(inputs.empty())
         {
             MIGRAPH_THROW("Number of input tensors should exceed 0");
         }
 
         const auto& first_shape_lens = inputs.front().lens();
-        const auto& type = inputs.front().type();
-        for (std::size_t l = 0; l < first_shape_lens.size(); l++) {
-            if (l != axis) {
-                if (!std::all_of(inputs.begin(), inputs.end(), [&] (auto s) {
-                    return s.lens()[l] == first_shape_lens[l];}))
-                { 
-                    MIGRAPH_THROW("Non-axis dimensions should match"); 
+        const auto& type             = inputs.front().type();
+        for(std::size_t l = 0; l < first_shape_lens.size(); l++)
+        {
+            if(l != axis)
+            {
+                if(!std::all_of(inputs.begin(), inputs.end(), [&](auto s) {
+                       return s.lens()[l] == first_shape_lens[l];
+                   }))
+                {
+                    MIGRAPH_THROW("Non-axis dimensions should match");
                 }
             }
         }
         std::size_t new_dim_axis = 0;
-        for (const auto& input : inputs)
+        for(const auto& input : inputs)
         {
             const auto& lens = input.lens();
             new_dim_axis += lens[axis];

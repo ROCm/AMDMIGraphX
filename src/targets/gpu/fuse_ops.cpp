@@ -131,7 +131,15 @@ MIGRAPH_PRED_MATCHER(fusable_conv, instruction_ref ins)
 {
     if(ins->name() != "gpu::convolution")
         return false;
-    auto op = any_cast<miopen_convolution>(ins->get_operator()).op;
+    auto wei = ins->inputs().at(1)->get_shape();
+    assert(wei.lens().size() == 4);
+    auto channels = wei.lens()[1] * wei.lens()[0];
+    if(wei.lens()[0] > 64 and channels > 32768)
+        return false;
+    auto conv = any_cast<miopen_convolution>(ins->get_operator());
+    if(conv.algo == miopenConvolutionFwdAlgoWinograd)
+        return false;
+    auto op = conv.op;
     return op.padding == make_array<size_t>(0, 0) and op.stride == make_array<size_t>(1, 1) and
            op.dilation == make_array<size_t>(1, 1);
 }
@@ -366,10 +374,10 @@ struct match_conv_bias_relu
 void fuse_ops::apply(program& p) const
 {
     // clang-format off
+    match::find_matches(p, match_triadd{});
     match::find_matches(p, 
-        match_triadd{},
-        // match_conv_bias_relu{ctx},
-        // match_conv_bias{ctx},
+        match_conv_bias_relu{ctx},
+        match_conv_bias{ctx},
         match_add_relu{}
     );
     // clang-format on

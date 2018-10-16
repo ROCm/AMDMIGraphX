@@ -335,7 +335,7 @@ struct cpu_concat
         std::vector<std::size_t> coffsets = compute_offsets(output_shape, args);
         for(std::size_t l = 0; l < args.size(); l++)
         {
-            auto argl = args[l];
+            auto argl             = args[l];
             std::size_t nelements = argl.get_shape().elements();
             visit_all(result, argl)([&](auto output, auto input) {
                 auto* outptr      = output.data() + coffsets[l];

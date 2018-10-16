@@ -63,13 +63,14 @@ void concat_test()
         auto l2 = p.add_literal(migraph::literal{s2, data2});
         p.add_instruction(migraph::op::concat{axis}, l0, l1, l2);
         p.compile(migraph::cpu::cpu_target{});
-        auto result = p.eval({});
+        auto result           = p.eval({});
         std::vector<int> gold = {0, 1, 2, 3, 4, 10, 5, 6, 7, 8, 9, 20};
-        std::vector<int> results_vector(2*6);
+        std::vector<int> results_vector(2 * 6);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         EXPECT(migraph::verify_range(results_vector, gold));
         EXPECT(migraph::verify_range(result.get_shape().lens(), std::vector<std::size_t>({2, 6})));
-        EXPECT(migraph::verify_range(result.get_shape().strides(), std::vector<std::size_t>({6, 1})));
+        EXPECT(
+            migraph::verify_range(result.get_shape().strides(), std::vector<std::size_t>({6, 1})));
     }
     {
         migraph::program p;
@@ -85,15 +86,15 @@ void concat_test()
         auto l2 = p.add_literal(migraph::literal{s2, data2});
         p.add_instruction(migraph::op::concat{axis}, l0, l1, l2);
         p.compile(migraph::cpu::cpu_target{});
-        auto result = p.eval({});
+        auto result           = p.eval({});
         std::vector<int> gold = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-        std::vector<int> results_vector(6*2);
+        std::vector<int> results_vector(6 * 2);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         EXPECT(migraph::verify_range(results_vector, gold));
         EXPECT(migraph::verify_range(result.get_shape().lens(), std::vector<std::size_t>({6, 2})));
-        EXPECT(migraph::verify_range(result.get_shape().strides(), std::vector<std::size_t>({2, 1})));
+        EXPECT(
+            migraph::verify_range(result.get_shape().strides(), std::vector<std::size_t>({2, 1})));
     }
-
 }
 
 void squeeze_test()

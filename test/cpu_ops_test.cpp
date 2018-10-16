@@ -47,6 +47,22 @@ void slice_test()
     }
 }
 
+void concat_test()
+{
+    migraph::program p;
+    std::size_t axis = 1;
+    std::vector<int> data0 = {0, 1, 5, 6};
+    std::vector<int> data1 = {2, 3, 4, 5, 6, 7};
+    migraph::shape s0{migraph::shape::int32_type, {2, 2}};
+    migraph::shape s1{migraph::shape::int32_type, {2, 3}};
+    auto l0 = p.add_literal(migraph::literal{s0, data0});
+    auto l1 = p.add_literal(migraph::literal{s1, data1});
+    p.add_instruction(migraph::op::concat{axis}, l0, l1);
+    p.compile(migraph::cpu::cpu_target{});
+    auto result = p.eval({});
+    std::cout << result << std::endl;
+}
+
 void squeeze_test()
 {
     {
@@ -905,6 +921,7 @@ void contiguous_test()
 
 int main()
 {
+    concat_test();
     slice_test();
     squeeze_test();
     unsqueeze_test();

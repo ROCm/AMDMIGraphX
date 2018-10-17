@@ -19,7 +19,7 @@ struct find_add_lit_broadcast
     auto add_lit_broadcast(std::string x, std::string y) const
     {
         return match::name("add")(
-            match::either_arg(0, 1)(lit_broadcast().bind(x), not_lit_broadcast().bind(y)));
+            match::either_arg(0, 1)(lit_broadcast().bind(std::move(x)), not_lit_broadcast().bind(std::move(y))));
     }
     auto matcher() const
     {

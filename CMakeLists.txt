@@ -93,8 +93,11 @@ rocm_enable_cppcheck(
         noExplicitConstructor
         passedByValue
         unusedStructMember
+        functionStatic
+        functionConst
         definePrefix:*test/include/test.hpp
     FORCE
+    INCONCLUSIVE
     RULE_FILE
         ${CMAKE_CURRENT_SOURCE_DIR}/cppcheck.rules
     SOURCES

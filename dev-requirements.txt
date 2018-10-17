@@ -3,7 +3,7 @@ pcre
 danmar/cppcheck@f965e5873 -DHAVE_RULES=1
 ROCm-Developer-Tools/HIP@3a41f286203968421c557338d6fb39c36f3c717c
 # Needed for clang-ocl
-RadeonOpenCompute/rocm-cmake@d82a77c --build
+RadeonOpenCompute/rocm-cmake@6240bb3 --build
 RadeonOpenCompute/clang-ocl@799713643b5591a3b877c586ef2c7fbc012af819
 # python/cpython@v3.6.6 -X autotools -H sha256:92aa914572c695c0aeb01b0a214813f414da4b51a371234df514a74761f2bb36
 -f requirements.txt

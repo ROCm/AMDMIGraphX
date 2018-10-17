@@ -189,7 +189,7 @@ struct hip_add_relu
     }
 };
 
-struct match_add_relu
+struct find_add_relu
 {
     auto matcher() const
     {
@@ -211,7 +211,7 @@ struct match_add_relu
     }
 };
 
-struct match_triadd
+struct find_triadd
 {
     auto matcher() const
     {
@@ -346,7 +346,7 @@ void apply_conv_bias(context& ctx, program& p, match::matcher_result r)
     p.replace_instruction(ins, cb, input_ins, weights_ins, old_ws_ins, bias_ins, alloc_ins);
 }
 
-struct match_conv_bias
+struct find_conv_bias
 {
     context* ctx = nullptr;
     auto matcher() const
@@ -360,7 +360,7 @@ struct match_conv_bias
     }
 };
 
-struct match_conv_bias_relu
+struct find_conv_bias_relu
 {
     context* ctx = nullptr;
     auto matcher() const { return match::name("gpu::relu")(match::arg(0)(conv_bias())); }
@@ -374,11 +374,11 @@ struct match_conv_bias_relu
 void fuse_ops::apply(program& p) const
 {
     // clang-format off
-    match::find_matches(p, match_triadd{});
+    match::find_matches(p, find_triadd{});
     match::find_matches(p, 
-        match_conv_bias_relu{ctx},
-        match_conv_bias{ctx},
-        match_add_relu{}
+        find_conv_bias_relu{ctx},
+        find_conv_bias{ctx},
+        find_add_relu{}
     );
     // clang-format on
 }

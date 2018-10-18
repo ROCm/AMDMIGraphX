@@ -98,16 +98,29 @@ compute_op(const T& x, context& ctx, const shape& output_shape, const std::vecto
 }
 
 <%
-interface('operation',
-    virtual('name', returns='std::string', const=True),
-    virtual('compute_shape', returns='shape', input='const std::vector<shape>&', const=True),
-    virtual('compute', returns='argument', ctx='context&', output='const shape&', input='const std::vector<argument>&', const=True, default='compute_op'),
-    friend('operator<<', returns='std::ostream &', os='std::ostream &', op='const operation &', using='migraph::operation_stream::operator<<'),
-    friend('operator==', returns='bool', x='const operation &', y='const operation &', using='migraph::operation_equal::operator==')
-)
-%>
+ interface(
+     'operation',
+     virtual('name', returns = 'std::string', const = True),
+     virtual('compute_shape', returns = 'shape', input = 'const std::vector<shape>&', const = True),
+     virtual('compute',
+             returns = 'argument',
+             ctx     = 'context&',
+             output  = 'const shape&',
+             input   = 'const std::vector<argument>&',
+             const   = True,
+             default = 'compute_op'),
+     friend('operator<<',
+            returns = 'std::ostream &',
+            os      = 'std::ostream &',
+            op      = 'const operation &',
+            using   = 'migraph::operation_stream::operator<<'),
+     friend('operator==',
+            returns = 'bool',
+            x       = 'const operation &',
+            y       = 'const operation &',
+            using   = 'migraph::operation_equal::operator==')) %>
 
-inline bool operator!=(const operation& x, const operation& y)
+    inline bool operator!=(const operation& x, const operation& y)
 {
     return !(x == y);
 }

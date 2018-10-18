@@ -41,7 +41,7 @@ void reflect_each(T& x, F f)
 {
     return reflect(x, [](auto&& y, auto... ys) { return pack(std::ref(y), ys...); })(
         [&](auto&&... xs) {
-            each_args([&](auto p) { p([&](auto&& y, auto... ys) { f(y, ys...); }); }, xs...);
+            each_args([&](auto p) { p([&](auto&& y, auto... ys) { f(y.get(), ys...); }); }, xs...);
         });
 }
 

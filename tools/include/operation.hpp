@@ -9,6 +9,7 @@
 #include <utility>
 #include <migraph/shape.hpp>
 #include <migraph/reflect.hpp>
+#include <migraph/streamutils.hpp>
 #include <migraph/argument.hpp>
 #include <migraph/context.hpp>
 #include <migraph/auto_any_cast.hpp>
@@ -58,7 +59,8 @@ auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
     char delim = '[';
     reflect_each(x, [&](auto& y, auto name, auto&&...) {
         os << delim;
-        os << name << "=" << y;
+        os << name << "=";
+        stream_write_value(os, y);
         delim = ',';
     });
     if(delim == ',')

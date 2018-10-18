@@ -90,9 +90,15 @@ argument from_gpu(argument arg)
 
 void gpu_sync() { hipDeviceSynchronize(); }
 
-void copy_to_gpu(char* dst, const char* src, std::size_t size)
+void copy_to_gpu(argument src, argument dst)
 {
-    hipMemcpy(dst, src, size, hipMemcpyHostToDevice);
+    std::size_t src_size = src.get_shape().bytes();
+    std::size_t dst_size = dst.get_shape().bytes();
+    if(src_size > dst_size)
+        MIGRAPH_THROW("Not enough memory available in destination to do copy");
+    auto status = hipMemcpy(dst.data(), src.data(), src_size, hipMemcpyHostToDevice);
+    if(status != hipSuccess)
+        MIGRAPH_THROW("Copy to gpu failed: " + hip_error(status));
 }
 } // namespace gpu
 } // namespace migraph

@@ -61,7 +61,8 @@ auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
         os << name << "=" << y;
         delim = ',';
     });
-    if(delim == ',') os << "]";
+    if(delim == ',')
+        os << "]";
     return os;
 }
 

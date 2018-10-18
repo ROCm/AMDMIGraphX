@@ -28,7 +28,7 @@ std::vector<std::size_t> hip_concat::compute_offsets(const shape& output_shape,
     return offsets;
 }
 
-argument hip_concat::compute(context& ctx,
+argument hip_concat::compute(context&,
                              const shape& output_shape,
                              const std::vector<argument>& args) const
 {

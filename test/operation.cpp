@@ -6,7 +6,7 @@
 
 struct simple_operation
 {
-    template<class T, class F>
+    template <class T, class F>
     static auto reflect(T& x, F f)
     {
         return migraph::pack(f(x.data, "data"));
@@ -58,7 +58,7 @@ void operation_equal_test()
 {
     simple_operation s{};
     migraph::operation op1 = s;
-    s.data = 2;
+    s.data                 = 2;
     migraph::operation op2 = op1;
     migraph::operation op3 = s;
 

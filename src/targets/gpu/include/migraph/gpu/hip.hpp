@@ -70,10 +70,10 @@ struct hip_write
 struct hip_copy
 {
     std::string name() const { return "hip_copy"; }
-    shape compute_shape(std::vector<shape> inputs) const 
-    { 
+    shape compute_shape(std::vector<shape> inputs) const
+    {
         check_shapes{inputs}.has(2);
-        return inputs.at(1); 
+        return inputs.at(1);
     }
     argument compute(context&, const shape&, std::vector<argument> args) const
     {

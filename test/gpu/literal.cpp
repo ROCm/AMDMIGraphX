@@ -13,10 +13,13 @@ void gpu_literal_test()
     p.add_literal(lit);
     p.compile(migraph::gpu::target{});
     auto scratch = p.get_parameter("scratch");
-    if(scratch == p.end()) {
-    auto result = p.eval({});
-    EXPECT(lit == migraph::gpu::from_gpu(result));
-    } else {
+    if(scratch == p.end())
+    {
+        auto result = p.eval({});
+        EXPECT(lit == migraph::gpu::from_gpu(result));
+    }
+    else
+    {
         EXPECT(scratch->get_shape().bytes() == lit.get_shape().bytes());
     }
 }

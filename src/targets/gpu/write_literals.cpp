@@ -35,12 +35,12 @@ void write_literals::apply(program& p) const
         {
             if(enabled(MIGRAPH_COPY_LITERALS{}))
             {
-                literal l = ins->get_literal();
-                auto pre  = p.add_literal(l);
-                auto s = p.add_outline(l.get_shape());
+                literal l  = ins->get_literal();
+                auto pre   = p.add_literal(l);
+                auto s     = p.add_outline(l.get_shape());
                 auto alloc = p.insert_instruction(std::next(pre), hip_allocate{}, s);
                 p.replace_instruction(ins, hip_copy{}, pre, alloc);
-            } 
+            }
             else
             {
                 argument a    = to_gpu(ins->get_literal().get_argument());

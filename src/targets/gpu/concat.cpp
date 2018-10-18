@@ -8,14 +8,14 @@
 namespace migraph {
 namespace gpu {
 
-shape hip_concat::compute_shape(std::vector<shape> inputs) const 
+shape hip_concat::compute_shape(std::vector<shape> inputs) const
 {
     inputs.pop_back();
     return op.compute_shape(inputs);
 }
 
 std::vector<std::size_t> hip_concat::compute_offsets(const shape& output_shape,
-                                                        const std::vector<argument> args) const
+                                                     const std::vector<argument> args) const
 {
     std::vector<std::size_t> offsets;
     std::vector<std::size_t> offset(args[0].get_shape().lens().size(), 0);
@@ -29,8 +29,8 @@ std::vector<std::size_t> hip_concat::compute_offsets(const shape& output_shape,
 }
 
 argument hip_concat::compute(context& ctx,
-                                const shape& output_shape,
-                                const std::vector<argument>& args) const
+                             const shape& output_shape,
+                             const std::vector<argument>& args) const
 {
     std::vector<std::size_t> offsets = compute_offsets(output_shape, args);
     return device::concat(output_shape, args, offsets);

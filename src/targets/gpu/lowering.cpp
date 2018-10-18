@@ -165,8 +165,8 @@ struct miopen_apply
 
     instruction_ref apply_concat(instruction_ref ins)
     {
-        auto&& op   = any_cast<op::concat>(ins->get_operator());
-        auto output = insert_allocation(ins, ins->get_shape());
+        auto&& op                         = any_cast<op::concat>(ins->get_operator());
+        auto output                       = insert_allocation(ins, ins->get_shape());
         std::vector<instruction_ref> refs = ins->inputs();
         refs.push_back(output);
         return prog->replace_instruction(ins, hip_concat{op}, refs);

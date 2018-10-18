@@ -76,7 +76,7 @@ struct bindable_matcher
 {
     M m;
 
-    auto bind(std::string name) { return bind_match(m, std::move(name)); }
+    auto bind(std::string name) const { return bind_match(m, std::move(name)); }
 
     instruction_ref match(matcher_context& ctx, instruction_ref ins) const
     {
@@ -137,7 +137,7 @@ struct basic_matcher
         });
     }
 
-    auto bind(std::string name) { return bind_match(m, name); }
+    auto bind(std::string name) const { return bind_match(m, std::move(name)); }
 
     instruction_ref match(matcher_context& ctx, instruction_ref ins) const
     {
@@ -176,12 +176,13 @@ basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
     inline instruction_ref name##_m::match(__VA_ARGS__) const
 
 /// This macro takes care of the boilerplate for defining a predicate matcher
-#define MIGRAPH_PRED_MATCHER(name, ...)                                                         \
-    struct name##_m                                                                             \
-    {                                                                                           \
-        bool operator()(__VA_ARGS__) const;                                                     \
-    };                                                                                          \
-    const constexpr auto name = migraph::match::basic_matcher<predicate_matcher<name##_m>>{{}}; \
+#define MIGRAPH_PRED_MATCHER(name, ...)                                                 \
+    struct name##_m                                                                     \
+    {                                                                                   \
+        bool operator()(__VA_ARGS__) const;                                             \
+    };                                                                                  \
+    const constexpr auto name =                                                         \
+        migraph::match::basic_matcher<migraph::match::predicate_matcher<name##_m>>{{}}; \
     inline bool name##_m::operator()(__VA_ARGS__) const
 
 struct matcher_result
@@ -263,7 +264,29 @@ auto any_of(Ts... ms)
     });
 }
 
+MIGRAPH_PRED_MATCHER(any, instruction_ref) { return true; }
+MIGRAPH_PRED_MATCHER(none, instruction_ref) { return false; }
 MIGRAPH_PRED_MATCHER(standard_shape, instruction_ref ins) { return ins->get_shape().standard(); }
+MIGRAPH_PRED_MATCHER(broadcast_shape, instruction_ref ins)
+{
+    return ins->get_shape().broadcasted();
+}
+
+MIGRAPH_BASIC_MATCHER(output, matcher_context& ctx, instruction_ref ins)
+{
+    if(ins->outputs().size() == 1)
+        return ins->outputs().front();
+    return ctx.not_found();
+}
+
+MIGRAPH_BASIC_MATCHER(used_once, matcher_context& ctx, instruction_ref ins)
+{
+    if(ins->outputs().size() == 1)
+        return ins;
+    if(ins->outputs().empty() and std::next(ins) == ctx.not_found())
+        return ins;
+    return ctx.not_found();
+}
 
 inline auto name(std::string name)
 {
@@ -304,6 +327,14 @@ auto args(Ms... ms)
         // It needs to be written as `decltype(is)::value` for gcc 5
         return args_impl(args_impl_ints<decltype(is)::value...>{}, ms...);
     });
+}
+
+inline auto either_arg(std::size_t i, std::size_t j)
+{
+    return [=](auto m1, auto m2) {
+        return match::any_of(match::all_of(arg(i)(m1), arg(j)(m2)),
+                             match::all_of(arg(j)(m1), arg(i)(m2)));
+    };
 }
 
 } // namespace match

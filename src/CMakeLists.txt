@@ -1,6 +1,7 @@
 
 add_library(migraph 
     auto_contiguous.cpp
+    constant_propagate.cpp
     dead_code_elimination.cpp
     eliminate_allocation.cpp
     eliminate_contiguous.cpp
@@ -10,6 +11,7 @@ add_library(migraph
     instruction.cpp
     program.cpp
     shape.cpp
+    simplify_algebra.cpp
     simplify_reshapes.cpp
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp

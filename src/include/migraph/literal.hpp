@@ -108,6 +108,20 @@ literal transform(literal l, F f)
     return result;
 }
 
+template <class F>
+literal transform(literal l1, literal l2, F f)
+{
+    assert(l1.get_shape() == l2.get_shape());
+    literal result;
+    visit_all(l1, l2)([&](auto x, auto y) {
+        using type = std::remove_cv_t<typename decltype(x)::value_type>;
+        std::vector<type> output(x.size(), 0.0);
+        std::transform(x.begin(), x.end(), y.begin(), output.begin(), f);
+        result = literal{l1.get_shape(), output};
+    });
+    return result;
+}
+
 } // namespace migraph
 
 #endif

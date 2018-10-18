@@ -39,10 +39,7 @@ struct batch_norm_inference
     static auto reflect(Self& self, F f)
     {
         return pack(
-            f(self.epsilon, "epsilon"),
-            f(self.momentum, "momentum"),
-            f(self.bn_mode, "bn_mode")
-        );
+            f(self.epsilon, "epsilon"), f(self.momentum, "momentum"), f(self.bn_mode, "bn_mode"));
     }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -68,12 +65,10 @@ struct convolution
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.padding, "padding"),
-            f(self.stride, "stride"),
-            f(self.dilation, "dilation"),
-            f(self.padding_mode, "padding_mode")
-        );
+        return pack(f(self.padding, "padding"),
+                    f(self.stride, "stride"),
+                    f(self.dilation, "dilation"),
+                    f(self.padding_mode, "padding_mode"));
     }
 
     std::string name() const { return "convolution"; }
@@ -148,12 +143,10 @@ struct im2col
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.padding, "padding"),
-            f(self.stride, "stride"),
-            f(self.dilation, "dilation"),
-            f(self.padding_mode, "padding_mode")
-        );
+        return pack(f(self.padding, "padding"),
+                    f(self.stride, "stride"),
+                    f(self.dilation, "dilation"),
+                    f(self.padding_mode, "padding_mode"));
     }
 
     std::string name() const { return "im2col"; }
@@ -194,12 +187,10 @@ struct pooling
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.mode, "mode"),
-            f(self.padding, "padding"),
-            f(self.stride, "stride"),
-            f(self.lengths, "lengths")
-        );
+        return pack(f(self.mode, "mode"),
+                    f(self.padding, "padding"),
+                    f(self.stride, "stride"),
+                    f(self.lengths, "lengths"));
     }
 
     std::string name() const { return "pooling"; }
@@ -255,9 +246,7 @@ struct transpose
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.dims, "dims")
-        );
+        return pack(f(self.dims, "dims"));
     }
 
     std::string name() const { return "transpose"; }
@@ -318,11 +307,7 @@ struct slice
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.axes, "axes"),
-            f(self.starts, "starts"),
-            f(self.ends, "ends")
-        );
+        return pack(f(self.axes, "axes"), f(self.starts, "starts"), f(self.ends, "ends"));
     }
 
     std::string name() const { return "slice"; }
@@ -401,9 +386,7 @@ struct squeeze
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.axes, "axes")
-        );
+        return pack(f(self.axes, "axes"));
     }
 
     std::string name() const { return "squeeze"; }
@@ -450,9 +433,7 @@ struct unsqueeze
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.axes, "axes")
-        );
+        return pack(f(self.axes, "axes"));
     }
 
     std::string name() const { return "unsqueeze"; }
@@ -490,9 +471,7 @@ struct reshape
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.dims, "dims")
-        );
+        return pack(f(self.dims, "dims"));
     }
 
     std::string name() const { return "reshape"; }
@@ -544,10 +523,7 @@ struct gemm
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.alpha, "alpha"),
-            f(self.beta, "beta")
-        );
+        return pack(f(self.alpha, "alpha"), f(self.beta, "beta"));
     }
 
     std::string name() const { return "gemm"; }
@@ -651,9 +627,7 @@ struct flatten
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.axis, "axis")
-        );
+        return pack(f(self.axis, "axis"));
     }
 
     std::string name() const { return "flatten"; }
@@ -684,9 +658,7 @@ struct broadcast
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.axis, "axis")
-        );
+        return pack(f(self.axis, "axis"));
     }
 
     shape broadcast_shape;
@@ -759,10 +731,7 @@ struct load
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.s, "shape"),
-            f(self.offset, "offset")
-        );
+        return pack(f(self.s, "shape"), f(self.offset, "offset"));
     }
 
     std::string name() const { return "load"; }
@@ -784,9 +753,7 @@ struct outline
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.s, "shape")
-        );
+        return pack(f(self.s, "shape"));
     }
 
     std::string name() const { return "outline"; }

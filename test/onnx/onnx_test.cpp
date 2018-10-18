@@ -54,7 +54,7 @@ void pytorch_conv_bn_relu_maxpool()
     auto l3       = p.add_instruction(migraph::op::convolution{}, l0, l1);
     auto l4       = p.add_instruction(migraph::op::broadcast{axis, l3->get_shape()}, l2);
     auto l5       = p.add_instruction(migraph::op::add{}, l3, l4);
-    auto l6       = p.add_instruction(migraph::op::batch_norm_inference{}, l5, p3, p4, p5, p6);
+    auto l6       = p.add_instruction(migraph::op::batch_norm_inference{1.0e-5f}, l5, p3, p4, p5, p6);
     auto l7       = p.add_instruction(migraph::op::activation{"relu"}, l6);
     p.add_instruction(migraph::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{2, 2}}}, l7);
 

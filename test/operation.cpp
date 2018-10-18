@@ -59,8 +59,8 @@ void operation_equal_test()
     simple_operation s{};
     migraph::operation op1 = s;
     s.data                 = 2;
-    migraph::operation op2 = op1;
-    migraph::operation op3 = s;
+    migraph::operation op2 = op1; // NOLINT
+    migraph::operation op3 = s; // NOLINT
 
     EXPECT(s != op1);
     EXPECT(op2 == op1);

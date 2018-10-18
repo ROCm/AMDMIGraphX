@@ -523,7 +523,7 @@ struct test_concat
     migraph::program create_program() const
     {
         migraph::program p;
-        std::size_t axis       = 1;
+        std::size_t axis = 1;
         migraph::shape s0{migraph::shape::int32_type, {2, 2}};
         migraph::shape s1{migraph::shape::int32_type, {2, 3}};
         migraph::shape s2{migraph::shape::int32_type, {2, 1}};
@@ -540,7 +540,7 @@ struct test_concat2
     migraph::program create_program() const
     {
         migraph::program p;
-        std::size_t axis       = 0;
+        std::size_t axis = 0;
         migraph::shape s0{migraph::shape::int32_type, {2, 2}};
         migraph::shape s1{migraph::shape::int32_type, {3, 2}};
         migraph::shape s2{migraph::shape::int32_type, {1, 2}};

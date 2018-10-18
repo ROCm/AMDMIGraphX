@@ -5,7 +5,8 @@ namespace migraph {
 namespace gpu {
 namespace device {
 
-argument concat(const shape& output_shape, std::vector<argument> args, std::vector<std::size_t> offsets);
+argument
+concat(const shape& output_shape, std::vector<argument> args, std::vector<std::size_t> offsets);
 
 } // namespace device
 } // namespace gpu

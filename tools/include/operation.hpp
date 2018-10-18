@@ -54,7 +54,15 @@ namespace operation_stream {
 template <class T>
 auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
 {
-    return os << x.name();
+    os << x.name();
+    char delim = '[';
+    reflect_each(x, [&](auto& y, auto name, auto&&...) {
+        os << delim;
+        os << name << "=" << y;
+        delim = ',';
+    });
+    if(delim == ',') os << "]";
+    return os;
 }
 
 } // namespace operation_stream

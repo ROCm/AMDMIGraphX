@@ -2,10 +2,13 @@
 #include <migraph/iterator_for.hpp>
 #include <migraph/gpu/hip.hpp>
 #include <migraph/instruction.hpp>
+#include <migraph/env.hpp>
 
 namespace migraph {
 
 namespace gpu {
+
+MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_COPY_LITERALS)
 
 struct hip_load_literal
 {
@@ -30,10 +33,21 @@ void write_literals::apply(program& p) const
     {
         if(ins->name() == "@literal")
         {
-            argument a    = to_gpu(ins->get_literal().get_argument());
-            std::size_t n = ctx->literals.size();
-            ctx->literals.push_back(a);
-            p.replace_instruction(ins, hip_load_literal{a.get_shape(), n});
+            if(enabled(MIGRAPH_COPY_LITERALS{}))
+            {
+                literal l  = ins->get_literal();
+                auto pre   = p.add_literal(l);
+                auto s     = p.add_outline(l.get_shape());
+                auto alloc = p.insert_instruction(std::next(pre), hip_allocate{}, s);
+                p.replace_instruction(ins, hip_copy{}, pre, alloc);
+            }
+            else
+            {
+                argument a    = to_gpu(ins->get_literal().get_argument());
+                std::size_t n = ctx->literals.size();
+                ctx->literals.push_back(a);
+                p.replace_instruction(ins, hip_load_literal{a.get_shape(), n});
+            }
         }
     }
 }

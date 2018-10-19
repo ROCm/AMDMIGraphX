@@ -461,6 +461,34 @@ void div_test()
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 
+void relu_test()
+{
+    migraph::program p;
+    migraph::shape s{migraph::shape::float_type, {3}};
+    auto l = p.add_literal(migraph::literal{s, {-1.f, 0.f, 1.f}});
+    p.add_instruction(migraph::op::activation{"relu"}, l);
+    p.compile(migraph::cpu::cpu_target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {0.f, 0.f, 1.f};
+    EXPECT(migraph::verify_range(results_vector, gold));
+}
+
+void leaky_relu_test()
+{
+    migraph::program p;
+    migraph::shape s{migraph::shape::float_type, {3}};
+    auto l = p.add_literal(migraph::literal{s, {-1.f, 0.f, 1.f}});
+    p.add_instruction(migraph::op::leaky_relu{0.01}, l);
+    p.compile(migraph::cpu::cpu_target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {-0.01f, 0.f, 1.f};
+    EXPECT(migraph::verify_range(results_vector, gold));
+}
+
 void reshape_test()
 {
     migraph::shape a_shape{migraph::shape::float_type, {24, 1, 1, 1}};
@@ -917,6 +945,9 @@ int main()
     add_broadcast_test();
     sub_test();
     mul_test();
+    div_test();
+    relu_test();
+    leaky_relu_test();
     gemm_test<float>();
     gemm_test<double>();
     reshape_test();

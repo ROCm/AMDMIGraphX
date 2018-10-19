@@ -422,7 +422,6 @@ struct leaky_relu_op
         auto& a = op.alpha;
         return [a](auto x) { return x > 0 ? x : x * a; };
     }
-
 };
 
 template <typename Op>

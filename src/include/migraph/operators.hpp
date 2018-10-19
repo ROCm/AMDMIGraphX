@@ -224,6 +224,22 @@ struct activation
     }
 };
 
+struct leaky_relu
+{
+    std::string name() const { return "leaky_relu"; }
+    float alpha;
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        return inputs.front();
+    }
+    friend std::ostream& operator<<(std::ostream& os, const leaky_relu& op)
+    {
+        os << op.name() << ":" << op.alpha;
+        return os;
+    }    
+};
+
 struct transpose
 {
     std::vector<int64_t> dims;

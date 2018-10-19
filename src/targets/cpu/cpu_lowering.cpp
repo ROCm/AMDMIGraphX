@@ -413,6 +413,18 @@ struct relu_op
     }
 };
 
+struct leaky_relu_op
+{
+    op::leaky_relu op;
+    std::string name() const { return "cpu::leaky_relu"; }
+    auto fcn() const
+    {
+        auto& a = op.alpha;
+        return [a](auto x) { return x > 0 ? x : x * a; };
+    }
+
+};
+
 template <typename Op>
 struct cpu_unary
 {
@@ -557,6 +569,7 @@ struct cpu_apply
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
+        apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
 
         apply_map["identity"] = simple_op<cpu_unary<identity_op>>();
         apply_map["tanh"]     = simple_op<cpu_unary<tanh_op>>();

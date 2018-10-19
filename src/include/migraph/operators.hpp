@@ -237,7 +237,7 @@ struct leaky_relu
     {
         os << op.name() << ":" << op.alpha;
         return os;
-    }    
+    }
 };
 
 struct transpose

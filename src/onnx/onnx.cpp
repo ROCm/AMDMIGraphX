@@ -255,6 +255,7 @@ struct onnx_parser
                           ? op::batch_norm_inference::spatial
                           : op::batch_norm_inference::per_activation;
         }
+        (void)is_test;
         op::batch_norm_inference op{epsilon, momentum, bn_mode};
         return prog.add_instruction(op, std::move(args));
     }

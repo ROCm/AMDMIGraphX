@@ -192,7 +192,7 @@ void memory_coloring_impl::register_operand_alias()
     operand_alias["@param"]            = -1;
     operand_alias["transpose"]         = 0;
     operand_alias["flatten"]           = 0;
-    operand_alias["broadcast"]         = 1;
+    operand_alias["broadcast"]         = 0;
     operand_alias["reshape"]           = 0;
     operand_alias["pass"]              = 0;
 }

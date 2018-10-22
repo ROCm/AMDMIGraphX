@@ -8,7 +8,8 @@
 #include <type_traits>
 #include <utility>
 #include <migraph/shape.hpp>
-#include <migraph/rank.hpp>
+#include <migraph/reflect.hpp>
+#include <migraph/streamutils.hpp>
 #include <migraph/argument.hpp>
 #include <migraph/context.hpp>
 #include <migraph/auto_any_cast.hpp>
@@ -54,10 +55,33 @@ namespace operation_stream {
 template <class T>
 auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
 {
-    return os << x.name();
+    os << x.name();
+    char delim = '[';
+    reflect_each(x, [&](auto& y, auto name) {
+        os << delim;
+        os << name << "=";
+        stream_write_value(os, y);
+        delim = ',';
+    });
+    if(delim == ',')
+        os << "]";
+    return os;
 }
 
 } // namespace operation_stream
+
+namespace operation_equal {
+
+template <class T, class U>
+auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
+{
+    if(x.name() != y.name())
+        return false;
+    const auto& yy = any_cast<T>(y);
+    return reflect_tie(x) == reflect_tie(yy);
+}
+
+} // namespace operation_equal
 
 template <class T>
 auto compute_op(rank<1>,
@@ -93,6 +117,7 @@ compute_op(const T& x, context& ctx, const shape& output_shape, const std::vecto
  *      shape compute_shape(const std::vector<shape>& input) const;
  *      argument compute(context& ctx,const shape& output,const std::vector<argument>& input) const;
  *     friend std::ostream & operator<<(std::ostream & os,const operation & op) ;
+ *     friend bool operator==(const operation & x,const operation & y) ;
  * };
  *
  */
@@ -178,6 +203,12 @@ struct operation
         return op.private_detail_te_get_handle().operator_shift_left(os);
     }
 
+    friend bool operator==(const operation& x, const operation& y)
+    {
+        assert(x.private_detail_te_handle_mem_var);
+        return x.private_detail_te_get_handle().operator==(y);
+    }
+
     private:
     struct private_detail_te_handle_base_type
     {
@@ -190,6 +221,7 @@ struct operation
         virtual argument
         compute(context& ctx, const shape& output, const std::vector<argument>& input) const = 0;
         virtual std::ostream& operator_shift_left(std::ostream& os) const                    = 0;
+        virtual bool operator==(const operation& y) const                                    = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -240,6 +272,12 @@ struct operation
         {
             using migraph::operation_stream::operator<<;
             return os << private_detail_te_value;
+        }
+
+        bool operator==(const operation& y) const override
+        {
+            using migraph::operation_equal::operator==;
+            return private_detail_te_value == y;
         }
 
         PrivateDetailTypeErasedT private_detail_te_value;
@@ -306,6 +344,8 @@ inline const ValueType& any_cast(const operation& x)
         throw std::bad_cast();
     return *y;
 }
+
+inline bool operator!=(const operation& x, const operation& y) { return !(x == y); }
 
 #endif
 

@@ -52,6 +52,10 @@ struct miopen_apply
             {
                 check_shape(s, apply_activation(it));
             }
+            else if(it->name() == "leaky_relu")
+            {
+                check_shape(s, apply_leaky_relu(it));
+            }
             else if(it->name() == "pooling")
             {
                 check_shape(s, apply_pooling(it));

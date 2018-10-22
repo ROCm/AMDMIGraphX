@@ -633,7 +633,7 @@ int main()
     verify_program<test_leaky_relu>();
     verify_program<test_conv_pooling>();
     verify_program<test_gemm>();
-    // verify_program<test_gemm_ld>();
+    verify_program<test_gemm_ld>();
     verify_program<test_gemm_transposeb>();
     verify_program<test_gemm_transposea>();
     verify_program<test_gemm_transposeab>();

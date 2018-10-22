@@ -35,7 +35,12 @@ struct batch_norm_inference
 
     bn_infer_mode_t bn_mode = spatial;
 
-    bool is_test = false;
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(
+            f(self.epsilon, "epsilon"), f(self.momentum, "momentum"), f(self.bn_mode, "bn_mode"));
+    }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -56,6 +61,16 @@ struct convolution
         valid
     };
     padding_mode_t padding_mode = default_;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.padding, "padding"),
+                    f(self.stride, "stride"),
+                    f(self.dilation, "dilation"),
+                    f(self.padding_mode, "padding_mode"));
+    }
+
     std::string name() const { return "convolution"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -110,16 +125,6 @@ struct convolution
             MIGRAPH_THROW("Invalid padding mode");
         }
     }
-
-    friend std::ostream& operator<<(std::ostream& os, const convolution& op)
-    {
-        os << op.name() << "[";
-        os << "padding={" << stream_range(op.padding) << "}, ";
-        os << "stride={" << stream_range(op.stride) << "}, ";
-        os << "dilation={" << stream_range(op.dilation) << "}";
-        os << "]";
-        return os;
-    }
 };
 
 struct im2col
@@ -133,6 +138,16 @@ struct im2col
         same,
         valid
     };
+    padding_mode_t padding_mode = default_;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.padding, "padding"),
+                    f(self.stride, "stride"),
+                    f(self.dilation, "dilation"),
+                    f(self.padding_mode, "padding_mode"));
+    }
 
     std::string name() const { return "im2col"; }
 
@@ -168,6 +183,16 @@ struct pooling
     std::array<std::size_t, 2> padding = {{0, 0}};
     std::array<std::size_t, 2> stride  = {{1, 1}};
     std::array<std::size_t, 2> lengths = {{1, 1}};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.mode, "mode"),
+                    f(self.padding, "padding"),
+                    f(self.stride, "stride"),
+                    f(self.lengths, "lengths"));
+    }
+
     std::string name() const { return "pooling"; }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -196,16 +221,6 @@ struct pooling
                             1)),
                 }};
     }
-
-    friend std::ostream& operator<<(std::ostream& os, const pooling& op)
-    {
-        os << op.name() << "[";
-        os << "padding={" << stream_range(op.padding) << "}, ";
-        os << "stride={" << stream_range(op.stride) << "}, ";
-        os << "lengths={" << stream_range(op.lengths) << "}";
-        os << "]";
-        return os;
-    }
 };
 
 struct activation
@@ -227,6 +242,13 @@ struct activation
 struct transpose
 {
     std::vector<int64_t> dims;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.dims, "dims"));
+    }
+
     std::string name() const { return "transpose"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -257,13 +279,6 @@ struct transpose
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.front().data)};
-    }
-    friend std::ostream& operator<<(std::ostream& os, const transpose& op)
-    {
-        os << op.name() << "[";
-        os << "dims={" << stream_range(op.dims) << "}";
-        os << "]";
-        return os;
     }
 };
 
@@ -326,6 +341,13 @@ struct slice
     std::vector<int64_t> axes;
     std::vector<int64_t> starts;
     std::vector<int64_t> ends;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axes, "axes"), f(self.starts, "starts"), f(self.ends, "ends"));
+    }
+
     std::string name() const { return "slice"; }
 
     auto fix_index(const std::vector<std::size_t>& lens, std::size_t axis, int64_t index) const
@@ -398,6 +420,13 @@ struct slice
 struct squeeze
 {
     std::vector<int64_t> axes;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axes, "axes"));
+    }
+
     std::string name() const { return "squeeze"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -438,6 +467,13 @@ struct squeeze
 struct unsqueeze
 {
     std::vector<int64_t> axes;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axes, "axes"));
+    }
+
     std::string name() const { return "unsqueeze"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -469,6 +505,13 @@ struct unsqueeze
 struct reshape
 {
     std::vector<int64_t> dims;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.dims, "dims"));
+    }
+
     std::string name() const { return "reshape"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -508,19 +551,19 @@ struct reshape
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
-    friend std::ostream& operator<<(std::ostream& os, const reshape& op)
-    {
-        os << op.name() << "[";
-        os << "dims={" << stream_range(op.dims) << "}";
-        os << "]";
-        return os;
-    }
 };
 
 struct gemm
 {
     float alpha = 1.0;
     float beta  = 0.0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.alpha, "alpha"), f(self.beta, "beta"));
+    }
+
     std::string name() const { return "gemm"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -533,13 +576,6 @@ struct gemm
             MIGRAPH_THROW("Inner dimensions do not match: {" + to_string_range(a.lens()) + "} x {" +
                           to_string_range(b.lens()) + "}");
         return {t, {a.lens()[0], b.lens()[1]}};
-    }
-
-    friend std::ostream& operator<<(std::ostream& os, const gemm& op)
-    {
-        os << op.name() << "[";
-        os << "]";
-        return os;
     }
 };
 
@@ -625,6 +661,13 @@ struct softmax
 struct flatten
 {
     uint64_t axis = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axis, "axis"));
+    }
+
     std::string name() const { return "flatten"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -645,17 +688,17 @@ struct flatten
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
-    friend std::ostream& operator<<(std::ostream& os, const flatten& op)
-    {
-        os << op.name() << "[";
-        os << "axis=" << op.axis;
-        os << "]";
-        return os;
-    }
 };
 struct broadcast
 {
     uint64_t axis = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axis, "axis"));
+    }
+
     shape broadcast_shape;
     std::string name() const { return "broadcast"; }
     shape compute_shape(std::vector<shape> inputs) const
@@ -687,18 +730,10 @@ struct broadcast
     {
         return {std::move(output_shape), std::move(args.at(0).data)};
     }
-    friend std::ostream& operator<<(std::ostream& os, const broadcast& op)
-    {
-        os << op.name() << "[";
-        os << "axis=" << op.axis;
-        os << "]";
-        return os;
-    }
 };
 
 struct binary
 {
-    uint64_t broadcast = 0;
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs}.has(2).same_type().same_dims();
@@ -730,6 +765,13 @@ struct load
 {
     shape s;
     std::size_t offset = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.s, "shape"), f(self.offset, "offset"));
+    }
+
     std::string name() const { return "load"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
@@ -745,6 +787,13 @@ struct load
 struct outline
 {
     shape s;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.s, "shape"));
+    }
+
     std::string name() const { return "outline"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {

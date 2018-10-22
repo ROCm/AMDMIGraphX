@@ -129,12 +129,12 @@ struct miopen_apply
         }
         return ins;
     }
-    
+
     instruction_ref apply_leaky_relu(instruction_ref ins)
     {
         auto&& op = any_cast<op::leaky_relu>(ins->get_operator());
         auto ad   = make_leaky_relu(op.alpha);
-        
+
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(
             ins, miopen_leaky_relu{std::move(ad)}, ins->inputs().at(0), output);

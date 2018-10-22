@@ -26,19 +26,18 @@ struct miopen_convolution
     shared<convolution_descriptor> cd;
     miopenConvFwdAlgorithm_t algo{};
 
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        // TODO: Add algo
+        return op::convolution::reflect(self.op, f);
+    }
+
     std::string name() const { return "gpu::convolution"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
     shape compile(context& ctx, const shape& output_shape, std::vector<instruction_ref> inputs);
-    friend std::ostream& operator<<(std::ostream& os, const miopen_convolution& self)
-    {
-        os << self.name() << "[";
-        os << self.op << ", ";
-        os << "algo=" << self.algo;
-        os << "]";
-        return os;
-    }
 };
 
 } // namespace gpu

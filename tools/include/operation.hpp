@@ -8,7 +8,8 @@
 #include <type_traits>
 #include <utility>
 #include <migraph/shape.hpp>
-#include <migraph/rank.hpp>
+#include <migraph/reflect.hpp>
+#include <migraph/streamutils.hpp>
 #include <migraph/argument.hpp>
 #include <migraph/context.hpp>
 #include <migraph/auto_any_cast.hpp>
@@ -54,10 +55,33 @@ namespace operation_stream {
 template <class T>
 auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
 {
-    return os << x.name();
+    os << x.name();
+    char delim = '[';
+    reflect_each(x, [&](auto& y, auto name) {
+        os << delim;
+        os << name << "=";
+        stream_write_value(os, y);
+        delim = ',';
+    });
+    if(delim == ',')
+        os << "]";
+    return os;
 }
 
 } // namespace operation_stream
+
+namespace operation_equal {
+
+template <class T, class U>
+auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
+{
+    if(x.name() != y.name())
+        return false;
+    const auto& yy = any_cast<T>(y);
+    return reflect_tie(x) == reflect_tie(yy);
+}
+
+} // namespace operation_equal
 
 template <class T>
 auto compute_op(rank<1>,
@@ -85,13 +109,32 @@ compute_op(const T& x, context& ctx, const shape& output_shape, const std::vecto
 }
 
 <%
-interface('operation',
-    virtual('name', returns='std::string', const=True),
-    virtual('compute_shape', returns='shape', input='const std::vector<shape>&', const=True),
-    virtual('compute', returns='argument', ctx='context&', output='const shape&', input='const std::vector<argument>&', const=True, default='compute_op'),
-    friend('operator<<', returns='std::ostream &', os='std::ostream &', op='const operation &', using='migraph::operation_stream::operator<<')
-)
-%>
+ interface(
+     'operation',
+     virtual('name', returns = 'std::string', const = True),
+     virtual('compute_shape', returns = 'shape', input = 'const std::vector<shape>&', const = True),
+     virtual('compute',
+             returns = 'argument',
+             ctx     = 'context&',
+             output  = 'const shape&',
+             input   = 'const std::vector<argument>&',
+             const   = True,
+             default = 'compute_op'),
+     friend('operator<<',
+            returns = 'std::ostream &',
+            os      = 'std::ostream &',
+            op      = 'const operation &',
+            using   = 'migraph::operation_stream::operator<<'),
+     friend('operator==',
+            returns = 'bool',
+            x       = 'const operation &',
+            y       = 'const operation &',
+            using   = 'migraph::operation_equal::operator==')) %>
+
+    inline bool operator!=(const operation& x, const operation& y)
+{
+    return !(x == y);
+}
 
 #endif
 

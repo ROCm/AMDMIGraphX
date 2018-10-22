@@ -38,7 +38,7 @@ void fwd_conv_batchnorm_rewrite_test()
         migraph::program p;
         auto x        = p.add_literal(xs, xdata);
         auto w        = p.add_literal(ws, wdata);
-        auto conv     = p.add_instruction(migraph::op::convolution{{0, 0}, {1, 1}, {1, 1}}, x, w);
+        auto conv     = p.add_instruction(migraph::op::convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}}, x, w);
         auto scale    = p.add_literal(migraph::literal{vars, {3.0f}});
         auto bias     = p.add_literal(migraph::literal{vars, {8.1f}});
         auto mean     = p.add_literal(migraph::literal{vars, {4.0f}});

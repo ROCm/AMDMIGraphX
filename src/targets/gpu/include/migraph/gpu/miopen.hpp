@@ -87,6 +87,13 @@ inline activation_descriptor make_relu()
     return ad;
 }
 
+inline activation_descriptor make_leaky_relu(double alpha)
+{
+    auto ad = make_obj<activation_descriptor>(&miopenCreateActivationDescriptor);
+    miopenSetActivationDescriptor(ad.get(), miopenActivationLEAKYRELU, alpha, 0, 0);
+    return ad;
+}
+
 inline fusion_plan_descriptor make_fusion_plan(const shape& input)
 {
     auto t = make_tensor(input);

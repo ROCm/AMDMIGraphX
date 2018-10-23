@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_CONVOLUTION_HPP
-#define MIGRAPH_GUARD_RTGLIB_CONVOLUTION_HPP
+#ifndef MIGRAPH_GUARD_RTGLIB_LEAKY_RELU_HPP
+#define MIGRAPH_GUARD_RTGLIB_LEAKY_RELU_HPP
 
 #include <migraph/gpu/lowering.hpp>
 #include <migraph/manage_ptr.hpp>
@@ -20,24 +20,13 @@
 namespace migraph {
 namespace gpu {
 
-struct miopen_convolution
+struct miopen_leaky_relu
 {
-    op::convolution op;
-    shared<convolution_descriptor> cd;
-    miopenConvFwdAlgorithm_t algo{};
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        // TODO: Add algo
-        return op::convolution::reflect(self.op, f);
-    }
-
-    std::string name() const { return "gpu::convolution"; }
+    shared<activation_descriptor> ad;
+    std::string name() const { return "gpu::leaky_relu"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    shape compile(context& ctx, const shape& output_shape, std::vector<instruction_ref> inputs);
 };
 
 } // namespace gpu

@@ -54,8 +54,8 @@ void pytorch_conv_bn_relu_maxpool()
     auto l3       = p.add_instruction(migraph::op::convolution{}, l0, l1);
     auto l4       = p.add_instruction(migraph::op::broadcast{axis, l3->get_shape()}, l2);
     auto l5       = p.add_instruction(migraph::op::add{}, l3, l4);
-    auto l6       = p.add_instruction(migraph::op::batch_norm_inference{}, l5, p3, p4, p5, p6);
-    auto l7       = p.add_instruction(migraph::op::activation{"relu"}, l6);
+    auto l6 = p.add_instruction(migraph::op::batch_norm_inference{1.0e-5f}, l5, p3, p4, p5, p6);
+    auto l7 = p.add_instruction(migraph::op::activation{"relu"}, l6);
     p.add_instruction(migraph::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{2, 2}}}, l7);
 
     auto prog = migraph::parse_onnx("conv_bn_relu_maxpool.onnx");
@@ -88,10 +88,23 @@ void pytorch_conv_relu_maxpool_x2()
     EXPECT(p == prog);
 }
 
+void leaky_relu_test()
+{
+    migraph::program p;
+    float alpha = 0.01f;
+    auto l0     = p.add_parameter("0", {migraph::shape::float_type, {3}});
+    p.add_instruction(migraph::op::leaky_relu{alpha}, l0);
+
+    auto prog = migraph::parse_onnx("leaky_relu.onnx");
+
+    EXPECT(p == prog);
+}
+
 int main()
 {
     pytorch_conv_bias_test();
     pytorch_conv_relu_maxpool();
     pytorch_conv_bn_relu_maxpool();
     pytorch_conv_relu_maxpool_x2();
+    leaky_relu_test();
 }

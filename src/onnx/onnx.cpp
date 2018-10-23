@@ -68,7 +68,7 @@ struct onnx_parser
         add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
         add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
         add_mem_op("Slice", &onnx_parser::parse_slice);
-        //add_mem_op("Concat", &onnx_parser::parse_concat);
+        // add_mem_op("Concat", &onnx_parser::parse_concat);
     }
 
     template <class F>

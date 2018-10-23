@@ -26,8 +26,6 @@ struct hip_concat
 
     std::string name() const { return "gpu::concat"; }
     shape compute_shape(std::vector<shape> inputs) const;
-    std::vector<std::size_t> compute_offsets(const shape& output_shape,
-                                             const std::vector<argument> args) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
 };

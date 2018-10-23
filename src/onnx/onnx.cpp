@@ -56,6 +56,7 @@ struct onnx_parser
         add_generic_op("Sub", op::sub{});
         add_generic_op("Sum", op::add{});
 
+        add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
         add_mem_op("Constant", &onnx_parser::parse_constant);
         add_mem_op("Conv", &onnx_parser::parse_conv);
         add_mem_op("MaxPool", &onnx_parser::parse_pooling);
@@ -258,6 +259,19 @@ struct onnx_parser
         (void)is_test;
         op::batch_norm_inference op{epsilon, momentum, bn_mode};
         return prog.add_instruction(op, std::move(args));
+    }
+
+    instruction_ref parse_leaky_relu(const std::string&,
+                                     attribute_map attributes,
+                                     std::vector<instruction_ref> args)
+    {
+        float alpha = 0.01;
+        if(contains(attributes, "alpha"))
+        {
+            alpha = parse_value(attributes.at("alpha")).at<float>();
+        }
+        op::leaky_relu op{alpha};
+        return prog.add_instruction(op, args.front());
     }
 
     void parse_from(std::istream& is)

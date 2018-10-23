@@ -368,6 +368,17 @@ struct test_add_relu
     }
 };
 
+struct test_leaky_relu
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto x = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+        p.add_instruction(migraph::op::leaky_relu{0.01}, x);
+        return p;
+    }
+};
+
 struct test_conv_pooling
 {
     migraph::program create_program() const
@@ -566,6 +577,40 @@ struct test_conv_bn_relu_pooling
     }
 };
 
+struct test_concat
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        std::size_t axis = 1;
+        migraph::shape s0{migraph::shape::int32_type, {2, 2}};
+        migraph::shape s1{migraph::shape::int32_type, {2, 3}};
+        migraph::shape s2{migraph::shape::int32_type, {2, 1}};
+        auto l0 = p.add_parameter("x", s0);
+        auto l1 = p.add_parameter("y", s1);
+        auto l2 = p.add_parameter("z", s2);
+        p.add_instruction(migraph::op::concat{axis}, l0, l1, l2);
+        return p;
+    }
+};
+
+struct test_concat2
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        std::size_t axis = 0;
+        migraph::shape s0{migraph::shape::int32_type, {2, 2}};
+        migraph::shape s1{migraph::shape::int32_type, {3, 2}};
+        migraph::shape s2{migraph::shape::int32_type, {1, 2}};
+        auto l0 = p.add_parameter("x", s0);
+        auto l1 = p.add_parameter("y", s1);
+        auto l2 = p.add_parameter("z", s2);
+        p.add_instruction(migraph::op::concat{axis}, l0, l1, l2);
+        return p;
+    }
+};
+
 struct test_conv_bn_relu_pooling2
 {
     static migraph::instruction_ref
@@ -604,6 +649,8 @@ struct test_conv_bn_relu_pooling2
 
 int main()
 {
+    verify_program<test_concat>();
+    verify_program<test_concat2>();
     verify_program<test_add>();
     verify_program<test_triadd>();
     verify_program<test_triadd2>();
@@ -619,6 +666,7 @@ int main()
     verify_program<test_conv2>();
     verify_program<test_conv_relu>();
     verify_program<test_add_relu>();
+    verify_program<test_leaky_relu>();
     verify_program<test_conv_pooling>();
     verify_program<test_gemm>();
     // verify_program<test_gemm_ld>();

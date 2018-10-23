@@ -16,11 +16,13 @@
 #include <migraph/gpu/convolution.hpp>
 #include <migraph/gpu/contiguous.hpp>
 #include <migraph/gpu/relu.hpp>
+#include <migraph/gpu/leaky_relu.hpp>
 #include <migraph/gpu/softmax.hpp>
 #include <migraph/gpu/add.hpp>
 #include <migraph/gpu/batchnorm.hpp>
 #include <migraph/gpu/pooling.hpp>
 #include <migraph/gpu/gemm.hpp>
+#include <migraph/gpu/concat.hpp>
 #include <utility>
 
 namespace migraph {
@@ -51,6 +53,10 @@ struct miopen_apply
             {
                 check_shape(s, apply_activation(it));
             }
+            else if(it->name() == "leaky_relu")
+            {
+                check_shape(s, apply_leaky_relu(it));
+            }
             else if(it->name() == "pooling")
             {
                 check_shape(s, apply_pooling(it));
@@ -66,6 +72,10 @@ struct miopen_apply
             else if(it->name() == "contiguous")
             {
                 check_shape(s, apply_contiguous(it));
+            }
+            else if(it->name() == "concat")
+            {
+                check_shape(s, apply_concat(it));
             }
             else if(it->name() == "batch_norm_inference")
             {
@@ -129,6 +139,16 @@ struct miopen_apply
         return ins;
     }
 
+    instruction_ref apply_leaky_relu(instruction_ref ins)
+    {
+        auto&& op = any_cast<op::leaky_relu>(ins->get_operator());
+        auto ad   = make_leaky_relu(op.alpha);
+
+        auto output = insert_allocation(ins, ins->get_shape());
+        return prog->replace_instruction(
+            ins, miopen_leaky_relu{std::move(ad)}, ins->inputs().at(0), output);
+    }
+
     instruction_ref apply_softmax(instruction_ref ins)
     {
         auto&& op   = any_cast<op::softmax>(ins->get_operator());
@@ -156,6 +176,15 @@ struct miopen_apply
         auto&& op   = any_cast<op::contiguous>(ins->get_operator());
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(ins, miopen_contiguous{op}, ins->inputs().at(0), output);
+    }
+
+    instruction_ref apply_concat(instruction_ref ins)
+    {
+        auto&& op                         = any_cast<op::concat>(ins->get_operator());
+        auto output                       = insert_allocation(ins, ins->get_shape());
+        std::vector<instruction_ref> refs = ins->inputs();
+        refs.push_back(output);
+        return prog->replace_instruction(ins, hip_concat{op}, refs);
     }
 
     instruction_ref apply_batch_norm_inference(instruction_ref ins)

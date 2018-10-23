@@ -87,6 +87,11 @@ constexpr void each_args(F f, Ts&&... xs)
     swallow{(f(std::forward<Ts>(xs)), 0)...};
 }
 
+template <class F>
+constexpr void each_args(F)
+{
+}
+
 /// Implements a fix-point combinator
 template <class R, class F>
 detail::fix_f<R, F> fix(F f)

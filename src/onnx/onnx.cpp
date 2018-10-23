@@ -69,7 +69,7 @@ struct onnx_parser
         add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
         add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
         add_mem_op("Slice", &onnx_parser::parse_slice);
-        // add_mem_op("Concat", &onnx_parser::parse_concat);
+        add_mem_op("Concat", &onnx_parser::parse_concat);
     }
 
     template <class F>
@@ -209,13 +209,13 @@ struct onnx_parser
         return prog.add_instruction(op, args[0]);
     }
 
-    // instruction_ref
-    // parse_concat(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
-    // {
-    //     literal axis = parse_value(attributes.at("axis")).at<int>();
-    //     op::concat op{axis};
-    //     return prog.add_instruction(op, std::move(args));
-    // }
+    instruction_ref
+    parse_concat(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        std::size_t axis = parse_value(attributes.at("axis")).at<int>();
+        op::concat op{axis};
+        return prog.add_instruction(op, std::move(args));
+    }
 
     instruction_ref
     parse_slice(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)

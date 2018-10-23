@@ -611,18 +611,18 @@ struct cpu_apply
         apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
         apply_map["concat"]     = extend_op<cpu_concat, op::concat>();
         apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
-        apply_map["identity"] = simple_op<cpu_unary<identity_op>>();
-        apply_map["tanh"]     = simple_op<cpu_unary<tanh_op>>();
-        apply_map["sigmoid"]  = simple_op<cpu_unary<sigmoid_op>>();
-        apply_map["exp"]      = simple_op<cpu_unary<exp_op>>();
-        apply_map["neg"]      = simple_op<cpu_unary<neg_op>>();
-        apply_map["sin"]      = simple_op<cpu_unary<sin_op>>();
-        apply_map["cos"]      = simple_op<cpu_unary<cos_op>>();
-        apply_map["tan"]      = simple_op<cpu_unary<tan_op>>();
-        apply_map["add"]      = simple_op<cpu_binary<add_op>>();
-        apply_map["sub"]      = simple_op<cpu_binary<sub_op>>();
-        apply_map["mul"]      = simple_op<cpu_binary<mul_op>>();
-        apply_map["div"]      = simple_op<cpu_binary<div_op>>();
+        apply_map["identity"]   = simple_op<cpu_unary<identity_op>>();
+        apply_map["tanh"]       = simple_op<cpu_unary<tanh_op>>();
+        apply_map["sigmoid"]    = simple_op<cpu_unary<sigmoid_op>>();
+        apply_map["exp"]        = simple_op<cpu_unary<exp_op>>();
+        apply_map["neg"]        = simple_op<cpu_unary<neg_op>>();
+        apply_map["sin"]        = simple_op<cpu_unary<sin_op>>();
+        apply_map["cos"]        = simple_op<cpu_unary<cos_op>>();
+        apply_map["tan"]        = simple_op<cpu_unary<tan_op>>();
+        apply_map["add"]        = simple_op<cpu_binary<add_op>>();
+        apply_map["sub"]        = simple_op<cpu_binary<sub_op>>();
+        apply_map["mul"]        = simple_op<cpu_binary<mul_op>>();
+        apply_map["div"]        = simple_op<cpu_binary<div_op>>();
 
         apply_map["softmax"] = simple_op<softmax2d>();
     }

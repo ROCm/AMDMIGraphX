@@ -88,10 +88,23 @@ void pytorch_conv_relu_maxpool_x2()
     EXPECT(p == prog);
 }
 
+void leaky_relu_test()
+{
+    migraph::program p;
+    float alpha = 0.01f;
+    auto l0     = p.add_parameter("0", {migraph::shape::float_type, {3}});
+    p.add_instruction(migraph::op::leaky_relu{alpha}, l0);
+
+    auto prog = migraph::parse_onnx("leaky_relu.onnx");
+
+    EXPECT(p == prog);
+}
+
 int main()
 {
     pytorch_conv_bias_test();
     pytorch_conv_relu_maxpool();
     pytorch_conv_bn_relu_maxpool();
     pytorch_conv_relu_maxpool_x2();
+    leaky_relu_test();
 }

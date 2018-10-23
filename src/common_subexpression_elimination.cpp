@@ -7,7 +7,7 @@
 
 namespace migraph {
 
-template<class Range>
+template <class Range>
 void cse_range(program& p, Range&& r)
 {
     std::unordered_multimap<std::string, instruction_ref> instructions;
@@ -18,7 +18,7 @@ void cse_range(program& p, Range&& r)
             continue;
         // Find instruction with the same name
         auto found_instructions = range(instructions.equal_range(ins->name()));
-        for(auto pp:found_instructions)
+        for(auto pp : found_instructions)
         {
             auto eq = pp.second;
             if(*eq != *ins)
@@ -30,9 +30,6 @@ void cse_range(program& p, Range&& r)
     }
 }
 
-void common_subexpression_elimination::apply(program& p) const
-{
-    cse_range(p, iterator_for(p));
-}
+void common_subexpression_elimination::apply(program& p) const { cse_range(p, iterator_for(p)); }
 
 } // namespace migraph

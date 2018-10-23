@@ -96,13 +96,13 @@ const std::vector<instruction_ref>& instruction::outputs() const { return output
 
 bool operator==(const instruction& x, const instruction& y)
 {
-    if(not (x.result == y.result and x.op == y.op and x.arguments == y.arguments))
+    if(not(x.result == y.result and x.op == y.op and x.arguments == y.arguments))
         return false;
     if(x.name() == "@literal")
         return x.lit == y.lit;
     return true;
 }
-    
+
 bool operator!=(const instruction& x, const instruction& y) { return !(x == y); }
 
 bool operator==(instruction_ref ref, const instruction& i) { return i == ref; }

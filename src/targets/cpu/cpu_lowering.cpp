@@ -287,23 +287,10 @@ struct cpu_concat
     op::concat op;
     std::string name() const { return "cpu::concat"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-    std::vector<std::size_t> compute_offsets(const shape& output_shape,
-                                             const std::vector<argument> args) const
-    {
-        std::vector<std::size_t> offsets;
-        std::vector<std::size_t> offset(args[0].get_shape().lens().size(), 0);
-        offset[op.axis] = 0;
-        for(const auto& arg : args)
-        {
-            offsets.push_back(output_shape.index(offset));
-            offset[op.axis] += arg.get_shape().lens()[op.axis];
-        }
-        return offsets;
-    }
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        std::vector<std::size_t> coffsets = compute_offsets(output_shape, args);
+        std::vector<std::size_t> coffsets = op.compute_offsets(output_shape, args);
         for(std::size_t l = 0; l < args.size(); l++)
         {
             auto argl             = args[l];

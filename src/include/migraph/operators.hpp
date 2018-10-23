@@ -318,6 +318,19 @@ struct concat
 {
     std::size_t axis = 0;
     std::string name() const { return "concat"; }
+    std::vector<std::size_t> compute_offsets(const shape& output_shape,
+                                             const std::vector<argument> args) const
+    {
+        std::vector<std::size_t> offsets;
+        std::vector<std::size_t> offset(args[0].get_shape().lens().size(), 0);
+        offset[axis] = 0;
+        for(const auto& arg : args)
+        {
+            offsets.push_back(output_shape.index(offset));
+            offset[axis] += arg.get_shape().lens()[axis];
+        }
+        return offsets;
+    }
     shape compute_shape(std::vector<shape> inputs) const
     {
         if(inputs.empty())

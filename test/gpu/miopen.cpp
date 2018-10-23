@@ -577,6 +577,40 @@ struct test_conv_bn_relu_pooling
     }
 };
 
+struct test_concat
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        std::size_t axis = 1;
+        migraph::shape s0{migraph::shape::int32_type, {2, 2}};
+        migraph::shape s1{migraph::shape::int32_type, {2, 3}};
+        migraph::shape s2{migraph::shape::int32_type, {2, 1}};
+        auto l0 = p.add_parameter("x", s0);
+        auto l1 = p.add_parameter("y", s1);
+        auto l2 = p.add_parameter("z", s2);
+        p.add_instruction(migraph::op::concat{axis}, l0, l1, l2);
+        return p;
+    }
+};
+
+struct test_concat2
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        std::size_t axis = 0;
+        migraph::shape s0{migraph::shape::int32_type, {2, 2}};
+        migraph::shape s1{migraph::shape::int32_type, {3, 2}};
+        migraph::shape s2{migraph::shape::int32_type, {1, 2}};
+        auto l0 = p.add_parameter("x", s0);
+        auto l1 = p.add_parameter("y", s1);
+        auto l2 = p.add_parameter("z", s2);
+        p.add_instruction(migraph::op::concat{axis}, l0, l1, l2);
+        return p;
+    }
+};
+
 struct test_conv_bn_relu_pooling2
 {
     static migraph::instruction_ref
@@ -615,6 +649,8 @@ struct test_conv_bn_relu_pooling2
 
 int main()
 {
+    verify_program<test_concat>();
+    verify_program<test_concat2>();
     verify_program<test_add>();
     verify_program<test_triadd>();
     verify_program<test_triadd2>();

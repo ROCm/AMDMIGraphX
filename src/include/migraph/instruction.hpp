@@ -44,7 +44,7 @@ struct instruction
     const std::vector<instruction_ref>& outputs() const;
 
     friend bool operator==(const instruction& x, const instruction& y);
-    
+
     friend bool operator!=(const instruction& x, const instruction& y);
 
     friend bool operator==(instruction_ref ref, const instruction& i);

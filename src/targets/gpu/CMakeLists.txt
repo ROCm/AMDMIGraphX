@@ -32,6 +32,7 @@ add_library(migraph_gpu
     softmax.cpp
     contiguous.cpp
     relu.cpp
+    leaky_relu.cpp
     add.cpp
     batchnorm.cpp
     write_literals.cpp

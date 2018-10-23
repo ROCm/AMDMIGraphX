@@ -312,7 +312,8 @@ struct cpu_concat
                 auto slice_shape =
                     shape{output_shape.type(), input.get_shape().lens(), output_shape.strides()};
                 auto slice = make_view(slice_shape, output.data() + coffsets[l]);
-                for(std::size_t i = 0; i < nelements; i++) // NOLINT
+                // cppcheck-suppress useStlAlgorithm
+                for(std::size_t i = 0; i < nelements; i++) 
                 {
                     slice[i] = input[i];
                 }

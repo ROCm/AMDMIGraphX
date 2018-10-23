@@ -1,6 +1,7 @@
 
 add_library(migraph 
     auto_contiguous.cpp
+    common_subexpression_elimination.cpp
     constant_propagate.cpp
     dead_code_elimination.cpp
     eliminate_allocation.cpp

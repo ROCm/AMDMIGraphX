@@ -23,7 +23,9 @@ struct program_impl
 
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
 
-static void print_instruction(std::ostream& os, instruction_ref ins, const std::unordered_map<instruction_ref, std::string>& names)
+static void print_instruction(std::ostream& os,
+                              instruction_ref ins,
+                              const std::unordered_map<instruction_ref, std::string>& names)
 {
     os << names.at(ins) << " = ";
 
@@ -149,9 +151,9 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
     // Replacement should not be dead code unless its the last instruction
     assert(!rep->outputs().empty() or rep == std::prev(end()));
     // Output of the original instruction should only be the replacement or empty
-    assert(ins->outputs().empty() or std::all_of(ins->outputs().begin(), ins->outputs().end(), [&](auto i) {
-        return i == rep;
-    }));
+    assert(ins->outputs().empty() or std::all_of(ins->outputs().begin(),
+                                                 ins->outputs().end(),
+                                                 [&](auto i) { return i == rep; }));
     assert(ins->valid(begin()));
     assert(rep->valid(begin()));
     return rep;
@@ -466,15 +468,12 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
        << ", " << std::round(calculate_overhead_percent) << "%" << std::endl;
 }
 
-void program::debug_print()
-{
-    std::cout << *this << std::endl;
-}
+void program::debug_print() { std::cout << *this << std::endl; }
 void program::debug_print(instruction_ref ins)
 {
     std::stringstream ss;
     print_program(ss, *this, [&](auto x, auto&& names) {
-        if(x == ins) 
+        if(x == ins)
         {
             print_instruction(std::cout, x, names);
             std::cout << std::endl;
@@ -483,7 +482,7 @@ void program::debug_print(instruction_ref ins)
 }
 void program::debug_print(const std::vector<instruction_ref>& inss)
 {
-    for(auto ins:inss)
+    for(auto ins : inss)
         debug_print(ins);
     std::cout << std::endl;
 }

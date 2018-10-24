@@ -20,7 +20,7 @@ void cse_range(program& p, Range&& r)
             continue;
         // Find instruction with the same name
         auto found_instructions = range(instructions.equal_range(ins->name()));
-        for(auto pp : found_instructions)
+        for(const auto& pp : found_instructions)
         {
             auto eq = pp.second;
             if(*eq != *ins)

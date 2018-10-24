@@ -4,6 +4,7 @@
 #include <migraph/context.hpp>
 #include <migraph/errors.hpp>
 #include <migraph/argument.hpp>
+#include <migraph/reflect.hpp>
 
 namespace migraph {
 
@@ -22,6 +23,13 @@ struct literal
 struct outline
 {
     shape s;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.s, "shape"));
+    }
+
     std::string name() const { return "@outline"; }
     shape compute_shape(const std::vector<shape>&) const { return s; }
     argument compute(context&, const shape&, const std::vector<argument>&) const
@@ -33,6 +41,13 @@ struct outline
 struct param
 {
     std::string parameter;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.parameter, "parameter"));
+    }
+
     std::string name() const { return "@param"; }
     shape compute_shape(const std::vector<shape>&) const { MIGRAPH_THROW("builtin"); }
     argument compute(context&, const shape&, const std::vector<argument>&) const

@@ -23,6 +23,34 @@ struct program_impl
 
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
 
+static void print_instruction(std::ostream& os, instruction_ref ins, const std::unordered_map<instruction_ref, std::string>& names)
+{
+    os << names.at(ins) << " = ";
+
+    os << ins->get_operator();
+
+    if(ins->name() == "@literal")
+    {
+        if(ins->get_literal().get_shape().elements() > 10)
+            os << "{ ... }";
+        else
+            os << "{" << ins->get_literal() << "}";
+    }
+
+    if(!ins->inputs().empty())
+    {
+        char delim = '(';
+        for(auto&& arg : ins->inputs())
+        {
+            os << delim << names.at(arg);
+            delim = ',';
+        }
+        os << ")";
+    }
+
+    os << " -> " << ins->get_shape();
+}
+
 template <class F>
 static void print_program(std::ostream& os, const program& p, F annonate)
 {
@@ -36,38 +64,21 @@ static void print_program(std::ostream& os, const program& p, F annonate)
         {
             var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
         }
+        names.emplace(ins, var_name);
 
-        os << var_name << " = ";
-
-        os << ins->get_operator();
-
-        if(ins->name() == "@literal")
+        // TODO: Use all_of
+        for(auto&& arg : ins->inputs())
         {
-            if(ins->get_literal().get_shape().elements() > 10)
-                os << "{ ... }";
-            else
-                os << "{" << ins->get_literal() << "}";
+            assert(p.has_instruction(arg) && "Instruction not found");
+            (void)arg;
         }
 
-        if(!ins->inputs().empty())
-        {
-            char delim = '(';
-            for(auto&& arg : ins->inputs())
-            {
-                assert(p.has_instruction(arg) && "Instruction not found");
-                os << delim << names.at(arg);
-                delim = ',';
-            }
-            os << ")";
-        }
-
-        os << " -> " << ins->get_shape();
+        print_instruction(os, ins, names);
 
         annonate(ins, names);
 
         os << std::endl;
 
-        names.emplace(ins, var_name);
         count++;
     }
 }
@@ -124,7 +135,9 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
     {
         return rep;
     }
-    for(auto&& out : ins->outputs())
+    // Make a copy of outputs which can be changed when calling replace_argument
+    auto outputs = ins->outputs();
+    for(auto out : outputs)
     {
         // TODO: Check for possible cycles
         if(out != rep)
@@ -135,6 +148,10 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
     }
     // Replacement should not be dead code unless its the last instruction
     assert(!rep->outputs().empty() or rep == std::prev(end()));
+    // Output of the original instruction should only be the replacement or empty
+    assert(ins->outputs().empty() or std::all_of(ins->outputs().begin(), ins->outputs().end(), [&](auto i) {
+        return i == rep;
+    }));
     assert(ins->valid(begin()));
     assert(rep->valid(begin()));
     return rep;
@@ -447,6 +464,28 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
        << ", " << calculate_overhead_time << "ms" << std::endl;
     os << "Overhead: " << std::round(overhead_percent) << "%"
        << ", " << std::round(calculate_overhead_percent) << "%" << std::endl;
+}
+
+void program::debug_print()
+{
+    std::cout << *this << std::endl;
+}
+void program::debug_print(instruction_ref ins)
+{
+    std::stringstream ss;
+    print_program(ss, *this, [&](auto x, auto&& names) {
+        if(x == ins) 
+        {
+            print_instruction(std::cout, x, names);
+            std::cout << std::endl;
+        }
+    });
+}
+void program::debug_print(const std::vector<instruction_ref>& inss)
+{
+    for(auto ins:inss)
+        debug_print(ins);
+    std::cout << std::endl;
 }
 
 bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }

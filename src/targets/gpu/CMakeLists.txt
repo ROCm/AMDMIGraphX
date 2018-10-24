@@ -14,6 +14,7 @@ add_library(migraph_device
     device/add.cpp
     device/add_relu.cpp
     device/contiguous.cpp
+    device/concat.cpp
 )
 rocm_clang_tidy_check(migraph_device)
 target_link_libraries(migraph_device migraph hip::device)
@@ -31,6 +32,7 @@ add_library(migraph_gpu
     convolution.cpp
     softmax.cpp
     contiguous.cpp
+    concat.cpp
     relu.cpp
     leaky_relu.cpp
     add.cpp

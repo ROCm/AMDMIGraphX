@@ -5,6 +5,8 @@
 #include <migraph/ranges.hpp>
 #include <migraph/functional.hpp>
 
+#include <unordered_set>
+
 namespace migraph {
 
 template <class Range>

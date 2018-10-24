@@ -117,12 +117,6 @@ void instruction::add_output(instruction_ref ins)
         output.push_back(ins);
 }
 
-template <class T>
-void instruction::remove_output(const T& ins)
-{
-    migraph::erase(output, ins);
-}
-
 void instruction::backreference(instruction_ref ref)
 {
     for(auto&& arg : ref->inputs())
@@ -162,6 +156,7 @@ void instruction::replace(std::vector<instruction_ref> args)
 
 void instruction::replace_argument(instruction_ref old, instruction_ref new_ins)
 {
+    assert(std::any_of(arguments.begin(), arguments.end(), [&](auto i) { return i == old; }));
     std::replace(arguments.begin(), arguments.end(), old, new_ins);
     old->remove_output(*this);
 }

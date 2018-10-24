@@ -95,6 +95,10 @@ struct program
 
     void perf_report(std::ostream& os, std::size_t n, parameter_map params) const;
 
+    void debug_print();
+    void debug_print(instruction_ref ins);
+    void debug_print(const std::vector<instruction_ref>& inss);
+
     friend std::ostream& operator<<(std::ostream& os, const program& p);
     friend bool operator==(const program& x, const program& y);
     friend bool operator!=(const program& x, const program& y) { return !(x == y); }

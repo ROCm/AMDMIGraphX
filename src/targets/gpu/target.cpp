@@ -13,6 +13,7 @@
 #include <migraph/simplify_algebra.hpp>
 #include <migraph/constant_propagate.hpp>
 #include <migraph/eliminate_contiguous.hpp>
+#include <migraph/common_subexpression_elimination.hpp>
 #include <migraph/fwd_conv_batchnorm_rewrite.hpp>
 
 namespace migraph {
@@ -26,6 +27,8 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
     {
         dead_code_elimination{},
         fwd_conv_batchnorm_rewrite{},
+        dead_code_elimination{},
+        common_subexpression_elimination{},
         dead_code_elimination{},
         simplify_algebra{},
         dead_code_elimination{},

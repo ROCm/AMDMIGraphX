@@ -22,7 +22,7 @@ namespace gpu {
 
 struct miopen_gemm
 {
-    op::gemm op;
+    op::dot op;
     std::string name() const { return "gpu::gemm"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument

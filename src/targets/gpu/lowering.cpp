@@ -65,7 +65,7 @@ struct miopen_apply
             {
                 check_shape(s, apply_add(it));
             }
-            else if(it->name() == "gemm")
+            else if(it->name() == "dot")
             {
                 check_shape(s, apply_gemm(it));
             }
@@ -165,7 +165,7 @@ struct miopen_apply
 
     instruction_ref apply_gemm(instruction_ref ins)
     {
-        auto&& op   = any_cast<op::gemm>(ins->get_operator());
+        auto&& op   = any_cast<op::dot>(ins->get_operator());
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(
             ins, miopen_gemm{op}, ins->inputs().at(0), ins->inputs().at(1), output);

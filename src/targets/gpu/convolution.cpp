@@ -47,8 +47,12 @@ shape miopen_convolution::compile(context& ctx,
     auto y_desc = make_tensor(output_shape);
 
     std::size_t workspace_size = 0;
-    miopenConvolutionForwardGetWorkSpaceSize(
-        ctx.get_stream().get_miopen(), w_desc.get(), x_desc.get(), cd.get(), y_desc.get(), &workspace_size);
+    miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),
+                                             w_desc.get(),
+                                             x_desc.get(),
+                                             cd.get(),
+                                             y_desc.get(),
+                                             &workspace_size);
     workspace_shape = shape{shape::int8_type, {workspace_size}};
 
     auto x         = to_gpu(generate_argument(inputs[0]->get_shape()));

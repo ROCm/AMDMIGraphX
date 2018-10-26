@@ -103,7 +103,10 @@ if(MIGRAPH_ENABLE_GPU)
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
         add_test_executable(test_gpu_${BASE_NAME} ${TEST})
         rocm_clang_tidy_check(test_gpu_${BASE_NAME})
-        set_tests_properties(test_gpu_${BASE_NAME} PROPERTIES COST 10)
+        set_tests_properties(test_gpu_${BASE_NAME} PROPERTIES 
+            COST 10 
+            RESOURCE_LOCK gpu
+        )
         target_link_libraries(test_gpu_${BASE_NAME} migraph_gpu)
     endforeach()
 endif()

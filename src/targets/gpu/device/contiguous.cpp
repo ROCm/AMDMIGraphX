@@ -6,9 +6,9 @@ namespace migraph {
 namespace gpu {
 namespace device {
 
-void contiguous(argument result, argument arg)
+void contiguous(hipStream_t stream, argument result, argument arg)
 {
-    nary_nonstandard(std::move(result), std::move(arg))([](auto x) { return x; });
+    nary_nonstandard(stream, std::move(result), std::move(arg))([](auto x) { return x; });
 }
 
 } // namespace device

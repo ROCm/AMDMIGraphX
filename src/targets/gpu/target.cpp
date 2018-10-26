@@ -56,8 +56,7 @@ std::string target::name() const { return "miopen"; }
 
 migraph::context target::get_context() const
 {
-    return context{
-        share(make_obj<miopen_handle>(&miopenCreate)), share(create_rocblas_handle_ptr()), {}};
+    return context{};
 }
 } // namespace gpu
 } // namespace migraph

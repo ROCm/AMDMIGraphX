@@ -82,13 +82,13 @@ struct fusion
         // int algo_count = 1;
         // miopenConvFwdAlgorithm_t algo;
         // miopenFusionPlanConvolutionGetAlgo(fp.get(), 1, &algo_count, &algo);
-        // miopenFusionPlanGetWorkSpaceSize(ctx.handle.get(), fp.get(), &ws_size, algo);
+        // miopenFusionPlanGetWorkSpaceSize(ctx.get_stream().get_miopen(), fp.get(), &ws_size, algo);
         return shape{shape::int8_type, {ws_size}};
     }
 
     void compile(context& ctx)
     {
-        auto status = miopenCompileFusionPlan(ctx.handle.get(), fp.get());
+        auto status = miopenCompileFusionPlan(ctx.get_stream().get_miopen(), fp.get());
         if(status != miopenStatusSuccess)
             MIGRAPH_THROW("Compiling fusion plan failed");
     }
@@ -100,7 +100,7 @@ struct fusion
     {
         auto x_td   = make_tensor(x.get_shape());
         auto y_td   = make_tensor(y.get_shape());
-        auto status = miopenExecuteFusionPlan(ctx.handle.get(),
+        auto status = miopenExecuteFusionPlan(ctx.get_stream().get_miopen(),
                                               fp.get(),
                                               x_td.get(),
                                               x.implicit(),

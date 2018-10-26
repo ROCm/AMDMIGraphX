@@ -88,6 +88,13 @@ argument from_gpu(argument arg)
     return result;
 }
 
+void set_device(std::size_t id)
+{
+    auto status = hipSetDevice(id);
+    if(status != hipSuccess)
+        MIGRAPH_THROW("Error setting device");
+}
+
 void gpu_sync() { hipDeviceSynchronize(); }
 
 void copy_to_gpu(argument src, argument dst)

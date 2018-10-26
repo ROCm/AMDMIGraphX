@@ -35,6 +35,7 @@ hip_ptr allocate_gpu(std::size_t sz, bool host = false)
         else
             allocate_gpu(sz, true);
     }
+    gpu_sync();
     return hip_ptr{result};
 }
 
@@ -60,10 +61,12 @@ std::vector<T> read_from_gpu(const void* x, std::size_t sz)
 
 hip_ptr write_to_gpu(const void* x, std::size_t sz, bool host = false)
 {
+    gpu_sync();
     auto result = allocate_gpu(sz, host);
     auto status = hipMemcpy(result.get(), x, sz, hipMemcpyHostToDevice);
     if(status != hipSuccess)
         MIGRAPH_THROW("Copy to gpu failed: " + hip_error(status));
+    gpu_sync();
     return result;
 }
 

@@ -52,8 +52,12 @@ auto nary_nonstandard_impl(hipStream_t stream, F f, argument result, Arguments..
 }
 
 template <class F>
-void trinary_broadcast_vec_impl(
-    hipStream_t stream, F f, const argument& result, const argument& arg1, const argument& arg2, const argument& arg3)
+void trinary_broadcast_vec_impl(hipStream_t stream,
+                                F f,
+                                const argument& result,
+                                const argument& arg1,
+                                const argument& arg2,
+                                const argument& arg3)
 {
     const auto& output_shape = result.get_shape();
     const auto& b_shape      = arg3.get_shape();
@@ -107,8 +111,12 @@ void trinary_broadcast_vec_impl(
 }
 
 template <class F>
-void trinary_broadcast_impl(
-    hipStream_t stream, F f, const argument& result, const argument& arg1, const argument& arg2, const argument& arg3)
+void trinary_broadcast_impl(hipStream_t stream,
+                            F f,
+                            const argument& result,
+                            const argument& arg1,
+                            const argument& arg2,
+                            const argument& arg3)
 {
     const auto& output_shape = result.get_shape();
     const auto& b_shape      = arg3.get_shape();
@@ -154,10 +162,8 @@ void trinary_broadcast_impl(
 }
 
 template <class F>
-void binary_broadcast_vec_impl(hipStream_t stream, F f,
-                               const argument& result,
-                               const argument& arg1,
-                               const argument& arg2)
+void binary_broadcast_vec_impl(
+    hipStream_t stream, F f, const argument& result, const argument& arg1, const argument& arg2)
 {
     const auto& output_shape = result.get_shape();
     const auto& b_shape      = arg2.get_shape();
@@ -209,7 +215,8 @@ void binary_broadcast_vec_impl(hipStream_t stream, F f,
 }
 
 template <class F>
-void binary_broadcast_impl(hipStream_t stream, F f, const argument& result, const argument& arg1, const argument& arg2)
+void binary_broadcast_impl(
+    hipStream_t stream, F f, const argument& result, const argument& arg1, const argument& arg2)
 {
     const auto& output_shape = result.get_shape();
     const auto& b_shape      = arg2.get_shape();
@@ -321,7 +328,8 @@ auto nary(hipStream_t stream, argument result, Arguments... args)
     return [=](auto f) { nary_impl(stream, f, result, args...); };
 }
 
-inline auto nary(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2)
+inline auto
+nary(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2)
 {
     return [=](auto f) {
         // TODO: Check result and arg1 shape is the same
@@ -349,8 +357,11 @@ inline auto nary(hipStream_t stream, const argument& result, const argument& arg
     };
 }
 
-inline auto
-nary(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2, const argument& arg3)
+inline auto nary(hipStream_t stream,
+                 const argument& result,
+                 const argument& arg1,
+                 const argument& arg2,
+                 const argument& arg3)
 {
     return [=](auto f) {
         // TODO: Check result and arg1 shape is the same

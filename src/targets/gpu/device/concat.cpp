@@ -8,7 +8,8 @@ namespace migraph {
 namespace gpu {
 namespace device {
 
-argument concat(hipStream_t stream, const migraph::shape& output_shape,
+argument concat(hipStream_t stream,
+                const migraph::shape& output_shape,
                 std::vector<migraph::argument> args,
                 std::vector<std::size_t> offsets)
 {

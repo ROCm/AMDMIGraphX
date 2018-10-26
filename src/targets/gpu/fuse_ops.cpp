@@ -82,7 +82,8 @@ struct fusion
         // int algo_count = 1;
         // miopenConvFwdAlgorithm_t algo;
         // miopenFusionPlanConvolutionGetAlgo(fp.get(), 1, &algo_count, &algo);
-        // miopenFusionPlanGetWorkSpaceSize(ctx.get_stream().get_miopen(), fp.get(), &ws_size, algo);
+        // miopenFusionPlanGetWorkSpaceSize(ctx.get_stream().get_miopen(), fp.get(), &ws_size,
+        // algo);
         return shape{shape::int8_type, {ws_size}};
     }
 

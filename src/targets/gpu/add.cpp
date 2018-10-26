@@ -34,7 +34,7 @@ argument miopen_add::compute(context& ctx,
     auto a_desc = make_tensor(args[0].get_shape());
     auto b_desc = make_tensor(args[1].get_shape());
     auto c_desc = make_tensor(output_shape);
-    miopenOpTensor(ctx.handle.get(),
+    miopenOpTensor(ctx.get_stream().get_miopen(),
                    miopenTensorOpAdd,
                    &alpha,
                    a_desc.get(),

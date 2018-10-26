@@ -9,9 +9,13 @@ namespace migraph {
 namespace gpu {
 namespace device {
 
-void add_relu(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2);
+void add_relu(hipStream_t stream,
+              const argument& result,
+              const argument& arg1,
+              const argument& arg2);
 
-void add_relu(hipStream_t stream, const argument& result,
+void add_relu(hipStream_t stream,
+              const argument& result,
               const argument& arg1,
               const argument& arg2,
               const argument& arg3);

@@ -153,9 +153,9 @@ struct hip_triadd
         check_shapes{inputs, *this}.has(4);
         return inputs.front();
     }
-    argument compute(context&, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        device::add(args.at(3), args.at(0), args.at(1), args.at(2));
+        device::add(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
         return args.at(3);
     }
 };
@@ -168,9 +168,9 @@ struct hip_triadd_relu
         check_shapes{inputs, *this}.has(4);
         return inputs.front();
     }
-    argument compute(context&, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        device::add_relu(args.at(3), args.at(0), args.at(1), args.at(2));
+        device::add_relu(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
         return args.at(3);
     }
 };
@@ -183,9 +183,9 @@ struct hip_add_relu
         check_shapes{inputs, *this}.has(3);
         return inputs.front();
     }
-    argument compute(context&, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        device::add_relu(args.at(2), args.at(0), args.at(1));
+        device::add_relu(ctx.get_stream().get(), args.at(2), args.at(0), args.at(1));
         return args.at(2);
     }
 };

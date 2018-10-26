@@ -49,10 +49,12 @@ hip_ptr write_to_gpu(const T& x)
 template <class T>
 std::vector<T> read_from_gpu(const void* x, std::size_t sz)
 {
+    gpu_sync();
     std::vector<T> result(sz);
     auto status = hipMemcpy(result.data(), x, sz * sizeof(T), hipMemcpyDeviceToHost);
     if(status != hipSuccess)
         MIGRAPH_THROW("Copy from gpu failed: " + hip_error(status)); // NOLINT
+    gpu_sync();
     return result;
 }
 

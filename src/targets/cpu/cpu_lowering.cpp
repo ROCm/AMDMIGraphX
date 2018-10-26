@@ -592,7 +592,7 @@ struct cpu_apply
     {
         apply_map["im2col"]      = extend_op<cpu_im2col, op::im2col>();
         apply_map["convolution"] = extend_op<cpu_convolution, op::convolution>();
-        apply_map["dot"]        = extend_op<cpu_gemm, op::dot>();
+        apply_map["dot"]         = extend_op<cpu_gemm, op::dot>();
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();

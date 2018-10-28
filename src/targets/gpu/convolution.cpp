@@ -57,7 +57,7 @@ shape miopen_convolution::compile(context& ctx,
 
     auto x         = to_gpu(generate_argument(inputs[0]->get_shape()));
     auto w         = to_gpu(generate_argument(inputs[1]->get_shape()));
-    auto y         = to_gpu(generate_argument(output_shape));
+    auto y         = allocate_gpu(output_shape);
     auto workspace = allocate_gpu(workspace_shape);
 
     int algo_count = 1;

@@ -38,11 +38,11 @@ struct hip_device
         {
             if(enabled(MIGRAPH_DISABLE_NULL_STREAM{}))
             {
-            set_device(id);
-            if(s == nullptr)
-                s = create_stream();
-            assert(s.get() != nullptr);
-            return s.get();
+                set_device(id);
+                if(s == nullptr)
+                    s = create_stream();
+                assert(s.get() != nullptr);
+                return s.get();
             }
             return nullptr;
         }
@@ -53,7 +53,6 @@ struct hip_device
                 return make_obj<miopen_handle>(&miopenCreateWithStream, get());
             else
                 return make_obj<miopen_handle>(&miopenCreate);
-
         }
 
         auto get_miopen()

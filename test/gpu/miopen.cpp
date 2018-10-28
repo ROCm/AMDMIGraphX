@@ -129,6 +129,7 @@ template <class V>
 void verify_program()
 {
     auto_print::set_terminate_handler(migraph::get_type_name<V>());
+    // std::cout << migraph::get_type_name<V>() << std::endl;
     migraph::program cpu_prog;
     migraph::program gpu_prog;
     auto cpu_arg_f = detach_async([&] { return run_cpu<V>(cpu_prog); });

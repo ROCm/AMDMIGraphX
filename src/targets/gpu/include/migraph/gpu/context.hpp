@@ -4,9 +4,12 @@
 #include <migraph/gpu/miopen.hpp>
 #include <migraph/gpu/rocblas.hpp>
 #include <migraph/gpu/hip.hpp>
+#include <migraph/env.hpp>
 
 namespace migraph {
 namespace gpu {
+
+MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_DISABLE_NULL_STREAM)
 
 struct hip_device
 {
@@ -31,20 +34,33 @@ struct hip_device
             return hip_stream_ptr{result};
         }
 
-        auto get()
+        hipStream_t get()
         {
+            if(enabled(MIGRAPH_DISABLE_NULL_STREAM{}))
+            {
             set_device(id);
             if(s == nullptr)
                 s = create_stream();
             assert(s.get() != nullptr);
             return s.get();
+            }
+            return nullptr;
+        }
+
+        auto create_miopen_handle()
+        {
+            if(enabled(MIGRAPH_DISABLE_NULL_STREAM{}))
+                return make_obj<miopen_handle>(&miopenCreateWithStream, get());
+            else
+                return make_obj<miopen_handle>(&miopenCreate);
+
         }
 
         auto get_miopen()
         {
             set_device(id);
             if(mihandle == nullptr)
-                mihandle = make_obj<miopen_handle>(&miopenCreateWithStream, get());
+                mihandle = create_miopen_handle();
             assert(mihandle.get() != nullptr);
             return mihandle.get();
         }

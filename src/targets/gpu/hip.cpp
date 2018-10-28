@@ -27,7 +27,6 @@ hip_ptr allocate_gpu(std::size_t sz, bool host = false)
     if(sz > get_available_gpu_memory())
         MIGRAPH_THROW("Memory not available to allocate buffer: " + std::to_string(sz));
     void* result;
-    // gpu_sync();
     auto status = host ? hipHostMalloc(&result, sz) : hipMalloc(&result, sz);
     if(status != hipSuccess)
     {
@@ -36,7 +35,6 @@ hip_ptr allocate_gpu(std::size_t sz, bool host = false)
         else
             allocate_gpu(sz, true);
     }
-    // gpu_sync();
     return hip_ptr{result};
 }
 
@@ -44,22 +42,18 @@ template <class T>
 std::vector<T> read_from_gpu(const void* x, std::size_t sz)
 {
     std::vector<T> result(sz);
-    // gpu_sync();
     auto status = hipMemcpy(result.data(), x, sz * sizeof(T), hipMemcpyDeviceToHost);
     if(status != hipSuccess)
         MIGRAPH_THROW("Copy from gpu failed: " + hip_error(status)); // NOLINT
-    // gpu_sync();
     return result;
 }
 
 hip_ptr write_to_gpu(const void* x, std::size_t sz, bool host = false)
 {
     auto result = allocate_gpu(sz, host);
-    // gpu_sync();
     auto status = hipMemcpy(result.get(), x, sz, hipMemcpyHostToDevice);
     if(status != hipSuccess)
         MIGRAPH_THROW("Copy to gpu failed: " + hip_error(status));
-    // gpu_sync();
     return result;
 }
 

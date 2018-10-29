@@ -29,8 +29,8 @@ struct shape_impl
         : m_type(t), m_lens(std::move(l)), m_strides(std::move(s))
     {
         assert(m_lens.size() == m_strides.size());
-        assert(std::any_of(m_strides.begin(), m_strides.end(), [](auto x) { return x > 0; }) and
-               "At least one stride must be non-zero");
+        // assert(std::any_of(m_strides.begin(), m_strides.end(), [](auto x) { return x > 0; }) and
+        //        "At least one stride must be non-zero");
         m_standard = this->elements() == this->element_space() and
                      std::is_sorted(m_strides.rbegin(), m_strides.rend());
     }
@@ -151,6 +151,15 @@ bool shape::broadcasted() const
                            this->strides().end(),
                            std::size_t{1},
                            std::multiplies<std::size_t>()) == 0;
+}
+
+bool shape::scalar() const
+{
+    assert(this->lens().size() == this->strides().size());
+    // if any stride > 0, then accumulate will return false
+    return std::accumulate(this->strides().begin(),
+                           this->strides().end(),
+                           std::size_t(0)) == 0;
 }
 
 bool shape::standard() const { return impl->m_standard; }

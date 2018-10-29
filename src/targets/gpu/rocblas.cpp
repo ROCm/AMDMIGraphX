@@ -10,6 +10,13 @@ rocblas_handle_ptr create_rocblas_handle_ptr()
     return rocblas_handle_ptr{handle};
 }
 
+rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s)
+{
+    rocblas_handle_ptr rb = create_rocblas_handle_ptr();
+    rocblas_set_stream(rb.get(), s);
+    return rb;
+}
+
 } // namespace gpu
 
 } // namespace migraph

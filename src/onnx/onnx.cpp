@@ -56,7 +56,7 @@ struct onnx_parser
         add_generic_op("Sub", op::sub{});
         add_generic_op("Sum", op::add{});
 
-        // add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
+        add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
         add_mem_op("Constant", &onnx_parser::parse_constant);
         add_mem_op("Conv", &onnx_parser::parse_conv);
@@ -325,10 +325,33 @@ struct onnx_parser
         return prog.add_instruction(op, args.front());
     }
 
-    // instruction_ref parse_imagescaler(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
-    // {
+    instruction_ref parse_imagescaler(const std::string&,
+                                      attribute_map attributes,
+                                      std::vector<instruction_ref> args)
+    {
+        float scale = 1.0;
+        std::vector<float> bias{};
+        if(contains(attributes, "scale"))
+        {
+            scale = parse_value(attributes.at("scale")).at<float>();
+        }
 
-    // }
+        if(contains(attributes, "bias"))
+        {
+            auto&& bias_floats = attributes["bias"].floats();
+            bias               = std::vector<float>(bias_floats.begin(), bias_floats.end());
+        }
+        auto input_shape = args.front()->get_shape();
+
+        auto scale_val = prog.add_literal(scale);
+        auto bias_vals = prog.add_literal(
+            migraph::literal{migraph::shape{migraph::shape::float_type, {bias.size()}}, bias});
+
+        auto scale_tensor = prog.add_instruction(migraph::op::scalar{input_shape}, scale_val);
+        auto img_scaled   = prog.add_instruction(migraph::op::mul{}, args.front(), scale_tensor);
+        auto bias_bcast   = prog.add_instruction(migraph::op::broadcast{1, input_shape}, bias_vals);
+        return prog.add_instruction(migraph::op::add{}, img_scaled, bias_bcast);
+    }
 
     void parse_from(std::istream& is)
     {

@@ -45,6 +45,12 @@ bool contains(const C& c, const T& x)
     return generic_find(c, x) != c.end();
 }
 
+template <class T>
+bool contains(const std::initializer_list<T>& c, const T& x)
+{
+    return generic_find(c, x) != c.end();
+}
+
 template <class T, class U>
 bool contains(const std::initializer_list<T>& c, const U& x)
 {

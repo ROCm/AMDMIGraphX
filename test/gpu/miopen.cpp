@@ -403,7 +403,7 @@ struct test_gemm
         migraph::program p;
         auto a = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {4, 5}});
         auto b = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {5, 3}});
-        p.add_instruction(migraph::op::gemm{}, a, b);
+        p.add_instruction(migraph::op::dot{}, a, b);
         return p;
     }
 };
@@ -415,7 +415,7 @@ struct test_gemm_ld
         migraph::program p;
         auto a = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {4, 5}, {10, 1}});
         auto b = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {5, 3}, {20, 1}});
-        p.add_instruction(migraph::op::gemm{}, a, b);
+        p.add_instruction(migraph::op::dot{}, a, b);
         return p;
     }
 };
@@ -428,7 +428,7 @@ struct test_gemm_transposeb
         auto a  = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {4, 5}});
         auto b  = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {3, 5}});
         auto bt = p.add_instruction(migraph::op::transpose{{1, 0}}, b);
-        p.add_instruction(migraph::op::gemm{}, a, bt);
+        p.add_instruction(migraph::op::dot{}, a, bt);
         return p;
     }
 };
@@ -441,7 +441,7 @@ struct test_gemm_transposea
         auto a  = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {5, 4}});
         auto b  = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {5, 3}});
         auto at = p.add_instruction(migraph::op::transpose{{1, 0}}, a);
-        p.add_instruction(migraph::op::gemm{}, at, b);
+        p.add_instruction(migraph::op::dot{}, at, b);
         return p;
     }
 };
@@ -455,7 +455,7 @@ struct test_gemm_transposeab
         auto b  = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {3, 5}});
         auto at = p.add_instruction(migraph::op::transpose{{1, 0}}, a);
         auto bt = p.add_instruction(migraph::op::transpose{{1, 0}}, b);
-        p.add_instruction(migraph::op::gemm{}, at, bt);
+        p.add_instruction(migraph::op::dot{}, at, bt);
         return p;
     }
 };

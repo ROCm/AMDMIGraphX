@@ -50,7 +50,7 @@ struct onnx_parser
     {
         add_generic_op("Add", op::add{});
         add_generic_op("Div", op::div{});
-        add_generic_op("MatMul", op::gemm{});
+        add_generic_op("MatMul", op::dot{});
         add_generic_op("Mul", op::mul{});
         add_generic_op("Relu", op::activation{"relu"});
         add_generic_op("Sub", op::sub{});
@@ -274,11 +274,11 @@ struct onnx_parser
         if(args.size() == 3)
         {
             uint64_t axis = 1;
-            auto l3       = prog.add_instruction(op::gemm{alpha, beta}, l1, l2);
+            auto l3       = prog.add_instruction(op::dot{alpha, beta}, l1, l2);
             auto l4       = prog.add_instruction(op::broadcast{axis, l3->get_shape()}, args[2]);
             return prog.add_instruction(op::add{}, l3, l4);
         }
-        return prog.add_instruction(op::gemm{alpha, beta}, l1, l2);
+        return prog.add_instruction(op::dot{alpha, beta}, l1, l2);
     }
 
     instruction_ref

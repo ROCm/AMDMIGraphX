@@ -618,7 +618,7 @@ void gemm_test()
     auto al = p.add_literal(migraph::literal{a_shape, a});
     migraph::shape b_shape{migraph::shape::get_type<T>{}, {5, 3}};
     auto bl = p.add_literal(migraph::literal{b_shape, b});
-    p.add_instruction(migraph::op::gemm{}, al, bl);
+    p.add_instruction(migraph::op::dot{}, al, bl);
     p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
     std::vector<T> results_vector(12);

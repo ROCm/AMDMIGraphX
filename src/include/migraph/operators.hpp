@@ -582,7 +582,7 @@ struct reshape
     }
 };
 
-struct gemm
+struct dot
 {
     float alpha = 1.0;
     float beta  = 0.0;
@@ -593,7 +593,7 @@ struct gemm
         return pack(f(self.alpha, "alpha"), f(self.beta, "beta"));
     }
 
-    std::string name() const { return "gemm"; }
+    std::string name() const { return "dot"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2).same_type();

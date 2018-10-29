@@ -138,9 +138,8 @@ MIGRAPH_PRED_MATCHER(fusable_conv, instruction_ref ins)
     if(wei.lens()[1] > 512 and conv.algo != miopenConvolutionFwdAlgoWinograd)
         return false;
     auto op = conv.op;
-    return contains({{0, 0}, {1, 1}, {2, 2}}, op.padding) and 
-        contains({{0, 0}, {1, 1}}, op.stride) and
-        op.dilation == make_array<size_t>(1, 1);
+    return contains({{0, 0}, {1, 1}, {2, 2}}, op.padding) and
+           contains({{0, 0}, {1, 1}}, op.stride) and op.dilation == make_array<size_t>(1, 1);
 }
 
 struct hip_triadd

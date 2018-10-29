@@ -23,6 +23,7 @@
 #include <migraph/gpu/batchnorm.hpp>
 #include <migraph/gpu/pooling.hpp>
 #include <migraph/gpu/gemm.hpp>
+#include <migraph/gpu/concat.hpp>
 #include <utility>
 
 namespace migraph {
@@ -69,13 +70,17 @@ struct miopen_apply
             {
                 check_shape(s, apply_mul(it));
             }
-            else if(it->name() == "gemm")
+            else if(it->name() == "dot")
             {
                 check_shape(s, apply_gemm(it));
             }
             else if(it->name() == "contiguous")
             {
                 check_shape(s, apply_contiguous(it));
+            }
+            else if(it->name() == "concat")
+            {
+                check_shape(s, apply_concat(it));
             }
             else if(it->name() == "batch_norm_inference")
             {
@@ -172,7 +177,7 @@ struct miopen_apply
 
     instruction_ref apply_gemm(instruction_ref ins)
     {
-        auto&& op   = any_cast<op::gemm>(ins->get_operator());
+        auto&& op   = any_cast<op::dot>(ins->get_operator());
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(
             ins, miopen_gemm{op}, ins->inputs().at(0), ins->inputs().at(1), output);
@@ -183,6 +188,15 @@ struct miopen_apply
         auto&& op   = any_cast<op::contiguous>(ins->get_operator());
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(ins, miopen_contiguous{op}, ins->inputs().at(0), output);
+    }
+
+    instruction_ref apply_concat(instruction_ref ins)
+    {
+        auto&& op                         = any_cast<op::concat>(ins->get_operator());
+        auto output                       = insert_allocation(ins, ins->get_shape());
+        std::vector<instruction_ref> refs = ins->inputs();
+        refs.push_back(output);
+        return prog->replace_instruction(ins, hip_concat{op}, refs);
     }
 
     instruction_ref apply_batch_norm_inference(instruction_ref ins)

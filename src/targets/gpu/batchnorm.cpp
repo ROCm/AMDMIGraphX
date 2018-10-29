@@ -23,7 +23,7 @@ argument miopen_batch_norm_inference::compute(context& ctx,
 
     float alpha = 1.0, beta = 0.0f;
 
-    miopenBatchNormalizationForwardInference(ctx.handle.get(),
+    miopenBatchNormalizationForwardInference(ctx.get_stream().get_miopen(),
                                              miopenBatchNormMode_t(op.bn_mode),
                                              &alpha,
                                              &beta,

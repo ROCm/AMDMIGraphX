@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_GEMM_HPP
-#define MIGRAPH_GUARD_RTGLIB_GEMM_HPP
+#ifndef MIGRAPH_GUARD_RTGLIB_CONCAT_HPP
+#define MIGRAPH_GUARD_RTGLIB_CONCAT_HPP
 
 #include <migraph/gpu/lowering.hpp>
 #include <migraph/manage_ptr.hpp>
@@ -10,7 +10,7 @@
 #include <migraph/gpu/miopen.hpp>
 #include <migraph/gpu/hip.hpp>
 #include <migraph/dfor.hpp>
-#include <migraph/gpu/device/contiguous.hpp>
+#include <migraph/gpu/device/concat.hpp>
 #include <migraph/gpu/device/add.hpp>
 #include <migraph/iterator_for.hpp>
 #include <migraph/gpu/rocblas.hpp>
@@ -20,11 +20,12 @@
 namespace migraph {
 namespace gpu {
 
-struct miopen_gemm
+struct hip_concat
 {
-    op::dot op;
-    std::string name() const { return "gpu::gemm"; }
-    shape compute_shape(const std::vector<shape>& inputs) const;
+    op::concat op;
+
+    std::string name() const { return "gpu::concat"; }
+    shape compute_shape(std::vector<shape> inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
 };

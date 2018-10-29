@@ -7,7 +7,7 @@ find_package(Threads REQUIRED)
 include(ProcessorCount)
 ProcessorCount(N)
 set(CTEST_PARALLEL_LEVEL ${N} CACHE STRING "CTest parallel level")
-add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j ${CTEST_PARALLEL_LEVEL} -C ${CMAKE_CFG_INTDIR})
+add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j ${CTEST_PARALLEL_LEVEL} -C ${CMAKE_CFG_INTDIR} --timeout 1500)
 add_custom_target(tests)
 
 find_program(MIGRAPH_GDB gdb)
@@ -103,7 +103,10 @@ if(MIGRAPH_ENABLE_GPU)
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
         add_test_executable(test_gpu_${BASE_NAME} ${TEST})
         rocm_clang_tidy_check(test_gpu_${BASE_NAME})
-        set_tests_properties(test_gpu_${BASE_NAME} PROPERTIES COST 10)
+        set_tests_properties(test_gpu_${BASE_NAME} PROPERTIES 
+            COST 10 
+            RESOURCE_LOCK gpu
+        )
         target_link_libraries(test_gpu_${BASE_NAME} migraph_gpu)
     endforeach()
 endif()

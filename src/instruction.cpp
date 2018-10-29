@@ -94,6 +94,17 @@ const std::vector<instruction_ref>& instruction::inputs() const { return argumen
 
 const std::vector<instruction_ref>& instruction::outputs() const { return output; }
 
+bool operator==(const instruction& x, const instruction& y)
+{
+    if(not(x.result == y.result and x.op == y.op and x.arguments == y.arguments))
+        return false;
+    if(x.name() == "@literal")
+        return x.lit == y.lit;
+    return true;
+}
+
+bool operator!=(const instruction& x, const instruction& y) { return !(x == y); }
+
 bool operator==(instruction_ref ref, const instruction& i) { return i == ref; }
 
 bool operator!=(const instruction& i, instruction_ref ref) { return !(i == ref); }
@@ -104,12 +115,6 @@ void instruction::add_output(instruction_ref ins)
 {
     if(std::find(output.begin(), output.end(), ins) == output.end())
         output.push_back(ins);
-}
-
-template <class T>
-void instruction::remove_output(const T& ins)
-{
-    migraph::erase(output, ins);
 }
 
 void instruction::backreference(instruction_ref ref)
@@ -151,6 +156,7 @@ void instruction::replace(std::vector<instruction_ref> args)
 
 void instruction::replace_argument(instruction_ref old, instruction_ref new_ins)
 {
+    assert(std::any_of(arguments.begin(), arguments.end(), [&](auto i) { return i == old; }));
     std::replace(arguments.begin(), arguments.end(), old, new_ins);
     old->remove_output(*this);
 }

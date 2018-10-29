@@ -21,7 +21,7 @@ __global__ void launcher(F f)
     f(idx);
 }
 
-inline auto launch(std::size_t global, std::size_t local)
+inline auto launch(hipStream_t stream, std::size_t global, std::size_t local)
 {
     return [=](auto f) {
         assert(local > 0);
@@ -29,17 +29,17 @@ inline auto launch(std::size_t global, std::size_t local)
         using f_type = decltype(f);
         dim3 nblocks(global / local);
         dim3 nthreads(local);
-        hipLaunchKernelGGL((launcher<f_type>), nblocks, nthreads, 0, nullptr, f);
+        hipLaunchKernelGGL((launcher<f_type>), nblocks, nthreads, 0, stream, f);
     };
 }
 
-inline auto gs_launch(std::size_t n, std::size_t local = 1024)
+inline auto gs_launch(hipStream_t stream, std::size_t n, std::size_t local = 1024)
 {
     std::size_t groups  = 1 + n / local;
     std::size_t nglobal = std::min<std::size_t>(256, groups) * local;
 
     return [=](auto f) {
-        launch(nglobal, local)([=](auto idx) {
+        launch(stream, nglobal, local)([=](auto idx) {
             for(size_t i = idx.global; i < n; i += nglobal)
             {
                 f(i);

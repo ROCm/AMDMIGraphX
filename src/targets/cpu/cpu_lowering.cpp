@@ -282,10 +282,38 @@ struct cpu_contiguous
     }
 };
 
+struct cpu_concat
+{
+    op::concat op;
+    std::string name() const { return "cpu::concat"; }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        std::vector<std::size_t> coffsets = op.compute_offsets(output_shape, args);
+        for(std::size_t l = 0; l < args.size(); l++)
+        {
+            auto argl             = args[l];
+            std::size_t nelements = argl.get_shape().elements();
+            visit_all(result, argl)([&](auto output, auto input) {
+                auto slice_shape =
+                    shape{output_shape.type(), input.get_shape().lens(), output_shape.strides()};
+                auto slice = make_view(slice_shape, output.data() + coffsets[l]);
+                // cppcheck-suppress useStlAlgorithm
+                for(std::size_t i = 0; i < nelements; i++)
+                {
+                    slice[i] = input[i];
+                }
+            });
+        }
+        return result;
+    }
+};
+
 struct cpu_gemm
 {
-    op::gemm op;
-    std::string name() const { return "cpu::gemm"; }
+    op::dot op;
+    std::string name() const { return "cpu::dot"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
@@ -564,25 +592,24 @@ struct cpu_apply
     {
         apply_map["im2col"]      = extend_op<cpu_im2col, op::im2col>();
         apply_map["convolution"] = extend_op<cpu_convolution, op::convolution>();
-        apply_map["gemm"]        = extend_op<cpu_gemm, op::gemm>();
+        apply_map["dot"]         = extend_op<cpu_gemm, op::dot>();
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
+        apply_map["concat"]     = extend_op<cpu_concat, op::concat>();
         apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
-
-        apply_map["identity"] = simple_op<cpu_unary<identity_op>>();
-        apply_map["tanh"]     = simple_op<cpu_unary<tanh_op>>();
-        apply_map["sigmoid"]  = simple_op<cpu_unary<sigmoid_op>>();
-        apply_map["exp"]      = simple_op<cpu_unary<exp_op>>();
-        apply_map["neg"]      = simple_op<cpu_unary<neg_op>>();
-        apply_map["sin"]      = simple_op<cpu_unary<sin_op>>();
-        apply_map["cos"]      = simple_op<cpu_unary<cos_op>>();
-        apply_map["tan"]      = simple_op<cpu_unary<tan_op>>();
-        apply_map["add"]      = simple_op<cpu_binary<add_op>>();
-        apply_map["sub"]      = simple_op<cpu_binary<sub_op>>();
-        apply_map["mul"]      = simple_op<cpu_binary<mul_op>>();
-        // apply_map["scalar"]   = simple_op<cpu_binary<mul_op>>();
-        apply_map["div"]      = simple_op<cpu_binary<div_op>>();
+        apply_map["identity"]   = simple_op<cpu_unary<identity_op>>();
+        apply_map["tanh"]       = simple_op<cpu_unary<tanh_op>>();
+        apply_map["sigmoid"]    = simple_op<cpu_unary<sigmoid_op>>();
+        apply_map["exp"]        = simple_op<cpu_unary<exp_op>>();
+        apply_map["neg"]        = simple_op<cpu_unary<neg_op>>();
+        apply_map["sin"]        = simple_op<cpu_unary<sin_op>>();
+        apply_map["cos"]        = simple_op<cpu_unary<cos_op>>();
+        apply_map["tan"]        = simple_op<cpu_unary<tan_op>>();
+        apply_map["add"]        = simple_op<cpu_binary<add_op>>();
+        apply_map["sub"]        = simple_op<cpu_binary<sub_op>>();
+        apply_map["mul"]        = simple_op<cpu_binary<mul_op>>();
+        apply_map["div"]        = simple_op<cpu_binary<div_op>>();
 
         apply_map["softmax"] = simple_op<softmax2d>();
     }

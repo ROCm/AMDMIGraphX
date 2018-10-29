@@ -32,7 +32,7 @@ auto pack_vec4(Ts... xs)
 }
 
 template <class F, class... Arguments>
-auto nary_nonstandard_impl(F f, argument result, Arguments... args)
+auto nary_nonstandard_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
     const auto& output_shape = result.get_shape();
     visit_all(result, args...)([&](auto output, auto... inputs) {
@@ -41,7 +41,7 @@ auto nary_nonstandard_impl(F f, argument result, Arguments... args)
                 std::make_pair(hip_tensor_descriptor<ndim>{inputs.get_shape()}, inputs.data())...);
             hip_tensor_descriptor<ndim> out_desc(output_shape);
             auto* outp = output.data();
-            gs_launch(output_shape.elements())([=](auto i) {
+            gs_launch(stream, output_shape.elements())([=](auto i) {
                 data([&](auto&&... ps) {
                     auto outidx = out_desc.multi(i);
                     outp[i]     = f(ps.second[ps.first.linear(outidx)]...);
@@ -52,8 +52,12 @@ auto nary_nonstandard_impl(F f, argument result, Arguments... args)
 }
 
 template <class F>
-void trinary_broadcast_vec_impl(
-    F f, const argument& result, const argument& arg1, const argument& arg2, const argument& arg3)
+void trinary_broadcast_vec_impl(hipStream_t stream,
+                                F f,
+                                const argument& result,
+                                const argument& arg1,
+                                const argument& arg2,
+                                const argument& arg3)
 {
     const auto& output_shape = result.get_shape();
     const auto& b_shape      = arg3.get_shape();
@@ -79,7 +83,7 @@ void trinary_broadcast_vec_impl(
         const std::size_t n            = output.size() / vec_size;
         const std::size_t bdim_vec_len = bdim_len / vec_size;
 
-        launch(nglobal, nlocal)([=](auto idx) __device__ {
+        launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
             MIGRAPH_DEVICE_SHARED vec4<type> buffer[2048 / vec_size];
             // Load bias into LDS
             for(size_t i = idx.local; i < bdim_vec_len; i += nlocal)
@@ -107,8 +111,12 @@ void trinary_broadcast_vec_impl(
 }
 
 template <class F>
-void trinary_broadcast_impl(
-    F f, const argument& result, const argument& arg1, const argument& arg2, const argument& arg3)
+void trinary_broadcast_impl(hipStream_t stream,
+                            F f,
+                            const argument& result,
+                            const argument& arg1,
+                            const argument& arg2,
+                            const argument& arg3)
 {
     const auto& output_shape = result.get_shape();
     const auto& b_shape      = arg3.get_shape();
@@ -132,7 +140,7 @@ void trinary_broadcast_impl(
         const std::size_t nglobal = 256 * nlocal;
         const std::size_t n       = output.size();
 
-        launch(nglobal, nlocal)([=](auto idx) __device__ {
+        launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
             MIGRAPH_DEVICE_SHARED type buffer[2048];
             // Load bias into LDS
             for(size_t i = idx.local; i < bdim_len; i += nlocal)
@@ -154,10 +162,8 @@ void trinary_broadcast_impl(
 }
 
 template <class F>
-void binary_broadcast_vec_impl(F f,
-                               const argument& result,
-                               const argument& arg1,
-                               const argument& arg2)
+void binary_broadcast_vec_impl(
+    hipStream_t stream, F f, const argument& result, const argument& arg1, const argument& arg2)
 {
     const auto& output_shape = result.get_shape();
     const auto& b_shape      = arg2.get_shape();
@@ -182,7 +188,7 @@ void binary_broadcast_vec_impl(F f,
         const std::size_t n            = output.size() / vec_size;
         const std::size_t bdim_vec_len = bdim_len / vec_size;
 
-        launch(nglobal, nlocal)([=](auto idx) __device__ {
+        launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
             MIGRAPH_DEVICE_SHARED vec4<type> buffer[2048 / vec_size];
             // Load bias into LDS
             for(size_t i = idx.local; i < bdim_vec_len; i += nlocal)
@@ -209,7 +215,8 @@ void binary_broadcast_vec_impl(F f,
 }
 
 template <class F>
-void binary_broadcast_impl(F f, const argument& result, const argument& arg1, const argument& arg2)
+void binary_broadcast_impl(
+    hipStream_t stream, F f, const argument& result, const argument& arg1, const argument& arg2)
 {
     const auto& output_shape = result.get_shape();
     const auto& b_shape      = arg2.get_shape();
@@ -232,7 +239,7 @@ void binary_broadcast_impl(F f, const argument& result, const argument& arg1, co
         const std::size_t nglobal = 256 * nlocal;
         const std::size_t n       = output.size();
 
-        launch(nglobal, nlocal)([=](auto idx) __device__ {
+        launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
             MIGRAPH_DEVICE_SHARED type buffer[2048];
             // Load bias into LDS
             for(size_t i = idx.local; i < bdim_len; i += nlocal)
@@ -253,7 +260,7 @@ void binary_broadcast_impl(F f, const argument& result, const argument& arg1, co
 }
 
 template <class F, class... Arguments>
-void nary_standard_vec_impl(F f, argument result, Arguments... args)
+void nary_standard_vec_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
     // assert(x.get_shape().elements() == y.get_shape().elements());
     const auto& output_shape = result.get_shape();
@@ -262,7 +269,7 @@ void nary_standard_vec_impl(F f, argument result, Arguments... args)
         const std::size_t vec_size = 4;
         auto data                  = pack_vec4(inputs.data()...);
         auto* outp                 = as_vec4(output.data());
-        gs_launch(output_shape.elements() / vec_size)([=](auto i) {
+        gs_launch(stream, output_shape.elements() / vec_size)([=](auto i) {
             vec4<type> out = outp[i];
             data(
                 [&](auto... xs) {
@@ -278,50 +285,51 @@ void nary_standard_vec_impl(F f, argument result, Arguments... args)
 }
 
 template <class F, class... Arguments>
-void nary_standard_impl(F f, argument result, Arguments... args)
+void nary_standard_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
     // assert(x.get_shape().elements() == y.get_shape().elements());
     const auto& output_shape = result.get_shape();
     visit_all(result, args...)([&](auto output, auto... inputs) {
         auto data  = pack(inputs.data()...);
         auto* outp = output.data();
-        gs_launch(output_shape.elements())(
+        gs_launch(stream, output_shape.elements())(
             [=](auto i) { data([&](auto... xps) { outp[i] = f(xps[i]...); }); });
     });
 }
 
 template <class F, class... Arguments>
-void nary_impl(F f, argument result, Arguments... args)
+void nary_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
     bool standard = all_of({args.get_shape()...}, [](const shape& s) { return s.standard(); });
     bool packed   = all_of({args.get_shape()...}, [](const shape& s) { return s.packed(); });
     bool same_shapes =
         all_of({args.get_shape()...}, [&](const shape& s) { return s == result.get_shape(); });
     if(standard or (packed and same_shapes))
-        nary_standard_impl(f, result, args...);
+        nary_standard_impl(stream, f, result, args...);
     else
-        nary_nonstandard_impl(f, result, args...);
+        nary_nonstandard_impl(stream, f, result, args...);
 }
 
 template <class... Arguments>
-auto nary_nonstandard(argument result, Arguments... args)
+auto nary_nonstandard(hipStream_t stream, argument result, Arguments... args)
 {
-    return [=](auto f) { nary_nonstandard_impl(f, result, args...); };
+    return [=](auto f) { nary_nonstandard_impl(stream, f, result, args...); };
 }
 
 template <class... Arguments>
-auto nary_standard(argument result, Arguments... args)
+auto nary_standard(hipStream_t stream, argument result, Arguments... args)
 {
-    return [=](auto f) { nary_standard_impl(f, result, args...); };
+    return [=](auto f) { nary_standard_impl(stream, f, result, args...); };
 }
 
 template <class... Arguments>
-auto nary(argument result, Arguments... args)
+auto nary(hipStream_t stream, argument result, Arguments... args)
 {
-    return [=](auto f) { nary_impl(f, result, args...); };
+    return [=](auto f) { nary_impl(stream, f, result, args...); };
 }
 
-inline auto nary(const argument& result, const argument& arg1, const argument& arg2)
+inline auto
+nary(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2)
 {
     return [=](auto f) {
         // TODO: Check result and arg1 shape is the same
@@ -339,18 +347,21 @@ inline auto nary(const argument& result, const argument& arg1, const argument& a
                 const bool divisible_by_4 = (b_len % 4 == 0) and (b_stride % 4 == 0) and
                                             (arg1.get_shape().elements() % 4 == 0);
                 if(divisible_by_4)
-                    binary_broadcast_vec_impl(f, result, arg1, arg2);
+                    binary_broadcast_vec_impl(stream, f, result, arg1, arg2);
                 else
-                    binary_broadcast_impl(f, result, arg1, arg2);
+                    binary_broadcast_impl(stream, f, result, arg1, arg2);
                 return;
             }
         }
-        nary_impl(f, result, arg1, arg2);
+        nary_impl(stream, f, result, arg1, arg2);
     };
 }
 
-inline auto
-nary(const argument& result, const argument& arg1, const argument& arg2, const argument& arg3)
+inline auto nary(hipStream_t stream,
+                 const argument& result,
+                 const argument& arg1,
+                 const argument& arg2,
+                 const argument& arg3)
 {
     return [=](auto f) {
         // TODO: Check result and arg1 shape is the same
@@ -369,13 +380,13 @@ nary(const argument& result, const argument& arg1, const argument& arg2, const a
                 const bool divisible_by_4 = (b_len % 4 == 0) and (b_stride % 4 == 0) and
                                             (arg1.get_shape().elements() % 4 == 0);
                 if(divisible_by_4)
-                    trinary_broadcast_vec_impl(f, result, arg1, arg2, arg3);
+                    trinary_broadcast_vec_impl(stream, f, result, arg1, arg2, arg3);
                 else
-                    trinary_broadcast_impl(f, result, arg1, arg2, arg3);
+                    trinary_broadcast_impl(stream, f, result, arg1, arg2, arg3);
                 return;
             }
         }
-        nary_impl(f, result, arg1, arg2, arg3);
+        nary_impl(stream, f, result, arg1, arg2, arg3);
     };
 }
 

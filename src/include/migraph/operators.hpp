@@ -314,6 +314,57 @@ struct contiguous
     }
 };
 
+struct concat
+{
+    std::size_t axis = 0;
+    std::string name() const { return "concat"; }
+    std::vector<std::size_t> compute_offsets(const shape& output_shape,
+                                             const std::vector<argument> args) const
+    {
+        std::vector<std::size_t> offsets;
+        std::vector<std::size_t> offset(args[0].get_shape().lens().size(), 0);
+        offset[axis] = 0;
+        for(const auto& arg : args)
+        {
+            offsets.push_back(output_shape.index(offset));
+            offset[axis] += arg.get_shape().lens()[axis];
+        }
+        return offsets;
+    }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        if(inputs.empty())
+        {
+            MIGRAPH_THROW("Number of input tensors should exceed 0");
+        }
+
+        const auto& first_shape_lens = inputs.front().lens();
+        const auto& type             = inputs.front().type();
+        for(std::size_t l = 0; l < first_shape_lens.size(); l++)
+        {
+            if(l != axis)
+            {
+                if(!std::all_of(inputs.begin(), inputs.end(), [&](auto s) {
+                       return s.lens()[l] == first_shape_lens[l];
+                   }))
+                {
+                    MIGRAPH_THROW("Non-axis dimensions should match");
+                }
+            }
+        }
+        std::size_t new_dim_axis = 0;
+        for(const auto& input : inputs)
+        {
+            const auto& lens = input.lens();
+            new_dim_axis += lens[axis];
+        }
+        std::vector<std::size_t> new_lens;
+        std::copy(first_shape_lens.begin(), first_shape_lens.end(), std::back_inserter(new_lens));
+        new_lens[axis] = new_dim_axis;
+        return {type, new_lens};
+    }
+};
+
 struct slice
 {
     std::vector<int64_t> axes;
@@ -531,7 +582,7 @@ struct reshape
     }
 };
 
-struct gemm
+struct dot
 {
     float alpha = 1.0;
     float beta  = 0.0;
@@ -542,7 +593,7 @@ struct gemm
         return pack(f(self.alpha, "alpha"), f(self.beta, "beta"));
     }
 
-    std::string name() const { return "gemm"; }
+    std::string name() const { return "dot"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2).same_type();

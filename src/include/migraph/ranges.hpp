@@ -92,6 +92,12 @@ iterator_range<Iterator> range(Iterator start, Iterator last)
     return {start, last};
 }
 
+template <class Iterator>
+iterator_range<Iterator> range(std::pair<Iterator, Iterator> p)
+{
+    return {p.first, p.second};
+}
+
 } // namespace migraph
 
 #endif

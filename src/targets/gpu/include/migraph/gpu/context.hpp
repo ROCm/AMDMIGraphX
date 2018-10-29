@@ -25,6 +25,11 @@ struct hip_device
 
         stream(std::size_t device_number) : id(device_number) {}
 
+        void setup()
+        {
+            set_device(id);
+        }
+
         static hip_stream_ptr create_stream()
         {
             hipStream_t result = nullptr;
@@ -38,7 +43,7 @@ struct hip_device
         {
             if(enabled(MIGRAPH_DISABLE_NULL_STREAM{}))
             {
-                set_device(id);
+                setup();
                 if(s == nullptr)
                     s = create_stream();
                 assert(s.get() != nullptr);
@@ -57,7 +62,7 @@ struct hip_device
 
         auto get_miopen()
         {
-            set_device(id);
+            setup();
             if(mihandle == nullptr)
                 mihandle = create_miopen_handle();
             assert(mihandle.get() != nullptr);
@@ -66,7 +71,7 @@ struct hip_device
 
         auto get_rocblas()
         {
-            set_device(id);
+            setup();
             if(rbhandle == nullptr)
                 rbhandle = create_rocblas_handle_ptr(get());
             assert(rbhandle.get() != nullptr);

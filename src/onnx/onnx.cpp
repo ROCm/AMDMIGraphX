@@ -50,7 +50,7 @@ struct onnx_parser
     {
         add_generic_op("Add", op::add{});
         add_generic_op("Div", op::div{});
-        add_generic_op("MatMul", op::gemm{});
+        add_generic_op("MatMul", op::dot{});
         add_generic_op("Mul", op::mul{});
         add_generic_op("Relu", op::activation{"relu"});
         add_generic_op("Sub", op::sub{});
@@ -67,6 +67,10 @@ struct onnx_parser
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
         add_mem_op("BatchNormalization", &onnx_parser::parse_batchnorm);
         add_mem_op("Softmax", &onnx_parser::parse_softmax);
+        add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
+        add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
+        add_mem_op("Slice", &onnx_parser::parse_slice);
+        add_mem_op("Concat", &onnx_parser::parse_concat);
     }
 
     template <class F>
@@ -188,6 +192,52 @@ struct onnx_parser
         return prog.add_instruction(op::flatten{axis}, args[0]);
     }
 
+    instruction_ref
+    parse_squeeze(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        op::squeeze op;
+        literal s = parse_value(attributes.at("axes"));
+        s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
+        return prog.add_instruction(op, args[0]);
+    }
+
+    instruction_ref
+    parse_unsqueeze(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        op::unsqueeze op;
+        literal s = parse_value(attributes.at("axes"));
+        s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
+        return prog.add_instruction(op, args[0]);
+    }
+
+    instruction_ref
+    parse_concat(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        std::size_t axis = parse_value(attributes.at("axis")).at<int>();
+        op::concat op{axis};
+        return prog.add_instruction(op, std::move(args));
+    }
+
+    instruction_ref
+    parse_slice(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        op::slice op;
+        if(contains(attributes, "axes"))
+        {
+            literal s = parse_value(attributes.at("axes"));
+            s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
+        }
+        {
+            literal s = parse_value(attributes.at("ends"));
+            s.visit([&](auto v) { copy(v, std::back_inserter(op.ends)); });
+        }
+        {
+            literal s = parse_value(attributes.at("starts"));
+            s.visit([&](auto v) { copy(v, std::back_inserter(op.starts)); });
+        }
+        return prog.add_instruction(op, args[0]);
+    }
+
     instruction_ref parse_constant(const std::string&,
                                    attribute_map attributes,
                                    const std::vector<instruction_ref>&)
@@ -225,11 +275,11 @@ struct onnx_parser
         if(args.size() == 3)
         {
             uint64_t axis = 1;
-            auto l3       = prog.add_instruction(op::gemm{alpha, beta}, l1, l2);
+            auto l3       = prog.add_instruction(op::dot{alpha, beta}, l1, l2);
             auto l4       = prog.add_instruction(op::broadcast{axis, l3->get_shape()}, args[2]);
             return prog.add_instruction(op::add{}, l3, l4);
         }
-        return prog.add_instruction(op::gemm{alpha, beta}, l1, l2);
+        return prog.add_instruction(op::dot{alpha, beta}, l1, l2);
     }
 
     instruction_ref

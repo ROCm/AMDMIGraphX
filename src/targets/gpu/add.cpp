@@ -14,9 +14,9 @@ shape hip_add::compute_shape(const std::vector<shape>& inputs) const
     return inputs.at(0);
 }
 
-argument hip_add::compute(context&, const shape&, const std::vector<argument>& args) const
+argument hip_add::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    device::add(args[2], args[0], args[1]);
+    device::add(ctx.get_stream().get(), args[2], args[0], args[1]);
     return args[2];
 }
 
@@ -34,7 +34,7 @@ argument miopen_add::compute(context& ctx,
     auto a_desc = make_tensor(args[0].get_shape());
     auto b_desc = make_tensor(args[1].get_shape());
     auto c_desc = make_tensor(output_shape);
-    miopenOpTensor(ctx.handle.get(),
+    miopenOpTensor(ctx.get_stream().get_miopen(),
                    miopenTensorOpAdd,
                    &alpha,
                    a_desc.get(),

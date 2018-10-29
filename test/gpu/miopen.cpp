@@ -129,6 +129,7 @@ template <class V>
 void verify_program()
 {
     auto_print::set_terminate_handler(migraph::get_type_name<V>());
+    // std::cout << migraph::get_type_name<V>() << std::endl;
     migraph::program cpu_prog;
     migraph::program gpu_prog;
     auto cpu_arg_f = detach_async([&] { return run_cpu<V>(cpu_prog); });
@@ -429,7 +430,7 @@ struct test_gemm
         migraph::program p;
         auto a = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {4, 5}});
         auto b = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {5, 3}});
-        p.add_instruction(migraph::op::gemm{}, a, b);
+        p.add_instruction(migraph::op::dot{}, a, b);
         return p;
     }
 };
@@ -441,7 +442,7 @@ struct test_gemm_ld
         migraph::program p;
         auto a = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {4, 5}, {10, 1}});
         auto b = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {5, 3}, {20, 1}});
-        p.add_instruction(migraph::op::gemm{}, a, b);
+        p.add_instruction(migraph::op::dot{}, a, b);
         return p;
     }
 };
@@ -454,7 +455,7 @@ struct test_gemm_transposeb
         auto a  = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {4, 5}});
         auto b  = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {3, 5}});
         auto bt = p.add_instruction(migraph::op::transpose{{1, 0}}, b);
-        p.add_instruction(migraph::op::gemm{}, a, bt);
+        p.add_instruction(migraph::op::dot{}, a, bt);
         return p;
     }
 };
@@ -467,7 +468,7 @@ struct test_gemm_transposea
         auto a  = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {5, 4}});
         auto b  = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {5, 3}});
         auto at = p.add_instruction(migraph::op::transpose{{1, 0}}, a);
-        p.add_instruction(migraph::op::gemm{}, at, b);
+        p.add_instruction(migraph::op::dot{}, at, b);
         return p;
     }
 };
@@ -481,7 +482,7 @@ struct test_gemm_transposeab
         auto b  = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {3, 5}});
         auto at = p.add_instruction(migraph::op::transpose{{1, 0}}, a);
         auto bt = p.add_instruction(migraph::op::transpose{{1, 0}}, b);
-        p.add_instruction(migraph::op::gemm{}, at, bt);
+        p.add_instruction(migraph::op::dot{}, at, bt);
         return p;
     }
 };
@@ -604,6 +605,40 @@ struct test_conv_bn_relu_pooling
     }
 };
 
+struct test_concat
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        std::size_t axis = 1;
+        migraph::shape s0{migraph::shape::int32_type, {2, 2}};
+        migraph::shape s1{migraph::shape::int32_type, {2, 3}};
+        migraph::shape s2{migraph::shape::int32_type, {2, 1}};
+        auto l0 = p.add_parameter("x", s0);
+        auto l1 = p.add_parameter("y", s1);
+        auto l2 = p.add_parameter("z", s2);
+        p.add_instruction(migraph::op::concat{axis}, l0, l1, l2);
+        return p;
+    }
+};
+
+struct test_concat2
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        std::size_t axis = 0;
+        migraph::shape s0{migraph::shape::int32_type, {2, 2}};
+        migraph::shape s1{migraph::shape::int32_type, {3, 2}};
+        migraph::shape s2{migraph::shape::int32_type, {1, 2}};
+        auto l0 = p.add_parameter("x", s0);
+        auto l1 = p.add_parameter("y", s1);
+        auto l2 = p.add_parameter("z", s2);
+        p.add_instruction(migraph::op::concat{axis}, l0, l1, l2);
+        return p;
+    }
+};
+
 struct test_conv_bn_relu_pooling2
 {
     static migraph::instruction_ref
@@ -642,6 +677,8 @@ struct test_conv_bn_relu_pooling2
 
 int main()
 {
+    verify_program<test_concat>();
+    verify_program<test_concat2>();
     verify_program<test_add>();
     verify_program<test_mul>();
     verify_program<test_scale>();

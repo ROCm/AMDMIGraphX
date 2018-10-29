@@ -82,13 +82,14 @@ struct fusion
         // int algo_count = 1;
         // miopenConvFwdAlgorithm_t algo;
         // miopenFusionPlanConvolutionGetAlgo(fp.get(), 1, &algo_count, &algo);
-        // miopenFusionPlanGetWorkSpaceSize(ctx.handle.get(), fp.get(), &ws_size, algo);
+        // miopenFusionPlanGetWorkSpaceSize(ctx.get_stream().get_miopen(), fp.get(), &ws_size,
+        // algo);
         return shape{shape::int8_type, {ws_size}};
     }
 
     void compile(context& ctx)
     {
-        auto status = miopenCompileFusionPlan(ctx.handle.get(), fp.get());
+        auto status = miopenCompileFusionPlan(ctx.get_stream().get_miopen(), fp.get());
         if(status != miopenStatusSuccess)
             MIGRAPH_THROW("Compiling fusion plan failed");
     }
@@ -100,7 +101,7 @@ struct fusion
     {
         auto x_td   = make_tensor(x.get_shape());
         auto y_td   = make_tensor(y.get_shape());
-        auto status = miopenExecuteFusionPlan(ctx.handle.get(),
+        auto status = miopenExecuteFusionPlan(ctx.get_stream().get_miopen(),
                                               fp.get(),
                                               x_td.get(),
                                               x.implicit(),
@@ -152,9 +153,9 @@ struct hip_triadd
         check_shapes{inputs, *this}.has(4);
         return inputs.front();
     }
-    argument compute(context&, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        device::add(args.at(3), args.at(0), args.at(1), args.at(2));
+        device::add(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
         return args.at(3);
     }
 };
@@ -167,9 +168,9 @@ struct hip_triadd_relu
         check_shapes{inputs, *this}.has(4);
         return inputs.front();
     }
-    argument compute(context&, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        device::add_relu(args.at(3), args.at(0), args.at(1), args.at(2));
+        device::add_relu(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
         return args.at(3);
     }
 };
@@ -182,9 +183,9 @@ struct hip_add_relu
         check_shapes{inputs, *this}.has(3);
         return inputs.front();
     }
-    argument compute(context&, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        device::add_relu(args.at(2), args.at(0), args.at(1));
+        device::add_relu(ctx.get_stream().get(), args.at(2), args.at(0), args.at(1));
         return args.at(2);
     }
 };

@@ -5,6 +5,7 @@
 #include <migraph/shape.hpp>
 #include <migraph/instruction_ref.hpp>
 #include <migraph/operation.hpp>
+#include <migraph/erase.hpp>
 #include <string>
 #include <utility>
 
@@ -43,6 +44,10 @@ struct instruction
 
     const std::vector<instruction_ref>& outputs() const;
 
+    friend bool operator==(const instruction& x, const instruction& y);
+
+    friend bool operator!=(const instruction& x, const instruction& y);
+
     friend bool operator==(instruction_ref ref, const instruction& i);
 
     friend bool operator!=(const instruction& i, instruction_ref ref);
@@ -52,7 +57,10 @@ struct instruction
     void add_output(instruction_ref ins);
 
     template <class T>
-    void remove_output(const T& ins);
+    void remove_output(const T& ins)
+    {
+        migraph::erase(output, ins);
+    }
 
     static void backreference(instruction_ref ref);
 

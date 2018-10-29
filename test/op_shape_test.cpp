@@ -93,7 +93,7 @@ void contiguous_shape()
     throws_shape(migraph::op::contiguous{}, input, input);
 
     migraph::shape single{migraph::shape::float_type, {2}};
-    throws_shape(migraph::op::contiguous{}, single);
+    expect_shape(single, migraph::op::contiguous{}, single);
 }
 
 void reshape_shape()

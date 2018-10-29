@@ -14,9 +14,9 @@ shape hip_mul::compute_shape(const std::vector<shape>& inputs) const
     return inputs.at(0);
 }
 
-argument hip_mul::compute(context&, const shape&, const std::vector<argument>& args) const
+argument hip_mul::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    device::mul(args[2], args[0], args[1]);
+    device::mul(ctx.get_stream().get(), args[2], args[0], args[1]);
     return args[2];
 }
 

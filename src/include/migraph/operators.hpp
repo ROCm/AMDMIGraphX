@@ -306,10 +306,6 @@ struct contiguous
         check_shapes{inputs, *this}.has(1);
         auto lens = inputs.at(0).lens();
         auto t    = inputs.at(0).type();
-        // if(lens.size() < 2)
-        // {
-        //     MIGRAPH_THROW("Number of dimensions should exceed 1");
-        // }
         return {t, lens};
     }
 };

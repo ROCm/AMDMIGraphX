@@ -100,6 +100,23 @@ void leaky_relu_test()
     EXPECT(p == prog);
 }
 
+void imagescaler_test()
+{
+    migraph::program p;
+    migraph::shape s{migraph::shape::float_type, {1, 3, 16, 16}};
+    auto l0 = p.add_parameter("0", s);
+    auto scale_val = p.add_literal(0.5f);
+    auto bias_vals = p.add_literal(migraph::literal{migraph::shape{migraph::shape::float_type, {3}}, {0.01, 0.02, 0.03}});
+    auto scaled_tensor = p.add_instruction(migraph::op::scalar{s}, scale_val);
+    auto img_scaled = p.add_instruction(migraph::op::mul{}, l0, scaled_tensor);
+    auto bias_bcast = p.add_instruction(migraph::op::broadcast{1, s}, bias_vals);
+    p.add_instruction(migraph::op::add{}, img_scaled, bias_bcast);
+
+    auto prog = migraph::parse_onnx("imagescaler_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 int main()
 {
     pytorch_conv_bias_test();
@@ -107,4 +124,5 @@ int main()
     pytorch_conv_bn_relu_maxpool();
     pytorch_conv_relu_maxpool_x2();
     leaky_relu_test();
+    imagescaler_test();
 }

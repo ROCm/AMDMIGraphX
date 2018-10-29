@@ -581,6 +581,7 @@ struct cpu_apply
         apply_map["add"]      = simple_op<cpu_binary<add_op>>();
         apply_map["sub"]      = simple_op<cpu_binary<sub_op>>();
         apply_map["mul"]      = simple_op<cpu_binary<mul_op>>();
+        // apply_map["scalar"]   = simple_op<cpu_binary<mul_op>>();
         apply_map["div"]      = simple_op<cpu_binary<div_op>>();
 
         apply_map["softmax"] = simple_op<softmax2d>();

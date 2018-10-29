@@ -10,10 +10,11 @@ if(NOT TARGET MIOpen)
     message(SEND_ERROR "Cant find miopen")
 endif()
 
-add_library(migraph_device 
+add_library(migraph_device
     device/add.cpp
     device/add_relu.cpp
     device/contiguous.cpp
+    device/mul.cpp
 )
 rocm_clang_tidy_check(migraph_device)
 target_link_libraries(migraph_device migraph hip::device)
@@ -34,6 +35,7 @@ add_library(migraph_gpu
     relu.cpp
     leaky_relu.cpp
     add.cpp
+    mul.cpp
     batchnorm.cpp
     write_literals.cpp
     rocblas.cpp

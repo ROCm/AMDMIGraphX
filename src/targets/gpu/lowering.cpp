@@ -19,6 +19,7 @@
 #include <migraph/gpu/leaky_relu.hpp>
 #include <migraph/gpu/softmax.hpp>
 #include <migraph/gpu/add.hpp>
+#include <migraph/gpu/mul.hpp>
 #include <migraph/gpu/batchnorm.hpp>
 #include <migraph/gpu/pooling.hpp>
 #include <migraph/gpu/gemm.hpp>
@@ -63,6 +64,10 @@ struct miopen_apply
             else if(it->name() == "add")
             {
                 check_shape(s, apply_add(it));
+            }
+            else if(it->name() == "mul")
+            {
+                check_shape(s, apply_mul(it));
             }
             else if(it->name() == "gemm")
             {
@@ -156,6 +161,13 @@ struct miopen_apply
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(
             ins, hip_add{}, ins->inputs().at(0), ins->inputs().at(1), output);
+    }
+
+    instruction_ref apply_mul(instruction_ref ins)
+    {
+        auto output = insert_allocation(ins, ins->get_shape());
+        return prog->replace_instruction(
+            ins, hip_mul{}, ins->inputs().at(0), ins->inputs().at(1), output);
     }
 
     instruction_ref apply_gemm(instruction_ref ins)

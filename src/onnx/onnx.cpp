@@ -56,6 +56,7 @@ struct onnx_parser
         add_generic_op("Sub", op::sub{});
         add_generic_op("Sum", op::add{});
 
+        // add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
         add_mem_op("Constant", &onnx_parser::parse_constant);
         add_mem_op("Conv", &onnx_parser::parse_conv);
@@ -265,7 +266,7 @@ struct onnx_parser
                                      attribute_map attributes,
                                      std::vector<instruction_ref> args)
     {
-        float alpha = 0.01;
+        float alpha = 0.01; // default alpha val for leaky relu
         if(contains(attributes, "alpha"))
         {
             alpha = parse_value(attributes.at("alpha")).at<float>();
@@ -273,6 +274,11 @@ struct onnx_parser
         op::leaky_relu op{alpha};
         return prog.add_instruction(op, args.front());
     }
+
+    // instruction_ref parse_imagescaler(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    // {
+
+    // }
 
     void parse_from(std::istream& is)
     {

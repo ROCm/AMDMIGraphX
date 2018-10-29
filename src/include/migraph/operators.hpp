@@ -306,10 +306,10 @@ struct contiguous
         check_shapes{inputs, *this}.has(1);
         auto lens = inputs.at(0).lens();
         auto t    = inputs.at(0).type();
-        if(lens.size() < 2)
-        {
-            MIGRAPH_THROW("Number of dimensions should exceed 1");
-        }
+        // if(lens.size() < 2)
+        // {
+        //     MIGRAPH_THROW("Number of dimensions should exceed 1");
+        // }
         return {t, lens};
     }
 };
@@ -704,6 +704,27 @@ struct broadcast
             return {t, broadcast_shape.lens(), std::move(bcast_strides)};
         }
     }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        return {std::move(output_shape), std::move(args.at(0).data)};
+    }
+};
+
+struct scalar
+{
+    shape scalar_bcast;
+
+    std::string name() const { return "scalar"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        assert(check_shapes{inputs}.has(1).only_dims(1).size() == 1);
+        auto t     = inputs.at(0).type();
+        auto input = inputs.at(0);
+        std::vector<std::size_t> strides(scalar_bcast.lens().size(), 0);
+        return {t, scalar_bcast.lens(), strides};
+    }
+
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.at(0).data)};

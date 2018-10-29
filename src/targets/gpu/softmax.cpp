@@ -20,7 +20,7 @@ argument miopen_softmax::compute(context& ctx,
     float alpha = 1, beta = 0;
     auto x_desc = make_tensor(args[0].get_shape());
     auto y_desc = make_tensor(output_shape);
-    miopenSoftmaxForward(ctx.handle.get(),
+    miopenSoftmaxForward(ctx.get_stream().get_miopen(),
                          &alpha,
                          x_desc.get(),
                          args[0].implicit(),

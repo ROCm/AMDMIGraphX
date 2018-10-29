@@ -13,6 +13,8 @@ migraph::argument to_gpu(migraph::argument arg, bool host = false);
 
 migraph::argument from_gpu(migraph::argument arg);
 
+void set_device(std::size_t id);
+
 void gpu_sync();
 
 void copy_to_gpu(argument src, argument dst);

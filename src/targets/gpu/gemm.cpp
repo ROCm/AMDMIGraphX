@@ -26,7 +26,7 @@ argument miopen_gemm::compute(context& ctx,
     rocblas_int m   = output_shape.lens()[0];
     rocblas_int n   = output_shape.lens()[1];
     rocblas_int k   = args[0].get_shape().lens()[1];
-    rocblas_sgemm(ctx.rbhandle.get(),
+    rocblas_sgemm(ctx.get_stream().get_rocblas(),
                   transb ? rocblas_operation_transpose : rocblas_operation_none,
                   transa ? rocblas_operation_transpose : rocblas_operation_none,
                   n,

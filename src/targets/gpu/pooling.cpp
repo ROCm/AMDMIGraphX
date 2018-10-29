@@ -21,7 +21,7 @@ argument miopen_pooling::compute(context& ctx,
 
     float alpha = 1, beta = 0;
 
-    miopenPoolingForward(ctx.handle.get(),
+    miopenPoolingForward(ctx.get_stream().get_miopen(),
                          pd.get(),
                          &alpha,
                          x_desc.get(),

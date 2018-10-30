@@ -11,7 +11,7 @@ struct program;
 
 struct eliminate_concat
 {
-	concat_optimization concat_opt;
+    concat_optimization concat_opt;
     std::string name() const { return "eliminate_concat"; }
     void apply(program& p) const;
 };

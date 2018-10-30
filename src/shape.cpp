@@ -157,9 +157,7 @@ bool shape::scalar() const
 {
     assert(this->lens().size() == this->strides().size());
     // if any stride > 0, then accumulate will return false
-    return std::accumulate(this->strides().begin(),
-                           this->strides().end(),
-                           std::size_t(0)) == 0;
+    return std::accumulate(this->strides().begin(), this->strides().end(), std::size_t(0)) == 0;
 }
 
 bool shape::standard() const { return impl->m_standard; }

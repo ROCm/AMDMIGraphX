@@ -333,7 +333,8 @@ nary(hipStream_t stream, const argument& result, const argument& arg1, const arg
 {
     return [=](auto f) {
         // TODO: Check result and arg1 shape is the same
-        if(arg1.get_shape().standard() and arg2.get_shape().broadcasted() and not arg2.get_shape().scalar())
+        if(arg1.get_shape().standard() and arg2.get_shape().broadcasted() and
+           not arg2.get_shape().scalar())
         {
             auto not_zero       = [](auto x) { return x != 0; };
             const auto& strides = arg2.get_shape().strides();

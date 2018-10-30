@@ -7,23 +7,24 @@
 
 namespace migraph {
 
-template<class Range, class Iterator>
+template <class Range, class Iterator>
 std::ptrdiff_t bidistance(const Range& r, Iterator start, Iterator last)
 {
-    auto start_forward = start;
+    auto start_forward   = start;
     auto start_backwards = start;
-    std::size_t n = 0;
+    std::size_t n        = 0;
     while(start_forward != last and start_backwards != last)
     {
         n++;
-        if(start_forward != r.end()) start_forward++;
-        if(start_backwards != r.begin()) start_backwards--;
+        if(start_forward != r.end())
+            start_forward++;
+        if(start_backwards != r.begin())
+            start_backwards--;
     }
     if(start_forward == last)
         return n;
     else
         return -n;
-
 }
 
 void dead_code_elimination::apply(program& p) const

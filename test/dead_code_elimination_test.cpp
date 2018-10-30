@@ -43,6 +43,23 @@ void simple_test_nop()
     EXPECT(result != migraph::literal{4});
 }
 
+void simple_test_nop2()
+{
+    migraph::program p;
+
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    p.add_instruction(nop{});
+    p.add_instruction(sum_op{}, one, two);
+    p.add_instruction(nop{});
+    auto count = std::distance(p.begin(), p.end());
+    p.compile(dce_target{});
+    EXPECT(std::distance(p.begin(), p.end()) == 2);
+    auto result = p.eval({});
+    EXPECT(result == migraph::literal{});
+    EXPECT(result != migraph::literal{4});
+}
+
 void duplicate_test1()
 {
     migraph::program p;
@@ -99,6 +116,7 @@ int main()
 {
     simple_test();
     simple_test_nop();
+    simple_test_nop2();
     duplicate_test1();
     duplicate_test2();
     depth_test();

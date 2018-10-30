@@ -194,8 +194,8 @@ struct test_scale
     {
         migraph::program p;
         migraph::shape s{migraph::shape::float_type, {3}};
-        auto x = p.add_parameter("x", s);
-        auto y = p.add_parameter("y", migraph::shape::float_type);
+        auto x     = p.add_parameter("x", s);
+        auto y     = p.add_parameter("y", migraph::shape::float_type);
         auto scale = p.add_instruction(migraph::op::scalar{s}, y);
         p.add_instruction(migraph::op::mul{}, x, scale);
         return p;

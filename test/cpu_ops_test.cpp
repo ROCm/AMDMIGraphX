@@ -543,36 +543,46 @@ void imagescaler_test()
 {
     migraph::program p;
     migraph::shape s{migraph::shape::float_type, {1, 3, 2, 2}};
-    auto img = p.add_literal(migraph::literal{s, {
-                                                  0.2, 0.3,
-                                                  0.5, 0.4,
-                                                  
-                                                  0.7, 0.8,
-                                                  0.1, 0.9,
-                                                
-                                                  0.15, 0.25,
-                                                  0.35, 0.45
-                                                  }});
-    auto scale_val = p.add_literal(2.f);
+    auto img           = p.add_literal(migraph::literal{s,
+                                              {0.2,
+                                               0.3,
+                                               0.5,
+                                               0.4,
+
+                                               0.7,
+                                               0.8,
+                                               0.1,
+                                               0.9,
+
+                                               0.15,
+                                               0.25,
+                                               0.35,
+                                               0.45}});
+    auto scale_val     = p.add_literal(2.f);
     auto scaled_tensor = p.add_instruction(migraph::op::scalar{s}, scale_val);
-    auto img_scaled = p.add_instruction(migraph::op::mul{}, img, scaled_tensor);
-    auto bias_vals = p.add_literal(migraph::literal{migraph::shape{migraph::shape::float_type, {3}}, {0.01, 0.02, 0.03}});
+    auto img_scaled    = p.add_instruction(migraph::op::mul{}, img, scaled_tensor);
+    auto bias_vals     = p.add_literal(
+        migraph::literal{migraph::shape{migraph::shape::float_type, {3}}, {0.01, 0.02, 0.03}});
     auto bias_bcast = p.add_instruction(migraph::op::broadcast{1, s}, bias_vals);
     p.add_instruction(migraph::op::add{}, img_scaled, bias_bcast);
     p.compile(migraph::cpu::cpu_target{});
     auto result = p.eval({});
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {
-                               0.41, 0.61,
-                               1.01, 0.81,
-                            
-                               1.42, 1.62,
-                               0.22, 1.82,
-                               
-                               0.33, 0.53,
-                               0.73, 0.93
-                               };
+    std::vector<float> gold = {0.41,
+                               0.61,
+                               1.01,
+                               0.81,
+
+                               1.42,
+                               1.62,
+                               0.22,
+                               1.82,
+
+                               0.33,
+                               0.53,
+                               0.73,
+                               0.93};
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 

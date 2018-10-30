@@ -18,7 +18,7 @@ struct program;
 #ifdef DOXYGEN
 
 /// An interface for applying an optimization for the concat instruction
-struct concat_optimization 
+struct concat_optimization
 {
     /// A unique name used to identify the concat optimization
     std::string name() const;

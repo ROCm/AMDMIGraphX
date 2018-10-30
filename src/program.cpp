@@ -427,7 +427,7 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     }
 
     double total_time             = common_average(total_vec);
-    double rate                   = std::ceil(1000.0 / total_time);
+    double rate                   = 1000.0 / total_time;
     double overhead_time          = common_average(overhead_vec);
     double overhead_percent       = overhead_time * 100.0 / total_time;
     double total_instruction_time = 0.0;

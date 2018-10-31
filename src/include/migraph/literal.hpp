@@ -20,10 +20,10 @@ struct literal : raw_data<literal>
 {
     literal() {}
 
-    template <class T>
-    literal(T x) : buffer(make_shared_array<char>(sizeof(T))), m_shape(shape::get_type<T>{})
+    template <class U, class T=deduce<U>>
+    literal(U x) : buffer(make_shared_array<char>(sizeof(T))), m_shape(shape::get_type<T>{})
     {
-        static_assert(std::is_trivial<T>{}, "Literals can only be trivial types");
+        static_assert(std::is_trivially_copyable<T>{}, "Literals can only be trivial types");
         *(reinterpret_cast<T*>(buffer.get())) = x;
     }
 
@@ -31,7 +31,7 @@ struct literal : raw_data<literal>
     literal(const shape& s, const std::vector<T>& x)
         : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
     {
-        static_assert(std::is_trivial<T>{}, "Literals can only be trivial types");
+        static_assert(std::is_trivially_copyable<T>{}, "Literals can only be trivial types");
         fill(x.begin(), x.end());
     }
 
@@ -39,7 +39,7 @@ struct literal : raw_data<literal>
     literal(const shape& s, const std::initializer_list<T>& x)
         : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
     {
-        static_assert(std::is_trivial<T>{}, "Literals can only be trivial types");
+        static_assert(std::is_trivially_copyable<T>{}, "Literals can only be trivial types");
         fill(x.begin(), x.end());
     }
 
@@ -101,7 +101,7 @@ literal transform(literal l, F f)
     literal result;
     l.visit([&](auto x) {
         using type = std::remove_cv_t<typename decltype(x)::value_type>;
-        std::vector<type> output(x.size(), 0.0);
+        std::vector<type> output(x.size(), type(0));
         std::transform(x.begin(), x.end(), output.begin(), f);
         result = literal{l.get_shape(), output};
     });
@@ -115,7 +115,7 @@ literal transform(literal l1, literal l2, F f)
     literal result;
     visit_all(l1, l2)([&](auto x, auto y) {
         using type = std::remove_cv_t<typename decltype(x)::value_type>;
-        std::vector<type> output(x.size(), 0.0);
+        std::vector<type> output(x.size(), type(0));
         std::transform(x.begin(), x.end(), y.begin(), output.begin(), f);
         result = literal{l1.get_shape(), output};
     });

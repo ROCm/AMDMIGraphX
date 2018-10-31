@@ -92,6 +92,8 @@ struct shape
     /// Returns true if the shape is in its standard format. That is, the shape is both packed and
     /// not transposed.
     bool standard() const;
+    /// Returns true if all strides are equal to 0 (scalar tensor)
+    bool scalar() const;
 
     friend bool operator==(const shape& x, const shape& y);
     friend bool operator!=(const shape& x, const shape& y);

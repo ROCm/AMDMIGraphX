@@ -14,14 +14,15 @@
 namespace migraph {
 
 #define MIGRAPH_DETAIL_EXTEND_TRAIT_FOR(trait, T) \
-template<class X> \
-struct trait : std::trait<X> \
-{}; \
- \
-template<> \
-struct trait<T> \
-: std::true_type \
-{};
+    template <class X>                            \
+    struct trait : std::trait<X>                  \
+    {                                             \
+    };                                            \
+                                                  \
+    template <>                                   \
+    struct trait<T> : std::true_type              \
+    {                                             \
+    };
 
 MIGRAPH_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, half)
 MIGRAPH_DETAIL_EXTEND_TRAIT_FOR(is_signed, half)

@@ -14,21 +14,21 @@ namespace migraph {
 
 using half = half_float::half;
 
-namespace detail {   
-template<class T>
+namespace detail {
+template <class T>
 struct deduce
 {
     using type = T;
 };
 
-template<>
+template <>
 struct deduce<half_float::detail::expr>
 {
     using type = half;
 };
 } // namespace detail
 
-template<class T>
+template <class T>
 using deduce = typename detail::deduce<T>::type;
 
 } // namespace migraph

@@ -21,7 +21,7 @@ rocm_clang_tidy_check(migraph)
 target_include_directories(migraph PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
 find_path(HALF_INCLUDE_DIR half.hpp)
-target_include_directories(migraph PUBLIC ${HALF_INCLUDE_DIR})
+target_include_directories(migraph SYSTEM PUBLIC ${HALF_INCLUDE_DIR})
 
 add_subdirectory(onnx)
 add_subdirectory(targets/cpu)

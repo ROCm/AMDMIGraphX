@@ -52,7 +52,6 @@ void simple_test_nop2()
     p.add_instruction(nop{});
     p.add_instruction(sum_op{}, one, two);
     p.add_instruction(nop{});
-    auto count = std::distance(p.begin(), p.end());
     p.compile(dce_target{});
     EXPECT(std::distance(p.begin(), p.end()) == 2);
     auto result = p.eval({});

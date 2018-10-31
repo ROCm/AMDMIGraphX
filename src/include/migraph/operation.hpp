@@ -256,7 +256,6 @@ struct operation
 
         shape compute_shape(const std::vector<shape>& input) const override
         {
-
             return private_detail_te_value.compute_shape(input);
         }
 

@@ -175,6 +175,33 @@ struct test_add
     }
 };
 
+struct test_mul
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {3}};
+        auto x = p.add_parameter("x", s);
+        auto y = p.add_parameter("y", s);
+        p.add_instruction(migraph::op::mul{}, x, y);
+        return p;
+    }
+};
+
+struct test_scale
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {3}};
+        auto x     = p.add_parameter("x", s);
+        auto y     = p.add_parameter("y", migraph::shape::float_type);
+        auto scale = p.add_instruction(migraph::op::scalar{s}, y);
+        p.add_instruction(migraph::op::mul{}, x, scale);
+        return p;
+    }
+};
+
 struct test_triadd
 {
     migraph::program create_program() const
@@ -653,6 +680,8 @@ int main()
     verify_program<test_concat>();
     verify_program<test_concat2>();
     verify_program<test_add>();
+    verify_program<test_mul>();
+    verify_program<test_scale>();
     verify_program<test_triadd>();
     verify_program<test_triadd2>();
     verify_program<test_add_broadcast>();

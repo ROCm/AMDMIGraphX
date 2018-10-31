@@ -17,26 +17,25 @@ namespace device {
 using gpu_half = __fp16;
 
 namespace detail {
-template<class T>
+template <class T>
 struct device_type
 {
     using type = T;
 };
 
-template<>
+template <>
 struct device_type<half>
 {
     using type = gpu_half;
 };
 
-
-template<class T>
+template <class T>
 struct host_type
 {
     using type = T;
 };
 
-template<>
+template <>
 struct device_type<gpu_half>
 {
     using type = half;
@@ -44,31 +43,31 @@ struct device_type<gpu_half>
 
 } // namespace detail
 
-template<class T>
+template <class T>
 using host_type = typename detail::host_type<T>::type;
 
-template<class T>
+template <class T>
 using device_type = typename detail::device_type<T>::type;
 
-template<class T>
+template <class T>
 host_type<T> host_cast(T x)
 {
     return reinterpret_cast<host_type<T>>(x);
 }
 
-template<class T>
+template <class T>
 host_type<T>* host_cast(T* x)
 {
     return reinterpret_cast<host_type<T>*>(x);
 }
 
-template<class T>
+template <class T>
 device_type<T> device_cast(T x)
 {
     return reinterpret_cast<device_type<T>>(x);
 }
 
-template<class T>
+template <class T>
 device_type<T>* device_cast(T* x)
 {
     return reinterpret_cast<device_type<T>*>(x);

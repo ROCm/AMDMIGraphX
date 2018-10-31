@@ -1,0 +1,81 @@
+/*=============================================================================
+    Copyright (c) 2017 Paul Fultz II
+    types.hpp
+    Distributed under the Boost Software License, Version 1.0. (See accompanying
+    file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+==============================================================================*/
+
+#ifndef MIGRAPH_GUARD_RTGLIB_GPU_DEVICE_TYPES_HPP
+#define MIGRAPH_GUARD_RTGLIB_GPU_DEVICE_TYPES_HPP
+
+#include <migraph/half.hpp>
+
+namespace migraph {
+namespace gpu {
+namespace device {
+
+using gpu_half = __fp16;
+
+namespace detail {
+template<class T>
+struct device_type
+{
+    using type = T;
+};
+
+template<>
+struct device_type<half>
+{
+    using type = gpu_half;
+};
+
+
+template<class T>
+struct host_type
+{
+    using type = T;
+};
+
+template<>
+struct device_type<gpu_half>
+{
+    using type = half;
+};
+
+} // namespace detail
+
+template<class T>
+using host_type = typename detail::host_type<T>::type;
+
+template<class T>
+using device_type = typename detail::device_type<T>::type;
+
+template<class T>
+host_type<T> host_cast(T x)
+{
+    return reinterpret_cast<host_type<T>>(x);
+}
+
+template<class T>
+host_type<T>* host_cast(T* x)
+{
+    return reinterpret_cast<host_type<T>*>(x);
+}
+
+template<class T>
+device_type<T> device_cast(T x)
+{
+    return reinterpret_cast<device_type<T>>(x);
+}
+
+template<class T>
+device_type<T>* device_cast(T* x)
+{
+    return reinterpret_cast<device_type<T>*>(x);
+}
+
+} // namespace device
+} // namespace gpu
+} // namespace migraph
+
+#endif

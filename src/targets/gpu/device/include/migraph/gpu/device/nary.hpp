@@ -38,8 +38,8 @@ auto nary_nonstandard_impl(hipStream_t stream, F f, argument result, Arguments..
     const auto& output_shape = result.get_shape();
     visit_all(result, args...)([&](auto output, auto... inputs) {
         visit_tensor_size(output_shape.lens().size(), [&](auto ndim) {
-            auto data = pack(
-                std::make_pair(hip_tensor_descriptor<ndim>{inputs.get_shape()}, device_cast(inputs.data()))...);
+            auto data = pack(std::make_pair(hip_tensor_descriptor<ndim>{inputs.get_shape()},
+                                            device_cast(inputs.data()))...);
             hip_tensor_descriptor<ndim> out_desc(output_shape);
             auto* outp = device_cast(output.data());
             gs_launch(stream, output_shape.elements())([=](auto i) {
@@ -266,7 +266,7 @@ void nary_standard_vec_impl(hipStream_t stream, F f, argument result, Arguments.
     // assert(x.get_shape().elements() == y.get_shape().elements());
     const auto& output_shape = result.get_shape();
     visit_all(result, args...)([&](auto output, auto... inputs) {
-        using type                 = device_type<std::remove_cv_t<typename decltype(output)::value_type>>;
+        using type = device_type<std::remove_cv_t<typename decltype(output)::value_type>>;
         const std::size_t vec_size = 4;
         auto data                  = pack_vec4(device_cast(inputs.data())...);
         auto* outp                 = as_vec4(device_cast(output.data()));

@@ -3,23 +3,24 @@
 
 #include <migraph/argument.hpp>
 #include <migraph/literal.hpp>
+#include <migraph/type_traits.hpp>
 #include <random>
 
 namespace migraph {
 
-template <class T, MIGRAPH_REQUIRES(std::is_floating_point<T>{})>
+template <class T, MIGRAPH_REQUIRES(is_floating_point<T>{})>
 constexpr T normalize(unsigned long z)
 {
     if(z == 0)
-        return 0;
+        return T(0);
     const auto max     = 32;
     const double range = max / 2; // NOLINT
     double result      = (z % max) / range;
     result -= 1;
-    return result;
+    return T(result);
 }
 
-template <class T, MIGRAPH_REQUIRES(std::is_signed<T>{} and not std::is_floating_point<T>{})>
+template <class T, MIGRAPH_REQUIRES(is_signed<T>{} and not is_floating_point<T>{})>
 constexpr T normalize(unsigned long z)
 {
     const auto max      = std::numeric_limits<T>::max();
@@ -27,7 +28,7 @@ constexpr T normalize(unsigned long z)
     return half_max - (z % max);
 }
 
-template <class T, MIGRAPH_REQUIRES(not std::is_signed<T>{} and std::is_integral<T>{})>
+template <class T, MIGRAPH_REQUIRES(not is_signed<T>{} and std::is_integral<T>{})>
 constexpr T normalize(unsigned long z)
 {
     const auto max = std::numeric_limits<T>::max();

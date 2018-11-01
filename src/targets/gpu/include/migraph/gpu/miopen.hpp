@@ -41,6 +41,8 @@ inline tensor_descriptor make_tensor(const migraph::shape& s)
     miopenDataType_t d;
     if(s.type() == shape::float_type)
         d = miopenFloat;
+    else if(s.type() == shape::half_type)
+        d = miopenHalf;
     else
         MIGRAPH_THROW("Unsupported type");
     miopenSetTensorDescriptor(t.get(), d, s.lens().size(), lens.data(), strides.data());

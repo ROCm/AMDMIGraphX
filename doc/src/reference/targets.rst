@@ -1,18 +1,16 @@
 Targets
 =======
 
-target
-------
+    target-- ----
 
-.. doxygenstruct:: migraph::target
+        .
+        .doxygenstruct::migraph::target
 
-gpu::target
------------
+            gpu::target-- ---------
 
-.. doxygenstruct:: migraph::gpu::target
+        .
+        .doxygenstruct::migraph::gpu::target
 
-cpu::target
------------
+            cpu::target-- ---------
 
-.. doxygenstruct:: migraph::cpu::cpu_target
-
+        ..doxygenstruct::migraph::cpu::target

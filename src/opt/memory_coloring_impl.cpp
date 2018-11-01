@@ -19,7 +19,7 @@ void memory_coloring_impl::run()
             alloc_queue.pop();
         }
         rewrite();
-        MIGRAPH_DEBUG(verify());
+        if(enable_verify) verify();
     }
 }
 
@@ -247,6 +247,44 @@ void memory_coloring_impl::rewrite()
     MIGRAPH_DEBUG(dump_program());
 }
 
+void memory_coloring_impl::verify()
+{
+    if(num_of_lives > 0)
+    {
+        for(int i = 0; i < num_of_lives; ++i)
+        {
+            live_interval& interval = live_intervals[i];
+            live_range& segment     = interval.segment;
+
+            if(segment.begin == invalid_offset)
+            {
+                // FIXME: We need to compute cascading operand aliases
+                // if(!interval.is_live_on_entry)
+                    // MIGRAPH_THROW("interval is not live on entry");
+                continue;
+            }
+
+            if(segment.offset == invalid_offset)
+            {
+                continue;
+            }
+            int vn = segment.vn;
+            if(conflict_table.find(vn) != conflict_table.end())
+            {
+                std::set<int>& vn_set = conflict_table[vn];
+                for(auto& iter : vn_set)
+                {
+                    live_range* range = live_ranges[iter];
+                    if(range->offset == invalid_offset)
+                        continue;
+                    if(!is_disjoin(*range, segment))
+                        MIGRAPH_THROW("range and segment is not disjoined");
+                }
+            }
+        }
+    }
+}
+
 #ifdef MIGRAPH_DEBUG_OPT
 
 void memory_coloring_impl::dump(const std::string& str) { std::cout << str << std::endl; }
@@ -278,41 +316,6 @@ void memory_coloring_impl::dump_intervals()
     }
 }
 
-void memory_coloring_impl::verify()
-{
-    if(num_of_lives > 0)
-    {
-        for(int i = 0; i < num_of_lives; ++i)
-        {
-            live_interval& interval = live_intervals[i];
-            live_range& segment     = interval.segment;
-
-            if(segment.begin == invalid_offset)
-            {
-                assert(interval.is_live_on_entry);
-                continue;
-            }
-
-            if(segment.offset == invalid_offset)
-            {
-                continue;
-            }
-            int vn = segment.vn;
-            if(conflict_table.find(vn) != conflict_table.end())
-            {
-                std::set<int>& vn_set = conflict_table[vn];
-                for(auto& iter : vn_set)
-                {
-                    live_range* range = live_ranges[iter];
-                    if(range->offset == invalid_offset)
-                        continue;
-                    if(!is_disjoin(*range, segment))
-                        assert(false);
-                }
-            }
-        }
-    }
-}
 
 // map liveness tracking point to instruction enum.
 static int get_ins_enum(int x)

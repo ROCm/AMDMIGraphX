@@ -50,8 +50,8 @@ using interval_ptr = live_interval*;
 
 struct memory_coloring_impl
 {
-    memory_coloring_impl(program* p, std::string alloc_op)
-        : p_program(p), allocation_op(std::move(alloc_op))
+    memory_coloring_impl(program* p, std::string alloc_op, bool p_verify)
+        : p_program(p), allocation_op(std::move(alloc_op)), enable_verify(p_verify)
     {
         instr2_live.clear();
         live_ranges.clear();
@@ -116,7 +116,6 @@ struct memory_coloring_impl
         operand_alias[name] = last_allocate;
         return last_allocate;
     }
-#ifdef MIGRAPH_DEBUG_OPT
     static bool is_disjoin(live_range& range1, live_range& range2)
     {
         if((range1.size == 0) || (range2.size == 0))
@@ -125,10 +124,11 @@ struct memory_coloring_impl
         long long end2 = range2.offset + range2.size - 1;
         return ((end1 < range2.offset) || (end2 < range1.offset));
     }
+    void verify();
+#ifdef MIGRAPH_DEBUG_OPT
     void dump(const std::string&);
     void dump_program();
     void dump_intervals();
-    void verify();
 #endif
     struct ordering
     {
@@ -176,6 +176,7 @@ struct memory_coloring_impl
     // Whether to unify literals into coloring.
     bool unify_literals;
     std::string allocation_op{};
+    bool enable_verify;
 };
 } // namespace migraph
 #endif

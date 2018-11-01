@@ -40,9 +40,7 @@ migraph::instruction_ref add_alloc(migraph::program& p, const migraph::shape& s)
 
 bool no_allocate(const migraph::program& p)
 {
-    return std::none_of(p.begin(), p.end(), [](auto&& ins) {
-        return ins.name() == "allocate";
-    });
+    return std::none_of(p.begin(), p.end(), [](auto&& ins) { return ins.name() == "allocate"; });
 }
 
 void test1()
@@ -50,7 +48,7 @@ void test1()
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
     auto p1 = p.add_instruction(pass_op{}, a1);
-    auto a2 = add_alloc(p,{migraph::shape::float_type, {40}});
+    auto a2 = add_alloc(p, {migraph::shape::float_type, {40}});
     p.add_instruction(pass_op{}, a2, p1);
     p.compile(memory_coloring_target{});
     EXPECT(p.get_parameter_shape("scratch").bytes() == 192);
@@ -77,7 +75,7 @@ void test3()
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
     auto p2 = add_alloc(p, {migraph::shape::float_type, {128}});
     auto p1 = p.add_instruction(pass_op{}, p2, a1);
-    auto p3 = add_alloc(p,{migraph::shape::float_type, {40}});
+    auto p3 = add_alloc(p, {migraph::shape::float_type, {40}});
     p.add_instruction(pass_op{}, p3, p1);
     p.compile(memory_coloring_target{});
     EXPECT(p.get_parameter_shape("scratch").bytes() == 704);
@@ -90,7 +88,7 @@ void test4()
     auto a1 = add_alloc(p, {migraph::shape::float_type, {0}});
     auto p2 = add_alloc(p, {migraph::shape::float_type, {128}});
     auto p1 = p.add_instruction(pass_op{}, p2, a1);
-    auto p3 = add_alloc(p,{migraph::shape::float_type, {40}});
+    auto p3 = add_alloc(p, {migraph::shape::float_type, {40}});
     p.add_instruction(pass_op{}, p3, p1);
     p.compile(memory_coloring_target{});
     EXPECT(p.get_parameter_shape("scratch").bytes() == 672);
@@ -100,7 +98,7 @@ void test4()
 void test5()
 {
     migraph::program p;
-    auto a1 = add_alloc(p,{migraph::shape::float_type, {40}});
+    auto a1 = add_alloc(p, {migraph::shape::float_type, {40}});
     auto p1 = p.add_instruction(pass_op{}, a1);
     auto p2 = add_alloc(p, {migraph::shape::float_type, {8}});
     p.add_instruction(pass_op{}, p2, p1);
@@ -114,8 +112,8 @@ void test6()
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
     auto p1 = p.add_instruction(pass_op{}, a1);
-    auto p2 = add_alloc(p,{migraph::shape::float_type, {40}});
-    auto p3 = add_alloc(p,{migraph::shape::float_type, {40}});
+    auto p2 = add_alloc(p, {migraph::shape::float_type, {40}});
+    auto p3 = add_alloc(p, {migraph::shape::float_type, {40}});
     p.add_instruction(pass_op{}, p3, p2, p1);
     p.compile(memory_coloring_target{});
     EXPECT(p.get_parameter_shape("scratch").bytes() == 352);
@@ -127,8 +125,8 @@ void test7()
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
     auto p1 = p.add_instruction(pass_op{}, a1);
-    auto p2 = add_alloc(p,{migraph::shape::float_type, {40}});
-    auto p3 = add_alloc(p,{migraph::shape::float_type, {8}});
+    auto p2 = add_alloc(p, {migraph::shape::float_type, {40}});
+    auto p3 = add_alloc(p, {migraph::shape::float_type, {8}});
     p.add_instruction(pass_op{}, p3, p2, p1);
     p.compile(memory_coloring_target{});
     EXPECT(p.get_parameter_shape("scratch").bytes() == 224);
@@ -140,8 +138,8 @@ void test8()
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
     auto p1 = p.add_instruction(pass_op{}, a1);
-    auto p2 = add_alloc(p,{migraph::shape::float_type, {40}});
-    auto p3 = add_alloc(p,{migraph::shape::float_type, {192}});
+    auto p2 = add_alloc(p, {migraph::shape::float_type, {40}});
+    auto p3 = add_alloc(p, {migraph::shape::float_type, {192}});
     p.add_instruction(pass_op{}, p3, p2, p1);
     p.compile(memory_coloring_target{});
     EXPECT(p.get_parameter_shape("scratch").bytes() == 960);
@@ -153,8 +151,8 @@ void test9()
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
     auto p1 = p.add_instruction(pass_op{}, a1);
-    auto p2 = add_alloc(p,{migraph::shape::float_type, {8}});
-    auto p3 = add_alloc(p,{migraph::shape::float_type, {8}});
+    auto p2 = add_alloc(p, {migraph::shape::float_type, {8}});
+    auto p3 = add_alloc(p, {migraph::shape::float_type, {8}});
     p.add_instruction(pass_op{}, p3, p2, p1);
     p.compile(memory_coloring_target{});
     EXPECT(p.get_parameter_shape("scratch").bytes() == 96);
@@ -176,8 +174,8 @@ void test11()
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
     auto p1 = p.add_instruction(pass_op{}, a1);
-    auto a2 = add_alloc(p,{migraph::shape::float_type, {40}});
-    auto a3 = add_alloc(p,{migraph::shape::float_type, {8}});
+    auto a2 = add_alloc(p, {migraph::shape::float_type, {40}});
+    auto a3 = add_alloc(p, {migraph::shape::float_type, {8}});
     auto p2 = p.add_instruction(pass_op{}, a2, p1);
     p.add_instruction(pass_op{}, a3, p2);
     p.compile(memory_coloring_target{});
@@ -190,8 +188,8 @@ void test12()
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {40}});
     auto p1 = p.add_instruction(pass_op{}, a1);
-    auto a2 = add_alloc(p,{migraph::shape::float_type, {8}});
-    auto a3 = add_alloc(p,{migraph::shape::float_type, {40}});
+    auto a2 = add_alloc(p, {migraph::shape::float_type, {8}});
+    auto a3 = add_alloc(p, {migraph::shape::float_type, {40}});
     auto p2 = p.add_instruction(pass_op{}, a2, p1);
     p.add_instruction(pass_op{}, a3, p2);
     p.compile(memory_coloring_target{});
@@ -203,9 +201,9 @@ void test13()
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
-    auto a3 = add_alloc(p,{migraph::shape::float_type, {8}});
+    auto a3 = add_alloc(p, {migraph::shape::float_type, {8}});
     auto p1 = p.add_instruction(pass_op{}, a1);
-    auto a2 = add_alloc(p,{migraph::shape::float_type, {40}});
+    auto a2 = add_alloc(p, {migraph::shape::float_type, {40}});
     auto p2 = p.add_instruction(pass_op{}, a2, p1);
     p.add_instruction(pass_op{}, a3, p2);
     p.compile(memory_coloring_target{});
@@ -216,8 +214,8 @@ void test13()
 void test14()
 {
     migraph::program p;
-    auto a3 = add_alloc(p,{migraph::shape::float_type, {8}});
-    auto a2 = add_alloc(p,{migraph::shape::float_type, {40}});
+    auto a3 = add_alloc(p, {migraph::shape::float_type, {8}});
+    auto a2 = add_alloc(p, {migraph::shape::float_type, {40}});
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
     auto p1 = p.add_instruction(pass_op{}, a1);
     auto p2 = p.add_instruction(pass_op{}, a2, p1);
@@ -232,9 +230,9 @@ void test15()
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
     auto p1 = p.add_instruction(pass_op{}, a1);
-    auto a2 = add_alloc(p,{migraph::shape::float_type, {40}});
+    auto a2 = add_alloc(p, {migraph::shape::float_type, {40}});
     auto p2 = p.add_instruction(pass_op{}, a2);
-    auto a3 = add_alloc(p,{migraph::shape::float_type, {40}});
+    auto a3 = add_alloc(p, {migraph::shape::float_type, {40}});
     p.add_instruction(pass_op{}, a3, p1, p2);
     p.compile(memory_coloring_target{});
     EXPECT(p.get_parameter_shape("scratch").bytes() == 352);
@@ -248,7 +246,7 @@ void test16()
     auto p1 = p.add_instruction(pass_op{}, a1);
     auto a2 = p.add_literal(migraph::generate_literal({migraph::shape::float_type, {40}}));
     auto p2 = p.add_instruction(pass_op{}, a2);
-    auto a3 = add_alloc(p,{migraph::shape::float_type, {40}});
+    auto a3 = add_alloc(p, {migraph::shape::float_type, {40}});
     p.add_instruction(pass_op{}, a3, p1, p2);
     p.compile(memory_coloring_target{});
     EXPECT(p.get_parameter_shape("scratch").bytes() == 160);
@@ -258,7 +256,7 @@ void test16()
 void test17()
 {
     migraph::program p;
-    auto a3 = add_alloc(p,{migraph::shape::float_type, {40}});
+    auto a3 = add_alloc(p, {migraph::shape::float_type, {40}});
     auto a1 = p.add_literal(migraph::generate_literal({migraph::shape::float_type, {8}}));
     auto p1 = p.add_instruction(pass_op{}, a1);
     auto a2 = p.add_literal(migraph::generate_literal({migraph::shape::float_type, {40}}));
@@ -276,7 +274,7 @@ void test18()
     auto p1 = p.add_instruction(pass_op{}, a1);
     auto p2 = p.add_instruction(pass_op{}, a1, p1);
     auto p3 = p.add_instruction(pass_op{}, p2, p1);
-    auto a2 = add_alloc(p,{migraph::shape::float_type, {40}});
+    auto a2 = add_alloc(p, {migraph::shape::float_type, {40}});
     p.add_instruction(pass_op{}, a2, p1, p2, p3);
     p.compile(memory_coloring_target{});
     EXPECT(p.get_parameter_shape("scratch").bytes() == 192);
@@ -288,9 +286,9 @@ void test19()
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
     auto p1 = p.add_instruction(pass_op{}, a1);
-    auto a2 = add_alloc(p,{migraph::shape::float_type, {40}});
+    auto a2 = add_alloc(p, {migraph::shape::float_type, {40}});
     auto p2 = p.add_instruction(pass_op{}, a2, p1);
-    auto a3 = add_alloc(p,{migraph::shape::float_type, {40}});
+    auto a3 = add_alloc(p, {migraph::shape::float_type, {40}});
     p.add_instruction(pass_op{}, a3, p2, p1);
     p.compile(memory_coloring_target{});
     EXPECT(p.get_parameter_shape("scratch").bytes() == 352);
@@ -302,9 +300,9 @@ void test20()
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
     auto p1 = p.add_instruction(pass_op{}, a1);
-    auto a2 = add_alloc(p,{migraph::shape::float_type, {40}});
+    auto a2 = add_alloc(p, {migraph::shape::float_type, {40}});
     auto p2 = p.add_instruction(pass_op{}, p1, a2);
-    auto a3 = add_alloc(p,{migraph::shape::float_type, {40}});
+    auto a3 = add_alloc(p, {migraph::shape::float_type, {40}});
     p.add_instruction(pass_op{}, a3, p2, p1);
     p.compile(memory_coloring_target{});
     EXPECT(p.get_parameter_shape("scratch").bytes() == 192);

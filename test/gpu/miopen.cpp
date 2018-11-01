@@ -221,15 +221,11 @@ struct test_slice
     migraph::program create_program() const
     {
         migraph::program p;
-        migraph::shape s{migraph::shape::int32_type, {2, 2, 3}};
-        std::vector<int> data(2 * 2 * 3);
-        std::iota(data.begin(), data.end(), 0);
-        auto l      = p.add_literal(migraph::literal{s, data});
-        auto slice0 = p.add_instruction(migraph::op::slice{{2}, {0}, {1}}, l);
-        auto slice1 = p.add_instruction(migraph::op::slice{{2}, {1}, {3}}, l);
-        auto add0   = p.add_instruction(migraph::op::add{}, slice0, slice0);
-        auto add1   = p.add_instruction(migraph::op::add{}, slice1, slice1);
-        p.add_instruction(migraph::op::concat{2}, add0, add1);
+        migraph::shape s{migraph::shape::int32_type, {2, 2, 4}};
+        auto x      = p.add_parameter("x", s);
+        auto y      = p.add_parameter("y", {migraph::shape::int32_type, {2, 2, 2}});
+        auto slice0 = p.add_instruction(migraph::op::slice{{2}, {0}, {2}}, x);
+        p.add_instruction(migraph::op::add{}, y, slice0);
 
         return p;
     }

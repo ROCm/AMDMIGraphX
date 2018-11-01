@@ -8,6 +8,7 @@
 #include <memory>
 
 #include <migraph/errors.hpp>
+#include <migraph/half.hpp>
 
 namespace migraph {
 
@@ -19,6 +20,7 @@ struct shape
 // Add new types here
 // clang-format off
 #define MIGRAPH_SHAPE_VISIT_TYPES(m) \
+    m(half_type, half) \
     m(float_type, float) \
     m(double_type, double) \
     m(uint8_type, uint8_t) \

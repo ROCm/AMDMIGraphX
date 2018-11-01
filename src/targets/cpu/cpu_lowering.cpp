@@ -437,7 +437,7 @@ struct relu_op
     std::string name() const { return "cpu::relu"; }
     auto fcn() const
     {
-        return [](auto x) { return x > 0 ? x : 0; };
+        return [](auto x) { return std::max(decltype(x){0}, x); };
     }
 };
 

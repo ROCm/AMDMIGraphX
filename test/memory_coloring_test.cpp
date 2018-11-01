@@ -10,7 +10,7 @@ struct memory_coloring_target
     std::string name() const { return "memory_coloring"; }
     std::vector<migraph::pass> get_passes(migraph::context&) const
     {
-        return {migraph::memory_coloring{"allocate"}};
+        return {migraph::memory_coloring{"allocate", true}};
     }
     migraph::context get_context() const { return {}; }
 };

@@ -19,7 +19,8 @@ void memory_coloring_impl::run()
             alloc_queue.pop();
         }
         rewrite();
-        if(enable_verify) verify();
+        if(enable_verify)
+            verify();
     }
 }
 
@@ -260,7 +261,7 @@ void memory_coloring_impl::verify()
             {
                 // FIXME: We need to compute cascading operand aliases
                 // if(!interval.is_live_on_entry)
-                    // MIGRAPH_THROW("interval is not live on entry");
+                // MIGRAPH_THROW("interval is not live on entry");
                 continue;
             }
 
@@ -315,7 +316,6 @@ void memory_coloring_impl::dump_intervals()
         std::cout << std::endl;
     }
 }
-
 
 // map liveness tracking point to instruction enum.
 static int get_ins_enum(int x)

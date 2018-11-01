@@ -160,6 +160,46 @@ void unsqueeze_test()
     }
 }
 
+void globalavgpool_test()
+{
+    migraph::program p;
+    auto s     = migraph::shape{migraph::shape::float_type, {1, 3, 2, 2}};
+    auto op    = migraph::op::pooling{"average"};
+    auto lens  = s.lens();
+    op.lengths = std::vector<std::size_t>{lens[2], lens[3]};
+
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+    auto l0 = p.add_literal(migraph::literal{s, data});
+    p.add_instruction(op, l0);
+    p.compile(migraph::cpu::cpu_target{});
+    auto result = p.eval({});
+
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0.25, 0.575, 0.375};
+    EXPECT(migraph::verify_range(results_vector, gold));
+}
+
+void globalmaxpool_test()
+{
+    migraph::program p;
+    auto s     = migraph::shape{migraph::shape::float_type, {1, 3, 2, 2}};
+    auto op    = migraph::op::pooling{"max"};
+    auto lens  = s.lens();
+    op.lengths = std::vector<std::size_t>{lens[2], lens[3]};
+
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+    auto l0 = p.add_literal(migraph::literal{s, data});
+    p.add_instruction(op, l0);
+    p.compile(migraph::cpu::cpu_target{});
+    auto result = p.eval({});
+
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0.4, 0.9, 0.7};
+    EXPECT(migraph::verify_range(results_vector, gold));
+}
+
 void im2col_3x3_no_pad_identity_test()
 {
     std::size_t f[2]    = {3, 3};
@@ -1058,6 +1098,8 @@ int main()
     conv2d_padding_test();
     conv2d_padding_stride_test();
     batch_norm_inference_test();
+    globalavgpool_test();
+    globalmaxpool_test();
     im2col_3x3_no_pad_identity_test();
     im2col_3x3_no_pad_test();
     im2col_3x3_stride_2_no_pad_test();

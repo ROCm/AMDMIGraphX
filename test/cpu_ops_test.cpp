@@ -166,7 +166,7 @@ void globalavgpool_test()
     auto s     = migraph::shape{migraph::shape::float_type, {1, 3, 2, 2}};
     auto op    = migraph::op::pooling{"average"};
     auto lens  = s.lens();
-    op.lengths = std::vector<std::size_t>{lens[2], lens[3]};
+    op.lengths = {lens[2], lens[3]};
 
     std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
     auto l0 = p.add_literal(migraph::literal{s, data});
@@ -186,7 +186,7 @@ void globalmaxpool_test()
     auto s     = migraph::shape{migraph::shape::float_type, {1, 3, 2, 2}};
     auto op    = migraph::op::pooling{"max"};
     auto lens  = s.lens();
-    op.lengths = std::vector<std::size_t>{lens[2], lens[3]};
+    op.lengths = {lens[2], lens[3]};
 
     std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
     auto l0 = p.add_literal(migraph::literal{s, data});

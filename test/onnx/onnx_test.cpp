@@ -124,7 +124,7 @@ void globalavgpool_test()
     auto input = p.add_parameter("0", migraph::shape{migraph::shape::float_type, {1, 3, 16, 16}});
     auto op    = migraph::op::pooling{"average"};
     auto lens  = input->get_shape().lens();
-    op.lengths = std::vector<std::size_t>{lens[2], lens[3]};
+    op.lengths = {lens[2], lens[3]};
     p.add_instruction(op, input);
 
     auto prog = migraph::parse_onnx("globalavgpool_test.onnx");
@@ -138,7 +138,7 @@ void globalmaxpool_test()
     auto input = p.add_parameter("0", migraph::shape{migraph::shape::float_type, {1, 3, 16, 16}});
     auto op    = migraph::op::pooling{"max"};
     auto lens  = input->get_shape().lens();
-    op.lengths = std::vector<std::size_t>{lens[2], lens[3]};
+    op.lengths = {lens[2], lens[3]};
     p.add_instruction(op, input);
 
     auto prog = migraph::parse_onnx("globalmaxpool_test.onnx");

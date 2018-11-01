@@ -134,7 +134,8 @@ void verify_program()
     migraph::program gpu_prog;
     auto cpu_arg_f = detach_async([&] { return run_cpu<V>(cpu_prog); });
     auto gpu_arg   = run_gpu<V>(gpu_prog);
-    bool passed    = verify_args(migraph::get_type_name<V>(), cpu_arg_f.get(), gpu_arg);
+    auto cpu_arg   = cpu_arg_f.get();
+    bool passed    = verify_args(migraph::get_type_name<V>(), cpu_arg, gpu_arg);
     if(not passed)
     {
         V v;
@@ -168,6 +169,19 @@ struct test_add
     {
         migraph::program p;
         migraph::shape s{migraph::shape::float_type, {3}};
+        auto x = p.add_parameter("x", s);
+        auto y = p.add_parameter("y", s);
+        p.add_instruction(migraph::op::add{}, x, y);
+        return p;
+    }
+};
+
+struct test_add_half
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::half_type, {3}};
         auto x = p.add_parameter("x", s);
         auto y = p.add_parameter("y", s);
         p.add_instruction(migraph::op::add{}, x, y);
@@ -377,6 +391,20 @@ struct test_conv_relu
         auto input = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
         auto weights =
             p.add_parameter("w", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+        auto conv = p.add_instruction(migraph::op::convolution{}, input, weights);
+        p.add_instruction(migraph::op::activation{"relu"}, conv);
+        return p;
+    }
+};
+
+struct test_conv_relu_half
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto input = p.add_parameter("x", migraph::shape{migraph::shape::half_type, {4, 3, 3, 3}});
+        auto weights =
+            p.add_parameter("w", migraph::shape{migraph::shape::half_type, {4, 3, 3, 3}});
         auto conv = p.add_instruction(migraph::op::convolution{}, input, weights);
         p.add_instruction(migraph::op::activation{"relu"}, conv);
         return p;
@@ -680,6 +708,7 @@ int main()
     verify_program<test_concat>();
     verify_program<test_concat2>();
     verify_program<test_add>();
+    verify_program<test_add_half>();
     verify_program<test_mul>();
     verify_program<test_scale>();
     verify_program<test_triadd>();
@@ -695,6 +724,7 @@ int main()
     verify_program<test_conv>();
     verify_program<test_conv2>();
     verify_program<test_conv_relu>();
+    verify_program<test_conv_relu_half>();
     verify_program<test_add_relu>();
     verify_program<test_leaky_relu>();
     verify_program<test_conv_pooling>();

@@ -118,6 +118,34 @@ void imagescaler_test()
     EXPECT(p == prog);
 }
 
+void globalavgpool_test()
+{
+    migraph::program p;
+    auto input = p.add_parameter("0", migraph::shape{migraph::shape::float_type, {1, 3, 16, 16}});
+    auto op    = migraph::op::pooling{"average"};
+    auto lens  = input->get_shape().lens();
+    op.lengths = std::vector<std::size_t>{lens[2], lens[3]};
+    p.add_instruction(op, input);
+
+    auto prog = migraph::parse_onnx("globalavgpool_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+void globalmaxpool_test()
+{
+    migraph::program p;
+    auto input = p.add_parameter("0", migraph::shape{migraph::shape::float_type, {1, 3, 16, 16}});
+    auto op    = migraph::op::pooling{"max"};
+    auto lens  = input->get_shape().lens();
+    op.lengths = std::vector<std::size_t>{lens[2], lens[3]};
+    p.add_instruction(op, input);
+
+    auto prog = migraph::parse_onnx("globalmaxpool_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 int main()
 {
     pytorch_conv_bias_test();
@@ -126,4 +154,6 @@ int main()
     pytorch_conv_relu_maxpool_x2();
     leaky_relu_test();
     imagescaler_test();
+    globalavgpool_test();
+    globalmaxpool_test();
 }

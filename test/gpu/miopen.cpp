@@ -216,6 +216,25 @@ struct test_scale
     }
 };
 
+struct test_slice
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::int32_type, {2, 2, 3}};
+        std::vector<int> data(2 * 2 * 3);
+        std::iota(data.begin(), data.end(), 0);
+        auto l      = p.add_literal(migraph::literal{s, data});
+        auto slice0 = p.add_instruction(migraph::op::slice{{2}, {0}, {1}}, l);
+        auto slice1 = p.add_instruction(migraph::op::slice{{2}, {1}, {3}}, l);
+        auto add0   = p.add_instruction(migraph::op::add{}, slice0, slice0);
+        auto add1   = p.add_instruction(migraph::op::add{}, slice1, slice1);
+        p.add_instruction(migraph::op::concat{2}, add0, add1);
+
+        return p;
+    }
+};
+
 struct test_triadd
 {
     migraph::program create_program() const
@@ -740,4 +759,5 @@ int main()
     verify_program<test_conv_bn>();
     verify_program<test_conv_bn_relu_pooling>();
     verify_program<test_conv_bn_relu_pooling2>();
+    verify_program<test_slice>();
 }

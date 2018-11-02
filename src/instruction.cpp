@@ -172,7 +172,8 @@ std::vector<shape> compute_shapes(const std::vector<instruction_ref>& args)
 instruction_ref instruction::get_output_alias(instruction_ref ins)
 {
     auto i = ins->get_operator().output_alias(compute_shapes(ins->inputs()));
-    if(i < 0) return ins;
+    if(i < 0)
+        return ins;
     return get_output_alias(ins->inputs().at(i));
 }
 

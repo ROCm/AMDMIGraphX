@@ -298,14 +298,14 @@ void test19()
 void test20()
 {
     migraph::program p;
-    auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
-    auto p1 = p.add_instruction(pass_op{}, a1);
-    auto a2 = add_alloc(p, {migraph::shape::float_type, {40}});
-    auto p2 = p.add_instruction(pass_op{}, p1, a2);
-    auto a3 = add_alloc(p, {migraph::shape::float_type, {40}});
-    p.add_instruction(pass_op{}, a3, p2, p1);
+    auto a1 = add_alloc(p, {migraph::shape::float_type, {32}});
+    auto a2 = add_alloc(p, {migraph::shape::float_type, {32}});
+    auto a3 = add_alloc(p, {migraph::shape::float_type, {32}});
+    auto p1 = p.add_instruction(pass_op{}, a1, a2, a3);
+    auto a4 = add_alloc(p, {migraph::shape::float_type, {32}});
+    p.add_instruction(pass_op{}, a4, p1);
     p.compile(memory_coloring_target{});
-    EXPECT(p.get_parameter_shape("scratch").bytes() == 192);
+    EXPECT(p.get_parameter_shape("scratch").bytes() == 384);
     EXPECT(no_allocate(p));
 }
 

@@ -330,8 +330,9 @@ argument generic_eval(const program& p,
         else if(ins->name() == "@param")
         {
             results.emplace(ins, trace(ins, [&] {
-                                auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
-                                if (not contains(params,param_name))
+                                auto param_name =
+                                    any_cast<builtin::param>(ins->get_operator()).parameter;
+                                if(not contains(params, param_name))
                                     MIGRAPH_THROW("Parameter not found: " + param_name);
                                 return params.at(param_name);
                             }));

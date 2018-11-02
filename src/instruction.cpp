@@ -161,12 +161,24 @@ void instruction::replace_argument(instruction_ref old, instruction_ref new_ins)
     old->remove_output(*this);
 }
 
-shape compute_shape(const operation& op, const std::vector<instruction_ref>& args)
+std::vector<shape> compute_shapes(const std::vector<instruction_ref>& args)
 {
     std::vector<shape> shapes(args.size());
     std::transform(
         args.begin(), args.end(), shapes.begin(), [](instruction_ref i) { return i->get_shape(); });
-    return op.compute_shape(shapes);
+    return shapes;
+}
+
+instruction_ref instruction::get_output_alias(instruction_ref ins)
+{
+    auto i = ins->get_operator().output_alias(compute_shapes(ins->inputs()));
+    if(i < 0) return ins;
+    return get_output_alias(ins->inputs().at(i));
+}
+
+shape compute_shape(const operation& op, const std::vector<instruction_ref>& args)
+{
+    return op.compute_shape(compute_shapes(args));
 }
 
 } // namespace migraph

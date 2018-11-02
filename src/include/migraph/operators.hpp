@@ -182,7 +182,7 @@ struct pooling
     std::string mode                   = "average";
     std::array<std::size_t, 2> padding = {{0, 0}};
     std::array<std::size_t, 2> stride  = {{1, 1}};
-    std::vector<std::size_t> lengths   = {{1, 1}};
+    std::array<std::size_t, 2> lengths = {{1, 1}};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

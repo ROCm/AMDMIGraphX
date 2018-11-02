@@ -7,7 +7,7 @@
 namespace migraph {
 namespace cpu {
 
-struct cpu_target
+struct target
 {
     std::string name() const;
     std::vector<pass> get_passes(migraph::context& ctx) const;

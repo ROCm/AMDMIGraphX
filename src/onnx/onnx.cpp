@@ -150,14 +150,11 @@ struct onnx_parser
                                   attribute_map attributes,
                                   std::vector<instruction_ref> args)
     {
-        op::pooling op{name == "MaxPool" or name == "GlobalMaxPool" ? "max" : "average"};
-        if(name == "GlobalMaxPool" or name == "GlobalAveragePool")
+        op::pooling op{ends_with(name, "MaxPool") ? "max" : "average"};
+        if(starts_with(name, "Global"))
         {
-            auto lens        = args.front()->get_shape().lens();
-            auto num_lengths = lens.size() - 2; // ignore N and C values in lens
-            assert(num_lengths > 0);
-            op.lengths = std::vector<std::size_t>(num_lengths);
-            std::copy_n(lens.begin() + 2, num_lengths, op.lengths.begin());
+            auto lens  = args.front()->get_shape().lens();
+            op.lengths = {lens[2], lens[3]};
         }
         if(contains(attributes, "pads"))
         {

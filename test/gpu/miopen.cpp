@@ -2,7 +2,7 @@
 #include <migraph/program.hpp>
 #include <migraph/operators.hpp>
 #include <migraph/generate.hpp>
-#include <migraph/cpu/cpu_target.hpp>
+#include <migraph/cpu/target.hpp>
 #include <migraph/gpu/target.hpp>
 #include <migraph/gpu/miopen.hpp>
 #include <migraph/gpu/hip.hpp>
@@ -100,7 +100,7 @@ migraph::argument run_cpu(migraph::program& p)
     V v;
     p = v.create_program();
     auto_print pp{p, 0};
-    compile_check(p, migraph::cpu::cpu_target{});
+    compile_check(p, migraph::cpu::target{});
     migraph::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
@@ -460,7 +460,7 @@ struct test_global_avg_pooling
             p.add_parameter("x", migraph::shape{migraph::shape::float_type, {1, 3, 16, 16}});
         auto op    = migraph::op::pooling{"average"};
         auto lens  = input->get_shape().lens();
-        op.lengths = std::vector<std::size_t>{lens[2], lens[3]};
+        op.lengths = {lens[2], lens[3]};
         p.add_instruction(op, input);
         return p;
     }
@@ -475,7 +475,7 @@ struct test_global_max_pooling
             p.add_parameter("x", migraph::shape{migraph::shape::float_type, {1, 3, 16, 16}});
         auto op    = migraph::op::pooling{"max"};
         auto lens  = input->get_shape().lens();
-        op.lengths = std::vector<std::size_t>{lens[2], lens[3]};
+        op.lengths = {lens[2], lens[3]};
         p.add_instruction(op, input);
         return p;
     }

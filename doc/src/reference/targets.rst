@@ -14,5 +14,5 @@ gpu::target
 cpu::target
 -----------
 
-.. doxygenstruct:: migraph::cpu::cpu_target
+.. doxygenstruct:: migraph::cpu::target
 

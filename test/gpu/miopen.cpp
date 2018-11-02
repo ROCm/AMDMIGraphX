@@ -451,6 +451,36 @@ struct test_conv_pooling
     }
 };
 
+struct test_global_avg_pooling
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto input =
+            p.add_parameter("x", migraph::shape{migraph::shape::float_type, {1, 3, 16, 16}});
+        auto op    = migraph::op::pooling{"average"};
+        auto lens  = input->get_shape().lens();
+        op.lengths = {lens[2], lens[3]};
+        p.add_instruction(op, input);
+        return p;
+    }
+};
+
+struct test_global_max_pooling
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto input =
+            p.add_parameter("x", migraph::shape{migraph::shape::float_type, {1, 3, 16, 16}});
+        auto op    = migraph::op::pooling{"max"};
+        auto lens  = input->get_shape().lens();
+        op.lengths = {lens[2], lens[3]};
+        p.add_instruction(op, input);
+        return p;
+    }
+};
+
 struct test_gemm
 {
     migraph::program create_program() const
@@ -728,6 +758,8 @@ int main()
     verify_program<test_add_relu>();
     verify_program<test_leaky_relu>();
     verify_program<test_conv_pooling>();
+    verify_program<test_global_avg_pooling>();
+    verify_program<test_global_max_pooling>();
     verify_program<test_gemm>();
     // verify_program<test_gemm_ld>();
     verify_program<test_gemm_transposeb>();

@@ -1,5 +1,5 @@
 
-#include <migraph/cpu/cpu_lowering.hpp>
+#include <migraph/cpu/lowering.hpp>
 #include <migraph/instruction.hpp>
 #include <migraph/dfor.hpp>
 #include <migraph/operators.hpp>
@@ -664,7 +664,7 @@ struct cpu_apply
     }
 };
 
-void cpu_lowering::apply(program& p) const { cpu_apply{&p}.apply(); }
+void lowering::apply(program& p) const { cpu_apply{&p}.apply(); }
 
 } // namespace cpu
 

@@ -2,7 +2,7 @@
 #include <migraph/program.hpp>
 #include <migraph/operators.hpp>
 #include <migraph/generate.hpp>
-#include <migraph/cpu/cpu_target.hpp>
+#include <migraph/cpu/target.hpp>
 #include <migraph/gpu/target.hpp>
 #include <migraph/gpu/miopen.hpp>
 #include <migraph/gpu/hip.hpp>
@@ -100,7 +100,7 @@ migraph::argument run_cpu(migraph::program& p)
     V v;
     p = v.create_program();
     auto_print pp{p, 0};
-    compile_check(p, migraph::cpu::cpu_target{});
+    compile_check(p, migraph::cpu::target{});
     migraph::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {

@@ -6,7 +6,7 @@
 namespace migraph {
 namespace cpu {
 
-struct cpu_lowering
+struct lowering
 {
     std::string name() const { return "cpu::lowering"; }
     void apply(program& p) const;

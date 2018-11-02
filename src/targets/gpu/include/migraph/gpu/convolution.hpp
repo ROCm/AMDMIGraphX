@@ -38,6 +38,7 @@ struct miopen_convolution
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
     shape compile(context& ctx, const shape& output_shape, std::vector<instruction_ref> inputs);
+    int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
 };
 
 } // namespace gpu

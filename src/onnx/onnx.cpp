@@ -153,8 +153,8 @@ struct onnx_parser
         op::pooling op{ends_with(name, "MaxPool") ? "max" : "average"};
         if(starts_with(name, "Global"))
         {
-            auto lens   = args.front()->get_shape().lens();
-            op.lengths  = {lens[2], lens[3]};
+            auto lens  = args.front()->get_shape().lens();
+            op.lengths = {lens[2], lens[3]};
         }
         if(contains(attributes, "pads"))
         {

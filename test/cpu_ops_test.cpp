@@ -171,7 +171,7 @@ void globalavgpool_test()
     std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
     auto l0 = p.add_literal(migraph::literal{s, data});
     p.add_instruction(op, l0);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
 
     std::vector<float> results_vector(3);
@@ -191,7 +191,7 @@ void globalmaxpool_test()
     std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
     auto l0 = p.add_literal(migraph::literal{s, data});
     p.add_instruction(op, l0);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
 
     std::vector<float> results_vector(3);

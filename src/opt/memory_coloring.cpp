@@ -13,5 +13,5 @@ void memory_coloring::apply(program& p) const
     }
 }
 
-} // inline namespace version_1
+} // namespace version_1
 } // namespace migraph

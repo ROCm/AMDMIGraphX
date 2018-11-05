@@ -626,5 +626,5 @@ program parse_onnx(const std::string& name)
     return std::move(parser.prog);
 }
 
-} // inline namespace version_1
+} // namespace version_1
 } // namespace migraph

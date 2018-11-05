@@ -2,7 +2,8 @@
 #include <migraph/builtin.hpp>
 #include <migraph/erase.hpp>
 
-namespace migraph { namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+namespace MIGRAPH_INLINE_NS {
 
 instruction::instruction(operation o, shape r, std::vector<instruction_ref> args)
     : op(std::move(o)), result(std::move(r)), arguments(std::move(args))

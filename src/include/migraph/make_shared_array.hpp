@@ -4,7 +4,8 @@
 #include <memory>
 #include <migraph/config.hpp>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 template <typename T>
 std::shared_ptr<T> make_shared_array(size_t size)
@@ -12,7 +13,7 @@ std::shared_ptr<T> make_shared_array(size_t size)
     return std::shared_ptr<T>(new T[size], std::default_delete<T[]>());
 }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

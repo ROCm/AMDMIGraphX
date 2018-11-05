@@ -11,7 +11,8 @@
 
 #include <memory>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 /**
  * @brief Represents a raw literal
@@ -123,7 +124,7 @@ literal transform(literal l1, literal l2, F f)
     return result;
 }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

@@ -4,7 +4,8 @@
 #include <utility>
 #include <migraph/config.hpp>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 struct swallow
 {
@@ -130,7 +131,7 @@ auto fold(F f)
     return [=](auto&&... xs) { return fold_impl(f, std::forward<decltype(xs)>(xs)...); };
 }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

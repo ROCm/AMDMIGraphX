@@ -10,7 +10,8 @@
 #include <cmath>
 #include <utility>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace op {
 
 struct not_computable
@@ -858,7 +859,7 @@ struct outline
 };
 
 } // namespace op
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

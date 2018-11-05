@@ -12,7 +12,8 @@
 #include <migraph/pass.hpp>
 #include <migraph/config.hpp>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 #ifdef DOXYGEN
 

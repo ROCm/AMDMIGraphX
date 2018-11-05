@@ -16,7 +16,7 @@
 #include <migraph/instruction.hpp>
 #include <migraph/config.hpp>
 
-namespace migraph { 
+namespace migraph {
 namespace MIGRAPH_INLINE_NS {
 struct unknown
 {

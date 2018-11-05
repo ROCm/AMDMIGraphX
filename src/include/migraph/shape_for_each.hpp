@@ -5,7 +5,8 @@
 #include <migraph/config.hpp>
 #include <algorithm>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 template <class F>
 void shape_for_each(const migraph::shape& s, F f)
@@ -27,7 +28,7 @@ void shape_for_each(const migraph::shape& s, F f)
     }
 }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

@@ -1,6 +1,7 @@
 #include <migraph/generate.hpp>
 
-namespace migraph { namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+namespace MIGRAPH_INLINE_NS {
 
 argument generate_argument(shape s, unsigned long seed)
 {

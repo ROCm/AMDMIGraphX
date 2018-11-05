@@ -17,12 +17,12 @@ struct program;
 
 #ifdef DOXYGEN
 
-/// An interface for applying an optimization for the concat instruction
+/// An interface for target-dependent optimization for the concat instruction
 struct concat_optimization
 {
-    /// A name used to identify the concat optimization
+    /// The name of the target-dependent concat operator
     std::string name() const;
-    /// A name used to identify the allocate operator
+    /// A name of the target-dependent allocate operator
     std::string allocate() const;
     /// Return the target-independent concat operator
     op::concat get_concat(const operation& op) const;

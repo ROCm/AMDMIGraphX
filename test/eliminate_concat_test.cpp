@@ -13,9 +13,9 @@ struct concat
     {
         return op.compute_shape(inputs);
     }
-    migraph::argument compute(migraph::context& ctx,
+    migraph::argument compute(migraph::context&,
                               const migraph::shape& output_shape,
-                              const std::vector<migraph::argument>& args) const
+                              const std::vector<migraph::argument>&) const
     {
         return {output_shape};
     }
@@ -72,7 +72,7 @@ struct fred_op
         return inputs.at(0);
     }
     migraph::argument compute(migraph::context&,
-                              const migraph::shape& output_shape,
+                              const migraph::shape&,
                               const std::vector<migraph::argument>& args) const
     {
         return args.at(0);
@@ -112,7 +112,7 @@ void basic()
             migraph::op::load{migraph::shape{migraph::shape::float_type, {1, 5, 8, 8}}, 1280},
             {a1});
         auto p3 = p.add_instruction(fred_op{}, l3);
-        auto i1 = p.add_instruction(migraph::op::identity{}, {a1, p1, p2, p3});
+        auto p.add_instruction(migraph::op::identity{}, {a1, p1, p2, p3});
         return p;
     };
 
@@ -139,7 +139,7 @@ void wont_work()
         std::size_t axis = 1;
         auto a4 =
             p.add_instruction(allocate{migraph::shape{migraph::shape::float_type, {2, 10, 8, 8}}});
-        auto p4 = p.add_instruction(concat(axis), p1, p2, p3, a4);
+        auto p.add_instruction(concat(axis), p1, p2, p3, a4);
         return p;
     };
     auto create_control_program = []() {
@@ -156,7 +156,7 @@ void wont_work()
         std::size_t axis = 1;
         auto a4 =
             p.add_instruction(allocate{migraph::shape{migraph::shape::float_type, {2, 10, 8, 8}}});
-        auto p4 = p.add_instruction(concat(axis), p1, p2, p3, a4);
+        p.add_instruction(concat(axis), p1, p2, p3, a4);
         return p;
     };
 

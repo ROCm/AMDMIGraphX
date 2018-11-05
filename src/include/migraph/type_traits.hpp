@@ -10,8 +10,9 @@
 
 #include <type_traits>
 #include <migraph/half.hpp>
+#include <migraph/config.hpp>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 
 #define MIGRAPH_DETAIL_EXTEND_TRAIT_FOR(trait, T) \
     template <class X>                            \
@@ -28,6 +29,7 @@ MIGRAPH_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, half)
 MIGRAPH_DETAIL_EXTEND_TRAIT_FOR(is_signed, half)
 MIGRAPH_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, half)
 
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

@@ -4,8 +4,9 @@
 #include <algorithm>
 #include <initializer_list>
 #include <migraph/rank.hpp>
+#include <migraph/config.hpp>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 
 namespace detail {
 
@@ -104,6 +105,7 @@ iterator_range<Iterator> range(std::pair<Iterator, Iterator> p)
     return {p.first, p.second};
 }
 
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

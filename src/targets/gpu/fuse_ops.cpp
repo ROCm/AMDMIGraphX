@@ -6,7 +6,7 @@
 #include <migraph/instruction.hpp>
 
 namespace migraph {
-
+namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 struct fusion
@@ -382,5 +382,5 @@ void fuse_ops::apply(program& p) const
 }
 
 } // namespace gpu
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

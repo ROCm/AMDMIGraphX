@@ -1,7 +1,9 @@
 #ifndef MIGRAPH_GUARD_RTGLIB_CONTEXT_HPP
 #define MIGRAPH_GUARD_RTGLIB_CONTEXT_HPP
 
-namespace migraph {
+#include <migraph/config.hpp>
+
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 namespace cpu {
 
 struct context
@@ -10,6 +12,7 @@ struct context
 };
 
 } // namespace cpu
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

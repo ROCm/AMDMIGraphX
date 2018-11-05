@@ -1,7 +1,9 @@
 #ifndef MIGRAPH_GUARD_MIGRAPHLIB_DFOR_HPP
 #define MIGRAPH_GUARD_MIGRAPHLIB_DFOR_HPP
 
-namespace migraph {
+#include <migraph/config.hpp>
+
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 
 // Multidimensional for loop
 inline auto dfor()
@@ -20,6 +22,7 @@ auto dfor(T x, Ts... xs)
     };
 }
 
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

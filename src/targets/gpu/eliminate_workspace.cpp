@@ -9,6 +9,7 @@
 #include <migraph/pass_config.hpp>
 
 namespace migraph {
+namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 void eliminate_workspace::apply(program& p) const
@@ -38,5 +39,7 @@ void eliminate_workspace::apply(program& p) const
         p.remove_instruction(a);
     }
 }
+
 } // namespace gpu
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

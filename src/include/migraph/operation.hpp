@@ -13,8 +13,9 @@
 #include <migraph/argument.hpp>
 #include <migraph/context.hpp>
 #include <migraph/auto_any_cast.hpp>
+#include <migraph/config.hpp>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 
 #ifdef DOXYGEN
 
@@ -385,6 +386,7 @@ inline bool operator!=(const operation& x, const operation& y) { return !(x == y
 
 #endif
 
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

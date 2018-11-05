@@ -2,9 +2,10 @@
 #define MIGRAPH_GUARD_MIGRAPHLIB_SHAPE_FOR_EACH_HPP
 
 #include <migraph/shape.hpp>
+#include <migraph/config.hpp>
 #include <algorithm>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 
 template <class F>
 void shape_for_each(const migraph::shape& s, F f)
@@ -26,6 +27,7 @@ void shape_for_each(const migraph::shape& s, F f)
     }
 }
 
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

@@ -3,8 +3,9 @@
 
 #include <vector>
 #include <string>
+#include <migraph/config.hpp>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 
 // Declare a cached environment variable
 #define MIGRAPH_DECLARE_ENV_VAR(x)                \
@@ -31,6 +32,7 @@ bool disabled(T)
     return result;
 }
 
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

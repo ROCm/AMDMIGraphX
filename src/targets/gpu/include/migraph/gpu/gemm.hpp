@@ -10,6 +10,7 @@
 #include <migraph/gpu/miopen.hpp>
 #include <migraph/gpu/hip.hpp>
 #include <migraph/dfor.hpp>
+#include <migraph/config.hpp>
 #include <migraph/gpu/device/contiguous.hpp>
 #include <migraph/gpu/device/add.hpp>
 #include <migraph/iterator_for.hpp>
@@ -17,7 +18,7 @@
 #include <migraph/gpu/context.hpp>
 #include <utility>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 struct miopen_gemm
@@ -31,7 +32,7 @@ struct miopen_gemm
 };
 
 } // namespace gpu
-
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

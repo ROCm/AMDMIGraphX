@@ -9,7 +9,7 @@
 #include <migraph/pass_config.hpp>
 
 namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace version_1 {
 namespace gpu {
 
 void eliminate_workspace::apply(program& p) const
@@ -41,5 +41,5 @@ void eliminate_workspace::apply(program& p) const
 }
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace version_1
 } // namespace migraph

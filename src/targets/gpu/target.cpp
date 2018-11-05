@@ -15,6 +15,8 @@
 #include <migraph/eliminate_contiguous.hpp>
 #include <migraph/common_subexpression_elimination.hpp>
 #include <migraph/fwd_conv_batchnorm_rewrite.hpp>
+#include <migraph/eliminate_concat.hpp>
+#include <migraph/gpu/concat_gpu_opt.hpp>
 
 namespace migraph {
 namespace gpu {
@@ -38,6 +40,8 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
         simplify_reshapes{},
         dead_code_elimination{},
         lowering{ctx},
+        eliminate_concat{concat_gpu_optimization{}},
+        dead_code_elimination{},
         eliminate_contiguous{},
         dead_code_elimination{},
         fuse_ops{&ctx},

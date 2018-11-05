@@ -1,7 +1,7 @@
 #include "memory_coloring_impl.hpp"
 
 namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace version_1 {
 
 void memory_coloring_impl::run()
 {
@@ -359,5 +359,5 @@ void live_interval::dump()
 
 #endif
 
-} // namespace MIGRAPH_INLINE_NS
+} // inline namespace version_1
 } // namespace migraph

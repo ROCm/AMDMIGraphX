@@ -11,7 +11,7 @@
 #include <utility>
 
 namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace version_1 {
 
 MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_TRACE_COMPILE)
 MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_TRACE_EVAL)
@@ -500,5 +500,5 @@ std::ostream& operator<<(std::ostream& os, const program& p)
     return os;
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace version_1
 } // namespace migraph

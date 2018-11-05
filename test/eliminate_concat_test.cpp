@@ -11,7 +11,7 @@ struct concat
     std::string name() const { return "eliminate_concat::concat"; }
     migraph::shape compute_shape(std::vector<migraph::shape> inputs) const
     {
-        return op.compute_shape(inputs);
+        return op.compute_shape(std::move(inputs));
     }
     migraph::argument compute(migraph::context&,
                               const migraph::shape& output_shape,

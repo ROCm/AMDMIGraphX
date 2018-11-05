@@ -19,5 +19,5 @@ rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s)
 }
 
 } // namespace gpu
-} // inline namespace version_1
+} // namespace version_1
 } // namespace migraph

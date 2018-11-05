@@ -221,5 +221,5 @@ struct miopen_apply
 
 void lowering::apply(program& p) const { miopen_apply{&p, ctx}.apply(); }
 } // namespace gpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

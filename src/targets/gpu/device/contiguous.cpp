@@ -14,5 +14,5 @@ void contiguous(hipStream_t stream, argument result, argument arg)
 
 } // namespace device
 } // namespace gpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

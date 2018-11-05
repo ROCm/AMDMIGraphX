@@ -30,5 +30,5 @@ std::vector<std::string> env(const char* name)
         return {{p}};
 }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

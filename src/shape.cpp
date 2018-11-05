@@ -191,5 +191,5 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
     return os;
 }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

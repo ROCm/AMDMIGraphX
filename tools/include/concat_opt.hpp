@@ -20,11 +20,11 @@ struct program;
 /// An interface for applying an optimization for the concat instruction
 struct concat_optimization
 {
-    /// A unique name used to identify the concat optimization
+    /// A name used to identify the concat optimization
     std::string name() const;
-    /// A unique name used to identify the allocate operator
+    /// A name used to identify the allocate operator
     std::string allocate() const;
-    /// Return the lowered concat operator
+    /// Return the target-independent concat operator
     op::concat get_concat(const operation& op) const;
 };
 

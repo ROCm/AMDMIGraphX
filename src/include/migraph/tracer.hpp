@@ -5,7 +5,8 @@
 #include <migraph/functional.hpp>
 #include <migraph/config.hpp>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 struct tracer
 {
@@ -29,7 +30,7 @@ struct tracer
     std::ostream* os = nullptr;
 };
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

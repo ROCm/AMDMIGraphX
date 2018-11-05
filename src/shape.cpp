@@ -6,7 +6,8 @@
 #include <functional>
 #include <iostream>
 
-namespace migraph { namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+namespace MIGRAPH_INLINE_NS {
 
 struct shape_impl
 {

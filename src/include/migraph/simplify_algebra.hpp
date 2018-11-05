@@ -4,7 +4,8 @@
 #include <string>
 #include <migraph/config.hpp>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 struct program;
 
@@ -14,7 +15,7 @@ struct simplify_algebra
     void apply(program& p) const;
 };
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

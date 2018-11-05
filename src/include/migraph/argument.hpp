@@ -7,7 +7,8 @@
 #include <functional>
 #include <utility>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 /**
  * @brief Arguments passed to instructions
@@ -46,7 +47,7 @@ struct argument : raw_data<argument>
     shape m_shape;
 };
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

@@ -4,7 +4,8 @@
 #include <string>
 #include <migraph/config.hpp>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 template <class PrivateMigraphTypeNameProbe>
 const std::string& get_type_name()
@@ -40,7 +41,7 @@ const std::string& get_type_name(const T&)
     return migraph::get_type_name<T>();
 }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

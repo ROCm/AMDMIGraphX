@@ -6,7 +6,8 @@
 #include <migraph/requires.hpp>
 #include <migraph/config.hpp>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 struct raw_data_base
 {
@@ -204,7 +205,7 @@ auto visit_all(T&& x, Ts&&... xs)
     };
 }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

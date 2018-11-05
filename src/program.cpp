@@ -2,6 +2,7 @@
 #include <migraph/stringutils.hpp>
 #include <migraph/instruction.hpp>
 #include <migraph/env.hpp>
+#include <migraph/ranges.hpp>
 #include <migraph/time.hpp>
 #include <migraph/iterator_for.hpp>
 #include <iostream>
@@ -329,8 +330,11 @@ argument generic_eval(const program& p,
         else if(ins->name() == "@param")
         {
             results.emplace(ins, trace(ins, [&] {
-                                return params.at(
-                                    any_cast<builtin::param>(ins->get_operator()).parameter);
+                                auto param_name =
+                                    any_cast<builtin::param>(ins->get_operator()).parameter;
+                                if(not contains(params, param_name))
+                                    MIGRAPH_THROW("Parameter not found: " + param_name);
+                                return params.at(param_name);
                             }));
         }
         else if(ins->name() == "@outline")

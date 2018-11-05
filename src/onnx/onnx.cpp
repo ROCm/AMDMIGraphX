@@ -520,7 +520,7 @@ struct onnx_parser
             case onnx::TensorProto::INT64: return literal{{shape::int64_type, dims}, s.data()};
             case onnx::TensorProto::STRING: throw std::runtime_error("");
             case onnx::TensorProto::BOOL: return literal{{shape::int32_type, dims}, s.data()};
-            case onnx::TensorProto::FLOAT16: throw std::runtime_error("");
+            case onnx::TensorProto::FLOAT16: return literal{{shape::half_type, dims}, s.data()};
             case onnx::TensorProto::DOUBLE: return literal{{shape::double_type, dims}, s.data()};
             case onnx::TensorProto::UINT32: throw std::runtime_error("");
             case onnx::TensorProto::UINT64: throw std::runtime_error("");
@@ -548,7 +548,8 @@ struct onnx_parser
         case onnx::TensorProto::STRING: throw std::runtime_error("");
         case onnx::TensorProto::BOOL:
             return literal{{shape::int32_type, dims}, t.int32_data().begin(), t.int32_data().end()};
-        case onnx::TensorProto::FLOAT16: throw std::runtime_error("");
+        case onnx::TensorProto::FLOAT16:
+            return literal{{shape::half_type, dims}, t.float_data().begin(), t.float_data().end()};
         case onnx::TensorProto::DOUBLE:
             return literal{
                 {shape::double_type, dims}, t.double_data().begin(), t.double_data().end()};
@@ -579,8 +580,7 @@ struct onnx_parser
             break; // throw std::runtime_error("Unsupported type STRING");
         case onnx::TensorProto::BOOL:
             break; // throw std::runtime_error("Unsupported type BOOL");
-        case onnx::TensorProto::FLOAT16:
-            break; // throw std::runtime_error("Unsupported type FLOAT16");
+        case onnx::TensorProto::FLOAT16: shape_type = shape::half_type; break;
         case onnx::TensorProto::DOUBLE: shape_type = shape::double_type; break;
         case onnx::TensorProto::UINT32: shape_type = shape::uint32_type; break;
         case onnx::TensorProto::UINT64: shape_type = shape::uint64_type; break;

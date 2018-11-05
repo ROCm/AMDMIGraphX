@@ -359,5 +359,5 @@ void live_interval::dump()
 
 #endif
 
-} // inline namespace version_1
+} // namespace version_1
 } // namespace migraph

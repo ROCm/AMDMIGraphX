@@ -116,7 +116,7 @@ void param_error_test()
         [&] {
             p.eval({{"x", migraph::literal{1}.get_argument()}});
         },
-        "Parameter not found"));
+        "Parameter not found: y"));
 }
 
 void replace_test()

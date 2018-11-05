@@ -43,7 +43,6 @@ bool no_allocate(const migraph::program& p)
     return std::none_of(p.begin(), p.end(), [](auto&& ins) { return ins.name() == "allocate"; });
 }
 
-
 void test1()
 {
     migraph::program p;
@@ -410,10 +409,10 @@ void test28()
 {
     migraph::program p;
     auto output = p.add_parameter("output", {migraph::shape::float_type, {8}});
-    auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
-    auto p1 = p.add_instruction(pass_op{}, a1);
-    auto a2 = add_alloc(p, {migraph::shape::float_type, {40}});
-    auto p2 = p.add_instruction(pass_op{}, a2, p1);
+    auto a1     = add_alloc(p, {migraph::shape::float_type, {8}});
+    auto p1     = p.add_instruction(pass_op{}, a1);
+    auto a2     = add_alloc(p, {migraph::shape::float_type, {40}});
+    auto p2     = p.add_instruction(pass_op{}, a2, p1);
     p.add_instruction(pass_op{}, p2, output);
     p.compile(memory_coloring_target{});
     CHECK(p.get_parameter_shape("scratch").bytes() == 192);
@@ -424,10 +423,10 @@ void test29()
 {
     migraph::program p;
     auto output = p.add_parameter("output", {migraph::shape::float_type, {8}});
-    auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
-    auto p1 = p.add_instruction(pass_op{}, a1);
-    auto a2 = add_alloc(p, {migraph::shape::float_type, {40}});
-    auto p2 = p.add_instruction(pass_op{}, a2, p1);
+    auto a1     = add_alloc(p, {migraph::shape::float_type, {8}});
+    auto p1     = p.add_instruction(pass_op{}, a1);
+    auto a2     = add_alloc(p, {migraph::shape::float_type, {40}});
+    auto p2     = p.add_instruction(pass_op{}, a2, p1);
     p.move_instruction(output, p2);
     p.add_instruction(pass_op{}, p2, output);
     p.compile(memory_coloring_target{});
@@ -439,10 +438,10 @@ void test30()
 {
     migraph::program p;
     auto output = p.add_parameter("x", {migraph::shape::float_type, {8}});
-    auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
-    auto p1 = p.add_instruction(pass_op{}, a1);
-    auto a2 = add_alloc(p, {migraph::shape::float_type, {40}});
-    auto p2 = p.add_instruction(pass_op{}, a2, p1);
+    auto a1     = add_alloc(p, {migraph::shape::float_type, {8}});
+    auto p1     = p.add_instruction(pass_op{}, a1);
+    auto a2     = add_alloc(p, {migraph::shape::float_type, {40}});
+    auto p2     = p.add_instruction(pass_op{}, a2, p1);
     p.move_instruction(output, p2);
     p.add_instruction(pass_op{}, p2, output);
     p.compile(memory_coloring_target{});
@@ -454,9 +453,9 @@ void test31()
 {
     migraph::program p;
     auto output = p.add_parameter("output", {migraph::shape::float_type, {8}});
-    auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
-    auto p1 = p.add_instruction(pass_op{}, a1);
-    auto a2 = add_alloc(p, {migraph::shape::float_type, {40}});
+    auto a1     = add_alloc(p, {migraph::shape::float_type, {8}});
+    auto p1     = p.add_instruction(pass_op{}, a1);
+    auto a2     = add_alloc(p, {migraph::shape::float_type, {40}});
     p.move_instruction(output, a2);
     p.add_instruction(pass_op{}, a2, p1);
     p.compile(memory_coloring_target{});

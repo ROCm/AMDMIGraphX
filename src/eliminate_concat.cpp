@@ -56,7 +56,7 @@ void eliminate_concat::apply(program& p) const
             for(auto x : allocations)
             {
                 migraph::op::load op{x->get_shape(), offset};
-                //migraph::op::load op{x->get_shape(), 0};
+                // migraph::op::load op{x->get_shape(), 0};
                 p.replace_instruction(x, op, {super});
                 offset += x->get_shape().bytes();
             }

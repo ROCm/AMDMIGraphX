@@ -652,7 +652,7 @@ void manual_identity()
 void manual_test_concat_relu()
 {
     migraph::program p;
-    std::size_t axis = 0;
+    std::size_t axis         = 0;
     std::vector<float> data0 = {0, 1, 2, 3};
     std::vector<float> data1 = {4, 5, 6, 7, 8, 9};
     std::vector<float> data2 = {10, 11};

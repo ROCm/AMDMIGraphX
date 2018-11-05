@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_GEMM_HPP
-#define MIGRAPH_GUARD_RTGLIB_GEMM_HPP
+#ifndef MIGRAPH_GUARD_RTGLIB_MUL_HPP
+#define MIGRAPH_GUARD_RTGLIB_MUL_HPP
 
 #include <migraph/gpu/lowering.hpp>
 #include <migraph/manage_ptr.hpp>
@@ -11,7 +11,7 @@
 #include <migraph/gpu/hip.hpp>
 #include <migraph/dfor.hpp>
 #include <migraph/gpu/device/contiguous.hpp>
-#include <migraph/gpu/device/add.hpp>
+#include <migraph/gpu/device/mul.hpp>
 #include <migraph/iterator_for.hpp>
 #include <migraph/gpu/rocblas.hpp>
 #include <migraph/gpu/context.hpp>
@@ -20,13 +20,11 @@
 namespace migraph {
 namespace gpu {
 
-struct miopen_gemm
+struct hip_mul
 {
-    op::dot op;
-    std::string name() const { return "gpu::gemm"; }
+    std::string name() const { return "gpu::mul"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
+    argument compute(context&, const shape&, const std::vector<argument>& args) const;
 };
 
 } // namespace gpu

@@ -58,10 +58,6 @@ std::vector<pass> target::get_passes(migraph::context& gctx) const
 
 std::string target::name() const { return "miopen"; }
 
-migraph::context target::get_context() const
-{
-    return context{
-        share(make_obj<miopen_handle>(&miopenCreate)), share(create_rocblas_handle_ptr()), {}};
-}
+migraph::context target::get_context() const { return context{}; }
 } // namespace gpu
 } // namespace migraph

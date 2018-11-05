@@ -39,14 +39,6 @@ hip_ptr allocate_gpu(std::size_t sz, bool host = false)
 }
 
 template <class T>
-hip_ptr write_to_gpu(const T& x)
-{
-    using type = typename T::value_type;
-    auto size  = x.size() * sizeof(type);
-    return write_to_gpu(x.data(), size);
-}
-
-template <class T>
 std::vector<T> read_from_gpu(const void* x, std::size_t sz)
 {
     std::vector<T> result(sz);
@@ -63,6 +55,14 @@ hip_ptr write_to_gpu(const void* x, std::size_t sz, bool host = false)
     if(status != hipSuccess)
         MIGRAPH_THROW("Copy to gpu failed: " + hip_error(status));
     return result;
+}
+
+template <class T>
+hip_ptr write_to_gpu(const T& x)
+{
+    using type = typename T::value_type;
+    auto size  = x.size() * sizeof(type);
+    return write_to_gpu(x.data(), size);
 }
 
 argument allocate_gpu(const shape& s, bool host)
@@ -86,6 +86,13 @@ argument from_gpu(argument arg)
         result     = {x.get_shape(), [v]() mutable { return reinterpret_cast<char*>(v.data()); }};
     });
     return result;
+}
+
+void set_device(std::size_t id)
+{
+    auto status = hipSetDevice(id);
+    if(status != hipSuccess)
+        MIGRAPH_THROW("Error setting device");
 }
 
 void gpu_sync() { hipDeviceSynchronize(); }

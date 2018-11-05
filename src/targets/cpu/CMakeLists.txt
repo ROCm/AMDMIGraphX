@@ -1,7 +1,7 @@
 
 add_library(migraph_cpu
-    cpu_target.cpp
-    cpu_lowering.cpp
+    target.cpp
+    lowering.cpp
     gemm.cpp
 )
 

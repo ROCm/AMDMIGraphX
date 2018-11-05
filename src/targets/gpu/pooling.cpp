@@ -5,7 +5,7 @@
 #include <utility>
 
 namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace version_1 {
 namespace gpu {
 
 shape miopen_pooling::compute_shape(const std::vector<shape>& inputs) const
@@ -38,5 +38,5 @@ argument miopen_pooling::compute(context& ctx,
 }
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace version_1
 } // namespace migraph

@@ -5,7 +5,7 @@
 #include <migraph/gpu/device/launch.hpp>
 
 namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace version_1 {
 namespace gpu {
 namespace device {
 
@@ -34,5 +34,5 @@ argument concat(hipStream_t stream,
 
 } // namespace device
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // inline namespace version_1
 } // namespace migraph

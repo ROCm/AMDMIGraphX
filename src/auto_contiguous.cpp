@@ -5,7 +5,7 @@
 #include <migraph/iterator_for.hpp>
 
 namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace version_1 {
 
 void auto_contiguous::apply(program& p) const
 {
@@ -20,5 +20,5 @@ void auto_contiguous::apply(program& p) const
     }
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // inline namespace version_1
 } // namespace migraph

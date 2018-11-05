@@ -17,7 +17,7 @@
 #include <migraph/config.hpp>
 
 namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace version_1 {
 struct unknown
 {
     std::string op;
@@ -626,5 +626,5 @@ program parse_onnx(const std::string& name)
     return std::move(parser.prog);
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // inline namespace version_1
 } // namespace migraph

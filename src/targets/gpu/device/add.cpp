@@ -2,7 +2,7 @@
 #include <migraph/gpu/device/nary.hpp>
 
 namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace version_1 {
 namespace gpu {
 namespace device {
 
@@ -22,5 +22,5 @@ void add(hipStream_t stream,
 
 } // namespace device
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // inline namespace version_1
 } // namespace migraph

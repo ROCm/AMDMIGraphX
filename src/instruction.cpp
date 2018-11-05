@@ -183,5 +183,5 @@ shape compute_shape(const operation& op, const std::vector<instruction_ref>& arg
     return op.compute_shape(compute_shapes(args));
 }
 
-} // inline namespace version_1
+} // namespace version_1
 } // namespace migraph

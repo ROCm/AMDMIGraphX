@@ -53,5 +53,5 @@ void write_literals::apply(program& p) const
 }
 
 } // namespace gpu
-} // inline namespace version_1
+} // namespace version_1
 } // namespace migraph

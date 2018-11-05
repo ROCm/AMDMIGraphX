@@ -12,7 +12,8 @@
 #include <migraph/half.hpp>
 #include <migraph/config.hpp>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 #define MIGRAPH_DETAIL_EXTEND_TRAIT_FOR(trait, T) \
     template <class X>                            \

@@ -5,7 +5,8 @@
 #include <migraph/argument.hpp>
 #include <migraph/config.hpp>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 inline bool verify_args(const std::string& name,
                         const argument& cpu_arg,
@@ -83,7 +84,7 @@ inline bool verify_args(const std::string& name,
     return passed;
 }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

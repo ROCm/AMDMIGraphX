@@ -11,7 +11,8 @@
 #include <migraph/requires.hpp>
 #include <migraph/config.hpp>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 template <class... Ts>
 using common_type = typename std::common_type<Ts...>::type;
@@ -41,7 +42,7 @@ struct float_equal_fn
 
 static constexpr float_equal_fn float_equal{};
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

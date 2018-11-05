@@ -18,7 +18,8 @@
 #include <migraph/config.hpp>
 #include <utility>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 struct hip_add
@@ -39,7 +40,7 @@ struct miopen_add
 };
 
 } // namespace gpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

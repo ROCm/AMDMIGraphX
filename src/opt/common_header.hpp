@@ -13,7 +13,8 @@
 #include <vector>
 #include <queue>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 //#define MIGRAPH_DEBUG_OPT
 

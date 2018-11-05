@@ -5,7 +5,8 @@
 #include <migraph/config.hpp>
 #include <utility>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 migraph::argument allocate_gpu(const migraph::shape& s, bool host = false);
@@ -88,7 +89,7 @@ struct hip_copy
 };
 
 } // namespace gpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

@@ -8,7 +8,8 @@
 #include <migraph/ranges.hpp>
 #include <migraph/config.hpp>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 namespace device {
 
@@ -395,7 +396,7 @@ inline auto nary(hipStream_t stream,
 
 } // namespace device
 } // namespace gpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

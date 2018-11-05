@@ -2,7 +2,8 @@
 #define MIGRAPH_GUARD_RTGLIB_AUTO_ANY_CAST_HPP
 #include <migraph/config.hpp>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 namespace detail {
 

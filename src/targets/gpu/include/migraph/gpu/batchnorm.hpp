@@ -18,7 +18,8 @@
 #include <migraph/config.hpp>
 #include <utility>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 struct miopen_batch_norm_inference
@@ -32,7 +33,7 @@ struct miopen_batch_norm_inference
 };
 
 } // namespace gpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

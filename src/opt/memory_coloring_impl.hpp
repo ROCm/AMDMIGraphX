@@ -180,6 +180,6 @@ struct memory_coloring_impl
     std::string allocation_op{};
 };
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 #endif

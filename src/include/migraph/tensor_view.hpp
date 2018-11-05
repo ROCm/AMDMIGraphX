@@ -9,7 +9,8 @@
 #include <iostream>
 #include <utility>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 template <class T>
 struct tensor_view
@@ -168,7 +169,7 @@ tensor_view<T> make_view(shape s, T* data)
     return {s, data};
 }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

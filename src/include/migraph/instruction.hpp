@@ -10,7 +10,8 @@
 #include <string>
 #include <utility>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 shape compute_shape(const operation& op, const std::vector<instruction_ref>& args);
 
@@ -89,7 +90,7 @@ struct instruction
     std::vector<instruction_ref> arguments;
     literal lit;
 };
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 namespace std {

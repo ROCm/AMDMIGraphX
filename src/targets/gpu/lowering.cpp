@@ -133,7 +133,6 @@ struct miopen_apply
 
     instruction_ref apply_relu(instruction_ref ins)
     {
-        auto&& op = any_cast<op::relu>(ins->get_operator());
         auto ad   = make_relu();
 
         auto output = insert_allocation(ins, ins->get_shape());

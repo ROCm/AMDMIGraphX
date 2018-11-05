@@ -109,7 +109,8 @@ void basic()
             migraph::op::load{migraph::shape{migraph::shape::float_type, {1, 3, 8, 8}}, 512}, {a1});
         auto p2 = p.add_instruction(fred_op{}, l2);
         auto l3 = p.add_instruction(
-            migraph::op::load{migraph::shape{migraph::shape::float_type, {1, 5, 8, 8}}, 1280}, {a1});
+            migraph::op::load{migraph::shape{migraph::shape::float_type, {1, 5, 8, 8}}, 1280},
+            {a1});
         auto p3 = p.add_instruction(fred_op{}, l3);
         auto i1 = p.add_instruction(migraph::op::identity{}, {a1, p1, p2, p3});
         return p;

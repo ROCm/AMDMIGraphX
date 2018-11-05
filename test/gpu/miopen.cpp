@@ -2,7 +2,7 @@
 #include <migraph/program.hpp>
 #include <migraph/operators.hpp>
 #include <migraph/generate.hpp>
-#include <migraph/cpu/cpu_target.hpp>
+#include <migraph/cpu/target.hpp>
 #include <migraph/gpu/target.hpp>
 #include <migraph/gpu/miopen.hpp>
 #include <migraph/gpu/hip.hpp>
@@ -100,7 +100,7 @@ migraph::argument run_cpu(migraph::program& p)
     V v;
     p = v.create_program();
     auto_print pp{p, 0};
-    compile_check(p, migraph::cpu::cpu_target{});
+    compile_check(p, migraph::cpu::target{});
     migraph::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
@@ -129,11 +129,13 @@ template <class V>
 void verify_program()
 {
     auto_print::set_terminate_handler(migraph::get_type_name<V>());
+    // std::cout << migraph::get_type_name<V>() << std::endl;
     migraph::program cpu_prog;
     migraph::program gpu_prog;
     auto cpu_arg_f = detach_async([&] { return run_cpu<V>(cpu_prog); });
     auto gpu_arg   = run_gpu<V>(gpu_prog);
-    bool passed    = verify_args(migraph::get_type_name<V>(), cpu_arg_f.get(), gpu_arg);
+    auto cpu_arg   = cpu_arg_f.get();
+    bool passed    = verify_args(migraph::get_type_name<V>(), cpu_arg, gpu_arg);
     if(not passed)
     {
         V v;
@@ -170,6 +172,46 @@ struct test_add
         auto x = p.add_parameter("x", s);
         auto y = p.add_parameter("y", s);
         p.add_instruction(migraph::op::add{}, x, y);
+        return p;
+    }
+};
+
+struct test_add_half
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::half_type, {3}};
+        auto x = p.add_parameter("x", s);
+        auto y = p.add_parameter("y", s);
+        p.add_instruction(migraph::op::add{}, x, y);
+        return p;
+    }
+};
+
+struct test_mul
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {3}};
+        auto x = p.add_parameter("x", s);
+        auto y = p.add_parameter("y", s);
+        p.add_instruction(migraph::op::mul{}, x, y);
+        return p;
+    }
+};
+
+struct test_scale
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::float_type, {3}};
+        auto x     = p.add_parameter("x", s);
+        auto y     = p.add_parameter("y", migraph::shape::float_type);
+        auto scale = p.add_instruction(migraph::op::scalar{s}, y);
+        p.add_instruction(migraph::op::mul{}, x, scale);
         return p;
     }
 };
@@ -355,6 +397,20 @@ struct test_conv_relu
     }
 };
 
+struct test_conv_relu_half
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto input = p.add_parameter("x", migraph::shape{migraph::shape::half_type, {4, 3, 3, 3}});
+        auto weights =
+            p.add_parameter("w", migraph::shape{migraph::shape::half_type, {4, 3, 3, 3}});
+        auto conv = p.add_instruction(migraph::op::convolution{}, input, weights);
+        p.add_instruction(migraph::op::activation{"relu"}, conv);
+        return p;
+    }
+};
+
 struct test_add_relu
 {
     migraph::program create_program() const
@@ -395,6 +451,36 @@ struct test_conv_pooling
     }
 };
 
+struct test_global_avg_pooling
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto input =
+            p.add_parameter("x", migraph::shape{migraph::shape::float_type, {1, 3, 16, 16}});
+        auto op    = migraph::op::pooling{"average"};
+        auto lens  = input->get_shape().lens();
+        op.lengths = {lens[2], lens[3]};
+        p.add_instruction(op, input);
+        return p;
+    }
+};
+
+struct test_global_max_pooling
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto input =
+            p.add_parameter("x", migraph::shape{migraph::shape::float_type, {1, 3, 16, 16}});
+        auto op    = migraph::op::pooling{"max"};
+        auto lens  = input->get_shape().lens();
+        op.lengths = {lens[2], lens[3]};
+        p.add_instruction(op, input);
+        return p;
+    }
+};
+
 struct test_gemm
 {
     migraph::program create_program() const
@@ -402,7 +488,7 @@ struct test_gemm
         migraph::program p;
         auto a = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {4, 5}});
         auto b = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {5, 3}});
-        p.add_instruction(migraph::op::gemm{}, a, b);
+        p.add_instruction(migraph::op::dot{}, a, b);
         return p;
     }
 };
@@ -414,7 +500,7 @@ struct test_gemm_ld
         migraph::program p;
         auto a = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {4, 5}, {10, 1}});
         auto b = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {5, 3}, {20, 1}});
-        p.add_instruction(migraph::op::gemm{}, a, b);
+        p.add_instruction(migraph::op::dot{}, a, b);
         return p;
     }
 };
@@ -427,7 +513,7 @@ struct test_gemm_transposeb
         auto a  = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {4, 5}});
         auto b  = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {3, 5}});
         auto bt = p.add_instruction(migraph::op::transpose{{1, 0}}, b);
-        p.add_instruction(migraph::op::gemm{}, a, bt);
+        p.add_instruction(migraph::op::dot{}, a, bt);
         return p;
     }
 };
@@ -440,7 +526,7 @@ struct test_gemm_transposea
         auto a  = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {5, 4}});
         auto b  = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {5, 3}});
         auto at = p.add_instruction(migraph::op::transpose{{1, 0}}, a);
-        p.add_instruction(migraph::op::gemm{}, at, b);
+        p.add_instruction(migraph::op::dot{}, at, b);
         return p;
     }
 };
@@ -454,7 +540,7 @@ struct test_gemm_transposeab
         auto b  = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {3, 5}});
         auto at = p.add_instruction(migraph::op::transpose{{1, 0}}, a);
         auto bt = p.add_instruction(migraph::op::transpose{{1, 0}}, b);
-        p.add_instruction(migraph::op::gemm{}, at, bt);
+        p.add_instruction(migraph::op::dot{}, at, bt);
         return p;
     }
 };
@@ -720,6 +806,9 @@ int main()
     verify_program<test_concat2>();
     verify_program<test_concat_relu>();
     verify_program<test_add>();
+    verify_program<test_add_half>();
+    verify_program<test_mul>();
+    verify_program<test_scale>();
     verify_program<test_triadd>();
     verify_program<test_triadd2>();
     verify_program<test_add_broadcast>();
@@ -733,9 +822,12 @@ int main()
     verify_program<test_conv>();
     verify_program<test_conv2>();
     verify_program<test_conv_relu>();
+    verify_program<test_conv_relu_half>();
     verify_program<test_add_relu>();
     verify_program<test_leaky_relu>();
     verify_program<test_conv_pooling>();
+    verify_program<test_global_avg_pooling>();
+    verify_program<test_global_max_pooling>();
     verify_program<test_gemm>();
     // verify_program<test_gemm_ld>();
     verify_program<test_gemm_transposeb>();

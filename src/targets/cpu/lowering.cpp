@@ -1,5 +1,5 @@
 
-#include <migraph/cpu/cpu_lowering.hpp>
+#include <migraph/cpu/lowering.hpp>
 #include <migraph/instruction.hpp>
 #include <migraph/dfor.hpp>
 #include <migraph/operators.hpp>
@@ -312,8 +312,8 @@ struct cpu_concat
 
 struct cpu_gemm
 {
-    op::gemm op;
-    std::string name() const { return "cpu::gemm"; }
+    op::dot op;
+    std::string name() const { return "cpu::dot"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
@@ -437,7 +437,7 @@ struct relu_op
     std::string name() const { return "cpu::relu"; }
     auto fcn() const
     {
-        return [](auto x) { return x > 0 ? x : 0; };
+        return [](auto x) { return std::max(decltype(x){0}, x); };
     }
 };
 
@@ -592,7 +592,7 @@ struct cpu_apply
     {
         apply_map["im2col"]      = extend_op<cpu_im2col, op::im2col>();
         apply_map["convolution"] = extend_op<cpu_convolution, op::convolution>();
-        apply_map["gemm"]        = extend_op<cpu_gemm, op::gemm>();
+        apply_map["dot"]         = extend_op<cpu_gemm, op::dot>();
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
@@ -664,7 +664,7 @@ struct cpu_apply
     }
 };
 
-void cpu_lowering::apply(program& p) const { cpu_apply{&p}.apply(); }
+void lowering::apply(program& p) const { cpu_apply{&p}.apply(); }
 
 } // namespace cpu
 

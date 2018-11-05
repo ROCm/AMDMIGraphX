@@ -82,13 +82,14 @@ struct fusion
         // int algo_count = 1;
         // miopenConvFwdAlgorithm_t algo;
         // miopenFusionPlanConvolutionGetAlgo(fp.get(), 1, &algo_count, &algo);
-        // miopenFusionPlanGetWorkSpaceSize(ctx.handle.get(), fp.get(), &ws_size, algo);
+        // miopenFusionPlanGetWorkSpaceSize(ctx.get_stream().get_miopen(), fp.get(), &ws_size,
+        // algo);
         return shape{shape::int8_type, {ws_size}};
     }
 
     void compile(context& ctx)
     {
-        auto status = miopenCompileFusionPlan(ctx.handle.get(), fp.get());
+        auto status = miopenCompileFusionPlan(ctx.get_stream().get_miopen(), fp.get());
         if(status != miopenStatusSuccess)
             MIGRAPH_THROW("Compiling fusion plan failed");
     }
@@ -100,7 +101,7 @@ struct fusion
     {
         auto x_td   = make_tensor(x.get_shape());
         auto y_td   = make_tensor(y.get_shape());
-        auto status = miopenExecuteFusionPlan(ctx.handle.get(),
+        auto status = miopenExecuteFusionPlan(ctx.get_stream().get_miopen(),
                                               fp.get(),
                                               x_td.get(),
                                               x.implicit(),
@@ -133,15 +134,12 @@ MIGRAPH_PRED_MATCHER(fusable_conv, instruction_ref ins)
         return false;
     auto wei = ins->inputs().at(1)->get_shape();
     assert(wei.lens().size() == 4);
-    auto channels = wei.lens()[1] * wei.lens()[0];
-    if(wei.lens()[0] > 64 and channels > 32768)
-        return false;
     auto conv = any_cast<miopen_convolution>(ins->get_operator());
-    if(conv.algo == miopenConvolutionFwdAlgoWinograd)
+    if(wei.lens()[1] > 512 and conv.algo != miopenConvolutionFwdAlgoWinograd)
         return false;
     auto op = conv.op;
-    return op.padding == make_array<size_t>(0, 0) and op.stride == make_array<size_t>(1, 1) and
-           op.dilation == make_array<size_t>(1, 1);
+    return contains({{0, 0}, {1, 1}, {2, 2}}, op.padding) and
+           contains({{0, 0}, {1, 1}}, op.stride) and op.dilation == make_array<size_t>(1, 1);
 }
 
 struct hip_triadd
@@ -152,9 +150,9 @@ struct hip_triadd
         check_shapes{inputs, *this}.has(4);
         return inputs.front();
     }
-    argument compute(context&, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        device::add(args.at(3), args.at(0), args.at(1), args.at(2));
+        device::add(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
         return args.at(3);
     }
 };
@@ -167,9 +165,9 @@ struct hip_triadd_relu
         check_shapes{inputs, *this}.has(4);
         return inputs.front();
     }
-    argument compute(context&, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        device::add_relu(args.at(3), args.at(0), args.at(1), args.at(2));
+        device::add_relu(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
         return args.at(3);
     }
 };
@@ -182,9 +180,9 @@ struct hip_add_relu
         check_shapes{inputs, *this}.has(3);
         return inputs.front();
     }
-    argument compute(context&, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        device::add_relu(args.at(2), args.at(0), args.at(1));
+        device::add_relu(ctx.get_stream().get(), args.at(2), args.at(0), args.at(1));
         return args.at(2);
     }
 };

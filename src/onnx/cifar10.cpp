@@ -6,7 +6,7 @@
 
 #include <migraph/onnx.hpp>
 
-#include <migraph/cpu/cpu_target.hpp>
+#include <migraph/cpu/target.hpp>
 #include <migraph/gpu/target.hpp>
 #include <migraph/gpu/hip.hpp>
 #include <migraph/generate.hpp>
@@ -86,7 +86,7 @@ int main(int argc, char const* argv[])
     else
     {
         // CPU target
-        prog.compile(migraph::cpu::cpu_target{});
+        prog.compile(migraph::cpu::target{});
         auto s      = migraph::shape{migraph::shape::float_type, {1, 3, 32, 32}};
         auto labels = imageset.first;
         auto input  = imageset.second;

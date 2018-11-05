@@ -196,6 +196,7 @@ void memory_coloring_impl::register_operand_alias()
     operand_alias["identity"]          = 0;
     operand_alias["reshape"]           = 0;
     operand_alias["pass"]              = 0;
+    operand_alias["scalar"]            = 0;
 }
 
 void memory_coloring_impl::rewrite()

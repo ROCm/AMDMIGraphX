@@ -56,8 +56,9 @@ void eliminate_concat::apply(program& p) const
             for(auto x : allocations)
             {
                 migraph::op::load op{x->get_shape(), offset};
+                //migraph::op::load op{x->get_shape(), 0};
                 p.replace_instruction(x, op, {super});
-                offset += x->get_shape().elements();
+                offset += x->get_shape().bytes();
             }
             std::vector<instruction_ref> args = {super};
             std::copy(ins->inputs().begin(), ins->inputs().end() - 1, std::back_inserter(args));

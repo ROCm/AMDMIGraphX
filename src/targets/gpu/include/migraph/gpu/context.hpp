@@ -5,8 +5,9 @@
 #include <migraph/gpu/rocblas.hpp>
 #include <migraph/gpu/hip.hpp>
 #include <migraph/env.hpp>
+#include <migraph/config.hpp>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_DISABLE_NULL_STREAM)
@@ -114,6 +115,7 @@ struct context
     std::shared_ptr<hip_device> current_device;
 };
 } // namespace gpu
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

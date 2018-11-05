@@ -4,8 +4,9 @@
 #include <exception>
 #include <stdexcept>
 #include <string>
+#include <migraph/config.hpp>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 
 /// Represents exceptions that can be thrown by migraphlib
 struct exception : std::runtime_error
@@ -44,6 +45,7 @@ inline std::string make_source_context(const std::string& file, int line)
 #define MIGRAPH_THROW(...) \
     throw migraph::make_exception(migraph::make_source_context(__FILE__, __LINE__), __VA_ARGS__)
 
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

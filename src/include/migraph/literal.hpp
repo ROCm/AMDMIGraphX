@@ -7,10 +7,11 @@
 #include <migraph/tensor_view.hpp>
 #include <migraph/raw_data.hpp>
 #include <migraph/make_shared_array.hpp>
+#include <migraph/config.hpp>
 
 #include <memory>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 
 /**
  * @brief Represents a raw literal
@@ -122,6 +123,7 @@ literal transform(literal l1, literal l2, F f)
     return result;
 }
 
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

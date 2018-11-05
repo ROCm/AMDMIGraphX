@@ -5,6 +5,7 @@
 #include <migraph/literal.hpp>
 
 namespace migraph {
+namespace MIGRAPH_INLINE_NS {
 
 struct find_add_lit_broadcast
 {
@@ -60,4 +61,5 @@ struct find_add_lit_broadcast
 
 void simplify_algebra::apply(program& p) const { match::find_matches(p, find_add_lit_broadcast{}); }
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

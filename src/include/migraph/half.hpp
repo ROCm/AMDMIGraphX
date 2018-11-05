@@ -9,8 +9,9 @@
 #define MIGRAPH_GUARD_RTGLIB_HALF_HPP
 
 #include <half.hpp>
+#include <migraph/config.hpp>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 
 using half = half_float::half;
 
@@ -31,6 +32,7 @@ struct deduce<half_float::detail::expr>
 template <class T>
 using deduce = typename detail::deduce<T>::type;
 
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

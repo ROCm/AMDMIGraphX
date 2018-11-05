@@ -3,8 +3,9 @@
 
 #include <hip/hip_runtime.h>
 #include <migraph/functional.hpp>
+#include <migraph/config.hpp>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 namespace device {
 
@@ -85,6 +86,7 @@ struct hip_tensor_descriptor
 
 } // namespace device
 } // namespace gpu
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

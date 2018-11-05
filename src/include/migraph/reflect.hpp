@@ -3,9 +3,10 @@
 
 #include <migraph/functional.hpp>
 #include <migraph/rank.hpp>
+#include <migraph/config.hpp>
 #include <functional>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 
 namespace detail {
 
@@ -45,6 +46,7 @@ void reflect_each(T& x, F f)
         });
 }
 
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

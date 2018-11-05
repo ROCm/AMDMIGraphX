@@ -2,9 +2,10 @@
 #define MIGRAPH_GUARD_RTGLIB_CHECK_SHAPES_HPP
 
 #include <migraph/shape.hpp>
+#include <migraph/config.hpp>
 #include <algorithm>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 
 struct check_shapes
 {
@@ -154,6 +155,7 @@ struct check_shapes
     check_shapes slice(long start, long last) { return {get(start), get(last), name}; }
 };
 
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

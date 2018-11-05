@@ -4,8 +4,9 @@
 #include <ostream>
 #include <algorithm>
 #include <migraph/rank.hpp>
+#include <migraph/config.hpp>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 
 template <class T>
 struct stream_range_container
@@ -54,6 +55,7 @@ void stream_write_value(std::ostream& os, const T& x)
     detail::stream_write_value_impl(rank<1>{}, os, x);
 }
 
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

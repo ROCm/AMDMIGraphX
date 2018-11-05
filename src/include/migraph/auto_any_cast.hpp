@@ -1,7 +1,8 @@
 #ifndef MIGRAPH_GUARD_RTGLIB_AUTO_ANY_CAST_HPP
 #define MIGRAPH_GUARD_RTGLIB_AUTO_ANY_CAST_HPP
+#include <migraph/config.hpp>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 
 namespace detail {
 
@@ -32,6 +33,7 @@ detail::auto_any_caster<T> auto_any_cast(T& x)
     return {x};
 }
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

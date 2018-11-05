@@ -31,5 +31,5 @@ literal abs(literal l)
     return transform(std::move(l), [](auto x) { return std::fabs(x); });
 }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

@@ -57,5 +57,5 @@ std::string target::name() const { return "miopen"; }
 
 migraph::context target::get_context() const { return context{}; }
 } // namespace gpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

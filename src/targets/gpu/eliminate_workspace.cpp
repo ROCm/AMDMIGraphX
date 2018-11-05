@@ -41,5 +41,5 @@ void eliminate_workspace::apply(program& p) const
 }
 
 } // namespace gpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

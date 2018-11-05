@@ -35,5 +35,5 @@ void cse_range(program& p, Range&& r)
 
 void common_subexpression_elimination::apply(program& p) const { cse_range(p, iterator_for(p)); }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

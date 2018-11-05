@@ -5,7 +5,8 @@
 #include <migraph/config.hpp>
 #include <migraph/gpu/context.hpp>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 namespace gpu {
 
@@ -17,7 +18,7 @@ struct fuse_ops
 };
 
 } // namespace gpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

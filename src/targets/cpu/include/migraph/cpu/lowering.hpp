@@ -4,7 +4,8 @@
 #include <migraph/program.hpp>
 #include <migraph/config.hpp>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace cpu {
 
 struct lowering
@@ -14,7 +15,7 @@ struct lowering
 };
 
 } // namespace cpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

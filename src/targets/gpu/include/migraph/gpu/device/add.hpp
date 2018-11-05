@@ -6,7 +6,8 @@
 #include <migraph/config.hpp>
 #include <hip/hip_runtime_api.h>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 namespace device {
 
@@ -20,7 +21,7 @@ void add(hipStream_t stream,
 
 } // namespace device
 } // namespace gpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

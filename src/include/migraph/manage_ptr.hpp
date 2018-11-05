@@ -5,7 +5,8 @@
 #include <type_traits>
 #include <migraph/config.hpp>
 
-namespace migraph { inline namespace MIGRAPH_INLINE_NS {
+namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 template <class F, F f> // NOLINT
 struct manage_deleter
@@ -50,7 +51,7 @@ shared<T> share(T p)
     return shared<T>{std::move(p)};
 }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #define MIGRAPH_MANAGE_PTR(T, F) \

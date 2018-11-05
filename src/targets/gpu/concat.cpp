@@ -24,5 +24,5 @@ argument hip_concat::compute(context& ctx,
 }
 
 } // namespace gpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

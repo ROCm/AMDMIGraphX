@@ -22,5 +22,5 @@ argument hip_mul::compute(context& ctx, const shape&, const std::vector<argument
 }
 
 } // namespace gpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

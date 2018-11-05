@@ -26,5 +26,5 @@ struct match_const_add
 
 void constant_propagate::apply(program& p) const { match::find_matches(p, match_const_add{}); }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

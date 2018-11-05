@@ -359,5 +359,5 @@ void live_interval::dump()
 
 #endif
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

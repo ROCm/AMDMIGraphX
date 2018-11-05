@@ -4,6 +4,7 @@
 #include <blaze/math/CustomMatrix.h>
 
 namespace migraph {
+namespace MIGRAPH_INLINE_NS {
 namespace cpu {
 
 template <class T>
@@ -93,5 +94,5 @@ void migemm(
 }
 
 } // namespace cpu
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

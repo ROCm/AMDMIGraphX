@@ -1,8 +1,10 @@
 #ifndef MIGRAPH_GUARD_RTGLIB_MEMORY_COLORING_IMPL_HPP
 #define MIGRAPH_GUARD_RTGLIB_MEMORY_COLORING_IMPL_HPP
 #include "common_header.hpp"
+#include <migraph/config.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 static const int invalid_offset = -1;
 
@@ -177,5 +179,7 @@ struct memory_coloring_impl
     bool unify_literals;
     std::string allocation_op{};
 };
+
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 #endif

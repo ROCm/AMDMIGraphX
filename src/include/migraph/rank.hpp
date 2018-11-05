@@ -1,7 +1,9 @@
 #ifndef MIGRAPH_GUARD_RTGLIB_RANK_HPP
 #define MIGRAPH_GUARD_RTGLIB_RANK_HPP
 
-namespace migraph {
+#include <migraph/config.hpp>
+
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 
 template <int N>
 struct rank : rank<N - 1>
@@ -13,6 +15,7 @@ struct rank<0>
 {
 };
 
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

@@ -9,8 +9,9 @@
 
 #include <migraph/errors.hpp>
 #include <migraph/half.hpp>
+#include <migraph/config.hpp>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 
 struct shape_impl;
 
@@ -161,6 +162,7 @@ struct shape
     std::string type_string() const;
 };
 
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

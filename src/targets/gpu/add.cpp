@@ -1,10 +1,12 @@
 #include <migraph/gpu/add.hpp>
 #include <migraph/operators.hpp>
 #include <migraph/manage_ptr.hpp>
+#include <migraph/config.hpp>
 #include <migraph/gpu/miopen.hpp>
 #include <utility>
 
 namespace migraph {
+namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 shape hip_add::compute_shape(const std::vector<shape>& inputs) const
@@ -49,5 +51,5 @@ argument miopen_add::compute(context& ctx,
 }
 
 } // namespace gpu
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

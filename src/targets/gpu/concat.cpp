@@ -6,6 +6,7 @@
 #include <utility>
 
 namespace migraph {
+namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 shape hip_concat::compute_shape(std::vector<shape> inputs) const
@@ -23,5 +24,5 @@ argument hip_concat::compute(context& ctx,
 }
 
 } // namespace gpu
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

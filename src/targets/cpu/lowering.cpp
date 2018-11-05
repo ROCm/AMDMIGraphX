@@ -10,6 +10,7 @@
 #include <utility>
 
 namespace migraph {
+namespace MIGRAPH_INLINE_NS {
 namespace cpu {
 
 template <typename T>
@@ -657,5 +658,5 @@ struct cpu_apply
 void lowering::apply(program& p) const { cpu_apply{&p}.apply(); }
 
 } // namespace cpu
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

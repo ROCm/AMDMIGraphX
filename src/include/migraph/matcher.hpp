@@ -6,9 +6,10 @@
 #include <migraph/instruction.hpp>
 #include <migraph/program.hpp>
 #include <migraph/iterator_for.hpp>
+#include <migraph/config.hpp>
 #include <unordered_map>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 
 namespace match {
 
@@ -338,7 +339,7 @@ inline auto either_arg(std::size_t i, std::size_t j)
 }
 
 } // namespace match
-
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

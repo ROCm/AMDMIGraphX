@@ -2,8 +2,9 @@
 #define MIGRAPH_GUARD_MIGRAPHLIB_REQUIRES_HPP
 
 #include <type_traits>
+#include <migraph/config.hpp>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 
 template <bool... Bs>
 struct and_ : std::is_same<and_<Bs...>, and_<(Bs || true)...>> // NOLINT
@@ -44,6 +45,7 @@ struct requires_enum
 #endif
 #endif
 
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

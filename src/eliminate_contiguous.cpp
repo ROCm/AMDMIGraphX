@@ -8,6 +8,7 @@
 #include <utility>
 
 namespace migraph {
+namespace MIGRAPH_INLINE_NS {
 
 bool try_compute_shape(const operation& op, const std::vector<instruction_ref>& args)
 {
@@ -46,4 +47,5 @@ void eliminate_contiguous::apply(program& p) const
     }
 }
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

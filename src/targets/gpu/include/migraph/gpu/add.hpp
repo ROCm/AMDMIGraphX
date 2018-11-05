@@ -15,9 +15,10 @@
 #include <migraph/iterator_for.hpp>
 #include <migraph/gpu/rocblas.hpp>
 #include <migraph/gpu/context.hpp>
+#include <migraph/config.hpp>
 #include <utility>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 struct hip_add
@@ -38,7 +39,7 @@ struct miopen_add
 };
 
 } // namespace gpu
-
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

@@ -14,9 +14,10 @@
 #include <migraph/operators.hpp>
 #include <migraph/ranges.hpp>
 #include <migraph/instruction.hpp>
+#include <migraph/config.hpp>
 
-namespace migraph {
-
+namespace migraph { 
+namespace MIGRAPH_INLINE_NS {
 struct unknown
 {
     std::string op;
@@ -625,4 +626,5 @@ program parse_onnx(const std::string& name)
     return std::move(parser.prog);
 }
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

@@ -3,8 +3,9 @@
 
 #include <string>
 #include <migraph/instruction_ref.hpp>
+#include <migraph/config.hpp>
 
-namespace migraph {
+namespace migraph { inline namespace MIGRAPH_INLINE_NS {
 struct program;
 
 struct memory_coloring
@@ -13,6 +14,8 @@ struct memory_coloring
     std::string name() const { return "memory coloring"; }
     void apply(program& p) const;
 };
+
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

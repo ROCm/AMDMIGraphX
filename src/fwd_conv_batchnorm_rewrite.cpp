@@ -6,7 +6,7 @@
 #include <migraph/dfor.hpp>
 
 namespace migraph {
-namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPH_INLINE_NS {
 
 void fwd_conv_batchnorm_rewrite::apply(program& p) const
 {
@@ -67,5 +67,5 @@ void fwd_conv_batchnorm_rewrite::apply(program& p) const
     }
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph

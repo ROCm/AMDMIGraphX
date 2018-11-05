@@ -8,7 +8,7 @@
 #include <migraph/pass_config.hpp>
 
 namespace migraph {
-namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPH_INLINE_NS {
 
 void eliminate_allocation::apply(program& p) const
 {
@@ -37,5 +37,5 @@ void eliminate_allocation::apply(program& p) const
     }
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph

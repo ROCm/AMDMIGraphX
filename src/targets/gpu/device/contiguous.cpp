@@ -3,7 +3,7 @@
 #include <migraph/gpu/device/nary.hpp>
 
 namespace migraph {
-namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 namespace device {
 
@@ -14,5 +14,5 @@ void contiguous(hipStream_t stream, argument result, argument arg)
 
 } // namespace device
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph

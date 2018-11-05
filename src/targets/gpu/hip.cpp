@@ -7,7 +7,7 @@
 #include <vector>
 
 namespace migraph {
-namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 using hip_ptr = MIGRAPH_MANAGE_PTR(void, hipFree);
@@ -110,5 +110,5 @@ void copy_to_gpu(argument src, argument dst)
 }
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph

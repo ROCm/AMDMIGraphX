@@ -382,5 +382,5 @@ void fuse_ops::apply(program& p) const
 }
 
 } // namespace gpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

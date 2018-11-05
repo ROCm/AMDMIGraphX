@@ -61,5 +61,5 @@ struct find_add_lit_broadcast
 
 void simplify_algebra::apply(program& p) const { match::find_matches(p, find_add_lit_broadcast{}); }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

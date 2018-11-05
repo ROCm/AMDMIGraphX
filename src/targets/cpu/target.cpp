@@ -15,5 +15,5 @@ std::vector<pass> target::get_passes(migraph::context&) const
 }
 
 } // namespace cpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

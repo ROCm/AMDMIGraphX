@@ -94,5 +94,5 @@ void migemm(
 }
 
 } // namespace cpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

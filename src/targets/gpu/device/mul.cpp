@@ -22,5 +22,5 @@ void mul(hipStream_t stream,
 
 } // namespace device
 } // namespace gpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

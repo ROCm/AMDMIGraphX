@@ -500,5 +500,5 @@ std::ostream& operator<<(std::ostream& os, const program& p)
     return os;
 }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

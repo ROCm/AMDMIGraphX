@@ -13,5 +13,5 @@ void memory_coloring::apply(program& p) const
     }
 }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

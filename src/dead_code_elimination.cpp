@@ -62,5 +62,5 @@ void dead_code_elimination::apply(program& p) const
     p.remove_instructions(std::next(last), p.end());
 }
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

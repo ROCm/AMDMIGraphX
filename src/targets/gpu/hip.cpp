@@ -110,5 +110,5 @@ void copy_to_gpu(argument src, argument dst)
 }
 
 } // namespace gpu
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

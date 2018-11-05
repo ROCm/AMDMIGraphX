@@ -95,7 +95,7 @@ void basic()
         std::size_t axis = 1;
         auto a4 =
             p.add_instruction(allocate{migraph::shape{migraph::shape::float_type, {1, 10, 8, 8}}});
-        auto p4 = p.add_instruction(concat(axis), p1, p2, p3, a4);
+        p.add_instruction(concat(axis), p1, p2, p3, a4);
         return p;
     };
     auto create_control_program = []() {
@@ -112,7 +112,7 @@ void basic()
             migraph::op::load{migraph::shape{migraph::shape::float_type, {1, 5, 8, 8}}, 1280},
             {a1});
         auto p3 = p.add_instruction(fred_op{}, l3);
-        auto p.add_instruction(migraph::op::identity{}, {a1, p1, p2, p3});
+        p.add_instruction(migraph::op::identity{}, {a1, p1, p2, p3});
         return p;
     };
 
@@ -139,7 +139,7 @@ void wont_work()
         std::size_t axis = 1;
         auto a4 =
             p.add_instruction(allocate{migraph::shape{migraph::shape::float_type, {2, 10, 8, 8}}});
-        auto p.add_instruction(concat(axis), p1, p2, p3, a4);
+        p.add_instruction(concat(axis), p1, p2, p3, a4);
         return p;
     };
     auto create_control_program = []() {

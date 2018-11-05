@@ -17,7 +17,7 @@
 #include <migraph/fwd_conv_batchnorm_rewrite.hpp>
 
 namespace migraph {
-namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 std::vector<pass> target::get_passes(migraph::context& gctx) const
@@ -57,5 +57,5 @@ std::string target::name() const { return "miopen"; }
 
 migraph::context target::get_context() const { return context{}; }
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // inline namespace MIGRAPH_INLINE_NS
 } // namespace migraph

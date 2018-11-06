@@ -169,7 +169,6 @@ void wont_work()
 
 int main()
 {
-    setenv("MIGRAPH_DISABLE_MEMORY_COLORING", "1", 1);
     basic();
     wont_work();
 }

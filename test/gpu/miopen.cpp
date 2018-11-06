@@ -709,11 +709,11 @@ struct test_concat_relu
         auto l0 = p.add_parameter("x", s0);
         auto l1 = p.add_parameter("y", s1);
         auto l2 = p.add_parameter("z", s2);
-        auto r0 = p.add_instruction(migraph::op::activation{"relu"}, l0);
-        auto r1 = p.add_instruction(migraph::op::activation{"relu"}, l1);
-        auto r2 = p.add_instruction(migraph::op::activation{"relu"}, l2);
+        auto r0 = p.add_instruction(migraph::op::relu{}, l0);
+        auto r1 = p.add_instruction(migraph::op::relu{}, l1);
+        auto r2 = p.add_instruction(migraph::op::relu{}, l2);
         auto c0 = p.add_instruction(migraph::op::concat{axis}, r0, r1, r2);
-        p.add_instruction(migraph::op::activation{"relu"}, c0);
+        p.add_instruction(migraph::op::relu{}, c0);
         return p;
     }
 };
@@ -748,11 +748,11 @@ void manual_test_concat_relu()
     auto l0 = p.add_literal(migraph::literal{s0, data0});
     auto l1 = p.add_literal(migraph::literal{s1, data1});
     auto l2 = p.add_literal(migraph::literal{s2, data2});
-    auto r0 = p.add_instruction(migraph::op::activation{"relu"}, l0);
-    auto r1 = p.add_instruction(migraph::op::activation{"relu"}, l1);
-    auto r2 = p.add_instruction(migraph::op::activation{"relu"}, l2);
+    auto r0 = p.add_instruction(migraph::op::relu{}, l0);
+    auto r1 = p.add_instruction(migraph::op::relu{}, l1);
+    auto r2 = p.add_instruction(migraph::op::relu{}, l2);
     auto c0 = p.add_instruction(migraph::op::concat{axis}, r0, r1, r2);
-    p.add_instruction(migraph::op::activation{"relu"}, c0);
+    p.add_instruction(migraph::op::relu{}, c0);
 
     p.compile(migraph::gpu::target{});
     migraph::program::parameter_map m;

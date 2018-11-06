@@ -697,6 +697,73 @@ struct test_concat2
     }
 };
 
+struct test_concat_relu
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        std::size_t axis = 0;
+        migraph::shape s0{migraph::shape::float_type, {2, 2}};
+        migraph::shape s1{migraph::shape::float_type, {3, 2}};
+        migraph::shape s2{migraph::shape::float_type, {1, 2}};
+        auto l0 = p.add_parameter("x", s0);
+        auto l1 = p.add_parameter("y", s1);
+        auto l2 = p.add_parameter("z", s2);
+        auto r0 = p.add_instruction(migraph::op::relu{}, l0);
+        auto r1 = p.add_instruction(migraph::op::relu{}, l1);
+        auto r2 = p.add_instruction(migraph::op::relu{}, l2);
+        auto c0 = p.add_instruction(migraph::op::concat{axis}, r0, r1, r2);
+        p.add_instruction(migraph::op::relu{}, c0);
+        return p;
+    }
+};
+
+void manual_identity()
+{
+    migraph::program p;
+    std::vector<float> data0 = {0, 1, 2, 3};
+    migraph::shape s0{migraph::shape::float_type, {2, 2}};
+    auto l0 = p.add_literal(migraph::literal{s0, data0});
+    p.add_instruction(migraph::op::identity{}, l0);
+    p.compile(migraph::gpu::target{});
+    migraph::program::parameter_map m;
+    for(auto&& x : p.get_parameter_shapes())
+    {
+        m[x.first] = migraph::gpu::to_gpu(migraph::generate_argument(x.second));
+    }
+    auto result = migraph::gpu::from_gpu(p.eval(m));
+    std::cout << result << std::endl;
+}
+
+void manual_test_concat_relu()
+{
+    migraph::program p;
+    std::size_t axis         = 0;
+    std::vector<float> data0 = {0, 1, 2, 3};
+    std::vector<float> data1 = {4, 5, 6, 7, 8, 9};
+    std::vector<float> data2 = {10, 11};
+    migraph::shape s0{migraph::shape::float_type, {2, 2}};
+    migraph::shape s1{migraph::shape::float_type, {3, 2}};
+    migraph::shape s2{migraph::shape::float_type, {1, 2}};
+    auto l0 = p.add_literal(migraph::literal{s0, data0});
+    auto l1 = p.add_literal(migraph::literal{s1, data1});
+    auto l2 = p.add_literal(migraph::literal{s2, data2});
+    auto r0 = p.add_instruction(migraph::op::relu{}, l0);
+    auto r1 = p.add_instruction(migraph::op::relu{}, l1);
+    auto r2 = p.add_instruction(migraph::op::relu{}, l2);
+    auto c0 = p.add_instruction(migraph::op::concat{axis}, r0, r1, r2);
+    p.add_instruction(migraph::op::relu{}, c0);
+
+    p.compile(migraph::gpu::target{});
+    migraph::program::parameter_map m;
+    for(auto&& x : p.get_parameter_shapes())
+    {
+        m[x.first] = migraph::gpu::to_gpu(migraph::generate_argument(x.second));
+    }
+    auto result = migraph::gpu::from_gpu(p.eval(m));
+    std::cout << result << std::endl;
+}
+
 struct test_conv_bn_relu_pooling2
 {
     static migraph::instruction_ref
@@ -737,6 +804,7 @@ int main()
 {
     verify_program<test_concat>();
     verify_program<test_concat2>();
+    verify_program<test_concat_relu>();
     verify_program<test_add>();
     verify_program<test_add_half>();
     verify_program<test_mul>();

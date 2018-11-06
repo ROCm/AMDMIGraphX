@@ -47,7 +47,7 @@ struct argument : raw_data<argument>
     shape m_shape;
 };
 
-} // namespace MIGRAPH_INLINE_NS 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

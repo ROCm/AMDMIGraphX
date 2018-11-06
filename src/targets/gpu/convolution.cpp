@@ -5,7 +5,7 @@
 #include <utility>
 
 namespace migraph {
-inline namespace version_1 {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 shape miopen_convolution::compute_shape(const std::vector<shape>& inputs) const
@@ -82,5 +82,5 @@ shape miopen_convolution::compile(context& ctx,
 }
 
 } // namespace gpu
-} // namespace version_1
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

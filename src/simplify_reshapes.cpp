@@ -7,7 +7,7 @@
 #include <unordered_set>
 
 namespace migraph {
-inline namespace version_1 {
+inline namespace MIGRAPH_INLINE_NS {
 
 bool is_reshaper(const std::string& name)
 {
@@ -60,5 +60,5 @@ void simplify_reshapes::apply(program& p) const
     }
 }
 
-} // namespace version_1
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

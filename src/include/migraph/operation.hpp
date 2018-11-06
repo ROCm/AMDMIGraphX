@@ -387,7 +387,7 @@ inline bool operator!=(const operation& x, const operation& y) { return !(x == y
 
 #endif
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

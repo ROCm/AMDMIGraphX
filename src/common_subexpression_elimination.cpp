@@ -8,7 +8,7 @@
 #include <unordered_set>
 
 namespace migraph {
-inline namespace version_1 {
+inline namespace MIGRAPH_INLINE_NS {
 
 template <class Range>
 void cse_range(program& p, Range&& r)
@@ -35,5 +35,5 @@ void cse_range(program& p, Range&& r)
 
 void common_subexpression_elimination::apply(program& p) const { cse_range(p, iterator_for(p)); }
 
-} // namespace version_1
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

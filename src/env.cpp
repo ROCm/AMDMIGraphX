@@ -3,7 +3,7 @@
 #include <cstdlib>
 
 namespace migraph {
-inline namespace version_1 {
+inline namespace MIGRAPH_INLINE_NS {
 
 bool enabled(const char* name)
 {
@@ -30,5 +30,5 @@ std::vector<std::string> env(const char* name)
         return {{p}};
 }
 
-} // namespace version_1
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

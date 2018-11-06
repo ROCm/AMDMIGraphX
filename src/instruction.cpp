@@ -3,7 +3,7 @@
 #include <migraph/erase.hpp>
 
 namespace migraph {
-inline namespace version_1 {
+inline namespace MIGRAPH_INLINE_NS {
 
 instruction::instruction(operation o, shape r, std::vector<instruction_ref> args)
     : op(std::move(o)), result(std::move(r)), arguments(std::move(args))
@@ -183,5 +183,5 @@ shape compute_shape(const operation& op, const std::vector<instruction_ref>& arg
     return op.compute_shape(compute_shapes(args));
 }
 
-} // namespace version_1
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

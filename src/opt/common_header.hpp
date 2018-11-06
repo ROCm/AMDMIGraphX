@@ -24,7 +24,7 @@ inline namespace MIGRAPH_INLINE_NS {
 #define MIGRAPH_DEBUG(s)
 #endif // MIGRAPH_DEBUG_OPT
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif // MIGRAPH_GUARD_RTGLIB_COMMON_HEADER_HPP

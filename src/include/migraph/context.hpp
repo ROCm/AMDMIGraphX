@@ -205,7 +205,7 @@ inline const ValueType& any_cast(const context& x)
 
 #endif
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

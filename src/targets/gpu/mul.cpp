@@ -5,7 +5,7 @@
 #include <utility>
 
 namespace migraph {
-inline namespace version_1 {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 shape hip_mul::compute_shape(const std::vector<shape>& inputs) const
@@ -22,5 +22,5 @@ argument hip_mul::compute(context& ctx, const shape&, const std::vector<argument
 }
 
 } // namespace gpu
-} // namespace version_1
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

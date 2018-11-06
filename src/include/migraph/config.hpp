@@ -3,7 +3,9 @@
 
 namespace migraph {
 
-#define MIGRAPH_INLINE_NS version_1
+#ifndef MIGRAPH_USE_CLANG_TIDY
+#define MIGRAPH_INLINE_NS version_1 // NOLINT
+#endif
 
 } // namespace migraph
 

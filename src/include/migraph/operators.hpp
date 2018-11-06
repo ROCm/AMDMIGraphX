@@ -280,6 +280,7 @@ struct transpose
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct contiguous
@@ -343,6 +344,7 @@ struct concat
         new_lens[axis] = new_dim_axis;
         return {type, new_lens};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct slice
@@ -424,6 +426,7 @@ struct slice
         auto offset = compute_offset(input.get_shape()) * output_shape.type_size();
         return {std::move(output_shape), [=] { return input.data() + offset; }};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct squeeze
@@ -471,6 +474,7 @@ struct squeeze
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct unsqueeze
@@ -509,6 +513,7 @@ struct unsqueeze
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct reshape
@@ -560,6 +565,7 @@ struct reshape
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct dot
@@ -702,6 +708,7 @@ struct flatten
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 struct broadcast
 {
@@ -744,6 +751,7 @@ struct broadcast
     {
         return {std::move(output_shape), std::move(args.at(0).data)};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct scalar
@@ -765,6 +773,7 @@ struct scalar
     {
         return {std::move(output_shape), std::move(args.at(0).data)};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct binary
@@ -817,6 +826,7 @@ struct load
     {
         return {s, args[0].data() + offset};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct outline

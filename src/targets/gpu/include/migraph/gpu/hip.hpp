@@ -67,6 +67,7 @@ struct hip_write
     {
         return to_gpu(args.front());
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct hip_copy
@@ -82,6 +83,7 @@ struct hip_copy
         copy_to_gpu(args[0], args[1]);
         return args[1];
     }
+    int output_alias(const std::vector<shape>&) const { return 1; }
 };
 } // namespace gpu
 } // namespace migraph

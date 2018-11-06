@@ -25,6 +25,7 @@ struct hip_mul
     std::string name() const { return "gpu::mul"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument compute(context&, const shape&, const std::vector<argument>& args) const;
+    int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
 };
 
 } // namespace gpu

@@ -12,7 +12,7 @@ inline namespace MIGRAPH_INLINE_NS {
 #define MIGRAPH_FALLTHROUGH
 #endif
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

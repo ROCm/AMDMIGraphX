@@ -5,7 +5,7 @@
 #include <utility>
 
 namespace migraph {
-inline namespace version_1 {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 shape miopen_batch_norm_inference::compute_shape(const std::vector<shape>& inputs) const
@@ -43,5 +43,5 @@ argument miopen_batch_norm_inference::compute(context& ctx,
 }
 
 } // namespace gpu
-} // namespace version_1
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

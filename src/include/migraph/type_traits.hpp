@@ -30,7 +30,7 @@ MIGRAPH_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, half)
 MIGRAPH_DETAIL_EXTEND_TRAIT_FOR(is_signed, half)
 MIGRAPH_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, half)
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

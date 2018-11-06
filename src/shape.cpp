@@ -7,7 +7,7 @@
 #include <iostream>
 
 namespace migraph {
-inline namespace version_1 {
+inline namespace MIGRAPH_INLINE_NS {
 
 struct shape_impl
 {
@@ -191,5 +191,5 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
     return os;
 }
 
-} // namespace version_1
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

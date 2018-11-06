@@ -4,7 +4,7 @@
 #include <migraph/auto_contiguous.hpp>
 
 namespace migraph {
-inline namespace version_1 {
+inline namespace MIGRAPH_INLINE_NS {
 namespace cpu {
 
 std::string target::name() const { return "cpu"; }
@@ -15,5 +15,5 @@ std::vector<pass> target::get_passes(migraph::context&) const
 }
 
 } // namespace cpu
-} // namespace version_1
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

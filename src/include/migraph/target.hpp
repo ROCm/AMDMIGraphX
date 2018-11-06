@@ -244,7 +244,7 @@ inline const ValueType& any_cast(const target& x)
 
 #endif
 
-} // inline namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

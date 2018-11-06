@@ -556,7 +556,7 @@ void relu_test()
     migraph::program p;
     migraph::shape s{migraph::shape::float_type, {3}};
     auto l = p.add_literal(migraph::literal{s, {-1.f, 0.f, 1.f}});
-    p.add_instruction(migraph::op::activation{"relu"}, l);
+    p.add_instruction(migraph::op::relu{}, l);
     p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);

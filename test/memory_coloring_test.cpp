@@ -78,7 +78,7 @@ void test3()
     auto p3 = add_alloc(p, {migraph::shape::float_type, {40}});
     p.add_instruction(pass_op{}, p3, p1);
     p.compile(memory_coloring_target{});
-    CHECK(p.get_parameter_shape("scratch").bytes() == 672);
+    CHECK(p.get_parameter_shape("scratch").bytes() == 704); // The optimal solution is actually 672
     CHECK(no_allocate(p));
 }
 
@@ -473,7 +473,7 @@ void test32()
     auto a5 = add_alloc(p, {migraph::shape::float_type, {40}});
     p.add_instruction(pass_op{}, a5, p1);
     p.compile(memory_coloring_target{});
-    CHECK(p.get_parameter_shape("scratch").bytes() == 480);
+    CHECK(p.get_parameter_shape("scratch").bytes() == 352);
     CHECK(no_allocate(p));
 }
 
@@ -532,7 +532,7 @@ void test36()
     auto p3     = p.add_instruction(pass_op{}, a4, p2);
     p.add_instruction(pass_op{}, output, p3);
     p.compile(memory_coloring_target{});
-    CHECK(p.get_parameter_shape("scratch").bytes() == 480);
+    CHECK(p.get_parameter_shape("scratch").bytes() == 320);
     CHECK(no_allocate(p));
 }
 
@@ -549,7 +549,7 @@ void test37()
     auto p3     = p.add_instruction(pass_op{}, a4, p2);
     p.add_instruction(pass_op{}, output, p3);
     p.compile(memory_coloring_target{});
-    CHECK(p.get_parameter_shape("scratch").bytes() == 480);
+    CHECK(p.get_parameter_shape("scratch").bytes() == 320);
     CHECK(no_allocate(p));
 }
 
@@ -594,7 +594,7 @@ void test38()
     auto p83    = p.add_instruction(pass_op{}, p78, p77);
     p.add_instruction(pass_op{}, output, p83, p63);
     p.compile(memory_coloring_target{});
-    CHECK(p.get_parameter_shape("scratch").bytes() == 8028160);
+    CHECK(p.get_parameter_shape("scratch").bytes() == 6422528);
     CHECK(no_allocate(p));
 }
 
@@ -627,7 +627,7 @@ int main()
     test15();
     test16();
     test17();
-    // test18();
+    test18();
     test19();
     test20();
     test21();
@@ -635,7 +635,7 @@ int main()
     test23();
     test24();
     test25();
-    // test26();
+    test26();
     test27();
     test28();
     test29();

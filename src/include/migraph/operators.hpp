@@ -223,22 +223,6 @@ struct pooling
     }
 };
 
-struct activation
-{
-    std::string mode;
-    std::string name() const { return "activation"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs, *this}.has(1);
-        return inputs.front();
-    }
-    friend std::ostream& operator<<(std::ostream& os, const activation& op)
-    {
-        os << op.name() << ":" << op.mode;
-        return os;
-    }
-};
-
 struct leaky_relu
 {
     std::string name() const { return "leaky_relu"; }
@@ -671,6 +655,11 @@ struct sigmoid : unary
 struct neg : unary
 {
     std::string name() const { return "neg"; }
+};
+
+struct relu : unary
+{
+    std::string name() const { return "relu"; }
 };
 
 struct softmax

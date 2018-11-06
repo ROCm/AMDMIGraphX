@@ -50,9 +50,9 @@ struct miopen_apply
             {
                 check_shape(s, apply_convolution(it));
             }
-            else if(it->name() == "activation")
+            else if(it->name() == "relu")
             {
-                check_shape(s, apply_activation(it));
+                check_shape(s, apply_relu(it));
             }
             else if(it->name() == "leaky_relu")
             {
@@ -131,17 +131,13 @@ struct miopen_apply
             ins, miopen_pooling{op, std::move(pd)}, ins->inputs().at(0), output);
     }
 
-    instruction_ref apply_activation(instruction_ref ins)
+    instruction_ref apply_relu(instruction_ref ins)
     {
-        auto&& op = any_cast<op::activation>(ins->get_operator());
-        auto ad   = make_relu();
-        if(op.mode == "relu")
-        {
-            auto output = insert_allocation(ins, ins->get_shape());
-            return prog->replace_instruction(
-                ins, miopen_relu{std::move(ad)}, ins->inputs().at(0), output);
-        }
-        return ins;
+        auto ad = make_relu();
+
+        auto output = insert_allocation(ins, ins->get_shape());
+        return prog->replace_instruction(
+            ins, miopen_relu{std::move(ad)}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_leaky_relu(instruction_ref ins)

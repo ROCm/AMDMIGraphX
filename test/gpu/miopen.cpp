@@ -158,7 +158,7 @@ struct test_literals
         auto weights = p.add_literal(
             generate_literal(migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}}));
         auto conv = p.add_instruction(migraph::op::convolution{}, input, weights);
-        p.add_instruction(migraph::op::activation{"relu"}, conv);
+        p.add_instruction(migraph::op::relu{}, conv);
         return p;
     }
 };
@@ -392,7 +392,7 @@ struct test_conv_relu
         auto weights =
             p.add_parameter("w", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
         auto conv = p.add_instruction(migraph::op::convolution{}, input, weights);
-        p.add_instruction(migraph::op::activation{"relu"}, conv);
+        p.add_instruction(migraph::op::relu{}, conv);
         return p;
     }
 };
@@ -406,7 +406,7 @@ struct test_conv_relu_half
         auto weights =
             p.add_parameter("w", migraph::shape{migraph::shape::half_type, {4, 3, 3, 3}});
         auto conv = p.add_instruction(migraph::op::convolution{}, input, weights);
-        p.add_instruction(migraph::op::activation{"relu"}, conv);
+        p.add_instruction(migraph::op::relu{}, conv);
         return p;
     }
 };
@@ -419,7 +419,7 @@ struct test_add_relu
         auto x   = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
         auto y   = p.add_parameter("y", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
         auto add = p.add_instruction(migraph::op::add{}, x, y);
-        p.add_instruction(migraph::op::activation{"relu"}, add);
+        p.add_instruction(migraph::op::relu{}, add);
         return p;
     }
 };
@@ -446,7 +446,7 @@ struct test_conv_pooling
             p.add_parameter("w", migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
         auto conv    = p.add_instruction(migraph::op::convolution{}, input, weights);
         auto pooling = p.add_instruction(migraph::op::pooling{"max"}, conv);
-        p.add_instruction(migraph::op::activation{"relu"}, pooling);
+        p.add_instruction(migraph::op::relu{}, pooling);
         return p;
     }
 };
@@ -657,7 +657,7 @@ struct test_conv_bn_relu_pooling
         auto variance = p.add_literal(migraph::abs(migraph::generate_literal(vars, 4)));
         auto bn       = p.add_instruction(
             migraph::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
-        auto relu = p.add_instruction(migraph::op::activation{"relu"}, bn);
+        auto relu = p.add_instruction(migraph::op::relu{}, bn);
         p.add_instruction(migraph::op::pooling{"average", {1, 1}, {2, 2}, {3, 3}}, relu);
         return p;
     }
@@ -794,7 +794,7 @@ struct test_conv_bn_relu_pooling2
         auto conv2 = p.add_instruction(migraph::op::convolution{{0, 0}, {2, 2}, {1, 1}}, x2, w2);
         auto bn2   = add_bn(p, conv2, 2048);
         auto add   = p.add_instruction(migraph::op::add{}, bn1, bn2);
-        auto relu  = p.add_instruction(migraph::op::activation{"relu"}, add);
+        auto relu  = p.add_instruction(migraph::op::relu{}, add);
         p.add_instruction(migraph::op::pooling{"average", {1, 1}, {2, 2}, {3, 3}}, relu);
         return p;
     }

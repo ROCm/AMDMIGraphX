@@ -52,7 +52,7 @@ struct onnx_parser
         add_generic_op("Div", op::div{});
         add_generic_op("MatMul", op::dot{});
         add_generic_op("Mul", op::mul{});
-        add_generic_op("Relu", op::activation{"relu"});
+        add_generic_op("Relu", op::relu{});
         add_generic_op("Sub", op::sub{});
         add_generic_op("Sum", op::add{});
 

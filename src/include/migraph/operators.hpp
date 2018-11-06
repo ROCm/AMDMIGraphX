@@ -603,9 +603,14 @@ struct unary
     }
 };
 
-struct identity : unary
+struct identity
 {
     std::string name() const { return "identity"; }
+    shape compute_shape(std::vector<shape> inputs) const { return inputs.at(0); }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        return {std::move(output_shape), std::move(args.at(0).data)};
+    }
 };
 
 struct abs : unary

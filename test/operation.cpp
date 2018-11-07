@@ -43,7 +43,7 @@ struct simple_operation_no_print
     }
 };
 
-void operation_copy_test()
+TEST_CASE(operation_copy_test)
 {
     simple_operation s{};
     migraph::operation op1 = s;   // NOLINT
@@ -54,7 +54,7 @@ void operation_copy_test()
     EXPECT(op2 == op1);
 }
 
-void operation_equal_test()
+TEST_CASE(operation_equal_test)
 {
     simple_operation s{};
     migraph::operation op1 = s;
@@ -72,7 +72,7 @@ struct not_operation
 {
 };
 
-void operation_any_cast()
+TEST_CASE(operation_any_cast)
 {
     migraph::operation op1 = simple_operation{};
     EXPECT(migraph::any_cast<simple_operation>(op1).data == 1);
@@ -83,7 +83,7 @@ void operation_any_cast()
     EXPECT(migraph::any_cast<not_operation*>(&op2) == nullptr);
 }
 
-void operation_print()
+TEST_CASE(operation_print)
 {
     migraph::operation op = simple_operation{};
     std::stringstream ss;
@@ -92,7 +92,7 @@ void operation_print()
     EXPECT(s == "simple[1]");
 }
 
-void operation_default_print()
+TEST_CASE(operation_default_print)
 {
     migraph::operation op = simple_operation_no_print{};
     std::stringstream ss;
@@ -101,11 +101,4 @@ void operation_default_print()
     EXPECT(s == "simple");
 }
 
-int main()
-{
-    operation_copy_test();
-    operation_equal_test();
-    operation_any_cast();
-    operation_print();
-    operation_default_print();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

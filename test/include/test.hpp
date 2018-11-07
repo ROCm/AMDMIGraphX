@@ -2,7 +2,10 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
+#include <unordered_map>
+#include <vector>
 
 #ifndef MIGRAPH_GUARD_TEST_TEST_HPP
 #define MIGRAPH_GUARD_TEST_TEST_HPP
@@ -154,11 +157,75 @@ bool throws(F f, const std::string& msg = "")
     }
 }
 
-template <class T>
-void run_test()
+using string_map = std::unordered_map<std::string, std::vector<std::string>>;
+
+template <class Keyword>
+string_map parse(std::vector<std::string> as, Keyword keyword)
 {
-    T t = {};
-    t.run();
+    string_map result;
+
+    std::string flag;
+    for(auto&& x : as)
+    {
+        auto f = keyword(x);
+        if(f.empty())
+        {
+            result[flag].push_back(x);
+        }
+        else
+        {
+            flag = f.front();
+            result[flag]; // Ensure the flag exists
+        }
+    }
+    return result;
+}
+
+inline auto& get_test_cases()
+{
+    static std::vector<std::pair<std::string, std::function<void()>>> cases;
+    return cases;
+}
+
+inline void add_test_case(std::string name, std::function<void()> f)
+{
+    get_test_cases().emplace_back(name, f);
+}
+
+struct auto_register
+{
+    template <class F>
+    auto_register(const char* name, F f) noexcept
+    {
+        add_test_case(name, f);
+    }
+};
+
+inline void run_test_case(const std::string& name, const std::function<void()>& f)
+{
+    std::cout << "[   RUN    ] " << name << std::endl;
+    f();
+    std::cout << "[ COMPLETE ] " << name << std::endl;
+}
+
+inline void run(int argc, const char* argv[])
+{
+    std::vector<std::string> as(argv + 1, argv + argc);
+
+    auto args  = parse(as, [](auto &&) -> std::vector<std::string> { return {}; });
+    auto cases = args[""];
+    if(cases.empty())
+    {
+        for(auto&& tc : get_test_cases())
+            run_test_case(tc.first, tc.second);
+    }
+    else
+    {
+        std::unordered_map<std::string, std::function<void()>> m(get_test_cases().begin(),
+                                                                 get_test_cases().end());
+        for(auto&& name : cases)
+            run_test_case(name, m[name]);
+    }
 }
 
 } // namespace test
@@ -178,5 +245,25 @@ void run_test()
                  &std::abort)
 // NOLINTNEXTLINE
 #define STATUS(...) EXPECT((__VA_ARGS__) == 0)
+
+// NOLINTNEXTLINE
+#define TEST_CAT(x, ...) TEST_PRIMITIVE_CAT(x, __VA_ARGS__)
+#define TEST_PRIMITIVE_CAT(x, ...) x##__VA_ARGS__
+
+// NOLINTNEXTLINE
+#define TEST_CASE_REGISTER(...)                                          \
+    static test::auto_register TEST_CAT(register_test_case_, __LINE__) = \
+        test::auto_register(#__VA_ARGS__, &__VA_ARGS__);
+
+// NOLINTNEXTLINE
+#define TEST_CASE(...)              \
+    void __VA_ARGS__();             \
+    TEST_CASE_REGISTER(__VA_ARGS__) \
+    void __VA_ARGS__()
+
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wglobal-constructors"
+#endif
 
 #endif

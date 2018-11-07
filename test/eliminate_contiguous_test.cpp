@@ -14,7 +14,7 @@ struct eliminate_contiguous_target
     migraph::context get_context() const { return {}; }
 };
 
-void standard_op()
+TEST_CASE(standard_op)
 {
     migraph::program p;
     auto l = p.add_literal(get_2x2());
@@ -26,7 +26,7 @@ void standard_op()
     EXPECT(std::distance(p.begin(), p.end()) == count);
 }
 
-void non_standard_op()
+TEST_CASE(non_standard_op)
 {
     migraph::program p;
     auto l = p.add_literal(get_2x2());
@@ -38,8 +38,4 @@ void non_standard_op()
     EXPECT(std::distance(p.begin(), p.end()) == (count - 1));
 }
 
-int main()
-{
-    standard_op();
-    non_standard_op();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -4,7 +4,7 @@
 #include <string>
 #include "test.hpp"
 
-void literal_test()
+TEST_CASE(literal_test)
 {
     EXPECT(migraph::literal{1} == migraph::literal{1});
     EXPECT(migraph::literal{1} != migraph::literal{2});
@@ -25,7 +25,7 @@ void literal_test()
     EXPECT(l4.empty());
 }
 
-void literal_os1()
+TEST_CASE(literal_os1)
 {
     migraph::literal l{1};
     std::stringstream ss;
@@ -33,7 +33,7 @@ void literal_os1()
     EXPECT(ss.str() == "1");
 }
 
-void literal_os2()
+TEST_CASE(literal_os2)
 {
     migraph::literal l{};
     std::stringstream ss;
@@ -41,7 +41,7 @@ void literal_os2()
     EXPECT(ss.str().empty());
 }
 
-void literal_os3()
+TEST_CASE(literal_os3)
 {
     migraph::shape s{migraph::shape::int64_type, {3}};
     migraph::literal l{s, {1, 2, 3}};
@@ -50,9 +50,11 @@ void literal_os3()
     EXPECT(ss.str() == "1, 2, 3");
 }
 
-int main()
-{
-    literal_test();
-    literal_os1();
-    literal_os2();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }
+
+// int main()
+// {
+//     literal_test();
+//     literal_os1();
+//     literal_os2();
+// }

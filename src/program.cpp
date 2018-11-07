@@ -11,6 +11,7 @@
 #include <utility>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_TRACE_COMPILE)
 MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_TRACE_EVAL)
@@ -498,4 +499,6 @@ std::ostream& operator<<(std::ostream& os, const program& p)
     print_program(os, p, [](auto&&...) {});
     return os;
 }
+
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

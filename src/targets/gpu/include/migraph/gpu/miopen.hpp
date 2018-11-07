@@ -4,8 +4,10 @@
 #include <migraph/manage_ptr.hpp>
 #include <migraph/operators.hpp>
 #include <miopen/miopen.h>
+#include <migraph/config.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 using miopen_handle          = MIGRAPH_MANAGE_PTR(miopenHandle_t, miopenDestroy);
@@ -115,7 +117,7 @@ inline fused_operator_args make_fused_args()
 }
 
 } // namespace gpu
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

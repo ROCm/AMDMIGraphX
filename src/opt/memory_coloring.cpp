@@ -2,6 +2,7 @@
 #include "memory_coloring_impl.hpp"
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 void memory_coloring::apply(program& p) const
 {
@@ -11,4 +12,6 @@ void memory_coloring::apply(program& p) const
         opt.run();
     }
 }
+
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

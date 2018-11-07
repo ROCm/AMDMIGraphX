@@ -3,8 +3,10 @@
 
 #include <string>
 #include <migraph/instruction_ref.hpp>
+#include <migraph/config.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 struct program;
 
 namespace gpu {
@@ -15,6 +17,7 @@ struct eliminate_workspace
     void apply(program& p) const;
 };
 } // namespace gpu
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

@@ -2,9 +2,11 @@
 #define MIGRAPH_GUARD_RTGLIB_FUSE_OPS_HPP
 
 #include <migraph/program.hpp>
+#include <migraph/config.hpp>
 #include <migraph/gpu/context.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 namespace gpu {
 
@@ -16,7 +18,7 @@ struct fuse_ops
 };
 
 } // namespace gpu
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

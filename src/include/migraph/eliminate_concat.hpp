@@ -4,8 +4,10 @@
 #include <string>
 #include <migraph/instruction_ref.hpp>
 #include <migraph/concat_opt.hpp>
+#include <migraph/config.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 struct program;
 
@@ -16,6 +18,7 @@ struct eliminate_concat
     void apply(program& p) const;
 };
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

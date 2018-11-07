@@ -43,7 +43,7 @@ bool no_allocate(const migraph::program& p)
     return std::none_of(p.begin(), p.end(), [](auto&& ins) { return ins.name() == "allocate"; });
 }
 
-void test1()
+TEST_CASE(test1)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -55,7 +55,7 @@ void test1()
     CHECK(no_allocate(p));
 }
 
-void test2()
+TEST_CASE(test2)
 {
     migraph::program p;
     auto input = p.add_parameter("input", migraph::shape{migraph::shape::float_type, {16}});
@@ -69,7 +69,7 @@ void test2()
     CHECK(no_allocate(p));
 }
 
-void test3()
+TEST_CASE(test3)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -82,7 +82,7 @@ void test3()
     CHECK(no_allocate(p));
 }
 
-void test4()
+TEST_CASE(test4)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {0}});
@@ -95,7 +95,7 @@ void test4()
     CHECK(no_allocate(p));
 }
 
-void test5()
+TEST_CASE(test5)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {40}});
@@ -107,7 +107,7 @@ void test5()
     CHECK(no_allocate(p));
 }
 
-void test6()
+TEST_CASE(test6)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -120,7 +120,7 @@ void test6()
     CHECK(no_allocate(p));
 }
 
-void test7()
+TEST_CASE(test7)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -133,7 +133,7 @@ void test7()
     CHECK(no_allocate(p));
 }
 
-void test8()
+TEST_CASE(test8)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -146,7 +146,7 @@ void test8()
     CHECK(no_allocate(p));
 }
 
-void test9()
+TEST_CASE(test9)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -159,7 +159,7 @@ void test9()
     CHECK(no_allocate(p));
 }
 
-void test10()
+TEST_CASE(test10)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -169,7 +169,7 @@ void test10()
     CHECK(no_allocate(p));
 }
 
-void test11()
+TEST_CASE(test11)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -183,7 +183,7 @@ void test11()
     CHECK(no_allocate(p));
 }
 
-void test12()
+TEST_CASE(test12)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {40}});
@@ -197,7 +197,7 @@ void test12()
     CHECK(no_allocate(p));
 }
 
-void test13()
+TEST_CASE(test13)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -211,7 +211,7 @@ void test13()
     CHECK(no_allocate(p));
 }
 
-void test14()
+TEST_CASE(test14)
 {
     migraph::program p;
     auto a3 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -225,7 +225,7 @@ void test14()
     CHECK(no_allocate(p));
 }
 
-void test15()
+TEST_CASE(test15)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -239,7 +239,7 @@ void test15()
     CHECK(no_allocate(p));
 }
 
-void test16()
+TEST_CASE(test16)
 {
     migraph::program p;
     auto a1 = p.add_literal(migraph::generate_literal({migraph::shape::float_type, {8}}));
@@ -253,7 +253,7 @@ void test16()
     CHECK(no_allocate(p));
 }
 
-void test17()
+TEST_CASE(test17)
 {
     migraph::program p;
     auto a3 = add_alloc(p, {migraph::shape::float_type, {40}});
@@ -267,7 +267,7 @@ void test17()
     CHECK(no_allocate(p));
 }
 
-void test18()
+TEST_CASE(test18)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -281,7 +281,7 @@ void test18()
     CHECK(no_allocate(p));
 }
 
-void test19()
+TEST_CASE(test19)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -295,7 +295,7 @@ void test19()
     CHECK(no_allocate(p));
 }
 
-void test20()
+TEST_CASE(test20)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {32}});
@@ -309,7 +309,7 @@ void test20()
     CHECK(no_allocate(p));
 }
 
-void test21()
+TEST_CASE(test21)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {32}});
@@ -323,7 +323,7 @@ void test21()
     CHECK(no_allocate(p));
 }
 
-void test22()
+TEST_CASE(test22)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {32}});
@@ -337,7 +337,7 @@ void test22()
     CHECK(no_allocate(p));
 }
 
-void test23()
+TEST_CASE(test23)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -351,7 +351,7 @@ void test23()
     CHECK(no_allocate(p));
 }
 
-void test24()
+TEST_CASE(test24)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {32}});
@@ -365,7 +365,7 @@ void test24()
     CHECK(no_allocate(p));
 }
 
-void test25()
+TEST_CASE(test25)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -379,7 +379,7 @@ void test25()
     CHECK(no_allocate(p));
 }
 
-void test26()
+TEST_CASE(test26)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -393,7 +393,7 @@ void test26()
     CHECK(no_allocate(p));
 }
 
-void test27()
+TEST_CASE(test27)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -405,7 +405,7 @@ void test27()
     CHECK(no_allocate(p));
 }
 
-void test28()
+TEST_CASE(test28)
 {
     migraph::program p;
     auto output = p.add_parameter("output", {migraph::shape::float_type, {8}});
@@ -419,7 +419,7 @@ void test28()
     CHECK(no_allocate(p));
 }
 
-void test29()
+TEST_CASE(test29)
 {
     migraph::program p;
     auto output = p.add_parameter("output", {migraph::shape::float_type, {8}});
@@ -434,7 +434,7 @@ void test29()
     CHECK(no_allocate(p));
 }
 
-void test30()
+TEST_CASE(test30)
 {
     migraph::program p;
     auto output = p.add_parameter("x", {migraph::shape::float_type, {8}});
@@ -449,7 +449,7 @@ void test30()
     CHECK(no_allocate(p));
 }
 
-void test31()
+TEST_CASE(test31)
 {
     migraph::program p;
     auto output = p.add_parameter("output", {migraph::shape::float_type, {8}});
@@ -463,7 +463,7 @@ void test31()
     CHECK(no_allocate(p));
 }
 
-void test32()
+TEST_CASE(test32)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -477,7 +477,7 @@ void test32()
     CHECK(no_allocate(p));
 }
 
-void test33()
+TEST_CASE(test33)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {8}});
@@ -491,7 +491,7 @@ void test33()
     CHECK(no_allocate(p));
 }
 
-void test34()
+TEST_CASE(test34)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {40}});
@@ -505,7 +505,7 @@ void test34()
     CHECK(no_allocate(p));
 }
 
-void test35()
+TEST_CASE(test35)
 {
     migraph::program p;
     auto a1 = add_alloc(p, {migraph::shape::float_type, {40}});
@@ -519,7 +519,7 @@ void test35()
     CHECK(no_allocate(p));
 }
 
-void test36()
+TEST_CASE(test36)
 {
     migraph::program p;
     auto output = p.add_parameter("output", {migraph::shape::float_type, {20}});
@@ -536,7 +536,7 @@ void test36()
     CHECK(no_allocate(p));
 }
 
-void test37()
+TEST_CASE(test37)
 {
     migraph::program p;
     auto output = p.add_parameter("output", {migraph::shape::float_type, {20}});
@@ -553,7 +553,7 @@ void test37()
     CHECK(no_allocate(p));
 }
 
-void test38()
+TEST_CASE(test38)
 {
     migraph::program p;
     auto output = p.add_parameter("output", {migraph::shape::float_type, {1, 64, 56, 56}});
@@ -598,7 +598,7 @@ void test38()
     CHECK(no_allocate(p));
 }
 
-void literal_test()
+TEST_CASE(literal_test)
 {
     migraph::program p;
     auto lit = generate_literal(migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
@@ -608,46 +608,4 @@ void literal_test()
     CHECK(lit == result);
 }
 
-int main()
-{
-    test1();
-    test2();
-    test3();
-    test4();
-    test5();
-    test6();
-    test7();
-    test8();
-    test9();
-    test10();
-    test11();
-    test12();
-    test13();
-    test14();
-    test15();
-    test16();
-    test17();
-    test18();
-    test19();
-    test20();
-    test21();
-    test22();
-    test23();
-    test24();
-    test25();
-    test26();
-    test27();
-    test28();
-    test29();
-    test30();
-    test31();
-    test32();
-    test33();
-    test34();
-    test35();
-    test36();
-    test37();
-    test38();
-
-    literal_test();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -7,7 +7,7 @@
 #include <migraph/verify.hpp>
 #include "test.hpp"
 
-void slice_test()
+TEST_CASE(slice_test)
 {
     {
         migraph::program p;
@@ -47,7 +47,7 @@ void slice_test()
     }
 }
 
-void concat_test()
+TEST_CASE(concat_test)
 {
     {
         migraph::program p;
@@ -97,7 +97,7 @@ void concat_test()
     }
 }
 
-void squeeze_test()
+TEST_CASE(squeeze_test)
 {
     {
         migraph::program p;
@@ -134,7 +134,7 @@ void squeeze_test()
     }
 }
 
-void unsqueeze_test()
+TEST_CASE(unsqueeze_test)
 {
     {
         migraph::program p;
@@ -160,7 +160,7 @@ void unsqueeze_test()
     }
 }
 
-void globalavgpool_test()
+TEST_CASE(globalavgpool_test)
 {
     migraph::program p;
     auto s     = migraph::shape{migraph::shape::float_type, {1, 3, 2, 2}};
@@ -180,7 +180,7 @@ void globalavgpool_test()
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 
-void globalmaxpool_test()
+TEST_CASE(globalmaxpool_test)
 {
     migraph::program p;
     auto s     = migraph::shape{migraph::shape::float_type, {1, 3, 2, 2}};
@@ -200,7 +200,7 @@ void globalmaxpool_test()
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 
-void im2col_3x3_no_pad_identity_test()
+TEST_CASE(im2col_3x3_no_pad_identity_test)
 {
     std::size_t f[2]    = {3, 3};
     std::size_t size[2] = {3, 3};
@@ -229,7 +229,7 @@ void im2col_3x3_no_pad_identity_test()
     EXPECT(migraph::verify_range(results_vector, input));
 }
 
-void im2col_3x3_no_pad_test()
+TEST_CASE(im2col_3x3_no_pad_test)
 {
     std::size_t f[2]    = {3, 3};
     std::size_t size[2] = {4, 4};
@@ -261,7 +261,7 @@ void im2col_3x3_no_pad_test()
     EXPECT(migraph::verify_range(results_vector, correct));
 }
 
-void im2col_3x3_stride_2_no_pad_test()
+TEST_CASE(im2col_3x3_stride_2_no_pad_test)
 {
     std::size_t f[2]    = {3, 3};
     std::size_t size[2] = {6, 6};
@@ -294,7 +294,7 @@ void im2col_3x3_stride_2_no_pad_test()
     EXPECT(migraph::verify_range(results_vector, correct));
 }
 
-void im2col_3x3_with_padding_test()
+TEST_CASE(im2col_3x3_with_padding_test)
 {
     std::size_t f[2]    = {3, 3};
     std::size_t size[2] = {2, 2};
@@ -326,7 +326,7 @@ void im2col_3x3_with_padding_test()
     EXPECT(migraph::verify_range(results_vector, correct));
 }
 
-void batch_norm_inference_test()
+TEST_CASE(batch_norm_inference_test)
 {
     migraph::program p;
     const size_t width = 2, height = 2, channels = 4, batches = 2;
@@ -366,7 +366,7 @@ void batch_norm_inference_test()
     EXPECT(migraph::verify_range(result_vector, gold));
 }
 
-void im2col_3x3_with_channels_identity_test()
+TEST_CASE(im2col_3x3_with_channels_identity_test)
 {
     std::size_t f[2]    = {3, 3};
     std::size_t size[2] = {3, 3};
@@ -395,7 +395,7 @@ void im2col_3x3_with_channels_identity_test()
     EXPECT(migraph::verify_range(results_vector, input));
 }
 
-void exp_test()
+TEST_CASE(exp_test)
 {
     migraph::program p;
     migraph::shape s{migraph::shape::float_type, {3}};
@@ -409,7 +409,7 @@ void exp_test()
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 
-void sin_test()
+TEST_CASE(sin_test)
 {
     migraph::program p;
     migraph::shape s{migraph::shape::float_type, {3}};
@@ -423,7 +423,7 @@ void sin_test()
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 
-void cos_test()
+TEST_CASE(cos_test)
 {
     migraph::program p;
     migraph::shape s{migraph::shape::float_type, {3}};
@@ -437,7 +437,7 @@ void cos_test()
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 
-void tan_test()
+TEST_CASE(tan_test)
 {
     migraph::program p;
     migraph::shape s{migraph::shape::float_type, {3}};
@@ -451,7 +451,7 @@ void tan_test()
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 
-void add_test()
+TEST_CASE(add_test)
 {
     migraph::program p;
     migraph::shape s{migraph::shape::float_type, {3}};
@@ -466,7 +466,7 @@ void add_test()
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 
-void broadcast_test()
+TEST_CASE(broadcast_test)
 {
     migraph::program p;
     migraph::shape a_shape{migraph::shape::int32_type, {2, 2}};
@@ -485,7 +485,7 @@ void broadcast_test()
     EXPECT(output(1, 0) == -3);
     EXPECT(output(1, 1) == -3);
 }
-void add_broadcast_test()
+TEST_CASE(add_broadcast_test)
 {
     migraph::program p;
     migraph::shape a_shape{migraph::shape::float_type, {2, 2, 3}};
@@ -506,7 +506,7 @@ void add_broadcast_test()
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 
-void sub_test()
+TEST_CASE(sub_test)
 {
     migraph::program p;
     migraph::shape s{migraph::shape::float_type, {3}};
@@ -521,7 +521,7 @@ void sub_test()
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 
-void mul_test()
+TEST_CASE(mul_test)
 {
     migraph::program p;
     migraph::shape s{migraph::shape::float_type, {3}};
@@ -536,7 +536,7 @@ void mul_test()
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 
-void div_test()
+TEST_CASE(div_test)
 {
     migraph::program p;
     migraph::shape s{migraph::shape::float_type, {3}};
@@ -551,7 +551,7 @@ void div_test()
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 
-void relu_test()
+TEST_CASE(relu_test)
 {
     migraph::program p;
     migraph::shape s{migraph::shape::float_type, {3}};
@@ -565,7 +565,7 @@ void relu_test()
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 
-void leaky_relu_test()
+TEST_CASE(leaky_relu_test)
 {
     migraph::program p;
     migraph::shape s{migraph::shape::float_type, {3}};
@@ -579,7 +579,7 @@ void leaky_relu_test()
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 
-void imagescaler_test()
+TEST_CASE(imagescaler_test)
 {
     migraph::program p;
     migraph::shape s{migraph::shape::float_type, {1, 3, 2, 2}};
@@ -626,7 +626,7 @@ void imagescaler_test()
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 
-void reshape_test()
+TEST_CASE(reshape_test)
 {
     migraph::shape a_shape{migraph::shape::float_type, {24, 1, 1, 1}};
     std::vector<float> data(24);
@@ -716,8 +716,10 @@ void gemm_test()
         EXPECT(std::abs(results_vector[i] - c[i]) < tol);
     }
 }
+TEST_CASE_REGISTER(gemm_test<float>)
+TEST_CASE_REGISTER(gemm_test<double>)
 
-void maxpool_test()
+TEST_CASE(maxpool_test)
 {
     migraph::program p;
     std::vector<float> a = {
@@ -763,7 +765,7 @@ void maxpool_test()
     p.add_instruction(migraph::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{3, 2}}}, al);
     p.compile(migraph::cpu::target{});
     auto result = p.eval({});
-    std::cout << result.get_shape() << std::endl;
+    // std::cout << result.get_shape() << std::endl;
     std::vector<float> results_vector(36);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     float tol = 1e-6;
@@ -774,7 +776,7 @@ void maxpool_test()
     }
 }
 
-void softmax_test()
+TEST_CASE(softmax_test)
 {
     migraph::program p;
     std::vector<float> a = {
@@ -833,7 +835,7 @@ void softmax_test()
     EXPECT(migraph::verify_range(results_vector, s));
 }
 
-void conv2d_test()
+TEST_CASE(conv2d_test)
 {
     migraph::program p;
     std::vector<float> a = {
@@ -896,7 +898,7 @@ void conv2d_test()
     EXPECT(migraph::verify_range(results_vector, s));
 }
 
-void conv2d_padding_test()
+TEST_CASE(conv2d_padding_test)
 {
     migraph::program p;
     std::vector<float> a = {
@@ -952,7 +954,7 @@ void conv2d_padding_test()
     EXPECT(migraph::verify_range(results_vector, s));
 }
 
-void conv2d_padding_stride_test()
+TEST_CASE(conv2d_padding_stride_test)
 {
     migraph::program p;
     std::vector<float> a = {
@@ -1013,7 +1015,7 @@ void conv2d_padding_stride_test()
     EXPECT(migraph::verify_range(results_vector, s));
 }
 
-void transpose_test()
+TEST_CASE(transpose_test)
 {
     migraph::shape a_shape{migraph::shape::float_type, {1, 2, 2, 3}};
     std::vector<float> data(12);
@@ -1048,7 +1050,7 @@ void transpose_test()
     }
 }
 
-void contiguous_test()
+TEST_CASE(contiguous_test)
 {
     migraph::shape a_shape{migraph::shape::float_type, {1, 3, 2, 2}, {12, 1, 6, 3}};
     std::vector<float> data(12);
@@ -1068,41 +1070,4 @@ void contiguous_test()
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 
-int main()
-{
-    concat_test();
-    slice_test();
-    squeeze_test();
-    unsqueeze_test();
-    exp_test();
-    sin_test();
-    cos_test();
-    tan_test();
-    add_test();
-    broadcast_test();
-    add_broadcast_test();
-    imagescaler_test();
-    sub_test();
-    mul_test();
-    div_test();
-    relu_test();
-    leaky_relu_test();
-    gemm_test<float>();
-    gemm_test<double>();
-    reshape_test();
-    transpose_test();
-    // contiguous_test();
-    softmax_test();
-    // maxpool_test();
-    conv2d_test();
-    conv2d_padding_test();
-    conv2d_padding_stride_test();
-    batch_norm_inference_test();
-    globalavgpool_test();
-    globalmaxpool_test();
-    im2col_3x3_no_pad_identity_test();
-    im2col_3x3_no_pad_test();
-    im2col_3x3_stride_2_no_pad_test();
-    im2col_3x3_with_channels_identity_test();
-    im2col_3x3_with_padding_test();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

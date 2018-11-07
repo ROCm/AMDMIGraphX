@@ -4,7 +4,7 @@
 #include <test.hpp>
 #include <rob.hpp>
 
-void simple_test()
+TEST_CASE(simple_test)
 {
     migraph::program p;
 
@@ -17,7 +17,7 @@ void simple_test()
     EXPECT(result != migraph::literal{4});
 }
 
-void out_of_order()
+TEST_CASE(out_of_order)
 {
     migraph::program p;
 
@@ -28,7 +28,7 @@ void out_of_order()
     EXPECT(bool{p.validate() == ins});
 }
 
-void incomplete_args()
+TEST_CASE(incomplete_args)
 {
     migraph::program p;
 
@@ -44,7 +44,7 @@ MIGRAPH_ROB(access_ins_arguments,
             migraph::instruction,
             arguments)
 
-void invalid_args()
+TEST_CASE(invalid_args)
 {
     migraph::program p;
 
@@ -55,10 +55,4 @@ void invalid_args()
     EXPECT(bool{p.validate() == p.begin()});
 }
 
-int main()
-{
-    simple_test();
-    out_of_order();
-    incomplete_args();
-    invalid_args();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

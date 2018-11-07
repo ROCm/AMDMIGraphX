@@ -193,7 +193,10 @@ inline void add_test_case(std::string name, std::function<void()> f)
 
 struct auto_register
 {
-    auto_register(std::string name, std::function<void()> f) { add_test_case(name, f); }
+    auto_register(std::string name, std::function<void()> f)
+    {
+        add_test_case(name, f);
+    }
 };
 
 inline void run_test_case(std::string name, std::function<void()> f)
@@ -207,18 +210,19 @@ inline void run(int argc, const char* argv[])
 {
     std::vector<std::string> as(argv + 1, argv + argc);
 
-    auto args  = parse(as, [](auto &&) -> std::vector<std::string> { return {}; });
+    auto args = parse(as, [](auto&&) -> std::vector<std::string> {
+        return {};
+    });
     auto cases = args[""];
     if(cases.empty())
     {
-        for(auto&& tc : get_test_cases())
+        for(auto&& tc:get_test_cases())
             run_test_case(tc.first, tc.second);
     }
     else
     {
-        std::unordered_map<std::string, std::function<void()>> m(get_test_cases().begin(),
-                                                                 get_test_cases().end());
-        for(auto&& name : cases)
+        std::unordered_map<std::string, std::function<void()>> m(get_test_cases().begin(), get_test_cases().end());
+        for(auto&& name:cases)
             run_test_case(name, m[name]);
     }
 }
@@ -241,11 +245,11 @@ inline void run(int argc, const char* argv[])
 // NOLINTNEXTLINE
 #define STATUS(...) EXPECT((__VA_ARGS__) == 0)
 
-#define TEST_CASE(...)                                   \
-    void __VA_ARGS__();                                  \
-    static test::auto_register __VA_ARGS__##_register =  \
-        test::auto_register(#__VA_ARGS__, &__VA_ARGS__); \
-    void __VA_ARGS__()
+// NOLINTNEXTLINE
+#define TEST_CASE(...) \
+    void __VA_ARGS__ (); \
+    static test::auto_register __VA_ARGS__ ## _register = test::auto_register(#__VA_ARGS__, &__VA_ARGS__); \
+    void __VA_ARGS__ ()
 
 #ifdef __clang__
 #pragma clang diagnostic push

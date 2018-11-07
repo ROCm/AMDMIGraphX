@@ -100,4 +100,8 @@ TEST_CASE(float_aligned)
     EXPECT(p.get_parameter_shape("memory").bytes() == (1 * 4 + 2 * 4 + 200 * 4));
 }
 
-int main(int argc, const char* argv[]) { setenv("MIGRAPH_DISABLE_MEMORY_COLORING", "1", 1); test::run(argc, argv); }
+int main(int argc, const char* argv[])
+{
+    setenv("MIGRAPH_DISABLE_MEMORY_COLORING", "1", 1);
+    test::run(argc, argv);
+}

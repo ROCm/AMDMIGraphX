@@ -194,10 +194,11 @@ inline void add_test_case(std::string name, std::function<void()> f)
 
 struct auto_register
 {
-    auto_register(std::string name, std::function<void()> f) { add_test_case(name, f); }
+    template<class F>
+    auto_register(const char * name, F f) noexcept { add_test_case(name, f); }
 };
 
-inline void run_test_case(std::string name, std::function<void()> f)
+inline void run_test_case(const std::string& name, const std::function<void()>& f)
 {
     std::cout << "[   RUN    ] " << name << std::endl;
     f();

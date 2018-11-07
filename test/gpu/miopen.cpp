@@ -508,6 +508,18 @@ struct test_gemm
     }
 };
 
+struct test_gemm_half
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto a = p.add_parameter("a", migraph::shape{migraph::shape::half_type, {4, 5}});
+        auto b = p.add_parameter("b", migraph::shape{migraph::shape::half_type, {5, 3}});
+        p.add_instruction(migraph::op::dot{}, a, b);
+        return p;
+    }
+};
+
 struct test_gemm_ld
 {
     migraph::program create_program() const
@@ -844,6 +856,7 @@ int main()
     verify_program<test_global_avg_pooling>();
     verify_program<test_global_max_pooling>();
     verify_program<test_gemm>();
+    verify_program<test_gemm_half>();
     // verify_program<test_gemm_ld>();
     verify_program<test_gemm_transposeb>();
     verify_program<test_gemm_transposea>();

@@ -14,7 +14,7 @@ struct simplify_reshapes_target
     migraph::context get_context() const { return {}; }
 };
 
-void double_contig()
+TEST_CASE(double_contig)
 {
     migraph::program p;
     auto l  = p.add_literal(get_2x2());
@@ -32,7 +32,7 @@ void double_contig()
     EXPECT(result == get_2x2());
 }
 
-void double_transpose()
+TEST_CASE(double_transpose)
 {
     migraph::program p;
     auto l  = p.add_literal(get_2x2());
@@ -49,7 +49,7 @@ void double_transpose()
     EXPECT(result == get_2x2());
 }
 
-void double_transpose_contig()
+TEST_CASE(double_transpose_contig)
 {
     migraph::program p;
     auto l  = p.add_literal(get_2x2());
@@ -68,7 +68,7 @@ void double_transpose_contig()
     EXPECT(result == get_2x2());
 }
 
-void single_transpose()
+TEST_CASE(single_transpose)
 {
     migraph::program p;
     auto l  = p.add_literal(get_2x2());
@@ -84,7 +84,7 @@ void single_transpose()
     EXPECT(result != get_2x2());
 }
 
-void double_transpose_sin_pass()
+TEST_CASE(double_transpose_sin_pass)
 {
     migraph::program p;
     auto l  = p.add_literal(get_2x2());
@@ -102,7 +102,7 @@ void double_transpose_sin_pass()
     EXPECT(result == get_2x2());
 }
 
-void single_transpose_sin_pass()
+TEST_CASE(single_transpose_sin_pass)
 {
     migraph::program p;
     auto l = p.add_literal(get_2x2());
@@ -117,12 +117,4 @@ void single_transpose_sin_pass()
     EXPECT(result != get_2x2());
 }
 
-int main()
-{
-    double_contig();
-    double_transpose();
-    double_transpose_contig();
-    single_transpose();
-    double_transpose_sin_pass();
-    single_transpose_sin_pass();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -32,7 +32,7 @@ struct allocate
     }
 };
 
-void basic()
+TEST_CASE(basic)
 {
     migraph::program p;
     auto a1 = p.add_instruction(allocate{migraph::shape{migraph::shape::float_type, {8}}});
@@ -49,7 +49,7 @@ void basic()
     EXPECT(p.get_parameter_shape("memory").bytes() == (8 * 4 + 40 * 4 + 200 * 4));
 }
 
-void aligned()
+TEST_CASE(aligned)
 {
     migraph::program p;
     auto a1 = p.add_instruction(allocate{migraph::shape{migraph::shape::float_type, {1}}});
@@ -66,7 +66,7 @@ void aligned()
     EXPECT(p.get_parameter_shape("memory").bytes() == (32 + 32 + 200 * 4));
 }
 
-void unaligned()
+TEST_CASE(unaligned)
 {
     migraph::program p;
     auto a1 = p.add_instruction(allocate{migraph::shape{migraph::shape::float_type, {1}}});
@@ -83,7 +83,7 @@ void unaligned()
     EXPECT(p.get_parameter_shape("memory").bytes() == (1 * 4 + 2 * 4 + 200 * 4));
 }
 
-void float_aligned()
+TEST_CASE(float_aligned)
 {
     migraph::program p;
     auto a1 = p.add_instruction(allocate{migraph::shape{migraph::shape::float_type, {1}}});
@@ -100,11 +100,4 @@ void float_aligned()
     EXPECT(p.get_parameter_shape("memory").bytes() == (1 * 4 + 2 * 4 + 200 * 4));
 }
 
-int main()
-{
-    setenv("MIGRAPH_DISABLE_MEMORY_COLORING", "1", 1);
-    basic();
-    aligned();
-    unaligned();
-    float_aligned();
-}
+int main(int argc, const char* argv[]) { setenv("MIGRAPH_DISABLE_MEMORY_COLORING", "1", 1); test::run(argc, argv); }

@@ -132,6 +132,8 @@ MIGRAPH_PRED_MATCHER(fusable_conv, instruction_ref ins)
 {
     if(ins->name() != "gpu::convolution")
         return false;
+    if(ins->get_shape().type() != shape::float_type)
+        return false;
     auto wei = ins->inputs().at(1)->get_shape();
     assert(wei.lens().size() == 4);
     auto conv = any_cast<miopen_convolution>(ins->get_operator());

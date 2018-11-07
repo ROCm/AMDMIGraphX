@@ -14,6 +14,7 @@ struct contiguous_target
     migraph::context get_context() const { return {}; }
 };
 
+// TODO: Add this test case
 void literal_broadcast()
 {
     migraph::program p;
@@ -25,7 +26,7 @@ void literal_broadcast()
     EXPECT(not p.get_shape().broadcasted());
 }
 
-void literal_transpose()
+TEST_CASE(literal_transpose)
 {
     migraph::program p;
     p.add_literal(get_2x2_transposed());
@@ -36,7 +37,7 @@ void literal_transpose()
     EXPECT(not p.get_shape().transposed());
 }
 
-void after_literal_transpose()
+TEST_CASE(after_literal_transpose)
 {
     migraph::program p;
     auto l = p.add_literal(get_2x2());
@@ -51,7 +52,7 @@ void after_literal_transpose()
     EXPECT(not p.get_shape().transposed());
 }
 
-void after_literal_broadcast()
+TEST_CASE(after_literal_broadcast)
 {
     migraph::program p;
     auto l1 = p.add_literal(get_2x2());
@@ -67,7 +68,7 @@ void after_literal_broadcast()
     EXPECT(not p.get_shape().broadcasted());
 }
 
-void after_param_transpose()
+TEST_CASE(after_param_transpose)
 {
     migraph::program p;
     auto l = p.add_parameter("2x2", {migraph::shape::float_type, {2, 2}});
@@ -82,7 +83,7 @@ void after_param_transpose()
     EXPECT(not p.get_shape().transposed());
 }
 
-void after_param_broadcast()
+TEST_CASE(after_param_broadcast)
 {
     migraph::program p;
     auto l1 = p.add_parameter("2x2", {migraph::shape::float_type, {2, 2}});
@@ -98,12 +99,4 @@ void after_param_broadcast()
     EXPECT(not p.get_shape().broadcasted());
 }
 
-int main()
-{
-    // literal_broadcast();
-    literal_transpose();
-    after_literal_transpose();
-    after_literal_broadcast();
-    after_param_transpose();
-    after_param_broadcast();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

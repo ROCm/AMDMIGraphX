@@ -3,7 +3,7 @@
 #include <migraph/literal.hpp>
 #include <migraph/operators.hpp>
 #include <migraph/instruction.hpp>
-#include <migraph/cpu/cpu_target.hpp>
+#include <migraph/cpu/target.hpp>
 #include <migraph/verify.hpp>
 #include "test.hpp"
 
@@ -18,7 +18,7 @@ void slice_test()
         p.add_instruction(migraph::op::slice{{2}, {1}, {3}}, l0);
         migraph::shape s2{migraph::shape::int32_type, {2, 2, 2}, {6, 3, 1}};
         EXPECT(p.get_shape() == s2);
-        p.compile(migraph::cpu::cpu_target{});
+        p.compile(migraph::cpu::target{});
         migraph::shape sresult{migraph::shape::int32_type, {2, 2, 2}, {4, 2, 1}};
         auto result           = p.eval({});
         std::vector<int> gold = {1, 2, 4, 5, 7, 8, 10, 11};
@@ -36,7 +36,7 @@ void slice_test()
         p.add_instruction(migraph::op::slice{{0, 1, 2}, {0, 0, 0}, {2, 2, 2}}, l0);
         migraph::shape s2{migraph::shape::int32_type, {2, 2, 2}, {6, 3, 1}};
         EXPECT(p.get_shape() == s2);
-        p.compile(migraph::cpu::cpu_target{});
+        p.compile(migraph::cpu::target{});
         migraph::shape sresult{migraph::shape::int32_type, {2, 2, 2}, {4, 2, 1}};
         auto result           = p.eval({});
         std::vector<int> gold = {0, 1, 3, 4, 6, 7, 9, 10};
@@ -62,7 +62,7 @@ void concat_test()
         auto l1 = p.add_literal(migraph::literal{s1, data1});
         auto l2 = p.add_literal(migraph::literal{s2, data2});
         p.add_instruction(migraph::op::concat{axis}, l0, l1, l2);
-        p.compile(migraph::cpu::cpu_target{});
+        p.compile(migraph::cpu::target{});
         auto result           = p.eval({});
         std::vector<int> gold = {0, 1, 2, 3, 4, 10, 5, 6, 7, 8, 9, 20};
         std::vector<int> results_vector(2 * 6);
@@ -85,7 +85,7 @@ void concat_test()
         auto l1 = p.add_literal(migraph::literal{s1, data1});
         auto l2 = p.add_literal(migraph::literal{s2, data2});
         p.add_instruction(migraph::op::concat{axis}, l0, l1, l2);
-        p.compile(migraph::cpu::cpu_target{});
+        p.compile(migraph::cpu::target{});
         auto result           = p.eval({});
         std::vector<int> gold = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
         std::vector<int> results_vector(6 * 2);
@@ -106,7 +106,7 @@ void squeeze_test()
         migraph::shape s2{migraph::shape::float_type, {4, 3, 1, 3}};
         auto l0 = p.add_literal(migraph::literal{s1, data});
         p.add_instruction(migraph::op::squeeze{{1}}, l0);
-        p.compile(migraph::cpu::cpu_target{});
+        p.compile(migraph::cpu::target{});
         auto result = p.eval({});
         EXPECT(result.get_shape() == s2);
     }
@@ -117,7 +117,7 @@ void squeeze_test()
         migraph::shape s2{migraph::shape::float_type, {4, 1, 3, 3}};
         auto l0 = p.add_literal(migraph::literal{s1, data});
         p.add_instruction(migraph::op::squeeze{{3}}, l0);
-        p.compile(migraph::cpu::cpu_target{});
+        p.compile(migraph::cpu::target{});
         auto result = p.eval({});
         EXPECT(result.get_shape() == s2);
     }
@@ -128,7 +128,7 @@ void squeeze_test()
         migraph::shape s2{migraph::shape::float_type, {4, 3, 3}};
         auto l0 = p.add_literal(migraph::literal{s1, data});
         p.add_instruction(migraph::op::squeeze{}, l0);
-        p.compile(migraph::cpu::cpu_target{});
+        p.compile(migraph::cpu::target{});
         auto result = p.eval({});
         EXPECT(result.get_shape() == s2);
     }
@@ -143,7 +143,7 @@ void unsqueeze_test()
         migraph::shape s2{migraph::shape::float_type, {4, 1, 3, 3}};
         auto l0 = p.add_literal(migraph::literal{s1, data});
         p.add_instruction(migraph::op::unsqueeze{{1}}, l0);
-        p.compile(migraph::cpu::cpu_target{});
+        p.compile(migraph::cpu::target{});
         auto result = p.eval({});
         EXPECT(result.get_shape() == s2);
     }
@@ -154,10 +154,50 @@ void unsqueeze_test()
         migraph::shape s2{migraph::shape::float_type, {4, 3, 1, 3}};
         auto l0 = p.add_literal(migraph::literal{s1, data});
         p.add_instruction(migraph::op::unsqueeze{{2}}, l0);
-        p.compile(migraph::cpu::cpu_target{});
+        p.compile(migraph::cpu::target{});
         auto result = p.eval({});
         EXPECT(result.get_shape() == s2);
     }
+}
+
+void globalavgpool_test()
+{
+    migraph::program p;
+    auto s     = migraph::shape{migraph::shape::float_type, {1, 3, 2, 2}};
+    auto op    = migraph::op::pooling{"average"};
+    auto lens  = s.lens();
+    op.lengths = {lens[2], lens[3]};
+
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+    auto l0 = p.add_literal(migraph::literal{s, data});
+    p.add_instruction(op, l0);
+    p.compile(migraph::cpu::target{});
+    auto result = p.eval({});
+
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0.25, 0.575, 0.375};
+    EXPECT(migraph::verify_range(results_vector, gold));
+}
+
+void globalmaxpool_test()
+{
+    migraph::program p;
+    auto s     = migraph::shape{migraph::shape::float_type, {1, 3, 2, 2}};
+    auto op    = migraph::op::pooling{"max"};
+    auto lens  = s.lens();
+    op.lengths = {lens[2], lens[3]};
+
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+    auto l0 = p.add_literal(migraph::literal{s, data});
+    p.add_instruction(op, l0);
+    p.compile(migraph::cpu::target{});
+    auto result = p.eval({});
+
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0.4, 0.9, 0.7};
+    EXPECT(migraph::verify_range(results_vector, gold));
 }
 
 void im2col_3x3_no_pad_identity_test()
@@ -179,7 +219,7 @@ void im2col_3x3_no_pad_identity_test()
     auto l_image   = p.add_literal(migraph::literal{s_image, input});
     auto l_weights = p.add_literal(migraph::literal{s_weights, weights});
     p.add_instruction(migraph::op::im2col{padding, stride, dilation}, l_image, l_weights);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
 
     std::size_t col_height = (size[0] - f[0] + 2 * padding[0]) / stride[0] + 1;
@@ -208,7 +248,7 @@ void im2col_3x3_no_pad_test()
     auto l_image   = p.add_literal(migraph::literal{s_image, input});
     auto l_weights = p.add_literal(migraph::literal{s_weights, weights});
     p.add_instruction(migraph::op::im2col{padding, stride, dilation}, l_image, l_weights);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
 
     std::vector<int> correct = {0, 1, 2, 4, 5, 6,  8,  9,  10, 1, 2, 3, 5, 6,  7,  9,  10, 11,
@@ -240,7 +280,7 @@ void im2col_3x3_stride_2_no_pad_test()
     auto l_image   = p.add_literal(migraph::literal{s_image, input});
     auto l_weights = p.add_literal(migraph::literal{s_weights, weights});
     p.add_instruction(migraph::op::im2col{padding, stride, dilation}, l_image, l_weights);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
 
     std::vector<int> correct = {0,  1,  2,  6,  7,  8,  12, 13, 14, 2,  3,  4,
@@ -273,7 +313,7 @@ void im2col_3x3_with_padding_test()
     auto l_image   = p.add_literal(migraph::literal{s_image, input});
     auto l_weights = p.add_literal(migraph::literal{s_weights, weights});
     p.add_instruction(migraph::op::im2col{padding, stride, dilation}, l_image, l_weights);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
 
     std::vector<int> correct = {0, 0, 0, 0, 0, 1, 0, 2, 3, 0, 0, 0, 0, 1, 0, 2, 3, 0,
@@ -315,7 +355,7 @@ void batch_norm_inference_test()
     auto variance = p.add_literal(migraph::literal{vars, variance_data});
 
     p.add_instruction(migraph::op::batch_norm_inference{}, x, scale, bias, mean, variance);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
 
     std::vector<float> result_vector(width * height * channels * batches);
@@ -345,7 +385,7 @@ void im2col_3x3_with_channels_identity_test()
     auto l_image   = p.add_literal(migraph::literal{s_image, input});
     auto l_weights = p.add_literal(migraph::literal{s_weights, weights});
     p.add_instruction(migraph::op::im2col{padding, stride, dilation}, l_image, l_weights);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
 
     std::size_t col_height = (size[0] - f[0] + 2 * padding[0]) / stride[0] + 1;
@@ -361,7 +401,7 @@ void exp_test()
     migraph::shape s{migraph::shape::float_type, {3}};
     auto l = p.add_literal(migraph::literal{s, {-1, 0, 1}});
     p.add_instruction(migraph::op::exp{}, l);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -375,7 +415,7 @@ void sin_test()
     migraph::shape s{migraph::shape::float_type, {3}};
     auto l = p.add_literal(migraph::literal{s, {-1, 0, 1}});
     p.add_instruction(migraph::op::sin{}, l);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -389,7 +429,7 @@ void cos_test()
     migraph::shape s{migraph::shape::float_type, {3}};
     auto l = p.add_literal(migraph::literal{s, {-1, 0, 1}});
     p.add_instruction(migraph::op::cos{}, l);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -403,7 +443,7 @@ void tan_test()
     migraph::shape s{migraph::shape::float_type, {3}};
     auto l = p.add_literal(migraph::literal{s, {-1, 0, 1}});
     p.add_instruction(migraph::op::tan{}, l);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -418,7 +458,7 @@ void add_test()
     auto l1 = p.add_literal(migraph::literal{s, {-1, 0, 1}});
     auto l2 = p.add_literal(migraph::literal{s, {1, 2, 3}});
     p.add_instruction(migraph::op::add{}, l1, l2);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -437,7 +477,7 @@ void broadcast_test()
     auto l1       = p.add_literal(migraph::literal{a_shape, a_data});
     auto l2       = p.add_literal(migraph::literal{b_shape, b_data});
     p.add_instruction(migraph::op::broadcast{axis, l1->get_shape()}, l2);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     auto output = result.get<int32_t>();
     EXPECT(output(0, 0) == -2);
@@ -457,7 +497,7 @@ void add_broadcast_test()
     auto l2       = p.add_literal(migraph::literal{b_shape, b_data});
     auto l3       = p.add_instruction(migraph::op::broadcast{axis, l1->get_shape()}, l2);
     p.add_instruction(migraph::op::add{}, l1, l3);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     EXPECT(result.get_shape().packed());
     std::vector<float> results_vector(12);
@@ -473,7 +513,7 @@ void sub_test()
     auto l1 = p.add_literal(migraph::literal{s, {-1, 0, 1}});
     auto l2 = p.add_literal(migraph::literal{s, {1, 2, 3}});
     p.add_instruction(migraph::op::sub{}, l1, l2);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -488,7 +528,7 @@ void mul_test()
     auto l1 = p.add_literal(migraph::literal{s, {-1, 0, 1}});
     auto l2 = p.add_literal(migraph::literal{s, {1, 2, 3}});
     p.add_instruction(migraph::op::mul{}, l1, l2);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -503,7 +543,7 @@ void div_test()
     auto l1 = p.add_literal(migraph::literal{s, {-1.0f, 0.5f, 1.0f}});
     auto l2 = p.add_literal(migraph::literal{s, {1.0f, 2.0f, 4.0f}});
     p.add_instruction(migraph::op::div{}, l1, l2);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -516,8 +556,8 @@ void relu_test()
     migraph::program p;
     migraph::shape s{migraph::shape::float_type, {3}};
     auto l = p.add_literal(migraph::literal{s, {-1.f, 0.f, 1.f}});
-    p.add_instruction(migraph::op::activation{"relu"}, l);
-    p.compile(migraph::cpu::cpu_target{});
+    p.add_instruction(migraph::op::relu{}, l);
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -531,7 +571,7 @@ void leaky_relu_test()
     migraph::shape s{migraph::shape::float_type, {3}};
     auto l = p.add_literal(migraph::literal{s, {-1.f, 0.f, 1.f}});
     p.add_instruction(migraph::op::leaky_relu{0.01}, l);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -565,7 +605,7 @@ void imagescaler_test()
         migraph::literal{migraph::shape{migraph::shape::float_type, {3}}, {0.01, 0.02, 0.03}});
     auto bias_bcast = p.add_instruction(migraph::op::broadcast{1, s}, bias_vals);
     p.add_instruction(migraph::op::add{}, img_scaled, bias_bcast);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -596,7 +636,7 @@ void reshape_test()
         auto l                         = p.add_literal(migraph::literal{a_shape, data});
         std::vector<int64_t> new_shape = {8, 3, 1, 1};
         p.add_instruction(migraph::op::reshape{new_shape}, l);
-        p.compile(migraph::cpu::cpu_target{});
+        p.compile(migraph::cpu::target{});
         auto result = p.eval({});
         std::vector<float> results_vector(3);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -607,7 +647,7 @@ void reshape_test()
         auto l                         = p.add_literal(migraph::literal{a_shape, data});
         std::vector<int64_t> new_shape = {1, 3, 4, 2};
         p.add_instruction(migraph::op::reshape{new_shape}, l);
-        p.compile(migraph::cpu::cpu_target{});
+        p.compile(migraph::cpu::target{});
         auto result = p.eval({});
         std::vector<float> results_vector(3);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -618,7 +658,7 @@ void reshape_test()
         auto l                         = p.add_literal(migraph::literal{a_shape, data});
         std::vector<int64_t> new_shape = {1, 3, 4, 2};
         p.add_instruction(migraph::op::reshape{new_shape}, l);
-        p.compile(migraph::cpu::cpu_target{});
+        p.compile(migraph::cpu::target{});
         auto result = p.eval({});
         std::vector<float> results_vector(3);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -666,7 +706,7 @@ void gemm_test()
     migraph::shape b_shape{migraph::shape::get_type<T>{}, {5, 3}};
     auto bl = p.add_literal(migraph::literal{b_shape, b});
     p.add_instruction(migraph::op::dot{}, al, bl);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     std::vector<T> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -721,7 +761,7 @@ void maxpool_test()
     migraph::shape a_shape{migraph::shape::float_type, {2, 3, 6, 6}};
     auto al = p.add_literal(migraph::literal{a_shape, a});
     p.add_instruction(migraph::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{3, 2}}}, al);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     std::cout << result.get_shape() << std::endl;
     std::vector<float> results_vector(36);
@@ -786,7 +826,7 @@ void softmax_test()
     migraph::shape a_shape{migraph::shape::float_type, {5, 3, 4, 2}};
     auto al = p.add_literal(migraph::literal{a_shape, a});
     p.add_instruction(migraph::op::softmax{}, al);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     std::vector<float> results_vector(120);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -848,7 +888,7 @@ void conv2d_test()
     auto cl = p.add_literal(migraph::literal{c_shape, c});
 
     p.add_instruction(migraph::op::convolution{}, al, cl);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
 
     std::vector<float> results_vector(16);
@@ -904,7 +944,7 @@ void conv2d_padding_test()
     auto cl = p.add_literal(migraph::literal{c_shape, c});
 
     p.add_instruction(migraph::op::convolution{{{1, 1}}, {{1, 1}}}, al, cl);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
 
     std::vector<float> results_vector(64);
@@ -965,7 +1005,7 @@ void conv2d_padding_stride_test()
     auto cl = p.add_literal(migraph::literal{c_shape, c});
 
     p.add_instruction(migraph::op::convolution{{{1, 1}}, {{2, 2}}}, al, cl);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
 
     std::vector<float> results_vector(16);
@@ -984,7 +1024,7 @@ void transpose_test()
         auto l                    = p.add_literal(migraph::literal{a_shape, data});
         std::vector<int64_t> perm = {0, 3, 1, 2};
         p.add_instruction(migraph::op::transpose{perm}, l);
-        p.compile(migraph::cpu::cpu_target{});
+        p.compile(migraph::cpu::target{});
         auto result = p.eval({});
 
         result.visit([&](auto output) {
@@ -998,7 +1038,7 @@ void transpose_test()
         std::vector<int64_t> perm = {0, 3, 1, 2};
         auto result               = p.add_instruction(migraph::op::transpose{perm}, l);
         p.add_instruction(migraph::op::contiguous{}, result);
-        p.compile(migraph::cpu::cpu_target{});
+        p.compile(migraph::cpu::target{});
         auto result2 = p.eval({});
 
         std::vector<float> results_vector(12);
@@ -1017,7 +1057,7 @@ void contiguous_test()
     migraph::program p;
     auto l = p.add_literal(migraph::literal{a_shape, data});
     p.add_instruction(migraph::op::contiguous{}, l);
-    p.compile(migraph::cpu::cpu_target{});
+    p.compile(migraph::cpu::target{});
     auto result = p.eval({});
 
     std::vector<float> results_vector(12);
@@ -1058,6 +1098,8 @@ int main()
     conv2d_padding_test();
     conv2d_padding_stride_test();
     batch_norm_inference_test();
+    globalavgpool_test();
+    globalmaxpool_test();
     im2col_3x3_no_pad_identity_test();
     im2col_3x3_no_pad_test();
     im2col_3x3_stride_2_no_pad_test();

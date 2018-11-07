@@ -2,6 +2,7 @@
 #include <migraph/stringutils.hpp>
 #include <migraph/instruction.hpp>
 #include <migraph/env.hpp>
+#include <migraph/ranges.hpp>
 #include <migraph/time.hpp>
 #include <migraph/iterator_for.hpp>
 #include <iostream>
@@ -10,6 +11,7 @@
 #include <utility>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_TRACE_COMPILE)
 MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_TRACE_EVAL)
@@ -280,7 +282,7 @@ void program::compile(const target& t, tracer trace)
 {
     assert(this->validate() == impl->instructions.end());
     this->impl->ctx = t.get_context();
-    if(not trace.enabled() and enabled(MIGRAPH_TRACE_COMPILE{}))
+    if(enabled(MIGRAPH_TRACE_COMPILE{}))
         trace = tracer{std::cout};
     trace(*this);
     trace();
@@ -329,8 +331,11 @@ argument generic_eval(const program& p,
         else if(ins->name() == "@param")
         {
             results.emplace(ins, trace(ins, [&] {
-                                return params.at(
-                                    any_cast<builtin::param>(ins->get_operator()).parameter);
+                                auto param_name =
+                                    any_cast<builtin::param>(ins->get_operator()).parameter;
+                                if(not contains(params, param_name))
+                                    MIGRAPH_THROW("Parameter not found: " + param_name);
+                                return params.at(param_name);
                             }));
         }
         else if(ins->name() == "@outline")
@@ -494,4 +499,6 @@ std::ostream& operator<<(std::ostream& os, const program& p)
     print_program(os, p, [](auto&&...) {});
     return os;
 }
+
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

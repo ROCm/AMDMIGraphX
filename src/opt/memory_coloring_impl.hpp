@@ -1,8 +1,10 @@
 #ifndef MIGRAPH_GUARD_RTGLIB_MEMORY_COLORING_IMPL_HPP
 #define MIGRAPH_GUARD_RTGLIB_MEMORY_COLORING_IMPL_HPP
 #include "common_header.hpp"
+#include <migraph/config.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 static const int invalid_offset = -1;
 
@@ -50,16 +52,15 @@ using interval_ptr = live_interval*;
 
 struct memory_coloring_impl
 {
-    memory_coloring_impl(program* p, std::string alloc_op)
-        : p_program(p), allocation_op(std::move(alloc_op))
+    memory_coloring_impl(program* p, std::string alloc_op, bool p_verify)
+        : p_program(p), allocation_op(std::move(alloc_op)), enable_verify(p_verify)
     {
         instr2_live.clear();
         live_ranges.clear();
         conflict_table.clear();
-        num_of_lives     = 0;
-        max_value_number = -1;
-        required_bytes   = 0;
-        operand_alias.clear();
+        num_of_lives       = 0;
+        max_value_number   = -1;
+        required_bytes     = 0;
         earliest_end_point = -1;
         latest_end_point   = -1;
         unify_literals     = false;
@@ -75,7 +76,6 @@ struct memory_coloring_impl
     }
     void build();
     void run();
-    void register_operand_alias();
     void rewrite();
 
     private:
@@ -92,31 +92,6 @@ struct memory_coloring_impl
         return ins->name() == "check_context";
     }
 
-    // get operand alias info.  This is a temporary workaround.
-    int get_input_tie_ndx(const instruction_ref ins)
-    {
-        std::string name = ins->name();
-        if(operand_alias.find(name) != operand_alias.end())
-            return operand_alias[name];
-        if(is_allocate(ins))
-        {
-            // This happens to custom allocators.
-            operand_alias[name] = -1;
-            return -1;
-        }
-        int cnt           = -1;
-        int last_allocate = -1;
-        for(auto&& arg : ins->inputs())
-        {
-            cnt++;
-            if(is_allocate(arg) || is_output_param(arg))
-                last_allocate = cnt;
-        }
-        assert(last_allocate != -1);
-        operand_alias[name] = last_allocate;
-        return last_allocate;
-    }
-#ifdef MIGRAPH_DEBUG_OPT
     static bool is_disjoin(live_range& range1, live_range& range2)
     {
         if((range1.size == 0) || (range2.size == 0))
@@ -125,10 +100,11 @@ struct memory_coloring_impl
         long long end2 = range2.offset + range2.size - 1;
         return ((end1 < range2.offset) || (end2 < range1.offset));
     }
+    void verify();
+#ifdef MIGRAPH_DEBUG_OPT
     void dump(const std::string&);
     void dump_program();
     void dump_intervals();
-    void verify();
 #endif
     struct ordering
     {
@@ -164,7 +140,6 @@ struct memory_coloring_impl
     std::unordered_map<int, std::set<int>> conflict_table;
     // Priority queue for coloring.
     std::priority_queue<interval_ptr, std::vector<interval_ptr>, ordering> alloc_queue;
-    std::unordered_map<std::string, int> operand_alias;
 
     int num_of_lives;
     int max_value_number;
@@ -176,6 +151,9 @@ struct memory_coloring_impl
     // Whether to unify literals into coloring.
     bool unify_literals;
     std::string allocation_op{};
+    bool enable_verify;
 };
+
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 #endif

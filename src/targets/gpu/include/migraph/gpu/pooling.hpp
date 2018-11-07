@@ -7,6 +7,7 @@
 #include <migraph/operators.hpp>
 #include <migraph/generate.hpp>
 #include <migraph/shape_for_each.hpp>
+#include <migraph/config.hpp>
 #include <migraph/gpu/miopen.hpp>
 #include <migraph/gpu/hip.hpp>
 #include <migraph/dfor.hpp>
@@ -18,6 +19,7 @@
 #include <utility>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 struct miopen_pooling
@@ -29,10 +31,11 @@ struct miopen_pooling
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
+    int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
 };
 
 } // namespace gpu
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

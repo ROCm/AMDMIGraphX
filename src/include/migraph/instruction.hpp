@@ -6,10 +6,12 @@
 #include <migraph/instruction_ref.hpp>
 #include <migraph/operation.hpp>
 #include <migraph/erase.hpp>
+#include <migraph/config.hpp>
 #include <string>
 #include <utility>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 shape compute_shape(const operation& op, const std::vector<instruction_ref>& args);
 
@@ -69,6 +71,8 @@ struct instruction
     static void
     replace(instruction_ref ins, operation o, const shape& r, std::vector<instruction_ref> args);
 
+    static instruction_ref get_output_alias(instruction_ref ins);
+
     private:
     // internal
     void replace(operation o, const shape& r, std::vector<instruction_ref> args);
@@ -86,6 +90,7 @@ struct instruction
     std::vector<instruction_ref> arguments;
     literal lit;
 };
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 namespace std {
@@ -99,6 +104,7 @@ struct hash<migraph::instruction_ref>
         return std::hash<migraph::instruction*>{}(&*x);
     }
 };
+
 } // namespace std
 
 #endif

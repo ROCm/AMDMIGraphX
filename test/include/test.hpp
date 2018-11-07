@@ -140,7 +140,7 @@ bool throws(F f)
     }
 }
 
-template <class F, class Exception>
+template <class Exception, class F>
 bool throws(F f, const std::string& msg = "")
 {
     try

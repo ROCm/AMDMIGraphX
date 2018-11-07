@@ -7,8 +7,10 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
+#include <migraph/config.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 #ifdef DOXYGEN
 
@@ -203,6 +205,7 @@ inline const ValueType& any_cast(const context& x)
 
 #endif
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

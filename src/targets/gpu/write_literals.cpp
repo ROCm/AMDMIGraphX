@@ -5,7 +5,7 @@
 #include <migraph/env.hpp>
 
 namespace migraph {
-
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_COPY_LITERALS)
@@ -51,5 +51,7 @@ void write_literals::apply(program& p) const
         }
     }
 }
+
 } // namespace gpu
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

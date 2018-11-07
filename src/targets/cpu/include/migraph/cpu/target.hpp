@@ -3,11 +3,13 @@
 
 #include <migraph/program.hpp>
 #include <migraph/cpu/context.hpp>
+#include <migraph/config.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace cpu {
 
-struct cpu_target
+struct target
 {
     std::string name() const;
     std::vector<pass> get_passes(migraph::context& ctx) const;
@@ -15,7 +17,7 @@ struct cpu_target
 };
 
 } // namespace cpu
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

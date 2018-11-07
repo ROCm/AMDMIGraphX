@@ -4,8 +4,10 @@
 
 #include <migraph/tensor_view.hpp>
 #include <migraph/requires.hpp>
+#include <migraph/config.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 struct raw_data_base
 {
@@ -203,6 +205,7 @@ auto visit_all(T&& x, Ts&&... xs)
     };
 }
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

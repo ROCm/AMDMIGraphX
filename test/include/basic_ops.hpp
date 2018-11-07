@@ -79,6 +79,7 @@ struct pass_op
             return {};
         return inputs.front();
     }
+    int output_alias(const std::vector<migraph::shape>&) const { return 0; }
 };
 
 struct pass_standard_op
@@ -103,6 +104,7 @@ struct pass_standard_op
             return {};
         return inputs.front();
     }
+    int output_alias(const std::vector<migraph::shape>&) const { return 0; }
 };
 
 struct nop

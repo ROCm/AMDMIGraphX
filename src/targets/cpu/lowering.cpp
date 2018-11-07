@@ -1,5 +1,5 @@
 
-#include <migraph/cpu/cpu_lowering.hpp>
+#include <migraph/cpu/lowering.hpp>
 #include <migraph/instruction.hpp>
 #include <migraph/dfor.hpp>
 #include <migraph/operators.hpp>
@@ -10,6 +10,7 @@
 #include <utility>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace cpu {
 
 template <typename T>
@@ -606,6 +607,7 @@ struct cpu_apply
         apply_map["sin"]        = simple_op<cpu_unary<sin_op>>();
         apply_map["cos"]        = simple_op<cpu_unary<cos_op>>();
         apply_map["tan"]        = simple_op<cpu_unary<tan_op>>();
+        apply_map["relu"]       = simple_op<cpu_unary<relu_op>>();
         apply_map["add"]        = simple_op<cpu_binary<add_op>>();
         apply_map["sub"]        = simple_op<cpu_binary<sub_op>>();
         apply_map["mul"]        = simple_op<cpu_binary<mul_op>>();
@@ -619,11 +621,7 @@ struct cpu_apply
         init();
         for(auto it : iterator_for(*prog))
         {
-            if(it->name() == "activation")
-            {
-                apply_activation(it);
-            }
-            else if(it->name() == "pooling")
+            if(it->name() == "pooling")
             {
                 apply_pooling(it);
             }
@@ -647,13 +645,6 @@ struct cpu_apply
         prog->replace_instruction(ins, T{op}, ins->inputs());
     }
 
-    void apply_activation(instruction_ref ins)
-    {
-        auto&& op = any_cast<op::activation>(ins->get_operator());
-        if(op.mode == "relu")
-            prog->replace_instruction(ins, cpu_unary<relu_op>{}, ins->inputs());
-    }
-
     void apply_pooling(instruction_ref ins)
     {
         auto&& op = any_cast<op::pooling>(ins->get_operator());
@@ -664,8 +655,8 @@ struct cpu_apply
     }
 };
 
-void cpu_lowering::apply(program& p) const { cpu_apply{&p}.apply(); }
+void lowering::apply(program& p) const { cpu_apply{&p}.apply(); }
 
 } // namespace cpu
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

@@ -10,6 +10,7 @@
 #include <migraph/gpu/miopen.hpp>
 #include <migraph/gpu/hip.hpp>
 #include <migraph/dfor.hpp>
+#include <migraph/config.hpp>
 #include <migraph/gpu/device/contiguous.hpp>
 #include <migraph/gpu/device/add.hpp>
 #include <migraph/iterator_for.hpp>
@@ -18,6 +19,7 @@
 #include <utility>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 struct miopen_gemm
@@ -27,10 +29,11 @@ struct miopen_gemm
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
+    int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
 };
 
 } // namespace gpu
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

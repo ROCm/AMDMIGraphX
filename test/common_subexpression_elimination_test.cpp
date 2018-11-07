@@ -14,7 +14,7 @@ struct cse_target
     migraph::context get_context() const { return {}; }
 };
 
-void cse_test1()
+TEST_CASE(cse_test1)
 {
     migraph::program p1;
     {
@@ -38,7 +38,7 @@ void cse_test1()
     EXPECT(p1 == p2);
 }
 
-void cse_test2()
+TEST_CASE(cse_test2)
 {
     migraph::program p1;
     {
@@ -63,7 +63,7 @@ void cse_test2()
     EXPECT(p1 == p2);
 }
 
-void cse_test3()
+TEST_CASE(cse_test3)
 {
     migraph::program p1;
     {
@@ -86,7 +86,7 @@ void cse_test3()
     EXPECT(p1 == p2);
 }
 
-void cse_test4()
+TEST_CASE(cse_test4)
 {
     migraph::program p1;
     {
@@ -112,10 +112,4 @@ void cse_test4()
     EXPECT(p1 == p2);
 }
 
-int main()
-{
-    cse_test1();
-    cse_test2();
-    cse_test3();
-    cse_test4();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

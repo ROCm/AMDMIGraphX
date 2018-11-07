@@ -14,7 +14,7 @@ struct simplify_algebra_target
     migraph::context get_context() const { return {}; }
 };
 
-void simplify_add1()
+TEST_CASE(simplify_add1)
 {
     migraph::program p1;
     {
@@ -43,7 +43,7 @@ void simplify_add1()
     EXPECT(p1 == p2);
 }
 
-void simplify_add2()
+TEST_CASE(simplify_add2)
 {
     migraph::program p1;
     {
@@ -72,7 +72,7 @@ void simplify_add2()
     EXPECT(p1 == p2);
 }
 
-void simplify_add3()
+TEST_CASE(simplify_add3)
 {
     migraph::program p1;
     {
@@ -99,6 +99,7 @@ void simplify_add3()
     EXPECT(p1 == p2);
 }
 
+// TODO: Add test case
 void simplify_add4()
 {
     migraph::program p1;
@@ -128,10 +129,4 @@ void simplify_add4()
     EXPECT(p1 == p2);
 }
 
-int main()
-{
-    simplify_add1();
-    simplify_add2();
-    simplify_add3();
-    // simplify_add4();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

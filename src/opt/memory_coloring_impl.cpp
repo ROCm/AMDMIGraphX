@@ -191,6 +191,7 @@ void memory_coloring_impl::register_operand_alias()
     operand_alias["check_context"]     = -1;
     operand_alias["@literal"]          = -1;
     operand_alias["@param"]            = -1;
+    operand_alias["nop"]               = -1;
     operand_alias["transpose"]         = 0;
     operand_alias["flatten"]           = 0;
     operand_alias["broadcast"]         = 0;

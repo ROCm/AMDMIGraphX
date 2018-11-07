@@ -4,9 +4,11 @@
 #include <migraph/argument.hpp>
 #include <migraph/literal.hpp>
 #include <migraph/type_traits.hpp>
+#include <migraph/config.hpp>
 #include <random>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 template <class T, MIGRAPH_REQUIRES(is_floating_point<T>{})>
 constexpr T normalize(unsigned long z)
@@ -91,6 +93,7 @@ literal generate_literal(shape s, unsigned long seed = 0);
 
 literal abs(literal l);
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

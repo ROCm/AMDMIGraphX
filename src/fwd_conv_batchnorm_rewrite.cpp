@@ -6,6 +6,8 @@
 #include <migraph/dfor.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
+
 void fwd_conv_batchnorm_rewrite::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
@@ -64,4 +66,6 @@ void fwd_conv_batchnorm_rewrite::apply(program& p) const
         p.replace_instruction(ins, op::add{}, {c, b});
     }
 }
+
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

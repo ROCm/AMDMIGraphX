@@ -14,9 +14,10 @@
 #include <migraph/operators.hpp>
 #include <migraph/ranges.hpp>
 #include <migraph/instruction.hpp>
+#include <migraph/config.hpp>
 
 namespace migraph {
-
+inline namespace MIGRAPH_INLINE_NS {
 struct unknown
 {
     std::string op;
@@ -52,7 +53,7 @@ struct onnx_parser
         add_generic_op("Div", op::div{});
         add_generic_op("MatMul", op::dot{});
         add_generic_op("Mul", op::mul{});
-        add_generic_op("Relu", op::activation{"relu"});
+        add_generic_op("Relu", op::relu{});
         add_generic_op("Sub", op::sub{});
         add_generic_op("Sum", op::add{});
 
@@ -625,4 +626,5 @@ program parse_onnx(const std::string& name)
     return std::move(parser.prog);
 }
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

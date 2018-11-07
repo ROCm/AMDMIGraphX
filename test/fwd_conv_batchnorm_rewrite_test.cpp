@@ -6,7 +6,7 @@
 #include <test.hpp>
 #include <migraph/verify.hpp>
 
-void fwd_conv_batchnorm_rewrite_test()
+TEST_CASE(fwd_conv_batchnorm_rewrite_test)
 {
     std::vector<float> xdata = {
         0.26485917, 0.61703885, 0.32762103, 0.2503367,  0.6552712,  0.07947932, 0.95442678,
@@ -64,8 +64,4 @@ void fwd_conv_batchnorm_rewrite_test()
     EXPECT(migraph::verify_range(results_vector1, results_vector2));
 }
 
-int main()
-{
-    fwd_conv_batchnorm_rewrite_test();
-    return 0;
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

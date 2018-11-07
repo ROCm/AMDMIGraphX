@@ -3,10 +3,12 @@
 
 #include <migraph/shape.hpp>
 #include <migraph/raw_data.hpp>
+#include <migraph/config.hpp>
 #include <functional>
 #include <utility>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 /**
  * @brief Arguments passed to instructions
@@ -45,6 +47,7 @@ struct argument : raw_data<argument>
     shape m_shape;
 };
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

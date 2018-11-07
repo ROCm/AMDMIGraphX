@@ -9,10 +9,12 @@
 #include <migraph/instruction_ref.hpp>
 #include <migraph/target.hpp>
 #include <migraph/tracer.hpp>
+#include <migraph/config.hpp>
 #include <algorithm>
 #include <iostream>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 struct program_impl;
 
@@ -106,6 +108,8 @@ struct program
     private:
     std::unique_ptr<program_impl> impl;
 };
+
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

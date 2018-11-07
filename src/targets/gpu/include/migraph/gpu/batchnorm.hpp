@@ -15,9 +15,11 @@
 #include <migraph/iterator_for.hpp>
 #include <migraph/gpu/rocblas.hpp>
 #include <migraph/gpu/context.hpp>
+#include <migraph/config.hpp>
 #include <utility>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 struct miopen_batch_norm_inference
@@ -27,10 +29,11 @@ struct miopen_batch_norm_inference
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
+    int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
 };
 
 } // namespace gpu
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

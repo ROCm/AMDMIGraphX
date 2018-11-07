@@ -32,25 +32,25 @@ void generic_rocblas_gemm(shape::as<T>, Ts&&...)
     MIGRAPH_THROW("Type unsupported by rocblas");
 }
 
-template<class T>
+template <class T>
 struct compute_rocblas_type
 {
     using type = T;
 };
 
-template<class T>
+template <class T>
 struct compute_rocblas_type<const T>
 {
     using type = const typename compute_rocblas_type<T>::type;
 };
 
-template<>
+template <>
 struct compute_rocblas_type<half>
 {
     using type = rocblas_half;
 };
 
-template<class T>
+template <class T>
 using rb_type = typename compute_rocblas_type<T>::type;
 
 template <class T>
@@ -87,11 +87,9 @@ argument miopen_gemm::compute(context& ctx,
     rocblas_int n   = output_shape.lens()[1];
     rocblas_int k   = args[0].get_shape().lens()[1];
     output_shape.visit_type([&](auto as) {
-        auto alpha_r = to_rocblas_type(as(alpha));
-        auto beta_r  = to_rocblas_type(as(beta));
-        auto to_pointer = [&](auto&& arg) {
-            return to_rocblas_type(as.from(arg.data()));
-        };
+        auto alpha_r    = to_rocblas_type(as(alpha));
+        auto beta_r     = to_rocblas_type(as(beta));
+        auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
         generic_rocblas_gemm(as,
                              ctx.get_stream().get_rocblas(),
                              transb ? rocblas_operation_transpose : rocblas_operation_none,

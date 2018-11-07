@@ -129,10 +129,8 @@ void memory_coloring_impl::build()
         {
             is_dead = true;
         }
-        int cnt = -1;
         for(auto&& arg : iter->inputs())
         {
-            cnt++;
             if(is_param(arg) || is_outline(arg))
             {
                 if(is_output_param(arg))

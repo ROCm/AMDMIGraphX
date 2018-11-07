@@ -5,6 +5,7 @@
 #include <migraph/gpu/context.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 namespace gpu {
 
@@ -17,7 +18,7 @@ struct write_literals
 };
 
 } // namespace gpu
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

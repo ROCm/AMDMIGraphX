@@ -2,8 +2,10 @@
 #define MIGRAPH_GUARD_ERASE_HPP
 
 #include <algorithm>
+#include <migraph/config.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 /**
  * @brief Erase all elements from a container
@@ -31,6 +33,7 @@ auto erase_if(R&& r, P&& pred)
     return r.erase(std::remove_if(r.begin(), r.end(), pred), r.end());
 }
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

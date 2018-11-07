@@ -104,6 +104,21 @@ void param_test()
     EXPECT(result != migraph::literal{4});
 }
 
+void param_error_test()
+{
+    migraph::program p;
+
+    auto x = p.add_parameter("x", {migraph::shape::int64_type});
+    auto y = p.add_parameter("y", {migraph::shape::int64_type});
+
+    p.add_instruction(sum_op{}, x, y);
+    EXPECT(test::throws<migraph::exception>(
+        [&] {
+            p.eval({{"x", migraph::literal{1}.get_argument()}});
+        },
+        "Parameter not found: y"));
+}
+
 void replace_test()
 {
     migraph::program p;
@@ -215,6 +230,7 @@ int main()
     literal_test2();
     print_test();
     param_test();
+    param_error_test();
     replace_test();
     replace_ins_test();
     replace_ins_test2();

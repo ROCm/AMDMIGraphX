@@ -759,6 +759,53 @@ struct broadcast
     int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
+struct multibroadcast
+{
+    std::vector<std::size_t> output_lens;
+    std::string name() const { return "multibroadcast"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        auto t     = inputs.at(0).type();
+        auto input = inputs.at(0);
+
+        if (input.lens().size() <= 0)
+            MIGRAPH_THROW("inputs dimensions should be > 0");
+
+        if (input.lens().size() > output_lens.size())
+            MIGRAPH_THROW("inputs dimensions should <= output size");
+
+        std::vector<size_t> bcast_strides(output_lens.size(), 0);
+        auto extra = output_lens.size()-input.lens().size();
+        if (input.lens().size() < output_lens.size())
+        {
+            for (std::size_t i = output_lens.size()-1; i > 0; i--)
+            {
+                if (output_lens[i] == input.lens()[i-extra]) 
+                {
+                    bcast_strides[i] = input.strides()[i-extra];
+                }
+            }
+        }
+        else
+        {
+            for (std::size_t i = 0; i < input.lens().size(); i++)
+            {
+                if (output_lens[i] == input.lens()[i]) 
+                {
+                    bcast_strides[i] = input.strides()[i];
+                }
+            }
+        }
+        return {t, output_lens, bcast_strides};
+    }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        return {std::move(output_shape), std::move(args.at(0).data)};
+    }
+    int output_alias(const std::vector<shape>&) const { return 0; }
+};
+
 struct scalar
 {
     shape scalar_bcast;

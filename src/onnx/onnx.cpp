@@ -592,7 +592,7 @@ struct onnx_parser
         std::vector<std::size_t> dims;
         auto&& tensor_dims = t.tensor_type().shape().dim();
         std::transform(
-            tensor_dims.begin(), tensor_dims.end(), std::back_inserter(dims), [](auto&& d) {
+            tensor_dims.begin(), tensor_dims.end(), std::back_inserter(dims), [](auto&& d) -> std::size_t {
                 if(not d.has_dim_value())
                 {
                     long default_batch_size = 1; // FIXME

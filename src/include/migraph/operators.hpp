@@ -223,22 +223,6 @@ struct pooling
     }
 };
 
-struct activation
-{
-    std::string mode;
-    std::string name() const { return "activation"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs, *this}.has(1);
-        return inputs.front();
-    }
-    friend std::ostream& operator<<(std::ostream& os, const activation& op)
-    {
-        os << op.name() << ":" << op.mode;
-        return os;
-    }
-};
-
 struct leaky_relu
 {
     std::string name() const { return "leaky_relu"; }
@@ -296,6 +280,7 @@ struct transpose
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct contiguous
@@ -359,6 +344,7 @@ struct concat
         new_lens[axis] = new_dim_axis;
         return {type, new_lens};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct slice
@@ -440,6 +426,7 @@ struct slice
         auto offset = compute_offset(input.get_shape()) * output_shape.type_size();
         return {std::move(output_shape), [=] { return input.data() + offset; }};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct squeeze
@@ -487,6 +474,7 @@ struct squeeze
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct unsqueeze
@@ -525,6 +513,7 @@ struct unsqueeze
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct reshape
@@ -576,6 +565,7 @@ struct reshape
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct dot
@@ -613,9 +603,14 @@ struct unary
     }
 };
 
-struct identity : unary
+struct identity
 {
     std::string name() const { return "identity"; }
+    shape compute_shape(std::vector<shape> inputs) const { return inputs.at(0); }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        return {std::move(output_shape), std::move(args.at(0).data)};
+    }
 };
 
 struct abs : unary
@@ -673,6 +668,11 @@ struct neg : unary
     std::string name() const { return "neg"; }
 };
 
+struct relu : unary
+{
+    std::string name() const { return "relu"; }
+};
+
 struct softmax
 {
     std::string name() const { return "softmax"; }
@@ -713,6 +713,7 @@ struct flatten
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 struct broadcast
 {
@@ -755,6 +756,7 @@ struct broadcast
     {
         return {std::move(output_shape), std::move(args.at(0).data)};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct scalar
@@ -776,6 +778,7 @@ struct scalar
     {
         return {std::move(output_shape), std::move(args.at(0).data)};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct binary
@@ -828,6 +831,7 @@ struct load
     {
         return {s, args[0].data() + offset};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct outline

@@ -362,9 +362,8 @@ struct onnx_parser
         return prog.add_instruction(migraph::op::add{}, img_scaled, bias_bcast);
     }
 
-    instruction_ref parse_transpose(const std::string&,
-                                      attribute_map attributes,
-                                      std::vector<instruction_ref> args)
+    instruction_ref
+    parse_transpose(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         std::vector<int64_t> perm{};
         if(contains(attributes, "perm"))

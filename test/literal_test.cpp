@@ -51,10 +51,3 @@ TEST_CASE(literal_os3)
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }
-
-// int main()
-// {
-//     literal_test();
-//     literal_os1();
-//     literal_os2();
-// }

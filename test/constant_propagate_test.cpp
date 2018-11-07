@@ -14,7 +14,7 @@ struct const_prop_target
     migraph::context get_context() const { return {}; }
 };
 
-void const_add1()
+TEST_CASE(const_add1)
 {
     migraph::program p1;
     auto one = p1.add_literal(1);
@@ -29,7 +29,7 @@ void const_add1()
     EXPECT(p1 == p2);
 }
 
-void const_add2()
+TEST_CASE(const_add2)
 {
     migraph::program p1;
     auto one = p1.add_parameter("one", {migraph::shape::int32_type, {1}});
@@ -44,7 +44,7 @@ void const_add2()
     EXPECT(p1 != p2);
 }
 
-void const_add3()
+TEST_CASE(const_add3)
 {
     migraph::program p1;
     auto one  = p1.add_literal(1);
@@ -60,9 +60,4 @@ void const_add3()
     EXPECT(p1 == p2);
 }
 
-int main()
-{
-    const_add1();
-    const_add2();
-    const_add3();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

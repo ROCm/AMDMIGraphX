@@ -145,8 +145,42 @@ void slice_shape()
                  migraph::op::slice{{2}, {2}, {10}},
                  input);
 }
+
+void multibroadcast_shape()
+{
+    {
+        std::vector<std::size_t> lens{4,2,5,3};
+        migraph::shape input{migraph::shape::float_type, {2,1,3}};
+        expect_shape(migraph::shape{migraph::shape::float_type, lens, {0,3,0,1}},
+            migraph::op::multibroadcast{lens}, input);
+    }
+    {
+        std::vector<std::size_t> lens{4,2,5,3};
+        migraph::shape input{migraph::shape::float_type, {2,1,1}};
+        expect_shape(migraph::shape{migraph::shape::float_type, lens, {0,1,0,0}},
+            migraph::op::multibroadcast{lens}, input);
+    }
+    {
+        std::vector<std::size_t> lens{4,1,1,3};
+        migraph::shape input{migraph::shape::float_type, {4,1,1,1}};
+        expect_shape(migraph::shape{migraph::shape::float_type, lens, {1,1,1,0}},
+            migraph::op::multibroadcast{lens}, input);
+    }
+    {
+        std::vector<std::size_t> lens{4,1,3};
+        migraph::shape input{migraph::shape::float_type, {4,1,1,1}};
+        throws_shape(migraph::op::multibroadcast{lens}, input);
+    }
+    {
+        std::vector<std::size_t> lens{4,1,3};
+        migraph::shape input{migraph::shape::float_type, {}};
+        throws_shape(migraph::op::multibroadcast{lens}, input);
+    }
+}
+
 int main()
 {
+    multibroadcast_shape();
     batch_norm_inference_shape();
     convolution_shape();
     transpose_shape();

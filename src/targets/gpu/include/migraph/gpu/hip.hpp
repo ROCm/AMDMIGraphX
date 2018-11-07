@@ -2,9 +2,11 @@
 #define MIGRAPH_GUARD_MIGRAPHLIB_HIP_HPP
 
 #include <migraph/operators.hpp>
+#include <migraph/config.hpp>
 #include <utility>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 migraph::argument allocate_gpu(const migraph::shape& s, bool host = false);
@@ -85,7 +87,9 @@ struct hip_copy
     }
     int output_alias(const std::vector<shape>&) const { return 1; }
 };
+
 } // namespace gpu
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

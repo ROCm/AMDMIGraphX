@@ -6,10 +6,12 @@
 #include <migraph/check_shapes.hpp>
 #include <migraph/stringutils.hpp>
 #include <migraph/streamutils.hpp>
+#include <migraph/config.hpp>
 #include <cmath>
 #include <utility>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace op {
 
 struct not_computable
@@ -857,6 +859,7 @@ struct outline
 };
 
 } // namespace op
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

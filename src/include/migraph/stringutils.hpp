@@ -5,8 +5,10 @@
 #include <numeric>
 #include <string>
 #include <sstream>
+#include <migraph/config.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 inline std::string
 replace_string(std::string subject, const std::string& search, const std::string& replace)
@@ -85,6 +87,7 @@ inline std::string to_string(const T& x)
     return ss.str();
 }
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

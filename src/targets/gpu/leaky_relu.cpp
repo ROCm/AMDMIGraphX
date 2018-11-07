@@ -5,6 +5,7 @@
 #include <utility>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 shape miopen_leaky_relu::compute_shape(const std::vector<shape>& inputs) const
@@ -33,5 +34,5 @@ argument miopen_leaky_relu::compute(context& ctx,
 }
 
 } // namespace gpu
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

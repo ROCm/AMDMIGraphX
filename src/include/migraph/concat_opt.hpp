@@ -10,8 +10,10 @@
 
 #include <migraph/operation.hpp>
 #include <migraph/operators.hpp>
+#include <migraph/config.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 struct program;
 
@@ -233,7 +235,7 @@ inline const ValueType& any_cast(const concat_optimization& x)
 }
 
 #endif
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

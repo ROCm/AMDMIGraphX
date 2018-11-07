@@ -2,8 +2,10 @@
 #define MIGRAPH_GUARD_RTGLIB_TIME_HPP
 
 #include <chrono>
+#include <migraph/config.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 template <class Duration, class F>
 auto time(F f)
@@ -14,6 +16,7 @@ auto time(F f)
     return std::chrono::duration_cast<Duration>(finish - start).count();
 }
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

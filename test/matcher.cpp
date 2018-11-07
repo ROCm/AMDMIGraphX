@@ -27,7 +27,7 @@ void match1()
     EXPECT(bool{r.result == l});
 }
 
-void match_name1()
+TEST_CASE(match_name1)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -39,7 +39,7 @@ void match_name1()
     EXPECT(bool{r.result == sum});
 }
 
-void match_name2()
+TEST_CASE(match_name2)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -51,7 +51,7 @@ void match_name2()
     EXPECT(bool{r.result == p.end()});
 }
 
-void match_name3()
+TEST_CASE(match_name3)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -63,7 +63,7 @@ void match_name3()
     EXPECT(bool{r.result == sum});
 }
 
-void match_arg1()
+TEST_CASE(match_arg1)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -75,7 +75,7 @@ void match_arg1()
     EXPECT(bool{r.result == sum});
 }
 
-void match_arg2()
+TEST_CASE(match_arg2)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -87,7 +87,7 @@ void match_arg2()
     EXPECT(bool{r.result == p.end()});
 }
 
-void match_arg3()
+TEST_CASE(match_arg3)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -99,7 +99,7 @@ void match_arg3()
     EXPECT(bool{r.result == sum});
 }
 
-void match_arg4()
+TEST_CASE(match_arg4)
 {
     migraph::program p;
     auto one  = p.add_literal(1);
@@ -111,7 +111,7 @@ void match_arg4()
     EXPECT(bool{r.result == pass});
 }
 
-void match_arg5()
+TEST_CASE(match_arg5)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -123,7 +123,7 @@ void match_arg5()
     EXPECT(bool{r.result == p.end()});
 }
 
-void match_arg6()
+TEST_CASE(match_arg6)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -135,7 +135,7 @@ void match_arg6()
     EXPECT(bool{r.result == sum});
 }
 
-void match_arg7()
+TEST_CASE(match_arg7)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -148,7 +148,7 @@ void match_arg7()
     EXPECT(bool{r.result == sum});
 }
 
-void match_args1()
+TEST_CASE(match_args1)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -161,7 +161,7 @@ void match_args1()
     EXPECT(bool{r.result == sum});
 }
 
-void match_args2()
+TEST_CASE(match_args2)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -174,7 +174,7 @@ void match_args2()
     EXPECT(bool{r.result == p.end()});
 }
 
-void match_args3()
+TEST_CASE(match_args3)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -186,7 +186,7 @@ void match_args3()
     EXPECT(bool{r.result == p.end()});
 }
 
-void match_args4()
+TEST_CASE(match_args4)
 {
     migraph::program p;
     auto one  = p.add_literal(1);
@@ -200,7 +200,7 @@ void match_args4()
     EXPECT(bool{r.result == sum2});
 }
 
-void match_args5()
+TEST_CASE(match_args5)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -213,7 +213,7 @@ void match_args5()
     EXPECT(bool{r.result == p.end()});
 }
 
-void match_args6()
+TEST_CASE(match_args6)
 {
     migraph::program p;
     auto one  = p.add_literal(1);
@@ -225,7 +225,7 @@ void match_args6()
     EXPECT(bool{r.result == pass});
 }
 
-void match_args7()
+TEST_CASE(match_args7)
 {
     migraph::program p;
     auto one  = p.add_literal(1);
@@ -239,7 +239,7 @@ void match_args7()
     EXPECT(bool{r.result == pass});
 }
 
-void match_either_args1()
+TEST_CASE(match_either_args1)
 {
     migraph::program p;
     auto one  = p.add_literal(1);
@@ -253,7 +253,7 @@ void match_either_args1()
     EXPECT(bool{r.result == sum2});
 }
 
-void match_either_args2()
+TEST_CASE(match_either_args2)
 {
     migraph::program p;
     auto one  = p.add_literal(1);
@@ -267,7 +267,7 @@ void match_either_args2()
     EXPECT(bool{r.result == sum2});
 }
 
-void match_either_args3()
+TEST_CASE(match_either_args3)
 {
     migraph::program p;
     auto one  = p.add_literal(1);
@@ -281,7 +281,7 @@ void match_either_args3()
     EXPECT(bool{r.result == p.end()});
 }
 
-void match_all_of1()
+TEST_CASE(match_all_of1)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -294,7 +294,7 @@ void match_all_of1()
     EXPECT(bool{r.result == sum});
 }
 
-void match_all_of2()
+TEST_CASE(match_all_of2)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -307,7 +307,7 @@ void match_all_of2()
     EXPECT(bool{r.result == p.end()});
 }
 
-void match_any_of1()
+TEST_CASE(match_any_of1)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -320,7 +320,7 @@ void match_any_of1()
     EXPECT(bool{r.result == sum});
 }
 
-void match_any_of2()
+TEST_CASE(match_any_of2)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -333,7 +333,7 @@ void match_any_of2()
     EXPECT(bool{r.result == p.end()});
 }
 
-void match_none_of1()
+TEST_CASE(match_none_of1)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -346,7 +346,7 @@ void match_none_of1()
     EXPECT(bool{r.result == sum});
 }
 
-void match_none_of2()
+TEST_CASE(match_none_of2)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -359,7 +359,7 @@ void match_none_of2()
     EXPECT(bool{r.result == p.end()});
 }
 
-void match_bind1()
+TEST_CASE(match_bind1)
 {
     migraph::program p;
     auto one  = p.add_literal(1);
@@ -400,7 +400,7 @@ struct match_find_literal
     }
 };
 
-void match_finder()
+TEST_CASE(match_finder)
 {
     migraph::program p;
     auto one = p.add_literal(1);
@@ -410,43 +410,4 @@ void match_finder()
     match::find_matches(p, match_find_sum{sum}, match_find_literal{sum});
 }
 
-int main()
-{
-    match1();
-    match_name1();
-    match_name2();
-    match_name3();
-
-    match_arg1();
-    match_arg2();
-    match_arg3();
-    match_arg4();
-    match_arg5();
-    match_arg6();
-    match_arg7();
-
-    match_args1();
-    match_args2();
-    match_args3();
-    match_args4();
-    match_args5();
-    match_args6();
-    match_args7();
-
-    match_either_args1();
-    match_either_args2();
-    match_either_args3();
-
-    match_all_of1();
-    match_all_of2();
-
-    match_any_of1();
-    match_any_of2();
-
-    match_none_of1();
-    match_none_of2();
-
-    match_bind1();
-
-    match_finder();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

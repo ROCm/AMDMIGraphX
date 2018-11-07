@@ -5,6 +5,7 @@
 #include <utility>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 template <class... Ts>
@@ -82,5 +83,5 @@ argument miopen_gemm::compute(context& ctx,
 }
 
 } // namespace gpu
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

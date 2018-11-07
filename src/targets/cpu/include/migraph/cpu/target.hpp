@@ -3,8 +3,10 @@
 
 #include <migraph/program.hpp>
 #include <migraph/cpu/context.hpp>
+#include <migraph/config.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace cpu {
 
 struct target
@@ -15,7 +17,7 @@ struct target
 };
 
 } // namespace cpu
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

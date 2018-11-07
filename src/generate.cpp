@@ -1,6 +1,7 @@
 #include <migraph/generate.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 argument generate_argument(shape s, unsigned long seed)
 {
@@ -30,4 +31,5 @@ literal abs(literal l)
     return transform(std::move(l), [](auto x) { return std::fabs(x); });
 }
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

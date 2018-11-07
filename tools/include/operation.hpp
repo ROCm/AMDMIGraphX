@@ -43,6 +43,9 @@ struct operation
      * the same the `output` shape.
      */
     argument compute(context& ctx, const shape& output, const std::vector<argument>& input) const;
+    /// An optional method to return which argument the output will alias. If
+    /// there is no aliased output then -1 can be returned.
+    int output_alias(const std::vector<shape>& input) const;
     /// An optional stream operator to print the operation. When this is not
     /// implemented, it will just print the operation's name.
     friend std::ostream& operator<<(std::ostream& os, const operation& op);
@@ -108,10 +111,34 @@ compute_op(const T& x, context& ctx, const shape& output_shape, const std::vecto
     return compute_op(rank<1>{}, x, ctx, output_shape, input);
 }
 
+template <class T>
+int output_alias_op(rank<0>, const T&, const std::vector<shape>&)
+{
+    return -1;
+}
+
+template <class T>
+auto output_alias_op(rank<1>, const T& x, const std::vector<shape>& shapes)
+    -> decltype(x.output_alias(shapes))
+{
+    return x.output_alias(shapes);
+}
+
+template <class T>
+int output_alias_op(const T& x, const std::vector<shape>& shapes)
+{
+    return output_alias_op(rank<1>{}, x, shapes);
+}
+
 <%
  interface(
      'operation',
      virtual('name', returns = 'std::string', const = True),
+     virtual('output_alias',
+             returns = 'int',
+             input   = 'const std::vector<shape>&',
+             const   = True,
+             default = 'output_alias_op'),
      virtual('compute_shape', returns = 'shape', input = 'const std::vector<shape>&', const = True),
      virtual('compute',
              returns = 'argument',

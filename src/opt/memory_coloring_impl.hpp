@@ -59,7 +59,6 @@ struct memory_coloring_impl
         num_of_lives     = 0;
         max_value_number = -1;
         required_bytes   = 0;
-        operand_alias.clear();
         earliest_end_point = -1;
         latest_end_point   = -1;
         unify_literals     = false;
@@ -75,7 +74,6 @@ struct memory_coloring_impl
     }
     void build();
     void run();
-    void register_operand_alias();
     void rewrite();
 
     private:
@@ -92,30 +90,6 @@ struct memory_coloring_impl
         return ins->name() == "check_context";
     }
 
-    // get operand alias info.  This is a temporary workaround.
-    int get_input_tie_ndx(const instruction_ref ins)
-    {
-        std::string name = ins->name();
-        if(operand_alias.find(name) != operand_alias.end())
-            return operand_alias[name];
-        if(is_allocate(ins))
-        {
-            // This happens to custom allocators.
-            operand_alias[name] = -1;
-            return -1;
-        }
-        int cnt           = -1;
-        int last_allocate = -1;
-        for(auto&& arg : ins->inputs())
-        {
-            cnt++;
-            if(is_allocate(arg) || is_output_param(arg))
-                last_allocate = cnt;
-        }
-        assert(last_allocate != -1);
-        operand_alias[name] = last_allocate;
-        return last_allocate;
-    }
     static bool is_disjoin(live_range& range1, live_range& range2)
     {
         if((range1.size == 0) || (range2.size == 0))
@@ -164,7 +138,6 @@ struct memory_coloring_impl
     std::unordered_map<int, std::set<int>> conflict_table;
     // Priority queue for coloring.
     std::priority_queue<interval_ptr, std::vector<interval_ptr>, ordering> alloc_queue;
-    std::unordered_map<std::string, int> operand_alias;
 
     int num_of_lives;
     int max_value_number;

@@ -129,7 +129,7 @@ void memory_coloring_impl::build()
         {
             is_dead = true;
         }
-        int cnt     = -1;
+        int cnt = -1;
         for(auto&& arg : iter->inputs())
         {
             cnt++;

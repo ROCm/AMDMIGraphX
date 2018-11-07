@@ -1,6 +1,6 @@
 #include <migraph/fwd_conv_batchnorm_rewrite.hpp>
 #include <migraph/program.hpp>
-#include <migraph/cpu/cpu_target.hpp>
+#include <migraph/cpu/target.hpp>
 #include <migraph/operators.hpp>
 #include <migraph/instruction.hpp>
 #include <test.hpp>
@@ -51,8 +51,8 @@ void fwd_conv_batchnorm_rewrite_test()
     migraph::program p2 = create_program();
     migraph::fwd_conv_batchnorm_rewrite opt;
     opt.apply(p2);
-    p1.compile(migraph::cpu::cpu_target{});
-    p2.compile(migraph::cpu::cpu_target{});
+    p1.compile(migraph::cpu::target{});
+    p2.compile(migraph::cpu::target{});
 
     auto result1 = p1.eval({});
     auto result2 = p2.eval({});

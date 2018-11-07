@@ -52,7 +52,7 @@ struct onnx_parser
         add_generic_op("Div", op::div{});
         add_generic_op("MatMul", op::dot{});
         add_generic_op("Mul", op::mul{});
-        add_generic_op("Relu", op::activation{"relu"});
+        add_generic_op("Relu", op::relu{});
         add_generic_op("Sub", op::sub{});
         add_generic_op("Sum", op::add{});
 
@@ -62,6 +62,8 @@ struct onnx_parser
         add_mem_op("Conv", &onnx_parser::parse_conv);
         add_mem_op("MaxPool", &onnx_parser::parse_pooling);
         add_mem_op("AveragePool", &onnx_parser::parse_pooling);
+        add_mem_op("GlobalMaxPool", &onnx_parser::parse_pooling);
+        add_mem_op("GlobalAveragePool", &onnx_parser::parse_pooling);
         add_mem_op("Reshape", &onnx_parser::parse_reshape);
         add_mem_op("Flatten", &onnx_parser::parse_flatten);
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
@@ -148,7 +150,12 @@ struct onnx_parser
                                   attribute_map attributes,
                                   std::vector<instruction_ref> args)
     {
-        op::pooling op{name == "MaxPool" ? "max" : "average"};
+        op::pooling op{ends_with(name, "MaxPool") ? "max" : "average"};
+        if(starts_with(name, "Global"))
+        {
+            auto lens  = args.front()->get_shape().lens();
+            op.lengths = {lens[2], lens[3]};
+        }
         if(contains(attributes, "pads"))
         {
             copy(attributes["pads"].ints(), op.padding.begin());
@@ -584,10 +591,15 @@ struct onnx_parser
         }
         std::vector<std::size_t> dims;
         auto&& tensor_dims = t.tensor_type().shape().dim();
-        std::transform(tensor_dims.begin(),
-                       tensor_dims.end(),
-                       std::back_inserter(dims),
-                       [](auto&& d) { return d.dim_value(); });
+        std::transform(
+            tensor_dims.begin(), tensor_dims.end(), std::back_inserter(dims), [](auto&& d) {
+                if(not d.has_dim_value())
+                {
+                    long default_batch_size = 1; // FIXME
+                    return default_batch_size;
+                }
+                return d.dim_value();
+            });
         return {shape_type, dims};
     }
 };

@@ -6,6 +6,7 @@ add_library(migraph
     dead_code_elimination.cpp
     eliminate_allocation.cpp
     eliminate_contiguous.cpp
+    eliminate_concat.cpp
     fwd_conv_batchnorm_rewrite.cpp
     env.cpp
     generate.cpp

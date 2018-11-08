@@ -12,6 +12,10 @@ rocm_clang_tidy_check(migraph_onnx)
 target_link_libraries(migraph_onnx PRIVATE onnx-proto)
 target_link_libraries(migraph_onnx PUBLIC migraph)
 
+rocm_install_targets(
+  TARGETS migraph_onnx
+)
+
 add_executable(read_onnx read_onnx.cpp)
 rocm_clang_tidy_check(read_onnx)
 target_link_libraries(read_onnx migraph_onnx)

@@ -56,6 +56,8 @@ struct onnx_parser
         add_generic_op("Relu", op::relu{});
         add_generic_op("Sub", op::sub{});
         add_generic_op("Sum", op::add{});
+        // disable dropout for inference
+        add_generic_op("Dropout", op::identity{});
 
         add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);

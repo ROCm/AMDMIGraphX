@@ -769,29 +769,29 @@ struct multibroadcast
         auto t     = inputs.at(0).type();
         auto input = inputs.at(0);
 
-        if (input.lens().size() <= 0)
+        if(input.lens().size() <= 0)
             MIGRAPH_THROW("inputs dimensions should be > 0");
 
-        if (input.lens().size() > output_lens.size())
+        if(input.lens().size() > output_lens.size())
             MIGRAPH_THROW("inputs dimensions should <= output size");
 
         std::vector<size_t> bcast_strides(output_lens.size(), 0);
-        auto offset = output_lens.size()-input.lens().size();
-        if (input.lens().size() < output_lens.size())
+        auto offset = output_lens.size() - input.lens().size();
+        if(input.lens().size() < output_lens.size())
         {
-            for (std::size_t i = output_lens.size()-1; i > 0; i--)
+            for(std::size_t i = output_lens.size() - 1; i > 0; i--)
             {
-                if (output_lens[i] == input.lens()[i-offset]) 
+                if(output_lens[i] == input.lens()[i - offset])
                 {
-                    bcast_strides[i] = input.strides()[i-offset];
+                    bcast_strides[i] = input.strides()[i - offset];
                 }
             }
         }
         else
         {
-            for (std::size_t i = 0; i < input.lens().size(); i++)
+            for(std::size_t i = 0; i < input.lens().size(); i++)
             {
-                if (output_lens[i] == input.lens()[i]) 
+                if(output_lens[i] == input.lens()[i])
                 {
                     bcast_strides[i] = input.strides()[i];
                 }

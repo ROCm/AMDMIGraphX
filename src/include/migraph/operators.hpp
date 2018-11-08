@@ -776,14 +776,14 @@ struct multibroadcast
             MIGRAPH_THROW("inputs dimensions should <= output size");
 
         std::vector<size_t> bcast_strides(output_lens.size(), 0);
-        auto extra = output_lens.size()-input.lens().size();
+        auto offset = output_lens.size()-input.lens().size();
         if (input.lens().size() < output_lens.size())
         {
             for (std::size_t i = output_lens.size()-1; i > 0; i--)
             {
-                if (output_lens[i] == input.lens()[i-extra]) 
+                if (output_lens[i] == input.lens()[i-offset]) 
                 {
-                    bcast_strides[i] = input.strides()[i-extra];
+                    bcast_strides[i] = input.strides()[i-offset];
                 }
             }
         }

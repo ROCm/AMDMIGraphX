@@ -512,10 +512,10 @@ void add_broadcast_test()
         std::vector<float> a_data{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
         migraph::shape b_shape{migraph::shape::float_type, {2, 2, 1}};
         std::vector<float> b_data{0, -1, -2, -3};
-        auto l1       = p.add_literal(migraph::literal{a_shape, a_data});
-        auto l2       = p.add_literal(migraph::literal{b_shape, b_data});
-        auto l3       = p.add_instruction(migraph::op::multibroadcast{{2, 2, 3}}, l1);
-        auto l4       = p.add_instruction(migraph::op::multibroadcast{{2, 2, 3}}, l2);
+        auto l1 = p.add_literal(migraph::literal{a_shape, a_data});
+        auto l2 = p.add_literal(migraph::literal{b_shape, b_data});
+        auto l3 = p.add_instruction(migraph::op::multibroadcast{{2, 2, 3}}, l1);
+        auto l4 = p.add_instruction(migraph::op::multibroadcast{{2, 2, 3}}, l2);
         p.add_instruction(migraph::op::add{}, l3, l4);
         p.compile(migraph::cpu::target{});
         auto result = p.eval({});

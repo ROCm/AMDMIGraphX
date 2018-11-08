@@ -93,7 +93,8 @@ struct onnx_parser
     void add_broadcastable_binary_op(std::string name, T x)
     {
         ops.emplace(name, [this, x](attribute_map attributes, std::vector<instruction_ref> args) {
-            if (args.size() != 2) MIGRAPH_THROW("binaGry operators should have 2 operands");
+            if(args.size() != 2)
+                MIGRAPH_THROW("binaGry operators should have 2 operands");
             if(contains(attributes, "broadcast"))
             {
                 uint64_t broadcasted = parse_value(attributes.at("broadcast")).at<uint64_t>();
@@ -112,8 +113,8 @@ struct onnx_parser
                 // Example:
                 // s0 = (3,2,4,5) and s1 = (2,1,1)
                 //
-                // In this case we need to broadcast (:,1,1) portion of 
-                // s1 plus broadcast the 1st dimension of s1 
+                // In this case we need to broadcast (:,1,1) portion of
+                // s1 plus broadcast the 1st dimension of s1
                 // giving output_lens = (3,2,4,5)
                 //
                 // Another example:
@@ -127,32 +128,29 @@ struct onnx_parser
                 const std::vector<std::size_t>& s1 = args[1]->get_shape().lens();
 
                 // Copy the larger vector to output_lens
-                std::vector<std::size_t> output_lens = 
-                    (s0.size() >= s1.size()) ? s0 : s1;
-                if (s0.size() >= s1.size())
+                std::vector<std::size_t> output_lens = (s0.size() >= s1.size()) ? s0 : s1;
+                if(s0.size() >= s1.size())
                 {
                     // s0 is bigger, so iterate over the range of s1
                     auto offset = s0.size() - s1.size();
-                    for (std::size_t i = 0; i < s1.size(); i++)
+                    for(std::size_t i = 0; i < s1.size(); i++)
                     {
-                        output_lens[i+offset] = std::max(s0[i+offset], s1[i]);
+                        output_lens[i + offset] = std::max(s0[i + offset], s1[i]);
                     }
                 }
                 else
                 {
                     // s1 is bigger, so iterate over the range of s0
                     auto offset = s1.size() - s0.size();
-                    for (std::size_t i = 0; i < s0.size(); i++)
+                    for(std::size_t i = 0; i < s0.size(); i++)
                     {
-                        output_lens[i+offset] = std::max(s0[i], s1[i+offset]);
+                        output_lens[i + offset] = std::max(s0[i], s1[i + offset]);
                     }
                 }
-
             }
             return prog.add_instruction(x, args);
         });
     }
-
 
     template <class T>
     void add_generic_op(std::string name, T x)

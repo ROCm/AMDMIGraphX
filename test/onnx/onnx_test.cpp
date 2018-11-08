@@ -158,6 +158,17 @@ void transpose_test()
     EXPECT(p == prog);
 }
 
+void dropout_test()
+{
+    migraph::program p;
+    auto input = p.add_parameter("0", migraph::shape{migraph::shape::float_type, {1, 3, 2, 2}});
+    p.add_instruction(migraph::op::identity{}, input);
+
+    auto prog = migraph::parse_onnx("dropout_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 int main()
 {
     pytorch_conv_bias_test();
@@ -169,4 +180,5 @@ int main()
     globalavgpool_test();
     globalmaxpool_test();
     transpose_test();
+    dropout_test();
 }

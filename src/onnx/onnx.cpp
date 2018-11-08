@@ -76,6 +76,7 @@ struct onnx_parser
         add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
         add_mem_op("Slice", &onnx_parser::parse_slice);
         add_mem_op("Concat", &onnx_parser::parse_concat);
+        add_mem_op("Transpose", &onnx_parser::parse_transpose);
     }
 
     template <class F>
@@ -361,6 +362,18 @@ struct onnx_parser
         auto img_scaled   = prog.add_instruction(migraph::op::mul{}, args.front(), scale_tensor);
         auto bias_bcast   = prog.add_instruction(migraph::op::broadcast{1, input_shape}, bias_vals);
         return prog.add_instruction(migraph::op::add{}, img_scaled, bias_bcast);
+    }
+
+    instruction_ref
+    parse_transpose(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        std::vector<int64_t> perm{};
+        if(contains(attributes, "perm"))
+        {
+            auto&& perm_vals = attributes["perm"].ints();
+            perm             = std::vector<int64_t>(perm_vals.begin(), perm_vals.end());
+        }
+        return prog.add_instruction(migraph::op::transpose{perm}, args.front());
     }
 
     void parse_from(std::istream& is)

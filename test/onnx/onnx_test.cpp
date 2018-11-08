@@ -146,6 +146,18 @@ void globalmaxpool_test()
     EXPECT(p == prog);
 }
 
+void transpose_test()
+{
+    migraph::program p;
+    auto input = p.add_parameter("0", migraph::shape{migraph::shape::float_type, {1, 2, 2, 3}});
+    std::vector<int64_t> perm{0, 3, 1, 2};
+    p.add_instruction(migraph::op::transpose{perm}, input);
+
+    auto prog = migraph::parse_onnx("transpose_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 int main()
 {
     pytorch_conv_bias_test();
@@ -156,4 +168,5 @@ int main()
     imagescaler_test();
     globalavgpool_test();
     globalmaxpool_test();
+    transpose_test();
 }

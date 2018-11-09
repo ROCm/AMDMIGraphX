@@ -107,6 +107,7 @@ struct onnx_parser
                         prog.add_instruction(op::broadcast{axis, args[0]->get_shape()}, args[1]);
                     return prog.add_instruction(x, args[0], l);
                 }
+                return prog.add_instruction(x, args);
             }
             else
             {
@@ -147,8 +148,10 @@ struct onnx_parser
                         output_lens[i + offset] = std::max(s0[i], s1[i + offset]);
                     }
                 }
+                auto l0 = prog.add_instruction(op::multibroadcast{output_lens}, args[0]);
+                auto l1 = prog.add_instruction(op::multibroadcast{output_lens}, args[1]);
+                return prog.add_instruction(x, l0, l1);
             }
-            return prog.add_instruction(x, args);
         });
     }
 

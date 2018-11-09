@@ -184,6 +184,13 @@ void multibroadcast_shape()
                      input);
     }
     {
+        std::vector<std::size_t> lens{4, 4, 1, 3};
+        migraph::shape input{migraph::shape::float_type, {4, 1, 3}};
+        expect_shape(migraph::shape{migraph::shape::float_type, lens, {0, 3, 3, 1}},
+                     migraph::op::multibroadcast{lens},
+                     input);
+    }
+    {
         std::vector<std::size_t> lens{4, 1, 1, 3};
         migraph::shape input{migraph::shape::float_type, {4, 1, 1, 1}};
         expect_shape(migraph::shape{migraph::shape::float_type, lens, {1, 1, 1, 0}},

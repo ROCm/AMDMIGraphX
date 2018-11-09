@@ -777,19 +777,19 @@ struct multibroadcast
         auto t     = inputs.at(0).type();
         auto input = inputs.at(0);
 
-        if (input.lens().size() <= 0)
+        if(input.lens().size() <= 0)
             MIGRAPH_THROW("inputs dimensions should be > 0");
 
-        if (input.lens().size() > output_lens.size())
+        if(input.lens().size() > output_lens.size())
             MIGRAPH_THROW("inputs dimensions should <= output size");
 
         std::vector<size_t> bcast_strides(output_lens.size(), 0);
-        auto offset = output_lens.size()-input.lens().size();
-        for (int i = input.lens().size()-1; i >= 0; i--)
+        auto offset = output_lens.size() - input.lens().size();
+        for(int i = input.lens().size() - 1; i >= 0; i--)
         {
-            if (output_lens[i+offset] == input.lens()[i]) 
+            if(output_lens[i + offset] == input.lens()[i])
             {
-                bcast_strides[i+offset] = input.strides()[i];
+                bcast_strides[i + offset] = input.strides()[i];
             }
         }
         return {t, output_lens, bcast_strides};
@@ -828,7 +828,7 @@ struct binary
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs}.has(2).same_type().same_dims();
-        auto t = inputs.at(0).type();
+        auto t    = inputs.at(0).type();
         auto lens = inputs.at(0).lens();
         return {t, lens};
     }

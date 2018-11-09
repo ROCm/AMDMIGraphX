@@ -8,6 +8,7 @@ target_link_libraries(onnx-proto PRIVATE ${PROTOBUF_LIBRARY})
 set_target_properties(onnx-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
 
 add_library(migraph_onnx onnx.cpp)
+set_target_properties(migraph_onnx PROPERTIES EXPORT_NAME onnx)
 rocm_clang_tidy_check(migraph_onnx)
 target_link_libraries(migraph_onnx PRIVATE onnx-proto)
 target_link_libraries(migraph_onnx PUBLIC migraph)

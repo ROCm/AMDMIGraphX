@@ -3,7 +3,7 @@
 #include <test.hpp>
 #include <basic_ops.hpp>
 
-void simple_alias()
+TEST_CASE(simple_alias)
 {
     migraph::program p;
     auto l  = p.add_literal(1);
@@ -12,7 +12,7 @@ void simple_alias()
     EXPECT(bool{migraph::instruction::get_output_alias(p1) == l});
 }
 
-void cascade_alias()
+TEST_CASE(cascade_alias)
 {
     migraph::program p;
     auto l  = p.add_literal(1);
@@ -25,7 +25,7 @@ void cascade_alias()
     EXPECT(bool{migraph::instruction::get_output_alias(p3) == l});
 }
 
-void no_alias()
+TEST_CASE(no_alias)
 {
     migraph::program p;
     auto x   = p.add_literal(1);
@@ -34,9 +34,4 @@ void no_alias()
     EXPECT(bool{migraph::instruction::get_output_alias(sum) == sum});
 }
 
-int main()
-{
-    simple_alias();
-    cascade_alias();
-    no_alias();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

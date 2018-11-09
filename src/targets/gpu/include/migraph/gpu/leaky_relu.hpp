@@ -7,6 +7,7 @@
 #include <migraph/operators.hpp>
 #include <migraph/generate.hpp>
 #include <migraph/shape_for_each.hpp>
+#include <migraph/config.hpp>
 #include <migraph/gpu/miopen.hpp>
 #include <migraph/gpu/hip.hpp>
 #include <migraph/dfor.hpp>
@@ -18,6 +19,7 @@
 #include <utility>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
 struct miopen_leaky_relu
@@ -31,7 +33,7 @@ struct miopen_leaky_relu
 };
 
 } // namespace gpu
-
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

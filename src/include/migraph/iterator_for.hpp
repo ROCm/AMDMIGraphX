@@ -3,8 +3,10 @@
 
 #include <cassert>
 #include <type_traits>
+#include <migraph/config.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 template <class T>
 struct iterator_for_range
@@ -37,6 +39,7 @@ iterator_for_range<T> iterator_for(T& x)
     return {&x};
 }
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

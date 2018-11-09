@@ -4,11 +4,13 @@
 #include <migraph/shape.hpp>
 #include <migraph/float_equal.hpp>
 #include <migraph/requires.hpp>
+#include <migraph/config.hpp>
 
 #include <iostream>
 #include <utility>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 template <class T>
 struct tensor_view
@@ -167,6 +169,7 @@ tensor_view<T> make_view(shape s, T* data)
     return {s, data};
 }
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

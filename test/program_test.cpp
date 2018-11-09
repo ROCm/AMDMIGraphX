@@ -20,11 +20,11 @@ migraph::program create_program()
     return p;
 }
 
-void program_equality()
+TEST_CASE(program_equality)
 {
     migraph::program x = create_program();
     migraph::program y = create_program();
     EXPECT(x == y);
 }
 
-int main() { program_equality(); }
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

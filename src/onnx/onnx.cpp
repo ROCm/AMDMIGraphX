@@ -14,9 +14,10 @@
 #include <migraph/operators.hpp>
 #include <migraph/ranges.hpp>
 #include <migraph/instruction.hpp>
+#include <migraph/config.hpp>
 
 namespace migraph {
-
+inline namespace MIGRAPH_INLINE_NS {
 struct unknown
 {
     std::string op;
@@ -50,6 +51,9 @@ struct onnx_parser
     {
         add_generic_op("MatMul", op::dot{});
         add_generic_op("Relu", op::relu{});
+        // disable dropout for inference
+        add_generic_op("Dropout", op::identity{});
+
 
         add_broadcastable_binary_op("Add", op::add{});
         add_broadcastable_binary_op("Div", op::div{});
@@ -74,6 +78,7 @@ struct onnx_parser
         add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
         add_mem_op("Slice", &onnx_parser::parse_slice);
         add_mem_op("Concat", &onnx_parser::parse_concat);
+        add_mem_op("Transpose", &onnx_parser::parse_transpose);
     }
 
     template <class F>
@@ -426,6 +431,18 @@ struct onnx_parser
         return prog.add_instruction(migraph::op::add{}, img_scaled, bias_bcast);
     }
 
+    instruction_ref
+    parse_transpose(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        std::vector<int64_t> perm{};
+        if(contains(attributes, "perm"))
+        {
+            auto&& perm_vals = attributes["perm"].ints();
+            perm             = std::vector<int64_t>(perm_vals.begin(), perm_vals.end());
+        }
+        return prog.add_instruction(migraph::op::transpose{perm}, args.front());
+    }
+
     void parse_from(std::istream& is)
     {
         onnx::ModelProto model;
@@ -586,7 +603,7 @@ struct onnx_parser
             case onnx::TensorProto::INT64: return literal{{shape::int64_type, dims}, s.data()};
             case onnx::TensorProto::STRING: throw std::runtime_error("");
             case onnx::TensorProto::BOOL: return literal{{shape::int32_type, dims}, s.data()};
-            case onnx::TensorProto::FLOAT16: throw std::runtime_error("");
+            case onnx::TensorProto::FLOAT16: return literal{{shape::half_type, dims}, s.data()};
             case onnx::TensorProto::DOUBLE: return literal{{shape::double_type, dims}, s.data()};
             case onnx::TensorProto::UINT32: throw std::runtime_error("");
             case onnx::TensorProto::UINT64: throw std::runtime_error("");
@@ -614,7 +631,8 @@ struct onnx_parser
         case onnx::TensorProto::STRING: throw std::runtime_error("");
         case onnx::TensorProto::BOOL:
             return literal{{shape::int32_type, dims}, t.int32_data().begin(), t.int32_data().end()};
-        case onnx::TensorProto::FLOAT16: throw std::runtime_error("");
+        case onnx::TensorProto::FLOAT16:
+            return literal{{shape::half_type, dims}, t.float_data().begin(), t.float_data().end()};
         case onnx::TensorProto::DOUBLE:
             return literal{
                 {shape::double_type, dims}, t.double_data().begin(), t.double_data().end()};
@@ -645,8 +663,7 @@ struct onnx_parser
             break; // throw std::runtime_error("Unsupported type STRING");
         case onnx::TensorProto::BOOL:
             break; // throw std::runtime_error("Unsupported type BOOL");
-        case onnx::TensorProto::FLOAT16:
-            break; // throw std::runtime_error("Unsupported type FLOAT16");
+        case onnx::TensorProto::FLOAT16: shape_type = shape::half_type; break;
         case onnx::TensorProto::DOUBLE: shape_type = shape::double_type; break;
         case onnx::TensorProto::UINT32: shape_type = shape::uint32_type; break;
         case onnx::TensorProto::UINT64: shape_type = shape::uint64_type; break;
@@ -693,4 +710,5 @@ program parse_onnx(const std::string& name)
     return std::move(parser.prog);
 }
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

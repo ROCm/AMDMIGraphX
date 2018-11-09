@@ -2,8 +2,10 @@
 #define MIGRAPH_GUARD_RTGLIB_CHECK_CONTEXT_HPP
 
 #include <migraph/program.hpp>
+#include <migraph/config.hpp>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 template <class T>
 struct check_context
@@ -25,6 +27,7 @@ struct check_context
     void apply(program& p) const { p.insert_instruction(p.begin(), op{}); }
 };
 
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph
 
 #endif

@@ -50,7 +50,7 @@ struct double_reverse_target
     migraph::context get_context() const { return {}; }
 };
 
-void literal_test1()
+TEST_CASE(literal_test1)
 {
     migraph::program p;
 
@@ -62,7 +62,7 @@ void literal_test1()
     EXPECT(result != migraph::literal{4});
 }
 
-void literal_test2()
+TEST_CASE(literal_test2)
 {
     migraph::program p;
 
@@ -76,7 +76,7 @@ void literal_test2()
     EXPECT(result != migraph::literal{3});
 }
 
-void print_test()
+TEST_CASE(print_test)
 {
     migraph::program p;
 
@@ -90,7 +90,7 @@ void print_test()
     EXPECT(!s.empty());
 }
 
-void param_test()
+TEST_CASE(param_test)
 {
     migraph::program p;
 
@@ -104,7 +104,7 @@ void param_test()
     EXPECT(result != migraph::literal{4});
 }
 
-void param_error_test()
+TEST_CASE(param_error_test)
 {
     migraph::program p;
 
@@ -119,7 +119,7 @@ void param_error_test()
         "Parameter not found: y"));
 }
 
-void replace_test()
+TEST_CASE(replace_test)
 {
     migraph::program p;
 
@@ -134,7 +134,7 @@ void replace_test()
     EXPECT(result != migraph::literal{3});
 }
 
-void replace_ins_test()
+TEST_CASE(replace_ins_test)
 {
     migraph::program p;
 
@@ -150,7 +150,7 @@ void replace_ins_test()
     EXPECT(result != migraph::literal{3});
 }
 
-void replace_ins_test2()
+TEST_CASE(replace_ins_test2)
 {
     migraph::program p;
 
@@ -167,7 +167,7 @@ void replace_ins_test2()
     EXPECT(result != migraph::literal{3});
 }
 
-void insert_replace_test()
+TEST_CASE(insert_replace_test)
 {
     migraph::program p;
 
@@ -185,7 +185,7 @@ void insert_replace_test()
     EXPECT(result != migraph::literal{5});
 }
 
-void target_test()
+TEST_CASE(target_test)
 {
     migraph::program p;
 
@@ -198,7 +198,7 @@ void target_test()
     EXPECT(result != migraph::literal{4});
 }
 
-void reverse_target_test()
+TEST_CASE(reverse_target_test)
 {
     migraph::program p;
 
@@ -211,7 +211,7 @@ void reverse_target_test()
     EXPECT(result != migraph::literal{4});
 }
 
-void double_reverse_target_test()
+TEST_CASE(double_reverse_target_test)
 {
     migraph::program p;
 
@@ -224,17 +224,4 @@ void double_reverse_target_test()
     EXPECT(result != migraph::literal{4});
 }
 
-int main()
-{
-    literal_test1();
-    literal_test2();
-    print_test();
-    param_test();
-    param_error_test();
-    replace_test();
-    replace_ins_test();
-    replace_ins_test2();
-    insert_replace_test();
-    target_test();
-    reverse_target_test();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

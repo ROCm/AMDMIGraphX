@@ -11,6 +11,7 @@
 #include <utility>
 
 namespace migraph {
+inline namespace MIGRAPH_INLINE_NS {
 
 MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_TRACE_COMPILE)
 MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_TRACE_EVAL)
@@ -281,7 +282,7 @@ void program::compile(const target& t, tracer trace)
 {
     assert(this->validate() == impl->instructions.end());
     this->impl->ctx = t.get_context();
-    if(not trace.enabled() or enabled(MIGRAPH_TRACE_COMPILE{}))
+    if(enabled(MIGRAPH_TRACE_COMPILE{}))
         trace = tracer{std::cout};
     trace(*this);
     trace();
@@ -498,4 +499,6 @@ std::ostream& operator<<(std::ostream& os, const program& p)
     print_program(os, p, [](auto&&...) {});
     return os;
 }
+
+} // namespace MIGRAPH_INLINE_NS
 } // namespace migraph

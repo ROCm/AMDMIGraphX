@@ -12,7 +12,7 @@ struct dce_target
     migraph::context get_context() const { return {}; }
 };
 
-void simple_test()
+TEST_CASE(simple_test)
 {
     migraph::program p;
 
@@ -27,7 +27,7 @@ void simple_test()
     EXPECT(result != migraph::literal{4});
 }
 
-void simple_test_nop()
+TEST_CASE(simple_test_nop)
 {
     migraph::program p;
 
@@ -43,7 +43,7 @@ void simple_test_nop()
     EXPECT(result != migraph::literal{4});
 }
 
-void simple_test_nop2()
+TEST_CASE(simple_test_nop2)
 {
     migraph::program p;
 
@@ -59,7 +59,7 @@ void simple_test_nop2()
     EXPECT(result != migraph::literal{4});
 }
 
-void duplicate_test1()
+TEST_CASE(duplicate_test1)
 {
     migraph::program p;
 
@@ -75,7 +75,7 @@ void duplicate_test1()
     EXPECT(result != migraph::literal{4});
 }
 
-void duplicate_test2()
+TEST_CASE(duplicate_test2)
 {
     migraph::program p;
 
@@ -92,7 +92,7 @@ void duplicate_test2()
     EXPECT(result != migraph::literal{4});
 }
 
-void depth_test()
+TEST_CASE(depth_test)
 {
     migraph::program p;
 
@@ -111,12 +111,4 @@ void depth_test()
     EXPECT(result != migraph::literal{4});
 }
 
-int main()
-{
-    simple_test();
-    simple_test_nop();
-    simple_test_nop2();
-    duplicate_test1();
-    duplicate_test2();
-    depth_test();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

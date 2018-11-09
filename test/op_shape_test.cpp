@@ -52,7 +52,7 @@ void throws_shape(const migraph::shape&, Ts...)
                   "An expected shape should not be passed to throws_shape function");
 }
 
-void batch_norm_inference_shape()
+TEST_CASE(batch_norm_inference_shape)
 {
     const size_t channels = 3;
     migraph::shape s{migraph::shape::float_type, {4, channels, 3, 3}};
@@ -62,7 +62,7 @@ void batch_norm_inference_shape()
     throws_shape(migraph::op::batch_norm_inference{}, s, vars, vars, vars, vars, vars);
 }
 
-void convolution_shape()
+TEST_CASE(convolution_shape)
 {
     migraph::shape output{migraph::shape::float_type, {4, 4, 1, 1}};
     migraph::shape input{migraph::shape::float_type, {4, 3, 3, 3}};
@@ -76,7 +76,7 @@ void convolution_shape()
     throws_shape(migraph::op::convolution{}, input2, weights);
 }
 
-void transpose_shape()
+TEST_CASE(transpose_shape)
 {
     migraph::shape input{migraph::shape::float_type, {2, 2}};
     migraph::shape output{migraph::shape::float_type, {2, 2}, {1, 2}};
@@ -85,7 +85,7 @@ void transpose_shape()
     throws_shape(migraph::op::transpose{{1, 2}}, input);
 }
 
-void contiguous_shape()
+TEST_CASE(contiguous_shape)
 {
     migraph::shape output{migraph::shape::float_type, {2, 2}};
     migraph::shape input{migraph::shape::float_type, {2, 2}, {1, 2}};
@@ -96,7 +96,7 @@ void contiguous_shape()
     expect_shape(single, migraph::op::contiguous{}, single);
 }
 
-void reshape_shape()
+TEST_CASE(reshape_shape)
 {
     migraph::shape input{migraph::shape::float_type, {24, 1, 1, 1}};
     for(auto&& new_shape :
@@ -114,7 +114,7 @@ void reshape_shape()
     }
 }
 
-void flatten_shape()
+TEST_CASE(flatten_shape)
 {
     migraph::shape input{migraph::shape::float_type, {2, 4, 6, 8}};
     expect_shape(migraph::shape{migraph::shape::float_type, {1, 2 * 4 * 6 * 8}},
@@ -132,7 +132,7 @@ void flatten_shape()
     throws_shape(migraph::op::flatten{5}, input);
 }
 
-void slice_shape()
+TEST_CASE(slice_shape)
 {
     migraph::shape input{migraph::shape::int32_type, {2, 2, 3}};
     expect_shape(migraph::shape{migraph::shape::int32_type, {2, 2, 2}, {6, 3, 1}},
@@ -146,7 +146,7 @@ void slice_shape()
                  input);
 }
 
-void multibroadcast_shape()
+TEST_CASE(multibroadcast)
 {
     {
         std::vector<std::size_t> lens{4, 2, 5, 3};
@@ -209,14 +209,4 @@ void multibroadcast_shape()
     }
 }
 
-int main()
-{
-    multibroadcast_shape();
-    batch_norm_inference_shape();
-    convolution_shape();
-    transpose_shape();
-    contiguous_shape();
-    reshape_shape();
-    flatten_shape();
-    slice_shape();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -79,7 +79,7 @@ struct fred_op
     }
 };
 
-void basic()
+TEST_CASE(basic)
 {
     auto create_test_program = []() {
         migraph::program p;
@@ -123,7 +123,7 @@ void basic()
     EXPECT(p1 == p2);
 }
 
-void wont_work()
+TEST_CASE(wont_work)
 {
     auto create_test_program = []() {
         migraph::program p;
@@ -167,8 +167,4 @@ void wont_work()
     EXPECT(p1 == p2);
 }
 
-int main()
-{
-    basic();
-    wont_work();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -216,6 +216,21 @@ struct test_scale
     }
 };
 
+struct test_slice
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        migraph::shape s{migraph::shape::int32_type, {2, 2, 4}};
+        auto x      = p.add_parameter("x", s);
+        auto y      = p.add_parameter("y", {migraph::shape::int32_type, {2, 2, 2}});
+        auto slice0 = p.add_instruction(migraph::op::slice{{2}, {0}, {2}}, x);
+        p.add_instruction(migraph::op::add{}, y, slice0);
+
+        return p;
+    }
+};
+
 struct test_triadd
 {
     migraph::program create_program() const
@@ -488,6 +503,18 @@ struct test_gemm
         migraph::program p;
         auto a = p.add_parameter("a", migraph::shape{migraph::shape::float_type, {4, 5}});
         auto b = p.add_parameter("b", migraph::shape{migraph::shape::float_type, {5, 3}});
+        p.add_instruction(migraph::op::dot{}, a, b);
+        return p;
+    }
+};
+
+struct test_gemm_half
+{
+    migraph::program create_program() const
+    {
+        migraph::program p;
+        auto a = p.add_parameter("a", migraph::shape{migraph::shape::half_type, {4, 5}});
+        auto b = p.add_parameter("b", migraph::shape{migraph::shape::half_type, {5, 3}});
         p.add_instruction(migraph::op::dot{}, a, b);
         return p;
     }
@@ -829,6 +856,7 @@ int main()
     verify_program<test_global_avg_pooling>();
     verify_program<test_global_max_pooling>();
     verify_program<test_gemm>();
+    verify_program<test_gemm_half>();
     // verify_program<test_gemm_ld>();
     verify_program<test_gemm_transposeb>();
     verify_program<test_gemm_transposea>();
@@ -840,4 +868,5 @@ int main()
     verify_program<test_conv_bn>();
     verify_program<test_conv_bn_relu_pooling>();
     verify_program<test_conv_bn_relu_pooling2>();
+    verify_program<test_slice>();
 }

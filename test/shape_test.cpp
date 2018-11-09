@@ -5,14 +5,14 @@
 #include <numeric>
 #include "test.hpp"
 
-void test_shape_default()
+TEST_CASE(test_shape_default)
 {
     migraph::shape s{};
     EXPECT(s.elements() == 0);
     EXPECT(s.bytes() == 0);
 }
 
-void test_shape_assign()
+TEST_CASE(test_shape_assign)
 {
     migraph::shape s1{migraph::shape::float_type, {100, 32, 8, 8}};
     migraph::shape s2 = s1; // NOLINT
@@ -20,7 +20,7 @@ void test_shape_assign()
     EXPECT(!(s1 != s2));
 }
 
-void test_shape_packed_default()
+TEST_CASE(test_shape_packed_default)
 {
     migraph::shape s{migraph::shape::float_type, {2, 2}};
     EXPECT(s.standard());
@@ -29,7 +29,7 @@ void test_shape_packed_default()
     EXPECT(not s.broadcasted());
 }
 
-void test_shape_packed()
+TEST_CASE(test_shape_packed)
 {
     migraph::shape s{migraph::shape::float_type, {2, 2}, {2, 1}};
     EXPECT(s.standard());
@@ -38,7 +38,7 @@ void test_shape_packed()
     EXPECT(not s.broadcasted());
 }
 
-void test_shape_transposed()
+TEST_CASE(test_shape_transposed)
 {
     migraph::shape s{migraph::shape::float_type, {2, 2}, {1, 2}};
     EXPECT(not s.standard());
@@ -47,7 +47,7 @@ void test_shape_transposed()
     EXPECT(not s.broadcasted());
 }
 
-void test_shape_broadcasted()
+TEST_CASE(test_shape_broadcasted)
 {
     migraph::shape s{migraph::shape::float_type, {2, 2}, {1, 0}};
     EXPECT(not s.standard());
@@ -56,7 +56,7 @@ void test_shape_broadcasted()
     EXPECT(s.broadcasted());
 }
 
-void test_shape_default_copy()
+TEST_CASE(test_shape_default_copy)
 {
     migraph::shape s1{};
     migraph::shape s2{};
@@ -64,7 +64,7 @@ void test_shape_default_copy()
     EXPECT(!(s1 != s2));
 }
 
-void test_shape4()
+TEST_CASE(test_shape4)
 {
     migraph::shape s{migraph::shape::float_type, {100, 32, 8, 8}};
     EXPECT(s.standard());
@@ -97,7 +97,7 @@ void test_shape4()
     EXPECT(s.index(s.elements() - 1) == s.elements() - 1);
 }
 
-void test_shape42()
+TEST_CASE(test_shape42)
 {
     migraph::shape s{migraph::shape::float_type, {100, 32, 8, 8}, {2048, 64, 8, 1}};
     EXPECT(s.standard());
@@ -130,7 +130,7 @@ void test_shape42()
     EXPECT(s.index(s.elements() - 1) == s.elements() - 1);
 }
 
-void test_shape4_transposed()
+TEST_CASE(test_shape4_transposed)
 {
     migraph::shape s{migraph::shape::float_type, {32, 100, 8, 8}, {64, 2048, 8, 1}};
     EXPECT(s.transposed());
@@ -163,7 +163,7 @@ void test_shape4_transposed()
     EXPECT(s.index(s.elements() - 1) == s.elements() - 1);
 }
 
-void test_shape4_nonpacked()
+TEST_CASE(test_shape4_nonpacked)
 {
     std::vector<std::size_t> lens       = {100, 32, 8, 8};
     std::array<std::size_t, 4> offsets  = {{5, 10, 0, 6}};
@@ -206,17 +206,4 @@ void test_shape4_nonpacked()
     EXPECT(s.index(s.elements() - 1) == 469273);
 }
 
-int main()
-{
-    test_shape_default();
-    test_shape_assign();
-    test_shape_packed_default();
-    test_shape_packed();
-    test_shape_transposed();
-    test_shape_broadcasted();
-    test_shape_default_copy();
-    test_shape4();
-    test_shape42();
-    test_shape4_transposed();
-    test_shape4_nonpacked();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

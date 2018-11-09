@@ -4,6 +4,7 @@ add_library(migraph_cpu
     lowering.cpp
     gemm.cpp
 )
+set_target_properties(migraph_cpu PROPERTIES EXPORT_NAME cpu)
 
 find_path(BLAZE_INCLUDE blaze/Blaze.h)
 find_package(Threads)

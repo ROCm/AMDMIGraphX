@@ -17,6 +17,7 @@ add_library(migraph_device
     device/mul.cpp
     device/concat.cpp
 )
+set_target_properties(migraph_device PROPERTIES EXPORT_NAME device)
 rocm_clang_tidy_check(migraph_device)
 target_link_libraries(migraph_device migraph hip::device)
 target_include_directories(migraph_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
@@ -42,6 +43,7 @@ add_library(migraph_gpu
     write_literals.cpp
     rocblas.cpp
 )
+set_target_properties(migraph_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_clang_tidy_check(migraph_gpu)
 target_link_libraries(migraph_gpu PUBLIC migraph MIOpen roc::rocblas)
 target_link_libraries(migraph_gpu PRIVATE migraph_device)

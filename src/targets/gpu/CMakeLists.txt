@@ -10,7 +10,7 @@ if(NOT TARGET MIOpen)
     message(SEND_ERROR "Cant find miopen")
 endif()
 
-add_library(migraph_device STATIC
+add_library(migraph_device
     device/add.cpp
     device/add_relu.cpp
     device/contiguous.cpp
@@ -47,7 +47,7 @@ target_link_libraries(migraph_gpu PUBLIC migraph MIOpen roc::rocblas)
 target_link_libraries(migraph_gpu PRIVATE migraph_device)
 
 rocm_install_targets(
-  TARGETS migraph_gpu
+  TARGETS migraph_gpu migraph_device
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )

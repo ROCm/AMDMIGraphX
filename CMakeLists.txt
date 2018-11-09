@@ -10,8 +10,19 @@ if( NOT MSVC_IDE AND NOT CMAKE_BUILD_TYPE )
     set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
 endif()
 
-project(migraphlib)
+# Default installation path
+if(WIN32)
+    set(CMAKE_INSTALL_PREFIX "/opt/rocm/x86_64-w64-mingw32" CACHE PATH "")
+else()
+    set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
+endif()
+
+project(migraph)
 find_package(ROCM REQUIRED)
+
+include(ROCMSetupVersion)
+
+rocm_setup_version(VERSION 0.1)
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 
@@ -118,6 +129,15 @@ rocm_enable_cppcheck(
 )
 
 enable_testing()
+
+include(ROCMCreatePackage)
+rocm_create_package(
+    NAME MIGraph
+    DESCRIPTION "AMD's graph optimizer"
+    MAINTAINER "Paul Fultz II <paul.fultz@amd.com>"
+    LDCONFIG
+    DEPENDS miopen-hip rocblas hip_hcc
+)
 
 add_subdirectory(src)
 add_subdirectory(doc)

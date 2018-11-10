@@ -366,7 +366,8 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
         auto& ctx = this->impl->ctx;
         return generic_eval(*this, this->impl->ctx, std::move(params), [&](auto& ins, auto f) {
             ctx.finish();
-            std::cout << "Run instruction: " << ins->name() << std::endl;
+            std::cout << "Run instruction: ";
+            this->debug_print(ins);
             return f();
         });
     }
@@ -473,8 +474,8 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
        << ", " << std::round(calculate_overhead_percent) << "%" << std::endl;
 }
 
-void program::debug_print() { std::cout << *this << std::endl; }
-void program::debug_print(instruction_ref ins)
+void program::debug_print() const { std::cout << *this << std::endl; }
+void program::debug_print(instruction_ref ins) const
 {
     std::stringstream ss;
     print_program(ss, *this, [&](auto x, auto&& names) {
@@ -485,7 +486,7 @@ void program::debug_print(instruction_ref ins)
         }
     });
 }
-void program::debug_print(const std::vector<instruction_ref>& inss)
+void program::debug_print(const std::vector<instruction_ref>& inss) const
 {
     for(auto ins : inss)
         debug_print(ins);

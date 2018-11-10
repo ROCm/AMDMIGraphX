@@ -11,7 +11,8 @@ inline namespace MIGRAPH_INLINE_NS {
 struct program;
 
 /**
- * Remove memory allocations. This will create a parameter which is the max of all memory used in the program.
+ * Remove memory allocations. This will create a parameter which is the max of all memory used in
+ * the program.
  */
 struct eliminate_allocation
 {

@@ -10,6 +10,9 @@ inline namespace MIGRAPH_INLINE_NS {
 
 struct program;
 
+/**
+ * Remove identical instructions.
+ */
 struct common_subexpression_elimination
 {
     std::string name() const { return "common_subexpression_elimination"; }

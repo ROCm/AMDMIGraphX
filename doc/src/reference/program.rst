@@ -21,4 +21,4 @@ program
 parse_onnx
 ----------
 
-.. doxygenfunction:: migraph::parse_onnx
+.. doxygenfunction:: migraph::MIGRAPH_INLINE_NS::parse_onnx

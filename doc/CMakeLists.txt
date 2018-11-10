@@ -5,9 +5,12 @@ set(DOXYGEN_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/doxygen/)
 add_doxygen_doc(
     OUTPUT_DIRECTORY ${DOXYGEN_OUTPUT}
     INPUT 
-        ${CMAKE_CURRENT_SOURCE_DIR}/../include
         ${CMAKE_CURRENT_SOURCE_DIR}/../src
-        ${CMAKE_CURRENT_SOURCE_DIR}/../onnx
+    INCLUDE_PATH
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/targets/cpu/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/targets/gpu/include
+    SEARCH_INCLUDES YES
     MACRO_EXPANSION YES
     RECURSIVE YES
     GENERATE_XML YES
@@ -28,6 +31,10 @@ add_doxygen_doc(
     FULL_PATH_NAMES YES
     PREDEFINED DOXYGEN
 )
+add_custom_target(remove_inline_ns 
+    sed -i "s/MIGRAPH_INLINE_NS:://g" *.xml 
+    WORKING_DIRECTORY ${DOXYGEN_OUTPUT}/xml)
+add_dependencies(remove_inline_ns doxygen)
 
 include(SphinxDoc)
 add_sphinx_doc(src 
@@ -36,7 +43,7 @@ add_sphinx_doc(src
     VARS 
         breathe_projects.proj=${DOXYGEN_OUTPUT}/xml
         breathe_default_project=proj
-    DEPENDS doxygen
+    DEPENDS doxygen remove_inline_ns
 )
 
 find_package(LATEX)

@@ -11,6 +11,9 @@ inline namespace MIGRAPH_INLINE_NS {
 
 struct program;
 
+/**
+ * Remove concat operators by having each operator can write to different chunk of memory. 
+ */
 struct eliminate_concat
 {
     concat_optimization concat_opt;

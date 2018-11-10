@@ -109,13 +109,13 @@ struct cpu_lrn
             int height         = output_shape.lens()[2];
             int width          = output_shape.lens()[3];
             auto alphaoverarea = op.alpha / op.size;
-            auto radius = (op.size - 1) / 2;
+            auto radius        = (op.size - 1) / 2;
 
-            dfor(n_batch, height, width)([&](int b, int h, int w){
+            dfor(n_batch, height, width)([&](int b, int h, int w) {
                 double scale = 0;
                 dfor(channels)([&](int c) {
                     auto start = (c - radius) < 0 ? 0 : (c - radius);
-                    auto end = (c + radius) > channels ? channels : (c + radius);
+                    auto end   = (c + radius) > channels ? channels : (c + radius);
 
                     for(auto k = start; k < end; ++k)
                     {
@@ -124,14 +124,13 @@ struct cpu_lrn
 
                     scale *= alphaoverarea;
                     scale += op.bias;
-                    scale = std::pow(scale, -op.beta);
+                    scale              = std::pow(scale, -op.beta);
                     output(b, c, h, w) = input(b, c, h, w) * scale;
                 });
             });
         });
         return result;
     }
-
 };
 
 struct cpu_convolution

@@ -54,8 +54,8 @@ struct batch_norm_inference
 struct lrn
 {
     float alpha = 0.0001;
-    float beta = 0.75;
-    float bias = 1.0;
+    float beta  = 0.75;
+    float bias  = 1.0;
     int size;
     std::string name() const { return "lrn"; }
 

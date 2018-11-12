@@ -9,6 +9,9 @@ inline namespace MIGRAPH_INLINE_NS {
 
 struct program;
 
+/**
+ * Simplify many algebraic instructions to more efficient versions.
+ */
 struct simplify_algebra
 {
     std::string name() const { return "simplify_algebra"; }

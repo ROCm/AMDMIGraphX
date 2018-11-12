@@ -49,15 +49,16 @@ struct onnx_parser
 
     onnx_parser()
     {
-        add_generic_op("Add", op::add{});
-        add_generic_op("Div", op::div{});
         add_generic_op("MatMul", op::dot{});
-        add_generic_op("Mul", op::mul{});
         add_generic_op("Relu", op::relu{});
-        add_generic_op("Sub", op::sub{});
-        add_generic_op("Sum", op::add{});
         // disable dropout for inference
         add_generic_op("Dropout", op::identity{});
+
+        add_broadcastable_binary_op("Add", op::add{});
+        add_broadcastable_binary_op("Div", op::div{});
+        add_broadcastable_binary_op("Mul", op::mul{});
+        add_broadcastable_binary_op("Sub", op::sub{});
+        add_broadcastable_binary_op("Sum", op::add{});
 
         add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
@@ -92,12 +93,13 @@ struct onnx_parser
             return std::mem_fn(f)(*this, name, std::forward<decltype(xs)>(xs)...);
         });
     }
-
     template <class T>
-    void add_generic_op(std::string name, T x)
+    void add_broadcastable_binary_op(std::string name, T x)
     {
         ops.emplace(name, [this, x](attribute_map attributes, std::vector<instruction_ref> args) {
-            if(args.size() == 2 and contains(attributes, "broadcast"))
+            if(args.size() != 2)
+                MIGRAPH_THROW("binary operators should have 2 operands");
+            if(contains(attributes, "broadcast"))
             {
                 uint64_t broadcasted = parse_value(attributes.at("broadcast")).at<uint64_t>();
                 if(broadcasted != 0)
@@ -109,7 +111,51 @@ struct onnx_parser
                         prog.add_instruction(op::broadcast{axis, args[0]->get_shape()}, args[1]);
                     return prog.add_instruction(x, args[0], l);
                 }
+                return prog.add_instruction(x, args);
             }
+            else
+            {
+                // Example:
+                // s0 = (3,2,4,5) and s1 = (2,1,1)
+                //
+                // In this case we need to broadcast (:,1,1) portion of
+                // s1 plus broadcast the 1st dimension of s1
+                // giving output_lens = (3,2,4,5)
+                //
+                // Another example:
+                // s0 = (3,2,1,5) and s1 = (2,7,5)
+                // In this case we need to broadcast the (:,:,1:,:) axis
+                // of s0 plus the 1st dimension of s1 giving
+                // output_lens = (3,2,7,5)
+                //
+                // Get lengths for both arguments
+                const std::vector<std::size_t>* s0 = &args[0]->get_shape().lens();
+                const std::vector<std::size_t>* s1 = &args[1]->get_shape().lens();
+
+                // Make sure s0 is the smaller size
+                if(s0->size() > s1->size())
+                    std::swap(s0, s1);
+
+                // Copy the larger vector to output_lens
+                std::vector<std::size_t> output_lens(s1->size());
+                auto offset = s1->size() - s0->size();
+                std::transform(s0->begin(),
+                               s0->end(),
+                               s1->begin() + offset,
+                               output_lens.begin() + offset,
+                               [](auto a, auto b) { return std::max(a, b); });
+
+                auto l0 = prog.add_instruction(op::multibroadcast{output_lens}, args[0]);
+                auto l1 = prog.add_instruction(op::multibroadcast{output_lens}, args[1]);
+                return prog.add_instruction(x, l0, l1);
+            }
+        });
+    }
+
+    template <class T>
+    void add_generic_op(std::string name, T x)
+    {
+        ops.emplace(name, [this, x](attribute_map, std::vector<instruction_ref> args) {
             return prog.add_instruction(x, args);
         });
     }
@@ -607,15 +653,17 @@ struct onnx_parser
         }
         std::vector<std::size_t> dims;
         auto&& tensor_dims = t.tensor_type().shape().dim();
-        std::transform(
-            tensor_dims.begin(), tensor_dims.end(), std::back_inserter(dims), [](auto&& d) {
-                if(not d.has_dim_value())
-                {
-                    long default_batch_size = 1; // FIXME
-                    return default_batch_size;
-                }
-                return d.dim_value();
-            });
+        std::transform(tensor_dims.begin(),
+                       tensor_dims.end(),
+                       std::back_inserter(dims),
+                       [](auto&& d) -> std::size_t {
+                           if(not d.has_dim_value())
+                           {
+                               long default_batch_size = 1; // FIXME
+                               return default_batch_size;
+                           }
+                           return d.dim_value();
+                       });
         return {shape_type, dims};
     }
 };

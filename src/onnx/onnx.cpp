@@ -163,19 +163,6 @@ struct onnx_parser
     void add_generic_op(std::string name, T x)
     {
         ops.emplace(name, [this, x](attribute_map attributes, std::vector<instruction_ref> args) {
-            if(args.size() == 2 and contains(attributes, "broadcast"))
-            {
-                uint64_t broadcasted = parse_value(attributes.at("broadcast")).at<uint64_t>();
-                if(broadcasted != 0)
-                {
-                    uint64_t axis = (contains(attributes, "axis"))
-                                        ? parse_value(attributes.at("axis")).at<uint64_t>()
-                                        : 0;
-                    auto l =
-                        prog.add_instruction(op::broadcast{axis, args[0]->get_shape()}, args[1]);
-                    return prog.add_instruction(x, args[0], l);
-                }
-            }
             return prog.add_instruction(x, args);
         });
     }

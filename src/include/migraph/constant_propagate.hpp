@@ -9,6 +9,9 @@ inline namespace MIGRAPH_INLINE_NS {
 
 struct program;
 
+/**
+ * Replace instructions which take all literals with a literal of the computation.
+ */
 struct constant_propagate
 {
     std::string name() const { return "constant_propagate"; }

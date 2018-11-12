@@ -7,6 +7,7 @@ AMD's library for graph optimizations.
 * [MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen) for running on the GPU
 * [HIP](https://github.com/ROCm-Developer-Tools/HIP) for running on the GPU
 * [Protobuf](https://github.com/google/protobuf) for reading [onxx](https://github.com/onnx/onnx) files
+* [Half](http://half.sourceforge.net/) - IEEE 754-based half-precision floating point library
 
 ## Installing the dependencies
 
@@ -69,6 +70,16 @@ This will install the library to the `CMAKE_INSTALL_PREFIX` path that was set.
 The tests can be run by using the 'check' target:
 
 ` cmake --build . --config Release --target check ` **OR** ` make check `
+
+This will build a local searchable web site inside the doc/html folder.
+
+Documentation is built using [Doxygen](http://www.stack.nl/~dimitri/doxygen/download.html), [Sphinx](http://www.sphinx-doc.org/en/stable/index.html), and [Breathe](https://breathe.readthedocs.io/en/latest/)
+
+Requirements for both Sphinx and Breathe can be installed with:
+
+`pip install -r doc/requirements.txt`
+
+Depending on your setup `sudo` may be required for the pip install.
 
 ## Building the documentation
 

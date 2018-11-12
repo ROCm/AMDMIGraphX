@@ -51,13 +51,13 @@ struct batch_norm_inference
     }
 };
 
-struct lrn
+struct LRN
 {
     float alpha = 0.0001;
     float beta  = 0.75;
     float bias  = 1.0;
     int size;
-    std::string name() const { return "lrn"; }
+    std::string name() const { return "LRN"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -65,7 +65,7 @@ struct lrn
         return inputs.front();
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const lrn& op)
+    friend std::ostream& operator<<(std::ostream& os, const LRN& op)
     {
         os << op.name() << ":" << op.alpha << ":" << op.beta << ":" << op.bias << ":" << op.size;
         return os;

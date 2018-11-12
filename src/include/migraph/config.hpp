@@ -3,7 +3,7 @@
 
 namespace migraph {
 
-#ifndef MIGRAPH_USE_CLANG_TIDY
+#if !defined(MIGRAPH_USE_CLANG_TIDY) && !defined(DOXYGEN)
 #define MIGRAPH_INLINE_NS version_1
 #endif
 

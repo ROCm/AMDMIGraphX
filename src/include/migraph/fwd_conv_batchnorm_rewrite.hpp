@@ -10,6 +10,9 @@ inline namespace MIGRAPH_INLINE_NS {
 
 struct program;
 
+/**
+ * Rewrite batchnorm to a multiply and add.
+ */
 struct fwd_conv_batchnorm_rewrite
 {
     std::string name() const { return "fwd_conv_batchnorm_rewrite"; }

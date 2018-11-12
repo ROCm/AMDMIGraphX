@@ -10,6 +10,9 @@ inline namespace MIGRAPH_INLINE_NS {
 
 struct program;
 
+/**
+ * Remove contiguous instructions by checking if the operator can use non-standard shapes.
+ */
 struct eliminate_contiguous
 {
     std::string name() const { return "eliminate_contiguous"; }

@@ -10,6 +10,9 @@ inline namespace MIGRAPH_INLINE_NS {
 
 struct program;
 
+/**
+ * Eliminate redundant reshapes.
+ */
 struct simplify_reshapes
 {
     std::string name() const { return "simplify_reshapes"; }

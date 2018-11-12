@@ -155,7 +155,7 @@ struct onnx_parser
     template <class T>
     void add_generic_op(std::string name, T x)
     {
-        ops.emplace(name, [this, x](attribute_map attributes, std::vector<instruction_ref> args) {
+        ops.emplace(name, [this, x](attribute_map, std::vector<instruction_ref> args) {
             return prog.add_instruction(x, args);
         });
     }

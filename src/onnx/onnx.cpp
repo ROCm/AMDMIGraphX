@@ -139,8 +139,12 @@ struct onnx_parser
                 // Copy the larger vector to output_lens
                 std::vector<std::size_t> output_lens(s1->size());
                 auto offset = s1->size() - s0->size();
-                std::transform(s0->begin(), s0->end(), s1->begin() + offset, output_lens.begin() + offset, [](auto a, auto b) { return std::max(a, b); });
-                
+                std::transform(s0->begin(),
+                               s0->end(),
+                               s1->begin() + offset,
+                               output_lens.begin() + offset,
+                               [](auto a, auto b) { return std::max(a, b); });
+
                 auto l0 = prog.add_instruction(op::multibroadcast{output_lens}, args[0]);
                 auto l1 = prog.add_instruction(op::multibroadcast{output_lens}, args[1]);
                 return prog.add_instruction(x, l0, l1);

@@ -139,10 +139,11 @@ struct miopen_apply
 
     instruction_ref apply_LRN(instruction_ref ins)
     {
-        auto&& op = any_cast<op::LRN>(ins->get_operator());
-        auto ldesc   = make_LRN(op);
+        auto&& op   = any_cast<op::LRN>(ins->get_operator());
+        auto ldesc  = make_LRN(op);
         auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(ins, miopen_LRN{std::move(ldesc)}, ins->inputs().at(0), output);
+        return prog->replace_instruction(
+            ins, miopen_LRN{std::move(ldesc)}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_relu(instruction_ref ins)

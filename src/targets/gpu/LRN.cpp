@@ -15,22 +15,22 @@ shape miopen_LRN::compute_shape(const std::vector<shape>& inputs) const
 }
 
 argument miopen_LRN::compute(context& ctx,
-                                    const shape& output_shape,
-                                    const std::vector<argument>& args) const
+                             const shape& output_shape,
+                             const std::vector<argument>& args) const
 {
     float alpha = 1, beta = 0;
     auto x_desc = make_tensor(args[0].get_shape());
     auto y_desc = make_tensor(output_shape);
     miopenLRNForward(ctx.get_stream().get_miopen(),
-                            ldesc.get(),
-                            &alpha,
-                            x_desc.get(),
-                            args[0].implicit(),
-                            &beta,
-                            y_desc.get(),
-                            args[1].implicit(),
-                            false,
-                            nullptr);
+                     ldesc.get(),
+                     &alpha,
+                     x_desc.get(),
+                     args[0].implicit(),
+                     &beta,
+                     y_desc.get(),
+                     args[1].implicit(),
+                     false,
+                     nullptr);
 
     return args[1];
 }

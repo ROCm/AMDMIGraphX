@@ -589,10 +589,9 @@ TEST_CASE(LRN_test)
     auto result = p.eval({});
     std::vector<float> results_vector(5);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-2/1.000075, 1/1.00009, 0/1.000145, 1/1.00009, 2/1.000075};
+    std::vector<float> gold = {-2 / 1.000075, 1 / 1.00009, 0 / 1.000145, 1 / 1.00009, 2 / 1.000075};
     EXPECT(migraph::verify_range(results_vector, gold));
 }
-
 
 TEST_CASE(imagescaler_test)
 {

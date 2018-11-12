@@ -104,25 +104,25 @@ struct cpu_LRN
     {
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
-            int n_batch        = output_shape.lens()[0];
-            int channels       = output_shape.lens()[1];
-            int height         = output_shape.lens()[2];
-            int width          = output_shape.lens()[3];
+            int n_batch         = output_shape.lens()[0];
+            int channels        = output_shape.lens()[1];
+            int height          = output_shape.lens()[2];
+            int width           = output_shape.lens()[3];
             float alphaoverarea = op.alpha / op.size;
-            int radius        = (op.size - 1) / 2;
+            int radius          = (op.size - 1) / 2;
 
             dfor(n_batch, height, width)([&](int b, int h, int w) {
                 float scale = 0;
                 dfor(channels)([&](int c) {
                     auto start = (c - radius) < 0 ? 0 : (c - radius);
-                    auto end   = (c + radius) > channels ? channels  : (c + radius);
+                    auto end   = (c + radius) > channels ? channels : (c + radius);
                     for(auto k = start; k < end; ++k)
                     {
                         scale += std::pow(input(b, k, h, w), 2);
                     }
                     scale *= alphaoverarea;
                     scale += op.bias;
-                    scale = std::pow(scale, -op.beta);
+                    scale              = std::pow(scale, -op.beta);
                     output(b, c, h, w) = input(b, c, h, w) * scale;
                 });
             });

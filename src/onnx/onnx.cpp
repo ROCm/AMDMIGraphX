@@ -98,7 +98,7 @@ struct onnx_parser
     {
         ops.emplace(name, [this, x](attribute_map attributes, std::vector<instruction_ref> args) {
             if(args.size() != 2)
-                MIGRAPH_THROW("binaGry operators should have 2 operands");
+                MIGRAPH_THROW("binary operators should have 2 operands");
             if(contains(attributes, "broadcast"))
             {
                 uint64_t broadcasted = parse_value(attributes.at("broadcast")).at<uint64_t>();

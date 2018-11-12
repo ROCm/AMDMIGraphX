@@ -88,12 +88,7 @@ inline pooling_descriptor make_pooling(const migraph::op::pooling& op)
 inline LRN_descriptor make_LRN(const migraph::op::LRN& op)
 {
     auto ldesc = make_obj<LRN_descriptor>(&miopenCreateLRNDescriptor);
-    miopenSetLRNDescriptor(ldesc.get(),
-                           miopenLRNCrossChannel,
-                           op.size,
-                           op.alpha,
-                           op.beta,
-                           op.bias);
+    miopenSetLRNDescriptor(ldesc.get(), miopenLRNCrossChannel, op.size, op.alpha, op.beta, op.bias);
     return ldesc;
 }
 

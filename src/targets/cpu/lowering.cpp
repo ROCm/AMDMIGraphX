@@ -94,11 +94,11 @@ struct cpu_batch_norm_inference
     }
 };
 
-struct cpu_lrn
+struct cpu_LRN
 {
-    op::lrn op;
+    op::LRN op;
 
-    std::string name() const { return "cpu::lrn"; }
+    std::string name() const { return "cpu::LRN"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
@@ -108,23 +108,21 @@ struct cpu_lrn
             int channels       = output_shape.lens()[1];
             int height         = output_shape.lens()[2];
             int width          = output_shape.lens()[3];
-            auto alphaoverarea = op.alpha / op.size;
-            auto radius        = (op.size - 1) / 2;
+            float alphaoverarea = op.alpha / op.size;
+            int radius        = (op.size - 1) / 2;
 
             dfor(n_batch, height, width)([&](int b, int h, int w) {
-                double scale = 0;
+                float scale = 0;
                 dfor(channels)([&](int c) {
                     auto start = (c - radius) < 0 ? 0 : (c - radius);
-                    auto end   = (c + radius) > channels ? channels : (c + radius);
-
+                    auto end   = (c + radius) > channels ? channels  : (c + radius);
                     for(auto k = start; k < end; ++k)
                     {
-                        scale += std::pow(input(b, c, h, w), 2);
+                        scale += std::pow(input(b, k, h, w), 2);
                     }
-
                     scale *= alphaoverarea;
                     scale += op.bias;
-                    scale              = std::pow(scale, -op.beta);
+                    scale = std::pow(scale, -op.beta);
                     output(b, c, h, w) = input(b, c, h, w) * scale;
                 });
             });
@@ -635,7 +633,7 @@ struct cpu_apply
         apply_map["dot"]         = extend_op<cpu_gemm, op::dot>();
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
-        apply_map["lrn"]        = extend_op<cpu_lrn, op::lrn>();
+        apply_map["LRN"]        = extend_op<cpu_LRN, op::LRN>();
         apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
         apply_map["concat"]     = extend_op<cpu_concat, op::concat>();
         apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();

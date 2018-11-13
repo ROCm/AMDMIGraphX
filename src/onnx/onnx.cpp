@@ -337,14 +337,13 @@ struct onnx_parser
         return prog.add_instruction(op, args.front());
     }
 
-    instruction_ref parse_lrn(const std::string&,
-                              attribute_map attributes,
-                              std::vector<instruction_ref> args)
+    instruction_ref
+    parse_lrn(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         float alpha = 0.0001;
-        float beta = 0.75;
-        float bias = 1.0;
-        int size = 1;
+        float beta  = 0.75;
+        float bias  = 1.0;
+        int size    = 1;
         if(contains(attributes, "alpha"))
             alpha = parse_value(attributes.at("alpha")).at<float>();
         if(contains(attributes, "beta"))

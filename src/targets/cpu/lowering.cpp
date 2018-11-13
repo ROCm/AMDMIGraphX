@@ -94,11 +94,11 @@ struct cpu_batch_norm_inference
     }
 };
 
-struct cpu_LRN
+struct cpu_lrn
 {
-    op::LRN op;
+    op::lrn op;
 
-    std::string name() const { return "cpu::LRN"; }
+    std::string name() const { return "cpu::lrn"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
@@ -633,7 +633,7 @@ struct cpu_apply
         apply_map["dot"]         = extend_op<cpu_gemm, op::dot>();
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
-        apply_map["LRN"]        = extend_op<cpu_LRN, op::LRN>();
+        apply_map["lrn"]        = extend_op<cpu_lrn, op::lrn>();
         apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
         apply_map["concat"]     = extend_op<cpu_concat, op::concat>();
         apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();

@@ -148,7 +148,8 @@ struct onnx_parser
                 auto l0 = prog.add_instruction(op::multibroadcast{output_lens}, args[0]);
                 auto l1 = prog.add_instruction(op::multibroadcast{output_lens}, args[1]);
                 return prog.add_instruction(x, l0, l1);
-            } else 
+            }
+            else
             {
                 return prog.add_instruction(x, args);
             }

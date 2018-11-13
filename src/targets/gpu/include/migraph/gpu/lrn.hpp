@@ -22,10 +22,10 @@ namespace migraph {
 inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
-struct miopen_LRN
+struct miopen_lrn
 {
-    shared<LRN_descriptor> ldesc;
-    std::string name() const { return "gpu::LRN"; }
+    shared<lrn_descriptor> ldesc;
+    std::string name() const { return "gpu::lrn"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;

@@ -42,7 +42,7 @@ add_library(migraph_gpu
     batchnorm.cpp
     write_literals.cpp
     rocblas.cpp
-    LRN.cpp
+    lrn.cpp
 )
 set_target_properties(migraph_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_clang_tidy_check(migraph_gpu)

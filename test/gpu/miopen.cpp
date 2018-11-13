@@ -450,13 +450,13 @@ struct test_leaky_relu
     }
 };
 
-struct test_LRN
+struct test_lrn
 {
     migraph::program create_program() const
     {
         migraph::program p;
         auto x = p.add_parameter("x", migraph::shape{migraph::shape::float_type, {1, 5, 2, 2}});
-        p.add_instruction(migraph::op::LRN{0.0001, 0.75, 1.0, 5}, x);
+        p.add_instruction(migraph::op::lrn{0.0001, 0.75, 1.0, 5}, x);
         return p;
     }
 };
@@ -840,7 +840,7 @@ struct test_conv_bn_relu_pooling2
 
 int main()
 {
-    verify_program<test_LRN>();
+    verify_program<test_lrn>();
     verify_program<test_concat>();
     verify_program<test_concat2>();
     verify_program<test_concat_relu>();

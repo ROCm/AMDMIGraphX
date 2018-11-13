@@ -1,4 +1,4 @@
-#include <migraph/gpu/LRN.hpp>
+#include <migraph/gpu/lrn.hpp>
 #include <migraph/operators.hpp>
 #include <migraph/manage_ptr.hpp>
 #include <migraph/gpu/miopen.hpp>
@@ -8,13 +8,13 @@ namespace migraph {
 inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
-shape miopen_LRN::compute_shape(const std::vector<shape>& inputs) const
+shape miopen_lrn::compute_shape(const std::vector<shape>& inputs) const
 {
     check_shapes{inputs, *this}.has(2).not_broadcasted();
     return inputs.at(1);
 }
 
-argument miopen_LRN::compute(context& ctx,
+argument miopen_lrn::compute(context& ctx,
                              const shape& output_shape,
                              const std::vector<argument>& args) const
 {

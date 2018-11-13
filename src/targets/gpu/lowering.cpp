@@ -15,7 +15,7 @@
 #include <migraph/gpu/context.hpp>
 #include <migraph/gpu/convolution.hpp>
 #include <migraph/gpu/contiguous.hpp>
-#include <migraph/gpu/LRN.hpp>
+#include <migraph/gpu/lrn.hpp>
 #include <migraph/gpu/relu.hpp>
 #include <migraph/gpu/leaky_relu.hpp>
 #include <migraph/gpu/softmax.hpp>
@@ -64,9 +64,9 @@ struct miopen_apply
             {
                 check_shape(s, apply_pooling(it));
             }
-            else if(it->name() == "LRN")
+            else if(it->name() == "lrn")
             {
-                check_shape(s, apply_LRN(it));
+                check_shape(s, apply_lrn(it));
             }
             else if(it->name() == "add")
             {
@@ -137,13 +137,13 @@ struct miopen_apply
             ins, miopen_pooling{op, std::move(pd)}, ins->inputs().at(0), output);
     }
 
-    instruction_ref apply_LRN(instruction_ref ins)
+    instruction_ref apply_lrn(instruction_ref ins)
     {
-        auto&& op   = any_cast<op::LRN>(ins->get_operator());
-        auto ldesc  = make_LRN(op);
+        auto&& op   = any_cast<op::lrn>(ins->get_operator());
+        auto ldesc  = make_lrn(op);
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(
-            ins, miopen_LRN{std::move(ldesc)}, ins->inputs().at(0), output);
+            ins, miopen_lrn{std::move(ldesc)}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_relu(instruction_ref ins)

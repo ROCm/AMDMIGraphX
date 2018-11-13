@@ -579,12 +579,12 @@ TEST_CASE(leaky_relu_test)
     EXPECT(migraph::verify_range(results_vector, gold));
 }
 
-TEST_CASE(LRN_test)
+TEST_CASE(lrn_test)
 {
     migraph::program p;
     migraph::shape s{migraph::shape::float_type, {1, 5, 1, 1}};
     auto l = p.add_literal(migraph::literal{s, {-2.0f, 1.0f, 0.f, 1.0f, 2.0f}});
-    p.add_instruction(migraph::op::LRN{0.0001, 0.75, 1, 5}, l);
+    p.add_instruction(migraph::op::lrn{0.0001, 0.75, 1, 5}, l);
     p.compile(migraph::cpu::target{});
     auto result = p.eval({});
     std::vector<float> results_vector(5);

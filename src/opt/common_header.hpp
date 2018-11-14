@@ -1,19 +1,19 @@
 #ifndef MIGRAPH_GUARD_RTGLIB_COMMON_HEADER_HPP
 #define MIGRAPH_GUARD_RTGLIB_COMMON_HEADER_HPP
-#include <migraph/program.hpp>
-#include <migraph/stringutils.hpp>
-#include <migraph/instruction.hpp>
-#include <migraph/operators.hpp>
-#include <migraph/iterator_for.hpp>
-#include <migraph/pass_config.hpp>
-#include <migraph/config.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/pass_config.hpp>
+#include <migraphx/config.hpp>
 
 #include <set>
 #include <list>
 #include <vector>
 #include <queue>
 
-namespace migraph {
+namespace migraphx {
 inline namespace MIGRAPH_INLINE_NS {
 
 //#define MIGRAPH_DEBUG_OPT
@@ -25,6 +25,6 @@ inline namespace MIGRAPH_INLINE_NS {
 #endif // MIGRAPH_DEBUG_OPT
 
 } // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace migraphx
 
 #endif // MIGRAPH_GUARD_RTGLIB_COMMON_HEADER_HPP

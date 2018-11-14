@@ -8,7 +8,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace migraph {
+namespace migraphx {
 
 #ifdef DOXYGEN
 
@@ -31,6 +31,6 @@ interface('context',
 
 #endif
 
-} // namespace migraph
+} // namespace migraphx
 
 #endif

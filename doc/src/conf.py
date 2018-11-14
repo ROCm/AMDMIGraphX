@@ -138,7 +138,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'migraph', u'MIGraph Documentation',
+    (master_doc, 'migraphx', u'MIGraph Documentation',
      [author], 1)
 ]
 
@@ -155,7 +155,7 @@ texinfo_documents = [
 ]
 
 breathe_default_members = ('members', 'undoc-members')
-cpp_index_common_prefix = ['migraph::']
+cpp_index_common_prefix = ['migraphx::']
 
 default_role = 'any'
 primary_domain = 'cpp'

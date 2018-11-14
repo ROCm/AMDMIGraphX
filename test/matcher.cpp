@@ -1,17 +1,17 @@
-#include <migraph/matcher.hpp>
-#include <migraph/iterator_for.hpp>
+#include <migraphx/matcher.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <test.hpp>
 #include <basic_ops.hpp>
 
-namespace match = migraph::match;
+namespace match = migraphx::match;
 
 template <class M>
-migraph::match::matcher_result find_match(migraph::program& p, M&& m)
+migraphx::match::matcher_result find_match(migraphx::program& p, M&& m)
 {
-    migraph::match::matcher_result result;
-    for(auto ins : migraph::iterator_for(p))
+    migraphx::match::matcher_result result;
+    for(auto ins : migraphx::iterator_for(p))
     {
-        result = migraph::match::match_instruction(p, ins, m);
+        result = migraphx::match::match_instruction(p, ins, m);
         if(result.result != p.end())
             return result;
     }
@@ -20,7 +20,7 @@ migraph::match::matcher_result find_match(migraph::program& p, M&& m)
 
 void match1()
 {
-    migraph::program p;
+    migraphx::program p;
     auto l = p.add_literal(1);
     auto m = match::standard_shape();
     auto r = find_match(p, m);
@@ -29,7 +29,7 @@ void match1()
 
 TEST_CASE(match_name1)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -41,7 +41,7 @@ TEST_CASE(match_name1)
 
 TEST_CASE(match_name2)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -53,7 +53,7 @@ TEST_CASE(match_name2)
 
 TEST_CASE(match_name3)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -65,7 +65,7 @@ TEST_CASE(match_name3)
 
 TEST_CASE(match_arg1)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -77,7 +77,7 @@ TEST_CASE(match_arg1)
 
 TEST_CASE(match_arg2)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -89,7 +89,7 @@ TEST_CASE(match_arg2)
 
 TEST_CASE(match_arg3)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -101,7 +101,7 @@ TEST_CASE(match_arg3)
 
 TEST_CASE(match_arg4)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one  = p.add_literal(1);
     auto two  = p.add_literal(2);
     auto sum  = p.add_instruction(sum_op{}, one, two);
@@ -113,7 +113,7 @@ TEST_CASE(match_arg4)
 
 TEST_CASE(match_arg5)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -125,7 +125,7 @@ TEST_CASE(match_arg5)
 
 TEST_CASE(match_arg6)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -137,7 +137,7 @@ TEST_CASE(match_arg6)
 
 TEST_CASE(match_arg7)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -150,7 +150,7 @@ TEST_CASE(match_arg7)
 
 TEST_CASE(match_args1)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -163,7 +163,7 @@ TEST_CASE(match_args1)
 
 TEST_CASE(match_args2)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -176,7 +176,7 @@ TEST_CASE(match_args2)
 
 TEST_CASE(match_args3)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -188,7 +188,7 @@ TEST_CASE(match_args3)
 
 TEST_CASE(match_args4)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one  = p.add_literal(1);
     auto two  = p.add_literal(2);
     auto sum1 = p.add_instruction(sum_op{}, one, two);
@@ -202,7 +202,7 @@ TEST_CASE(match_args4)
 
 TEST_CASE(match_args5)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -215,7 +215,7 @@ TEST_CASE(match_args5)
 
 TEST_CASE(match_args6)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one  = p.add_literal(1);
     auto two  = p.add_literal(2);
     auto sum  = p.add_instruction(sum_op{}, one, two);
@@ -227,7 +227,7 @@ TEST_CASE(match_args6)
 
 TEST_CASE(match_args7)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one  = p.add_literal(1);
     auto two  = p.add_literal(2);
     auto sum  = p.add_instruction(sum_op{}, one, two);
@@ -241,7 +241,7 @@ TEST_CASE(match_args7)
 
 TEST_CASE(match_either_args1)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one  = p.add_literal(1);
     auto two  = p.add_literal(2);
     auto sum1 = p.add_instruction(sum_op{}, one, two);
@@ -255,7 +255,7 @@ TEST_CASE(match_either_args1)
 
 TEST_CASE(match_either_args2)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one  = p.add_literal(1);
     auto two  = p.add_literal(2);
     auto sum1 = p.add_instruction(sum_op{}, one, two);
@@ -269,7 +269,7 @@ TEST_CASE(match_either_args2)
 
 TEST_CASE(match_either_args3)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one  = p.add_literal(1);
     auto two  = p.add_literal(2);
     auto sum1 = p.add_instruction(sum_op{}, one, two);
@@ -283,7 +283,7 @@ TEST_CASE(match_either_args3)
 
 TEST_CASE(match_all_of1)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -296,7 +296,7 @@ TEST_CASE(match_all_of1)
 
 TEST_CASE(match_all_of2)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -309,7 +309,7 @@ TEST_CASE(match_all_of2)
 
 TEST_CASE(match_any_of1)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -322,7 +322,7 @@ TEST_CASE(match_any_of1)
 
 TEST_CASE(match_any_of2)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -335,7 +335,7 @@ TEST_CASE(match_any_of2)
 
 TEST_CASE(match_none_of1)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -348,7 +348,7 @@ TEST_CASE(match_none_of1)
 
 TEST_CASE(match_none_of2)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
@@ -361,7 +361,7 @@ TEST_CASE(match_none_of2)
 
 TEST_CASE(match_bind1)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one  = p.add_literal(1);
     auto two  = p.add_literal(2);
     auto sum  = p.add_instruction(sum_op{}, one, two);
@@ -382,18 +382,18 @@ TEST_CASE(match_bind1)
 
 struct match_find_sum
 {
-    migraph::instruction_ref ins;
+    migraphx::instruction_ref ins;
     auto matcher() const { return match::name("sum"); }
 
-    void apply(migraph::program&, match::matcher_result r) const { EXPECT(bool{r.result == ins}); }
+    void apply(migraphx::program&, match::matcher_result r) const { EXPECT(bool{r.result == ins}); }
 };
 
 struct match_find_literal
 {
-    migraph::instruction_ref ins;
+    migraphx::instruction_ref ins;
     auto matcher() const { return match::name("@literal"); }
 
-    void apply(migraph::program&, match::matcher_result r) const
+    void apply(migraphx::program&, match::matcher_result r) const
     {
         EXPECT(bool{r.result != ins});
         EXPECT(r.result->name() == "@literal");
@@ -402,7 +402,7 @@ struct match_find_literal
 
 TEST_CASE(match_finder)
 {
-    migraph::program p;
+    migraphx::program p;
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);

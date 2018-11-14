@@ -1,12 +1,12 @@
 
-#include <migraph/shape.hpp>
-#include <migraph/stringutils.hpp>
+#include <migraphx/shape.hpp>
+#include <migraphx/stringutils.hpp>
 #include <numeric>
 #include <algorithm>
 #include <functional>
 #include <iostream>
 
-namespace migraph {
+namespace migraphx {
 inline namespace MIGRAPH_INLINE_NS {
 
 struct shape_impl
@@ -192,4 +192,4 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
 }
 
 } // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace migraphx

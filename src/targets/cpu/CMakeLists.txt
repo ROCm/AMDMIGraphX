@@ -1,21 +1,21 @@
 
-add_library(migraph_cpu
+add_library(migraphx_cpu
     target.cpp
     lowering.cpp
     gemm.cpp
 )
-set_target_properties(migraph_cpu PROPERTIES EXPORT_NAME cpu)
+set_target_properties(migraphx_cpu PROPERTIES EXPORT_NAME cpu)
 
 find_path(BLAZE_INCLUDE blaze/Blaze.h)
 find_package(Threads)
 
-rocm_clang_tidy_check(migraph_cpu)
-target_link_libraries(migraph_cpu migraph Threads::Threads)
-target_include_directories(migraph_cpu PRIVATE ${BLAZE_INCLUDE})
-target_compile_definitions(migraph_cpu PRIVATE -DBLAZE_USE_CPP_THREADS)
+rocm_clang_tidy_check(migraphx_cpu)
+target_link_libraries(migraphx_cpu migraphx Threads::Threads)
+target_include_directories(migraphx_cpu PRIVATE ${BLAZE_INCLUDE})
+target_compile_definitions(migraphx_cpu PRIVATE -DBLAZE_USE_CPP_THREADS)
 
 rocm_install_targets(
-  TARGETS migraph_cpu
+  TARGETS migraphx_cpu
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )

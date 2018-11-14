@@ -4,12 +4,12 @@
 #include <numeric>
 #include <stdexcept>
 
-#include <migraph/onnx.hpp>
+#include <migraphx/onnx.hpp>
 
-#include <migraph/cpu/target.hpp>
-#include <migraph/gpu/target.hpp>
-#include <migraph/gpu/hip.hpp>
-#include <migraph/generate.hpp>
+#include <migraphx/cpu/target.hpp>
+#include <migraphx/gpu/target.hpp>
+#include <migraphx/gpu/hip.hpp>
+#include <migraphx/generate.hpp>
 
 #include "softmax.hpp"
 
@@ -53,19 +53,19 @@ int main(int argc, char const* argv[])
     std::string gpu_cpu  = argv[1];
     std::string file     = argv[2];
     std::string datafile = argv[3];
-    auto prog            = migraph::parse_onnx(file);
+    auto prog            = migraphx::parse_onnx(file);
     std::cout << prog << std::endl;
     auto imageset = read_cifar10_images(datafile);
 
     if(gpu_cpu == "gpu")
     {
         // GPU target
-        prog.compile(migraph::gpu::target{});
-        migraph::program::parameter_map m;
-        auto s = migraph::shape{migraph::shape::float_type, {1, 3, 32, 32}};
+        prog.compile(migraphx::gpu::target{});
+        migraphx::program::parameter_map m;
+        auto s = migraphx::shape{migraphx::shape::float_type, {1, 3, 32, 32}};
         for(auto&& x : prog.get_parameter_shapes())
         {
-            m[x.first] = migraph::gpu::to_gpu(migraph::generate_argument(x.second));
+            m[x.first] = migraphx::gpu::to_gpu(migraphx::generate_argument(x.second));
         }
         auto labels = imageset.first;
         auto input  = imageset.second;
@@ -73,8 +73,8 @@ int main(int argc, char const* argv[])
         for(int i = 0; i < 10; i++)
         {
             std::cout << "label: " << static_cast<uint32_t>(labels[i]) << "  ---->  ";
-            m["0"]      = migraph::gpu::to_gpu(migraph::argument{s, &ptr[3072 * i]});
-            auto result = migraph::gpu::from_gpu(prog.eval(m));
+            m["0"]      = migraphx::gpu::to_gpu(migraphx::argument{s, &ptr[3072 * i]});
+            auto result = migraphx::gpu::from_gpu(prog.eval(m));
             std::vector<float> logits;
             result.visit([&](auto output) { logits.assign(output.begin(), output.end()); });
             std::vector<float> probs = softmax<float>(logits);
@@ -86,15 +86,15 @@ int main(int argc, char const* argv[])
     else
     {
         // CPU target
-        prog.compile(migraph::cpu::target{});
-        auto s      = migraph::shape{migraph::shape::float_type, {1, 3, 32, 32}};
+        prog.compile(migraphx::cpu::target{});
+        auto s      = migraphx::shape{migraphx::shape::float_type, {1, 3, 32, 32}};
         auto labels = imageset.first;
         auto input  = imageset.second;
         auto ptr    = input.data();
         for(int i = 0; i < 10; i++)
         {
             std::cout << "label: " << static_cast<uint32_t>(labels[i]) << "  ---->  ";
-            auto input3 = migraph::argument{s, &ptr[3072 * i]};
+            auto input3 = migraphx::argument{s, &ptr[3072 * i]};
             auto result = prog.eval({{"0", input3}});
             std::vector<float> logits;
             result.visit([&](auto output) { logits.assign(output.begin(), output.end()); });

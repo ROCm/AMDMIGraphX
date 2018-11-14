@@ -8,10 +8,10 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include <migraph/context.hpp>
-#include <migraph/pass.hpp>
+#include <migraphx/context.hpp>
+#include <migraphx/pass.hpp>
 
-namespace migraph {
+namespace migraphx {
 
 #ifdef DOXYGEN
 
@@ -48,6 +48,6 @@ interface('target',
 
 #endif
 
-} // namespace migraph
+} // namespace migraphx
 
 #endif

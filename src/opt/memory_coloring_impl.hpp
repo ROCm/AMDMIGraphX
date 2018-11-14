@@ -1,9 +1,9 @@
 #ifndef MIGRAPH_GUARD_RTGLIB_MEMORY_COLORING_IMPL_HPP
 #define MIGRAPH_GUARD_RTGLIB_MEMORY_COLORING_IMPL_HPP
 #include "common_header.hpp"
-#include <migraph/config.hpp>
+#include <migraphx/config.hpp>
 
-namespace migraph {
+namespace migraphx {
 inline namespace MIGRAPH_INLINE_NS {
 
 static const int invalid_offset = -1;
@@ -155,5 +155,5 @@ struct memory_coloring_impl
 };
 
 } // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace migraphx
 #endif

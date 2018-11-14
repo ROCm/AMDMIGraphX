@@ -1,20 +1,20 @@
-#include <migraph/dead_code_elimination.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
 struct dce_target
 {
     std::string name() const { return "dce"; }
-    std::vector<migraph::pass> get_passes(migraph::context&) const
+    std::vector<migraphx::pass> get_passes(migraphx::context&) const
     {
-        return {migraph::dead_code_elimination{}};
+        return {migraphx::dead_code_elimination{}};
     }
-    migraph::context get_context() const { return {}; }
+    migraphx::context get_context() const { return {}; }
 };
 
 TEST_CASE(simple_test)
 {
-    migraph::program p;
+    migraphx::program p;
 
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
@@ -23,13 +23,13 @@ TEST_CASE(simple_test)
     p.compile(dce_target{});
     EXPECT(std::distance(p.begin(), p.end()) == count);
     auto result = p.eval({});
-    EXPECT(result == migraph::literal{3});
-    EXPECT(result != migraph::literal{4});
+    EXPECT(result == migraphx::literal{3});
+    EXPECT(result != migraphx::literal{4});
 }
 
 TEST_CASE(simple_test_nop)
 {
-    migraph::program p;
+    migraphx::program p;
 
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
@@ -39,13 +39,13 @@ TEST_CASE(simple_test_nop)
     p.compile(dce_target{});
     EXPECT(std::distance(p.begin(), p.end()) == count);
     auto result = p.eval({});
-    EXPECT(result == migraph::literal{3});
-    EXPECT(result != migraph::literal{4});
+    EXPECT(result == migraphx::literal{3});
+    EXPECT(result != migraphx::literal{4});
 }
 
 TEST_CASE(simple_test_nop2)
 {
-    migraph::program p;
+    migraphx::program p;
 
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
@@ -55,13 +55,13 @@ TEST_CASE(simple_test_nop2)
     p.compile(dce_target{});
     EXPECT(std::distance(p.begin(), p.end()) == 2);
     auto result = p.eval({});
-    EXPECT(result == migraph::literal{});
-    EXPECT(result != migraph::literal{4});
+    EXPECT(result == migraphx::literal{});
+    EXPECT(result != migraphx::literal{4});
 }
 
 TEST_CASE(duplicate_test1)
 {
-    migraph::program p;
+    migraphx::program p;
 
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
@@ -71,13 +71,13 @@ TEST_CASE(duplicate_test1)
     p.compile(dce_target{});
     EXPECT(std::distance(p.begin(), p.end()) == (count - 1));
     auto result = p.eval({});
-    EXPECT(result == migraph::literal{3});
-    EXPECT(result != migraph::literal{4});
+    EXPECT(result == migraphx::literal{3});
+    EXPECT(result != migraphx::literal{4});
 }
 
 TEST_CASE(duplicate_test2)
 {
-    migraph::program p;
+    migraphx::program p;
 
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
@@ -88,13 +88,13 @@ TEST_CASE(duplicate_test2)
     p.compile(dce_target{});
     EXPECT(std::distance(p.begin(), p.end()) == (count - 2));
     auto result = p.eval({});
-    EXPECT(result == migraph::literal{3});
-    EXPECT(result != migraph::literal{4});
+    EXPECT(result == migraphx::literal{3});
+    EXPECT(result != migraphx::literal{4});
 }
 
 TEST_CASE(depth_test)
 {
-    migraph::program p;
+    migraphx::program p;
 
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
@@ -107,8 +107,8 @@ TEST_CASE(depth_test)
     p.compile(dce_target{});
     EXPECT(std::distance(p.begin(), p.end()) == (count - 4));
     auto result = p.eval({});
-    EXPECT(result == migraph::literal{3});
-    EXPECT(result != migraph::literal{4});
+    EXPECT(result == migraphx::literal{3});
+    EXPECT(result != migraphx::literal{4});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

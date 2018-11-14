@@ -1,12 +1,12 @@
 
-#include <migraph/onnx.hpp>
+#include <migraphx/onnx.hpp>
 
-#include <migraph/cpu/target.hpp>
-#include <migraph/gpu/target.hpp>
-#include <migraph/gpu/hip.hpp>
-#include <migraph/generate.hpp>
-#include <migraph/verify_args.hpp>
-#include <migraph/instruction.hpp>
+#include <migraphx/cpu/target.hpp>
+#include <migraphx/gpu/target.hpp>
+#include <migraphx/gpu/hip.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/verify_args.hpp>
+#include <migraphx/instruction.hpp>
 
 template <class T>
 auto get_hash(const T& x)
@@ -15,14 +15,14 @@ auto get_hash(const T& x)
 }
 
 template <class F>
-migraph::argument run_cpu(F f)
+migraphx::argument run_cpu(F f)
 {
     auto p = f();
-    p.compile(migraph::cpu::target{});
-    migraph::program::parameter_map m;
+    p.compile(migraphx::cpu::target{});
+    migraphx::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
-        m[x.first] = migraph::generate_argument(x.second, get_hash(x.first));
+        m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));
     }
     auto out = p.eval(m);
     std::cout << p << std::endl;
@@ -30,19 +30,20 @@ migraph::argument run_cpu(F f)
 }
 
 template <class F>
-migraph::argument run_gpu(F f)
+migraphx::argument run_gpu(F f)
 {
     auto p = f();
-    p.compile(migraph::gpu::target{});
+    p.compile(migraphx::gpu::target{});
 
-    migraph::program::parameter_map m;
+    migraphx::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
-        m[x.first] = migraph::gpu::to_gpu(migraph::generate_argument(x.second, get_hash(x.first)));
+        m[x.first] =
+            migraphx::gpu::to_gpu(migraphx::generate_argument(x.second, get_hash(x.first)));
     }
-    auto out = migraph::gpu::from_gpu(p.eval(m));
+    auto out = migraphx::gpu::from_gpu(p.eval(m));
     std::cout << p << std::endl;
-    return migraph::gpu::from_gpu(out);
+    return migraphx::gpu::from_gpu(out);
 }
 
 template <class F>
@@ -50,12 +51,12 @@ void verify_program(const std::string& name, F f, double tolerance = 100)
 {
     auto x = run_cpu(f);
     auto y = run_gpu(f);
-    migraph::verify_args(name, x, y, tolerance);
+    migraphx::verify_args(name, x, y, tolerance);
     // std::cout << "cpu: " << x << std::endl;
     // std::cout << "gpu: " << y << std::endl;
 }
 
-void verify_instructions(const migraph::program& prog, double tolerance = 80)
+void verify_instructions(const migraphx::program& prog, double tolerance = 80)
 {
     for(auto&& ins : prog)
     {
@@ -68,8 +69,8 @@ void verify_instructions(const migraph::program& prog, double tolerance = 80)
         if(ins.name() == "reshape")
             continue;
         auto create_program = [&] {
-            migraph::program p;
-            std::vector<migraph::instruction_ref> inputs;
+            migraphx::program p;
+            std::vector<migraphx::instruction_ref> inputs;
             for(auto&& arg : ins.inputs())
             {
                 if(arg->name() == "@literal")
@@ -100,8 +101,8 @@ void verify_reduced(F f, int n, double tolerance = 80)
 {
 
     auto create_program = [&] {
-        migraph::program p = f();
-        auto last          = std::prev(p.end(), n + 1);
+        migraphx::program p = f();
+        auto last           = std::prev(p.end(), n + 1);
         p.remove_instructions(last, p.end());
         return p;
     };
@@ -113,8 +114,8 @@ void verify_reduced(F f, int n, double tolerance = 80)
 template <class F>
 void verify_reduced_program(F f, double tolerance = 80)
 {
-    migraph::program p = f();
-    auto n             = std::distance(p.begin(), p.end());
+    migraphx::program p = f();
+    auto n              = std::distance(p.begin(), p.end());
     for(int i = 0; i < n; i++)
     {
         verify_reduced(f, i, tolerance);
@@ -127,7 +128,7 @@ int main(int argc, char const* argv[])
     if(not args.empty())
     {
         std::string file = args.front();
-        auto p           = migraph::parse_onnx(file);
+        auto p           = migraphx::parse_onnx(file);
         std::cout << p << std::endl;
 
         if(std::any_of(args.begin(), args.end(), [](const auto& s) { return s == "-i"; }))
@@ -136,11 +137,11 @@ int main(int argc, char const* argv[])
         }
         else if(std::any_of(args.begin(), args.end(), [](const auto& s) { return s == "-r"; }))
         {
-            verify_reduced_program([&] { return migraph::parse_onnx(file); });
+            verify_reduced_program([&] { return migraphx::parse_onnx(file); });
         }
         else
         {
-            verify_program(file, [&] { return migraph::parse_onnx(file); });
+            verify_program(file, [&] { return migraphx::parse_onnx(file); });
         }
     }
 }

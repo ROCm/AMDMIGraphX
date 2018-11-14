@@ -1,9 +1,9 @@
-#include <migraph/constant_propagate.hpp>
-#include <migraph/program.hpp>
-#include <migraph/matcher.hpp>
-#include <migraph/literal.hpp>
+#include <migraphx/constant_propagate.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/matcher.hpp>
+#include <migraphx/literal.hpp>
 
-namespace migraph {
+namespace migraphx {
 inline namespace MIGRAPH_INLINE_NS {
 
 struct match_const_add
@@ -27,4 +27,4 @@ struct match_const_add
 void constant_propagate::apply(program& p) const { match::find_matches(p, match_const_add{}); }
 
 } // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace migraphx

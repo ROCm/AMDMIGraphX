@@ -1,22 +1,22 @@
 #include <test.hpp>
 #include <basic_ops.hpp>
-#include <migraph/program.hpp>
-#include <migraph/instruction.hpp>
-#include <migraph/generate.hpp>
-#include <migraph/gpu/target.hpp>
-#include <migraph/gpu/hip.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/gpu/target.hpp>
+#include <migraphx/gpu/hip.hpp>
 
 void gpu_literal_test()
 {
-    migraph::program p;
-    auto lit = generate_literal(migraph::shape{migraph::shape::float_type, {4, 3, 3, 3}});
+    migraphx::program p;
+    auto lit = generate_literal(migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
     p.add_literal(lit);
-    p.compile(migraph::gpu::target{});
+    p.compile(migraphx::gpu::target{});
     auto scratch = p.get_parameter("scratch");
     if(scratch == p.end())
     {
         auto result = p.eval({});
-        EXPECT(lit == migraph::gpu::from_gpu(result));
+        EXPECT(lit == migraphx::gpu::from_gpu(result));
     }
     else
     {

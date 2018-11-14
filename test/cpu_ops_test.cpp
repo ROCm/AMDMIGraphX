@@ -1094,7 +1094,7 @@ TEST_CASE(contiguous_test)
 TEST_CASE(identity_test)
 {
     migraph::program p;
-    migraph::shape s{migraph::shape::float_type, {2,2}};
+    migraph::shape s{migraph::shape::float_type, {2, 2}};
     std::vector<int> data{1, 2, 3, 4};
     auto l = p.add_literal(migraph::literal{s, data});
     p.add_instruction(migraph::op::identity{}, l);

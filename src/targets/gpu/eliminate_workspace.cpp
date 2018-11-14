@@ -1,14 +1,14 @@
-#include <migraph/gpu/eliminate_workspace.hpp>
-#include <migraph/gpu/hip.hpp>
-#include <migraph/program.hpp>
-#include <migraph/instruction.hpp>
-#include <migraph/operators.hpp>
-#include <migraph/iterator_for.hpp>
-#include <migraph/ranges.hpp>
-#include <migraph/stringutils.hpp>
-#include <migraph/pass_config.hpp>
+#include <migraphx/gpu/eliminate_workspace.hpp>
+#include <migraphx/gpu/hip.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/pass_config.hpp>
 
-namespace migraph {
+namespace migraphx {
 inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
@@ -42,4 +42,4 @@ void eliminate_workspace::apply(program& p) const
 
 } // namespace gpu
 } // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace migraphx

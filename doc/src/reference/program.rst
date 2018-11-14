@@ -4,21 +4,21 @@ Program
 instruction
 -----------
 
-.. doxygenstruct:: migraph::instruction
+.. doxygenstruct:: migraphx::instruction
 
 instruction_ref
 ---------------
 
-.. cpp:type:: migraph::instruction_ref
+.. cpp:type:: migraphx::instruction_ref
 
     References an instruction in the program.
 
 program
 -------
 
-.. doxygenstruct:: migraph::program
+.. doxygenstruct:: migraphx::program
 
 parse_onnx
 ----------
 
-.. doxygenfunction:: migraph::MIGRAPH_INLINE_NS::parse_onnx
+.. doxygenfunction:: migraphx::MIGRAPH_INLINE_NS::parse_onnx

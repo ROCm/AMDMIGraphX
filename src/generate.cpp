@@ -1,6 +1,6 @@
-#include <migraph/generate.hpp>
+#include <migraphx/generate.hpp>
 
-namespace migraph {
+namespace migraphx {
 inline namespace MIGRAPH_INLINE_NS {
 
 argument generate_argument(shape s, unsigned long seed)
@@ -32,4 +32,4 @@ literal abs(literal l)
 }
 
 } // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace migraphx

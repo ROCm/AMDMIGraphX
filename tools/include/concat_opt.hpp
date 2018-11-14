@@ -8,10 +8,10 @@
 #include <type_traits>
 #include <utility>
 
-#include <migraph/operation.hpp>
-#include <migraph/operators.hpp>
+#include <migraphx/operation.hpp>
+#include <migraphx/operators.hpp>
 
-namespace migraph {
+namespace migraphx {
 
 struct program;
 
@@ -40,6 +40,6 @@ interface('concat_optimization',
 
 #endif
 
-} // namespace migraph
+} // namespace migraphx
 
 #endif

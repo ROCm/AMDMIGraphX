@@ -1,7 +1,7 @@
 
-#include <migraph/program.hpp>
-#include <migraph/iterator_for.hpp>
-#include <migraph/instruction.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/instruction.hpp>
 #include <sstream>
 #include "test.hpp"
 #include <basic_ops.hpp>
@@ -9,17 +9,17 @@
 struct id_target
 {
     std::string name() const { return "id"; }
-    std::vector<migraph::pass> get_passes(migraph::context&) const { return {}; }
-    migraph::context get_context() const { return {}; }
+    std::vector<migraphx::pass> get_passes(migraphx::context&) const { return {}; }
+    migraphx::context get_context() const { return {}; }
 };
 
 struct reverse_pass
 {
     std::string name() const { return "reverse_pass"; }
 
-    void apply(migraph::program& p) const
+    void apply(migraphx::program& p) const
     {
-        for(auto ins : migraph::iterator_for(p))
+        for(auto ins : migraphx::iterator_for(p))
         {
             if(ins->name() == "sum")
             {
@@ -36,35 +36,35 @@ struct reverse_pass
 struct reverse_target
 {
     std::string name() const { return "reverse"; }
-    std::vector<migraph::pass> get_passes(migraph::context&) const { return {reverse_pass{}}; }
-    migraph::context get_context() const { return {}; }
+    std::vector<migraphx::pass> get_passes(migraphx::context&) const { return {reverse_pass{}}; }
+    migraphx::context get_context() const { return {}; }
 };
 
 struct double_reverse_target
 {
     std::string name() const { return "double_reverse"; }
-    std::vector<migraph::pass> get_passes(migraph::context&) const
+    std::vector<migraphx::pass> get_passes(migraphx::context&) const
     {
         return {reverse_pass{}, reverse_pass{}};
     }
-    migraph::context get_context() const { return {}; }
+    migraphx::context get_context() const { return {}; }
 };
 
 TEST_CASE(literal_test1)
 {
-    migraph::program p;
+    migraphx::program p;
 
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     p.add_instruction(sum_op{}, one, two);
     auto result = p.eval({});
-    EXPECT(result == migraph::literal{3});
-    EXPECT(result != migraph::literal{4});
+    EXPECT(result == migraphx::literal{3});
+    EXPECT(result != migraphx::literal{4});
 }
 
 TEST_CASE(literal_test2)
 {
-    migraph::program p;
+    migraphx::program p;
 
     auto one  = p.add_literal(1);
     auto two  = p.add_literal(2);
@@ -72,15 +72,15 @@ TEST_CASE(literal_test2)
     p.add_instruction(sum_op{}, sum1, two);
 
     auto result = p.eval({});
-    EXPECT(result == migraph::literal{5});
-    EXPECT(result != migraph::literal{3});
+    EXPECT(result == migraphx::literal{5});
+    EXPECT(result != migraphx::literal{3});
 }
 
 TEST_CASE(print_test)
 {
-    migraph::program p;
+    migraphx::program p;
 
-    auto x   = p.add_parameter("x", {migraph::shape::int64_type});
+    auto x   = p.add_parameter("x", {migraphx::shape::int64_type});
     auto two = p.add_literal(2);
     p.add_instruction(sum_op{}, x, two);
 
@@ -92,36 +92,36 @@ TEST_CASE(print_test)
 
 TEST_CASE(param_test)
 {
-    migraph::program p;
+    migraphx::program p;
 
-    auto x = p.add_parameter("x", {migraph::shape::int64_type});
-    auto y = p.add_parameter("y", {migraph::shape::int64_type});
+    auto x = p.add_parameter("x", {migraphx::shape::int64_type});
+    auto y = p.add_parameter("y", {migraphx::shape::int64_type});
 
     p.add_instruction(sum_op{}, x, y);
     auto result = p.eval(
-        {{"x", migraph::literal{1}.get_argument()}, {"y", migraph::literal{2}.get_argument()}});
-    EXPECT(result == migraph::literal{3});
-    EXPECT(result != migraph::literal{4});
+        {{"x", migraphx::literal{1}.get_argument()}, {"y", migraphx::literal{2}.get_argument()}});
+    EXPECT(result == migraphx::literal{3});
+    EXPECT(result != migraphx::literal{4});
 }
 
 TEST_CASE(param_error_test)
 {
-    migraph::program p;
+    migraphx::program p;
 
-    auto x = p.add_parameter("x", {migraph::shape::int64_type});
-    auto y = p.add_parameter("y", {migraph::shape::int64_type});
+    auto x = p.add_parameter("x", {migraphx::shape::int64_type});
+    auto y = p.add_parameter("y", {migraphx::shape::int64_type});
 
     p.add_instruction(sum_op{}, x, y);
-    EXPECT(test::throws<migraph::exception>(
+    EXPECT(test::throws<migraphx::exception>(
         [&] {
-            p.eval({{"x", migraph::literal{1}.get_argument()}});
+            p.eval({{"x", migraphx::literal{1}.get_argument()}});
         },
         "Parameter not found: y"));
 }
 
 TEST_CASE(replace_test)
 {
-    migraph::program p;
+    migraphx::program p;
 
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
@@ -130,13 +130,13 @@ TEST_CASE(replace_test)
     EXPECT(bool{p.validate() == p.end()});
 
     auto result = p.eval({});
-    EXPECT(result == migraph::literal{1});
-    EXPECT(result != migraph::literal{3});
+    EXPECT(result == migraphx::literal{1});
+    EXPECT(result != migraphx::literal{3});
 }
 
 TEST_CASE(replace_ins_test)
 {
-    migraph::program p;
+    migraphx::program p;
 
     auto one   = p.add_literal(1);
     auto two   = p.add_literal(2);
@@ -146,13 +146,13 @@ TEST_CASE(replace_ins_test)
     EXPECT(bool{p.validate() == p.end()});
 
     auto result = p.eval({});
-    EXPECT(result == migraph::literal{1});
-    EXPECT(result != migraph::literal{3});
+    EXPECT(result == migraphx::literal{1});
+    EXPECT(result != migraphx::literal{3});
 }
 
 TEST_CASE(replace_ins_test2)
 {
-    migraph::program p;
+    migraphx::program p;
 
     auto one   = p.add_literal(1);
     auto two   = p.add_literal(2);
@@ -163,13 +163,13 @@ TEST_CASE(replace_ins_test2)
     EXPECT(bool{p.validate() == p.end()});
 
     auto result = p.eval({});
-    EXPECT(result == migraph::literal{2});
-    EXPECT(result != migraph::literal{3});
+    EXPECT(result == migraphx::literal{2});
+    EXPECT(result != migraphx::literal{3});
 }
 
 TEST_CASE(insert_replace_test)
 {
-    migraph::program p;
+    migraphx::program p;
 
     auto one  = p.add_literal(1);
     auto two  = p.add_literal(2);
@@ -181,47 +181,47 @@ TEST_CASE(insert_replace_test)
     EXPECT(bool{p.validate() == p.end()});
 
     auto result = p.eval({});
-    EXPECT(result == migraph::literal{4});
-    EXPECT(result != migraph::literal{5});
+    EXPECT(result == migraphx::literal{4});
+    EXPECT(result != migraphx::literal{5});
 }
 
 TEST_CASE(target_test)
 {
-    migraph::program p;
+    migraphx::program p;
 
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     p.add_instruction(sum_op{}, one, two);
     p.compile(id_target{});
     auto result = p.eval({});
-    EXPECT(result == migraph::literal{3});
-    EXPECT(result != migraph::literal{4});
+    EXPECT(result == migraphx::literal{3});
+    EXPECT(result != migraphx::literal{4});
 }
 
 TEST_CASE(reverse_target_test)
 {
-    migraph::program p;
+    migraphx::program p;
 
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     p.add_instruction(sum_op{}, two, one);
     p.compile(reverse_target{});
     auto result = p.eval({});
-    EXPECT(result == migraph::literal{1});
-    EXPECT(result != migraph::literal{4});
+    EXPECT(result == migraphx::literal{1});
+    EXPECT(result != migraphx::literal{4});
 }
 
 TEST_CASE(double_reverse_target_test)
 {
-    migraph::program p;
+    migraphx::program p;
 
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     p.add_instruction(sum_op{}, two, one);
     p.compile(double_reverse_target{});
     auto result = p.eval({});
-    EXPECT(result == migraph::literal{3});
-    EXPECT(result != migraph::literal{4});
+    EXPECT(result == migraphx::literal{3});
+    EXPECT(result != migraphx::literal{4});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

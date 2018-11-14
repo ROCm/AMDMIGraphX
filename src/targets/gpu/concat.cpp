@@ -1,11 +1,11 @@
-#include <migraph/gpu/concat.hpp>
-#include <migraph/operators.hpp>
-#include <migraph/manage_ptr.hpp>
-#include <migraph/gpu/miopen.hpp>
-#include <migraph/gpu/device/concat.hpp>
+#include <migraphx/gpu/concat.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/manage_ptr.hpp>
+#include <migraphx/gpu/miopen.hpp>
+#include <migraphx/gpu/device/concat.hpp>
 #include <utility>
 
-namespace migraph {
+namespace migraphx {
 inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
@@ -25,4 +25,4 @@ argument hip_concat::compute(context& ctx,
 
 } // namespace gpu
 } // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace migraphx

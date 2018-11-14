@@ -8,7 +8,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace migraph {
+namespace migraphx {
 
 struct program;
 
@@ -35,6 +35,6 @@ interface('pass',
 
 #endif
 
-} // namespace migraph
+} // namespace migraphx
 
 #endif

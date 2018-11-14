@@ -1,16 +1,16 @@
-#include <migraph/program.hpp>
-#include <migraph/stringutils.hpp>
-#include <migraph/instruction.hpp>
-#include <migraph/env.hpp>
-#include <migraph/ranges.hpp>
-#include <migraph/time.hpp>
-#include <migraph/iterator_for.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/env.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/time.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
 #include <utility>
 
-namespace migraph {
+namespace migraphx {
 inline namespace MIGRAPH_INLINE_NS {
 
 MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_TRACE_COMPILE)
@@ -502,4 +502,4 @@ std::ostream& operator<<(std::ostream& os, const program& p)
 }
 
 } // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace migraphx

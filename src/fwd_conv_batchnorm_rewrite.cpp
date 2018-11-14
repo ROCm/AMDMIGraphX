@@ -1,11 +1,11 @@
-#include <migraph/fwd_conv_batchnorm_rewrite.hpp>
-#include <migraph/program.hpp>
-#include <migraph/instruction.hpp>
-#include <migraph/operators.hpp>
-#include <migraph/iterator_for.hpp>
-#include <migraph/dfor.hpp>
+#include <migraphx/fwd_conv_batchnorm_rewrite.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/dfor.hpp>
 
-namespace migraph {
+namespace migraphx {
 inline namespace MIGRAPH_INLINE_NS {
 
 void fwd_conv_batchnorm_rewrite::apply(program& p) const
@@ -68,4 +68,4 @@ void fwd_conv_batchnorm_rewrite::apply(program& p) const
 }
 
 } // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace migraphx

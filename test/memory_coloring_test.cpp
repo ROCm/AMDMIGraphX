@@ -25,8 +25,8 @@ struct allocate
         return inputs.front();
     }
     migraphx::argument compute(migraphx::context&,
-                              const migraphx::shape& output_shape,
-                              const std::vector<migraphx::argument>&) const
+                               const migraphx::shape& output_shape,
+                               const std::vector<migraphx::argument>&) const
     {
         return {output_shape};
     }

@@ -169,21 +169,21 @@ basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
 }
 
 /// This macro takes care of the boilerplate for defining a matcher
-#define MIGRAPH_BASIC_MATCHER(name, ...)                                     \
-    struct name##_m                                                          \
-    {                                                                        \
-        instruction_ref match(__VA_ARGS__) const;                            \
-    };                                                                       \
+#define MIGRAPH_BASIC_MATCHER(name, ...)                                      \
+    struct name##_m                                                           \
+    {                                                                         \
+        instruction_ref match(__VA_ARGS__) const;                             \
+    };                                                                        \
     const constexpr auto name = migraphx::match::basic_matcher<name##_m>{{}}; \
     inline instruction_ref name##_m::match(__VA_ARGS__) const
 
 /// This macro takes care of the boilerplate for defining a predicate matcher
-#define MIGRAPH_PRED_MATCHER(name, ...)                                                 \
-    struct name##_m                                                                     \
-    {                                                                                   \
-        bool operator()(__VA_ARGS__) const;                                             \
-    };                                                                                  \
-    const constexpr auto name =                                                         \
+#define MIGRAPH_PRED_MATCHER(name, ...)                                                   \
+    struct name##_m                                                                       \
+    {                                                                                     \
+        bool operator()(__VA_ARGS__) const;                                               \
+    };                                                                                    \
+    const constexpr auto name =                                                           \
         migraphx::match::basic_matcher<migraphx::match::predicate_matcher<name##_m>>{{}}; \
     inline bool name##_m::operator()(__VA_ARGS__) const
 

@@ -32,14 +32,14 @@ struct requires_enum
 #if 0
 // TODO: This currently crashed on clang
 #define MIGRAPH_REQUIRES(...)                                                                       \
-    typename migraphx::requires_enum<__LINE__>::e MIGRAPH_REQUIRES_CAT(                              \
+    typename migraphx::requires_enum<__LINE__>::e MIGRAPH_REQUIRES_CAT(                             \
         PrivateRequires,                                                                            \
-        __LINE__) = migraphx::requires_enum<__LINE__>::a,                                            \
+        __LINE__) = migraphx::requires_enum<__LINE__>::a,                                           \
         class     = typename std::enable_if<and_<__VA_ARGS__,                                       \
                                              MIGRAPH_REQUIRES_CAT(PrivateRequires, __LINE__) == \
                                                  migraphx::requires_enum<__LINE__>::a>{}>::type
 #else
-#define MIGRAPH_REQUIRES(...)                                             \
+#define MIGRAPH_REQUIRES(...)                                              \
     typename migraphx::requires_enum<__LINE__>::e MIGRAPH_REQUIRES_CAT(    \
         PrivateRequires, __LINE__) = migraphx::requires_enum<__LINE__>::a, \
                          class     = typename std::enable_if<and_<__VA_ARGS__>{}>::type

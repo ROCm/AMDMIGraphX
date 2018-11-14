@@ -14,8 +14,8 @@ struct concat
         return op.compute_shape(std::move(inputs));
     }
     migraphx::argument compute(migraphx::context&,
-                              const migraphx::shape& output_shape,
-                              const std::vector<migraphx::argument>&) const
+                               const migraphx::shape& output_shape,
+                               const std::vector<migraphx::argument>&) const
     {
         return {output_shape};
     }
@@ -56,8 +56,8 @@ struct allocate
         return s;
     }
     migraphx::argument compute(migraphx::context&,
-                              const migraphx::shape& output_shape,
-                              const std::vector<migraphx::argument>&) const
+                               const migraphx::shape& output_shape,
+                               const std::vector<migraphx::argument>&) const
     {
         return {output_shape};
     }
@@ -72,8 +72,8 @@ struct fred_op
         return inputs.at(0);
     }
     migraphx::argument compute(migraphx::context&,
-                              const migraphx::shape&,
-                              const std::vector<migraphx::argument>& args) const
+                               const migraphx::shape&,
+                               const std::vector<migraphx::argument>& args) const
     {
         return args.at(0);
     }
@@ -93,20 +93,22 @@ TEST_CASE(basic)
             p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1, 5, 8, 8}}});
         auto p3          = p.add_instruction(fred_op{}, a3);
         std::size_t axis = 1;
-        auto a4 =
-            p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1, 10, 8, 8}}});
+        auto a4          = p.add_instruction(
+            allocate{migraphx::shape{migraphx::shape::float_type, {1, 10, 8, 8}}});
         p.add_instruction(concat(axis), p1, p2, p3, a4);
         return p;
     };
     auto create_control_program = []() {
         migraphx::program p;
-        auto a1 =
-            p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1, 10, 8, 8}}});
+        auto a1 = p.add_instruction(
+            allocate{migraphx::shape{migraphx::shape::float_type, {1, 10, 8, 8}}});
         auto l1 = p.add_instruction(
-            migraphx::op::load{migraphx::shape{migraphx::shape::float_type, {1, 2, 8, 8}}, 0}, {a1});
+            migraphx::op::load{migraphx::shape{migraphx::shape::float_type, {1, 2, 8, 8}}, 0},
+            {a1});
         auto p1 = p.add_instruction(fred_op{}, l1);
         auto l2 = p.add_instruction(
-            migraphx::op::load{migraphx::shape{migraphx::shape::float_type, {1, 3, 8, 8}}, 512}, {a1});
+            migraphx::op::load{migraphx::shape{migraphx::shape::float_type, {1, 3, 8, 8}}, 512},
+            {a1});
         auto p2 = p.add_instruction(fred_op{}, l2);
         auto l3 = p.add_instruction(
             migraphx::op::load{migraphx::shape{migraphx::shape::float_type, {1, 5, 8, 8}}, 1280},
@@ -137,8 +139,8 @@ TEST_CASE(wont_work)
             p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
         auto p3          = p.add_instruction(fred_op{}, a3);
         std::size_t axis = 1;
-        auto a4 =
-            p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 10, 8, 8}}});
+        auto a4          = p.add_instruction(
+            allocate{migraphx::shape{migraphx::shape::float_type, {2, 10, 8, 8}}});
         p.add_instruction(concat(axis), p1, p2, p3, a4);
         return p;
     };
@@ -154,8 +156,8 @@ TEST_CASE(wont_work)
             p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
         auto p3          = p.add_instruction(fred_op{}, a3);
         std::size_t axis = 1;
-        auto a4 =
-            p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 10, 8, 8}}});
+        auto a4          = p.add_instruction(
+            allocate{migraphx::shape{migraphx::shape::float_type, {2, 10, 8, 8}}});
         p.add_instruction(concat(axis), p1, p2, p3, a4);
         return p;
     };

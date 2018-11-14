@@ -38,7 +38,8 @@ migraphx::argument run_gpu(F f)
     migraphx::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
-        m[x.first] = migraphx::gpu::to_gpu(migraphx::generate_argument(x.second, get_hash(x.first)));
+        m[x.first] =
+            migraphx::gpu::to_gpu(migraphx::generate_argument(x.second, get_hash(x.first)));
     }
     auto out = migraphx::gpu::from_gpu(p.eval(m));
     std::cout << p << std::endl;
@@ -101,7 +102,7 @@ void verify_reduced(F f, int n, double tolerance = 80)
 
     auto create_program = [&] {
         migraphx::program p = f();
-        auto last          = std::prev(p.end(), n + 1);
+        auto last           = std::prev(p.end(), n + 1);
         p.remove_instructions(last, p.end());
         return p;
     };
@@ -114,7 +115,7 @@ template <class F>
 void verify_reduced_program(F f, double tolerance = 80)
 {
     migraphx::program p = f();
-    auto n             = std::distance(p.begin(), p.end());
+    auto n              = std::distance(p.begin(), p.end());
     for(int i = 0; i < n; i++)
     {
         verify_reduced(f, i, tolerance);

@@ -120,12 +120,15 @@ TEST_CASE(flatten_shape)
     expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 2 * 4 * 6 * 8}},
                  migraphx::op::flatten{0},
                  input);
-    expect_shape(
-        migraphx::shape{migraphx::shape::float_type, {2, 4 * 6 * 8}}, migraphx::op::flatten{1}, input);
-    expect_shape(
-        migraphx::shape{migraphx::shape::float_type, {2 * 4, 6 * 8}}, migraphx::op::flatten{2}, input);
-    expect_shape(
-        migraphx::shape{migraphx::shape::float_type, {2 * 4 * 6, 8}}, migraphx::op::flatten{3}, input);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 4 * 6 * 8}},
+                 migraphx::op::flatten{1},
+                 input);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {2 * 4, 6 * 8}},
+                 migraphx::op::flatten{2},
+                 input);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {2 * 4 * 6, 8}},
+                 migraphx::op::flatten{3},
+                 input);
     expect_shape(migraphx::shape{migraphx::shape::float_type, {2 * 4 * 6 * 8, 1}},
                  migraphx::op::flatten{4},
                  input);

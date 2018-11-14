@@ -10,7 +10,8 @@ struct eliminate_allocation_target
     std::string name() const { return "eliminate_allocation"; }
     std::vector<migraphx::pass> get_passes(migraphx::context&) const
     {
-        return {migraphx::eliminate_allocation{"allocate", align}, migraphx::dead_code_elimination{}};
+        return {migraphx::eliminate_allocation{"allocate", align},
+                migraphx::dead_code_elimination{}};
     }
     migraphx::context get_context() const { return {}; }
 };
@@ -25,8 +26,8 @@ struct allocate
         return s;
     }
     migraphx::argument compute(migraphx::context&,
-                              const migraphx::shape& output_shape,
-                              const std::vector<migraphx::argument>&) const
+                               const migraphx::shape& output_shape,
+                               const std::vector<migraphx::argument>&) const
     {
         return {output_shape};
     }

@@ -17,8 +17,9 @@ struct simple_operation
     {
         MIGRAPH_THROW("not computable");
     }
-    migraphx::argument
-    compute(migraphx::context&, const migraphx::shape&, const std::vector<migraphx::argument>&) const
+    migraphx::argument compute(migraphx::context&,
+                               const migraphx::shape&,
+                               const std::vector<migraphx::argument>&) const
     {
         MIGRAPH_THROW("not computable");
     }
@@ -36,8 +37,9 @@ struct simple_operation_no_print
     {
         MIGRAPH_THROW("not computable");
     }
-    migraphx::argument
-    compute(migraphx::context&, const migraphx::shape&, const std::vector<migraphx::argument>&) const
+    migraphx::argument compute(migraphx::context&,
+                               const migraphx::shape&,
+                               const std::vector<migraphx::argument>&) const
     {
         MIGRAPH_THROW("not computable");
     }
@@ -58,7 +60,7 @@ TEST_CASE(operation_equal_test)
 {
     simple_operation s{};
     migraphx::operation op1 = s;
-    s.data                 = 2;
+    s.data                  = 2;
     migraphx::operation op2 = op1; // NOLINT
     migraphx::operation op3 = s;   // NOLINT
 

@@ -119,7 +119,8 @@ migraphx::argument run_gpu(migraphx::program& p)
     migraphx::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
-        m[x.first] = migraphx::gpu::to_gpu(migraphx::generate_argument(x.second, get_hash(x.first)));
+        m[x.first] =
+            migraphx::gpu::to_gpu(migraphx::generate_argument(x.second, get_hash(x.first)));
     }
     EXPECT(bool{m.find("output") != m.end()});
     return migraphx::gpu::from_gpu(p.eval(m));
@@ -365,7 +366,8 @@ struct test_softmax2
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1000, 1, 1}});
+        auto x =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1000, 1, 1}});
         p.add_instruction(migraphx::op::softmax{}, x);
         return p;
     }
@@ -376,7 +378,8 @@ struct test_conv
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto weights =
             p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         p.add_instruction(migraphx::op::convolution{}, input, weights);
@@ -403,7 +406,8 @@ struct test_conv_relu
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto weights =
             p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto conv = p.add_instruction(migraphx::op::convolution{}, input, weights);
@@ -417,7 +421,8 @@ struct test_conv_relu_half
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::half_type, {4, 3, 3, 3}});
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::half_type, {4, 3, 3, 3}});
         auto weights =
             p.add_parameter("w", migraphx::shape{migraphx::shape::half_type, {4, 3, 3, 3}});
         auto conv = p.add_instruction(migraphx::op::convolution{}, input, weights);
@@ -525,8 +530,10 @@ struct test_gemm_ld
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto a = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {4, 5}, {10, 1}});
-        auto b = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {5, 3}, {20, 1}});
+        auto a =
+            p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {4, 5}, {10, 1}});
+        auto b =
+            p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {5, 3}, {20, 1}});
         p.add_instruction(migraphx::op::dot{}, a, b);
         return p;
     }
@@ -797,10 +804,11 @@ struct test_conv_bn_relu_pooling2
     add_bn(migraphx::program& p, migraphx::instruction_ref x, std::size_t channels)
     {
         migraphx::shape vars{migraphx::shape::float_type, {channels}};
-        auto scale    = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1 + channels)));
-        auto bias     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2 + channels)));
-        auto mean     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3 + channels)));
-        auto variance = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4 + channels)));
+        auto scale = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1 + channels)));
+        auto bias  = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2 + channels)));
+        auto mean  = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3 + channels)));
+        auto variance =
+            p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4 + channels)));
         return p.add_instruction(
             migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
     }

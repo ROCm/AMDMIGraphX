@@ -110,8 +110,9 @@ struct pass_standard_op
 struct nop
 {
     std::string name() const { return "nop"; }
-    migraphx::argument
-    compute(migraphx::context&, const migraphx::shape&, const std::vector<migraphx::argument>&) const
+    migraphx::argument compute(migraphx::context&,
+                               const migraphx::shape&,
+                               const std::vector<migraphx::argument>&) const
     {
         return {};
     }

@@ -410,7 +410,7 @@ struct onnx_parser
 
         auto scale_tensor = prog.add_instruction(migraphx::op::scalar{input_shape}, scale_val);
         auto img_scaled   = prog.add_instruction(migraphx::op::mul{}, args.front(), scale_tensor);
-        auto bias_bcast   = prog.add_instruction(migraphx::op::broadcast{1, input_shape}, bias_vals);
+        auto bias_bcast = prog.add_instruction(migraphx::op::broadcast{1, input_shape}, bias_vals);
         return prog.add_instruction(migraphx::op::add{}, img_scaled, bias_bcast);
     }
 

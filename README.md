@@ -1,6 +1,6 @@
-# MIGraph
+# AMD MIGraphX
 
-AMD's library for graph optimizations.
+AMD's graph optimization engine.
 
 ## Prerequisites
 * [ROCm cmake modules](https://github.com/RadeonOpenCompute/rocm-cmake) **required**
@@ -20,7 +20,7 @@ cmake -P install_deps.cmake --prefix /some/local/dir
 ```
 
 
-## Building MIGraph from source
+## Building MIGraphX from source
 
 ## Configuring with cmake
 

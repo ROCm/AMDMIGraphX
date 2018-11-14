@@ -37,8 +37,7 @@ void write_literals::apply(program& p) const
             {
                 literal l  = ins->get_literal();
                 auto pre   = p.add_literal(l);
-                auto s     = p.add_outline(l.get_shape());
-                auto alloc = p.insert_instruction(std::next(pre), hip_allocate{}, s);
+                auto alloc = p.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
                 p.replace_instruction(ins, hip_copy{}, pre, alloc);
             }
             else

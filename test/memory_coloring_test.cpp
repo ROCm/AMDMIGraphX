@@ -21,8 +21,8 @@ struct allocate
     std::string name() const { return "allocate"; }
     migraph::shape compute_shape(const std::vector<migraph::shape>& inputs) const
     {
-        migraph::check_shapes{inputs, *this}.has(1);
-        return inputs.front();
+        migraph::check_shapes{inputs, *this}.has(0);
+        return s;
     }
     migraph::argument compute(migraph::context&,
                               const migraph::shape& output_shape,
@@ -34,8 +34,7 @@ struct allocate
 
 migraph::instruction_ref add_alloc(migraph::program& p, const migraph::shape& s)
 {
-    auto a0 = p.add_outline(s);
-    return p.add_instruction(allocate{}, a0);
+    return p.add_instruction(allocate{s});
 }
 
 bool no_allocate(const migraph::program& p)

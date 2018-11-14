@@ -203,9 +203,8 @@ void memory_coloring_impl::rewrite()
 
             if(is_allocate(ins))
             {
-                assert(!ins->inputs().empty());
                 p_program->replace_instruction(
-                    ins, op::load{ins->inputs().at(0)->get_shape(), offset}, scratch_param);
+                    ins, op::load{ins->get_shape(), offset}, scratch_param);
             }
             else if(is_literal(ins))
             {

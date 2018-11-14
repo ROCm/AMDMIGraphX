@@ -102,8 +102,7 @@ struct miopen_apply
         }
         else
         {
-            auto is     = prog->add_outline(s);
-            auto result = prog->insert_instruction(ins, hip_allocate{std::move(tag)}, is);
+            auto result = prog->insert_instruction(ins, hip_allocate{s, std::move(tag)});
             return result;
         }
     }

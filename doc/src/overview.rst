@@ -1,7 +1,7 @@
 Overview
 ========
 
-MIGraph provides an optimized execution engine for deep learning neural networks.
+MIGraphX provides an optimized execution engine for deep learning neural networks.
 
 Building a program
 ------------------

@@ -17,7 +17,7 @@ else()
     set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
 endif()
 
-project(migraph)
+project(migraphx)
 find_package(ROCM REQUIRED)
 
 include(ROCMSetupVersion)

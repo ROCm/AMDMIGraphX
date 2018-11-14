@@ -7,14 +7,14 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
-#include <migraph/shape.hpp>
-#include <migraph/reflect.hpp>
-#include <migraph/streamutils.hpp>
-#include <migraph/argument.hpp>
-#include <migraph/context.hpp>
-#include <migraph/auto_any_cast.hpp>
+#include <migraphx/shape.hpp>
+#include <migraphx/reflect.hpp>
+#include <migraphx/streamutils.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/context.hpp>
+#include <migraphx/auto_any_cast.hpp>
 
-namespace migraph {
+namespace migraphx {
 
 #ifdef DOXYGEN
 
@@ -151,12 +151,12 @@ int output_alias_op(const T& x, const std::vector<shape>& shapes)
             returns = 'std::ostream &',
             os      = 'std::ostream &',
             op      = 'const operation &',
-            using   = 'migraph::operation_stream::operator<<'),
+            using   = 'migraphx::operation_stream::operator<<'),
      friend('operator==',
             returns = 'bool',
             x       = 'const operation &',
             y       = 'const operation &',
-            using   = 'migraph::operation_equal::operator==')) %>
+            using   = 'migraphx::operation_equal::operator==')) %>
 
     inline bool operator!=(const operation& x, const operation& y)
 {
@@ -165,6 +165,6 @@ int output_alias_op(const T& x, const std::vector<shape>& shapes)
 
 #endif
 
-} // namespace migraph
+} // namespace migraphx
 
 #endif

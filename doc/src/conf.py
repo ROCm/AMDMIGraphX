@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# MIGraph documentation build configuration file, created by
+# MIGraphX documentation build configuration file, created by
 # sphinx-quickstart on Thu Jul 19 11:38:13 2018.
 #
 # This file is execfile()d with the current directory set to its
@@ -45,7 +45,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'MIGraph'
+project = u'MIGraphX'
 copyright = u'2018, AMD'
 author = u'AMD'
 
@@ -101,7 +101,7 @@ html_static_path = ['_static']
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'MIGraphdoc'
+htmlhelp_basename = 'MIGraphXdoc'
 
 
 # -- Options for LaTeX output ---------------------------------------------
@@ -128,7 +128,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'MIGraph.tex', u'MIGraph Documentation',
+    (master_doc, 'MIGraphX.tex', u'MIGraphX Documentation',
      u'AMD', 'manual'),
 ]
 
@@ -138,7 +138,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'migraph', u'MIGraph Documentation',
+    (master_doc, 'migraphx', u'MIGraphX Documentation',
      [author], 1)
 ]
 
@@ -149,13 +149,13 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'MIGraph', u'MIGraph Documentation',
-     author, 'MIGraph', 'One line description of project.',
+    (master_doc, 'MIGraphX', u'MIGraphX Documentation',
+     author, 'MIGraphX', 'One line description of project.',
      'Miscellaneous'),
 ]
 
 breathe_default_members = ('members', 'undoc-members')
-cpp_index_common_prefix = ['migraph::']
+cpp_index_common_prefix = ['migraphx::']
 
 default_role = 'any'
 primary_domain = 'cpp'

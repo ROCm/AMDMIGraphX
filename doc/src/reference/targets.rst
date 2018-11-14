@@ -4,15 +4,15 @@ Targets
 target
 ------
 
-.. doxygenstruct:: migraph::target
+.. doxygenstruct:: migraphx::target
 
 gpu::target
 -----------
 
-.. doxygenstruct:: migraph::gpu::target
+.. doxygenstruct:: migraphx::gpu::target
 
 cpu::target
 -----------
 
-.. doxygenstruct:: migraph::cpu::target
+.. doxygenstruct:: migraphx::cpu::target
 

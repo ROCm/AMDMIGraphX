@@ -1,15 +1,15 @@
 
-#include <migraph/cpu/lowering.hpp>
-#include <migraph/instruction.hpp>
-#include <migraph/dfor.hpp>
-#include <migraph/operators.hpp>
-#include <migraph/shape_for_each.hpp>
-#include <migraph/iterator_for.hpp>
-#include <migraph/cpu/gemm.hpp>
+#include <migraphx/cpu/lowering.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/dfor.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/shape_for_each.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/cpu/gemm.hpp>
 #include <unordered_map>
 #include <utility>
 
-namespace migraph {
+namespace migraphx {
 inline namespace MIGRAPH_INLINE_NS {
 namespace cpu {
 
@@ -659,4 +659,4 @@ void lowering::apply(program& p) const { cpu_apply{&p}.apply(); }
 
 } // namespace cpu
 } // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace migraphx

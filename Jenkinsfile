@@ -1,6 +1,6 @@
 
 def rocmtestnode(variant, name, body) {
-    def image = 'migraphlib'
+    def image = 'migraphxlib'
     def cmake_build = { compiler, flags ->
         def cmd = """
             ulimit -c unlimited

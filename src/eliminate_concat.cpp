@@ -1,12 +1,12 @@
 #include <iterator>
-#include <migraph/eliminate_concat.hpp>
-#include <migraph/program.hpp>
-#include <migraph/instruction.hpp>
-#include <migraph/operators.hpp>
-#include <migraph/iterator_for.hpp>
-#include <migraph/dfor.hpp>
+#include <migraphx/eliminate_concat.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/dfor.hpp>
 
-namespace migraph {
+namespace migraphx {
 inline namespace MIGRAPH_INLINE_NS {
 void eliminate_concat::apply(program& p) const
 {
@@ -56,16 +56,16 @@ void eliminate_concat::apply(program& p) const
             std::size_t offset = 0;
             for(auto x : allocations)
             {
-                migraph::op::load op{x->get_shape(), offset};
-                // migraph::op::load op{x->get_shape(), 0};
+                migraphx::op::load op{x->get_shape(), offset};
+                // migraphx::op::load op{x->get_shape(), 0};
                 p.replace_instruction(x, op, {super});
                 offset += x->get_shape().bytes();
             }
             std::vector<instruction_ref> args = {super};
             std::copy(ins->inputs().begin(), ins->inputs().end() - 1, std::back_inserter(args));
-            p.replace_instruction(ins, migraph::op::identity{}, args);
+            p.replace_instruction(ins, migraphx::op::identity{}, args);
         }
     }
 }
 } // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace migraphx

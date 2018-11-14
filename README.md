@@ -1,6 +1,6 @@
-# MIGraph
+# AMD MIGraphX
 
-AMD's library for graph optimizations.
+AMD's graph optimization engine.
 
 ## Prerequisites
 * [ROCm cmake modules](https://github.com/RadeonOpenCompute/rocm-cmake) **required**
@@ -20,7 +20,7 @@ cmake -P install_deps.cmake --prefix /some/local/dir
 ```
 
 
-## Building MIGraph from source
+## Building MIGraphX from source
 
 ## Configuring with cmake
 
@@ -105,8 +105,8 @@ Also, githooks can be installed to format the code per-commit:
 
 The easiest way to setup the development environment is to use docker. You can build the top-level docker file:
 
-    docker build -t migraph .
+    docker build -t migraphx .
 
 Then to enter the developement environment use `docker run`:
 
-    docker run --device='/dev/kfd' --device='/dev/dri' -v=`pwd`:/data -w /data --group-add video -it migraph
+    docker run --device='/dev/kfd' --device='/dev/dri' -v=`pwd`:/data -w /data --group-add video -it migraphx

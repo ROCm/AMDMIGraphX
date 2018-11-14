@@ -9,14 +9,14 @@
 #include <utility>
 #include <vector>
 
-#include <migraph/fallthrough.hpp>
-#include <migraph/program.hpp>
-#include <migraph/operators.hpp>
-#include <migraph/ranges.hpp>
-#include <migraph/instruction.hpp>
-#include <migraph/config.hpp>
+#include <migraphx/fallthrough.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/config.hpp>
 
-namespace migraph {
+namespace migraphx {
 inline namespace MIGRAPH_INLINE_NS {
 struct unknown
 {
@@ -407,12 +407,12 @@ struct onnx_parser
 
         auto scale_val = prog.add_literal(scale);
         auto bias_vals = prog.add_literal(
-            migraph::literal{migraph::shape{migraph::shape::float_type, {bias.size()}}, bias});
+            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {bias.size()}}, bias});
 
-        auto scale_tensor = prog.add_instruction(migraph::op::scalar{input_shape}, scale_val);
-        auto img_scaled   = prog.add_instruction(migraph::op::mul{}, args.front(), scale_tensor);
-        auto bias_bcast   = prog.add_instruction(migraph::op::broadcast{1, input_shape}, bias_vals);
-        return prog.add_instruction(migraph::op::add{}, img_scaled, bias_bcast);
+        auto scale_tensor = prog.add_instruction(migraphx::op::scalar{input_shape}, scale_val);
+        auto img_scaled   = prog.add_instruction(migraphx::op::mul{}, args.front(), scale_tensor);
+        auto bias_bcast = prog.add_instruction(migraphx::op::broadcast{1, input_shape}, bias_vals);
+        return prog.add_instruction(migraphx::op::add{}, img_scaled, bias_bcast);
     }
 
     instruction_ref
@@ -424,7 +424,7 @@ struct onnx_parser
             auto&& perm_vals = attributes["perm"].ints();
             perm             = std::vector<int64_t>(perm_vals.begin(), perm_vals.end());
         }
-        return prog.add_instruction(migraph::op::transpose{perm}, args.front());
+        return prog.add_instruction(migraphx::op::transpose{perm}, args.front());
     }
 
     void parse_from(std::istream& is)
@@ -520,7 +520,7 @@ struct onnx_parser
     {
         if(node.name().empty())
         {
-            std::string generated = "migraph_unnamed_node";
+            std::string generated = "migraphx_unnamed_node";
             return std::accumulate(node.output().begin(),
                                    node.output().end(),
                                    generated,
@@ -695,4 +695,4 @@ program parse_onnx(const std::string& name)
 }
 
 } // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace migraphx

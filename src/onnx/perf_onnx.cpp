@@ -1,20 +1,20 @@
 
-#include <migraph/onnx.hpp>
+#include <migraphx/onnx.hpp>
 
-#include <migraph/gpu/target.hpp>
-#include <migraph/gpu/hip.hpp>
-#include <migraph/generate.hpp>
-#include <migraph/verify.hpp>
+#include <migraphx/gpu/target.hpp>
+#include <migraphx/gpu/hip.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/verify.hpp>
 
-migraph::program::parameter_map create_param_map(const migraph::program& p, bool gpu = true)
+migraphx::program::parameter_map create_param_map(const migraphx::program& p, bool gpu = true)
 {
-    migraph::program::parameter_map m;
+    migraphx::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
         if(gpu)
-            m[x.first] = migraph::gpu::to_gpu(migraph::generate_argument(x.second));
+            m[x.first] = migraphx::gpu::to_gpu(migraphx::generate_argument(x.second));
         else
-            m[x.first] = migraph::generate_argument(x.second);
+            m[x.first] = migraphx::generate_argument(x.second);
     }
     return m;
 }
@@ -25,9 +25,9 @@ int main(int argc, char const* argv[])
     {
         std::string file = argv[1];
         std::size_t n    = argc > 2 ? std::stoul(argv[2]) : 50;
-        auto p           = migraph::parse_onnx(file);
+        auto p           = migraphx::parse_onnx(file);
         std::cout << "Compiling ... " << std::endl;
-        p.compile(migraph::gpu::target{});
+        p.compile(migraphx::gpu::target{});
         std::cout << "Allocating params ... " << std::endl;
         auto m = create_param_map(p);
         std::cout << "Running performance report ... " << std::endl;

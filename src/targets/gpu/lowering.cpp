@@ -1,32 +1,32 @@
 #include <rocblas.h>
-#include <migraph/gpu/lowering.hpp>
-#include <migraph/manage_ptr.hpp>
-#include <migraph/instruction.hpp>
-#include <migraph/operators.hpp>
-#include <migraph/generate.hpp>
-#include <migraph/shape_for_each.hpp>
-#include <migraph/gpu/miopen.hpp>
-#include <migraph/gpu/hip.hpp>
-#include <migraph/dfor.hpp>
-#include <migraph/gpu/device/contiguous.hpp>
-#include <migraph/gpu/device/add.hpp>
-#include <migraph/iterator_for.hpp>
-#include <migraph/gpu/rocblas.hpp>
-#include <migraph/gpu/context.hpp>
-#include <migraph/gpu/convolution.hpp>
-#include <migraph/gpu/contiguous.hpp>
-#include <migraph/gpu/relu.hpp>
-#include <migraph/gpu/leaky_relu.hpp>
-#include <migraph/gpu/softmax.hpp>
-#include <migraph/gpu/add.hpp>
-#include <migraph/gpu/mul.hpp>
-#include <migraph/gpu/batchnorm.hpp>
-#include <migraph/gpu/pooling.hpp>
-#include <migraph/gpu/gemm.hpp>
-#include <migraph/gpu/concat.hpp>
+#include <migraphx/gpu/lowering.hpp>
+#include <migraphx/manage_ptr.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/shape_for_each.hpp>
+#include <migraphx/gpu/miopen.hpp>
+#include <migraphx/gpu/hip.hpp>
+#include <migraphx/dfor.hpp>
+#include <migraphx/gpu/device/contiguous.hpp>
+#include <migraphx/gpu/device/add.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/gpu/rocblas.hpp>
+#include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/convolution.hpp>
+#include <migraphx/gpu/contiguous.hpp>
+#include <migraphx/gpu/relu.hpp>
+#include <migraphx/gpu/leaky_relu.hpp>
+#include <migraphx/gpu/softmax.hpp>
+#include <migraphx/gpu/add.hpp>
+#include <migraphx/gpu/mul.hpp>
+#include <migraphx/gpu/batchnorm.hpp>
+#include <migraphx/gpu/pooling.hpp>
+#include <migraphx/gpu/gemm.hpp>
+#include <migraphx/gpu/concat.hpp>
 #include <utility>
 
-namespace migraph {
+namespace migraphx {
 inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
@@ -222,4 +222,4 @@ struct miopen_apply
 void lowering::apply(program& p) const { miopen_apply{&p, ctx}.apply(); }
 } // namespace gpu
 } // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace migraphx

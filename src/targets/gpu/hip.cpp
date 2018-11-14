@@ -1,12 +1,12 @@
 
-#include <migraph/gpu/hip.hpp>
+#include <migraphx/gpu/hip.hpp>
 
-#include <migraph/manage_ptr.hpp>
+#include <migraphx/manage_ptr.hpp>
 #include <miopen/miopen.h>
 
 #include <vector>
 
-namespace migraph {
+namespace migraphx {
 inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 
@@ -111,4 +111,4 @@ void copy_to_gpu(argument src, argument dst)
 
 } // namespace gpu
 } // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace migraphx

@@ -113,7 +113,7 @@ struct onnx_parser
                 }
                 return prog.add_instruction(x, args);
             }
-            else
+            else if(args[0]->get_shape() != args[1]->get_shape())
             {
                 // Example:
                 // s0 = (3,2,4,5) and s1 = (2,1,1)
@@ -148,6 +148,10 @@ struct onnx_parser
                 auto l0 = prog.add_instruction(op::multibroadcast{output_lens}, args[0]);
                 auto l1 = prog.add_instruction(op::multibroadcast{output_lens}, args[1]);
                 return prog.add_instruction(x, l0, l1);
+            }
+            else
+            {
+                return prog.add_instruction(x, args);
             }
         });
     }

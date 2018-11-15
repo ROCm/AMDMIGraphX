@@ -1,1 +1,6 @@
 *.swp
+.metadata/
+.vscode/
+build/
+deps/
+

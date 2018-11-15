@@ -1093,12 +1093,12 @@ TEST_CASE(contiguous_test)
 
 TEST_CASE(identity_test)
 {
-    migraph::program p;
-    migraph::shape s{migraph::shape::float_type, {2, 2}};
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
     std::vector<int> data{1, 2, 3, 4};
-    auto l = p.add_literal(migraph::literal{s, data});
-    p.add_instruction(migraph::op::identity{}, l);
-    p.compile(migraph::cpu::target{});
+    auto l = p.add_literal(migraphx::literal{s, data});
+    p.add_instruction(migraphx::op::identity{}, l);
+    p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
     std::vector<int> results_vector(4);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });

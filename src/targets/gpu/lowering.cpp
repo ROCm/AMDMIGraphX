@@ -173,8 +173,7 @@ struct miopen_apply
     instruction_ref apply_sin(instruction_ref ins)
     {
         auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(
-            ins, hip_sin{}, ins->inputs().at(0), output);
+        return prog->replace_instruction(ins, hip_sin{}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_mul(instruction_ref ins)

@@ -42,6 +42,9 @@ add_library(migraphx_gpu
     batchnorm.cpp
     write_literals.cpp
     rocblas.cpp
+    sigmoid.cpp
+    tanh.cpp
+    abs.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_clang_tidy_check(migraphx_gpu)

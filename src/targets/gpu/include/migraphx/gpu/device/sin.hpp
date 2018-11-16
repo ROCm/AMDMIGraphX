@@ -16,6 +16,6 @@ void sin(hipStream_t stream, const argument& result, const argument& arg);
 } // namespace device
 } // namespace gpu
 } // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace migraphx
 
 #endif

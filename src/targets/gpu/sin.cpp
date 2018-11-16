@@ -23,4 +23,4 @@ argument hip_sin::compute(context& ctx, const shape&, const std::vector<argument
 
 } // namespace gpu
 } // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace migraphx

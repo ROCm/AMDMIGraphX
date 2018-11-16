@@ -2,11 +2,11 @@
 #ifndef MIGRAPH_GUARD_RTGLIB_DEVICE_ADD_HPP
 #define MIGRAPH_GUARD_RTGLIB_DEVICE_ADD_HPP
 
-#include <migraph/argument.hpp>
-#include <migraph/config.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/config.hpp>
 #include <hip/hip_runtime_api.h>
 
-namespace migraph {
+namespace migraphx {
 inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 namespace device {

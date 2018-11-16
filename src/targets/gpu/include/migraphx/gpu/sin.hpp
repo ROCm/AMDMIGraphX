@@ -32,6 +32,6 @@ struct hip_sin
 
 } // namespace gpu
 } // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace migraphx
 
 #endif

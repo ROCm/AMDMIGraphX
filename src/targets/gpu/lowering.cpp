@@ -16,6 +16,9 @@
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/contiguous.hpp>
 #include <migraphx/gpu/relu.hpp>
+#include <migraphx/gpu/sigmoid.hpp>
+#include <migraphx/gpu/tanh.hpp>
+#include <migraphx/gpu/abs.hpp>
 #include <migraphx/gpu/leaky_relu.hpp>
 #include <migraphx/gpu/softmax.hpp>
 #include <migraphx/gpu/add.hpp>
@@ -54,6 +57,18 @@ struct miopen_apply
             else if(it->name() == "relu")
             {
                 check_shape(s, apply_relu(it));
+            }
+            else if(it->name() == "sigmoid")
+            {
+                check_shape(s, apply_sigmoid(it));
+            }
+            else if(it->name() == "tanh")
+            {
+                check_shape(s, apply_tanh(it));
+            }
+            else if(it->name() == "abs")
+            {
+                check_shape(s, apply_abs(it));
             }
             else if(it->name() == "leaky_relu")
             {
@@ -139,6 +154,33 @@ struct miopen_apply
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(
             ins, miopen_relu{std::move(ad)}, ins->inputs().at(0), output);
+    }
+
+    instruction_ref apply_sigmoid(instruction_ref ins)
+    {
+        auto ad = make_sigmoid();
+
+        auto output = insert_allocation(ins, ins->get_shape());
+        return prog->replace_instruction(
+            ins, miopen_sigmoid{std::move(ad)}, ins->inputs().at(0), output);
+    }
+
+    instruction_ref apply_tanh(instruction_ref ins)
+    {
+        auto ad = make_tanh();
+
+        auto output = insert_allocation(ins, ins->get_shape());
+        return prog->replace_instruction(
+            ins, miopen_tanh{std::move(ad)}, ins->inputs().at(0), output);
+    }
+
+    instruction_ref apply_abs(instruction_ref ins)
+    {
+        auto ad = make_abs();
+
+        auto output = insert_allocation(ins, ins->get_shape());
+        return prog->replace_instruction(
+            ins, miopen_abs{std::move(ad)}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_leaky_relu(instruction_ref ins)

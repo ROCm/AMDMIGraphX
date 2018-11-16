@@ -53,6 +53,7 @@ struct onnx_parser
         add_generic_op("Relu", op::relu{});
         // disable dropout for inference
         add_generic_op("Dropout", op::identity{});
+        add_generic_op("Identity", op::identity{});
 
         add_broadcastable_binary_op("Add", op::add{});
         add_broadcastable_binary_op("Div", op::div{});

@@ -15,8 +15,8 @@ shape miopen_abs::compute_shape(const std::vector<shape>& inputs) const
 }
 
 argument miopen_abs::compute(context& ctx,
-                              const shape& output_shape,
-                              const std::vector<argument>& args) const
+                             const shape& output_shape,
+                             const std::vector<argument>& args) const
 {
     float alpha = 1, beta = 0;
     auto x_desc = make_tensor(args[0].get_shape());

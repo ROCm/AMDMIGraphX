@@ -1091,4 +1091,18 @@ TEST_CASE(contiguous_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(identity_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    std::vector<int> data{1, 2, 3, 4};
+    auto l = p.add_literal(migraphx::literal{s, data});
+    p.add_instruction(migraphx::op::identity{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<int> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(std::equal(data.begin(), data.end(), results_vector.begin()));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

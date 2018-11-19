@@ -7,6 +7,16 @@
 #include <migraphx/verify.hpp>
 #include "test.hpp"
 
+float sigmoid(float x)
+{
+    return 1 / (1 + expf(-x));
+}
+
+float elu(float a, float x)
+{
+    return x > 0 ? x : a * std::expm1(x);
+}
+
 TEST_CASE(slice_test)
 {
     {
@@ -1103,6 +1113,63 @@ TEST_CASE(identity_test)
     std::vector<int> results_vector(4);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(std::equal(data.begin(), data.end(), results_vector.begin()));
+}
+
+TEST_CASE(abs_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    auto l = p.add_literal(migraphx::literal{s, {-1, 2, -3, 4}});
+    p.add_instruction(migraphx::op::abs{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{1, 2, 3, 4};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(sigmoid_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    auto l = p.add_literal(migraphx::literal{s, {-1, 2, -3, 4}});
+    p.add_instruction(migraphx::op::sigmoid{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{sigmoid(-1), sigmoid(2), sigmoid(-3), sigmoid(4)};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(tanh_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    auto l = p.add_literal(migraphx::literal{s, {-1.0, 2.0, -3.0, 4.0}});
+    p.add_instruction(migraphx::op::tanh{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{tanhf(-1), tanhf(2), tanhf(-3), tanhf(4)};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(elu_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    auto l = p.add_literal(migraphx::literal{s, {-1.0, 2.0, -3.0, 4.0}});
+    float alpha = 0.5;
+    p.add_instruction(migraphx::op::elu{alpha}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{elu(alpha,-1), elu(alpha,2), elu(alpha,-3), elu(alpha,4)};
+    EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

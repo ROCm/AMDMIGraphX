@@ -20,6 +20,7 @@
 #include <migraphx/gpu/tanh.hpp>
 #include <migraphx/gpu/abs.hpp>
 #include <migraphx/gpu/leaky_relu.hpp>
+#include <migraphx/gpu/elu.hpp>
 #include <migraphx/gpu/softmax.hpp>
 #include <migraphx/gpu/add.hpp>
 #include <migraphx/gpu/mul.hpp>
@@ -73,6 +74,10 @@ struct miopen_apply
             else if(it->name() == "leaky_relu")
             {
                 check_shape(s, apply_leaky_relu(it));
+            }
+            else if(it->name() == "elu")
+            {
+                check_shape(s, apply_elu(it));
             }
             else if(it->name() == "pooling")
             {
@@ -191,6 +196,16 @@ struct miopen_apply
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(
             ins, miopen_leaky_relu{std::move(ad)}, ins->inputs().at(0), output);
+    }
+
+    instruction_ref apply_elu(instruction_ref ins)
+    {
+        auto&& op = any_cast<op::leaky_relu>(ins->get_operator());
+        auto ad   = make_elu(op.alpha);
+
+        auto output = insert_allocation(ins, ins->get_shape());
+        return prog->replace_instruction(
+            ins, miopen_elu{std::move(ad)}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_softmax(instruction_ref ins)

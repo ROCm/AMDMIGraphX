@@ -19,6 +19,13 @@ T zero(const T&)
     return T(0);
 }
 
+template<class T>
+typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::enable_if<true, T>>::type
+make_signed(T x)
+{
+    return x;
+}
+
 //
 // cpu implemenataion of batch norm for inference
 //
@@ -339,7 +346,7 @@ struct abs_op
     std::string name() const { return "cpu::abs"; }
     auto fcn() const
     {
-        return [](auto x) { return std::abs(x); };
+        return [](auto x) { return std::abs(make_signed(x)); };
     }
 };
 
@@ -450,6 +457,17 @@ struct leaky_relu_op
     {
         auto& a = op.alpha;
         return [a](auto x) { return x > 0 ? x : x * a; };
+    }
+};
+
+struct elu_op
+{
+    op::elu op;
+    std::string name() const { return "cpu::elu"; }
+    auto fcn() const
+    {
+        auto& a = op.alpha;
+        return [a](auto x) { return x > 0 ? x : a * std::expm1(x); };
     }
 };
 
@@ -599,7 +617,9 @@ struct cpu_apply
         apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
         apply_map["concat"]     = extend_op<cpu_concat, op::concat>();
         apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
+        apply_map["elu"] = extend_op<cpu_unary<elu_op>, op::elu>();
         apply_map["identity"]   = simple_op<cpu_unary<identity_op>>();
+        apply_map["abs"]        = simple_op<cpu_unary<abs_op>>();
         apply_map["tanh"]       = simple_op<cpu_unary<tanh_op>>();
         apply_map["sigmoid"]    = simple_op<cpu_unary<sigmoid_op>>();
         apply_map["exp"]        = simple_op<cpu_unary<exp_op>>();

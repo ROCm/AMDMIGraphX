@@ -40,7 +40,8 @@ struct miopen_apply
 {
     program* prog = nullptr;
     context ctx{};
-    std::unordered_map<std::string, std::function<instruction_ref(miopen_apply&, instruction_ref)>> apply_map{};
+    std::unordered_map<std::string, std::function<instruction_ref(miopen_apply&, instruction_ref)>>
+        apply_map{};
 
     void check_shape(shape x, instruction_ref i)
     {
@@ -51,22 +52,22 @@ struct miopen_apply
 
     void init()
     {
-        apply_map["convolution"] =  &miopen_apply::apply_convolution;
-        apply_map["relu"] =  &miopen_apply::apply_relu;
-        apply_map["sigmoid"] =  &miopen_apply::apply_sigmoid;
-        apply_map["tanh"] =  &miopen_apply::apply_tanh;
-        apply_map["abs"] =  &miopen_apply::apply_abs;
-        apply_map["leaky_relu"] =  &miopen_apply::apply_leaky_relu;
-        apply_map["elu"] =  &miopen_apply::apply_elu;
-        apply_map["pooling"] =  &miopen_apply::apply_pooling;
-        apply_map["add"] =  &miopen_apply::apply_add;
-        apply_map["sin"] =  &miopen_apply::apply_sin;
-        apply_map["mul"] =  &miopen_apply::apply_mul;
-        apply_map["dot"] =  &miopen_apply::apply_dot;
-        apply_map["contiguous"] =  &miopen_apply::apply_contiguous;
-        apply_map["concat"] =  &miopen_apply::apply_concat;
-        apply_map["batch_norm_inference"] =  &miopen_apply::apply_batch_norm_inference;
-        apply_map["softmax"] =  &miopen_apply::apply_softmax;
+        apply_map["convolution"]          = &miopen_apply::apply_convolution;
+        apply_map["relu"]                 = &miopen_apply::apply_relu;
+        apply_map["sigmoid"]              = &miopen_apply::apply_sigmoid;
+        apply_map["tanh"]                 = &miopen_apply::apply_tanh;
+        apply_map["abs"]                  = &miopen_apply::apply_abs;
+        apply_map["leaky_relu"]           = &miopen_apply::apply_leaky_relu;
+        apply_map["elu"]                  = &miopen_apply::apply_elu;
+        apply_map["pooling"]              = &miopen_apply::apply_pooling;
+        apply_map["add"]                  = &miopen_apply::apply_add;
+        apply_map["sin"]                  = &miopen_apply::apply_sin;
+        apply_map["mul"]                  = &miopen_apply::apply_mul;
+        apply_map["dot"]                  = &miopen_apply::apply_dot;
+        apply_map["contiguous"]           = &miopen_apply::apply_contiguous;
+        apply_map["concat"]               = &miopen_apply::apply_concat;
+        apply_map["batch_norm_inference"] = &miopen_apply::apply_batch_norm_inference;
+        apply_map["softmax"]              = &miopen_apply::apply_softmax;
     }
 
     void apply()

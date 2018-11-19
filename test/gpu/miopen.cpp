@@ -203,6 +203,18 @@ struct test_mul
     }
 };
 
+struct test_sin
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {10}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::sin{}, x);
+        return p;
+    }
+};
+
 struct test_scale
 {
     migraphx::program create_program() const
@@ -888,6 +900,7 @@ int main()
     verify_program<test_add>();
     verify_program<test_add_half>();
     verify_program<test_mul>();
+    verify_program<test_sin>();
     verify_program<test_scale>();
     verify_program<test_triadd>();
     verify_program<test_triadd2>();

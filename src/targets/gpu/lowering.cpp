@@ -23,6 +23,7 @@
 #include <migraphx/gpu/elu.hpp>
 #include <migraphx/gpu/softmax.hpp>
 #include <migraphx/gpu/add.hpp>
+#include <migraphx/gpu/sin.hpp>
 #include <migraphx/gpu/mul.hpp>
 #include <migraphx/gpu/batchnorm.hpp>
 #include <migraphx/gpu/pooling.hpp>
@@ -86,6 +87,10 @@ struct miopen_apply
             else if(it->name() == "add")
             {
                 check_shape(s, apply_add(it));
+            }
+            else if(it->name() == "sin")
+            {
+                check_shape(s, apply_sin(it));
             }
             else if(it->name() == "mul")
             {
@@ -220,6 +225,12 @@ struct miopen_apply
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(
             ins, hip_add{}, ins->inputs().at(0), ins->inputs().at(1), output);
+    }
+
+    instruction_ref apply_sin(instruction_ref ins)
+    {
+        auto output = insert_allocation(ins, ins->get_shape());
+        return prog->replace_instruction(ins, hip_sin{}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_mul(instruction_ref ins)

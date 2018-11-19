@@ -19,9 +19,10 @@ T zero(const T&)
     return T(0);
 }
 
-template<class T>
-typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::enable_if<true, T>>::type
-make_signed(T x)
+template <class T>
+typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::enable_if<true, T>>::
+    type
+    make_signed(T x)
 {
     return x;
 }
@@ -617,7 +618,7 @@ struct cpu_apply
         apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
         apply_map["concat"]     = extend_op<cpu_concat, op::concat>();
         apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
-        apply_map["elu"] = extend_op<cpu_unary<elu_op>, op::elu>();
+        apply_map["elu"]        = extend_op<cpu_unary<elu_op>, op::elu>();
         apply_map["identity"]   = simple_op<cpu_unary<identity_op>>();
         apply_map["abs"]        = simple_op<cpu_unary<abs_op>>();
         apply_map["tanh"]       = simple_op<cpu_unary<tanh_op>>();

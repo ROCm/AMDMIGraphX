@@ -391,9 +391,8 @@ struct onnx_parser
         return prog.add_instruction(op, args.front());
     }
 
-    instruction_ref parse_elu(const std::string&,
-                                     attribute_map attributes,
-                                     std::vector<instruction_ref> args)
+    instruction_ref
+    parse_elu(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         float alpha = 1.0; // default alpha val for elu
         if(contains(attributes, "alpha"))

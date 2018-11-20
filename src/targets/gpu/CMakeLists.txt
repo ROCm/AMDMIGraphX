@@ -13,6 +13,8 @@ endif()
 add_library(migraphx_device
     device/add.cpp
     device/sin.cpp
+    device/cos.cpp
+    device/tan.cpp
     device/add_relu.cpp
     device/contiguous.cpp
     device/mul.cpp
@@ -40,6 +42,8 @@ add_library(migraphx_gpu
     leaky_relu.cpp
     add.cpp
     sin.cpp
+    cos.cpp
+    tan.cpp
     mul.cpp
     batchnorm.cpp
     write_literals.cpp

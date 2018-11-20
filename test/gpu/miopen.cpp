@@ -251,7 +251,6 @@ struct test_tanh
     }
 };
 
-
 struct test_scale
 {
     migraphx::program create_program() const

@@ -169,6 +169,39 @@ void dropout_test()
     EXPECT(p == prog);
 }
 
+void sin_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::sin{}, input);
+
+    auto prog = migraphx::parse_onnx("sin_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+void cos_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::cos{}, input);
+
+    auto prog = migraphx::parse_onnx("cos_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+void tan_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::tan{}, input);
+
+    auto prog = migraphx::parse_onnx("tan_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 int main()
 {
     pytorch_conv_bias_test();
@@ -181,4 +214,7 @@ int main()
     globalmaxpool_test();
     transpose_test();
     dropout_test();
+    sin_test();
+    cos_test();
+    tan_test();
 }

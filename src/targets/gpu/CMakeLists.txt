@@ -15,7 +15,6 @@ add_library(migraphx_device
     device/sin.cpp
     device/sinh.cpp
     device/cosh.cpp
-    device/tanh.cpp
     device/add_relu.cpp
     device/contiguous.cpp
     device/mul.cpp
@@ -45,7 +44,6 @@ add_library(migraphx_gpu
     sin.cpp
     sinh.cpp
     cosh.cpp
-    tanh.cpp
     mul.cpp
     batchnorm.cpp
     write_literals.cpp

@@ -406,6 +406,24 @@ struct atan_op
     }
 };
 
+struct sinh_op
+{
+    std::string name() const { return "cpu::sinh"; }
+    auto fcn() const
+    {
+        return [](auto x) { return std::sinh(x); };
+    }
+};
+
+struct cosh_op
+{
+    std::string name() const { return "cpu::cosh"; }
+    auto fcn() const
+    {
+        return [](auto x) { return std::cosh(x); };
+    }
+};
+
 struct tanh_op
 {
     std::string name() const { return "cpu::tanh"; }
@@ -600,6 +618,8 @@ struct cpu_apply
         apply_map["concat"]     = extend_op<cpu_concat, op::concat>();
         apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
         apply_map["identity"]   = simple_op<cpu_unary<identity_op>>();
+        apply_map["sinh"]       = simple_op<cpu_unary<sinh_op>>();
+        apply_map["cosh"]       = simple_op<cpu_unary<cosh_op>>();
         apply_map["tanh"]       = simple_op<cpu_unary<tanh_op>>();
         apply_map["sigmoid"]    = simple_op<cpu_unary<sigmoid_op>>();
         apply_map["exp"]        = simple_op<cpu_unary<exp_op>>();

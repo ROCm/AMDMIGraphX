@@ -20,6 +20,8 @@
 #include <migraphx/gpu/softmax.hpp>
 #include <migraphx/gpu/add.hpp>
 #include <migraphx/gpu/sin.hpp>
+#include <migraphx/gpu/cos.hpp>
+#include <migraphx/gpu/tan.hpp>
 #include <migraphx/gpu/mul.hpp>
 #include <migraphx/gpu/batchnorm.hpp>
 #include <migraphx/gpu/pooling.hpp>
@@ -68,10 +70,6 @@ struct miopen_apply
             {
                 check_shape(s, apply_add(it));
             }
-            else if(it->name() == "sin")
-            {
-                check_shape(s, apply_sin(it));
-            }
             else if(it->name() == "mul")
             {
                 check_shape(s, apply_mul(it));
@@ -79,6 +77,18 @@ struct miopen_apply
             else if(it->name() == "dot")
             {
                 check_shape(s, apply_gemm(it));
+            }
+            else if(it->name() == "sin")
+            {
+                check_shape(s, apply_sin(it));
+            }
+            else if(it->name() == "cos")
+            {
+                check_shape(s, apply_cos(it));
+            }
+            else if(it->name() == "tan")
+            {
+                check_shape(s, apply_tan(it));
             }
             else if(it->name() == "contiguous")
             {
@@ -174,6 +184,18 @@ struct miopen_apply
     {
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(ins, hip_sin{}, ins->inputs().at(0), output);
+    }
+
+    instruction_ref apply_cos(instruction_ref ins)
+    {
+        auto output = insert_allocation(ins, ins->get_shape());
+        return prog->replace_instruction(ins, hip_cos{}, ins->inputs().at(0), output);
+    }
+
+    instruction_ref apply_tan(instruction_ref ins)
+    {
+        auto output = insert_allocation(ins, ins->get_shape());
+        return prog->replace_instruction(ins, hip_tan{}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_mul(instruction_ref ins)

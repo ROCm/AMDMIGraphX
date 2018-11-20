@@ -234,10 +234,11 @@ struct leaky_relu
         check_shapes{inputs, *this}.has(1);
         return inputs.front();
     }
-    friend std::ostream& operator<<(std::ostream& os, const leaky_relu& op)
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
     {
-        os << op.name() << ":" << op.alpha;
-        return os;
+        return pack(f(self.alpha, "alpha"));
     }
 };
 
@@ -250,10 +251,11 @@ struct elu
         check_shapes{inputs, *this}.has(1);
         return inputs.front();
     }
-    friend std::ostream& operator<<(std::ostream& os, const elu& op)
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
     {
-        os << op.name() << ":" << op.alpha;
-        return os;
+        return pack(f(self.alpha, "alpha"));
     }
 };
 

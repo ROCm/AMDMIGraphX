@@ -22,7 +22,6 @@
 #include <migraphx/gpu/sin.hpp>
 #include <migraphx/gpu/sinh.hpp>
 #include <migraphx/gpu/cosh.hpp>
-#include <migraphx/gpu/tanh.hpp>
 #include <migraphx/gpu/mul.hpp>
 #include <migraphx/gpu/batchnorm.hpp>
 #include <migraphx/gpu/pooling.hpp>
@@ -82,10 +81,6 @@ struct miopen_apply
             else if(it->name() == "cosh")
             {
                 check_shape(s, apply_cosh(it));
-            }
-            else if(it->name() == "tanh")
-            {
-                check_shape(s, apply_tanh(it));
             }
             else if(it->name() == "mul")
             {
@@ -201,12 +196,6 @@ struct miopen_apply
     {
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(ins, hip_cosh{}, ins->inputs().at(0), output);
-    }
-
-    instruction_ref apply_tanh(instruction_ref ins)
-    {
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(ins, hip_tanh{}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_mul(instruction_ref ins)

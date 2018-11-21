@@ -54,6 +54,11 @@ struct onnx_parser
         // disable dropout for inference
         add_generic_op("Dropout", op::identity{});
         add_generic_op("Identity", op::identity{});
+        add_generic_op("Sinh", op::sinh{});
+        add_generic_op("Cosh", op::cosh{});
+        add_generic_op("Asin", op::asin{});
+        add_generic_op("Acos", op::acos{});
+        add_generic_op("Atan", op::atan{});
 
         add_broadcastable_binary_op("Add", op::add{});
         add_broadcastable_binary_op("Div", op::div{});

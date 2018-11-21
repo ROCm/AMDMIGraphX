@@ -169,6 +169,61 @@ void dropout_test()
     EXPECT(p == prog);
 }
 
+void sinh_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::sinh{}, input);
+
+    auto prog = migraphx::parse_onnx("sinh_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+void cosh_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1}});
+    p.add_instruction(migraphx::op::cosh{}, input);
+
+    auto prog = migraphx::parse_onnx("cosh_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+void asin_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::asin{}, input);
+
+    auto prog = migraphx::parse_onnx("asin_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+void acos_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::acos{}, input);
+
+    auto prog = migraphx::parse_onnx("acos_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+void atan_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::atan{}, input);
+
+    auto prog = migraphx::parse_onnx("atan_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 int main()
 {
     pytorch_conv_bias_test();
@@ -181,4 +236,9 @@ int main()
     globalmaxpool_test();
     transpose_test();
     dropout_test();
+    sinh_test();
+    cosh_test();
+    asin_test();
+    acos_test();
+    atan_test();
 }

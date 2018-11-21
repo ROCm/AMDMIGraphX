@@ -51,6 +51,9 @@ struct onnx_parser
     {
         add_generic_op("MatMul", op::dot{});
         add_generic_op("Relu", op::relu{});
+        add_generic_op("Sigmoid", op::sigmoid{});
+        add_generic_op("Tanh", op::tanh{});
+        add_generic_op("Abs", op::abs{});
         // disable dropout for inference
         add_generic_op("Dropout", op::identity{});
         add_generic_op("Identity", op::identity{});
@@ -63,6 +66,7 @@ struct onnx_parser
 
         add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
+        add_mem_op("Elu", &onnx_parser::parse_elu);
         add_mem_op("Constant", &onnx_parser::parse_constant);
         add_mem_op("Conv", &onnx_parser::parse_conv);
         add_mem_op("MaxPool", &onnx_parser::parse_pooling);
@@ -384,6 +388,18 @@ struct onnx_parser
             alpha = parse_value(attributes.at("alpha")).at<float>();
         }
         op::leaky_relu op{alpha};
+        return prog.add_instruction(op, args.front());
+    }
+
+    instruction_ref
+    parse_elu(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        float alpha = 1.0; // default alpha val for elu
+        if(contains(attributes, "alpha"))
+        {
+            alpha = parse_value(attributes.at("alpha")).at<float>();
+        }
+        op::elu op{alpha};
         return prog.add_instruction(op, args.front());
     }
 

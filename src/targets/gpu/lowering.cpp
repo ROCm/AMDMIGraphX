@@ -22,6 +22,9 @@
 #include <migraphx/gpu/sin.hpp>
 #include <migraphx/gpu/sinh.hpp>
 #include <migraphx/gpu/cosh.hpp>
+#include <migraphx/gpu/asin.hpp>
+#include <migraphx/gpu/acos.hpp>
+#include <migraphx/gpu/atan.hpp>
 #include <migraphx/gpu/mul.hpp>
 #include <migraphx/gpu/batchnorm.hpp>
 #include <migraphx/gpu/pooling.hpp>
@@ -81,6 +84,18 @@ struct miopen_apply
             else if(it->name() == "cosh")
             {
                 check_shape(s, apply_cosh(it));
+            }
+            else if(it->name() == "asin")
+            {
+                check_shape(s, apply_asin(it));
+            }
+            else if(it->name() == "acos")
+            {
+                check_shape(s, apply_acos(it));
+            }
+            else if(it->name() == "atan")
+            {
+                check_shape(s, apply_atan(it));
             }
             else if(it->name() == "mul")
             {
@@ -196,6 +211,24 @@ struct miopen_apply
     {
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(ins, hip_cosh{}, ins->inputs().at(0), output);
+    }
+
+    instruction_ref apply_asin(instruction_ref ins)
+    {
+        auto output = insert_allocation(ins, ins->get_shape());
+        return prog->replace_instruction(ins, hip_asin{}, ins->inputs().at(0), output);
+    }
+
+    instruction_ref apply_acos(instruction_ref ins)
+    {
+        auto output = insert_allocation(ins, ins->get_shape());
+        return prog->replace_instruction(ins, hip_acos{}, ins->inputs().at(0), output);
+    }
+
+    instruction_ref apply_atan(instruction_ref ins)
+    {
+        auto output = insert_allocation(ins, ins->get_shape());
+        return prog->replace_instruction(ins, hip_atan{}, ins->inputs().at(0), output);
     }
 
     instruction_ref apply_mul(instruction_ref ins)

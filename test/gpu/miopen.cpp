@@ -239,6 +239,42 @@ struct test_cosh
     }
 };
 
+struct test_asin
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::asin{}, x);
+        return p;
+    }
+};
+
+struct test_acos
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::acos{}, x);
+        return p;
+    }
+};
+
+struct test_atan
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::atan{}, x);
+        return p;
+    }
+};
+
 struct test_scale
 {
     migraphx::program create_program() const
@@ -882,6 +918,9 @@ int main()
     verify_program<test_sin>();
     verify_program<test_sinh>();
     verify_program<test_cosh>();
+    verify_program<test_asin>();
+    verify_program<test_acos>();
+    verify_program<test_atan>();
     verify_program<test_scale>();
     verify_program<test_triadd>();
     verify_program<test_triadd2>();

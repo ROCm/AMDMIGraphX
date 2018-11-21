@@ -627,6 +627,9 @@ struct cpu_apply
         apply_map["sin"]        = simple_op<cpu_unary<sin_op>>();
         apply_map["cos"]        = simple_op<cpu_unary<cos_op>>();
         apply_map["tan"]        = simple_op<cpu_unary<tan_op>>();
+        apply_map["asin"]       = simple_op<cpu_unary<asin_op>>();
+        apply_map["acos"]       = simple_op<cpu_unary<acos_op>>();
+        apply_map["atan"]       = simple_op<cpu_unary<atan_op>>();
         apply_map["relu"]       = simple_op<cpu_unary<relu_op>>();
         apply_map["add"]        = simple_op<cpu_binary<add_op>>();
         apply_map["sub"]        = simple_op<cpu_binary<sub_op>>();

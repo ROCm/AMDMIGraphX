@@ -215,7 +215,7 @@ struct onnx_parser
                 MIGRAPH_THROW("auto_pad and padding cannot be specified simultaneously");
             }
 
-            if(s.find("SAME") >= 0)
+            if(s.find("SAME") != std::string::npos)
             {
                 op.padding_mode = op::convolution::same;
             }
@@ -481,14 +481,6 @@ struct onnx_parser
         onnx::ModelProto model;
         if(model.ParseFromIstream(&is))
         {
-            auto str_toupper = [](std::string s) {
-                std::transform(
-                    s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::toupper(c); });
-                return s;
-            };
-            auto producer_name = str_toupper(model.producer_name());
-            std::cout << producer_name << std::endl;
-
             if(model.has_graph())
             {
                 this->parse_graph(model.graph());

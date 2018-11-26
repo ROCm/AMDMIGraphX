@@ -285,12 +285,12 @@ struct transpose
     int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
-// The contiguous operator takes a non-standard input tensor and returns
-// the same tensor but in standard form. For example, if input tensor A which has lens = (4,5)
-// is first transposed, i.e. lens = (5,4), this tensor's data layout remained the same
-// during the transpose operation; only it's shape lengths and strides were changed.
-// This leaves the tensor in a non-standard form. The contiguous operator copies the
-// underlying data such that resulting tensor is returned to a standard form.
+/// The contiguous operator takes a non-standard input tensor and returns
+/// the same tensor but in standard form. For example, if input tensor A which has lens = (4,5)
+/// is first transposed, i.e. lens = (5,4), this tensor's data layout remained the same
+/// during the transpose operation; only it's shape lengths and strides were changed.
+/// This leaves the tensor in a non-standard form. The contiguous operator copies the
+/// underlying data such that resulting tensor is returned to a standard form.
 struct contiguous
 {
     std::string name() const { return "contiguous"; }
@@ -716,14 +716,14 @@ struct flatten
     int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
-// The broadcast operator performs the numpy-style broadcasting of an axis of a given tensor. This
-// is achieved primarily by setting the stride of the broadcasted axis to zero. Linear indicies are
-// computed from multi-indicies by computing the inner product on the multi-index with the strides.
-// For example, if we have a tensor A(2,3) it has lengths of (2,3) and strides of (3,1). If we want
-// to compute the linear offset that corresponds to the element on the 2nd row (i = 1) and 3rd
-// column (j = 2), we compute the following inner product (1,2) dot (3, 1) = 1*3 + 2*1 = 5. It is
-// obvious from there that we can negate the effects of a given axis by setting the stride of that
-// axis to zero.
+/// The broadcast operator performs the numpy-style broadcasting of an axis of a given tensor. This
+/// is achieved primarily by setting the stride of the broadcasted axis to zero. Linear indicies are
+/// computed from multi-indicies by computing the inner product on the multi-index with the strides.
+/// For example, if we have a tensor A(2,3) it has lengths of (2,3) and strides of (3,1). If we want
+/// to compute the linear offset that corresponds to the element on the 2nd row (i = 1) and 3rd
+/// column (j = 2), we compute the following inner product (1,2) dot (3, 1) = 1*3 + 2*1 = 5. It is
+/// obvious from there that we can negate the effects of a given axis by setting the stride of that
+/// axis to zero.
 struct broadcast
 {
     uint64_t axis = 0;

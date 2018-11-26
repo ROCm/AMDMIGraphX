@@ -232,7 +232,6 @@ void tanh_test()
     EXPECT(p == prog);
 }
 
-
 void asin_test()
 {
     migraphx::program p;

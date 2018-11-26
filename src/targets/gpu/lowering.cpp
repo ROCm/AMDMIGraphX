@@ -77,11 +77,11 @@ struct miopen_apply
         apply_map["acos"]                 = &miopen_apply::apply_generic_op<hip_acos>;
         apply_map["atan"]                 = &miopen_apply::apply_generic_op<hip_atan>;
         apply_map["mul"]                  = &miopen_apply::apply_generic_op<hip_mul>;
-        apply_map["dot"]                  = &miopen_apply::apply_generic_op<miopen_gemm>;
-        apply_map["contiguous"]           = &miopen_apply::apply_contiguous;
-        apply_map["concat"]               = &miopen_apply::apply_concat;
+        apply_map["dot"]                  = &miopen_apply::apply_extend_op<miopen_gemm, op::dot>;
+        apply_map["contiguous"]           = &miopen_apply::apply_extend_op<miopen_contiguous, op::contiguous>;
+        apply_map["concat"]               = &miopen_apply::apply_extend_op<hip_concat, op::concat>;
         apply_map["batch_norm_inference"] = &miopen_apply::apply_batch_norm_inference;
-        apply_map["softmax"]              = &miopen_apply::apply_softmax;
+        apply_map["softmax"]              = &miopen_apply::apply_extend_op<miopen_softmax, op::softmax>;
     }
 
     void apply()
@@ -191,13 +191,15 @@ struct miopen_apply
             ins, miopen_elu{std::move(ad)}, ins->inputs().at(0), output);
     }
 
+    /*
     instruction_ref apply_softmax(instruction_ref ins)
     {
         auto&& op   = any_cast<op::softmax>(ins->get_operator());
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(ins, miopen_softmax{op}, ins->inputs().at(0), output);
     }
-
+    */
+   
     template <class T>
     instruction_ref apply_generic_op(instruction_ref ins)
     {
@@ -233,6 +235,7 @@ struct miopen_apply
         }
     */
 
+    /*
     instruction_ref apply_contiguous(instruction_ref ins)
     {
         auto&& op   = any_cast<op::contiguous>(ins->get_operator());
@@ -248,6 +251,7 @@ struct miopen_apply
         refs.push_back(output);
         return prog->replace_instruction(ins, hip_concat{op}, refs);
     }
+    */
 
     instruction_ref apply_batch_norm_inference(instruction_ref ins)
     {

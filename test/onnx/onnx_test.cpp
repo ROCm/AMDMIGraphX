@@ -179,7 +179,6 @@ void sin_test()
     EXPECT(p == prog);
 }
 
-
 void cos_test()
 {
     migraphx::program p;
@@ -190,7 +189,6 @@ void cos_test()
     EXPECT(p == prog);
 }
 
-
 void tan_test()
 {
     migraphx::program p;
@@ -200,7 +198,6 @@ void tan_test()
     auto prog = migraphx::parse_onnx("tan_test.onnx");
     EXPECT(p == prog);
 }
-
 
 void sinh_test()
 {

@@ -60,6 +60,11 @@ struct onnx_parser
         add_generic_op("Sin", op::sin{});
         add_generic_op("Cos", op::cos{});
         add_generic_op("Tan", op::tan{});
+        add_generic_op("Sinh", op::sinh{});
+        add_generic_op("Cosh", op::cosh{});
+        add_generic_op("Asin", op::asin{});
+        add_generic_op("Acos", op::acos{});
+        add_generic_op("Atan", op::atan{});
 
         add_broadcastable_binary_op("Add", op::add{});
         add_broadcastable_binary_op("Div", op::div{});

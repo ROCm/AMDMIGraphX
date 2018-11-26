@@ -59,29 +59,29 @@ struct miopen_apply
 
     void init()
     {
-        apply_map["convolution"]          = &miopen_apply::apply_convolution;
-        apply_map["relu"]                 = &miopen_apply::apply_relu;
-        apply_map["sigmoid"]              = &miopen_apply::apply_sigmoid;
-        apply_map["abs"]                  = &miopen_apply::apply_abs;
-        apply_map["leaky_relu"]           = &miopen_apply::apply_leaky_relu;
-        apply_map["elu"]                  = &miopen_apply::apply_elu;
-        apply_map["pooling"]              = &miopen_apply::apply_pooling;
-        apply_map["add"]                  = &miopen_apply::apply_generic_op<hip_add>;
-        apply_map["sin"]                  = &miopen_apply::apply_generic_op<hip_sin>;
-        apply_map["cos"]                  = &miopen_apply::apply_generic_op<hip_cos>;
-        apply_map["tan"]                  = &miopen_apply::apply_generic_op<hip_tan>;
-        apply_map["sinh"]                 = &miopen_apply::apply_generic_op<hip_sinh>;
-        apply_map["cosh"]                 = &miopen_apply::apply_generic_op<hip_cosh>;
-        apply_map["tanh"]                 = &miopen_apply::apply_tanh;
-        apply_map["asin"]                 = &miopen_apply::apply_generic_op<hip_asin>;
-        apply_map["acos"]                 = &miopen_apply::apply_generic_op<hip_acos>;
-        apply_map["atan"]                 = &miopen_apply::apply_generic_op<hip_atan>;
-        apply_map["mul"]                  = &miopen_apply::apply_generic_op<hip_mul>;
-        apply_map["dot"]                  = &miopen_apply::apply_extend_op<miopen_gemm, op::dot>;
-        apply_map["contiguous"]           = &miopen_apply::apply_extend_op<miopen_contiguous, op::contiguous>;
-        apply_map["concat"]               = &miopen_apply::apply_extend_op<hip_concat, op::concat>;
+        apply_map["convolution"] = &miopen_apply::apply_convolution;
+        apply_map["relu"]        = &miopen_apply::apply_relu;
+        apply_map["sigmoid"]     = &miopen_apply::apply_sigmoid;
+        apply_map["abs"]         = &miopen_apply::apply_abs;
+        apply_map["leaky_relu"]  = &miopen_apply::apply_leaky_relu;
+        apply_map["elu"]         = &miopen_apply::apply_elu;
+        apply_map["pooling"]     = &miopen_apply::apply_pooling;
+        apply_map["add"]         = &miopen_apply::apply_generic_op<hip_add>;
+        apply_map["sin"]         = &miopen_apply::apply_generic_op<hip_sin>;
+        apply_map["cos"]         = &miopen_apply::apply_generic_op<hip_cos>;
+        apply_map["tan"]         = &miopen_apply::apply_generic_op<hip_tan>;
+        apply_map["sinh"]        = &miopen_apply::apply_generic_op<hip_sinh>;
+        apply_map["cosh"]        = &miopen_apply::apply_generic_op<hip_cosh>;
+        apply_map["tanh"]        = &miopen_apply::apply_tanh;
+        apply_map["asin"]        = &miopen_apply::apply_generic_op<hip_asin>;
+        apply_map["acos"]        = &miopen_apply::apply_generic_op<hip_acos>;
+        apply_map["atan"]        = &miopen_apply::apply_generic_op<hip_atan>;
+        apply_map["mul"]         = &miopen_apply::apply_generic_op<hip_mul>;
+        apply_map["dot"]         = &miopen_apply::apply_extend_op<miopen_gemm, op::dot>;
+        apply_map["contiguous"] = &miopen_apply::apply_extend_op<miopen_contiguous, op::contiguous>;
+        apply_map["concat"]     = &miopen_apply::apply_extend_op<hip_concat, op::concat>;
         apply_map["batch_norm_inference"] = &miopen_apply::apply_batch_norm_inference;
-        apply_map["softmax"]              = &miopen_apply::apply_extend_op<miopen_softmax, op::softmax>;
+        apply_map["softmax"] = &miopen_apply::apply_extend_op<miopen_softmax, op::softmax>;
     }
 
     void apply()
@@ -199,7 +199,7 @@ struct miopen_apply
         return prog->replace_instruction(ins, miopen_softmax{op}, ins->inputs().at(0), output);
     }
     */
-   
+
     template <class T>
     instruction_ref apply_generic_op(instruction_ref ins)
     {

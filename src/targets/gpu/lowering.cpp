@@ -201,9 +201,10 @@ struct miopen_apply
     }
     */
 
-    template<class T>
-    instruction_ref apply_generic_op(instruction_ref ins) {
-        auto output = insert_allocation(ins, ins->get_shape());
+    template <class T>
+    instruction_ref apply_generic_op(instruction_ref ins)
+    {
+        auto output                       = insert_allocation(ins, ins->get_shape());
         std::vector<instruction_ref> refs = ins->inputs();
         refs.push_back(output);
 

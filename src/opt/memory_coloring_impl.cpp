@@ -118,11 +118,11 @@ void memory_coloring_impl::build()
                 live_range& range        = def_interval->segment;
                 def_interval->result     = iter->get_shape();
                 def_interval->is_literal = is_lit;
+                range.begin              = cur_points;
+                def_interval->def_point  = cur_points;
+                range.size               = (iter->get_shape()).bytes();
                 if(!is_lit || unify_literals)
                     alloc_queue.push(def_interval);
-                range.begin             = cur_points;
-                def_interval->def_point = cur_points;
-                range.size              = (iter->get_shape()).bytes();
                 live_set.erase(range.vn);
             }
         }

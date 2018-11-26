@@ -52,7 +52,6 @@ struct onnx_parser
         add_generic_op("MatMul", op::dot{});
         add_generic_op("Relu", op::relu{});
         add_generic_op("Sigmoid", op::sigmoid{});
-        add_generic_op("Tanh", op::tanh{});
         add_generic_op("Abs", op::abs{});
         // disable dropout for inference
         add_generic_op("Dropout", op::identity{});
@@ -62,6 +61,7 @@ struct onnx_parser
         add_generic_op("Tan", op::tan{});
         add_generic_op("Sinh", op::sinh{});
         add_generic_op("Cosh", op::cosh{});
+        add_generic_op("Tanh", op::tanh{});
         add_generic_op("Asin", op::asin{});
         add_generic_op("Acos", op::acos{});
         add_generic_op("Atan", op::atan{});

@@ -208,6 +208,31 @@ struct miopen_apply
         return prog->replace_instruction(ins, T{}, refs);
     }
 
+    template <class T, class Op>
+    instruction_ref apply_extend_op(instruction_ref ins)
+    {
+        auto&& op = any_cast<Op>(ins->get_operator());
+        auto output = insert_allocation(ins, ins->get_shape());
+        std::vector<instruction_ref> refs = ins->inputs();
+        refs.push_back(output);
+
+        return prog->replace_instruction(ins, T{op}, refs);
+    }
+
+/*
+    template<class T>
+    void apply_generic_op_test(std::string name, instruction_ref ins)
+    {
+        apply_map.emplace(name, [&]() {
+            auto output                       = insert_allocation(ins, ins->get_shape());
+            std::vector<instruction_ref> refs = ins->inputs();
+            refs.push_back(output);
+
+            return prog->replace_instruction(ins, T{}, refs);            
+        });
+    }
+*/
+
     instruction_ref apply_contiguous(instruction_ref ins)
     {
         auto&& op   = any_cast<op::contiguous>(ins->get_operator());

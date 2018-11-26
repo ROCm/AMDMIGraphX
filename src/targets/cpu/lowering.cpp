@@ -414,6 +414,24 @@ struct atan_op
     }
 };
 
+struct sinh_op
+{
+    std::string name() const { return "cpu::sinh"; }
+    auto fcn() const
+    {
+        return [](auto x) { return std::sinh(x); };
+    }
+};
+
+struct cosh_op
+{
+    std::string name() const { return "cpu::cosh"; }
+    auto fcn() const
+    {
+        return [](auto x) { return std::cosh(x); };
+    }
+};
+
 struct tanh_op
 {
     std::string name() const { return "cpu::tanh"; }
@@ -621,6 +639,8 @@ struct cpu_apply
         apply_map["elu"]        = extend_op<cpu_unary<elu_op>, op::elu>();
         apply_map["identity"]   = simple_op<cpu_unary<identity_op>>();
         apply_map["abs"]        = simple_op<cpu_unary<abs_op>>();
+        apply_map["sinh"]       = simple_op<cpu_unary<sinh_op>>();
+        apply_map["cosh"]       = simple_op<cpu_unary<cosh_op>>();
         apply_map["tanh"]       = simple_op<cpu_unary<tanh_op>>();
         apply_map["sigmoid"]    = simple_op<cpu_unary<sigmoid_op>>();
         apply_map["exp"]        = simple_op<cpu_unary<exp_op>>();
@@ -628,6 +648,9 @@ struct cpu_apply
         apply_map["sin"]        = simple_op<cpu_unary<sin_op>>();
         apply_map["cos"]        = simple_op<cpu_unary<cos_op>>();
         apply_map["tan"]        = simple_op<cpu_unary<tan_op>>();
+        apply_map["asin"]       = simple_op<cpu_unary<asin_op>>();
+        apply_map["acos"]       = simple_op<cpu_unary<acos_op>>();
+        apply_map["atan"]       = simple_op<cpu_unary<atan_op>>();
         apply_map["relu"]       = simple_op<cpu_unary<relu_op>>();
         apply_map["add"]        = simple_op<cpu_binary<add_op>>();
         apply_map["sub"]        = simple_op<cpu_binary<sub_op>>();

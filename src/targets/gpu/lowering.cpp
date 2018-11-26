@@ -17,7 +17,6 @@
 #include <migraphx/gpu/contiguous.hpp>
 #include <migraphx/gpu/relu.hpp>
 #include <migraphx/gpu/sigmoid.hpp>
-#include <migraphx/gpu/tanh.hpp>
 #include <migraphx/gpu/abs.hpp>
 #include <migraphx/gpu/leaky_relu.hpp>
 #include <migraphx/gpu/elu.hpp>
@@ -26,6 +25,12 @@
 #include <migraphx/gpu/sin.hpp>
 #include <migraphx/gpu/cos.hpp>
 #include <migraphx/gpu/tan.hpp>
+#include <migraphx/gpu/sinh.hpp>
+#include <migraphx/gpu/cosh.hpp>
+#include <migraphx/gpu/tanh.hpp>
+#include <migraphx/gpu/asin.hpp>
+#include <migraphx/gpu/acos.hpp>
+#include <migraphx/gpu/atan.hpp>
 #include <migraphx/gpu/mul.hpp>
 #include <migraphx/gpu/batchnorm.hpp>
 #include <migraphx/gpu/pooling.hpp>
@@ -57,7 +62,6 @@ struct miopen_apply
         apply_map["convolution"]          = &miopen_apply::apply_convolution;
         apply_map["relu"]                 = &miopen_apply::apply_relu;
         apply_map["sigmoid"]              = &miopen_apply::apply_sigmoid;
-        apply_map["tanh"]                 = &miopen_apply::apply_tanh;
         apply_map["abs"]                  = &miopen_apply::apply_abs;
         apply_map["leaky_relu"]           = &miopen_apply::apply_leaky_relu;
         apply_map["elu"]                  = &miopen_apply::apply_elu;
@@ -66,6 +70,12 @@ struct miopen_apply
         apply_map["sin"]                  = &miopen_apply::apply_generic_op<hip_sin>;
         apply_map["cos"]                  = &miopen_apply::apply_generic_op<hip_cos>;
         apply_map["tan"]                  = &miopen_apply::apply_generic_op<hip_tan>;
+        apply_map["sinh"]                 = &miopen_apply::apply_generic_op<hip_sinh>;
+        apply_map["cosh"]                 = &miopen_apply::apply_generic_op<hip_cosh>;
+        apply_map["tanh"]                 = &miopen_apply::apply_tanh;
+        apply_map["asin"]                 = &miopen_apply::apply_generic_op<hip_asin>;
+        apply_map["acos"]                 = &miopen_apply::apply_generic_op<hip_acos>;
+        apply_map["atan"]                 = &miopen_apply::apply_generic_op<hip_atan>;
         apply_map["mul"]                  = &miopen_apply::apply_generic_op<hip_mul>;
         apply_map["dot"]                  = &miopen_apply::apply_generic_op<miopen_gemm>;
         apply_map["contiguous"]           = &miopen_apply::apply_contiguous;
@@ -187,23 +197,6 @@ struct miopen_apply
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(ins, miopen_softmax{op}, ins->inputs().at(0), output);
     }
-
-    /*
-    instruction_ref apply_add(instruction_ref ins)
-    {
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(
-            ins, hip_add{}, ins->inputs().at(0), ins->inputs().at(1), output);
-    }
-    */
-
-    /*
-    instruction_ref apply_sin(instruction_ref ins)
-    {
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(ins, hip_sin{}, ins->inputs().at(0), output);
-    }
-    */
 
     template <class T>
     instruction_ref apply_generic_op(instruction_ref ins)

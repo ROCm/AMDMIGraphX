@@ -239,6 +239,77 @@ struct test_tan
     }
 };
 
+struct test_sinh
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::sinh{}, x);
+        return p;
+    }
+};
+
+struct test_cosh
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::cosh{}, x);
+        return p;
+    }
+};
+
+struct test_tanh
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        p.add_instruction(migraphx::op::tanh{}, x);
+        return p;
+    }
+};
+
+struct test_asin
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::asin{}, x);
+        return p;
+    }
+};
+
+struct test_acos
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::acos{}, x);
+        return p;
+    }
+};
+
+struct test_atan
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::atan{}, x);
+        return p;
+    }
+};
+
 struct test_scale
 {
     migraphx::program create_program() const
@@ -487,17 +558,6 @@ struct test_sigmoid
         migraphx::program p;
         auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         p.add_instruction(migraphx::op::sigmoid{}, x);
-        return p;
-    }
-};
-
-struct test_tanh
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        p.add_instruction(migraphx::op::tanh{}, x);
         return p;
     }
 };
@@ -925,6 +985,14 @@ int main()
     verify_program<test_add_half>();
     verify_program<test_mul>();
     verify_program<test_sin>();
+    verify_program<test_cos>();
+    verify_program<test_tan>();
+    verify_program<test_sinh>();
+    verify_program<test_cosh>();
+    verify_program<test_tanh>();
+    verify_program<test_asin>();
+    verify_program<test_acos>();
+    verify_program<test_atan>();
     verify_program<test_scale>();
     verify_program<test_triadd>();
     verify_program<test_triadd2>();
@@ -943,7 +1011,6 @@ int main()
     verify_program<test_add_relu>();
     verify_program<test_leaky_relu>();
     verify_program<test_sigmoid>();
-    verify_program<test_tanh>();
     verify_program<test_elu>();
     verify_program<test_conv_pooling>();
     verify_program<test_global_avg_pooling>();

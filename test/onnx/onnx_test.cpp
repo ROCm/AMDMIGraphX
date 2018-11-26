@@ -221,6 +221,18 @@ void cosh_test()
     EXPECT(p == prog);
 }
 
+void tanh_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1}});
+    p.add_instruction(migraphx::op::tanh{}, input);
+
+    auto prog = migraphx::parse_onnx("tanh_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+
 void asin_test()
 {
     migraphx::program p;
@@ -271,6 +283,7 @@ int main()
     tan_test();
     sinh_test();
     cosh_test();
+    tanh_test();
     asin_test();
     acos_test();
     atan_test();

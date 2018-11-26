@@ -1,6 +1,6 @@
 
-#ifndef MIGRAPH_GUARD_RTGLIB_DEVICE_SIN_HPP
-#define MIGRAPH_GUARD_RTGLIB_DEVICE_SIN_HPP
+#ifndef MIGRAPH_GUARD_RTGLIB_DEVICE_COS_HPP
+#define MIGRAPH_GUARD_RTGLIB_DEVICE_COS_HPP
 
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
@@ -11,7 +11,7 @@ inline namespace MIGRAPH_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void sin(hipStream_t stream, const argument& result, const argument& arg);
+void cos(hipStream_t stream, const argument& result, const argument& arg);
 
 } // namespace device
 } // namespace gpu

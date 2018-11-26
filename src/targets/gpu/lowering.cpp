@@ -24,6 +24,8 @@
 #include <migraphx/gpu/softmax.hpp>
 #include <migraphx/gpu/add.hpp>
 #include <migraphx/gpu/sin.hpp>
+#include <migraphx/gpu/cos.hpp>
+#include <migraphx/gpu/tan.hpp>
 #include <migraphx/gpu/mul.hpp>
 #include <migraphx/gpu/batchnorm.hpp>
 #include <migraphx/gpu/pooling.hpp>
@@ -62,6 +64,8 @@ struct miopen_apply
         apply_map["pooling"]              = &miopen_apply::apply_pooling;
         apply_map["add"]                  = &miopen_apply::apply_generic_op<hip_add>;
         apply_map["sin"]                  = &miopen_apply::apply_generic_op<hip_sin>;
+        apply_map["cos"]                  = &miopen_apply::apply_generic_op<hip_cos>;
+        apply_map["tan"]                  = &miopen_apply::apply_generic_op<hip_tan>;
         apply_map["mul"]                  = &miopen_apply::apply_generic_op<hip_mul>;
         apply_map["dot"]                  = &miopen_apply::apply_generic_op<miopen_gemm>;
         apply_map["contiguous"]           = &miopen_apply::apply_contiguous;
@@ -210,25 +214,6 @@ struct miopen_apply
 
         return prog->replace_instruction(ins, T{}, refs);
     }
-
-    /*
-    instruction_ref apply_mul(instruction_ref ins)
-    {
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(
-            ins, hip_mul{}, ins->inputs().at(0), ins->inputs().at(1), output);
-    }
-    */
-
-    /*
-    instruction_ref apply_dot(instruction_ref ins)
-    {
-        auto&& op   = any_cast<op::dot>(ins->get_operator());
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(
-            ins, miopen_gemm{op}, ins->inputs().at(0), ins->inputs().at(1), output);
-    }
-    */
 
     instruction_ref apply_contiguous(instruction_ref ins)
     {

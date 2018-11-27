@@ -22,6 +22,8 @@
 #include <migraphx/gpu/elu.hpp>
 #include <migraphx/gpu/softmax.hpp>
 #include <migraphx/gpu/add.hpp>
+#include <migraphx/gpu/exp.hpp>
+#include <migraphx/gpu/log.hpp>
 #include <migraphx/gpu/sin.hpp>
 #include <migraphx/gpu/cos.hpp>
 #include <migraphx/gpu/tan.hpp>
@@ -67,6 +69,8 @@ struct miopen_apply
         add_miopen_extend_op("elu", miopen_elu{}, op::elu{}, make_elu);
 
         add_generic_op("add", hip_add{});
+        add_generic_op("exp", hip_exp{});
+        add_generic_op("log", hip_log{});
         add_generic_op("sin", hip_sin{});
         add_generic_op("cos", hip_cos{});
         add_generic_op("tan", hip_tan{});

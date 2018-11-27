@@ -12,6 +12,8 @@ endif()
 
 add_library(migraphx_device
     device/add.cpp
+    device/exp.cpp
+    device/log.cpp
     device/sin.cpp
     device/cos.cpp
     device/tan.cpp
@@ -46,6 +48,8 @@ add_library(migraphx_gpu
     relu.cpp
     leaky_relu.cpp
     add.cpp
+    exp.cpp
+    log.cpp
     sin.cpp
     cos.cpp
     tan.cpp

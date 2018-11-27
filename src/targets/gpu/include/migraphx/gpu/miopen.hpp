@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_MIOPEN_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_MIOPEN_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_MIOPEN_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_MIOPEN_HPP
 
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/operators.hpp>
@@ -7,21 +7,21 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-using miopen_handle          = MIGRAPH_MANAGE_PTR(miopenHandle_t, miopenDestroy);
-using tensor_descriptor      = MIGRAPH_MANAGE_PTR(miopenTensorDescriptor_t,
+using miopen_handle          = MIGRAPHX_MANAGE_PTR(miopenHandle_t, miopenDestroy);
+using tensor_descriptor      = MIGRAPHX_MANAGE_PTR(miopenTensorDescriptor_t,
                                              miopenDestroyTensorDescriptor);
-using convolution_descriptor = MIGRAPH_MANAGE_PTR(miopenConvolutionDescriptor_t,
+using convolution_descriptor = MIGRAPHX_MANAGE_PTR(miopenConvolutionDescriptor_t,
                                                   miopenDestroyConvolutionDescriptor);
-using pooling_descriptor     = MIGRAPH_MANAGE_PTR(miopenPoolingDescriptor_t,
+using pooling_descriptor     = MIGRAPHX_MANAGE_PTR(miopenPoolingDescriptor_t,
                                               miopenDestroyPoolingDescriptor);
-using activation_descriptor  = MIGRAPH_MANAGE_PTR(miopenActivationDescriptor_t,
+using activation_descriptor  = MIGRAPHX_MANAGE_PTR(miopenActivationDescriptor_t,
                                                  miopenDestroyActivationDescriptor);
-using fusion_plan_descriptor = MIGRAPH_MANAGE_PTR(miopenFusionPlanDescriptor_t,
+using fusion_plan_descriptor = MIGRAPHX_MANAGE_PTR(miopenFusionPlanDescriptor_t,
                                                   miopenDestroyFusionPlan);
-using fused_operator_args    = MIGRAPH_MANAGE_PTR(miopenOperatorArgs_t, miopenDestroyOperatorArgs);
+using fused_operator_args    = MIGRAPHX_MANAGE_PTR(miopenOperatorArgs_t, miopenDestroyOperatorArgs);
 
 template <class Result, class F, class... Ts>
 Result make_obj(F f, Ts... xs)
@@ -30,7 +30,7 @@ Result make_obj(F f, Ts... xs)
     auto status                = f(&x, xs...);
     Result r{x};
     if(status != miopenStatusSuccess)
-        MIGRAPH_THROW("MIOpen call failed");
+        MIGRAPHX_THROW("MIOpen call failed");
     return r;
 }
 
@@ -46,7 +46,7 @@ inline tensor_descriptor make_tensor(const migraphx::shape& s)
     else if(s.type() == shape::half_type)
         d = miopenHalf;
     else
-        MIGRAPH_THROW("Unsupported type");
+        MIGRAPHX_THROW("Unsupported type");
     miopenSetTensorDescriptor(t.get(), d, s.lens().size(), lens.data(), strides.data());
     return t;
 }
@@ -117,7 +117,7 @@ inline fused_operator_args make_fused_args()
 }
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

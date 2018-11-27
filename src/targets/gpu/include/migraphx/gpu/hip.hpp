@@ -1,12 +1,12 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_HIP_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_HIP_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_HIP_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_HIP_HPP
 
 #include <migraphx/operators.hpp>
 #include <migraphx/config.hpp>
 #include <utility>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 migraphx::argument allocate_gpu(const migraphx::shape& s, bool host = false);
@@ -89,7 +89,7 @@ struct hip_copy
 };
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

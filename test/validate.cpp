@@ -39,7 +39,7 @@ TEST_CASE(incomplete_args)
     EXPECT(bool{p.validate() == ins});
 }
 
-MIGRAPH_ROB(access_ins_arguments,
+MIGRAPHX_ROB(access_ins_arguments,
             std::vector<migraphx::instruction_ref>,
             migraphx::instruction,
             arguments)

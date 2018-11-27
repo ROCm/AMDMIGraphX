@@ -34,9 +34,9 @@ endif()
 
 if(CMAKE_CXX_COMPILER MATCHES ".*hcc")
     message(STATUS "Enable miopen backend")
-    set(MIGRAPH_ENABLE_GPU On CACHE BOOL "")
+    set(MIGRAPHX_ENABLE_GPU On CACHE BOOL "")
 else()
-    set(MIGRAPH_ENABLE_GPU Off CACHE BOOL "")
+    set(MIGRAPHX_ENABLE_GPU Off CACHE BOOL "")
 endif()
 
 add_compile_options(-std=c++14)
@@ -132,11 +132,11 @@ enable_testing()
 
 include(ROCMCreatePackage)
 rocm_create_package(
-    NAME MIGraph
+    NAME MIGraphX
     DESCRIPTION "AMD's graph optimizer"
     MAINTAINER "Paul Fultz II <paul.fultz@amd.com>"
     LDCONFIG
-    DEPENDS miopen-hip rocblas hip_hcc
+    DEPENDS miopen-hip rocblas hip_hcc half
 )
 
 add_subdirectory(src)

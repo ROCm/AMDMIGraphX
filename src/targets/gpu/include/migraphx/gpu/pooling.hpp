@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_POOLING_HPP
-#define MIGRAPH_GUARD_RTGLIB_POOLING_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_POOLING_HPP
+#define MIGRAPHX_GUARD_RTGLIB_POOLING_HPP
 
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/manage_ptr.hpp>
@@ -19,7 +19,7 @@
 #include <utility>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct miopen_pooling
@@ -35,7 +35,7 @@ struct miopen_pooling
 };
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

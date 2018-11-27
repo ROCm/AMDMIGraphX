@@ -6,7 +6,7 @@
 #include <migraphx/instruction.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct fusion
@@ -38,7 +38,7 @@ struct fusion
         op_t result;
         auto status = miopenFusionPlanGetOp(fp.get(), i, &result);
         if(status != miopenStatusSuccess)
-            MIGRAPH_THROW("Failed retrieving operator at " + std::to_string(i));
+            MIGRAPHX_THROW("Failed retrieving operator at " + std::to_string(i));
         return result;
     }
 
@@ -51,7 +51,7 @@ struct fusion
         auto t      = keep_alive(make_tensor(b));
         auto status = miopenCreateOpBiasForward(fp.get(), &result, t.get());
         if(status != miopenStatusSuccess)
-            MIGRAPH_THROW("Creating operator failed");
+            MIGRAPHX_THROW("Creating operator failed");
         return result;
     }
 
@@ -60,7 +60,7 @@ struct fusion
         op_t result;
         auto status = miopenCreateOpActivationForward(fp.get(), &result, miopenActivationRELU);
         if(status != miopenStatusSuccess)
-            MIGRAPH_THROW("Creating operator failed");
+            MIGRAPHX_THROW("Creating operator failed");
         return result;
     }
 
@@ -71,7 +71,7 @@ struct fusion
         auto t      = keep_alive(make_tensor(weights));
         auto status = miopenCreateOpConvForward(fp.get(), &result, cd.get(), t.get());
         if(status != miopenStatusSuccess)
-            MIGRAPH_THROW("Creating operator failed");
+            MIGRAPHX_THROW("Creating operator failed");
         return result;
     }
 
@@ -91,7 +91,7 @@ struct fusion
     {
         auto status = miopenCompileFusionPlan(ctx.get_stream().get_miopen(), fp.get());
         if(status != miopenStatusSuccess)
-            MIGRAPH_THROW("Compiling fusion plan failed");
+            MIGRAPHX_THROW("Compiling fusion plan failed");
     }
 
     argument execute(context& ctx,
@@ -109,12 +109,12 @@ struct fusion
                                               y.implicit(),
                                               fargs.get());
         if(status != miopenStatusSuccess)
-            MIGRAPH_THROW("Failed to execute fusion plan");
+            MIGRAPHX_THROW("Failed to execute fusion plan");
         return y;
     }
 };
 
-MIGRAPH_PRED_MATCHER(bias_shape, instruction_ref ins)
+MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
 {
     auto&& s = ins->get_shape();
     return s.broadcasted() and s.strides().size() == 4 and s.strides()[0] == 0 and
@@ -128,7 +128,7 @@ std::array<T, sizeof...(Ts) + 1> make_array(T x, Ts... xs)
     return {std::move(x), std::move(static_cast<T>(xs))...};
 }
 
-MIGRAPH_PRED_MATCHER(fusable_conv, instruction_ref ins)
+MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 {
     if(ins->name() != "gpu::convolution")
         return false;
@@ -389,5 +389,5 @@ void fuse_ops::apply(program& p) const
 }
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

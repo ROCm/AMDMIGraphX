@@ -1,12 +1,12 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_CPU_TARGET_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_CPU_TARGET_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_CPU_TARGET_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_CPU_TARGET_HPP
 
 #include <migraphx/program.hpp>
 #include <migraphx/cpu/context.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
 
 struct target
@@ -17,7 +17,7 @@ struct target
 };
 
 } // namespace cpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

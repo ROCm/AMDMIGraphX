@@ -36,7 +36,7 @@ set(PACKAGE_DEPENDS)
 
 add_subdirectory(onnx)
 add_subdirectory(targets/cpu)
-if(MIGRAPH_ENABLE_GPU)
+if(MIGRAPHX_ENABLE_GPU)
 list(APPEND PACKAGE_DEPENDS MIOpen rocblas)
 add_subdirectory(targets/gpu)
 endif()

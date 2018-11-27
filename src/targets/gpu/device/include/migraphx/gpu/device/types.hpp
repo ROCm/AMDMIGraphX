@@ -75,6 +75,15 @@ device_type<T>* device_cast(T* x)
     return reinterpret_cast<device_type<T>*>(x);
 }
 
+template <class T>
+T to_hip_type(T x)
+{
+    return x;
+}
+
+// Hip doens't support __fp16
+inline float to_hip_type(gpu_half x) { return x; }
+
 } // namespace device
 } // namespace gpu
 } // namespace MIGRAPH_INLINE_NS

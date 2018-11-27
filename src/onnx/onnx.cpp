@@ -141,7 +141,6 @@ struct onnx_parser
                 if(s0->size() > s1->size())
                     std::swap(s0, s1);
 
-                // Copy the larger vector to output_lens
                 std::vector<std::size_t> output_lens(s1->size());
                 auto offset = s1->size() - s0->size();
                 std::transform(s0->begin(),
@@ -588,6 +587,11 @@ struct onnx_parser
     static literal parse_tensor(const onnx::TensorProto& t)
     {
         std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
+        // in case of scalar constants in onnx file, use dims=1 to fill initializer data
+        if(dims.size() == 0)
+        {
+            dims = {1};
+        }
         if(t.has_raw_data())
         {
             const std::string& s = t.raw_data();

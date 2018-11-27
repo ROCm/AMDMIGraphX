@@ -17,7 +17,7 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 struct unknown
 {
     std::string op;
@@ -99,7 +99,7 @@ struct onnx_parser
     {
         ops.emplace(name, [this, x](attribute_map attributes, std::vector<instruction_ref> args) {
             if(args.size() != 2)
-                MIGRAPH_THROW("binary operators should have 2 operands");
+                MIGRAPHX_THROW("binary operators should have 2 operands");
             if(contains(attributes, "broadcast"))
             {
                 uint64_t broadcasted = parse_value(attributes.at("broadcast")).at<uint64_t>();
@@ -476,7 +476,7 @@ struct onnx_parser
     void parse_node(const std::string& name)
     {
         if(name.empty())
-            MIGRAPH_THROW("Onnx node must have a name");
+            MIGRAPHX_THROW("Onnx node must have a name");
         if(instructions.count(name) == 0)
         {
             auto&& node = nodes.at(name);
@@ -566,7 +566,7 @@ struct onnx_parser
         case onnx::AttributeProto::TENSORS: return {};
         case onnx::AttributeProto::GRAPHS: return {};
         }
-        MIGRAPH_THROW("Invalid attribute type");
+        MIGRAPHX_THROW("Invalid attribute type");
     }
 
     static literal parse_tensor(const onnx::TensorProto& t)
@@ -594,7 +594,7 @@ struct onnx_parser
             case onnx::TensorProto::COMPLEX64: throw std::runtime_error("");
             case onnx::TensorProto::COMPLEX128: throw std::runtime_error("");
             }
-            MIGRAPH_THROW("Invalid tensor type");
+            MIGRAPHX_THROW("Invalid tensor type");
         }
         switch(t.data_type())
         {
@@ -625,7 +625,7 @@ struct onnx_parser
         case onnx::TensorProto::COMPLEX64: throw std::runtime_error("");
         case onnx::TensorProto::COMPLEX128: throw std::runtime_error("");
         }
-        MIGRAPH_THROW("Invalid tensor type");
+        MIGRAPHX_THROW("Invalid tensor type");
     }
 
     static shape parse_type(const onnx::TypeProto& t)
@@ -694,5 +694,5 @@ program parse_onnx(const std::string& name)
     return std::move(parser.prog);
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

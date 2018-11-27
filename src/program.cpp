@@ -11,10 +11,10 @@
 #include <utility>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_TRACE_COMPILE)
-MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_TRACE_EVAL)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
 
 struct program_impl
 {
@@ -282,7 +282,7 @@ void program::compile(const target& t, tracer trace)
 {
     assert(this->validate() == impl->instructions.end());
     this->impl->ctx = t.get_context();
-    if(enabled(MIGRAPH_TRACE_COMPILE{}))
+    if(enabled(MIGRAPHX_TRACE_COMPILE{}))
         trace = tracer{std::cout};
     trace(*this);
     trace();
@@ -297,7 +297,7 @@ void program::compile(const target& t, tracer trace)
         if(invalid != impl->instructions.end())
         {
             auto index = std::distance(impl->instructions.begin(), invalid);
-            MIGRAPH_THROW(p.name() + " pass produces invalid program at instruction " +
+            MIGRAPHX_THROW(p.name() + " pass produces invalid program at instruction " +
                           std::to_string(index) + ": " + invalid->name());
         }
         trace();
@@ -307,7 +307,7 @@ void program::compile(const target& t, tracer trace)
     if(invalid != impl->instructions.end())
     {
         auto index = std::distance(impl->instructions.begin(), invalid);
-        MIGRAPH_THROW("Invalid program from compilation at instruction " + std::to_string(index));
+        MIGRAPHX_THROW("Invalid program from compilation at instruction " + std::to_string(index));
     }
 }
 
@@ -334,7 +334,7 @@ argument generic_eval(const program& p,
                                 auto param_name =
                                     any_cast<builtin::param>(ins->get_operator()).parameter;
                                 if(not contains(params, param_name))
-                                    MIGRAPH_THROW("Parameter not found: " + param_name);
+                                    MIGRAPHX_THROW("Parameter not found: " + param_name);
                                 return params.at(param_name);
                             }));
         }
@@ -361,7 +361,7 @@ argument generic_eval(const program& p,
 
 argument program::eval(std::unordered_map<std::string, argument> params) const
 {
-    if(enabled(MIGRAPH_TRACE_EVAL{}))
+    if(enabled(MIGRAPHX_TRACE_EVAL{}))
     {
         auto& ctx = this->impl->ctx;
         return generic_eval(*this, this->impl->ctx, std::move(params), [&](auto& ins, auto f) {
@@ -501,5 +501,5 @@ std::ostream& operator<<(std::ostream& os, const program& p)
     return os;
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

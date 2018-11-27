@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_REFLECT_HPP
-#define MIGRAPH_GUARD_RTGLIB_REFLECT_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_REFLECT_HPP
+#define MIGRAPHX_GUARD_RTGLIB_REFLECT_HPP
 
 #include <migraphx/functional.hpp>
 #include <migraphx/rank.hpp>
@@ -7,7 +7,7 @@
 #include <functional>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 namespace detail {
 
@@ -47,7 +47,7 @@ void reflect_each(T& x, F f)
         });
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

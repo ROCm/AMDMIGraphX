@@ -1,11 +1,11 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_TYPE_NAME_HPP
-#define MIGRAPH_GUARD_RTGLIB_TYPE_NAME_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_TYPE_NAME_HPP
+#define MIGRAPHX_GUARD_RTGLIB_TYPE_NAME_HPP
 
 #include <string>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 template <class PrivateMigraphTypeNameProbe>
 const std::string& get_type_name()
@@ -41,7 +41,7 @@ const std::string& get_type_name(const T&)
     return migraphx::get_type_name<T>();
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

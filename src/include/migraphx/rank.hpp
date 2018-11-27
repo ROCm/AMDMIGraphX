@@ -1,10 +1,10 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_RANK_HPP
-#define MIGRAPH_GUARD_RTGLIB_RANK_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_RANK_HPP
+#define MIGRAPHX_GUARD_RTGLIB_RANK_HPP
 
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 template <int N>
 struct rank : rank<N - 1>
@@ -16,7 +16,7 @@ struct rank<0>
 {
 };
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

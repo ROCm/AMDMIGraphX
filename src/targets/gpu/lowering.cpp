@@ -28,7 +28,7 @@
 #include <utility>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct miopen_apply
@@ -232,5 +232,5 @@ struct miopen_apply
 
 void lowering::apply(program& p) const { miopen_apply{&p, ctx}.apply(); }
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

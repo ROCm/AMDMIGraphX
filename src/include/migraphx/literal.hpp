@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_LITERAL_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_LITERAL_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_LITERAL_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_LITERAL_HPP
 
 #include <migraphx/shape.hpp>
 #include <migraphx/shape_for_each.hpp>
@@ -12,7 +12,7 @@
 #include <memory>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 /**
  * @brief Represents a raw literal
@@ -124,7 +124,7 @@ literal transform(literal l1, literal l2, F f)
     return result;
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

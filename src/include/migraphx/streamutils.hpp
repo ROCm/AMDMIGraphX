@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_STREAMUTILS_HPP
-#define MIGRAPH_GUARD_STREAMUTILS_HPP
+#ifndef MIGRAPHX_GUARD_STREAMUTILS_HPP
+#define MIGRAPHX_GUARD_STREAMUTILS_HPP
 
 #include <ostream>
 #include <algorithm>
@@ -7,7 +7,7 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 template <class T>
 struct stream_range_container
@@ -56,7 +56,7 @@ void stream_write_value(std::ostream& os, const T& x)
     detail::stream_write_value_impl(rank<1>{}, os, x);
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_OPERATORS_HPP
-#define MIGRAPH_GUARD_OPERATORS_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_HPP
+#define MIGRAPHX_GUARD_OPERATORS_HPP
 
 #include <array>
 #include <migraphx/operation.hpp>
@@ -11,14 +11,14 @@
 #include <utility>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 struct not_computable
 {
     argument compute(context&, const shape&, const std::vector<argument>&) const
     {
-        MIGRAPH_THROW("not computable");
+        MIGRAPHX_THROW("not computable");
     }
 };
 
@@ -124,7 +124,7 @@ struct convolution
         }
         else
         {
-            MIGRAPH_THROW("Invalid padding mode");
+            MIGRAPHX_THROW("Invalid padding mode");
         }
     }
 };
@@ -163,7 +163,7 @@ struct im2col
         auto kernel_width   = weights.lens()[3];
         check_shapes{inputs, *this}.has(2);
         if(batch_size != 1)
-            MIGRAPH_THROW("im2col only support batch_size 1");
+            MIGRAPHX_THROW("im2col only support batch_size 1");
         auto output_height = std::size_t(std::max<std::ptrdiff_t>(
             1,
             (input.lens()[2] - (1 + dilation[0] * (kernel_height - 1)) + 2 * padding[0]) /
@@ -261,13 +261,13 @@ struct transpose
         auto t             = input.type();
         if(dims.size() != input_lens.size())
         {
-            MIGRAPH_THROW("Permutation has wrong number of axes");
+            MIGRAPHX_THROW("Permutation has wrong number of axes");
         }
         std::vector<int64_t> axes(dims.size());
         std::iota(axes.begin(), axes.end(), 0);
         if(!std::is_permutation(axes.begin(), axes.end(), dims.begin()))
         {
-            MIGRAPH_THROW("Invalid permutation");
+            MIGRAPHX_THROW("Invalid permutation");
         }
         std::vector<size_t> output_lens(input_lens.size());
         std::vector<size_t> output_strides(input_lens.size());
@@ -318,7 +318,7 @@ struct concat
     {
         if(inputs.empty())
         {
-            MIGRAPH_THROW("Number of input tensors should exceed 0");
+            MIGRAPHX_THROW("Number of input tensors should exceed 0");
         }
 
         const auto& first_shape_lens = inputs.front().lens();
@@ -331,7 +331,7 @@ struct concat
                        return s.lens()[l] == first_shape_lens[l];
                    }))
                 {
-                    MIGRAPH_THROW("Non-axis dimensions should match");
+                    MIGRAPHX_THROW("Non-axis dimensions should match");
                 }
             }
         }
@@ -411,7 +411,7 @@ struct slice
         // }
         if(starts.size() != axes.size() || axes.size() != ends.size())
         {
-            MIGRAPH_THROW("inconsistent sizes");
+            MIGRAPHX_THROW("inconsistent sizes");
         }
         std::vector<std::size_t> new_lens = old_lens;
         for(std::size_t i = 0; i < axes.size(); i++)
@@ -450,7 +450,7 @@ struct squeeze
         if(std::any_of(
                axes.begin(), axes.end(), [&](auto axis) { return input_shape.lens()[axis] != 1; }))
         {
-            MIGRAPH_THROW("squeeze axis dimension should be equal to 1");
+            MIGRAPHX_THROW("squeeze axis dimension should be equal to 1");
         }
         std::vector<std::size_t> new_lens;
         if(axes.empty())
@@ -536,7 +536,7 @@ struct reshape
         std::vector<std::size_t> rdims(dims.begin(), dims.end());
         auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
         if(n_neg_dims > 1)
-            MIGRAPH_THROW("Dimensions for reshape can only have one -1 dim");
+            MIGRAPHX_THROW("Dimensions for reshape can only have one -1 dim");
         for(std::size_t i = 0; i < dims.size(); i++)
         {
             if(dims[i] == 0)
@@ -560,7 +560,7 @@ struct reshape
         }
         shape s{inputs.front().type(), rdims};
         if(s.elements() != inputs.front().elements())
-            MIGRAPH_THROW("Wrong number of elements for reshape");
+            MIGRAPHX_THROW("Wrong number of elements for reshape");
         return s;
     }
     argument compute(context&, shape output_shape, std::vector<argument> args) const
@@ -590,7 +590,7 @@ struct dot
         auto t         = a.type();
 
         if(a.lens()[1] != b.lens()[0])
-            MIGRAPH_THROW("Inner dimensions do not match: {" + to_string_range(a.lens()) + "} x {" +
+            MIGRAPHX_THROW("Inner dimensions do not match: {" + to_string_range(a.lens()) + "} x {" +
                           to_string_range(b.lens()) + "}");
         return {t, {a.lens()[0], b.lens()[1]}};
     }
@@ -704,7 +704,7 @@ struct flatten
 
         if(axis > lens.size())
         {
-            MIGRAPH_THROW("axis for flatten must be less than tensor rank");
+            MIGRAPHX_THROW("axis for flatten must be less than tensor rank");
         }
         auto x =
             std::accumulate(lens.begin(), lens.begin() + axis, std::size_t{1}, std::multiplies<>{});
@@ -742,7 +742,7 @@ struct broadcast
            }))
         {
             if(axis != 0)
-                MIGRAPH_THROW("when broadcasting tensor of size 1, axis should be 0");
+                MIGRAPHX_THROW("when broadcasting tensor of size 1, axis should be 0");
             return {t, broadcast_shape.lens(), std::move(bcast_strides)};
         }
         else
@@ -750,7 +750,7 @@ struct broadcast
             assert(broadcast_shape.lens().size() - axis >= input.lens().size());
             if(!std::equal(
                    input.lens().begin(), input.lens().end(), broadcast_shape.lens().begin() + axis))
-                MIGRAPH_THROW("when broadcasting success sizes must match");
+                MIGRAPHX_THROW("when broadcasting success sizes must match");
             std::copy(input.strides().begin(), input.strides().end(), bcast_strides.begin() + axis);
             return {t, broadcast_shape.lens(), std::move(bcast_strides)};
         }
@@ -781,10 +781,10 @@ struct multibroadcast
         auto input = inputs.at(0);
 
         if(input.lens().empty())
-            MIGRAPH_THROW("inputs dimensions should be > 0");
+            MIGRAPHX_THROW("inputs dimensions should be > 0");
 
         if(input.lens().size() > output_lens.size())
-            MIGRAPH_THROW("inputs dimensions should <= output size");
+            MIGRAPHX_THROW("inputs dimensions should <= output size");
 
         std::vector<size_t> bcast_strides(output_lens.size(), 0);
         auto offset = output_lens.size() - input.lens().size();
@@ -904,7 +904,7 @@ struct outline
 };
 
 } // namespace op
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

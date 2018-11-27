@@ -1,12 +1,12 @@
-#ifndef MIGRAPH_GUARD_MIGRAPH_MANAGE_PTR_HPP
-#define MIGRAPH_GUARD_MIGRAPH_MANAGE_PTR_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_MANAGE_PTR_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_MANAGE_PTR_HPP
 
 #include <memory>
 #include <type_traits>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 template <class F, F f> // NOLINT
 struct manage_deleter
@@ -51,10 +51,10 @@ shared<T> share(T p)
     return shared<T>{std::move(p)};
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#define MIGRAPH_MANAGE_PTR(T, F) \
+#define MIGRAPHX_MANAGE_PTR(T, F) \
     migraphx::manage_ptr<std::remove_pointer_t<T>, decltype(&F), &F> // NOLINT
 
 #endif

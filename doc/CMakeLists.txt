@@ -32,7 +32,7 @@ add_doxygen_doc(
     PREDEFINED DOXYGEN
 )
 add_custom_target(remove_inline_ns 
-    sed -i "s/MIGRAPH_INLINE_NS:://g" *.xml 
+    sed -i "s/MIGRAPHX_INLINE_NS:://g" *.xml 
     WORKING_DIRECTORY ${DOXYGEN_OUTPUT}/xml)
 add_dependencies(remove_inline_ns doxygen)
 

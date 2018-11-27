@@ -169,6 +169,26 @@ void dropout_test()
     EXPECT(p == prog);
 }
 
+void exp_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::exp{}, input);
+
+    auto prog = migraphx::parse_onnx("exp_test.onnx");
+    EXPECT(p == prog);
+}
+
+void log_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::log{}, input);
+
+    auto prog = migraphx::parse_onnx("log_test.onnx");
+    EXPECT(p == prog);
+}
+
 void sin_test()
 {
     migraphx::program p;
@@ -277,6 +297,8 @@ int main()
     globalmaxpool_test();
     transpose_test();
     dropout_test();
+    exp_test();
+    log_test();
     sin_test();
     cos_test();
     tan_test();

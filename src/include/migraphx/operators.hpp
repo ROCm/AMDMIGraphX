@@ -644,6 +644,11 @@ struct exp : unary
     std::string name() const { return "exp"; }
 };
 
+struct log : unary
+{
+    std::string name() const { return "log"; }
+};
+
 struct sin : unary
 {
     std::string name() const { return "sin"; }

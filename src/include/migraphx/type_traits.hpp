@@ -16,14 +16,14 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 #define MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(trait, T) \
-    template <class X>                            \
-    struct trait : std::trait<X>                  \
-    {                                             \
-    };                                            \
-                                                  \
-    template <>                                   \
-    struct trait<T> : std::true_type              \
-    {                                             \
+    template <class X>                             \
+    struct trait : std::trait<X>                   \
+    {                                              \
+    };                                             \
+                                                   \
+    template <>                                    \
+    struct trait<T> : std::true_type               \
+    {                                              \
     };
 
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, half)

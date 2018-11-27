@@ -169,7 +169,7 @@ basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
 }
 
 /// This macro takes care of the boilerplate for defining a matcher
-#define MIGRAPHX_BASIC_MATCHER(name, ...)                                      \
+#define MIGRAPHX_BASIC_MATCHER(name, ...)                                     \
     struct name##_m                                                           \
     {                                                                         \
         instruction_ref match(__VA_ARGS__) const;                             \
@@ -178,7 +178,7 @@ basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
     inline instruction_ref name##_m::match(__VA_ARGS__) const
 
 /// This macro takes care of the boilerplate for defining a predicate matcher
-#define MIGRAPHX_PRED_MATCHER(name, ...)                                                   \
+#define MIGRAPHX_PRED_MATCHER(name, ...)                                                  \
     struct name##_m                                                                       \
     {                                                                                     \
         bool operator()(__VA_ARGS__) const;                                               \

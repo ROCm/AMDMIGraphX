@@ -9,7 +9,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 // Declare a cached environment variable
-#define MIGRAPHX_DECLARE_ENV_VAR(x)                \
+#define MIGRAPHX_DECLARE_ENV_VAR(x)               \
     struct x                                      \
     {                                             \
         static const char* value() { return #x; } \

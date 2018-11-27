@@ -47,7 +47,7 @@ struct check_shapes
     {
         if(size() != n)
             MIGRAPHX_THROW(prefix() + "Wrong number of arguments: expected " + std::to_string(n) +
-                          " but given " + std::to_string(size()));
+                           " but given " + std::to_string(size()));
         return *this;
     }
 

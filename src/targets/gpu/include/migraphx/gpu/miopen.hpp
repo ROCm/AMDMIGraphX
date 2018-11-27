@@ -12,15 +12,15 @@ namespace gpu {
 
 using miopen_handle          = MIGRAPHX_MANAGE_PTR(miopenHandle_t, miopenDestroy);
 using tensor_descriptor      = MIGRAPHX_MANAGE_PTR(miopenTensorDescriptor_t,
-                                             miopenDestroyTensorDescriptor);
+                                              miopenDestroyTensorDescriptor);
 using convolution_descriptor = MIGRAPHX_MANAGE_PTR(miopenConvolutionDescriptor_t,
-                                                  miopenDestroyConvolutionDescriptor);
+                                                   miopenDestroyConvolutionDescriptor);
 using pooling_descriptor     = MIGRAPHX_MANAGE_PTR(miopenPoolingDescriptor_t,
-                                              miopenDestroyPoolingDescriptor);
+                                               miopenDestroyPoolingDescriptor);
 using activation_descriptor  = MIGRAPHX_MANAGE_PTR(miopenActivationDescriptor_t,
-                                                 miopenDestroyActivationDescriptor);
+                                                  miopenDestroyActivationDescriptor);
 using fusion_plan_descriptor = MIGRAPHX_MANAGE_PTR(miopenFusionPlanDescriptor_t,
-                                                  miopenDestroyFusionPlan);
+                                                   miopenDestroyFusionPlan);
 using fused_operator_args    = MIGRAPHX_MANAGE_PTR(miopenOperatorArgs_t, miopenDestroyOperatorArgs);
 
 template <class Result, class F, class... Ts>

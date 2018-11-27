@@ -144,7 +144,7 @@ struct raw_data : raw_data_base
 template <class T,
           class U,
           MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
-                           std::is_base_of<raw_data_base, U>{})>
+                            std::is_base_of<raw_data_base, U>{})>
 bool operator==(const T& x, const U& y)
 {
     auto&& xshape = x.get_shape();
@@ -167,7 +167,7 @@ bool operator==(const T& x, const U& y)
 template <class T,
           class U,
           MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
-                           std::is_base_of<raw_data_base, U>{})>
+                            std::is_base_of<raw_data_base, U>{})>
 bool operator!=(const T& x, const U& y)
 {
     return !(x == y);

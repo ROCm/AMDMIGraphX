@@ -30,7 +30,7 @@ struct mem_data_ptr
     using type = T C::*;
 };
 
-#define MIGRAPHX_ROB(name, Type, C, mem)                \
+#define MIGRAPHX_ROB(name, Type, C, mem)               \
     struct name##_tag : mem_data_ptr<C, Type>          \
     {                                                  \
     };                                                 \

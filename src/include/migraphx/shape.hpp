@@ -44,7 +44,7 @@ struct shape
 
     template <class T, class = void>
     struct get_type;
-#define MIGRAPHX_SHAPE_GET_TYPE(x, t)                          \
+#define MIGRAPHX_SHAPE_GET_TYPE(x, t)                         \
     template <class T>                                        \
     struct get_type<t, T> : std::integral_constant<type_t, x> \
     {                                                         \

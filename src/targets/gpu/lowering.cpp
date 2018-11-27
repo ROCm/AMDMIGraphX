@@ -47,8 +47,7 @@ struct miopen_apply
 {
     program* prog = nullptr;
     context ctx{};
-    std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>>
-        apply_map{};
+    std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
 
     void check_shape(shape x, instruction_ref i)
     {
@@ -115,7 +114,8 @@ struct miopen_apply
         }
     }
 
-    void add_convolution_op() {
+    void add_convolution_op()
+    {
         apply_map.emplace("convolution", [=](instruction_ref ins) {
             auto&& op = any_cast<op::convolution>(ins->get_operator());
 
@@ -130,7 +130,8 @@ struct miopen_apply
         });
     }
 
-    void add_pooling_op() {
+    void add_pooling_op()
+    {
         apply_map.emplace("pooling", [=](instruction_ref ins) {
             auto&& op   = any_cast<op::pooling>(ins->get_operator());
             auto pd     = make_pooling(op);
@@ -141,7 +142,7 @@ struct miopen_apply
         });
     }
 
-    template<class T>
+    template <class T>
     void add_generic_op(std::string name, T x)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
@@ -154,7 +155,7 @@ struct miopen_apply
         (void)x;
     }
 
-    template<class T, class Op>
+    template <class T, class Op>
     void add_extend_op(std::string name, T x, Op o)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
@@ -169,34 +170,35 @@ struct miopen_apply
         (void)o;
     }
 
-    template<class T, class Op, class F>
-    void add_miopen_extend_op(std::string name, T x, Op o, F f) {
-            apply_map.emplace(name, [=](instruction_ref ins) {
+    template <class T, class Op, class F>
+    void add_miopen_extend_op(std::string name, T x, Op o, F f)
+    {
+        apply_map.emplace(name, [=](instruction_ref ins) {
             auto&& op = any_cast<Op>(ins->get_operator());
             auto ad   = f(op.alpha);
 
             auto output = insert_allocation(ins, ins->get_shape());
-            return prog->replace_instruction(
-                ins, T{std::move(ad)}, ins->inputs().at(0), output);
+            return prog->replace_instruction(ins, T{std::move(ad)}, ins->inputs().at(0), output);
         });
         (void)x;
         (void)o;
         (void)f;
     }
 
-    template<class T, class F>
-    void add_miopen_simple_op(std::string name, T x, F f) {
-            apply_map.emplace(name, [=](instruction_ref ins) {
-            auto ad   = f();
+    template <class T, class F>
+    void add_miopen_simple_op(std::string name, T x, F f)
+    {
+        apply_map.emplace(name, [=](instruction_ref ins) {
+            auto ad     = f();
             auto output = insert_allocation(ins, ins->get_shape());
-            return prog->replace_instruction(
-                ins, T{std::move(ad)}, ins->inputs().at(0), output);
+            return prog->replace_instruction(ins, T{std::move(ad)}, ins->inputs().at(0), output);
         });
         (void)x;
         (void)f;
     }
 
-    void add_batch_norm_inference_op() {
+    void add_batch_norm_inference_op()
+    {
         apply_map.emplace("batch_norm_inference", [=](instruction_ref ins) {
             auto&& op       = any_cast<op::batch_norm_inference>(ins->get_operator());
             auto output     = insert_allocation(ins, ins->get_shape());
@@ -205,17 +207,17 @@ struct miopen_apply
             auto reshape_op = op::reshape{new_shape};
             std::vector<instruction_ref> reshapes;
             std::transform(ins->inputs().begin() + 1,
-                        ins->inputs().end(),
-                        std::back_inserter(reshapes),
-                        [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
+                           ins->inputs().end(),
+                           std::back_inserter(reshapes),
+                           [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
             return prog->replace_instruction(ins,
-                                            miopen_batch_norm_inference{op},
-                                            ins->inputs().at(0),
-                                            reshapes[0],
-                                            reshapes[1],
-                                            reshapes[2],
-                                            reshapes[3],
-                                            output);
+                                             miopen_batch_norm_inference{op},
+                                             ins->inputs().at(0),
+                                             reshapes[0],
+                                             reshapes[1],
+                                             reshapes[2],
+                                             reshapes[3],
+                                             output);
         });
     }
 };

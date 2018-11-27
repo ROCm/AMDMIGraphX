@@ -298,7 +298,7 @@ void program::compile(const target& t, tracer trace)
         {
             auto index = std::distance(impl->instructions.begin(), invalid);
             MIGRAPHX_THROW(p.name() + " pass produces invalid program at instruction " +
-                          std::to_string(index) + ": " + invalid->name());
+                           std::to_string(index) + ": " + invalid->name());
         }
         trace();
 #endif

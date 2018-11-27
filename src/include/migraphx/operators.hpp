@@ -590,8 +590,8 @@ struct dot
         auto t         = a.type();
 
         if(a.lens()[1] != b.lens()[0])
-            MIGRAPHX_THROW("Inner dimensions do not match: {" + to_string_range(a.lens()) + "} x {" +
-                          to_string_range(b.lens()) + "}");
+            MIGRAPHX_THROW("Inner dimensions do not match: {" + to_string_range(a.lens()) +
+                           "} x {" + to_string_range(b.lens()) + "}");
         return {t, {a.lens()[0], b.lens()[1]}};
     }
 };

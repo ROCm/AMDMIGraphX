@@ -184,17 +184,17 @@ struct onnx_parser
         {
             if(contains(attributes, "auto_pad"))
             {
-                MIGRAPH_THROW("auto_pad and padding cannot be specified simultaneously");
+                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
             }
             std::vector<std::size_t> padding(4);
             copy(attributes["pads"].ints(), padding.begin());
             if(padding.size() != 4)
             {
-                MIGRAPH_THROW("padding should have 4 values");
+                MIGRAPHX_THROW("padding should have 4 values");
             }
             if(padding[0] != padding[2] || padding[1] != padding[3])
             {
-                MIGRAPH_THROW("migraphx does not support asymetric padding");
+                MIGRAPHX_THROW("migraphx does not support asymetric padding");
             }
             op.padding[0] = padding[0];
             op.padding[1] = padding[1];
@@ -212,7 +212,7 @@ struct onnx_parser
             auto s = attributes["auto_pad"].s();
             if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
             {
-                MIGRAPH_THROW("auto_pad and padding cannot be specified simultaneously");
+                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
             }
 
             if(s.find("SAME") != std::string::npos)
@@ -246,11 +246,11 @@ struct onnx_parser
             copy(attributes["pads"].ints(), padding.begin());
             if(padding.size() != 4)
             {
-                MIGRAPH_THROW("padding should have 4 values");
+                MIGRAPHX_THROW("padding should have 4 values");
             }
             if(padding[0] != padding[2] || padding[1] != padding[3])
             {
-                MIGRAPH_THROW("migraphx does not support asymetric padding");
+                MIGRAPHX_THROW("migraphx does not support asymetric padding");
             }
             op.padding[0] = padding[0];
             op.padding[1] = padding[1];
@@ -268,7 +268,7 @@ struct onnx_parser
             auto s = attributes["auto_pad"].s();
             if(to_upper(s) != "NOTSET")
             {
-                MIGRAPH_THROW("auto_pad is not supported for pooling");
+                MIGRAPHX_THROW("auto_pad is not supported for pooling");
             }
         }
 

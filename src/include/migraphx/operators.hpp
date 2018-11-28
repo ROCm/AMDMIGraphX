@@ -875,6 +875,16 @@ struct div : binary
     std::string name() const { return "div"; }
 };
 
+struct max : binary
+{
+    std::string name() const { return "max"; }
+};
+
+struct min : binary
+{
+    std::string name() const { return "min"; }
+};
+
 struct load
 {
     shape s;

@@ -6,7 +6,7 @@
 #include <migraphx/ranges.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 template <class Range, class Iterator>
 std::ptrdiff_t bidistance(const Range& r, Iterator start, Iterator last)
@@ -62,5 +62,5 @@ void dead_code_elimination::apply(program& p) const
     p.remove_instructions(std::next(last), p.end());
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

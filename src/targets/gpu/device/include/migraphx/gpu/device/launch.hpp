@@ -1,11 +1,11 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_DEVICE_LAUNCH_HPP
-#define MIGRAPH_GUARD_RTGLIB_DEVICE_LAUNCH_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_LAUNCH_HPP
+#define MIGRAPHX_GUARD_RTGLIB_DEVICE_LAUNCH_HPP
 
 #include <hip/hip_runtime.h>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
@@ -53,14 +53,14 @@ inline auto gs_launch(hipStream_t stream, std::size_t n, std::size_t local = 102
 // Workaround hcc's broken tile_static macro
 #ifdef tile_static
 #undef tile_static
-#define MIGRAPH_DEVICE_SHARED __attribute__((tile_static))
+#define MIGRAPHX_DEVICE_SHARED __attribute__((tile_static))
 #else
-#define MIGRAPH_DEVICE_SHARED __shared__
+#define MIGRAPHX_DEVICE_SHARED __shared__
 #endif
 
 } // namespace device
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

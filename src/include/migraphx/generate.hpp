@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_GENERATE_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_GENERATE_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_GENERATE_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_GENERATE_HPP
 
 #include <migraphx/argument.hpp>
 #include <migraphx/literal.hpp>
@@ -8,9 +8,9 @@
 #include <random>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
-template <class T, MIGRAPH_REQUIRES(is_floating_point<T>{})>
+template <class T, MIGRAPHX_REQUIRES(is_floating_point<T>{})>
 constexpr T normalize(unsigned long z)
 {
     if(z == 0)
@@ -22,7 +22,7 @@ constexpr T normalize(unsigned long z)
     return T(result);
 }
 
-template <class T, MIGRAPH_REQUIRES(is_signed<T>{} and not is_floating_point<T>{})>
+template <class T, MIGRAPHX_REQUIRES(is_signed<T>{} and not is_floating_point<T>{})>
 constexpr T normalize(unsigned long z)
 {
     const auto max      = std::numeric_limits<T>::max();
@@ -30,7 +30,7 @@ constexpr T normalize(unsigned long z)
     return half_max - (z % max);
 }
 
-template <class T, MIGRAPH_REQUIRES(not is_signed<T>{} and std::is_integral<T>{})>
+template <class T, MIGRAPHX_REQUIRES(not is_signed<T>{} and std::is_integral<T>{})>
 constexpr T normalize(unsigned long z)
 {
     const auto max = std::numeric_limits<T>::max();
@@ -93,7 +93,7 @@ literal generate_literal(shape s, unsigned long seed = 0);
 
 literal abs(literal l);
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

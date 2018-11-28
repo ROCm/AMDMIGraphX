@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_TARGET_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_TARGET_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_TARGET_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_TARGET_HPP
 
 #include <cassert>
 #include <string>
@@ -13,7 +13,7 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 #ifdef DOXYGEN
 
@@ -244,7 +244,7 @@ inline const ValueType& any_cast(const target& x)
 
 #endif
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

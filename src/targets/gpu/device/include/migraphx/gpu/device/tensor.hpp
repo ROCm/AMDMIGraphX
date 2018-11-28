@@ -1,12 +1,12 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_DEAVICE_TENSOR_HPP
-#define MIGRAPH_GUARD_RTGLIB_DEAVICE_TENSOR_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_DEAVICE_TENSOR_HPP
+#define MIGRAPHX_GUARD_RTGLIB_DEAVICE_TENSOR_HPP
 
 #include <hip/hip_runtime.h>
 #include <migraphx/functional.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
@@ -87,7 +87,7 @@ struct hip_tensor_descriptor
 
 } // namespace device
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

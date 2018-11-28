@@ -1,12 +1,12 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_ITERATOR_FOR_HPP
-#define MIGRAPH_GUARD_RTGLIB_ITERATOR_FOR_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_ITERATOR_FOR_HPP
+#define MIGRAPHX_GUARD_RTGLIB_ITERATOR_FOR_HPP
 
 #include <cassert>
 #include <type_traits>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 template <class T>
 struct iterator_for_range
@@ -39,7 +39,7 @@ iterator_for_range<T> iterator_for(T& x)
     return {&x};
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

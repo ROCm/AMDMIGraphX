@@ -1,15 +1,15 @@
 
-#ifndef MIGRAPH_GUARD_PASS_CONFIG_HPP
-#define MIGRAPH_GUARD_PASS_CONFIG_HPP
+#ifndef MIGRAPHX_GUARD_PASS_CONFIG_HPP
+#define MIGRAPHX_GUARD_PASS_CONFIG_HPP
 
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_DISABLE_MEMORY_COLORING)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MEMORY_COLORING)
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPH_GUARD_PASS_CONFIG_HPP
+#endif // MIGRAPHX_GUARD_PASS_CONFIG_HPP

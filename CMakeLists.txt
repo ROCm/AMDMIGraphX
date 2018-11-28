@@ -93,7 +93,7 @@ rocm_enable_clang_tidy(
     HEADER_FILTER
         ".*hpp"
     EXTRA_ARGS
-        -DMIGRAPH_USE_CLANG_TIDY
+        -DMIGRAPHX_USE_CLANG_TIDY
 
 )
 include(ROCMCppCheck)

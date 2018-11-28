@@ -25,6 +25,8 @@
 #include <migraphx/gpu/add.hpp>
 #include <migraphx/gpu/sin.hpp>
 #include <migraphx/gpu/mul.hpp>
+#include <migraphx/gpu/max.hpp>
+#include <migraphx/gpu/min.hpp>
 #include <migraphx/gpu/batchnorm.hpp>
 #include <migraphx/gpu/pooling.hpp>
 #include <migraphx/gpu/gemm.hpp>
@@ -63,6 +65,8 @@ struct miopen_apply
         apply_map["add"]                  = &miopen_apply::apply_add;
         apply_map["sin"]                  = &miopen_apply::apply_sin;
         apply_map["mul"]                  = &miopen_apply::apply_mul;
+        apply_map["max"]                  = &miopen_apply::apply_max;
+        apply_map["min"]                  = &miopen_apply::apply_min;
         apply_map["dot"]                  = &miopen_apply::apply_dot;
         apply_map["contiguous"]           = &miopen_apply::apply_contiguous;
         apply_map["concat"]               = &miopen_apply::apply_concat;
@@ -202,6 +206,20 @@ struct miopen_apply
         auto output = insert_allocation(ins, ins->get_shape());
         return prog->replace_instruction(
             ins, hip_mul{}, ins->inputs().at(0), ins->inputs().at(1), output);
+    }
+
+    instruction_ref apply_max(instruction_ref ins)
+    {
+        auto output = insert_allocation(ins, ins->get_shape());
+        return prog->replace_instruction(
+            ins, hip_max{}, ins->inputs().at(0), ins->inputs().at(1), output);
+    }
+
+    instruction_ref apply_min(instruction_ref ins)
+    {
+        auto output = insert_allocation(ins, ins->get_shape());
+        return prog->replace_instruction(
+            ins, hip_min{}, ins->inputs().at(0), ins->inputs().at(1), output);
     }
 
     instruction_ref apply_dot(instruction_ref ins)

@@ -17,6 +17,8 @@ add_library(migraphx_device
     device/contiguous.cpp
     device/mul.cpp
     device/concat.cpp
+    device/max.cpp
+    device/min.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_clang_tidy_check(migraphx_device)
@@ -48,6 +50,8 @@ add_library(migraphx_gpu
     tanh.cpp
     abs.cpp
     elu.cpp
+    max.cpp
+    min.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_clang_tidy_check(migraphx_gpu)

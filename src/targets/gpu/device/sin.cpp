@@ -3,7 +3,7 @@
 #include <migraphx/gpu/device/types.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
@@ -14,5 +14,5 @@ void sin(hipStream_t stream, const argument& result, const argument& arg)
 
 } // namespace device
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

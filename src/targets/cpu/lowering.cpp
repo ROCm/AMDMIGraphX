@@ -582,7 +582,6 @@ struct min_op
     }
 };
 
-
 template <typename Op>
 struct cpu_binary
 {

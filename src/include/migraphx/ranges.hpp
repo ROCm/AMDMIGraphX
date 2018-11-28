@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_RANGES_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_RANGES_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_RANGES_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_RANGES_HPP
 
 #include <algorithm>
 #include <initializer_list>
@@ -7,7 +7,7 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 namespace detail {
 
@@ -106,7 +106,7 @@ iterator_range<Iterator> range(std::pair<Iterator, Iterator> p)
     return {p.first, p.second};
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

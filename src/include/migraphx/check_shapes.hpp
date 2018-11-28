@@ -1,12 +1,12 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_CHECK_SHAPES_HPP
-#define MIGRAPH_GUARD_RTGLIB_CHECK_SHAPES_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_CHECK_SHAPES_HPP
+#define MIGRAPHX_GUARD_RTGLIB_CHECK_SHAPES_HPP
 
 #include <migraphx/shape.hpp>
 #include <migraphx/config.hpp>
 #include <algorithm>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 struct check_shapes
 {
@@ -46,8 +46,8 @@ struct check_shapes
     const check_shapes& has(std::size_t n) const
     {
         if(size() != n)
-            MIGRAPH_THROW(prefix() + "Wrong number of arguments: expected " + std::to_string(n) +
-                          " but given " + std::to_string(size()));
+            MIGRAPHX_THROW(prefix() + "Wrong number of arguments: expected " + std::to_string(n) +
+                           " but given " + std::to_string(size()));
         return *this;
     }
 
@@ -58,7 +58,7 @@ struct check_shapes
         if(begin != end)
         {
             if(begin->lens().size() != n)
-                MIGRAPH_THROW(prefix() + "Only " + std::to_string(n) + "d supported");
+                MIGRAPHX_THROW(prefix() + "Only " + std::to_string(n) + "d supported");
         }
         return *this;
     }
@@ -66,56 +66,56 @@ struct check_shapes
     const check_shapes& same_shape() const
     {
         if(!this->same([](const shape& s) { return s; }))
-            MIGRAPH_THROW(prefix() + "Shapes do not match");
+            MIGRAPHX_THROW(prefix() + "Shapes do not match");
         return *this;
     }
 
     const check_shapes& same_type() const
     {
         if(!this->same([](const shape& s) { return s.type(); }))
-            MIGRAPH_THROW(prefix() + "Types do not match");
+            MIGRAPHX_THROW(prefix() + "Types do not match");
         return *this;
     }
 
     const check_shapes& same_dims() const
     {
         if(!this->same([](const shape& s) { return s.lens(); }))
-            MIGRAPH_THROW(prefix() + "Dimensions do not match");
+            MIGRAPHX_THROW(prefix() + "Dimensions do not match");
         return *this;
     }
 
     const check_shapes& same_ndims() const
     {
         if(!this->same([](const shape& s) { return s.lens().size(); }))
-            MIGRAPH_THROW(prefix() + "Number of dimensions do not match");
+            MIGRAPHX_THROW(prefix() + "Number of dimensions do not match");
         return *this;
     }
 
     const check_shapes& standard() const
     {
         if(!this->all_of([](const shape& s) { return s.standard(); }))
-            MIGRAPH_THROW(prefix() + "Shapes are not in standard layout");
+            MIGRAPHX_THROW(prefix() + "Shapes are not in standard layout");
         return *this;
     }
 
     const check_shapes& packed() const
     {
         if(!this->all_of([](const shape& s) { return s.packed(); }))
-            MIGRAPH_THROW(prefix() + "Shapes are not packed");
+            MIGRAPHX_THROW(prefix() + "Shapes are not packed");
         return *this;
     }
 
     const check_shapes& not_transposed() const
     {
         if(!this->all_of([](const shape& s) { return not s.transposed(); }))
-            MIGRAPH_THROW(prefix() + "Shapes are transposed");
+            MIGRAPHX_THROW(prefix() + "Shapes are transposed");
         return *this;
     }
 
     const check_shapes& not_broadcasted() const
     {
         if(!this->all_of([](const shape& s) { return not s.broadcasted(); }))
-            MIGRAPH_THROW(prefix() + "Shapes are broadcasted");
+            MIGRAPHX_THROW(prefix() + "Shapes are broadcasted");
         return *this;
     }
 
@@ -143,7 +143,7 @@ struct check_shapes
     const shape* get(long i)
     {
         if(i >= size())
-            MIGRAPH_THROW(prefix() + "Accessing shape out of bounds");
+            MIGRAPHX_THROW(prefix() + "Accessing shape out of bounds");
         assert(begin != nullptr);
         assert(end != nullptr);
         if(i < 0)
@@ -156,7 +156,7 @@ struct check_shapes
     check_shapes slice(long start, long last) { return {get(start), get(last), name}; }
 };
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

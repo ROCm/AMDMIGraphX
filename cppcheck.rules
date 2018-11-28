@@ -34,7 +34,7 @@
 </rule>
 <rule>
     <tokenlist>define</tokenlist>
-    <pattern>define (MIGRAP|[^H]{6})[^H][^_]</pattern>
+    <pattern>define (MIGRAPH|[^X]{7})[^X][^_]</pattern>
     <message>
         <id>definePrefix</id>
         <severity>style</severity>

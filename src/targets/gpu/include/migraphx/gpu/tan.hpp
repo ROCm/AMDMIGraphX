@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_TAN_HPP
-#define MIGRAPH_GUARD_RTGLIB_TAN_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_TAN_HPP
+#define MIGRAPHX_GUARD_RTGLIB_TAN_HPP
 
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/manage_ptr.hpp>
@@ -21,7 +21,7 @@
 #include <utility>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct hip_tan
@@ -33,7 +33,7 @@ struct hip_tan
 };
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

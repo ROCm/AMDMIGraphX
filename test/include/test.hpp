@@ -7,8 +7,8 @@
 #include <unordered_map>
 #include <vector>
 
-#ifndef MIGRAPH_GUARD_TEST_TEST_HPP
-#define MIGRAPH_GUARD_TEST_TEST_HPP
+#ifndef MIGRAPHX_GUARD_TEST_TEST_HPP
+#define MIGRAPHX_GUARD_TEST_TEST_HPP
 
 namespace test {
 // NOLINTNEXTLINE

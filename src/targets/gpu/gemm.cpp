@@ -5,7 +5,7 @@
 #include <utility>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 template <class... Ts>
@@ -29,7 +29,7 @@ void generic_rocblas_gemm(shape::as<half>, Ts&&... xs)
 template <class T, class... Ts>
 void generic_rocblas_gemm(shape::as<T>, Ts&&...)
 {
-    MIGRAPH_THROW("Type unsupported by rocblas");
+    MIGRAPHX_THROW("Type unsupported by rocblas");
 }
 
 template <class T>
@@ -111,5 +111,5 @@ argument miopen_gemm::compute(context& ctx,
 }
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

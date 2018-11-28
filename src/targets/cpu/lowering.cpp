@@ -564,6 +564,25 @@ struct div_op
     }
 };
 
+struct max_op
+{
+    std::string name() const { return "max"; }
+    auto fcn() const
+    {
+        return [](auto x, auto y) { return std::max(x, y); };
+    }
+};
+
+struct min_op
+{
+    std::string name() const { return "min"; }
+    auto fcn() const
+    {
+        return [](auto x, auto y) { return std::min(x, y); };
+    }
+};
+
+
 template <typename Op>
 struct cpu_binary
 {
@@ -633,6 +652,8 @@ struct cpu_apply
         apply_map["sub"]        = simple_op<cpu_binary<sub_op>>();
         apply_map["mul"]        = simple_op<cpu_binary<mul_op>>();
         apply_map["div"]        = simple_op<cpu_binary<div_op>>();
+        apply_map["max"]        = simple_op<cpu_binary<max_op>>();
+        apply_map["min"]        = simple_op<cpu_binary<min_op>>();
 
         apply_map["softmax"] = simple_op<softmax2d>();
     }

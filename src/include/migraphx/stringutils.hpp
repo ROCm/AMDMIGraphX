@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_STRINGUTILS_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_STRINGUTILS_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_STRINGUTILS_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_STRINGUTILS_HPP
 
 #include <algorithm>
 #include <numeric>
@@ -8,7 +8,7 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 inline std::string
 replace_string(std::string subject, const std::string& search, const std::string& replace)
@@ -87,7 +87,7 @@ inline std::string to_string(const T& x)
     return ss.str();
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

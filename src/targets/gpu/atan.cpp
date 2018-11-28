@@ -6,7 +6,7 @@
 #include <utility>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 shape hip_atan::compute_shape(const std::vector<shape>& inputs) const
@@ -22,5 +22,5 @@ argument hip_atan::compute(context& ctx, const shape&, const std::vector<argumen
 }
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

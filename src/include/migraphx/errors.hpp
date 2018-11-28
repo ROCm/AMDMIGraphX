@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_ERRORS_HPP
-#define MIGRAPH_GUARD_ERRORS_HPP
+#ifndef MIGRAPHX_GUARD_ERRORS_HPP
+#define MIGRAPHX_GUARD_ERRORS_HPP
 
 #include <exception>
 #include <stdexcept>
@@ -7,7 +7,7 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 /// Represents exceptions that can be thrown by migraphxlib
 struct exception : std::runtime_error
@@ -43,10 +43,10 @@ inline std::string make_source_context(const std::string& file, int line)
 /**
  * @brief Throw an exception with context information
  */
-#define MIGRAPH_THROW(...) \
+#define MIGRAPHX_THROW(...) \
     throw migraphx::make_exception(migraphx::make_source_context(__FILE__, __LINE__), __VA_ARGS__)
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

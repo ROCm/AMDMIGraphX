@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_PROGRAM_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_PROGRAM_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_PROGRAM_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_PROGRAM_HPP
 
 #include <list>
 #include <unordered_map>
@@ -14,7 +14,7 @@
 #include <iostream>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 struct program_impl;
 
@@ -109,7 +109,7 @@ struct program
     std::unique_ptr<program_impl> impl;
 };
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

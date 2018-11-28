@@ -1,11 +1,11 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_FUNCTIONAL_HPP
-#define MIGRAPH_GUARD_RTGLIB_FUNCTIONAL_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_FUNCTIONAL_HPP
+#define MIGRAPHX_GUARD_RTGLIB_FUNCTIONAL_HPP
 
 #include <utility>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 struct swallow
 {
@@ -131,7 +131,7 @@ auto fold(F f)
     return [=](auto&&... xs) { return fold_impl(f, std::forward<decltype(xs)>(xs)...); };
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

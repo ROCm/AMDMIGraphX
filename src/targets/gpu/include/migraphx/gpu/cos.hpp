@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_COS_HPP
-#define MIGRAPH_GUARD_RTGLIB_COS_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_COS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_COS_HPP
 
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/manage_ptr.hpp>
@@ -20,7 +20,7 @@
 #include <utility>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct hip_cos
@@ -32,7 +32,7 @@ struct hip_cos
 };
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

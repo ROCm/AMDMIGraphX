@@ -10,13 +10,13 @@ struct sum_op
     {
         migraphx::argument result;
         if(args.size() != 2)
-            MIGRAPH_THROW("Wrong args");
+            MIGRAPHX_THROW("Wrong args");
         if(args[0].get_shape() != args[1].get_shape())
-            MIGRAPH_THROW("Wrong args");
+            MIGRAPHX_THROW("Wrong args");
         if(args[0].get_shape().lens().size() != 1)
-            MIGRAPH_THROW("Wrong args");
+            MIGRAPHX_THROW("Wrong args");
         if(args[0].get_shape().lens().front() != 1)
-            MIGRAPH_THROW("Wrong args");
+            MIGRAPHX_THROW("Wrong args");
 
         args[0].visit_at([&](auto x) {
             args[1].visit_at([&](auto y) { result = migraphx::literal{x + y}.get_argument(); });
@@ -27,7 +27,7 @@ struct sum_op
     migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
     {
         if(inputs.size() != 2)
-            MIGRAPH_THROW("Wrong inputs");
+            MIGRAPHX_THROW("Wrong inputs");
         return inputs.front();
     }
 };
@@ -40,13 +40,13 @@ struct minus_op
     {
         migraphx::argument result;
         if(args.size() != 2)
-            MIGRAPH_THROW("Wrong args");
+            MIGRAPHX_THROW("Wrong args");
         if(args[0].get_shape() != args[1].get_shape())
-            MIGRAPH_THROW("Wrong args");
+            MIGRAPHX_THROW("Wrong args");
         if(args[0].get_shape().lens().size() != 1)
-            MIGRAPH_THROW("Wrong args");
+            MIGRAPHX_THROW("Wrong args");
         if(args[0].get_shape().lens().front() != 1)
-            MIGRAPH_THROW("Wrong args");
+            MIGRAPHX_THROW("Wrong args");
 
         args[0].visit_at([&](auto x) {
             args[1].visit_at([&](auto y) { result = migraphx::literal{x - y}.get_argument(); });
@@ -57,7 +57,7 @@ struct minus_op
     migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
     {
         if(inputs.size() != 2)
-            MIGRAPH_THROW("Wrong inputs");
+            MIGRAPHX_THROW("Wrong inputs");
         return inputs.front();
     }
 };

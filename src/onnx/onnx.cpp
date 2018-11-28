@@ -43,7 +43,8 @@ struct onnx_parser
     using op_func = std::function<instruction_ref(attribute_map, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog = program();
+    program prog    = program();
+    bool is_pytorch = false;
 
     std::unordered_map<std::string, op_func> ops;
 
@@ -138,8 +139,8 @@ struct onnx_parser
                     std::swap(s0, s1);
 
                 // Copy the larger vector to output_lens
-                std::vector<std::size_t> output_lens(s1->size());
-                auto offset = s1->size() - s0->size();
+                std::vector<std::size_t> output_lens = *s1;
+                auto offset                          = s1->size() - s0->size();
                 std::transform(s0->begin(),
                                s0->end(),
                                s1->begin() + offset,
@@ -181,7 +182,22 @@ struct onnx_parser
         op::convolution op;
         if(contains(attributes, "pads"))
         {
-            copy(attributes["pads"].ints(), op.padding.begin());
+            if(contains(attributes, "auto_pad"))
+            {
+                MIGRAPH_THROW("auto_pad and padding cannot be specified simultaneously");
+            }
+            std::vector<std::size_t> padding(4);
+            copy(attributes["pads"].ints(), padding.begin());
+            if(padding.size() != 4)
+            {
+                MIGRAPH_THROW("padding should have 4 values");
+            }
+            if(padding[0] != padding[2] || padding[1] != padding[3])
+            {
+                MIGRAPH_THROW("migraphx does not support asymetric padding");
+            }
+            op.padding[0] = padding[0];
+            op.padding[1] = padding[1];
         }
         if(contains(attributes, "strides"))
         {
@@ -190,6 +206,19 @@ struct onnx_parser
         if(contains(attributes, "dilations"))
         {
             copy(attributes["dilations"].ints(), op.dilation.begin());
+        }
+        if(contains(attributes, "auto_pad"))
+        {
+            auto s = attributes["auto_pad"].s();
+            if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
+            {
+                MIGRAPH_THROW("auto_pad and padding cannot be specified simultaneously");
+            }
+
+            if(s.find("SAME") != std::string::npos)
+            {
+                op.padding_mode = op::convolution::same;
+            }
         }
         if(args.size() == 3)
         {
@@ -213,7 +242,18 @@ struct onnx_parser
         }
         if(contains(attributes, "pads"))
         {
-            copy(attributes["pads"].ints(), op.padding.begin());
+            std::vector<std::size_t> padding(4);
+            copy(attributes["pads"].ints(), padding.begin());
+            if(padding.size() != 4)
+            {
+                MIGRAPH_THROW("padding should have 4 values");
+            }
+            if(padding[0] != padding[2] || padding[1] != padding[3])
+            {
+                MIGRAPH_THROW("migraphx does not support asymetric padding");
+            }
+            op.padding[0] = padding[0];
+            op.padding[1] = padding[1];
         }
         if(contains(attributes, "strides"))
         {
@@ -223,6 +263,15 @@ struct onnx_parser
         {
             copy(attributes["kernel_shape"].ints(), op.lengths.begin());
         }
+        if(contains(attributes, "auto_pad"))
+        {
+            auto s = attributes["auto_pad"].s();
+            if(to_upper(s) != "NOTSET")
+            {
+                MIGRAPH_THROW("auto_pad is not supported for pooling");
+            }
+        }
+
         return prog.add_instruction(op, std::move(args));
     }
 

@@ -121,10 +121,10 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
         env.CODECOV_TOKEN="8545af1c-f90b-4345-92a5-0d075503ca56"
         sh '''
             cd build
-              lcov --directory . --capture --output-file coverage.info
-              lcov --remove coverage.info '/usr/*' --output-file coverage.info
-              lcov --list coverage.info
-              bash <(curl -s https://codecov.io/bash) || echo "Codecov did not collect coverage reports"
+            lcov --directory . --capture --output-file coverage.info
+            lcov --remove coverage.info '/usr/*' --output-file coverage.info
+            lcov --list coverage.info
+            bash <(curl -s https://codecov.io/bash) || echo "Codecov did not collect coverage reports"
         '''
     }
 }

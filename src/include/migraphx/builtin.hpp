@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_BUILTIN_HPP
-#define MIGRAPH_GUARD_BUILTIN_HPP
+#ifndef MIGRAPHX_GUARD_BUILTIN_HPP
+#define MIGRAPHX_GUARD_BUILTIN_HPP
 
 #include <migraphx/context.hpp>
 #include <migraphx/errors.hpp>
@@ -8,17 +8,17 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 namespace builtin {
 
 struct literal
 {
     std::string name() const { return "@literal"; }
-    shape compute_shape(const std::vector<shape>&) const { MIGRAPH_THROW("builtin"); }
+    shape compute_shape(const std::vector<shape>&) const { MIGRAPHX_THROW("builtin"); }
     argument compute(context&, const shape&, const std::vector<argument>&) const
     {
-        MIGRAPH_THROW("builtin");
+        MIGRAPHX_THROW("builtin");
     }
 };
 
@@ -36,7 +36,7 @@ struct outline
     shape compute_shape(const std::vector<shape>&) const { return s; }
     argument compute(context&, const shape&, const std::vector<argument>&) const
     {
-        MIGRAPH_THROW("builtin");
+        MIGRAPHX_THROW("builtin");
     }
 };
 
@@ -51,10 +51,10 @@ struct param
     }
 
     std::string name() const { return "@param"; }
-    shape compute_shape(const std::vector<shape>&) const { MIGRAPH_THROW("builtin"); }
+    shape compute_shape(const std::vector<shape>&) const { MIGRAPHX_THROW("builtin"); }
     argument compute(context&, const shape&, const std::vector<argument>&) const
     {
-        MIGRAPH_THROW("builtin");
+        MIGRAPHX_THROW("builtin");
     }
     friend std::ostream& operator<<(std::ostream& os, const param& op)
     {
@@ -64,7 +64,7 @@ struct param
 };
 
 } // namespace builtin
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

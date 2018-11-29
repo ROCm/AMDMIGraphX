@@ -17,7 +17,7 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 struct unknown
 {
     std::string op;
@@ -43,7 +43,8 @@ struct onnx_parser
     using op_func = std::function<instruction_ref(attribute_map, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog = program();
+    program prog    = program();
+    bool is_pytorch = false;
 
     std::unordered_map<std::string, op_func> ops;
 
@@ -107,7 +108,7 @@ struct onnx_parser
     {
         ops.emplace(name, [this, x](attribute_map attributes, std::vector<instruction_ref> args) {
             if(args.size() != 2)
-                MIGRAPH_THROW("binary operators should have 2 operands");
+                MIGRAPHX_THROW("binary operators should have 2 operands");
             if(contains(attributes, "broadcast"))
             {
                 uint64_t broadcasted = parse_value(attributes.at("broadcast")).at<uint64_t>();
@@ -122,6 +123,45 @@ struct onnx_parser
                 }
                 return prog.add_instruction(x, args);
             }
+<<<<<<< HEAD
+=======
+            else if(args[0]->get_shape() != args[1]->get_shape())
+            {
+                // Example:
+                // s0 = (3,2,4,5) and s1 = (2,1,1)
+                //
+                // In this case we need to broadcast (:,1,1) portion of
+                // s1 plus broadcast the 1st dimension of s1
+                // giving output_lens = (3,2,4,5)
+                //
+                // Another example:
+                // s0 = (3,2,1,5) and s1 = (2,7,5)
+                // In this case we need to broadcast the (:,:,1:,:) axis
+                // of s0 plus the 1st dimension of s1 giving
+                // output_lens = (3,2,7,5)
+                //
+                // Get lengths for both arguments
+                const std::vector<std::size_t>* s0 = &args[0]->get_shape().lens();
+                const std::vector<std::size_t>* s1 = &args[1]->get_shape().lens();
+
+                // Make sure s0 is the smaller size
+                if(s0->size() > s1->size())
+                    std::swap(s0, s1);
+
+                // Copy the larger vector to output_lens
+                std::vector<std::size_t> output_lens = *s1;
+                auto offset                          = s1->size() - s0->size();
+                std::transform(s0->begin(),
+                               s0->end(),
+                               s1->begin() + offset,
+                               output_lens.begin() + offset,
+                               [](auto a, auto b) { return std::max(a, b); });
+
+                auto l0 = prog.add_instruction(op::multibroadcast{output_lens}, args[0]);
+                auto l1 = prog.add_instruction(op::multibroadcast{output_lens}, args[1]);
+                return prog.add_instruction(x, l0, l1);
+            }
+>>>>>>> 84e7335eb6088f9918dcf86f9fc1b58ef27c3360
             else
             {
                 return add_broadcastable_binary_op(args[0], args[1], x);
@@ -239,7 +279,22 @@ struct onnx_parser
         op::convolution op;
         if(contains(attributes, "pads"))
         {
-            copy(attributes["pads"].ints(), op.padding.begin());
+            if(contains(attributes, "auto_pad"))
+            {
+                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+            }
+            std::vector<std::size_t> padding(4);
+            copy(attributes["pads"].ints(), padding.begin());
+            if(padding.size() != 4)
+            {
+                MIGRAPHX_THROW("padding should have 4 values");
+            }
+            if(padding[0] != padding[2] || padding[1] != padding[3])
+            {
+                MIGRAPHX_THROW("migraphx does not support asymetric padding");
+            }
+            op.padding[0] = padding[0];
+            op.padding[1] = padding[1];
         }
         if(contains(attributes, "strides"))
         {
@@ -248,6 +303,19 @@ struct onnx_parser
         if(contains(attributes, "dilations"))
         {
             copy(attributes["dilations"].ints(), op.dilation.begin());
+        }
+        if(contains(attributes, "auto_pad"))
+        {
+            auto s = attributes["auto_pad"].s();
+            if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
+            {
+                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+            }
+
+            if(s.find("SAME") != std::string::npos)
+            {
+                op.padding_mode = op::convolution::same;
+            }
         }
         if(args.size() == 3)
         {
@@ -271,7 +339,18 @@ struct onnx_parser
         }
         if(contains(attributes, "pads"))
         {
-            copy(attributes["pads"].ints(), op.padding.begin());
+            std::vector<std::size_t> padding(4);
+            copy(attributes["pads"].ints(), padding.begin());
+            if(padding.size() != 4)
+            {
+                MIGRAPHX_THROW("padding should have 4 values");
+            }
+            if(padding[0] != padding[2] || padding[1] != padding[3])
+            {
+                MIGRAPHX_THROW("migraphx does not support asymetric padding");
+            }
+            op.padding[0] = padding[0];
+            op.padding[1] = padding[1];
         }
         if(contains(attributes, "strides"))
         {
@@ -281,6 +360,15 @@ struct onnx_parser
         {
             copy(attributes["kernel_shape"].ints(), op.lengths.begin());
         }
+        if(contains(attributes, "auto_pad"))
+        {
+            auto s = attributes["auto_pad"].s();
+            if(to_upper(s) != "NOTSET")
+            {
+                MIGRAPHX_THROW("auto_pad is not supported for pooling");
+            }
+        }
+
         return prog.add_instruction(op, std::move(args));
     }
 
@@ -546,7 +634,7 @@ struct onnx_parser
     void parse_node(const std::string& name)
     {
         if(name.empty())
-            MIGRAPH_THROW("Onnx node must have a name");
+            MIGRAPHX_THROW("Onnx node must have a name");
         if(instructions.count(name) == 0)
         {
             auto&& node = nodes.at(name);
@@ -636,7 +724,7 @@ struct onnx_parser
         case onnx::AttributeProto::TENSORS: return {};
         case onnx::AttributeProto::GRAPHS: return {};
         }
-        MIGRAPH_THROW("Invalid attribute type");
+        MIGRAPHX_THROW("Invalid attribute type");
     }
 
     static literal parse_tensor(const onnx::TensorProto& t)
@@ -669,7 +757,7 @@ struct onnx_parser
             case onnx::TensorProto::COMPLEX64: throw std::runtime_error("");
             case onnx::TensorProto::COMPLEX128: throw std::runtime_error("");
             }
-            MIGRAPH_THROW("Invalid tensor type");
+            MIGRAPHX_THROW("Invalid tensor type");
         }
         switch(t.data_type())
         {
@@ -700,7 +788,7 @@ struct onnx_parser
         case onnx::TensorProto::COMPLEX64: throw std::runtime_error("");
         case onnx::TensorProto::COMPLEX128: throw std::runtime_error("");
         }
-        MIGRAPH_THROW("Invalid tensor type");
+        MIGRAPHX_THROW("Invalid tensor type");
     }
 
     static shape parse_type(const onnx::TypeProto& t)
@@ -769,5 +857,5 @@ program parse_onnx(const std::string& name)
     return std::move(parser.prog);
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

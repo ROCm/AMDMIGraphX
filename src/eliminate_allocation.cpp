@@ -8,12 +8,12 @@
 #include <migraphx/pass_config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 void eliminate_allocation::apply(program& p) const
 {
     assert(alignment > 0);
-    if(!enabled(MIGRAPH_DISABLE_MEMORY_COLORING{}))
+    if(!enabled(MIGRAPHX_DISABLE_MEMORY_COLORING{}))
         return;
 
     std::size_t n = 0;
@@ -37,5 +37,5 @@ void eliminate_allocation::apply(program& p) const
     }
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

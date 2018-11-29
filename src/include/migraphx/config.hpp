@@ -1,10 +1,10 @@
-#ifndef MIGRAPH_GUARD_CONFIG_HPP
-#define MIGRAPH_GUARD_CONFIG_HPP
+#ifndef MIGRAPHX_GUARD_CONFIG_HPP
+#define MIGRAPHX_GUARD_CONFIG_HPP
 
 namespace migraphx {
 
-#if !defined(MIGRAPH_USE_CLANG_TIDY) && !defined(DOXYGEN)
-#define MIGRAPH_INLINE_NS version_1
+#if !defined(MIGRAPHX_USE_CLANG_TIDY) && !defined(DOXYGEN)
+#define MIGRAPHX_INLINE_NS version_1
 #endif
 
 } // namespace migraphx

@@ -9,12 +9,12 @@
 #include <migraphx/pass_config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 void eliminate_workspace::apply(program& p) const
 {
-    if(!enabled(MIGRAPH_DISABLE_MEMORY_COLORING{}))
+    if(!enabled(MIGRAPHX_DISABLE_MEMORY_COLORING{}))
         return;
 
     std::size_t n = 0;
@@ -41,5 +41,5 @@ void eliminate_workspace::apply(program& p) const
 }
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

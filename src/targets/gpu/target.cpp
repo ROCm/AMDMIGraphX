@@ -19,7 +19,7 @@
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 std::vector<pass> target::get_passes(migraphx::context& gctx) const
@@ -61,5 +61,5 @@ std::string target::name() const { return "miopen"; }
 
 migraphx::context target::get_context() const { return context{}; }
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

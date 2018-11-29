@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_OPERAND_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_OPERAND_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_OPERAND_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_OPERAND_HPP
 
 #include <cassert>
 #include <string>
@@ -16,7 +16,7 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 #ifdef DOXYGEN
 
@@ -103,7 +103,7 @@ template <class T>
 argument compute_op(rank<0>, const T& x, context&, const shape&, const std::vector<argument>&)
 {
     std::string name = x.name();
-    MIGRAPH_THROW("Not computable: " + name);
+    MIGRAPHX_THROW("Not computable: " + name);
 }
 
 template <class T>
@@ -387,7 +387,7 @@ inline bool operator!=(const operation& x, const operation& y) { return !(x == y
 
 #endif
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

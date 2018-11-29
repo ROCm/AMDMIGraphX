@@ -1,18 +1,18 @@
-#ifndef MIGRAPH_GUARD_FALLTHROUGH_HPP
-#define MIGRAPH_GUARD_FALLTHROUGH_HPP
+#ifndef MIGRAPHX_GUARD_FALLTHROUGH_HPP
+#define MIGRAPHX_GUARD_FALLTHROUGH_HPP
 
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 #ifdef __clang__
-#define MIGRAPH_FALLTHROUGH [[clang::fallthrough]]
+#define MIGRAPHX_FALLTHROUGH [[clang::fallthrough]]
 #else
-#define MIGRAPH_FALLTHROUGH
+#define MIGRAPHX_FALLTHROUGH
 #endif
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

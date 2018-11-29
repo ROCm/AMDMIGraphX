@@ -1,6 +1,7 @@
 #include <migraphx/gpu/min.hpp>
 #include <migraphx/operators.hpp>
 #include <migraphx/manage_ptr.hpp>
+#include <migraphx/config.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <utility>
 

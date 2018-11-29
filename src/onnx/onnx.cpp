@@ -123,45 +123,6 @@ struct onnx_parser
                 }
                 return prog.add_instruction(x, args);
             }
-<<<<<<< HEAD
-=======
-            else if(args[0]->get_shape() != args[1]->get_shape())
-            {
-                // Example:
-                // s0 = (3,2,4,5) and s1 = (2,1,1)
-                //
-                // In this case we need to broadcast (:,1,1) portion of
-                // s1 plus broadcast the 1st dimension of s1
-                // giving output_lens = (3,2,4,5)
-                //
-                // Another example:
-                // s0 = (3,2,1,5) and s1 = (2,7,5)
-                // In this case we need to broadcast the (:,:,1:,:) axis
-                // of s0 plus the 1st dimension of s1 giving
-                // output_lens = (3,2,7,5)
-                //
-                // Get lengths for both arguments
-                const std::vector<std::size_t>* s0 = &args[0]->get_shape().lens();
-                const std::vector<std::size_t>* s1 = &args[1]->get_shape().lens();
-
-                // Make sure s0 is the smaller size
-                if(s0->size() > s1->size())
-                    std::swap(s0, s1);
-
-                // Copy the larger vector to output_lens
-                std::vector<std::size_t> output_lens = *s1;
-                auto offset                          = s1->size() - s0->size();
-                std::transform(s0->begin(),
-                               s0->end(),
-                               s1->begin() + offset,
-                               output_lens.begin() + offset,
-                               [](auto a, auto b) { return std::max(a, b); });
-
-                auto l0 = prog.add_instruction(op::multibroadcast{output_lens}, args[0]);
-                auto l1 = prog.add_instruction(op::multibroadcast{output_lens}, args[1]);
-                return prog.add_instruction(x, l0, l1);
-            }
->>>>>>> 84e7335eb6088f9918dcf86f9fc1b58ef27c3360
             else
             {
                 return add_broadcastable_binary_op(args[0], args[1], x);

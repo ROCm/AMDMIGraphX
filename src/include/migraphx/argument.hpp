@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_ARGUMENT_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_ARGUMENT_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_ARGUMENT_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_ARGUMENT_HPP
 
 #include <migraphx/shape.hpp>
 #include <migraphx/raw_data.hpp>
@@ -8,7 +8,7 @@
 #include <utility>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 /**
  * @brief Arguments passed to instructions
@@ -47,7 +47,7 @@ struct argument : raw_data<argument>
     shape m_shape;
 };
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

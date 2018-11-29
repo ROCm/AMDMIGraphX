@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_CONTEXT_HPP
-#define MIGRAPH_GUARD_RTGLIB_CONTEXT_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_CONTEXT_HPP
+#define MIGRAPHX_GUARD_RTGLIB_CONTEXT_HPP
 
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/rocblas.hpp>
@@ -8,10 +8,10 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_DISABLE_NULL_STREAM)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_NULL_STREAM)
 
 struct hip_device
 {
@@ -21,7 +21,7 @@ struct hip_device
 
     struct stream
     {
-        using hip_stream_ptr = MIGRAPH_MANAGE_PTR(hipStream_t, hipStreamDestroy);
+        using hip_stream_ptr = MIGRAPHX_MANAGE_PTR(hipStream_t, hipStreamDestroy);
 
         stream() {}
 
@@ -34,13 +34,13 @@ struct hip_device
             hipStream_t result = nullptr;
             auto status        = hipStreamCreate(&result);
             if(status != hipSuccess)
-                MIGRAPH_THROW("Failed to allocate stream");
+                MIGRAPHX_THROW("Failed to allocate stream");
             return hip_stream_ptr{result};
         }
 
         hipStream_t get()
         {
-            if(enabled(MIGRAPH_DISABLE_NULL_STREAM{}))
+            if(enabled(MIGRAPHX_DISABLE_NULL_STREAM{}))
             {
                 setup();
                 if(s == nullptr)
@@ -53,7 +53,7 @@ struct hip_device
 
         auto create_miopen_handle()
         {
-            if(enabled(MIGRAPH_DISABLE_NULL_STREAM{}))
+            if(enabled(MIGRAPHX_DISABLE_NULL_STREAM{}))
                 return make_obj<miopen_handle>(&miopenCreateWithStream, get());
             else
                 return make_obj<miopen_handle>(&miopenCreate);
@@ -116,7 +116,7 @@ struct context
     std::shared_ptr<hip_device> current_device;
 };
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

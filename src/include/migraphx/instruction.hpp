@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_INSTRUCTION_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_INSTRUCTION_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_INSTRUCTION_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_INSTRUCTION_HPP
 
 #include <migraphx/literal.hpp>
 #include <migraphx/shape.hpp>
@@ -11,7 +11,7 @@
 #include <utility>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 shape compute_shape(const operation& op, const std::vector<instruction_ref>& args);
 
@@ -90,7 +90,7 @@ struct instruction
     std::vector<instruction_ref> arguments;
     literal lit;
 };
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 namespace std {

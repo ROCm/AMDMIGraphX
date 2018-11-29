@@ -22,7 +22,7 @@ rocm_clang_tidy_check(read_onnx)
 target_link_libraries(read_onnx migraphx_onnx)
 
 
-if(MIGRAPH_ENABLE_GPU)
+if(MIGRAPHX_ENABLE_GPU)
 add_executable(mnist mnist.cpp)
 rocm_clang_tidy_check(mnist)
 target_link_libraries(mnist migraphx_cpu migraphx_gpu migraphx_onnx)

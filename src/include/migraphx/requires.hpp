@@ -1,11 +1,11 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_REQUIRES_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_REQUIRES_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_REQUIRES_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_REQUIRES_HPP
 
 #include <type_traits>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 template <bool... Bs>
 struct and_ : std::is_same<and_<Bs...>, and_<(Bs || true)...>> // NOLINT
@@ -24,29 +24,29 @@ struct requires_enum
     };
 };
 
-#define MIGRAPH_REQUIRES_CAT(x, y) x##y
+#define MIGRAPHX_REQUIRES_CAT(x, y) x##y
 
 #ifdef CPPCHECK
-#define MIGRAPH_REQUIRES(...) class = void
+#define MIGRAPHX_REQUIRES(...) class = void
 #else
 #if 0
 // TODO: This currently crashed on clang
-#define MIGRAPH_REQUIRES(...)                                                                       \
-    typename migraphx::requires_enum<__LINE__>::e MIGRAPH_REQUIRES_CAT(                             \
-        PrivateRequires,                                                                            \
-        __LINE__) = migraphx::requires_enum<__LINE__>::a,                                           \
-        class     = typename std::enable_if<and_<__VA_ARGS__,                                       \
-                                             MIGRAPH_REQUIRES_CAT(PrivateRequires, __LINE__) == \
+#define MIGRAPHX_REQUIRES(...)                                                                       \
+    typename migraphx::requires_enum<__LINE__>::e MIGRAPHX_REQUIRES_CAT(                             \
+        PrivateRequires,                                                                             \
+        __LINE__) = migraphx::requires_enum<__LINE__>::a,                                            \
+        class     = typename std::enable_if<and_<__VA_ARGS__,                                        \
+                                             MIGRAPHX_REQUIRES_CAT(PrivateRequires, __LINE__) == \
                                                  migraphx::requires_enum<__LINE__>::a>{}>::type
 #else
-#define MIGRAPH_REQUIRES(...)                                              \
-    typename migraphx::requires_enum<__LINE__>::e MIGRAPH_REQUIRES_CAT(    \
+#define MIGRAPHX_REQUIRES(...)                                             \
+    typename migraphx::requires_enum<__LINE__>::e MIGRAPHX_REQUIRES_CAT(   \
         PrivateRequires, __LINE__) = migraphx::requires_enum<__LINE__>::a, \
                          class     = typename std::enable_if<and_<__VA_ARGS__>{}>::type
 #endif
 #endif
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

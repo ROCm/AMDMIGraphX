@@ -12,13 +12,13 @@ endif()
 
 add_library(migraphx_device
     device/add.cpp
+    device/max.cpp
+    device/min.cpp
     device/sin.cpp
     device/add_relu.cpp
     device/contiguous.cpp
     device/mul.cpp
     device/concat.cpp
-    device/max.cpp
-    device/min.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_clang_tidy_check(migraphx_device)
@@ -42,6 +42,8 @@ add_library(migraphx_gpu
     leaky_relu.cpp
     add.cpp
     sin.cpp
+    max.cpp
+    min.cpp
     mul.cpp
     batchnorm.cpp
     write_literals.cpp
@@ -50,8 +52,6 @@ add_library(migraphx_gpu
     tanh.cpp
     abs.cpp
     elu.cpp
-    max.cpp
-    min.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_clang_tidy_check(migraphx_gpu)

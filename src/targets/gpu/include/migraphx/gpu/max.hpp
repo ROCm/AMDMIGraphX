@@ -7,7 +7,6 @@
 #include <migraphx/operators.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/shape_for_each.hpp>
-#include <migraphx/config.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/dfor.hpp>
@@ -16,6 +15,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/config.hpp>
 #include <utility>
 
 namespace migraphx {

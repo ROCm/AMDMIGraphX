@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_FLOAT_EQUAL_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_FLOAT_EQUAL_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_FLOAT_EQUAL_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_FLOAT_EQUAL_HPP
 
 #include <algorithm>
 #include <cmath>
@@ -12,14 +12,14 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 template <class... Ts>
 using common_type = typename std::common_type<Ts...>::type;
 
 struct float_equal_fn
 {
-    template <class T, MIGRAPH_REQUIRES(std::is_floating_point<T>{})>
+    template <class T, MIGRAPHX_REQUIRES(std::is_floating_point<T>{})>
     static bool apply(T x, T y)
     {
         return std::isfinite(x) and std::isfinite(y) and
@@ -27,7 +27,7 @@ struct float_equal_fn
                std::nextafter(x, std::numeric_limits<T>::max()) >= y;
     }
 
-    template <class T, MIGRAPH_REQUIRES(not std::is_floating_point<T>{})>
+    template <class T, MIGRAPHX_REQUIRES(not std::is_floating_point<T>{})>
     static bool apply(T x, T y)
     {
         return x == y;
@@ -42,7 +42,7 @@ struct float_equal_fn
 
 static constexpr float_equal_fn float_equal{};
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

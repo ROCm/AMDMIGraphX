@@ -7,7 +7,7 @@
 #include <migraphx/dfor.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 void eliminate_concat::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
@@ -67,5 +67,5 @@ void eliminate_concat::apply(program& p) const
         }
     }
 }
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

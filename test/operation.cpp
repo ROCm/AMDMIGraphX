@@ -15,13 +15,13 @@ struct simple_operation
     std::string name() const { return "simple"; }
     migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const
     {
-        MIGRAPH_THROW("not computable");
+        MIGRAPHX_THROW("not computable");
     }
     migraphx::argument compute(migraphx::context&,
                                const migraphx::shape&,
                                const std::vector<migraphx::argument>&) const
     {
-        MIGRAPH_THROW("not computable");
+        MIGRAPHX_THROW("not computable");
     }
     friend std::ostream& operator<<(std::ostream& os, const simple_operation& op)
     {
@@ -35,13 +35,13 @@ struct simple_operation_no_print
     std::string name() const { return "simple"; }
     migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const
     {
-        MIGRAPH_THROW("not computable");
+        MIGRAPHX_THROW("not computable");
     }
     migraphx::argument compute(migraphx::context&,
                                const migraphx::shape&,
                                const std::vector<migraphx::argument>&) const
     {
-        MIGRAPH_THROW("not computable");
+        MIGRAPHX_THROW("not computable");
     }
 };
 

@@ -1,12 +1,12 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_TRACER_HPP
-#define MIGRAPH_GUARD_RTGLIB_TRACER_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_TRACER_HPP
+#define MIGRAPHX_GUARD_RTGLIB_TRACER_HPP
 
 #include <ostream>
 #include <migraphx/functional.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 struct tracer
 {
@@ -30,7 +30,7 @@ struct tracer
     std::ostream* os = nullptr;
 };
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

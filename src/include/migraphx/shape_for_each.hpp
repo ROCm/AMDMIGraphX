@@ -1,12 +1,12 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_SHAPE_FOR_EACH_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_SHAPE_FOR_EACH_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_SHAPE_FOR_EACH_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_SHAPE_FOR_EACH_HPP
 
 #include <migraphx/shape.hpp>
 #include <migraphx/config.hpp>
 #include <algorithm>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 template <class F>
 void shape_for_each(const migraphx::shape& s, F f)
@@ -28,7 +28,7 @@ void shape_for_each(const migraphx::shape& s, F f)
     }
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

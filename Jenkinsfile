@@ -91,7 +91,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
             | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-5.0 -style=file {} | diff - {}\'
         '''
     }
-}, clang: rocmnode('rocmtest') { cmake_build ->
+}, clang: rocmnode('vega') { cmake_build ->
     stage('Clang Debug') {
         // TODO: Enanle integer
         def sanitizers = "undefined"

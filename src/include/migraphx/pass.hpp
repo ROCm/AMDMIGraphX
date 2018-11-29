@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_PASS_HPP
-#define MIGRAPH_GUARD_PASS_HPP
+#ifndef MIGRAPHX_GUARD_PASS_HPP
+#define MIGRAPHX_GUARD_PASS_HPP
 
 #include <cassert>
 #include <string>
@@ -10,7 +10,7 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
 
@@ -218,7 +218,7 @@ inline const ValueType& any_cast(const pass& x)
 
 #endif
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

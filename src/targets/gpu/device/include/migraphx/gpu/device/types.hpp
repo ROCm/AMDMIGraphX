@@ -5,14 +5,14 @@
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 ==============================================================================*/
 
-#ifndef MIGRAPH_GUARD_RTGLIB_GPU_DEVICE_TYPES_HPP
-#define MIGRAPH_GUARD_RTGLIB_GPU_DEVICE_TYPES_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_GPU_DEVICE_TYPES_HPP
+#define MIGRAPHX_GUARD_RTGLIB_GPU_DEVICE_TYPES_HPP
 
 #include <migraphx/half.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
@@ -86,7 +86,7 @@ inline float to_hip_type(gpu_half x) { return x; }
 
 } // namespace device
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

@@ -142,8 +142,6 @@ struct onnx_parser
                 if(s0->size() > s1->size())
                     std::swap(s0, s1);
 
-                std::vector<std::size_t> output_lens(s1->size());
-                auto offset = s1->size() - s0->size();
                 // Copy the larger vector to output_lens
                 std::vector<std::size_t> output_lens = *s1;
                 auto offset                          = s1->size() - s0->size();

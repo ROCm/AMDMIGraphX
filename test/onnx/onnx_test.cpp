@@ -176,13 +176,12 @@ void sum_test()
     auto input1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3}});
     auto input2 = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {3}});
 }
-    auto l0 = p.add_instruction(migraphx::op::add{}, input0, input1);
-    p.add_instruction(migraphx::op::add{}, l0, input2);
-    
+auto l0 = p.add_instruction(migraphx::op::add{}, input0, input1);
+p.add_instruction(migraphx::op::add{}, l0, input2);
 
-    auto prog = migraph::parse_onnx("sum_test.onnx");
-    
-    EXPECT(p == prog);
+auto prog = migraph::parse_onnx("sum_test.onnx");
+
+EXPECT(p == prog);
 }
 
 int main()

@@ -185,43 +185,19 @@ struct onnx_parser
     instruction_ref
     parse_sum(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
-        auto curr_sum = args.front();
-        if(args.size() > 1)
-        {
-            for(auto it = std::next(args.begin()); it != args.end(); ++it)
-            {
-                curr_sum = add_broadcastable_binary_op(curr_sum, *it, op::add{});
-            }
-        }
-        return curr_sum;
+        return std::accumulate(std::next(args.begin()), args.end(), args.front(), [this](instruction_ref a, instruction_ref b){return add_broadcastable_binary_op(a, b, op::add{});});
     }
 
     instruction_ref
     parse_max(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
-        auto curr_max = args.front();
-        if(args.size() > 1)
-        {
-            for(auto it = std::next(args.begin()); it != args.end(); ++it)
-            {
-                curr_max = add_broadcastable_binary_op(curr_max, *it, op::max{});
-            }
-        }
-        return curr_max;
+        return std::accumulate(std::next(args.begin()), args.end(), args.front(), [this](instruction_ref a, instruction_ref b){return add_broadcastable_binary_op(a, b, op::max{});});
     }
 
     instruction_ref
     parse_min(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
-        auto curr_min = args.front();
-        if(args.size() > 1)
-        {
-            for(auto it = std::next(args.begin()); it != args.end(); ++it)
-            {
-                curr_min = add_broadcastable_binary_op(curr_min, *it, op::min{});
-            }
-        }
-        return curr_min;
+        return std::accumulate(std::next(args.begin()), args.end(), args.front(), [this](instruction_ref a, instruction_ref b){return add_broadcastable_binary_op(a, b, op::min{});});
     }
 
     instruction_ref

@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_MIN_HPP
-#define MIGRAPH_GUARD_RTGLIB_MIN_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_MIN_HPP
+#define MIGRAPHX_GUARD_RTGLIB_MIN_HPP
 
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/manage_ptr.hpp>
@@ -7,6 +7,7 @@
 #include <migraphx/operators.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/shape_for_each.hpp>
+#include <migraphx/config.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/dfor.hpp>
@@ -15,11 +16,10 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/context.hpp>
-#include <migraphx/config.hpp>
 #include <utility>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct hip_min
@@ -31,7 +31,7 @@ struct hip_min
 };
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

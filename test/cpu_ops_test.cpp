@@ -1170,9 +1170,9 @@ TEST_CASE(max_test)
 {
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l0      = p.add_literal(migraphx::literal{s, {1, 4, 3}});
-    auto l1      = p.add_literal(migraphx::literal{s, {2, 8, 6}});
-    auto l2      = p.add_literal(migraphx::literal{s, {7, 5, 9}});
+    auto l0       = p.add_literal(migraphx::literal{s, {1, 4, 3}});
+    auto l1       = p.add_literal(migraphx::literal{s, {2, 8, 6}});
+    auto l2       = p.add_literal(migraphx::literal{s, {7, 5, 9}});
     auto curr_max = p.add_instruction(migraphx::op::max{}, l0, l1);
     p.add_instruction(migraphx::op::max{}, curr_max, l2);
     p.compile(migraphx::cpu::target{});
@@ -1187,9 +1187,9 @@ TEST_CASE(min_test)
 {
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l0      = p.add_literal(migraphx::literal{s, {1, 4, 3}});
-    auto l1      = p.add_literal(migraphx::literal{s, {2, 8, 6}});
-    auto l2      = p.add_literal(migraphx::literal{s, {7, 5, 9}});
+    auto l0       = p.add_literal(migraphx::literal{s, {1, 4, 3}});
+    auto l1       = p.add_literal(migraphx::literal{s, {2, 8, 6}});
+    auto l2       = p.add_literal(migraphx::literal{s, {7, 5, 9}});
     auto curr_min = p.add_instruction(migraphx::op::min{}, l0, l1);
     p.add_instruction(migraphx::op::min{}, curr_min, l2);
     p.compile(migraphx::cpu::target{});

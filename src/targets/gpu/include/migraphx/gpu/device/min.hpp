@@ -1,6 +1,6 @@
 
-#ifndef MIGRAPH_GUARD_RTGLIB_DEVICE_MIN_HPP
-#define MIGRAPH_GUARD_RTGLIB_DEVICE_MIN_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_MIN_HPP
+#define MIGRAPHX_GUARD_RTGLIB_DEVICE_MIN_HPP
 
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>

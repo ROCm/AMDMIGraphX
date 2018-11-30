@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_SIGMOID_HPP
-#define MIGRAPH_GUARD_RTGLIB_SIGMOID_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_SIGMOID_HPP
+#define MIGRAPHX_GUARD_RTGLIB_SIGMOID_HPP
 
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/manage_ptr.hpp>

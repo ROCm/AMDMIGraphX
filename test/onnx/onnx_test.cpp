@@ -175,13 +175,40 @@ void sum_test()
     auto input0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
     auto input1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3}});
     auto input2 = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto l0 = p.add_instruction(migraphx::op::add{}, input0, input1);
+    p.add_instruction(migraphx::op::add{}, l0, input2);
+
+    auto prog = migraphx::parse_onnx("sum_test.onnx");
+
+    EXPECT(p == prog);
 }
-auto l0 = p.add_instruction(migraphx::op::add{}, input0, input1);
-p.add_instruction(migraphx::op::add{}, l0, input2);
 
-auto prog = migraph::parse_onnx("sum_test.onnx");
+void max_test()
+{
+    migraphx::program p;
+    auto input0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto input1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto input2 = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto l0 = p.add_instruction(migraphx::op::max{}, input0, input1);
+    p.add_instruction(migraphx::op::max{}, l0, input2);
 
-EXPECT(p == prog);
+    auto prog = migraphx::parse_onnx("max_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+void min_test()
+{
+    migraphx::program p;
+    auto input0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto input1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto input2 = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto l0 = p.add_instruction(migraphx::op::min{}, input0, input1);
+    p.add_instruction(migraphx::op::min{}, l0, input2);
+
+    auto prog = migraphx::parse_onnx("min_test.onnx");
+
+    EXPECT(p == prog);
 }
 
 int main()
@@ -197,4 +224,6 @@ int main()
     transpose_test();
     dropout_test();
     sum_test();
+    max_test();
+    min_test();
 }

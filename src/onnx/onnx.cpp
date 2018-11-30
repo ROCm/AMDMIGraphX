@@ -185,19 +185,34 @@ struct onnx_parser
     instruction_ref
     parse_sum(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
-        return std::accumulate(std::next(args.begin()), args.end(), args.front(), [this](instruction_ref a, instruction_ref b){return add_broadcastable_binary_op(a, b, op::add{});});
+        return std::accumulate(std::next(args.begin()),
+                               args.end(),
+                               args.front(),
+                               [this](instruction_ref a, instruction_ref b) {
+                                   return add_broadcastable_binary_op(a, b, op::add{});
+                               });
     }
 
     instruction_ref
     parse_max(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
-        return std::accumulate(std::next(args.begin()), args.end(), args.front(), [this](instruction_ref a, instruction_ref b){return add_broadcastable_binary_op(a, b, op::max{});});
+        return std::accumulate(std::next(args.begin()),
+                               args.end(),
+                               args.front(),
+                               [this](instruction_ref a, instruction_ref b) {
+                                   return add_broadcastable_binary_op(a, b, op::max{});
+                               });
     }
 
     instruction_ref
     parse_min(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
-        return std::accumulate(std::next(args.begin()), args.end(), args.front(), [this](instruction_ref a, instruction_ref b){return add_broadcastable_binary_op(a, b, op::min{});});
+        return std::accumulate(std::next(args.begin()),
+                               args.end(),
+                               args.front(),
+                               [this](instruction_ref a, instruction_ref b) {
+                                   return add_broadcastable_binary_op(a, b, op::min{});
+                               });
     }
 
     instruction_ref

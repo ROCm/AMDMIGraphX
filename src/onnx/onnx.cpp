@@ -683,7 +683,7 @@ struct onnx_parser
     {
         std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
         // in case of scalar constants in onnx file, use dims=1 to fill initializer data
-        if(dims.size() == 0)
+        if(dims.empty())
         {
             dims = {1};
         }

@@ -17,13 +17,20 @@
 #include <migraphx/gpu/contiguous.hpp>
 #include <migraphx/gpu/relu.hpp>
 #include <migraphx/gpu/sigmoid.hpp>
-#include <migraphx/gpu/tanh.hpp>
 #include <migraphx/gpu/abs.hpp>
 #include <migraphx/gpu/leaky_relu.hpp>
 #include <migraphx/gpu/elu.hpp>
 #include <migraphx/gpu/softmax.hpp>
 #include <migraphx/gpu/add.hpp>
 #include <migraphx/gpu/sin.hpp>
+#include <migraphx/gpu/cos.hpp>
+#include <migraphx/gpu/tan.hpp>
+#include <migraphx/gpu/sinh.hpp>
+#include <migraphx/gpu/cosh.hpp>
+#include <migraphx/gpu/tanh.hpp>
+#include <migraphx/gpu/asin.hpp>
+#include <migraphx/gpu/acos.hpp>
+#include <migraphx/gpu/atan.hpp>
 #include <migraphx/gpu/mul.hpp>
 #include <migraphx/gpu/max.hpp>
 #include <migraphx/gpu/min.hpp>
@@ -42,8 +49,7 @@ struct miopen_apply
 {
     program* prog = nullptr;
     context ctx{};
-    std::unordered_map<std::string, std::function<instruction_ref(miopen_apply&, instruction_ref)>>
-        apply_map{};
+    std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
 
     void check_shape(shape x, instruction_ref i)
     {
@@ -54,24 +60,35 @@ struct miopen_apply
 
     void init()
     {
-        apply_map["convolution"]          = &miopen_apply::apply_convolution;
-        apply_map["relu"]                 = &miopen_apply::apply_relu;
-        apply_map["sigmoid"]              = &miopen_apply::apply_sigmoid;
-        apply_map["tanh"]                 = &miopen_apply::apply_tanh;
-        apply_map["abs"]                  = &miopen_apply::apply_abs;
-        apply_map["leaky_relu"]           = &miopen_apply::apply_leaky_relu;
-        apply_map["elu"]                  = &miopen_apply::apply_elu;
-        apply_map["pooling"]              = &miopen_apply::apply_pooling;
-        apply_map["add"]                  = &miopen_apply::apply_add;
-        apply_map["sin"]                  = &miopen_apply::apply_sin;
-        apply_map["mul"]                  = &miopen_apply::apply_mul;
-        apply_map["max"]                  = &miopen_apply::apply_max;
-        apply_map["min"]                  = &miopen_apply::apply_min;
-        apply_map["dot"]                  = &miopen_apply::apply_dot;
-        apply_map["contiguous"]           = &miopen_apply::apply_contiguous;
-        apply_map["concat"]               = &miopen_apply::apply_concat;
-        apply_map["batch_norm_inference"] = &miopen_apply::apply_batch_norm_inference;
-        apply_map["softmax"]              = &miopen_apply::apply_softmax;
+        add_miopen_simple_op<miopen_relu>("relu", make_relu);
+        add_miopen_simple_op<miopen_sigmoid>("sigmoid", make_sigmoid);
+        add_miopen_simple_op<miopen_abs>("abs", make_abs);
+        add_miopen_simple_op<miopen_tanh>("tanh", make_tanh);
+
+        add_miopen_extend_op<miopen_leaky_relu, op::leaky_relu>("leaky_relu", make_leaky_relu);
+        add_miopen_extend_op<miopen_elu, op::elu>("elu", make_elu);
+
+        add_generic_op<hip_add>("add");
+        add_generic_op<hip_sin>("sin");
+        add_generic_op<hip_cos>("cos");
+        add_generic_op<hip_tan>("tan");
+        add_generic_op<hip_sinh>("sinh");
+        add_generic_op<hip_cosh>("cosh");
+        add_generic_op<hip_asin>("asin");
+        add_generic_op<hip_acos>("acos");
+        add_generic_op<hip_atan>("atan");
+        add_generic_op<hip_mul>("mul");
+        add_generic_op<hip_max>("max");
+        add_generic_op<hip_min>("min");
+
+        add_extend_op<miopen_gemm, op::dot>("dot");
+        add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
+        add_extend_op<hip_concat, op::concat>("concat");
+        add_extend_op<miopen_softmax, op::softmax>("softmax");
+
+        add_convolution_op();
+        add_pooling_op();
+        add_batch_norm_inference_op();
     }
 
     void apply()
@@ -82,7 +99,7 @@ struct miopen_apply
             auto s = it->get_shape();
             if(apply_map.count(it->name()) > 0)
             {
-                check_shape(s, apply_map.at(it->name())(*this, it));
+                check_shape(s, apply_map.at(it->name())(it));
             }
         }
     }
@@ -101,171 +118,103 @@ struct miopen_apply
         }
     }
 
-    instruction_ref apply_convolution(instruction_ref ins)
+    void add_convolution_op()
     {
-        auto&& op = any_cast<op::convolution>(ins->get_operator());
+        apply_map.emplace("convolution", [=](instruction_ref ins) {
+            auto&& op = any_cast<op::convolution>(ins->get_operator());
 
-        auto conv = miopen_convolution{op, make_conv(op)};
-        auto ws   = conv.compile(ctx, ins->get_shape(), ins->inputs());
+            auto conv = miopen_convolution{op, make_conv(op)};
+            auto ws   = conv.compile(ctx, ins->get_shape(), ins->inputs());
 
-        auto workspace = insert_allocation(ins, ws, "workspace");
-        auto output    = insert_allocation(ins, ins->get_shape());
+            auto workspace = insert_allocation(ins, ws, "workspace");
+            auto output    = insert_allocation(ins, ins->get_shape());
 
-        return prog->replace_instruction(
-            ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
+            return prog->replace_instruction(
+                ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
+        });
     }
 
-    instruction_ref apply_pooling(instruction_ref ins)
+    void add_pooling_op()
     {
-        auto&& op   = any_cast<op::pooling>(ins->get_operator());
-        auto pd     = make_pooling(op);
-        auto output = insert_allocation(ins, ins->get_shape());
+        apply_map.emplace("pooling", [=](instruction_ref ins) {
+            auto&& op   = any_cast<op::pooling>(ins->get_operator());
+            auto pd     = make_pooling(op);
+            auto output = insert_allocation(ins, ins->get_shape());
 
-        return prog->replace_instruction(
-            ins, miopen_pooling{op, std::move(pd)}, ins->inputs().at(0), output);
+            return prog->replace_instruction(
+                ins, miopen_pooling{op, std::move(pd)}, ins->inputs().at(0), output);
+        });
     }
 
-    instruction_ref apply_relu(instruction_ref ins)
+    template <class T>
+    void add_generic_op(std::string name)
     {
-        auto ad = make_relu();
+        apply_map.emplace(name, [=](instruction_ref ins) {
+            auto output                       = insert_allocation(ins, ins->get_shape());
+            std::vector<instruction_ref> refs = ins->inputs();
+            refs.push_back(output);
 
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(
-            ins, miopen_relu{std::move(ad)}, ins->inputs().at(0), output);
+            return prog->replace_instruction(ins, T{}, refs);
+        });
     }
 
-    instruction_ref apply_sigmoid(instruction_ref ins)
+    template <class T, class Op>
+    void add_extend_op(std::string name)
     {
-        auto ad = make_sigmoid();
+        apply_map.emplace(name, [=](instruction_ref ins) {
+            auto&& op                         = any_cast<Op>(ins->get_operator());
+            auto output                       = insert_allocation(ins, ins->get_shape());
+            std::vector<instruction_ref> refs = ins->inputs();
+            refs.push_back(output);
 
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(
-            ins, miopen_sigmoid{std::move(ad)}, ins->inputs().at(0), output);
+            return prog->replace_instruction(ins, T{op}, refs);
+        });
     }
 
-    instruction_ref apply_tanh(instruction_ref ins)
+    template <class T, class Op, class F>
+    void add_miopen_extend_op(std::string name, F f)
     {
-        auto ad = make_tanh();
+        apply_map.emplace(name, [=](instruction_ref ins) {
+            auto&& op = any_cast<Op>(ins->get_operator());
+            auto ad   = f(op.alpha);
 
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(
-            ins, miopen_tanh{std::move(ad)}, ins->inputs().at(0), output);
+            auto output = insert_allocation(ins, ins->get_shape());
+            return prog->replace_instruction(ins, T{std::move(ad)}, ins->inputs().at(0), output);
+        });
     }
 
-    instruction_ref apply_abs(instruction_ref ins)
+    template <class T, class F>
+    void add_miopen_simple_op(std::string name, F f)
     {
-        auto ad = make_abs();
-
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(
-            ins, miopen_abs{std::move(ad)}, ins->inputs().at(0), output);
+        apply_map.emplace(name, [=](instruction_ref ins) {
+            auto ad     = f();
+            auto output = insert_allocation(ins, ins->get_shape());
+            return prog->replace_instruction(ins, T{std::move(ad)}, ins->inputs().at(0), output);
+        });
     }
 
-    instruction_ref apply_leaky_relu(instruction_ref ins)
+    void add_batch_norm_inference_op()
     {
-        auto&& op = any_cast<op::leaky_relu>(ins->get_operator());
-        auto ad   = make_leaky_relu(op.alpha);
-
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(
-            ins, miopen_leaky_relu{std::move(ad)}, ins->inputs().at(0), output);
-    }
-
-    instruction_ref apply_elu(instruction_ref ins)
-    {
-        auto&& op = any_cast<op::leaky_relu>(ins->get_operator());
-        auto ad   = make_elu(op.alpha);
-
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(
-            ins, miopen_elu{std::move(ad)}, ins->inputs().at(0), output);
-    }
-
-    instruction_ref apply_softmax(instruction_ref ins)
-    {
-        auto&& op   = any_cast<op::softmax>(ins->get_operator());
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(ins, miopen_softmax{op}, ins->inputs().at(0), output);
-    }
-
-    instruction_ref apply_add(instruction_ref ins)
-    {
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(
-            ins, hip_add{}, ins->inputs().at(0), ins->inputs().at(1), output);
-    }
-
-    instruction_ref apply_sin(instruction_ref ins)
-    {
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(ins, hip_sin{}, ins->inputs().at(0), output);
-    }
-
-    instruction_ref apply_mul(instruction_ref ins)
-    {
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(
-            ins, hip_mul{}, ins->inputs().at(0), ins->inputs().at(1), output);
-    }
-
-    instruction_ref apply_max(instruction_ref ins)
-    {
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(
-            ins, hip_max{}, ins->inputs().at(0), ins->inputs().at(1), output);
-    }
-
-    instruction_ref apply_min(instruction_ref ins)
-    {
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(
-            ins, hip_min{}, ins->inputs().at(0), ins->inputs().at(1), output);
-    }
-
-    instruction_ref apply_dot(instruction_ref ins)
-    {
-        auto&& op   = any_cast<op::dot>(ins->get_operator());
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(
-            ins, miopen_gemm{op}, ins->inputs().at(0), ins->inputs().at(1), output);
-    }
-
-    instruction_ref apply_contiguous(instruction_ref ins)
-    {
-        auto&& op   = any_cast<op::contiguous>(ins->get_operator());
-        auto output = insert_allocation(ins, ins->get_shape());
-        return prog->replace_instruction(ins, miopen_contiguous{op}, ins->inputs().at(0), output);
-    }
-
-    instruction_ref apply_concat(instruction_ref ins)
-    {
-        auto&& op                         = any_cast<op::concat>(ins->get_operator());
-        auto output                       = insert_allocation(ins, ins->get_shape());
-        std::vector<instruction_ref> refs = ins->inputs();
-        refs.push_back(output);
-        return prog->replace_instruction(ins, hip_concat{op}, refs);
-    }
-
-    instruction_ref apply_batch_norm_inference(instruction_ref ins)
-    {
-        auto&& op       = any_cast<op::batch_norm_inference>(ins->get_operator());
-        auto output     = insert_allocation(ins, ins->get_shape());
-        shape old_shape = ins->inputs().at(1)->get_shape();
-        std::vector<int64_t> new_shape{1, static_cast<int64_t>(old_shape.elements()), 1, 1};
-        auto reshape_op = op::reshape{new_shape};
-        std::vector<instruction_ref> reshapes;
-        std::transform(ins->inputs().begin() + 1,
-                       ins->inputs().end(),
-                       std::back_inserter(reshapes),
-                       [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
-        return prog->replace_instruction(ins,
-                                         miopen_batch_norm_inference{op},
-                                         ins->inputs().at(0),
-                                         reshapes[0],
-                                         reshapes[1],
-                                         reshapes[2],
-                                         reshapes[3],
-                                         output);
+        apply_map.emplace("batch_norm_inference", [=](instruction_ref ins) {
+            auto&& op       = any_cast<op::batch_norm_inference>(ins->get_operator());
+            auto output     = insert_allocation(ins, ins->get_shape());
+            shape old_shape = ins->inputs().at(1)->get_shape();
+            std::vector<int64_t> new_shape{1, static_cast<int64_t>(old_shape.elements()), 1, 1};
+            auto reshape_op = op::reshape{new_shape};
+            std::vector<instruction_ref> reshapes;
+            std::transform(ins->inputs().begin() + 1,
+                           ins->inputs().end(),
+                           std::back_inserter(reshapes),
+                           [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
+            return prog->replace_instruction(ins,
+                                             miopen_batch_norm_inference{op},
+                                             ins->inputs().at(0),
+                                             reshapes[0],
+                                             reshapes[1],
+                                             reshapes[2],
+                                             reshapes[3],
+                                             output);
+        });
     }
 };
 

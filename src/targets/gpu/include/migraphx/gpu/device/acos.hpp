@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_ADD_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_ADD_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_ACOS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_DEVICE_ACOS_HPP
 
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void sin(hipStream_t stream, const argument& result, const argument& arg);
+void acos(hipStream_t stream, const argument& result, const argument& arg);
 
 } // namespace device
 } // namespace gpu

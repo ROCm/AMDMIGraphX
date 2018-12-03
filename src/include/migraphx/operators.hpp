@@ -671,6 +671,16 @@ struct atan : unary
     std::string name() const { return "atan"; }
 };
 
+struct sinh : unary
+{
+    std::string name() const { return "sinh"; }
+};
+
+struct cosh : unary
+{
+    std::string name() const { return "cosh"; }
+};
+
 struct tanh : unary
 {
     std::string name() const { return "tanh"; }

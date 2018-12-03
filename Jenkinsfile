@@ -125,6 +125,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
             lcov --remove coverage.info '/usr/*' --output-file coverage.info
             lcov --list coverage.info
             curl -s https://codecov.io/bash | bash
+            echo "Uploaded"
         '''
     }
 }

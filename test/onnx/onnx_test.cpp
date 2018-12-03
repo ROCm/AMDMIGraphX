@@ -179,6 +179,78 @@ void sum_test()
     p.add_instruction(migraphx::op::add{}, l0, input2);
 
     auto prog = migraphx::parse_onnx("sum_test.onnx");
+}
+
+void sin_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::sin{}, input);
+
+    auto prog = migraphx::parse_onnx("sin_test.onnx");
+    EXPECT(p == prog);
+}
+
+void cos_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::cos{}, input);
+
+    auto prog = migraphx::parse_onnx("cos_test.onnx");
+    EXPECT(p == prog);
+}
+
+void tan_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::tan{}, input);
+
+    auto prog = migraphx::parse_onnx("tan_test.onnx");
+    EXPECT(p == prog);
+}
+
+void sinh_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::sinh{}, input);
+
+    auto prog = migraphx::parse_onnx("sinh_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+void cosh_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1}});
+    p.add_instruction(migraphx::op::cosh{}, input);
+
+    auto prog = migraphx::parse_onnx("cosh_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+void tanh_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1}});
+    p.add_instruction(migraphx::op::tanh{}, input);
+
+    auto prog = migraphx::parse_onnx("tanh_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+void asin_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::asin{}, input);
+
+    auto prog = migraphx::parse_onnx("asin_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -193,6 +265,15 @@ void max_test()
     p.add_instruction(migraphx::op::max{}, l0, input2);
 
     auto prog = migraphx::parse_onnx("max_test.onnx");
+}
+
+void acos_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::acos{}, input);
+
+    auto prog = migraphx::parse_onnx("acos_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -207,6 +288,15 @@ void min_test()
     p.add_instruction(migraphx::op::min{}, l0, input2);
 
     auto prog = migraphx::parse_onnx("min_test.onnx");
+}
+
+void atan_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::atan{}, input);
+
+    auto prog = migraphx::parse_onnx("atan_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -226,4 +316,13 @@ int main()
     sum_test();
     max_test();
     min_test();
+    sin_test();
+    cos_test();
+    tan_test();
+    sinh_test();
+    cosh_test();
+    tanh_test();
+    asin_test();
+    acos_test();
+    atan_test();
 }

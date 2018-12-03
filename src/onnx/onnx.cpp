@@ -72,9 +72,9 @@ struct onnx_parser
         add_binary_op("Mul", op::mul{});
         add_binary_op("Sub", op::sub{});
 
-        add_mem_op("Sum", &onnx_parser::parse_sum);
-        add_mem_op("Max", &onnx_parser::parse_max);
-        add_mem_op("Min", &onnx_parser::parse_min);
+        add_variadic_op("Sum", op::add{});
+        add_variadic_op("Max", op::max{});
+        add_variadic_op("Min", op::min{});
 
         add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
@@ -190,37 +190,18 @@ struct onnx_parser
         });
     }
 
-    instruction_ref
-    parse_sum(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    template <class T>
+    void
+    add_variadic_op(std::string name, T x)
     {
-        return std::accumulate(std::next(args.begin()),
-                               args.end(),
-                               args.front(),
-                               [this](instruction_ref a, instruction_ref b) {
-                                   return add_broadcastable_binary_op(a, b, op::add{});
-                               });
-    }
-
-    instruction_ref
-    parse_max(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
-    {
-        return std::accumulate(std::next(args.begin()),
-                               args.end(),
-                               args.front(),
-                               [this](instruction_ref a, instruction_ref b) {
-                                   return add_broadcastable_binary_op(a, b, op::max{});
-                               });
-    }
-
-    instruction_ref
-    parse_min(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
-    {
-        return std::accumulate(std::next(args.begin()),
-                               args.end(),
-                               args.front(),
-                               [this](instruction_ref a, instruction_ref b) {
-                                   return add_broadcastable_binary_op(a, b, op::min{});
-                               });
+        ops.emplace(name, [this, x](attribute_map, std::vector<instruction_ref> args) {
+            return std::accumulate(std::next(args.begin()),
+                                    args.end(),
+                                    args.front(),
+                                    [this, x](instruction_ref a, instruction_ref b) {
+                                        return add_broadcastable_binary_op(a, b, x);
+                                    });
+        });
     }
 
     instruction_ref

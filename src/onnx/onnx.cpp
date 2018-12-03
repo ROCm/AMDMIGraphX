@@ -191,16 +191,15 @@ struct onnx_parser
     }
 
     template <class T>
-    void
-    add_variadic_op(std::string name, T x)
+    void add_variadic_op(std::string name, T x)
     {
         ops.emplace(name, [this, x](attribute_map, std::vector<instruction_ref> args) {
             return std::accumulate(std::next(args.begin()),
-                                    args.end(),
-                                    args.front(),
-                                    [this, x](instruction_ref a, instruction_ref b) {
-                                        return add_broadcastable_binary_op(a, b, x);
-                                    });
+                                   args.end(),
+                                   args.front(),
+                                   [this, x](instruction_ref a, instruction_ref b) {
+                                       return add_broadcastable_binary_op(a, b, x);
+                                   });
         });
     }
 

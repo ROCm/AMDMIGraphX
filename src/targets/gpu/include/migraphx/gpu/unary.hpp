@@ -22,21 +22,23 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-template<class Derived>
+template <class Derived>
 struct oper
 {
     std::string name() const { return get_type_name<Derived>(); }
 };
 
-template<class Derived, void(*F)(hipStream_t, const argument&, const argument&)>
+template <class Derived, void (*F)(hipStream_t, const argument&, const argument&)>
 struct unary_device : oper<Derived>
 {
-    shape compute_shape(const std::vector<shape>& inputs) const {
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
         check_shapes{inputs, *this}.has(2);
         return inputs.at(0);
     }
 
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const {
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
         F(ctx.get_stream().get(), args[1], args[0]);
         return args[1];
     }
@@ -44,22 +46,23 @@ struct unary_device : oper<Derived>
     int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
 };
 
-template<class Derived, void(*F)(hipStream_t, const argument&, const argument&, const argument&)>
+template <class Derived, void (*F)(hipStream_t, const argument&, const argument&, const argument&)>
 struct binary_device : oper<Derived>
 {
-    shape compute_shape(const std::vector<shape>& inputs) const {
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
         check_shapes{inputs, *this}.has(3);
         return inputs.at(0);
     }
 
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const {
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
         F(ctx.get_stream().get(), args[2], args[1], args[0]);
         return args[2];
     }
 
     int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
 };
-
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

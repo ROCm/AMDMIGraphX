@@ -9,19 +9,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-shape hip_add::compute_shape(const std::vector<shape>& inputs) const
-{
-    // check_shapes{inputs, *this}.has(3).standard();
-    check_shapes{inputs, *this}.has(3);
-    return inputs.at(0);
-}
-
-argument hip_add::compute(context& ctx, const shape&, const std::vector<argument>& args) const
-{
-    device::add(ctx.get_stream().get(), args[2], args[0], args[1]);
-    return args[2];
-}
-
 shape miopen_add::compute_shape(const std::vector<shape>& inputs) const
 {
     check_shapes{inputs, *this}.has(3).not_broadcasted();

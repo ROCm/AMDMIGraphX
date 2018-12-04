@@ -301,6 +301,54 @@ void atan_test()
     EXPECT(p == prog);
 }
 
+void add_bcast_test()
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 4}});
+    auto l2 = p.add_instruction(migraphx::op::broadcast{1, l0->get_shape()}, l1);
+    p.add_instruction(migraphx::op::add{}, l0, l2);
+
+    auto prog = migraphx::parse_onnx("add_bcast_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+void implicit_bcast_test()
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 4}});
+    auto l2 = p.add_instruction(migraphx::op::multibroadcast{{0, 0, 4, 5}}, l0);
+    auto l3 = p.add_instruction(migraphx::op::multibroadcast{{0, 0, 4, 5}}, l1);
+    p.add_instruction(migraphx::op::add{}, l2, l3);
+
+    auto prog = migraphx::parse_onnx("implicit_bcast_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+void unknown_test()
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 4}});
+    p.add_instruction(migraphx::unknown{"Unknown"}, l0, l1);
+    auto prog = migraphx::parse_onnx("unknown_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+void softmax_test()
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3}});
+    p.add_instruction(migraphx::op::softmax{}, l0);
+    auto prog = migraphx::parse_onnx("softmax_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 int main()
 {
     pytorch_conv_bias_test();
@@ -325,4 +373,7 @@ int main()
     asin_test();
     acos_test();
     atan_test();
+    add_bcast_test();
+    implicit_bcast_test();
+    unknown_test();
 }

@@ -48,18 +48,7 @@ add_library(migraphx_gpu
     relu.cpp
     leaky_relu.cpp
     add.cpp
-    sin.cpp
-    max.cpp
-    min.cpp
-    cos.cpp
-    tan.cpp
-    sinh.cpp
-    cosh.cpp
     tanh.cpp
-    asin.cpp
-    acos.cpp
-    atan.cpp
-    mul.cpp
     batchnorm.cpp
     write_literals.cpp
     rocblas.cpp

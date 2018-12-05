@@ -2,7 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_TAN_HPP
 
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/gpu/unary.hpp>
+#include <migraphx/gpu/oper.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/operators.hpp>

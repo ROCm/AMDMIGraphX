@@ -382,7 +382,8 @@ void squeeze_unsqueeze_test()
     migraphx::program p;
     std::vector<int64_t> squeeze_axes{0, 2, 3, 5};
     std::vector<int64_t> unsqueeze_axes{0, 1, 3, 5};
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 1, 1, 2, 1}});
+    auto l0 =
+        p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 1, 1, 2, 1}});
     auto l1 = p.add_instruction(migraphx::op::squeeze{squeeze_axes}, l0);
     p.add_instruction(migraphx::op::unsqueeze{unsqueeze_axes}, l1);
     auto prog = migraphx::parse_onnx("squeeze_unsqueeze_test.onnx");
@@ -405,7 +406,7 @@ void slice_test()
 {
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 2}});
-    p.add_instruction(migraphx::op::slice{{0,1}, {1,0}, {2,2}}, l0);
+    p.add_instruction(migraphx::op::slice{{0, 1}, {1, 0}, {2, 2}}, l0);
     auto prog = migraphx::parse_onnx("slice_test.onnx");
 
     EXPECT(p == prog);

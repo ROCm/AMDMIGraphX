@@ -350,6 +350,21 @@ void softmax_test()
     EXPECT(p == prog);
 }
 
+void reshape_test()
+{
+    migraphx::program p;
+    migraphx::op::reshape op;
+    std::vector<int64_t> reshape_dims{3, 8};
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {4, 2, 3}});
+    p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, reshape_dims});
+    op.dims = reshape_dims;
+    p.add_instruction(op, l0);
+    p.add_instruction(op, l0);
+    auto prog = migraphx::parse_onnx("reshape_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 int main()
 {
     pytorch_conv_bias_test();
@@ -377,4 +392,5 @@ int main()
     add_bcast_test();
     implicit_bcast_test();
     unknown_test();
+    reshape_test();
 }

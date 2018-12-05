@@ -14,6 +14,8 @@ add_library(migraphx_device
     device/add.cpp
     device/max.cpp
     device/min.cpp
+    device/exp.cpp
+    device/log.cpp
     device/sin.cpp
     device/cos.cpp
     device/tan.cpp

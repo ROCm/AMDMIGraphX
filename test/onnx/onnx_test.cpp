@@ -356,7 +356,8 @@ void reshape_test()
     migraphx::op::reshape op;
     std::vector<int64_t> reshape_dims{3, 8};
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {4, 2, 3}});
-    p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, reshape_dims});
+    p.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, reshape_dims});
     op.dims = reshape_dims;
     p.add_instruction(op, l0);
     p.add_instruction(op, l0);

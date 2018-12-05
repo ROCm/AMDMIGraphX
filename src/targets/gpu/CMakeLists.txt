@@ -47,7 +47,6 @@ add_library(migraphx_gpu
     concat.cpp
     relu.cpp
     leaky_relu.cpp
-    add.cpp
     tanh.cpp
     batchnorm.cpp
     write_literals.cpp

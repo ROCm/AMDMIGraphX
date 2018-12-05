@@ -360,6 +360,15 @@ struct exp_op
     }
 };
 
+struct log_op
+{
+    std::string name() const { return "cpu::log"; }
+    auto fcn() const
+    {
+        return [](auto x) { return std::log(x); };
+    }
+};
+
 struct sin_op
 {
     std::string name() const { return "cpu::sin"; }
@@ -662,6 +671,7 @@ struct cpu_apply
         apply_map["tanh"]       = simple_op<cpu_unary<tanh_op>>();
         apply_map["sigmoid"]    = simple_op<cpu_unary<sigmoid_op>>();
         apply_map["exp"]        = simple_op<cpu_unary<exp_op>>();
+        apply_map["log"]        = simple_op<cpu_unary<log_op>>();
         apply_map["neg"]        = simple_op<cpu_unary<neg_op>>();
         apply_map["sin"]        = simple_op<cpu_unary<sin_op>>();
         apply_map["cos"]        = simple_op<cpu_unary<cos_op>>();

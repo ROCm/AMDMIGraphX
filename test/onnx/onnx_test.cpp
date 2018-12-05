@@ -179,6 +179,27 @@ void sum_test()
     p.add_instruction(migraphx::op::add{}, l0, input2);
 
     auto prog = migraphx::parse_onnx("sum_test.onnx");
+    EXPECT(p == prog);
+}
+
+void exp_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::exp{}, input);
+
+    auto prog = migraphx::parse_onnx("exp_test.onnx");
+    EXPECT(p == prog);
+}
+
+void log_test()
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::log{}, input);
+
+    auto prog = migraphx::parse_onnx("log_test.onnx");
+    EXPECT(p == prog);
 }
 
 void sin_test()
@@ -316,6 +337,8 @@ int main()
     sum_test();
     max_test();
     min_test();
+    exp_test();
+    log_test();
     sin_test();
     cos_test();
     tan_test();

@@ -391,7 +391,7 @@ struct onnx_parser
         }
         if(contains(attributes, "beta"))
         {
-            alpha = parse_value(attributes.at("beta")).at<float>();
+            beta = parse_value(attributes.at("beta")).at<float>();
         }
         if(contains(attributes, "transA"))
         {

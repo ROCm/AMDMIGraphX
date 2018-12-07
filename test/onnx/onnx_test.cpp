@@ -265,6 +265,17 @@ TEST_CASE(tanh_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(elu_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
+    p.add_instruction(migraphx::op::elu{0.01}, input);
+
+    auto prog = migraphx::parse_onnx("elu_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(asin_test)
 {
     migraphx::program p;

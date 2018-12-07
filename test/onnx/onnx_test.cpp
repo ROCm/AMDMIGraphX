@@ -182,7 +182,7 @@ TEST_CASE(sum_test)
     EXPECT(p == prog);
 }
 
-void exp_test()
+TEST_CASE(exp_test)
 {
     migraphx::program p;
     auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
@@ -192,7 +192,7 @@ void exp_test()
     EXPECT(p == prog);
 }
 
-void log_test()
+TEST_CASE(log_test)
 {
     migraphx::program p;
     auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});

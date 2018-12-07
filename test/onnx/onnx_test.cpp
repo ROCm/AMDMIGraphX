@@ -322,7 +322,6 @@ TEST_CASE(atan_test)
     EXPECT(p == prog);
 }
 
-<<<<<<< HEAD
 TEST_CASE(add_bcast_test)
 {
     migraphx::program p;
@@ -334,34 +333,6 @@ TEST_CASE(add_bcast_test)
     auto prog = migraphx::parse_onnx("add_bcast_test.onnx");
 
     EXPECT(p == prog);
-=======
-int main()
-{
-    pytorch_conv_bias_test();
-    pytorch_conv_relu_maxpool();
-    pytorch_conv_bn_relu_maxpool();
-    pytorch_conv_relu_maxpool_x2();
-    leaky_relu_test();
-    imagescaler_test();
-    globalavgpool_test();
-    globalmaxpool_test();
-    transpose_test();
-    dropout_test();
-    sum_test();
-    max_test();
-    min_test();
-    exp_test();
-    log_test();
-    sin_test();
-    cos_test();
-    tan_test();
-    sinh_test();
-    cosh_test();
-    tanh_test();
-    asin_test();
-    acos_test();
-    atan_test();
->>>>>>> 436b459e73e8a18e3f08ac6863c25279ca811fd9
 }
 
 TEST_CASE(implicit_bcast_test)

@@ -63,7 +63,7 @@ struct convolution
         valid
     };
     padding_mode_t padding_mode = default_;
-    int group = 1;
+    int group                   = 1;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

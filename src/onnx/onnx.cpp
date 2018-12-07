@@ -52,18 +52,35 @@ struct onnx_parser
     {
         add_generic_op("MatMul", op::dot{});
         add_generic_op("Relu", op::relu{});
+        add_generic_op("Sigmoid", op::sigmoid{});
+        add_generic_op("Abs", op::abs{});
+        add_generic_op("Exp", op::exp{});
+        add_generic_op("Log", op::log{});
         // disable dropout for inference
         add_generic_op("Dropout", op::identity{});
         add_generic_op("Identity", op::identity{});
+        add_generic_op("Sin", op::sin{});
+        add_generic_op("Cos", op::cos{});
+        add_generic_op("Tan", op::tan{});
+        add_generic_op("Sinh", op::sinh{});
+        add_generic_op("Cosh", op::cosh{});
+        add_generic_op("Tanh", op::tanh{});
+        add_generic_op("Asin", op::asin{});
+        add_generic_op("Acos", op::acos{});
+        add_generic_op("Atan", op::atan{});
 
-        add_broadcastable_binary_op("Add", op::add{});
-        add_broadcastable_binary_op("Div", op::div{});
-        add_broadcastable_binary_op("Mul", op::mul{});
-        add_broadcastable_binary_op("Sub", op::sub{});
-        add_broadcastable_binary_op("Sum", op::add{});
+        add_binary_op("Add", op::add{});
+        add_binary_op("Div", op::div{});
+        add_binary_op("Mul", op::mul{});
+        add_binary_op("Sub", op::sub{});
+
+        add_variadic_op("Sum", op::add{});
+        add_variadic_op("Max", op::max{});
+        add_variadic_op("Min", op::min{});
 
         add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
+        add_mem_op("Elu", &onnx_parser::parse_elu);
         add_mem_op("Constant", &onnx_parser::parse_constant);
         add_mem_op("Conv", &onnx_parser::parse_conv);
         add_mem_op("MaxPool", &onnx_parser::parse_pooling);
@@ -95,8 +112,9 @@ struct onnx_parser
             return std::mem_fn(f)(*this, name, std::forward<decltype(xs)>(xs)...);
         });
     }
+
     template <class T>
-    void add_broadcastable_binary_op(std::string name, T x)
+    void add_binary_op(std::string name, T x)
     {
         ops.emplace(name, [this, x](attribute_map attributes, std::vector<instruction_ref> args) {
             if(args.size() != 2)
@@ -115,47 +133,55 @@ struct onnx_parser
                 }
                 return prog.add_instruction(x, args);
             }
-            else if(args[0]->get_shape() != args[1]->get_shape())
-            {
-                // Example:
-                // s0 = (3,2,4,5) and s1 = (2,1,1)
-                //
-                // In this case we need to broadcast (:,1,1) portion of
-                // s1 plus broadcast the 1st dimension of s1
-                // giving output_lens = (3,2,4,5)
-                //
-                // Another example:
-                // s0 = (3,2,1,5) and s1 = (2,7,5)
-                // In this case we need to broadcast the (:,:,1:,:) axis
-                // of s0 plus the 1st dimension of s1 giving
-                // output_lens = (3,2,7,5)
-                //
-                // Get lengths for both arguments
-                const std::vector<std::size_t>* s0 = &args[0]->get_shape().lens();
-                const std::vector<std::size_t>* s1 = &args[1]->get_shape().lens();
-
-                // Make sure s0 is the smaller size
-                if(s0->size() > s1->size())
-                    std::swap(s0, s1);
-
-                // Copy the larger vector to output_lens
-                std::vector<std::size_t> output_lens = *s1;
-                auto offset                          = s1->size() - s0->size();
-                std::transform(s0->begin(),
-                               s0->end(),
-                               s1->begin() + offset,
-                               output_lens.begin() + offset,
-                               [](auto a, auto b) { return std::max(a, b); });
-
-                auto l0 = prog.add_instruction(op::multibroadcast{output_lens}, args[0]);
-                auto l1 = prog.add_instruction(op::multibroadcast{output_lens}, args[1]);
-                return prog.add_instruction(x, l0, l1);
-            }
             else
             {
-                return prog.add_instruction(x, args);
+                return add_broadcastable_binary_op(args[0], args[1], x);
             }
         });
+    }
+
+    template <class T>
+    instruction_ref add_broadcastable_binary_op(instruction_ref arg0, instruction_ref arg1, T x)
+    {
+        if(arg0->get_shape() != arg1->get_shape())
+        {
+            // Example:
+            // s0 = (3,2,4,5) and s1 = (2,1,1)
+            //
+            // In this case we need to broadcast (:,1,1) portion of
+            // s1 plus broadcast the 1st dimension of s1
+            // giving output_lens = (3,2,4,5)
+            //
+            // Another example:
+            // s0 = (3,2,1,5) and s1 = (2,7,5)
+            // In this case we need to broadcast the (:,:,1:,:) axis
+            // of s0 plus the 1st dimension of s1 giving
+            // output_lens = (3,2,7,5)
+            //
+            // Get lengths for both arguments
+            const std::vector<std::size_t>* s0 = &arg0->get_shape().lens();
+            const std::vector<std::size_t>* s1 = &arg1->get_shape().lens();
+
+            // Make sure s0 is the smaller size
+            if(s0->size() > s1->size())
+                std::swap(s0, s1);
+
+            std::vector<std::size_t> output_lens(s1->size());
+            auto offset = s1->size() - s0->size();
+            std::transform(s0->begin(),
+                           s0->end(),
+                           s1->begin() + offset,
+                           output_lens.begin() + offset,
+                           [](auto a, auto b) { return std::max(a, b); });
+
+            auto l0 = prog.add_instruction(op::multibroadcast{output_lens}, arg0);
+            auto l1 = prog.add_instruction(op::multibroadcast{output_lens}, arg1);
+            return prog.add_instruction(x, l0, l1);
+        }
+        else
+        {
+            return prog.add_instruction(x, {arg0, arg1});
+        }
     }
 
     template <class T>
@@ -163,6 +189,19 @@ struct onnx_parser
     {
         ops.emplace(name, [this, x](attribute_map, std::vector<instruction_ref> args) {
             return prog.add_instruction(x, args);
+        });
+    }
+
+    template <class T>
+    void add_variadic_op(std::string name, T x)
+    {
+        ops.emplace(name, [this, x](attribute_map, std::vector<instruction_ref> args) {
+            return std::accumulate(std::next(args.begin()),
+                                   args.end(),
+                                   args.front(),
+                                   [this, x](instruction_ref a, instruction_ref b) {
+                                       return add_broadcastable_binary_op(a, b, x);
+                                   });
         });
     }
 
@@ -436,6 +475,18 @@ struct onnx_parser
         return prog.add_instruction(op, args.front());
     }
 
+    instruction_ref
+    parse_elu(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        float alpha = 1.0; // default alpha val for elu
+        if(contains(attributes, "alpha"))
+        {
+            alpha = parse_value(attributes.at("alpha")).at<float>();
+        }
+        op::elu op{alpha};
+        return prog.add_instruction(op, args.front());
+    }
+
     instruction_ref parse_imagescaler(const std::string&,
                                       attribute_map attributes,
                                       std::vector<instruction_ref> args)
@@ -621,6 +672,11 @@ struct onnx_parser
     static literal parse_tensor(const onnx::TensorProto& t)
     {
         std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
+        // in case of scalar constants in onnx file, use dims=1 to fill initializer data
+        if(dims.empty())
+        {
+            dims = {1};
+        }
         if(t.has_raw_data())
         {
             const std::string& s = t.raw_data();

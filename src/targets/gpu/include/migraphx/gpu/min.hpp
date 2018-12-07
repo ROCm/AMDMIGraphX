@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_RTGLIB_MUL_HPP
-#define MIGRAPHX_GUARD_RTGLIB_MUL_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_MIN_HPP
+#define MIGRAPHX_GUARD_RTGLIB_MIN_HPP
 
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/oper.hpp>
@@ -13,7 +13,7 @@
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/gpu/device/contiguous.hpp>
-#include <migraphx/gpu/device/mul.hpp>
+#include <migraphx/gpu/device/min.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -23,7 +23,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-struct hip_mul : binary_device<hip_mul, device::mul>
+struct hip_min : binary_device<hip_min, device::min>
 {
 };
 

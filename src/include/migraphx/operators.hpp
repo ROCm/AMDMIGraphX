@@ -234,10 +234,28 @@ struct leaky_relu
         check_shapes{inputs, *this}.has(1);
         return inputs.front();
     }
-    friend std::ostream& operator<<(std::ostream& os, const leaky_relu& op)
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
     {
-        os << op.name() << ":" << op.alpha;
-        return os;
+        return pack(f(self.alpha, "alpha"));
+    }
+};
+
+struct elu
+{
+    std::string name() const { return "elu"; }
+    float alpha;
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        return inputs.front();
+    }
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.alpha, "alpha"));
     }
 };
 
@@ -623,6 +641,11 @@ struct exp : unary
     std::string name() const { return "exp"; }
 };
 
+struct log : unary
+{
+    std::string name() const { return "log"; }
+};
+
 struct sin : unary
 {
     std::string name() const { return "sin"; }
@@ -651,6 +674,16 @@ struct acos : unary
 struct atan : unary
 {
     std::string name() const { return "atan"; }
+};
+
+struct sinh : unary
+{
+    std::string name() const { return "sinh"; }
+};
+
+struct cosh : unary
+{
+    std::string name() const { return "cosh"; }
 };
 
 struct tanh : unary
@@ -861,6 +894,16 @@ struct mul : binary
 struct div : binary
 {
     std::string name() const { return "div"; }
+};
+
+struct max : binary
+{
+    std::string name() const { return "max"; }
+};
+
+struct min : binary
+{
+    std::string name() const { return "min"; }
 };
 
 struct load

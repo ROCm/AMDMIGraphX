@@ -203,6 +203,32 @@ struct test_mul
     }
 };
 
+struct test_exp
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {6}};
+        std::vector<float> data{0.1f, 0.2f, 1.f, 2.f, 0.6f, 10.f};
+        auto x = p.add_literal(s, data);
+        p.add_instruction(migraphx::op::exp{}, x);
+        return p;
+    }
+};
+
+struct test_log
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {6}};
+        std::vector<float> data{0.1f, 0.2f, 1.f, 2.f, 0.6f, 100.f};
+        auto x = p.add_literal(s, data);
+        p.add_instruction(migraphx::op::log{}, x);
+        return p;
+    }
+};
+
 struct test_sin
 {
     migraphx::program create_program() const
@@ -211,6 +237,101 @@ struct test_sin
         migraphx::shape s{migraphx::shape::float_type, {10}};
         auto x = p.add_parameter("x", s);
         p.add_instruction(migraphx::op::sin{}, x);
+        return p;
+    }
+};
+
+struct test_cos
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {8}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::cos{}, x);
+        return p;
+    }
+};
+
+struct test_tan
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::tan{}, x);
+        return p;
+    }
+};
+
+struct test_sinh
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::sinh{}, x);
+        return p;
+    }
+};
+
+struct test_cosh
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::cosh{}, x);
+        return p;
+    }
+};
+
+struct test_tanh
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        p.add_instruction(migraphx::op::tanh{}, x);
+        return p;
+    }
+};
+
+struct test_asin
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::asin{}, x);
+        return p;
+    }
+};
+
+struct test_acos
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::acos{}, x);
+        return p;
+    }
+};
+
+struct test_atan
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::atan{}, x);
         return p;
     }
 };
@@ -456,6 +577,28 @@ struct test_add_relu
     }
 };
 
+struct test_sigmoid
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        p.add_instruction(migraphx::op::sigmoid{}, x);
+        return p;
+    }
+};
+
+struct test_abs
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        p.add_instruction(migraphx::op::abs{}, x);
+        return p;
+    }
+};
+
 struct test_leaky_relu
 {
     migraphx::program create_program() const
@@ -463,6 +606,17 @@ struct test_leaky_relu
         migraphx::program p;
         auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         p.add_instruction(migraphx::op::leaky_relu{0.01}, x);
+        return p;
+    }
+};
+
+struct test_elu
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        p.add_instruction(migraphx::op::leaky_relu{1.0}, x);
         return p;
     }
 };
@@ -849,13 +1003,24 @@ struct test_conv_bn_relu_pooling2
 
 int main()
 {
+    verify_program<test_abs>();
     verify_program<test_concat>();
     verify_program<test_concat2>();
     verify_program<test_concat_relu>();
     verify_program<test_add>();
     verify_program<test_add_half>();
     verify_program<test_mul>();
+    verify_program<test_exp>();
+    verify_program<test_log>();
     verify_program<test_sin>();
+    verify_program<test_cos>();
+    verify_program<test_tan>();
+    verify_program<test_sinh>();
+    verify_program<test_cosh>();
+    verify_program<test_tanh>();
+    verify_program<test_asin>();
+    verify_program<test_acos>();
+    verify_program<test_atan>();
     verify_program<test_scale>();
     verify_program<test_triadd>();
     verify_program<test_triadd2>();
@@ -873,6 +1038,8 @@ int main()
     verify_program<test_conv_relu_half>();
     verify_program<test_add_relu>();
     verify_program<test_leaky_relu>();
+    verify_program<test_sigmoid>();
+    verify_program<test_elu>();
     verify_program<test_conv_pooling>();
     verify_program<test_global_avg_pooling>();
     verify_program<test_global_max_pooling>();

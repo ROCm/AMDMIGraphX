@@ -113,6 +113,19 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
         def cmake_linker_flags = "-DCMAKE_EXE_LINKER_FLAGS='${linker_flags}' -DCMAKE_SHARED_LINKER_FLAGS='${linker_flags}'"
         // TODO: Add bounds-strict
         def sanitizers = "undefined,address"
-        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='-g -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}'")
+        def debug_flags = "-g -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
+        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
+
+    }
+    stage('Codecov') {
+        env.CODECOV_TOKEN="8545af1c-f90b-4345-92a5-0d075503ca56"
+        sh '''
+            cd build
+            lcov --directory . --capture --output-file coverage.info
+            lcov --remove coverage.info '/usr/*' --output-file coverage.info
+            lcov --list coverage.info
+            curl -s https://codecov.io/bash | bash
+            echo "Uploaded"
+        '''
     }
 }

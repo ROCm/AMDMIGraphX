@@ -96,10 +96,40 @@ inline activation_descriptor make_relu()
     return ad;
 }
 
+inline activation_descriptor make_sigmoid()
+{
+    auto ad = make_obj<activation_descriptor>(&miopenCreateActivationDescriptor);
+    miopenSetActivationDescriptor(ad.get(), miopenActivationLOGISTIC, 0, 0, 0);
+    return ad;
+}
+
+inline activation_descriptor make_tanh()
+{
+    auto ad = make_obj<activation_descriptor>(&miopenCreateActivationDescriptor);
+    // onnx operator does not apply additional scaling for tanh
+    // defaults for alpha and beta are therefore set to 1
+    miopenSetActivationDescriptor(ad.get(), miopenActivationTANH, 1, 1, 0);
+    return ad;
+}
+
+inline activation_descriptor make_abs()
+{
+    auto ad = make_obj<activation_descriptor>(&miopenCreateActivationDescriptor);
+    miopenSetActivationDescriptor(ad.get(), miopenActivationABS, 0, 0, 0);
+    return ad;
+}
+
 inline activation_descriptor make_leaky_relu(double alpha)
 {
     auto ad = make_obj<activation_descriptor>(&miopenCreateActivationDescriptor);
     miopenSetActivationDescriptor(ad.get(), miopenActivationLEAKYRELU, alpha, 0, 0);
+    return ad;
+}
+
+inline activation_descriptor make_elu(double alpha)
+{
+    auto ad = make_obj<activation_descriptor>(&miopenCreateActivationDescriptor);
+    miopenSetActivationDescriptor(ad.get(), miopenActivationELU, alpha, 0, 0);
     return ad;
 }
 

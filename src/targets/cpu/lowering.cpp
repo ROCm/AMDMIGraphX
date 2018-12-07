@@ -19,6 +19,14 @@ T zero(const T&)
     return T(0);
 }
 
+template <class T>
+typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::enable_if<true, T>>::
+    type
+    make_signed(T x)
+{
+    return x;
+}
+
 //
 // cpu implemenataion of batch norm for inference
 //
@@ -339,7 +347,7 @@ struct abs_op
     std::string name() const { return "cpu::abs"; }
     auto fcn() const
     {
-        return [](auto x) { return std::abs(x); };
+        return [](auto x) { return std::abs(make_signed(x)); };
     }
 };
 
@@ -349,6 +357,15 @@ struct exp_op
     auto fcn() const
     {
         return [](auto x) { return std::exp(x); };
+    }
+};
+
+struct log_op
+{
+    std::string name() const { return "cpu::log"; }
+    auto fcn() const
+    {
+        return [](auto x) { return std::log(x); };
     }
 };
 
@@ -406,6 +423,24 @@ struct atan_op
     }
 };
 
+struct sinh_op
+{
+    std::string name() const { return "cpu::sinh"; }
+    auto fcn() const
+    {
+        return [](auto x) { return std::sinh(x); };
+    }
+};
+
+struct cosh_op
+{
+    std::string name() const { return "cpu::cosh"; }
+    auto fcn() const
+    {
+        return [](auto x) { return std::cosh(x); };
+    }
+};
+
 struct tanh_op
 {
     std::string name() const { return "cpu::tanh"; }
@@ -450,6 +485,17 @@ struct leaky_relu_op
     {
         auto& a = op.alpha;
         return [a](auto x) { return x > 0 ? x : x * a; };
+    }
+};
+
+struct elu_op
+{
+    op::elu op;
+    std::string name() const { return "cpu::elu"; }
+    auto fcn() const
+    {
+        auto& a = op.alpha;
+        return [a](auto x) { return x > 0 ? x : a * std::expm1(x); };
     }
 };
 
@@ -545,6 +591,24 @@ struct div_op
     }
 };
 
+struct max_op
+{
+    std::string name() const { return "max"; }
+    auto fcn() const
+    {
+        return [](auto x, auto y) { return std::max(x, y); };
+    }
+};
+
+struct min_op
+{
+    std::string name() const { return "min"; }
+    auto fcn() const
+    {
+        return [](auto x, auto y) { return std::min(x, y); };
+    }
+};
+
 template <typename Op>
 struct cpu_binary
 {
@@ -599,19 +663,29 @@ struct cpu_apply
         apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
         apply_map["concat"]     = extend_op<cpu_concat, op::concat>();
         apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
+        apply_map["elu"]        = extend_op<cpu_unary<elu_op>, op::elu>();
         apply_map["identity"]   = simple_op<cpu_unary<identity_op>>();
+        apply_map["abs"]        = simple_op<cpu_unary<abs_op>>();
+        apply_map["sinh"]       = simple_op<cpu_unary<sinh_op>>();
+        apply_map["cosh"]       = simple_op<cpu_unary<cosh_op>>();
         apply_map["tanh"]       = simple_op<cpu_unary<tanh_op>>();
         apply_map["sigmoid"]    = simple_op<cpu_unary<sigmoid_op>>();
         apply_map["exp"]        = simple_op<cpu_unary<exp_op>>();
+        apply_map["log"]        = simple_op<cpu_unary<log_op>>();
         apply_map["neg"]        = simple_op<cpu_unary<neg_op>>();
         apply_map["sin"]        = simple_op<cpu_unary<sin_op>>();
         apply_map["cos"]        = simple_op<cpu_unary<cos_op>>();
         apply_map["tan"]        = simple_op<cpu_unary<tan_op>>();
+        apply_map["asin"]       = simple_op<cpu_unary<asin_op>>();
+        apply_map["acos"]       = simple_op<cpu_unary<acos_op>>();
+        apply_map["atan"]       = simple_op<cpu_unary<atan_op>>();
         apply_map["relu"]       = simple_op<cpu_unary<relu_op>>();
         apply_map["add"]        = simple_op<cpu_binary<add_op>>();
         apply_map["sub"]        = simple_op<cpu_binary<sub_op>>();
         apply_map["mul"]        = simple_op<cpu_binary<mul_op>>();
         apply_map["div"]        = simple_op<cpu_binary<div_op>>();
+        apply_map["max"]        = simple_op<cpu_binary<max_op>>();
+        apply_map["min"]        = simple_op<cpu_binary<min_op>>();
 
         apply_map["softmax"] = simple_op<softmax2d>();
     }

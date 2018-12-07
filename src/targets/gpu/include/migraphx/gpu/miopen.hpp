@@ -55,7 +55,7 @@ inline convolution_descriptor make_conv(const migraphx::op::convolution& op)
 {
     auto c = make_obj<convolution_descriptor>(&miopenCreateConvolutionDescriptor);
     miopenConvolutionMode_t c_mode = miopenConvolution;
-    if (op.group > 1)
+    if(op.group > 1)
         c_mode = miopenGroupConv;
     miopenInitConvolutionDescriptor(c.get(),
                                     c_mode,
@@ -65,7 +65,7 @@ inline convolution_descriptor make_conv(const migraphx::op::convolution& op)
                                     op.stride[1],
                                     op.dilation[0],
                                     op.dilation[1]);
-    if (op.group > 1)
+    if(op.group > 1)
         miopenSetConvolutionGroupCount(c.get(), op.group);
     return c;
 }

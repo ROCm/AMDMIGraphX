@@ -63,6 +63,7 @@ struct convolution
         valid
     };
     padding_mode_t padding_mode = default_;
+    int group = 1;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -86,7 +87,7 @@ struct convolution
             return {t,
                     {
                         input.lens()[0],
-                        weights.lens()[0],
+                        weights.lens()[0] * group,
                         std::size_t(std::max<std::ptrdiff_t>(
                             1,
                             (input.lens()[2] - (1 + dilation[0] * (weights.lens()[2] - 1)) +
@@ -105,7 +106,7 @@ struct convolution
         {
             return {t,
                     {input.lens()[0],
-                     weights.lens()[0],
+                     weights.lens()[0] * group,
                      static_cast<std::size_t>(
                          std::ceil(static_cast<double>(input.lens()[2]) / stride[0])),
                      static_cast<std::size_t>(
@@ -116,7 +117,7 @@ struct convolution
             return {
                 t,
                 {input.lens()[0],
-                 weights.lens()[0],
+                 weights.lens()[0] * group,
                  static_cast<std::size_t>(std::ceil(
                      static_cast<double>(input.lens()[2] - weights.lens()[2] + 1) / stride[0])),
                  static_cast<std::size_t>(std::ceil(

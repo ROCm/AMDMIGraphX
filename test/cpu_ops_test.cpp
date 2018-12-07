@@ -413,6 +413,20 @@ TEST_CASE(exp_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(log_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto l = p.add_literal(migraphx::literal{s, {1, 2, 3}});
+    p.add_instruction(migraphx::op::log{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {0.0f, 0.6931471806f, 1.0986122887f};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(sin_test)
 {
     migraphx::program p;

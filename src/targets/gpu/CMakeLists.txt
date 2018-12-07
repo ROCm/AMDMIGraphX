@@ -14,6 +14,8 @@ add_library(migraphx_device
     device/add.cpp
     device/max.cpp
     device/min.cpp
+    device/exp.cpp
+    device/log.cpp
     device/sin.cpp
     device/cos.cpp
     device/tan.cpp
@@ -47,19 +49,7 @@ add_library(migraphx_gpu
     concat.cpp
     relu.cpp
     leaky_relu.cpp
-    add.cpp
-    sin.cpp
-    max.cpp
-    min.cpp
-    cos.cpp
-    tan.cpp
-    sinh.cpp
-    cosh.cpp
     tanh.cpp
-    asin.cpp
-    acos.cpp
-    atan.cpp
-    mul.cpp
     batchnorm.cpp
     write_literals.cpp
     rocblas.cpp

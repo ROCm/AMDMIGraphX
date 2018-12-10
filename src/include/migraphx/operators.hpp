@@ -71,7 +71,8 @@ struct convolution
         return pack(f(self.padding, "padding"),
                     f(self.stride, "stride"),
                     f(self.dilation, "dilation"),
-                    f(self.padding_mode, "padding_mode"));
+                    f(self.padding_mode, "padding_mode"),
+                    f(self.group, "group"));
     }
 
     std::string name() const { return "convolution"; }
@@ -87,7 +88,7 @@ struct convolution
             return {t,
                     {
                         input.lens()[0],
-                        weights.lens()[0] * group,
+                        weights.lens()[0],
                         std::size_t(std::max<std::ptrdiff_t>(
                             1,
                             (input.lens()[2] - (1 + dilation[0] * (weights.lens()[2] - 1)) +
@@ -106,7 +107,7 @@ struct convolution
         {
             return {t,
                     {input.lens()[0],
-                     weights.lens()[0] * group,
+                     weights.lens()[0],
                      static_cast<std::size_t>(
                          std::ceil(static_cast<double>(input.lens()[2]) / stride[0])),
                      static_cast<std::size_t>(
@@ -117,7 +118,7 @@ struct convolution
             return {
                 t,
                 {input.lens()[0],
-                 weights.lens()[0] * group,
+                 weights.lens()[0],
                  static_cast<std::size_t>(std::ceil(
                      static_cast<double>(input.lens()[2] - weights.lens()[2] + 1) / stride[0])),
                  static_cast<std::size_t>(std::ceil(

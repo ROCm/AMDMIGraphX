@@ -130,6 +130,7 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/cpu/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/miopen/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
         CPPCHECK=1
 )

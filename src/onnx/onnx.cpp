@@ -426,13 +426,13 @@ struct onnx_parser
         {
             if(beta != 0.f)
             {
-                auto l3       = prog.add_instruction(op::dot{alpha}, l1, l2);
+                auto l3 = prog.add_instruction(op::dot{alpha}, l1, l2);
                 auto l4 = args[2];
                 if(beta == 1.f)
                 {
                     auto beta_val = prog.add_literal(beta);
-                    auto l5       = prog.add_instruction(op::scalar{args[2]->get_shape()}, beta_val);
-                    l4            = prog.add_instruction(op::mul{}, args[2], l5);
+                    auto l5 = prog.add_instruction(op::scalar{args[2]->get_shape()}, beta_val);
+                    l4      = prog.add_instruction(op::mul{}, args[2], l5);
                 }
                 return add_broadcastable_binary_op(l3, l4, op::add{});
             }

@@ -73,7 +73,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
             rm -rf build
             mkdir build
             cd build
-            CXX='clang++-5.0' cmake .. 
+            CXX=hcc cmake .. 
             make -j8 -k analyze
         '''
     }

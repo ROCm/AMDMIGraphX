@@ -22,7 +22,7 @@ argument miopen_convolution::compute(context& ctx,
     auto y_desc = make_tensor(output_shape);
 
     float alpha = 1;
-    float beta = 0;
+    float beta  = 0;
     miopenConvolutionForward(ctx.get_stream().get_miopen(),
                              &alpha,
                              x_desc.get(),

@@ -23,7 +23,7 @@ argument miopen_batch_norm_inference::compute(context& ctx,
     auto bn_desc = make_tensor(args[3].get_shape());
 
     float alpha = 1.0;
-    float beta = 0.0f;
+    float beta  = 0.0f;
 
     miopenBatchNormalizationForwardInference(ctx.get_stream().get_miopen(),
                                              miopenBatchNormMode_t(op.bn_mode),

@@ -21,7 +21,7 @@ argument miopen_pooling::compute(context& ctx,
     auto y_desc = make_tensor(output_shape);
 
     float alpha = 1;
-    float beta = 0;
+    float beta  = 0;
 
     miopenPoolingForward(ctx.get_stream().get_miopen(),
                          pd.get(),

@@ -18,7 +18,7 @@ const std::string& get_type_name()
         name = typeid(PrivateMigraphTypeNameProbe).name();
         name = name.substr(7);
 #else
-        const char parameter_name[] = "PrivateMigraphTypeNameProbe =";// NOLINT
+        const char parameter_name[] = "PrivateMigraphTypeNameProbe ="; // NOLINT
 
         name = __PRETTY_FUNCTION__;
 

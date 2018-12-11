@@ -189,7 +189,7 @@ inline auto& get_test_cases()
 
 inline void add_test_case(std::string name, std::function<void()> f)
 {
-    get_test_cases().emplace_back(name, f);
+    get_test_cases().emplace_back(std::move(name), std::move(f));
 }
 
 struct auto_register

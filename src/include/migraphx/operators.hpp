@@ -289,7 +289,7 @@ struct transpose
         }
         std::vector<size_t> output_lens(input_lens.size());
         std::vector<size_t> output_strides(input_lens.size());
-        for(int i = 0; i < output_lens.size(); i++)
+        for(std::size_t i = 0; i < output_lens.size(); i++)
         {
             output_lens[i]    = input_lens[dims[i]];
             output_strides[i] = input_strides[dims[i]];
@@ -326,7 +326,7 @@ struct concat
     std::size_t axis = 0;
     std::string name() const { return "concat"; }
     std::vector<std::size_t> compute_offsets(const shape& output_shape,
-                                             const std::vector<argument> args) const
+                                             const std::vector<argument>& args) const
     {
         std::vector<std::size_t> offsets;
         std::vector<std::size_t> offset(args[0].get_shape().lens().size(), 0);

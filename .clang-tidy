@@ -5,6 +5,10 @@ CheckOptions:
     value:           risky   
   - key:             modernize-loop-convert.NamingStyle
     value:           lower_case
+  - key:             performance-unnecessary-copy-initialization.AllowedTypes
+    value:           'shape'
+  - key:             performance-unnecessary-value-param.AllowedTypes
+    value:           'shape'
   - key:             readability-function-size.BranchThreshold
     value:           '15'
   - key:             readability-function-size.LineThreshold

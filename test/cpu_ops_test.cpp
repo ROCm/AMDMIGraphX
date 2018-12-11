@@ -333,9 +333,15 @@ TEST_CASE(im2col_3x3_with_padding_test)
 TEST_CASE(batch_norm_inference_test)
 {
     migraphx::program p;
-    const size_t width = 2, height = 2, channels = 4, batches = 2;
-    const float x_val = 8.0f, mean_val = 2.0f, variance_val = 4.0f, scale_val = 2.0f,
-                bias_val   = 1.0f;
+    const size_t width = 2;
+    const size_t height = 2;
+    const size_t channels = 4;
+    const size_t batches = 2;
+    const float x_val = 8.0;
+    const float mean_val = 2.0;
+    const float variance_val = 4.0;
+    const float scale_val = 2.0f;
+    const float bias_val   = 1.0f;
     const float output_val = scale_val * (x_val - mean_val) / (std::sqrt(variance_val)) + bias_val;
 
     migraphx::shape s{migraphx::shape::float_type, {batches, channels, height, width}};
@@ -793,11 +799,7 @@ void gemm_test()
     auto result = p.eval({});
     std::vector<T> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    float tol = 1e-6;
-    for(int i = 0; i < results_vector.size(); i++)
-    {
-        EXPECT(std::abs(results_vector[i] - c[i]) < tol);
-    }
+    EXPECT(migraphx::verify_range(results_vector, c));
 }
 TEST_CASE_REGISTER(gemm_test<float>)
 TEST_CASE_REGISTER(gemm_test<double>)
@@ -851,12 +853,7 @@ TEST_CASE(maxpool_test)
     // std::cout << result.get_shape() << std::endl;
     std::vector<float> results_vector(36);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    float tol = 1e-6;
-    for(int i = 0; i < results_vector.size(); i++)
-    {
-        // std::cout << results_vector[i] << "          " << c[i] << std::endl;
-        EXPECT(std::abs(results_vector[i] - c[i]) < tol);
-    }
+    EXPECT(migraphx::verify_range(results_vector, c));
 }
 
 TEST_CASE(softmax_test)

@@ -54,7 +54,6 @@ rocm_enable_clang_tidy(
         -clang-diagnostic-extern-c-compat
         -clang-diagnostic-disabled-macro-expansion
         -clang-diagnostic-unused-command-line-argument
-        -cppcoreguidelines-macro-usage
         -cppcoreguidelines-pro-bounds-array-to-pointer-decay
         -cppcoreguidelines-pro-bounds-constant-array-index
         -cppcoreguidelines-pro-bounds-pointer-arithmetic

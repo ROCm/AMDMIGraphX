@@ -248,6 +248,7 @@ inline void run(int argc, const char* argv[])
 
 // NOLINTNEXTLINE
 #define TEST_CAT(x, ...) TEST_PRIMITIVE_CAT(x, __VA_ARGS__)
+// NOLINTNEXTLINE
 #define TEST_PRIMITIVE_CAT(x, ...) x##__VA_ARGS__
 
 // NOLINTNEXTLINE

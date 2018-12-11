@@ -35,22 +35,22 @@ struct shape
     m(uint64_type, uint64_t)
 // clang-format on
 
-#define MIGRAPHX_SHAPE_ENUM_TYPES(x, t) x,
+#define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,
     enum type_t
     {
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_ENUM_TYPES)
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES)
     };
-#undef MIGRAPHX_SHAPE_ENUM_TYPES
+#undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
     template <class T, class = void>
     struct get_type;
-#define MIGRAPHX_SHAPE_GET_TYPE(x, t)                         \
+#define MIGRAPHX_SHAPE_GENERATE_GET_TYPE(x, t)                         \
     template <class T>                                        \
     struct get_type<t, T> : std::integral_constant<type_t, x> \
     {                                                         \
     };
-    MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GET_TYPE)
-#undef MIGRAPHX_SHAPE_GET_TYPE
+    MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_GET_TYPE)
+#undef MIGRAPHX_SHAPE_GENERATE_GET_TYPE
 
     template <class T>
     struct get_type<const T> : get_type<T>
@@ -148,10 +148,10 @@ struct shape
     {
         switch(this->type())
         {
-#define MIGRAPHX_SHAPE_VISITOR_CASE(x, t) \
+#define MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE(x, t) \
     case x: v(as<t>()); return;
-            MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_VISITOR_CASE)
-#undef MIGRAPHX_SHAPE_VISITOR_CASE
+            MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE)
+#undef MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE
         }
         MIGRAPHX_THROW("Unknown type");
     }

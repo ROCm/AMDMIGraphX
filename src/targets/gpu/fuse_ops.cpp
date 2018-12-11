@@ -266,7 +266,7 @@ struct miopen_conv_bias
     {
         auto fargs  = make_fused_args();
         float alpha = 1;
-        float beta = 0;
+        float beta  = 0;
         miopenSetOpArgsConvForward(fargs.get(), conv, &alpha, &beta, args[1].implicit());
         miopenSetOpArgsBiasForward(fargs.get(), bias, &alpha, &beta, args[3].implicit());
         return f.execute(ctx, fargs, args[0], args[4]);
@@ -310,7 +310,7 @@ struct miopen_conv_bias_relu
     {
         auto fargs  = make_fused_args();
         float alpha = 1;
-        float beta = 0;
+        float beta  = 0;
         miopenSetOpArgsConvForward(fargs.get(), conv, &alpha, &beta, args[1].implicit());
         miopenSetOpArgsBiasForward(fargs.get(), bias, &alpha, &beta, args[3].implicit());
         miopenSetOpArgsActivForward(fargs.get(), relu, &alpha, &beta, 0, 0, 0);

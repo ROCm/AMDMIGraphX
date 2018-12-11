@@ -333,15 +333,15 @@ TEST_CASE(im2col_3x3_with_padding_test)
 TEST_CASE(batch_norm_inference_test)
 {
     migraphx::program p;
-    const size_t width = 2;
-    const size_t height = 2;
-    const size_t channels = 4;
-    const size_t batches = 2;
-    const float x_val = 8.0;
-    const float mean_val = 2.0;
+    const size_t width       = 2;
+    const size_t height      = 2;
+    const size_t channels    = 4;
+    const size_t batches     = 2;
+    const float x_val        = 8.0;
+    const float mean_val     = 2.0;
     const float variance_val = 4.0;
-    const float scale_val = 2.0f;
-    const float bias_val   = 1.0f;
+    const float scale_val    = 2.0f;
+    const float bias_val     = 1.0f;
     const float output_val = scale_val * (x_val - mean_val) / (std::sqrt(variance_val)) + bias_val;
 
     migraphx::shape s{migraphx::shape::float_type, {batches, channels, height, width}};

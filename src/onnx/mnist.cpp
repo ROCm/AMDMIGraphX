@@ -36,8 +36,8 @@ read_mnist_images(const std::string& full_path, int& number_of_images, int& imag
     if(file.is_open())
     {
         int magic_number = 0;
-        int n_rows = 0;
-        int n_cols = 0;
+        int n_rows       = 0;
+        int n_cols       = 0;
 
         file.read(reinterpret_cast<char*>(&magic_number), sizeof(magic_number));
         magic_number = reverse_int(magic_number);

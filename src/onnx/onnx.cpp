@@ -424,7 +424,7 @@ struct onnx_parser
         auto l2 = (transb) ? prog.add_instruction(op::transpose{perm}, args[1]) : args[1];
         if(args.size() == 3)
         {
-            if (beta != 0.f)
+            if(beta != 0.f)
             {
                 auto l3       = prog.add_instruction(op::dot{alpha}, l1, l2);
                 auto beta_val = prog.add_literal(beta);

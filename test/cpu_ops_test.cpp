@@ -763,7 +763,7 @@ void gemm_test()
                         1.33628943,  -0.11413,   -0.31270559, 1.59336732,  -0.19361027,
                         -0.91620867, 0.40108416, -0.06969921, 0.68483471,  -0.39906632,
                         -1.66423624, 0.69040076, -1.31490171, -0.11282616, -0.79391814};
-    std::vector<T> b = {6.09568541e-01,
+    std::vector<float> b = {6.09568541e-01,
                         -6.10527007e-01,
                         3.66646462e-01,
                         1.18951101e-01,
@@ -778,7 +778,7 @@ void gemm_test()
                         1.53027987e+00,
                         -3.81407415e-04,
                         -3.29650255e-01};
-    std::vector<T> c = {-1.56327541e+00,
+    std::vector<float> c = {-1.56327541e+00,
                         -7.09570140e-01,
                         -5.37424982e-01,
                         -2.22994831e-01,
@@ -799,7 +799,7 @@ void gemm_test()
     auto result = p.eval({});
     std::vector<T> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, c));
+    EXPECT(migraphx::verify_range(c, results_vector));
 }
 TEST_CASE_REGISTER(gemm_test<float>)
 TEST_CASE_REGISTER(gemm_test<double>)

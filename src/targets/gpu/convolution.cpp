@@ -65,21 +65,21 @@ shape miopen_convolution::compile(context& ctx,
     int algo_count = 1;
     miopenConvAlgoPerf_t perf;
     auto status = miopenFindConvolutionForwardAlgorithm(ctx.get_stream().get_miopen(),
-                                          x_desc.get(),
-                                          x.implicit(),
-                                          w_desc.get(),
-                                          w.implicit(),
-                                          cd.get(),
-                                          y_desc.get(),
-                                          y.implicit(),
-                                          1,
-                                          &algo_count,
-                                          &perf,
-                                          workspace.implicit(),
-                                          workspace_size,
-                                          false);
-    if (status != miopenStatusSuccess)
-      MIGRAPHX_THROW("Find convolution failed");
+                                                        x_desc.get(),
+                                                        x.implicit(),
+                                                        w_desc.get(),
+                                                        w.implicit(),
+                                                        cd.get(),
+                                                        y_desc.get(),
+                                                        y.implicit(),
+                                                        1,
+                                                        &algo_count,
+                                                        &perf,
+                                                        workspace.implicit(),
+                                                        workspace_size,
+                                                        false);
+    if(status != miopenStatusSuccess)
+        MIGRAPHX_THROW("Find convolution failed");
     algo = perf.fwd_algo;
     return shape{shape::int8_type, {perf.memory}};
 }

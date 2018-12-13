@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_OPERAND_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_OPERAND_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_OPERAND_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_OPERAND_HPP
 
 #include <cassert>
 #include <string>
@@ -13,8 +13,10 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/context.hpp>
 #include <migraphx/auto_any_cast.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
 #ifdef DOXYGEN
 
@@ -101,7 +103,7 @@ template <class T>
 argument compute_op(rank<0>, const T& x, context&, const shape&, const std::vector<argument>&)
 {
     std::string name = x.name();
-    MIGRAPH_THROW("Not computable: " + name);
+    MIGRAPHX_THROW("Not computable: " + name);
 }
 
 template <class T>
@@ -165,6 +167,7 @@ int output_alias_op(const T& x, const std::vector<shape>& shapes)
 
 #endif
 
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

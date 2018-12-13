@@ -20,7 +20,8 @@ argument miopen_pooling::compute(context& ctx,
     auto x_desc = make_tensor(args[0].get_shape());
     auto y_desc = make_tensor(output_shape);
 
-    float alpha = 1, beta = 0;
+    float alpha = 1;
+    float beta  = 0;
 
     miopenPoolingForward(ctx.get_stream().get_miopen(),
                          pd.get(),

@@ -171,7 +171,8 @@ struct cpu_im2col
             const std::size_t& stride_h = op.stride[0];
             const std::size_t& stride_w = op.stride[1];
 
-            int kdiv2_h, kdiv2_w;
+            int kdiv2_h;
+            int kdiv2_w;
             kdiv2_h = kernel_h / 2;
             kdiv2_w = kernel_w / 2;
             // calculate output sizes

@@ -13,7 +13,7 @@ struct match_const_add
         return match::name("add")(match::args(match::name("@literal"), match::name("@literal")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(program& p, const match::matcher_result& r) const
     {
         auto ins  = r.result;
         auto arg1 = ins->inputs().at(0)->get_literal();

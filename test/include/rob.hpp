@@ -30,6 +30,7 @@ struct mem_data_ptr
     using type = T C::*;
 };
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_ROB(name, Type, C, mem)               \
     struct name##_tag : mem_data_ptr<C, Type>          \
     {                                                  \

@@ -15,26 +15,10 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/onnx.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-struct unknown
-{
-    std::string op;
-    std::string name() const { return "unknown:" + op; }
-    shape compute_shape(std::vector<shape> input) const
-    {
-        if(input.empty())
-            return {};
-        else
-            return input.front();
-    }
-    friend std::ostream& operator<<(std::ostream& os, const unknown& x)
-    {
-        os << x.name();
-        return os;
-    }
-};
 
 struct onnx_parser
 {
@@ -338,7 +322,7 @@ struct onnx_parser
     instruction_ref
     parse_flatten(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        uint64_t axis = 0;
+        uint64_t axis = 1;
         if(contains(attributes, "axis"))
         {
             axis = parse_value(attributes.at("axis")).at<int>();
@@ -413,7 +397,7 @@ struct onnx_parser
         }
         if(contains(attributes, "beta"))
         {
-            alpha = parse_value(attributes.at("beta")).at<float>();
+            beta = parse_value(attributes.at("beta")).at<float>();
         }
         if(contains(attributes, "transA"))
         {

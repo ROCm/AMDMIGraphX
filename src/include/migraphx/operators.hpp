@@ -599,22 +599,24 @@ struct shape_of
         argument result{output_shape};
         result.visit([&](auto output) {
             std::vector<std::size_t> input_shape = args[0].get_shape().lens();
-                std::transform(input_shape.begin(), input_shape.end(), output.begin(), [] (size_t &i) { return int64_t(i);
-                });
+            std::transform(input_shape.begin(), input_shape.end(), output.begin(), [](size_t& i) {
+                return int64_t(i);
+            });
         });
 
         return result;
 
-        //argument input = args[0];
-        //std::vector<std::size_t> input_shape = input.get_shape().lens();
-        //std::vector<int64_t> output(input_shape.size());
-        //std::transform(input_shape.begin(), input_shape.end(), output.begin(), [] (size_t &i) { return int64_t(i);
+        // argument input = args[0];
+        // std::vector<std::size_t> input_shape = input.get_shape().lens();
+        // std::vector<int64_t> output(input_shape.size());
+        // std::transform(input_shape.begin(), input_shape.end(), output.begin(), [] (size_t &i) {
+        // return int64_t(i);
         //        });
 
-        //return {std::move(output_shape), std::move(&output[0])};
+        // return {std::move(output_shape), std::move(&output[0])};
     }
 
-    int output_alias(const std::vector<shape> &) const { return 0; }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct dot

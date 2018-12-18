@@ -400,6 +400,16 @@ TEST_CASE(reshape_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(shape_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    p.add_instruction(migraphx::op::shape_of{}, l0);
+    auto prog = migraphx::parse_onnx("shape_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(flatten_test)
 {
     migraphx::program p;

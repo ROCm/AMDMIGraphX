@@ -52,6 +52,7 @@ struct onnx_parser
         add_generic_op("Asin", op::asin{});
         add_generic_op("Acos", op::acos{});
         add_generic_op("Atan", op::atan{});
+        add_generic_op("Shape", op::shape_of{});
 
         add_binary_op("Add", op::add{});
         add_binary_op("Div", op::div{});

@@ -585,6 +585,38 @@ struct reshape
     int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
+struct shape_of
+{
+    std::string name() const { return "shape"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        return {shape::int64_type, {1, inputs[0].lens().size()}};
+    }
+
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        result.visit([&](auto output) {
+            std::vector<std::size_t> input_shape = args[0].get_shape().lens();
+                std::transform(input_shape.begin(), input_shape.end(), output.begin(), [] (size_t &i) { return int64_t(i);
+                });
+        });
+
+        return result;
+
+        //argument input = args[0];
+        //std::vector<std::size_t> input_shape = input.get_shape().lens();
+        //std::vector<int64_t> output(input_shape.size());
+        //std::transform(input_shape.begin(), input_shape.end(), output.begin(), [] (size_t &i) { return int64_t(i);
+        //        });
+
+        //return {std::move(output_shape), std::move(&output[0])};
+    }
+
+    int output_alias(const std::vector<shape> &) const { return 0; }
+};
+
 struct dot
 {
     float alpha = 1.0;

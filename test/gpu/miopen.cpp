@@ -930,7 +930,6 @@ struct test_shape_of
     }
 };
 
-
 void manual_identity()
 {
     migraphx::program p;

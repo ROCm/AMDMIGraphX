@@ -36,6 +36,7 @@
 #include <migraphx/gpu/mul.hpp>
 #include <migraphx/gpu/max.hpp>
 #include <migraphx/gpu/min.hpp>
+#include <migraphx/gpu/shape_of.hpp>
 #include <migraphx/gpu/batchnorm.hpp>
 #include <migraphx/gpu/pooling.hpp>
 #include <migraphx/gpu/gemm.hpp>
@@ -84,6 +85,7 @@ struct miopen_apply
         add_generic_op<hip_mul>("mul");
         add_generic_op<hip_max>("max");
         add_generic_op<hip_min>("min");
+        add_generic_op<hip_shape>("shape");
 
         add_extend_op<miopen_gemm, op::dot>("dot");
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");

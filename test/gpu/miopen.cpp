@@ -918,6 +918,19 @@ struct test_concat_relu
     }
 };
 
+struct test_shape_of
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 2, 5, 6}};
+        auto l = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::shape_of{}, l);
+        return p;
+    }
+};
+
+
 void manual_identity()
 {
     migraphx::program p;
@@ -1057,4 +1070,5 @@ int main()
     verify_program<test_conv_bn_relu_pooling>();
     verify_program<test_conv_bn_relu_pooling2>();
     verify_program<test_slice>();
+    verify_program<test_shape_of>();
 }

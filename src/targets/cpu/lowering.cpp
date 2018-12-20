@@ -334,7 +334,7 @@ struct cpu_gemm
     }
 };
 
-struct cpu_shape 
+struct cpu_shape
 {
     op::shape_of op;
     std::string name() const { return "cpu::shape"; }
@@ -359,7 +359,7 @@ struct cpu_gather
     std::string name() const { return "cpu::gather"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const 
+    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {

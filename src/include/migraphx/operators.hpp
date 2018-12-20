@@ -605,29 +605,31 @@ struct gather
     {
         check_shapes{inputs, *this}.has(2);
         auto lens = inputs[0].lens();
-        if (axis >= lens.size()) {
+        if(axis >= lens.size())
+        {
             MIGRAPHX_THROW("axis is out of range.");
         }
-        auto type = inputs[0].type();
+        auto type  = inputs[0].type();
         lens[axis] = inputs[1].elements();
-        
+
         return {type, lens};
     }
 
-    template<class T>
-    void compute_index(const T &out_idx, const std::vector<argument> &args, T &in_idx) const
+    template <class T>
+    void compute_index(const T& out_idx, const std::vector<argument>& args, T& in_idx) const
     {
         in_idx = out_idx;
         // max dimension in axis
         std::size_t max_dim = args[0].get_shape().lens()[axis];
-        std::size_t idx = args[1].at<std::size_t>(out_idx[axis]);
-        if (idx >= max_dim) {
+        std::size_t idx     = args[1].at<std::size_t>(out_idx[axis]);
+        if(idx >= max_dim)
+        {
             MIGRAPHX_THROW("indices are out of range in input tensor");
         }
         in_idx[axis] = idx;
     }
 
-    int output_alias(const std::vector<shape> &) const { return 0; }
+    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct dot

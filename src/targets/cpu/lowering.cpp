@@ -334,6 +334,46 @@ struct cpu_gemm
     }
 };
 
+struct cpu_shape 
+{
+    op::shape_of op;
+    std::string name() const { return "cpu::shape"; }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+
+    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        result.visit([&](auto output) {
+            std::vector<std::size_t> input_shape = args[0].get_shape().lens();
+            std::transform(input_shape.begin(), input_shape.end(), output.begin(), [](size_t& i) {
+                return int64_t(i);
+            });
+        });
+        return result;
+    }
+};
+
+struct cpu_gather
+{
+    op::gather op;
+    std::string name() const { return "cpu::gather"; }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+
+    argument compute(context&, const shape& output_shape, std::vector<argument> args) const 
+    {
+        argument result{output_shape};
+        visit_all(result, args[0])([&](auto output, auto input) {
+            shape_for_each(output.get_shape(), [&](const auto& idx) {
+                std::vector<std::size_t> in_idx;
+                op.compute_index(idx, args, in_idx);
+                output(idx.begin(), idx.end()) = input(in_idx.begin(), in_idx.end());
+            });
+        });
+
+        return result;
+    }
+};
+
 struct identity_op
 {
     std::string name() const { return "cpu::identity"; }
@@ -663,6 +703,8 @@ struct cpu_apply
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
         apply_map["concat"]     = extend_op<cpu_concat, op::concat>();
+        apply_map["shape"]      = extend_op<cpu_shape, op::shape_of>();
+        apply_map["gather"]     = extend_op<cpu_gather, op::gather>();
         apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
         apply_map["elu"]        = extend_op<cpu_unary<elu_op>, op::elu>();
         apply_map["identity"]   = simple_op<cpu_unary<identity_op>>();

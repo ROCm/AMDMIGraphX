@@ -16,7 +16,7 @@ argument shape_of(hipStream_t stream, const argument& result, const argument& in
     std::size_t nelements = result.get_shape().elements();
     result.visit([&](auto output) {
         visit_tensor_size(ins.get_shape().lens().size(), [&](auto ndim) {
-            auto *outptr = device_cast(output.data());
+            auto* outptr = device_cast(output.data());
             hip_tensor_descriptor<ndim> desc_input(ins.get_shape());
             auto lens = desc_input.multi(ins.get_shape().elements() - 1);
             gs_launch(stream, nelements)([=](auto i) { outptr[i] = lens[i] + 1; });

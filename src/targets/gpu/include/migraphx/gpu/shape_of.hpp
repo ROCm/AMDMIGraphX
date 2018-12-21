@@ -24,7 +24,6 @@ namespace gpu {
 
 struct hip_shape
 {
-    shared<activation_descriptor> ad;
     std::string name() const { return "gpu::shape"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument

@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument shape_of(hipStream_t stream, const argument& result, const argument& ins);
+void shape_of(hipStream_t stream, const argument& result, const argument& ins);
 
 } // namespace device
 } // namespace gpu

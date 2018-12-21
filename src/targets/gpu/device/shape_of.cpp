@@ -11,7 +11,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument shape_of(hipStream_t stream, const argument& result, const argument& ins)
+void shape_of(hipStream_t stream, const argument& result, const argument& ins)
 {
     std::size_t nelements = result.get_shape().elements();
     result.visit([&](auto output) {
@@ -22,8 +22,6 @@ argument shape_of(hipStream_t stream, const argument& result, const argument& in
             gs_launch(stream, nelements)([=](auto i) { outptr[i] = lens[i] + 1; });
         });
     });
-
-    return result;
 }
 
 } // namespace device

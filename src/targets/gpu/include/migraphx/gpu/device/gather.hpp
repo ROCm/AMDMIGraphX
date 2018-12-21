@@ -10,7 +10,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument gather(hipStream_t stream, const migraphx::shape& output_shape, std::vector<migraphx::argument> args, std::size_t axis);
+argument gather(hipStream_t stream,
+                const migraphx::shape& output_shape,
+                std::vector<migraphx::argument> args,
+                std::size_t axis);
 
 } // namespace device
 } // namespace gpu

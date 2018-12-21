@@ -14,11 +14,15 @@ namespace device {
 argument shape_of(hipStream_t stream, const argument& result, const argument& ins)
 {
     std::size_t nelements = result.get_shape().elements();
-    visit_all(result, ins)([&](auto output, auto input) {
-        auto* outptr      = device_cast(output.data());
-        const auto* inptr = device_cast(input.data());
-        gs_launch(stream, nelements)([=](auto i) { outptr[i] = inptr[i]; });
+    result.visit([&](auto output) {
+        visit_tensor_size(ins.get_shape().lens().size(), [&](auto ndim) {
+            auto *outptr = device_cast(output.data());
+            hip_tensor_descriptor<ndim> desc_input(ins.get_shape());
+            auto lens = desc_input.multi(ins.get_shape().elements() - 1);
+            gs_launch(stream, nelements)([=](auto i) { outptr[i] = lens[i] + 1; });
+        });
     });
+
     return result;
 }
 

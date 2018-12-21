@@ -87,11 +87,11 @@ struct miopen_apply
         add_generic_op<hip_max>("max");
         add_generic_op<hip_min>("min");
         add_generic_op<hip_shape>("shape");
-        add_generic_op<hip_gather>("gather");
 
         add_extend_op<miopen_gemm, op::dot>("dot");
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
+        add_extend_op<hip_gather, op::gather>("gather");
         add_extend_op<miopen_softmax, op::softmax>("softmax");
 
         add_convolution_op();

@@ -410,6 +410,18 @@ TEST_CASE(shape_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(gather_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto l1 = p.add_parameter("indices", migraphx::shape{migraphx::shape::int32_type, {2, 3}});
+    std::size_t axis = 1;
+    p.add_instruction(migraphx::op::gather{axis}, l0, l1);
+    auto prog = migraphx::parse_onnx("gather_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(flatten_test)
 {
     migraphx::program p;

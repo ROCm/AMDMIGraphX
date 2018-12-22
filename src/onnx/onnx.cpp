@@ -81,6 +81,7 @@ struct onnx_parser
         add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
         add_mem_op("Slice", &onnx_parser::parse_slice);
         add_mem_op("Concat", &onnx_parser::parse_concat);
+        add_mem_op("Gather", &onnx_parser::parse_gather);
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
     }
 
@@ -350,6 +351,14 @@ struct onnx_parser
     {
         std::size_t axis = parse_value(attributes.at("axis")).at<int>();
         op::concat op{axis};
+        return prog.add_instruction(op, std::move(args));
+    }
+
+    instruction_ref
+    parse_gather(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        std::size_t axis = parse_value(attributes.at("axis")).at<int>();
+        op::gather op{axis};
         return prog.add_instruction(op, std::move(args));
     }
 

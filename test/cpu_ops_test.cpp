@@ -101,6 +101,87 @@ TEST_CASE(concat_test)
     }
 }
 
+
+TEST_CASE(shape_test)
+{
+    {
+        migraphx::program p;
+
+        std::vector<float> data(4 * 5 * 6);
+        std::iota(data.begin(), data.end(), 0);
+        migraphx::shape s{migraphx::shape::float_type, {4, 5, 6}};
+
+        auto a0 = p.add_literal(migraphx::literal{s, data});
+        p.add_instruction(migraphx::op::shape_of{}, a0);
+        p.compile(migraphx::cpu::target{});
+        auto result = p.eval({});
+        std::vector<int64_t> resData(4 * 5);
+        std::vector<int64_t> golden{4, 5, 6};
+        result.visit([&](auto output) { resData.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(resData, golden));
+    }
+
+    {
+        migraphx::program p;
+
+        std::vector<float> data(1);
+        std::iota(data.begin(), data.end(), 0);
+        migraphx::shape s{migraphx::shape::float_type, {1, 1, 1}};
+
+        auto a0 = p.add_literal(migraphx::literal{s, data});
+        p.add_instruction(migraphx::op::shape_of{}, a0);
+        p.compile(migraphx::cpu::target{});
+        auto result = p.eval({});
+        std::vector<int64_t> resData(3);
+        std::vector<int64_t> golden{1, 1, 1};
+        result.visit([&](auto output) { resData.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(resData, golden));
+    }
+}
+
+TEST_CASE(gather_test)
+{
+    {
+        migraphx::program p;
+
+        std::vector<float> data(3 * 3);
+        std::iota(data.begin(), data.end(), 0.5);
+        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
+        auto a0 = p.add_literal(migraphx::literal{s, data});
+        migraphx::shape s_indices{migraphx::shape::int32_type, {1, 2}};
+        std::vector<int> indices{0, 2};
+        auto a1 = p.add_literal(migraphx::literal{s_indices, indices});
+        std::size_t axis = 0;
+        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
+        p.compile(migraphx::cpu::target{});
+        auto result = p.eval({});
+        std::vector<float> resData(4 * 5);
+        std::vector<float> golden = {0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f};
+        result.visit([&](auto output) { resData.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(resData, golden));
+    }
+
+    {
+        migraphx::program p;
+
+        std::vector<float> data(3 * 3);
+        std::iota(data.begin(), data.end(), 0.5);
+        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
+        auto a0 = p.add_literal(migraphx::literal{s, data});
+        migraphx::shape s_indices{migraphx::shape::int32_type, {1, 2}};
+        std::vector<int> indices{0, 2};
+        auto a1 = p.add_literal(migraphx::literal{s_indices, indices});
+        std::size_t axis = 1;
+        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
+        p.compile(migraphx::cpu::target{});
+        auto result = p.eval({});
+        std::vector<float> resData(4 * 5);
+        std::vector<float> golden = {0.5f, 2.5f, 3.5f, 5.5f, 6.5f, 8.5f};
+        result.visit([&](auto output) { resData.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(resData, golden));
+    }
+}
+
 TEST_CASE(squeeze_test)
 {
     {

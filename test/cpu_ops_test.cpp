@@ -114,10 +114,10 @@ TEST_CASE(shape_test)
         p.add_instruction(migraphx::op::shape_of{}, a0);
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
-        std::vector<int64_t> resData(4 * 5);
+        std::vector<int64_t> res_data(4 * 5);
         std::vector<int64_t> golden{4, 5, 6};
-        result.visit([&](auto output) { resData.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(resData, golden));
+        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(res_data, golden));
     }
 
     {
@@ -131,10 +131,10 @@ TEST_CASE(shape_test)
         p.add_instruction(migraphx::op::shape_of{}, a0);
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
-        std::vector<int64_t> resData(3);
+        std::vector<int64_t> res_data(3);
         std::vector<int64_t> golden{1, 1, 1};
-        result.visit([&](auto output) { resData.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(resData, golden));
+        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(res_data, golden));
     }
 }
 
@@ -154,10 +154,10 @@ TEST_CASE(gather_test)
         p.add_instruction(migraphx::op::gather{axis}, a0, a1);
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
-        std::vector<float> resData(4 * 5);
+        std::vector<float> res_data(4 * 5);
         std::vector<float> golden = {0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f};
-        result.visit([&](auto output) { resData.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(resData, golden));
+        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(res_data, golden));
     }
 
     {
@@ -174,10 +174,10 @@ TEST_CASE(gather_test)
         p.add_instruction(migraphx::op::gather{axis}, a0, a1);
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
-        std::vector<float> resData(4 * 5);
+        std::vector<float> res_data(4 * 5);
         std::vector<float> golden = {0.5f, 2.5f, 3.5f, 5.5f, 6.5f, 8.5f};
-        result.visit([&](auto output) { resData.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(resData, golden));
+        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(res_data, golden));
     }
 }
 

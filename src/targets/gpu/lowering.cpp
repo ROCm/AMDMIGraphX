@@ -42,6 +42,7 @@
 #include <migraphx/gpu/concat.hpp>
 #include <utility>
 #include <functional>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -55,7 +56,7 @@ struct miopen_apply
 
     void check_shape(shape x, instruction_ref i)
     {
-        assert(x == i->get_shape());
+        assert(x.lens() == i->get_shape().lens());
         (void)x;
         (void)i;
     }

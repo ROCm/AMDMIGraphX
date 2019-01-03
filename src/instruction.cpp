@@ -182,7 +182,8 @@ argument instruction::eval() const
         for(auto&& arg : this->inputs())
         {
             argument a = arg->eval();
-            if(a.empty()) return {};
+            if(a.empty())
+                return {};
             args.push_back(a);
         }
         return op.compute(result, args);

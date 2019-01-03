@@ -103,11 +103,8 @@ auto compute_op(rank<2>,
 }
 
 template <class T>
-auto compute_op(rank<1>,
-                const T& x,
-                context&,
-                const shape& output_shape,
-                const std::vector<argument>& input)
+auto compute_op(
+    rank<1>, const T& x, context&, const shape& output_shape, const std::vector<argument>& input)
     -> decltype(x.compute(output_shape, input))
 {
     return x.compute(output_shape, input);
@@ -128,20 +125,14 @@ compute_op(const T& x, context& ctx, const shape& output_shape, const std::vecto
 }
 
 template <class T>
-auto compute_op(rank<2>,
-                const T& x,
-                const shape& output_shape,
-                const std::vector<argument>& input)
+auto compute_op(rank<2>, const T& x, const shape& output_shape, const std::vector<argument>& input)
     -> decltype(x.compute(output_shape, input))
 {
     return x.compute(output_shape, input);
 }
 
 template <class T>
-auto compute_op(rank<1>,
-                const T& x,
-                const shape& output_shape,
-                const std::vector<argument>& input)
+auto compute_op(rank<1>, const T& x, const shape& output_shape, const std::vector<argument>& input)
     -> decltype(x.compute(auto_any_cast(std::declval<context&>()), output_shape, input))
 {
     std::string name = x.name();
@@ -156,20 +147,25 @@ argument compute_op(rank<0>, const T& x, const shape&, const std::vector<argumen
 }
 
 template <class T>
-argument
-compute_op(const T& x, const shape& output_shape, const std::vector<argument>& input)
+argument compute_op(const T& x, const shape& output_shape, const std::vector<argument>& input)
 {
     return compute_op(rank<2>{}, x, output_shape, input);
 }
 
 template <class T>
-auto is_context_free_op(rank<1>, const T& x, const shape& output_shape, const std::vector<argument>& input) -> decltype(x.compute(output_shape, input), std::true_type{});
+auto is_context_free_op(rank<1>,
+                        const T& x,
+                        const shape& output_shape,
+                        const std::vector<argument>& input)
+    -> decltype(x.compute(output_shape, input), std::true_type{});
 
 template <class T>
-auto is_context_free_op(rank<0>, const T&, const shape&, const std::vector<argument>&) -> std::false_type;
+auto is_context_free_op(rank<0>, const T&, const shape&, const std::vector<argument>&)
+    -> std::false_type;
 
 template <class T>
-auto is_context_free_op(const T& x) -> decltype(is_context_free_op(rank<1>{}, x, std::declval<const shape&>(), std::declval<std::vector<argument>>()))
+auto is_context_free_op(const T& x) -> decltype(is_context_free_op(
+    rank<1>{}, x, std::declval<const shape&>(), std::declval<std::vector<argument>>()))
 {
     return {};
 }
@@ -233,12 +229,9 @@ int output_alias_op(const T& x, const std::vector<shape>& shapes)
     return !(x == y);
 }
 
-inline bool is_context_free(const operation& op)
-{
-    return op.is_context_free();
-}
+inline bool is_context_free(const operation& op) { return op.is_context_free(); }
 
-template<class T>
+template <class T>
 bool is_context_free(const T& x)
 {
     return is_context_free_op(x);

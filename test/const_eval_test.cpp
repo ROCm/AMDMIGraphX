@@ -33,6 +33,22 @@ struct sum_cf_op
     }
 };
 
+struct non_computable_cf
+{
+    std::string name() const { return "non_computable"; }
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        if(inputs.empty())
+            return {};
+        return inputs.front();
+    }
+};
+
+struct test_context
+{
+    void finish() const {}
+};
+
 TEST_CASE(literal_test)
 {
     migraphx::program p;
@@ -73,6 +89,31 @@ TEST_CASE(op_test3)
     auto sum1 = p.add_instruction(sum_op{}, one, two);
     auto sum2 = p.add_instruction(sum_cf_op{}, sum1, two);
     CHECK(sum2->eval().empty());
+}
+
+TEST_CASE(compute_op_c)
+{
+    migraphx::operation op = sum_op{};
+    auto one = migraphx::literal{1}.get_argument();
+    auto two = migraphx::literal{2}.get_argument();
+    EXPECT(test::throws([&] { op.compute(migraphx::shape{migraphx::shape::float_type, {1}}, {one, two}); }));
+}
+
+TEST_CASE(compute_nop_c)
+{
+    migraphx::operation op = non_computable_cf{};
+    auto one = migraphx::literal{1}.get_argument();
+    auto two = migraphx::literal{2}.get_argument();
+    EXPECT(test::throws([&] { op.compute(migraphx::shape{migraphx::shape::float_type, {1}}, {one, two}); }));
+}
+
+TEST_CASE(compute_nop_context)
+{
+    migraphx::operation op = non_computable_cf{};
+    auto one = migraphx::literal{1}.get_argument();
+    auto two = migraphx::literal{2}.get_argument();
+    migraphx::context ctx = test_context{};
+    EXPECT(test::throws([&] { op.compute(ctx, migraphx::shape{migraphx::shape::float_type, {1}}, {one, two}); }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

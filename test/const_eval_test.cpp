@@ -60,7 +60,6 @@ TEST_CASE(op_test2)
 {
     migraphx::program p;
     auto x = p.add_parameter("param", migraphx::shape{migraphx::shape::float_type, {1}});
-    ;
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_cf_op{}, x, two);
     CHECK(sum->eval().empty());

@@ -299,24 +299,7 @@ struct cpu_concat
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
-        argument result{output_shape};
-        std::vector<std::size_t> coffsets = op.compute_offsets(output_shape, args);
-        for(std::size_t l = 0; l < args.size(); l++)
-        {
-            auto argl             = args[l];
-            std::size_t nelements = argl.get_shape().elements();
-            visit_all(result, argl)([&](auto output, auto input) {
-                auto slice_shape =
-                    shape{output_shape.type(), input.get_shape().lens(), output_shape.strides()};
-                auto slice = make_view(slice_shape, output.data() + coffsets[l]);
-                // cppcheck-suppress useStlAlgorithm
-                for(std::size_t i = 0; i < nelements; i++)
-                {
-                    slice[i] = input[i];
-                }
-            });
-        }
-        return result;
+        return op.compute(output_shape, args);
     }
 };
 

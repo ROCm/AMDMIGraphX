@@ -7,8 +7,7 @@
 struct sum_cf_op
 {
     std::string name() const { return "sum_cf"; }
-    migraphx::argument
-    compute(const migraphx::shape&, std::vector<migraphx::argument> args) const
+    migraphx::argument compute(const migraphx::shape&, std::vector<migraphx::argument> args) const
     {
         migraphx::argument result;
         if(args.size() != 2)
@@ -60,7 +59,8 @@ TEST_CASE(op_test1)
 TEST_CASE(op_test2)
 {
     migraphx::program p;
-    auto x = p.add_parameter("param", migraphx::shape{migraphx::shape::float_type, {1}});;
+    auto x = p.add_parameter("param", migraphx::shape{migraphx::shape::float_type, {1}});
+    ;
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_cf_op{}, x, two);
     CHECK(sum->eval().empty());
@@ -69,8 +69,8 @@ TEST_CASE(op_test2)
 TEST_CASE(op_test3)
 {
     migraphx::program p;
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
+    auto one  = p.add_literal(1);
+    auto two  = p.add_literal(2);
     auto sum1 = p.add_instruction(sum_op{}, one, two);
     auto sum2 = p.add_instruction(sum_cf_op{}, sum1, two);
     CHECK(sum2->eval().empty());

@@ -94,26 +94,32 @@ TEST_CASE(op_test3)
 TEST_CASE(compute_op_c)
 {
     migraphx::operation op = sum_op{};
-    auto one = migraphx::literal{1}.get_argument();
-    auto two = migraphx::literal{2}.get_argument();
-    EXPECT(test::throws([&] { op.compute(migraphx::shape{migraphx::shape::float_type, {1}}, {one, two}); }));
+    auto one               = migraphx::literal{1}.get_argument();
+    auto two               = migraphx::literal{2}.get_argument();
+    EXPECT(test::throws([&] {
+        op.compute(migraphx::shape{migraphx::shape::float_type, {1}}, {one, two});
+    }));
 }
 
 TEST_CASE(compute_nop_c)
 {
     migraphx::operation op = non_computable_cf{};
-    auto one = migraphx::literal{1}.get_argument();
-    auto two = migraphx::literal{2}.get_argument();
-    EXPECT(test::throws([&] { op.compute(migraphx::shape{migraphx::shape::float_type, {1}}, {one, two}); }));
+    auto one               = migraphx::literal{1}.get_argument();
+    auto two               = migraphx::literal{2}.get_argument();
+    EXPECT(test::throws([&] {
+        op.compute(migraphx::shape{migraphx::shape::float_type, {1}}, {one, two});
+    }));
 }
 
 TEST_CASE(compute_nop_context)
 {
     migraphx::operation op = non_computable_cf{};
-    auto one = migraphx::literal{1}.get_argument();
-    auto two = migraphx::literal{2}.get_argument();
-    migraphx::context ctx = test_context{};
-    EXPECT(test::throws([&] { op.compute(ctx, migraphx::shape{migraphx::shape::float_type, {1}}, {one, two}); }));
+    auto one               = migraphx::literal{1}.get_argument();
+    auto two               = migraphx::literal{2}.get_argument();
+    migraphx::context ctx  = test_context{};
+    EXPECT(test::throws([&] {
+        op.compute(ctx, migraphx::shape{migraphx::shape::float_type, {1}}, {one, two});
+    }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

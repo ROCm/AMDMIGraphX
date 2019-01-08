@@ -235,6 +235,7 @@ inline const ValueType& any_cast(const concat_optimization& x)
 }
 
 #endif
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

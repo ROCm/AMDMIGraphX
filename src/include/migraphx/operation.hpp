@@ -53,6 +53,9 @@ struct operation
     friend std::ostream& operator<<(std::ostream& os, const operation& op);
 };
 
+/// Returns true if operation does not require a context to run compute
+bool is_context_free(const operation& x);
+
 #else
 
 namespace operation_stream {
@@ -89,7 +92,7 @@ auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
 } // namespace operation_equal
 
 template <class T>
-auto compute_op(rank<1>,
+auto compute_op(rank<2>,
                 const T& x,
                 context& ctx,
                 const shape& output_shape,
@@ -97,6 +100,14 @@ auto compute_op(rank<1>,
     -> decltype(x.compute(auto_any_cast(ctx), output_shape, input))
 {
     return x.compute(auto_any_cast(ctx), output_shape, input);
+}
+
+template <class T>
+auto compute_op(
+    rank<1>, const T& x, context&, const shape& output_shape, const std::vector<argument>& input)
+    -> decltype(x.compute(output_shape, input))
+{
+    return x.compute(output_shape, input);
 }
 
 template <class T>
@@ -110,7 +121,53 @@ template <class T>
 argument
 compute_op(const T& x, context& ctx, const shape& output_shape, const std::vector<argument>& input)
 {
-    return compute_op(rank<1>{}, x, ctx, output_shape, input);
+    return compute_op(rank<2>{}, x, ctx, output_shape, input);
+}
+
+template <class T>
+auto compute_op(rank<2>, const T& x, const shape& output_shape, const std::vector<argument>& input)
+    -> decltype(x.compute(output_shape, input))
+{
+    return x.compute(output_shape, input);
+}
+
+template <class T>
+auto compute_op(rank<1>, const T& x, const shape& output_shape, const std::vector<argument>& input)
+    -> decltype(x.compute(auto_any_cast(std::declval<context&>()), output_shape, input))
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Not computable without a context: " + name);
+}
+
+template <class T>
+argument compute_op(rank<0>, const T& x, const shape&, const std::vector<argument>&)
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Not computable: " + name);
+}
+
+template <class T>
+argument compute_op(const T& x, const shape& output_shape, const std::vector<argument>& input)
+{
+    return compute_op(rank<2>{}, x, output_shape, input);
+}
+
+template <class T>
+auto is_context_free_op(rank<1>,
+                        const T& x,
+                        const shape& output_shape,
+                        const std::vector<argument>& input)
+    -> decltype(x.compute(output_shape, input), std::true_type{});
+
+template <class T>
+auto is_context_free_op(rank<0>, const T&, const shape&, const std::vector<argument>&)
+    -> std::false_type;
+
+template <class T>
+auto is_context_free_op(const T& x) -> decltype(is_context_free_op(
+    rank<1>{}, x, std::declval<const shape&>(), std::declval<std::vector<argument>>()))
+{
+    return {};
 }
 
 template <class T>
@@ -138,9 +195,11 @@ int output_alias_op(const T& x, const std::vector<shape>& shapes)
  * struct operation
  * {
  *      std::string name() const;
+ *      bool is_context_free() const;
  *      int output_alias(const std::vector<shape>& input) const;
  *      shape compute_shape(const std::vector<shape>& input) const;
  *      argument compute(context& ctx,const shape& output,const std::vector<argument>& input) const;
+ *      argument compute(const shape& output,const std::vector<argument>& input) const;
  *     friend std::ostream & operator<<(std::ostream & os,const operation & op) ;
  *     friend bool operator==(const operation & x,const operation & y) ;
  * };
@@ -210,6 +269,12 @@ struct operation
         return (*this).private_detail_te_get_handle().name();
     }
 
+    bool is_context_free() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().is_context_free();
+    }
+
     int output_alias(const std::vector<shape>& input) const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -226,6 +291,12 @@ struct operation
     {
         assert((*this).private_detail_te_handle_mem_var);
         return (*this).private_detail_te_get_handle().compute(ctx, output, input);
+    }
+
+    argument compute(const shape& output, const std::vector<argument>& input) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().compute(output, input);
     }
 
     friend std::ostream& operator<<(std::ostream& os, const operation& op)
@@ -248,12 +319,14 @@ struct operation
         virtual const std::type_info& type() const                                = 0;
 
         virtual std::string name() const                                   = 0;
+        virtual bool is_context_free() const                               = 0;
         virtual int output_alias(const std::vector<shape>& input) const    = 0;
         virtual shape compute_shape(const std::vector<shape>& input) const = 0;
         virtual argument
-        compute(context& ctx, const shape& output, const std::vector<argument>& input) const = 0;
-        virtual std::ostream& operator_shift_left(std::ostream& os) const                    = 0;
-        virtual bool operator==(const operation& y) const                                    = 0;
+        compute(context& ctx, const shape& output, const std::vector<argument>& input) const    = 0;
+        virtual argument compute(const shape& output, const std::vector<argument>& input) const = 0;
+        virtual std::ostream& operator_shift_left(std::ostream& os) const                       = 0;
+        virtual bool operator==(const operation& y) const                                       = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -286,6 +359,12 @@ struct operation
 
         std::string name() const override { return private_detail_te_value.name(); }
 
+        bool is_context_free() const override
+        {
+
+            return is_context_free_op(private_detail_te_value);
+        }
+
         int output_alias(const std::vector<shape>& input) const override
         {
 
@@ -304,6 +383,12 @@ struct operation
         {
 
             return compute_op(private_detail_te_value, ctx, output, input);
+        }
+
+        argument compute(const shape& output, const std::vector<argument>& input) const override
+        {
+
+            return compute_op(private_detail_te_value, output, input);
         }
 
         std::ostream& operator_shift_left(std::ostream& os) const override
@@ -384,6 +469,14 @@ inline const ValueType& any_cast(const operation& x)
 }
 
 inline bool operator!=(const operation& x, const operation& y) { return !(x == y); }
+
+inline bool is_context_free(const operation& op) { return op.is_context_free(); }
+
+template <class T>
+bool is_context_free(const T& x)
+{
+    return is_context_free_op(x);
+}
 
 #endif
 

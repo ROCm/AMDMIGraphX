@@ -164,7 +164,7 @@ bool operator!=(const tensor_view<T>& x, const tensor_view<U>& y)
 }
 
 template <class T>
-tensor_view<T> make_view(shape s, T* data)
+tensor_view<T> make_view(const shape& s, T* data)
 {
     return {s, data};
 }

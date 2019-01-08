@@ -333,9 +333,15 @@ TEST_CASE(im2col_3x3_with_padding_test)
 TEST_CASE(batch_norm_inference_test)
 {
     migraphx::program p;
-    const size_t width = 2, height = 2, channels = 4, batches = 2;
-    const float x_val = 8.0f, mean_val = 2.0f, variance_val = 4.0f, scale_val = 2.0f,
-                bias_val   = 1.0f;
+    const size_t width       = 2;
+    const size_t height      = 2;
+    const size_t channels    = 4;
+    const size_t batches     = 2;
+    const float x_val        = 8.0;
+    const float mean_val     = 2.0;
+    const float variance_val = 4.0;
+    const float scale_val    = 2.0f;
+    const float bias_val     = 1.0f;
     const float output_val = scale_val * (x_val - mean_val) / (std::sqrt(variance_val)) + bias_val;
 
     migraphx::shape s{migraphx::shape::float_type, {batches, channels, height, width}};
@@ -753,37 +759,37 @@ template <class T>
 void gemm_test()
 {
     migraphx::program p;
-    std::vector<T> a = {-0.00925222, 0.56250403, 0.70107397,  0.75402161,  -0.505885,
+    std::vector<T> a     = {-0.00925222, 0.56250403, 0.70107397,  0.75402161,  -0.505885,
                         1.33628943,  -0.11413,   -0.31270559, 1.59336732,  -0.19361027,
                         -0.91620867, 0.40108416, -0.06969921, 0.68483471,  -0.39906632,
                         -1.66423624, 0.69040076, -1.31490171, -0.11282616, -0.79391814};
-    std::vector<T> b = {6.09568541e-01,
-                        -6.10527007e-01,
-                        3.66646462e-01,
-                        1.18951101e-01,
-                        5.58777432e-01,
-                        -3.21296298e-01,
-                        -5.95997198e-01,
-                        -5.01425721e-01,
-                        -2.84606807e-01,
-                        -5.73673557e-01,
-                        -8.99430260e-01,
-                        -4.25103093e-01,
-                        1.53027987e+00,
-                        -3.81407415e-04,
-                        -3.29650255e-01};
-    std::vector<T> c = {-1.56327541e+00,
-                        -7.09570140e-01,
-                        -5.37424982e-01,
-                        -2.22994831e-01,
-                        -2.15586437e+00,
-                        2.09177941e-03,
-                        -1.47279677e+00,
-                        2.02627040e-01,
-                        -6.04527691e-01,
-                        -1.29885596e+00,
-                        2.16294914e+00,
-                        -1.48101497e-01};
+    std::vector<float> b = {6.09568541e-01,
+                            -6.10527007e-01,
+                            3.66646462e-01,
+                            1.18951101e-01,
+                            5.58777432e-01,
+                            -3.21296298e-01,
+                            -5.95997198e-01,
+                            -5.01425721e-01,
+                            -2.84606807e-01,
+                            -5.73673557e-01,
+                            -8.99430260e-01,
+                            -4.25103093e-01,
+                            1.53027987e+00,
+                            -3.81407415e-04,
+                            -3.29650255e-01};
+    std::vector<float> c = {-1.56327541e+00,
+                            -7.09570140e-01,
+                            -5.37424982e-01,
+                            -2.22994831e-01,
+                            -2.15586437e+00,
+                            2.09177941e-03,
+                            -1.47279677e+00,
+                            2.02627040e-01,
+                            -6.04527691e-01,
+                            -1.29885596e+00,
+                            2.16294914e+00,
+                            -1.48101497e-01};
     migraphx::shape a_shape{migraphx::shape::get_type<T>{}, {4, 5}};
     auto al = p.add_literal(migraphx::literal{a_shape, a});
     migraphx::shape b_shape{migraphx::shape::get_type<T>{}, {5, 3}};
@@ -793,11 +799,7 @@ void gemm_test()
     auto result = p.eval({});
     std::vector<T> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    float tol = 1e-6;
-    for(int i = 0; i < results_vector.size(); i++)
-    {
-        EXPECT(std::abs(results_vector[i] - c[i]) < tol);
-    }
+    EXPECT(migraphx::verify_range(c, results_vector));
 }
 TEST_CASE_REGISTER(gemm_test<float>)
 TEST_CASE_REGISTER(gemm_test<double>)
@@ -851,12 +853,7 @@ TEST_CASE(maxpool_test)
     // std::cout << result.get_shape() << std::endl;
     std::vector<float> results_vector(36);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    float tol = 1e-6;
-    for(int i = 0; i < results_vector.size(); i++)
-    {
-        // std::cout << results_vector[i] << "          " << c[i] << std::endl;
-        EXPECT(std::abs(results_vector[i] - c[i]) < tol);
-    }
+    EXPECT(migraphx::verify_range(results_vector, c));
 }
 
 TEST_CASE(softmax_test)

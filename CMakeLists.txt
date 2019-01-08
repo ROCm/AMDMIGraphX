@@ -52,6 +52,7 @@ rocm_enable_clang_tidy(
         -clang-analyzer-optin.performance.Padding
         -clang-diagnostic-deprecated-declarations
         -clang-diagnostic-extern-c-compat
+        -clang-diagnostic-disabled-macro-expansion
         -clang-diagnostic-unused-command-line-argument
         -cppcoreguidelines-pro-bounds-array-to-pointer-decay
         -cppcoreguidelines-pro-bounds-constant-array-index
@@ -70,13 +71,12 @@ rocm_enable_clang_tidy(
         -hicpp-explicit-conversions
         -hicpp-no-array-decay
         -hicpp-special-member-functions
+        -hicpp-uppercase-literal-suffix
         -hicpp-use-override
         # This check is broken
-        -hicpp-use-auto
         -llvm-header-guard
         -llvm-include-order
         -misc-macro-parentheses
-        -modernize-use-auto
         -modernize-use-override
         -modernize-pass-by-value
         -modernize-use-default-member-init
@@ -84,7 +84,12 @@ rocm_enable_clang_tidy(
         -readability-braces-around-statements
         -readability-else-after-return
         -readability-named-parameter
+        -readability-uppercase-literal-suffix,
+        -*-avoid-c-arrays
         -*-explicit-constructor
+        -*-magic-numbers
+        -*-non-private-member-variables-in-classes
+        -*-use-auto
         -*-use-emplace
         -*-use-equals-default
     ERRORS
@@ -94,6 +99,7 @@ rocm_enable_clang_tidy(
         ".*hpp"
     EXTRA_ARGS
         -DMIGRAPHX_USE_CLANG_TIDY
+        "-Dmain\\\\(...\\\\)=main\\\\(__VA_ARGS__\\\\) // NOLINT"
 
 )
 include(ROCMCppCheck)
@@ -124,6 +130,7 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/cpu/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/miopen/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
         CPPCHECK=1
 )

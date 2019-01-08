@@ -50,7 +50,7 @@ RUN pip install cget
 RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
 
 # Install hcc
-RUN rclone -b sanitizer1 https://github.com/RadeonOpenCompute/hcc.git /hcc
+RUN rclone -b roc-2.0.x -c 757fb492517b80e7c86338af5fc1a43d63cb25a9 https://github.com/RadeonOpenCompute/hcc.git /hcc
 RUN cget -p $PREFIX install hcc,/hcc
 
 # Use hcc

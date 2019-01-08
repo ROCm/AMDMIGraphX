@@ -16,7 +16,8 @@ std::string hip_error(int error) { return hipGetErrorString(static_cast<hipError
 
 std::size_t get_available_gpu_memory()
 {
-    size_t free, total;
+    size_t free;
+    size_t total;
     auto status = hipMemGetInfo(&free, &total);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Failed getting available memory: " + hip_error(status));
@@ -72,13 +73,13 @@ argument allocate_gpu(const shape& s, bool host)
     return {s, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
 }
 
-argument to_gpu(argument arg, bool host)
+argument to_gpu(const argument& arg, bool host)
 {
     auto p = share(write_to_gpu(arg.data(), arg.get_shape().bytes(), host));
     return {arg.get_shape(), [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
 }
 
-argument from_gpu(argument arg)
+argument from_gpu(const argument& arg)
 {
     argument result;
     arg.visit([&](auto x) {
@@ -98,7 +99,7 @@ void set_device(std::size_t id)
 
 void gpu_sync() { hipDeviceSynchronize(); }
 
-void copy_to_gpu(argument src, argument dst)
+void copy_to_gpu(const argument& src, const argument& dst)
 {
     std::size_t src_size = src.get_shape().bytes();
     std::size_t dst_size = dst.get_shape().bytes();

@@ -304,8 +304,9 @@ inline auto nargs(std::size_t n)
 inline auto arg(std::size_t i)
 {
     return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
-        if(i < ins->inputs().size())
-            return ins->inputs()[i];
+         if(i < ins->inputs().size())
+             return ins->inputs()[i];
+                     
         return ctx.not_found();
     });
 }

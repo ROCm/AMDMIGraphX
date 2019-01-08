@@ -92,10 +92,40 @@ struct context
             return private_detail_te_get_handle().type();
     }
 
-    void finish() const
+    void finish()
     {
         assert((*this).private_detail_te_handle_mem_var);
         return (*this).private_detail_te_get_handle().finish();
+    }
+
+    void set_stream(int ndx)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().set_stream(ndx);
+    }
+
+    int create_event()
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().create_event();
+    }
+
+    void record_event(int event, int stream)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().record_event(event, stream);
+    }
+
+    void wait_event(int stream, int event)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().wait_event(stream, event);      
+    }
+
+    void destroy()
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().destroy();        
     }
 
     private:
@@ -105,7 +135,12 @@ struct context
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual void finish() const = 0;
+        virtual void finish() = 0;
+        virtual void set_stream(int) = 0;
+        virtual int create_event() = 0;
+        virtual void record_event(int, int) = 0;
+        virtual void wait_event(int, int) = 0;
+        virtual void destroy()=0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -136,7 +171,12 @@ struct context
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
-        void finish() const override { return private_detail_te_value.finish(); }
+        void finish() override { return private_detail_te_value.finish(); }
+        void set_stream(int ndx) override { return private_detail_te_value.set_stream(ndx); }
+        int create_event() override { return private_detail_te_value.create_event(); }
+        void record_event(int event, int stream) override { return private_detail_te_value.record_event(event, stream); }
+        void wait_event(int stream, int event) override { return private_detail_te_value.wait_event(stream, event); }
+        void destroy() override { return private_detail_te_value.destroy(); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };

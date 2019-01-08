@@ -47,6 +47,7 @@ struct miopen_apply
     {
         for(auto it = prog->begin(); it != prog->end(); it++)
         {
+            ctx.set_stream(it->get_stream());
             auto s = it->get_shape();
             if(it->name() == "convolution")
             {

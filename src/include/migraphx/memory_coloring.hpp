@@ -15,6 +15,7 @@ struct program;
 struct memory_coloring
 {
     std::string allocation_op{};
+    int num_of_streams = 0;
     bool verify = false;
     std::string name() const { return "memory coloring"; }
     void apply(program& p) const;

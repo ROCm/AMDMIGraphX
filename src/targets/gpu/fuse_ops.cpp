@@ -207,6 +207,10 @@ struct find_add_relu
         auto args    = add_ins->inputs();
         // Use the allocation from the relu operator
         args.back() = ins->inputs().back();
+        assert(add_ins->get_stream() == ins->get_stream());
+        int mask = add_ins->get_mask();
+        mask |= ins->get_mask();
+        ins->set_mask(mask);
         if(add_ins->name() == "gpu::add")
             p.replace_instruction(ins, hip_add_relu{}, args);
         else if(add_ins->name() == "hip::triadd")
@@ -237,6 +241,10 @@ struct find_triadd
         if(it != args.end())
             std::swap(*it, *std::prev(args.end(), 2));
         args.back() = ins->inputs().back();
+        assert(add_ins->get_stream() == ins->get_stream());
+        int mask = add_ins->get_mask();
+        mask |= ins->get_mask();
+        ins->set_mask(mask);
         p.replace_instruction(ins, hip_triadd{}, args);
     }
 };
@@ -346,8 +354,12 @@ void apply_conv_bias(context& ctx, program& p, match::matcher_result r)
 
     Op cb{conv_op, input_ins->get_shape(), weights_ins->get_shape(), bias_ins->get_shape()};
     // TODO: Insert ws allocation
+    ctx.set_stream(conv_ins->get_stream());
+    assert(conv_ins->get_stream() == ins->get_stream());
     auto ws = cb.compile(ctx);
-
+    int mask = conv_ins->get_mask();
+    mask |= ins->get_mask();
+    ins->set_mask(mask);
     p.replace_instruction(ins, cb, input_ins, weights_ins, old_ws_ins, bias_ins, alloc_ins);
 }
 

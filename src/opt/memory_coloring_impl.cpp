@@ -11,6 +11,11 @@ void memory_coloring_impl::run()
     if(num_of_lives != 0)
     {
         MIGRAPHX_DEBUG(dump_intervals());
+        if (num_of_streams > 0) {
+            dom_info info(p_program);
+            info.compute_dom(true);
+            propagate_splits(info);
+        }
         // Coloring
         while(!alloc_queue.empty())
         {
@@ -153,6 +158,7 @@ void memory_coloring_impl::build()
                 interval->segment.vn  = ++max_value_number;
                 interval->add_use(cur_points);
                 instr2_live[p_arg] = interval;
+                instr2_live[&(*arg)] = interval;
                 add_conflicts(live_set, max_value_number);
                 live_set.insert(max_value_number);
                 live_ranges[max_value_number] = &(interval->segment);
@@ -165,7 +171,9 @@ void memory_coloring_impl::build()
                 interval_ptr interval = instr2_live[p_arg];
                 interval->add_use(cur_points);
                 assert(live_set.find(interval->id) != live_set.end());
+                instr2_live[&(*arg)] = interval;
             }
+            
         }
         if(is_dead)
             dead_instrs.push_back(iter);
@@ -260,6 +268,124 @@ void memory_coloring_impl::verify()
     }
 }
 
+void memory_coloring_impl::add_stream_conflicts(std::vector<const instruction *>& i1, std::vector<const instruction *>& i2)
+{
+    for (auto ins1 = i1.begin(), end1 = i1.end(); ins1 != end1; ++ins1) {
+        if (instr2_live.find(*ins1) == instr2_live.end())
+            continue;
+        interval_ptr interval1 = instr2_live[*ins1];
+        int id1 = interval1->id;
+        for (auto ins2 = i2.begin(), end2 = i2.end(); ins2 != end2; ++ins2) {
+            if (instr2_live.find(*ins2) == instr2_live.end())
+                continue;
+            interval_ptr interval2 = instr2_live[*ins2];
+            int id2 = interval2->id;
+            conflict_table[id1].insert(id2);
+            conflict_table[id2].insert(id1);
+#ifdef MIGRAPHX_DEBUG_OPT
+            std::cout << "@" << instr2_points[*ins1] << " id:" << id1  << " => " <<"@" << instr2_points[*ins2] << " id:" << id2 << std::endl;
+#endif            
+        }
+    }
+}
+           
+void memory_coloring_impl::propagate_splits(dom_info& info)
+{
+    std::unordered_map<instruction_ref, bool> is_split;
+    std::unordered_map<instruction_ref, bool> is_merge;
+    std::unordered_map<instruction_ref, std::set<const instruction *>> split_from;
+    std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>> concur_instrs;
+    int cur_points = 0;
+    instr2_points.clear();
+    
+    for (auto ins : iterator_for(*p_program))
+    {
+        const instruction* p_iter = &(*ins);
+        instr2_points[p_iter] = cur_points++;
+        int stream = ins->get_stream();
+        if (stream < 0) {
+            continue;
+        }
+
+        // Identify split points.
+        if (ins->has_mask(RECORD_EVENT)) {
+            std::set<int> stream_set;
+            for (auto&& arg: ins->outputs())
+            {
+                int arg_stream = arg->get_stream();
+                if (arg_stream >= 0)
+                    stream_set.insert(arg_stream);
+            }
+            if (stream_set.size() > 1)
+                is_split[ins] = true;
+        }
+        // Identify merge points.
+        if (ins->has_mask(WAIT_EVENT)) {
+            std::set<int> stream_set;
+            for (auto&& arg: ins->inputs())
+            {
+                int arg_stream = arg->get_stream();
+                if (arg_stream >= 0)
+                    stream_set.insert(arg_stream);
+            }
+            if (stream_set.size() > 1)
+                is_merge[ins] = true;
+        }
+        
+        for (auto&& arg: ins->inputs())
+        {
+            // Input is a split point.
+            if (is_split.find(arg) != is_split.end())
+                split_from[ins].insert(&(*arg));
+            // Union inputs' split points.
+            if ((split_from.find(arg) != split_from.end()) && !split_from[arg].empty()) {
+                if (split_from.find(ins) == split_from.end())
+                    split_from[ins] = split_from[arg];
+                else
+                    split_from[ins] = set_op::set_union(split_from[ins], split_from[arg]);
+            }
+        }
+
+        if (is_merge[ins]) {
+            assert(split_from.find(ins) != split_from.end());
+            std::set<const instruction *> del_set;
+            // post-dominator kills split point.
+            for (auto& split : split_from[ins]) {
+                if (info.strictly_post_dominates(p_iter, split))
+                    del_set.insert(split);
+            }
+            split_from[ins] = set_op::set_difference(split_from[ins], del_set);
+        }
+
+        if (split_from.find(ins) != split_from.end()) {
+            // Collect concur instructions for each split point.
+            for (auto & split : split_from[ins]) {
+                if (concur_instrs.find(split) == concur_instrs.end()) {
+                    std::vector<std::vector<const instruction*>> instr_stack;
+                    instr_stack.resize(num_of_streams);
+                    concur_instrs[split] = instr_stack;
+                }
+                concur_instrs[split][stream].push_back(p_iter);
+            }
+        }
+    }
+    // MIGRAPHX_DEBUG(dump_splits(split_from));
+    MIGRAPHX_DEBUG(dump_concur_instrs(concur_instrs));
+
+    // For each split point, add conflicts for concur instructions.
+    MIGRAPHX_DEBUG(dump("---concurrent conflicts---"));
+    for (auto iter = concur_instrs.begin(), end = concur_instrs.end(); iter != end; ++iter) {
+        for (auto s1 = 0; s1 < num_of_streams; ++s1)
+        {
+            std::vector<const instruction *>& i1 = iter->second[s1];
+            for (auto s2 = s1 + 1; s2 < num_of_streams; ++s2) {
+                std::vector<const instruction *>& i2 = iter->second[s2];
+                add_stream_conflicts(i1, i2);
+            }
+        }
+    }
+}
+
 #ifdef MIGRAPHX_DEBUG_OPT
 
 void memory_coloring_impl::dump(const std::string& str) { std::cout << str << std::endl; }
@@ -291,6 +417,37 @@ void memory_coloring_impl::dump_intervals()
     }
 }
 
+void memory_coloring_impl::dump_splits(std::unordered_map<instruction_ref, std::set<const instruction *>>& split_from)
+{
+    for(auto ins : iterator_for(*p_program))
+    {
+        const instruction * p_ins = &(*ins);
+        if (split_from.find(ins) != split_from.end()) {
+            std::cout << "@" << instr2_points[p_ins] << " split from:";
+            for (auto& split : split_from[ins])
+                std::cout << " @" << instr2_points[split];
+            std::cout << std::endl;
+        }
+    }
+}
+
+void memory_coloring_impl::dump_concur_instrs(std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>& concur_instrs)
+{
+    for (auto iter = concur_instrs.begin(), end = concur_instrs.end(); iter != end; ++iter) {
+        std::cout << "concurrent instructions for split @" << instr2_points[iter->first] << std::endl;
+        for (auto s1 = 0; s1 < num_of_streams; ++s1) {
+            std::vector<const instruction *>& instrs = iter->second[s1];
+            if (instrs.empty())
+                continue;
+            std::cout << "stream:" << s1 << std::endl;
+            for (auto ins = instrs.begin(), ins_end = instrs.end(); ins != ins_end; ++ins) {
+                std::cout << " @" << instr2_points[*ins];
+            }
+            std::cout << std::endl;
+        }
+    }
+}
+           
 // map liveness tracking point to instruction enum.
 static int get_ins_enum(int x)
 {

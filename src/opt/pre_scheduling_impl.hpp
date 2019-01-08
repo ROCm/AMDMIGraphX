@@ -108,16 +108,6 @@ struct pre_scheduling_impl
     {
         bool operator()(const dag_node* d1, const dag_node* d2) const
         {
-#if 0            
-            if (d1->is_mem() && !d2->is_mem())
-            {
-                // mem is is placed on top of queue.
-                return false;
-            } else if (!d1->is_mem() && d2->is_mem())
-            {
-                return true;
-            }
-#endif            
             if (d1->weight_sum < d2->weight_sum) {
                 // smaller weigth_sum is placed on top of the queue.
                 return false;

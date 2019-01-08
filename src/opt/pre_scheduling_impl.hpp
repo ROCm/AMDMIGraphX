@@ -6,19 +6,19 @@
 namespace migraphx {
 
 static int min_partition_threshold = 2;
-    
+
 struct dag_node
 {
     dag_node()
     {
-        weight = 0;
-        run_on_cpu = 0;
-        weight_sum = 0;
-        ins_ndx = -1;
-        first_child = nullptr;
-        stream = -1;
-        partition = -1;
-        sched_cycle = -1;
+        weight         = 0;
+        run_on_cpu     = 0;
+        weight_sum     = 0;
+        ins_ndx        = -1;
+        first_child    = nullptr;
+        stream         = -1;
+        partition      = -1;
+        sched_cycle    = -1;
         earliest_cycle = -1;
     }
     int weight;
@@ -31,18 +31,12 @@ struct dag_node
     int sched_cycle;
     int earliest_cycle = -1;
     instruction_ref ins;
-    bool is_literal() const
-    {
-        return (ins->name() == "@literal");
-    }
-    bool can_use_stream() const
-    {
-        return (!run_on_cpu);
-    }
-    
+    bool is_literal() const { return (ins->name() == "@literal"); }
+    bool can_use_stream() const { return (!run_on_cpu); }
+
 #ifdef MIGRAPHX_DEBUG_OPT
     void dump();
-#endif    
+#endif
 };
 
 struct dag_partition
@@ -60,13 +54,13 @@ struct dag_partition
     }
     void add_weight(dag_node* node)
     {
-        if (node->partition >= 0)
+        if(node->partition >= 0)
         {
             assert(node->partition < num_of_partition);
             weight_sum[node->partition] += node->weight;
         }
     }
-    
+
     int num_of_partition;
     std::vector<int> weight_sum;
 };
@@ -77,17 +71,17 @@ struct stream_info
     {
         max_cycle = 0;
         next_cycles.clear();
-        for (auto stream = 0; stream < num_of_streams; ++stream)
+        for(auto stream = 0; stream < num_of_streams; ++stream)
             next_cycles.push_back(0);
     }
     std::vector<int> next_cycles;
     int num_of_streams;
     int max_cycle;
 };
-    
+
 struct pre_scheduling_impl
 {
-    pre_scheduling_impl(program* p, std::function<std::pair<int,int>(std::string&)> w, int n)
+    pre_scheduling_impl(program* p, std::function<std::pair<int, int>(std::string&)> w, int n)
         : p_program(p), weight_func(std::move(w)), num_of_streams(n)
     {
         instr2_node.clear();
@@ -108,14 +102,17 @@ struct pre_scheduling_impl
     {
         bool operator()(const dag_node* d1, const dag_node* d2) const
         {
-            if (d1->weight_sum < d2->weight_sum) {
+            if(d1->weight_sum < d2->weight_sum)
+            {
                 // smaller weigth_sum is placed on top of the queue.
                 return false;
             }
-            else if (d1->weight_sum > d2->weight_sum) {
+            else if(d1->weight_sum > d2->weight_sum)
+            {
                 return true;
             }
-            else {
+            else
+            {
                 // smaller instrution index is placed on top of the queue,
                 return d1->ins_ndx > d2->ins_ndx;
             }
@@ -126,22 +123,22 @@ struct pre_scheduling_impl
     {
         bool operator()(const dag_node* d1, const dag_node* d2) const
         {
-            if (d1->sched_cycle == d2->sched_cycle)
+            if(d1->sched_cycle == d2->sched_cycle)
             {
-                
-                if (d1->stream == d2->stream)
+
+                if(d1->stream == d2->stream)
                 {
                     // smaller instruction index on top of queue.
                     return d1->ins_ndx > d2->ins_ndx;
                 }
-                else 
+                else
                 {
                     // smaller stream on top of queue.
                     return (d1->stream > d2->stream);
                 }
-                
-            } else 
-                {
+            }
+            else
+            {
                 // smaller sched_cycle on top of queue.
                 return (d1->sched_cycle > d2->sched_cycle);
             }
@@ -153,16 +150,15 @@ struct pre_scheduling_impl
     void dump_program();
     void dump(std::list<dag_node*>&);
     void verify();
-#endif    
+#endif
     private:
     program* p_program;
-    std::function<std::pair<int,int>(std::string&)> weight_func;
+    std::function<std::pair<int, int>(std::string&)> weight_func;
     int num_of_streams;
     std::vector<dag_node> nodes;
     std::vector<dag_node*> exit_nodes;
     std::unordered_map<instruction_ref, dag_node*> instr2_node;
     dag_partition partition_info;
 };
-
-} // namespace migraph
+} // namespace migraphx
 #endif

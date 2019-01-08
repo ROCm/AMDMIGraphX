@@ -11,4 +11,4 @@ void pre_scheduling::apply(program& p) const
         opt.run();
     }
 }
-} // namespace migraph
+} // namespace migraphx

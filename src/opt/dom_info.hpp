@@ -10,21 +10,14 @@ struct program_visitor
 {
     program* p_program;
     bool reversed;
-    instruction_ref begin()
-    { return reversed ? std::prev(p_program->end()) : p_program->begin(); }
-    instruction_ref end()
-    {
-        return reversed ? p_program->begin() : std::prev(p_program->end());
-    }
-    
-    instruction_ref next(instruction_ref ins)
-    {
-        return reversed ? std::prev(ins) : std::next(ins);
-    }
+    instruction_ref begin() { return reversed ? std::prev(p_program->end()) : p_program->begin(); }
+    instruction_ref end() { return reversed ? p_program->begin() : std::prev(p_program->end()); }
+
+    instruction_ref next(instruction_ref ins) { return reversed ? std::prev(ins) : std::next(ins); }
     std::set<const instruction*> get_inputs(instruction_ref ins)
     {
         std::set<const instruction*> ret_val;
-        for (auto&& arg : reversed ? ins->outputs() : ins->inputs())
+        for(auto&& arg : reversed ? ins->outputs() : ins->inputs())
             ret_val.insert(&(*arg));
         return ret_val;
     }
@@ -41,7 +34,7 @@ struct dom_info
 
 #ifdef MIGRAPHX_DEBUG_OPT
     void dump_doms(std::unordered_map<const instruction*, int>&, bool);
-#endif    
+#endif
     // whethere ins1 strictly dominates ins2
     bool strictly_dominates(const instruction* ins1, const instruction* ins2);
     // whether ins1 strictly post-dominates ins2.
@@ -52,7 +45,6 @@ struct dom_info
     // map instruction to its immediate post dominator.
     std::unordered_map<const instruction*, const instruction*> instr2_ipdom;
 };
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif

@@ -15,11 +15,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 shape compute_shape(const operation& op, const std::vector<instruction_ref>& args);
 
-enum instruction_mask {
+enum instruction_mask
+{
     RECORD_EVENT = 0,
-    WAIT_EVENT = 1
+    WAIT_EVENT   = 1
 };
-           
+
 struct instruction
 {
     instruction() {}
@@ -53,10 +54,10 @@ struct instruction
     void set_mask(int);
     void add_mask(instruction_mask m)
     {
-        if ((mask & ( 1 << m)) == 0)
+        if((mask & (1 << m)) == 0)
             mask += (1 << m);
     }
-    bool has_mask(instruction_mask m) const { return ((mask & ( 1 << m)) != 0); }
+    bool has_mask(instruction_mask m) const { return ((mask & (1 << m)) != 0); }
 
     std::string name() const;
 
@@ -108,8 +109,8 @@ struct instruction
     std::vector<instruction_ref> arguments;
     literal lit;
     int stream = -1;
-    int mask = 0;
-    int event = -1;
+    int mask   = 0;
+    int event  = -1;
 };
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
@@ -125,7 +126,6 @@ struct hash<migraphx::instruction_ref>
         return std::hash<migraphx::instruction*>{}(&*x);
     }
 };
-
 } // namespace std
 
 #endif

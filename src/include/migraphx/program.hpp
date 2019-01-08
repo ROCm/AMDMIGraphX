@@ -110,7 +110,6 @@ struct program
     private:
     std::unique_ptr<program_impl> impl;
 };
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

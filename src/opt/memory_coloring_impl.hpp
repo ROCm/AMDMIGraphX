@@ -54,7 +54,10 @@ using interval_ptr = live_interval*;
 struct memory_coloring_impl
 {
     memory_coloring_impl(program* p, std::string alloc_op, bool p_verify, int num)
-        : p_program(p), allocation_op(std::move(alloc_op)), enable_verify(p_verify), num_of_streams(num)
+        : p_program(p),
+          allocation_op(std::move(alloc_op)),
+          enable_verify(p_verify),
+          num_of_streams(num)
     {
         instr2_live.clear();
         live_ranges.clear();
@@ -76,7 +79,7 @@ struct memory_coloring_impl
         }
     }
     void propagate_splits(dom_info&);
-    void add_stream_conflicts(std::vector<const instruction *>&, std::vector<const instruction *>&);
+    void add_stream_conflicts(std::vector<const instruction*>&, std::vector<const instruction*>&);
     void build();
     void run();
     void rewrite();
@@ -108,8 +111,8 @@ struct memory_coloring_impl
     void dump(const std::string&);
     void dump_program();
     void dump_intervals();
-    void dump_splits(std::unordered_map<instruction_ref, std::set<const instruction *>>&);
-    void dump_concur_instrs(std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>&);
+    void dump_concur_instrs(
+        std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>&);
 #endif
     struct ordering
     {
@@ -135,7 +138,7 @@ struct memory_coloring_impl
             return (i1->offset > i2->offset);
         }
     };
-    
+
     program* p_program;
     std::unordered_map<const instruction*, interval_ptr> instr2_live;
     // universe of live intervals.
@@ -160,7 +163,6 @@ struct memory_coloring_impl
     bool enable_verify;
     int num_of_streams;
 };
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif

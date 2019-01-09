@@ -170,6 +170,27 @@ std::vector<shape> compute_shapes(const std::vector<instruction_ref>& args)
     return shapes;
 }
 
+argument instruction::eval() const
+{
+    if(op.name() == "@literal")
+    {
+        return this->get_literal().get_argument();
+    }
+    if(is_context_free(op))
+    {
+        std::vector<argument> args;
+        for(auto&& arg : this->inputs())
+        {
+            argument a = arg->eval();
+            if(a.empty())
+                return {};
+            args.push_back(a);
+        }
+        return op.compute(result, args);
+    }
+    return {};
+}
+
 instruction_ref instruction::get_output_alias(instruction_ref ins)
 {
     auto i = ins->get_operator().output_alias(compute_shapes(ins->inputs()));

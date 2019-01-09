@@ -71,6 +71,8 @@ struct instruction
     static void
     replace(instruction_ref ins, operation o, const shape& r, std::vector<instruction_ref> args);
 
+    argument eval() const;
+
     static instruction_ref get_output_alias(instruction_ref ins);
 
     private:

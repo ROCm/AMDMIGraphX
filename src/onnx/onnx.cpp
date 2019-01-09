@@ -412,6 +412,8 @@ struct onnx_parser
             {
                 auto l3 = prog.add_instruction(op::dot{alpha}, l1, l2);
                 auto l4 = args[2];
+                if (l4->get_shape().scalar()) // ignore args[2] (no C value added to alpha*A*B)
+                    return l3;
                 if(beta != 1.f)
                 {
                     auto beta_val = prog.add_literal(beta);

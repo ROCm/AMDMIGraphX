@@ -461,8 +461,8 @@ TEST_CASE(gemm_test)
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {5, 7}});
     auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {11, 5}});
     p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {}});
-    auto t0 = p.add_instruction(migraphx::op::transpose{{1, 0}}, l0);
-    auto t1 = p.add_instruction(migraphx::op::transpose{{1, 0}}, l1);
+    auto t0    = p.add_instruction(migraphx::op::transpose{{1, 0}}, l0);
+    auto t1    = p.add_instruction(migraphx::op::transpose{{1, 0}}, l1);
     auto alpha = 2.f;
     p.add_instruction(migraphx::op::dot{alpha}, t0, t1);
     auto prog = migraphx::parse_onnx("gemm_test.onnx");

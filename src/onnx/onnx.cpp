@@ -150,7 +150,7 @@ struct onnx_parser
             if(s0->size() > s1->size())
                 std::swap(s0, s1);
 
-            std::vector<std::size_t> output_lens(s1->size());
+            std::vector<std::size_t> output_lens(*s1);
             auto offset = s1->size() - s0->size();
             std::transform(s0->begin(),
                            s0->end(),
@@ -384,7 +384,7 @@ struct onnx_parser
     parse_gemm(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         float alpha = 1.0f;
-        float beta  = 0.0f;
+        float beta  = 1.0f;
         bool transa = false;
         bool transb = false;
         if(contains(attributes, "alpha"))
@@ -408,10 +408,20 @@ struct onnx_parser
         auto l2 = (transb) ? prog.add_instruction(op::transpose{perm}, args[1]) : args[1];
         if(args.size() == 3)
         {
-            uint64_t axis = 1;
-            auto l3       = prog.add_instruction(op::dot{alpha, beta}, l1, l2);
-            auto l4       = prog.add_instruction(op::broadcast{axis, l3->get_shape()}, args[2]);
-            return prog.add_instruction(op::add{}, l3, l4);
+            if(beta != 0.f)
+            {
+                auto l3 = prog.add_instruction(op::dot{alpha}, l1, l2);
+                auto l4 = args[2];
+                if(l4->get_shape().scalar()) // ignore args[2] (no C value added to alpha*A*B)
+                    return l3;
+                if(beta != 1.f)
+                {
+                    auto beta_val = prog.add_literal(beta);
+                    auto l5 = prog.add_instruction(op::scalar{args[2]->get_shape()}, beta_val);
+                    l4      = prog.add_instruction(op::mul{}, args[2], l5);
+                }
+                return add_broadcastable_binary_op(l3, l4, op::add{});
+            }
         }
         return prog.add_instruction(op::dot{alpha, beta}, l1, l2);
     }

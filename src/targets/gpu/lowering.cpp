@@ -56,7 +56,7 @@ struct miopen_apply
 
     void check_shape(shape x, instruction_ref i)
     {
-        assert(x.lens() == i->get_shape().lens());
+        assert(x == i->get_shape());
         (void)x;
         (void)i;
     }

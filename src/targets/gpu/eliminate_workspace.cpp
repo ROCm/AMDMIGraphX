@@ -29,7 +29,7 @@ void eliminate_workspace::apply(program& p) const
             allocs.push_back(ins);
         }
     }
-    if (n > 0) 
+    if(n > 0)
     {
         auto ws = p.add_parameter("workspace", shape{shape::int8_type, {n}});
         for(auto&& a : allocs)

@@ -196,7 +196,7 @@ instruction_ref instruction::get_output_alias(instruction_ref ins, bool shallow)
     auto i = ins->get_operator().output_alias(compute_shapes(ins->inputs()));
     if(i < 0)
         return ins;
-    if(shallow) 
+    if(shallow)
         return ins->inputs().at(i);
     return get_output_alias(ins->inputs().at(i));
 }

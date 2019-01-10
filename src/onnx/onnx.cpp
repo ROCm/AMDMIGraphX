@@ -243,6 +243,10 @@ struct onnx_parser
                 op.padding_mode = op::convolution::same;
             }
         }
+        if(contains(attributes, "group"))
+        {
+            op.group = parse_value(attributes.at("group")).at<int>();
+        }
         if(args.size() == 3)
         {
             uint64_t axis = 1;

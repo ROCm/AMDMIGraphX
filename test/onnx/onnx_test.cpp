@@ -484,4 +484,15 @@ TEST_CASE(add_scalar_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(group_conv_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 4, 16, 16}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {4, 1, 3, 3}});
+    migraphx::op::convolution op;
+    op.group = 4;
+    p.add_instruction(op, l0, l1);
+    auto prog = migraphx::parse_onnx("group_conv_test.onnx");
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

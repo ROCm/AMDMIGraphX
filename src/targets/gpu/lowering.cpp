@@ -42,6 +42,7 @@
 #include <migraphx/gpu/concat.hpp>
 #include <utility>
 #include <functional>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

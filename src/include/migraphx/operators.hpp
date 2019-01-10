@@ -63,6 +63,7 @@ struct convolution
         valid
     };
     padding_mode_t padding_mode = default_;
+    int group                   = 1;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -70,7 +71,8 @@ struct convolution
         return pack(f(self.padding, "padding"),
                     f(self.stride, "stride"),
                     f(self.dilation, "dilation"),
-                    f(self.padding_mode, "padding_mode"));
+                    f(self.padding_mode, "padding_mode"),
+                    f(self.group, "group"));
     }
 
     std::string name() const { return "convolution"; }

@@ -36,11 +36,15 @@ void eliminate_concat::apply(program& p) const
             // Where are the allocations for the tensors to be concatenated?
             std::vector<instruction_ref> allocations;
 
-            std::transform(ins->inputs().begin(), std::prev(ins->inputs().end()), std::back_inserter(allocations), [&](instruction_ref x) {
-                return instruction::get_output_alias(x, true);
-            });
+            std::transform(
+                ins->inputs().begin(),
+                std::prev(ins->inputs().end()),
+                std::back_inserter(allocations),
+                [&](instruction_ref x) { return instruction::get_output_alias(x, true); });
 
-            if (std::any_of(allocations.begin(), allocations.end(), [&](auto x) { return x->name() != concat_opt.allocate(); }))
+            if(std::any_of(allocations.begin(), allocations.end(), [&](auto x) {
+                   return x->name() != concat_opt.allocate();
+               }))
                 continue;
 
             // Need to sort the allocations, so that we know where to
@@ -50,8 +54,8 @@ void eliminate_concat::apply(program& p) const
                     return std::distance(p.begin(), x) < std::distance(p.begin(), y);
                 });
             // Move "super" allocation to the front
-            auto first         = allocations.front();
-            auto super         = p.move_instruction(last, first);
+            auto first = allocations.front();
+            auto super = p.move_instruction(last, first);
             // Replace each allocation with a load
             std::size_t offset = 0;
             for(auto alloc : allocations)

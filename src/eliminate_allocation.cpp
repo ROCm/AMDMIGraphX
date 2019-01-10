@@ -25,7 +25,7 @@ void eliminate_allocation::apply(program& p) const
         std::size_t padding = (alignment - (size % alignment)) % alignment;
         n += size + padding;
     }
-    if (n > 0) 
+    if(n > 0)
     {
         auto mem = p.add_parameter("memory", shape{shape::int8_type, {n}});
         for(auto&& pp : allocs)

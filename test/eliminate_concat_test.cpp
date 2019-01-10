@@ -80,40 +80,34 @@ struct simple_op
     int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
 };
 
-template<class... Ts>
+template <class... Ts>
 migraphx::shape create_shape(Ts... xs)
 {
     return migraphx::shape{migraphx::shape::float_type, {std::size_t(xs)...}};
 }
 
-using load = migraphx::op::load;
+using load     = migraphx::op::load;
 using identity = migraphx::op::identity;
 
 TEST_CASE(simple)
 {
     auto create_test_program = [] {
         migraphx::program p;
-        auto a1 =
-            p.add_instruction(allocate{create_shape(1)});
-        auto p1 = p.add_instruction(simple_op{}, a1);
-        auto a2 =
-            p.add_instruction(allocate{create_shape(1)});
-        auto p2 = p.add_instruction(simple_op{}, a2);
+        auto a1          = p.add_instruction(allocate{create_shape(1)});
+        auto p1          = p.add_instruction(simple_op{}, a1);
+        auto a2          = p.add_instruction(allocate{create_shape(1)});
+        auto p2          = p.add_instruction(simple_op{}, a2);
         std::size_t axis = 0;
-        auto a3          = p.add_instruction(
-            allocate{create_shape(2)});
+        auto a3          = p.add_instruction(allocate{create_shape(2)});
         p.add_instruction(concat(axis), p1, p2, a3);
         return p;
     };
     auto create_control_program = [] {
         migraphx::program p;
-        auto a1          = p.add_instruction(
-            allocate{create_shape(2)});
-        auto l1 =
-            p.add_instruction(load{create_shape(1), 0}, a1);
+        auto a1 = p.add_instruction(allocate{create_shape(2)});
+        auto l1 = p.add_instruction(load{create_shape(1), 0}, a1);
         auto p1 = p.add_instruction(simple_op{}, l1);
-        auto l2 =
-            p.add_instruction(load{create_shape(1), 4}, a1);
+        auto l2 = p.add_instruction(load{create_shape(1), 4}, a1);
         auto p2 = p.add_instruction(simple_op{}, l2);
         p.add_instruction(identity{}, a1, p1, p2);
         return p;
@@ -129,45 +123,36 @@ TEST_CASE(simple)
 TEST_CASE(nested)
 {
     auto concat_test_program = [](auto& p) {
-        auto a1 =
-            p.add_instruction(allocate{create_shape(1)});
-        auto p1 = p.add_instruction(simple_op{}, a1);
-        auto a2 =
-            p.add_instruction(allocate{create_shape(1)});
-        auto p2 = p.add_instruction(simple_op{}, a2);
+        auto a1          = p.add_instruction(allocate{create_shape(1)});
+        auto p1          = p.add_instruction(simple_op{}, a1);
+        auto a2          = p.add_instruction(allocate{create_shape(1)});
+        auto p2          = p.add_instruction(simple_op{}, a2);
         std::size_t axis = 0;
-        auto a3          = p.add_instruction(
-            allocate{create_shape(2)});
+        auto a3          = p.add_instruction(allocate{create_shape(2)});
         return p.add_instruction(concat(axis), p1, p2, a3);
     };
     auto create_test_program = [&] {
         migraphx::program p;
-        auto concat1 = concat_test_program(p);
-        auto concat2 = concat_test_program(p);
+        auto concat1     = concat_test_program(p);
+        auto concat2     = concat_test_program(p);
         std::size_t axis = 0;
-        auto a1          = p.add_instruction(
-            allocate{create_shape(4)});
+        auto a1          = p.add_instruction(allocate{create_shape(4)});
         p.add_instruction(concat(axis), concat1, concat2, a1);
         return p;
     };
     auto concat_control_program = [](auto& p, auto a1) {
-        auto l1 =
-            p.add_instruction(load{create_shape(1), 0}, a1);
+        auto l1 = p.add_instruction(load{create_shape(1), 0}, a1);
         auto p1 = p.add_instruction(simple_op{}, l1);
-        auto l2 =
-            p.add_instruction(load{create_shape(1), 4}, a1);
+        auto l2 = p.add_instruction(load{create_shape(1), 4}, a1);
         auto p2 = p.add_instruction(simple_op{}, l2);
         return p.add_instruction(identity{}, a1, p1, p2);
     };
     auto create_control_program = [&] {
         migraphx::program p;
-        auto a1          = p.add_instruction(
-            allocate{create_shape(4)});
-        auto l1 =
-            p.add_instruction(load{create_shape(2), 0}, a1);
+        auto a1      = p.add_instruction(allocate{create_shape(4)});
+        auto l1      = p.add_instruction(load{create_shape(2), 0}, a1);
         auto concat1 = concat_control_program(p, l1);
-        auto l2 =
-            p.add_instruction(load{create_shape(2), 8}, a1);
+        auto l2      = p.add_instruction(load{create_shape(2), 8}, a1);
         auto concat2 = concat_control_program(p, l2);
         p.add_instruction(identity{}, a1, concat1, concat2);
         return p;
@@ -204,16 +189,13 @@ TEST_CASE(basic)
         auto a1 = p.add_instruction(
             allocate{migraphx::shape{migraphx::shape::float_type, {1, 10, 8, 8}}});
         auto l1 = p.add_instruction(
-            load{migraphx::shape{migraphx::shape::float_type, {1, 2, 8, 8}}, 0},
-            {a1});
+            load{migraphx::shape{migraphx::shape::float_type, {1, 2, 8, 8}}, 0}, {a1});
         auto p1 = p.add_instruction(simple_op{}, l1);
         auto l2 = p.add_instruction(
-            load{migraphx::shape{migraphx::shape::float_type, {1, 3, 8, 8}}, 512},
-            {a1});
+            load{migraphx::shape{migraphx::shape::float_type, {1, 3, 8, 8}}, 512}, {a1});
         auto p2 = p.add_instruction(simple_op{}, l2);
         auto l3 = p.add_instruction(
-            load{migraphx::shape{migraphx::shape::float_type, {1, 5, 8, 8}}, 1280},
-            {a1});
+            load{migraphx::shape{migraphx::shape::float_type, {1, 5, 8, 8}}, 1280}, {a1});
         auto p3 = p.add_instruction(simple_op{}, l3);
         p.add_instruction(identity{}, {a1, p1, p2, p3});
         return p;

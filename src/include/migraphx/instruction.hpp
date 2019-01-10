@@ -73,7 +73,7 @@ struct instruction
 
     argument eval() const;
 
-    static instruction_ref get_output_alias(instruction_ref ins);
+    static instruction_ref get_output_alias(instruction_ref ins, bool shallow = false);
 
     private:
     // internal

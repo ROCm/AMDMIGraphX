@@ -6,6 +6,8 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
 #include <cmath>
 #include <utility>
@@ -628,6 +630,115 @@ struct as_shape
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
+};
+
+// Gather to use the algorithm in onnx::gather operator
+struct gather
+{
+    std::size_t axis = 0;
+    std::string name() const { return "gather"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(2);
+        auto lens = inputs[0].lens();
+        if(axis >= lens.size())
+        {
+            MIGRAPHX_THROW("Gather, axis is out of range.");
+        }
+        auto type  = inputs[0].type();
+        lens[axis] = inputs[1].elements();
+
+        return {type, lens};
+    }
+
+    template <class T>
+    void compute_index(const T& out_idx, const std::vector<argument>& args, T& in_idx) const
+    {
+        in_idx = out_idx;
+        // max dimension in axis
+        std::size_t max_dim = args[0].get_shape().lens()[axis];
+        std::size_t idx     = args[1].at<std::size_t>(out_idx[axis]);
+        if(idx >= max_dim)
+        {
+            MIGRAPHX_THROW("Gather, indices are out of range in input tensor");
+        }
+        in_idx[axis] = idx;
+    }
+
+    argument compute(const shape& output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        visit_all(result, args[0])([&](auto output, auto input) {
+            shape_for_each(output.get_shape(), [&](const auto& idx) {
+                std::vector<std::size_t> in_idx;
+                this->compute_index(idx, args, in_idx);
+                output(idx.begin(), idx.end()) = input(in_idx.begin(), in_idx.end());
+            });
+        });
+
+        return result;
+    }
+
+    int output_alias(const std::vector<shape>&) const { return 0; }
+};
+
+// Gather to use the algorithm in torch.nn.gather, which is diffrent
+// from the onnx::gather operator.
+struct gather_torch
+{
+    std::size_t axis = 0;
+    std::string name() const { return "gather_torch"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(2);
+        auto lens = inputs[0].lens();
+        if(axis >= lens.size())
+        {
+            MIGRAPHX_THROW("Gather, axis is out of range.");
+        }
+        auto type = inputs[0].type();
+
+        // output shape is the same as that of the indices
+        return {type, inputs[1].lens()};
+    }
+
+    template <class T>
+    void compute_index(const T& out_idx, const std::vector<argument>& args, T& in_idx) const
+    {
+        in_idx = out_idx;
+        // max dimension in axis
+        std::size_t max_dim = args[0].get_shape().lens()[axis];
+        args[1].visit([&](auto idx) {
+            std::size_t i = idx(out_idx.begin(), out_idx.end());
+            if(i >= max_dim)
+            {
+                MIGRAPHX_THROW("gather_torch, indices are out of range in input tensor");
+            }
+            in_idx[axis] = i;
+        });
+    }
+
+    argument compute(const shape& output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        visit_all(result, args[0])([&](auto output, auto input) {
+            shape_for_each(output.get_shape(), [&](const auto& out_idx) {
+                std::vector<std::size_t> in_idx;
+                this->compute_index(out_idx, args, in_idx);
+                std::cout << "gather torch input = " << input(in_idx.begin(), in_idx.end())
+                          << std::endl;
+                output(out_idx.begin(), out_idx.end()) = input(in_idx.begin(), in_idx.end());
+                std::cout << "gather torch out = " << output(out_idx.begin(), out_idx.end())
+                          << std::endl;
+            });
+        });
+
+        return result;
+    }
+
     int output_alias(const std::vector<shape>&) const { return 0; }
 };
 

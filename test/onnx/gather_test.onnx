@@ -1,14 +1,14 @@
-gather - example :–
+gather-example:–
 '
 data
-indicesy "Gather*
-axis  test_gatherZ
+indicesy"Gather*
+axis test_gatherZ
 data
 
 
 
 
-Z !
+Z!
 indices
 
 

@@ -33,7 +33,6 @@ bool is_reshaper(instruction_ref ins)
     return contains(names, ins->name()) and not is_nonstandard_reshaper(ins);
 }
 
-
 void simplify_reshapes::apply(program& p) const
 {
     for(auto ins : iterator_for(p))

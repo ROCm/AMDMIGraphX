@@ -117,4 +117,21 @@ TEST_CASE(single_transpose_sin_pass)
     EXPECT(result != get_2x2());
 }
 
+TEST_CASE(reshape_transpose)
+{
+    migraphx::program p;
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 112, 56, 56}};
+    auto x = p.add_parameter("x", s);
+    auto r1 = p.add_instruction(migraphx::op::reshape{{1, 4, 28, 56, 56}}, x);
+    auto t = p.add_instruction(migraphx::op::transpose{{0, 2, 1, 3, 4}}, r1);
+    auto ct = p.add_instruction(migraphx::op::contiguous{}, t);
+    auto r2 = p.add_instruction(migraphx::op::reshape{{1, 112, 56, 56}}, ct);
+    p.add_instruction(pass_op{}, r2);
+    EXPECT(p.get_shape() == s);
+    auto n = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape() == s);
+    EXPECT(std::distance(p.begin(), p.end()) == n);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

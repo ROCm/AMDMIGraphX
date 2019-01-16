@@ -274,9 +274,12 @@ struct miopen_conv_bias
         return f.execute(ctx, fargs, args[0], args[4]);
     }
 
-    shape compile(context& ctx)
+    void finalize(context& ctx, const shape&, const std::vector<shape>&)
     {
         f.compile(ctx);
+    }
+    shape get_workspace(context& ctx)
+    {
         return f.get_workspace(ctx);
     }
     int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
@@ -318,10 +321,12 @@ struct miopen_conv_bias_relu
         miopenSetOpArgsActivForward(fargs.get(), relu, &alpha, &beta, 0, 0, 0);
         return f.execute(ctx, fargs, args[0], args[4]);
     }
-
-    shape compile(context& ctx)
+    void finalize(context& ctx, const shape&, const std::vector<shape>&)
     {
         f.compile(ctx);
+    }
+    shape get_workspace(context& ctx)
+    {
         return f.get_workspace(ctx);
     }
     int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
@@ -350,7 +355,7 @@ void apply_conv_bias(context& ctx, program& p, match::matcher_result r)
 
     Op cb{conv_op, input_ins->get_shape(), weights_ins->get_shape(), bias_ins->get_shape()};
     // TODO: Insert ws allocation
-    auto ws = cb.compile(ctx);
+    auto ws = cb.get_workspace(ctx);
 
     p.replace_instruction(ins, cb, input_ins, weights_ins, old_ws_ins, bias_ins, alloc_ins);
 }

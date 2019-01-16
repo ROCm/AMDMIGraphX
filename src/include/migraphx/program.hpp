@@ -95,6 +95,8 @@ struct program
 
     void compile(const target& t, tracer trace = tracer{});
 
+    void finalize();
+
     void perf_report(std::ostream& os, std::size_t n, parameter_map params) const;
 
     void debug_print() const;

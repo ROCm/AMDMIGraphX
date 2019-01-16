@@ -309,6 +309,15 @@ void program::compile(const target& t, tracer trace)
         auto index = std::distance(impl->instructions.begin(), invalid);
         MIGRAPHX_THROW("Invalid program from compilation at instruction " + std::to_string(index));
     }
+    this->finalize();
+}
+
+void program::finalize()
+{
+    for(auto ins : iterator_for(*this))
+    {
+        ins->finalize(this->impl->ctx);
+    }
 }
 
 template <class F>

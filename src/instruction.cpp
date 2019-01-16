@@ -162,14 +162,6 @@ void instruction::replace_argument(instruction_ref old, instruction_ref new_ins)
     old->remove_output(*this);
 }
 
-std::vector<shape> compute_shapes(const std::vector<instruction_ref>& args)
-{
-    std::vector<shape> shapes(args.size());
-    std::transform(
-        args.begin(), args.end(), shapes.begin(), [](instruction_ref i) { return i->get_shape(); });
-    return shapes;
-}
-
 argument instruction::eval() const
 {
     if(op.name() == "@literal")
@@ -191,9 +183,15 @@ argument instruction::eval() const
     return {};
 }
 
+void instruction::finalize(context& ctx)
+{
+    if (has_finalize(this->op))
+        this->op.finalize(ctx, this->get_shape(), to_shapes(this->inputs()));
+}
+
 instruction_ref instruction::get_output_alias(instruction_ref ins, bool shallow)
 {
-    auto i = ins->get_operator().output_alias(compute_shapes(ins->inputs()));
+    auto i = ins->get_operator().output_alias(to_shapes(ins->inputs()));
     if(i < 0)
         return ins;
     if(shallow)
@@ -201,9 +199,17 @@ instruction_ref instruction::get_output_alias(instruction_ref ins, bool shallow)
     return get_output_alias(ins->inputs().at(i));
 }
 
+std::vector<shape> to_shapes(const std::vector<instruction_ref>& args)
+{
+    std::vector<shape> shapes(args.size());
+    std::transform(
+        args.begin(), args.end(), shapes.begin(), [](instruction_ref i) { return i->get_shape(); });
+    return shapes;
+}
+
 shape compute_shape(const operation& op, const std::vector<instruction_ref>& args)
 {
-    return op.compute_shape(compute_shapes(args));
+    return op.compute_shape(to_shapes(args));
 }
 
 } // namespace MIGRAPHX_INLINE_NS

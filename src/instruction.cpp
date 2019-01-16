@@ -185,7 +185,7 @@ argument instruction::eval() const
 
 void instruction::finalize(context& ctx)
 {
-    if (has_finalize(this->op))
+    if(has_finalize(this->op))
         this->op.finalize(ctx, this->get_shape(), to_shapes(this->inputs()));
 }
 

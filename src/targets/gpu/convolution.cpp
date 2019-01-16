@@ -81,17 +81,18 @@ shape miopen_convolution::compile(context& ctx,
     if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("Find convolution failed");
     handle = ctx.get_stream().get_miopen();
-    algo = perf.fwd_algo;
+    algo   = perf.fwd_algo;
     return shape{shape::int8_type, {perf.memory}};
 }
 
-void miopen_convolution::finalize(context& ctx, const shape& output_shape, std::vector<shape> inputs)
+void miopen_convolution::finalize(context& ctx,
+                                  const shape& output_shape,
+                                  std::vector<shape> inputs)
 {
-    if (handle == ctx.get_stream().get_miopen())
+    if(handle == ctx.get_stream().get_miopen())
         return;
     // TODO: Check that workspace hasn't changed
-    compile(ctx, output_shape, inputs);
-
+    compile(ctx, output_shape, std::move(inputs));
 }
 
 } // namespace gpu

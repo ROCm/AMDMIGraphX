@@ -22,22 +22,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// use algorithm of onnx::gather (not use for now)
 struct hip_gather
 {
     op::gather op;
     std::string name() const { return "gpu::gather"; }
-    shape compute_shape(std::vector<shape> inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
-};
-
-// use algorithm of torch.nn.gather
-struct hip_gather_torch
-{
-    op::gather_torch op;
-    std::string name() const { return "gpu::gather_torch"; }
     shape compute_shape(std::vector<shape> inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;

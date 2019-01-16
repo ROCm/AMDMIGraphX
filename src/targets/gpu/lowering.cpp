@@ -91,7 +91,7 @@ struct miopen_apply
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
         add_extend_op<miopen_softmax, op::softmax>("softmax");
-        add_extend_op<hip_gather_torch, op::gather_torch>("gather");
+        add_extend_op<hip_gather, op::gather>("gather");
         add_convolution_op();
         add_pooling_op();
         add_batch_norm_inference_op();

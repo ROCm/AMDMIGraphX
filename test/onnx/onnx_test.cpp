@@ -400,6 +400,18 @@ TEST_CASE(reshape_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(shape_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {3, 4, 5, 6}};
+    auto l0 = p.add_parameter("x", s);
+    migraphx::shape s_shape{migraphx::shape::int64_type, {4}};
+    p.add_literal(s_shape, l0->get_shape().lens());
+    auto prog = migraphx::parse_onnx("shape_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(gather_test)
 {
     migraphx::program p;

@@ -330,7 +330,7 @@ struct cpu_gather
 
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
-        return op.compute(output_shape, args);
+        return op.compute(output_shape, std::move(args));
     }
 };
 
@@ -342,7 +342,7 @@ struct cpu_gather_torch
 
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
-        return op.compute(output_shape, args);
+        return op.compute(output_shape, std::move(args));
     }
 };
 

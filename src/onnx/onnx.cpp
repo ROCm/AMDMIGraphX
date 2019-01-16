@@ -543,7 +543,7 @@ struct onnx_parser
     // Use a literal instruction to replace the shape since, output of
     // shape operator are literals in migraphx
     instruction_ref
-    parse_shape(const std::string&, attribute_map, std::vector<instruction_ref> args)
+    parse_shape(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         if(args.size() != 1)
             MIGRAPHX_THROW("Shape, operator should have 1 operand");

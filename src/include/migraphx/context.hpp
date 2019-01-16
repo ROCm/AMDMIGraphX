@@ -95,7 +95,7 @@ struct context
     void finish() const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().finish();
+        (*this).private_detail_te_get_handle().finish();
     }
 
     private:
@@ -136,7 +136,7 @@ struct context
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
-        void finish() const override { return private_detail_te_value.finish(); }
+        void finish() const override { private_detail_te_value.finish(); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };

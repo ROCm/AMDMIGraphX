@@ -179,7 +179,7 @@ nonvirtual_member = string.Template('''
 ${friend} ${return_type} ${name}(${params}) ${const}
 {
     assert(${this}.private_detail_te_handle_mem_var);
-    return ${this}.private_detail_te_get_handle().${internal_name}(${member_args});
+    ${return_} ${this}.private_detail_te_get_handle().${internal_name}(${member_args});
 }
 ''')
 
@@ -189,7 +189,7 @@ virtual_member = string.Template('''
 ${return_type} ${internal_name}(${member_params}) ${member_const} override
 {
     ${using}
-    return ${call};
+    ${return_} ${call};
 }
 ''')
 
@@ -240,7 +240,8 @@ def convert_member(d, struct_name):
             'friend': '',
             'this': '(*this)',
             'using': '',
-            'brief': ''
+            'brief': '',
+            'return_': ''
         }
         args = []
         params = []
@@ -257,7 +258,8 @@ def convert_member(d, struct_name):
         for x in d[name]:
             t = d[name][x]
             if x == 'return':
-                member['return_type'] = t
+                member['return_type'] = t if t else 'void'
+                if member['return_type'] != 'void': member['return_'] = 'return'
             elif x == 'const':
                 member['const'] = 'const'
                 member['member_const'] = 'const'

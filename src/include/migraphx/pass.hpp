@@ -105,7 +105,7 @@ struct pass
     void apply(program& p) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().apply(p);
+        (*this).private_detail_te_get_handle().apply(p);
     }
 
     private:
@@ -149,7 +149,7 @@ struct pass
 
         std::string name() const override { return private_detail_te_value.name(); }
 
-        void apply(program& p) const override { return private_detail_te_value.apply(p); }
+        void apply(program& p) const override { private_detail_te_value.apply(p); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };

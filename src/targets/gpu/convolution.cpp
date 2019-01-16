@@ -41,11 +41,11 @@ argument miopen_convolution::compute(context& ctx,
 
 shape miopen_convolution::compile(context& ctx,
                                   const shape& output_shape,
-                                  std::vector<instruction_ref> inputs)
+                                  std::vector<shape> inputs)
 {
     shape workspace_shape{};
-    auto x_desc = make_tensor(inputs[0]->get_shape());
-    auto w_desc = make_tensor(inputs[1]->get_shape());
+    auto x_desc = make_tensor(inputs[0]);
+    auto w_desc = make_tensor(inputs[1]);
     auto y_desc = make_tensor(output_shape);
 
     std::size_t workspace_size = 0;
@@ -57,8 +57,8 @@ shape miopen_convolution::compile(context& ctx,
                                              &workspace_size);
     workspace_shape = shape{shape::int8_type, {workspace_size}};
 
-    auto x         = to_gpu(generate_argument(inputs[0]->get_shape()));
-    auto w         = to_gpu(generate_argument(inputs[1]->get_shape()));
+    auto x         = to_gpu(generate_argument(inputs[0]));
+    auto w         = to_gpu(generate_argument(inputs[1]));
     auto y         = allocate_gpu(output_shape);
     auto workspace = allocate_gpu(workspace_shape);
 
@@ -80,8 +80,18 @@ shape miopen_convolution::compile(context& ctx,
                                                         false);
     if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("Find convolution failed");
+    handle = ctx.get_stream().get_miopen();
     algo = perf.fwd_algo;
     return shape{shape::int8_type, {perf.memory}};
+}
+
+void miopen_convolution::finalize(context& ctx, const shape& output_shape, std::vector<shape> inputs)
+{
+    if (handle == ctx.get_stream().get_miopen())
+        return;
+    // TODO: Check that workspace hasn't changed
+    compile(ctx, output_shape, inputs);
+
 }
 
 } // namespace gpu

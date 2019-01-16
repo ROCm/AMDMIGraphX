@@ -367,7 +367,7 @@ struct onnx_parser
         {
             axis = parse_value(attributes.at("axis")).at<int>();
         }
-        op::gather_torch op{axis};
+        op::gather op{axis};
         return prog.add_instruction(op, std::move(args));
     }
 

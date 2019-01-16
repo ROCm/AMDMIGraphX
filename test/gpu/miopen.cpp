@@ -945,7 +945,7 @@ struct test_gather
         auto a0          = p.add_parameter("data", s);
         auto a1          = p.add_literal(migraphx::literal{s_indices, indices});
         std::size_t axis = 0;
-        p.add_instruction(migraphx::op::gather_torch{axis}, a0, a1);
+        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
         return p;
     }
 };

@@ -114,11 +114,11 @@ TEST_CASE(gather_test)
         std::vector<int> indices{0, 2};
         auto a1          = p.add_literal(migraphx::literal{s_indices, indices});
         std::size_t axis = 0;
-        p.add_instruction(migraphx::op::gather_torch{axis}, a0, a1);
+        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
         std::vector<float> res_data(4 * 5);
-        std::vector<float> golden = {0.5f, 7.5f};
+        std::vector<float> golden = {0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f};
         result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(res_data, golden));
     }
@@ -134,11 +134,11 @@ TEST_CASE(gather_test)
         std::vector<int> indices{0, 2};
         auto a1          = p.add_literal(migraphx::literal{s_indices, indices});
         std::size_t axis = 1;
-        p.add_instruction(migraphx::op::gather_torch{axis}, a0, a1);
+        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
         std::vector<float> res_data(4 * 5);
-        std::vector<float> golden = {0.5f, 2.5f};
+        std::vector<float> golden = {0.5f, 2.5f, 3.5f, 5.5f, 6.5f, 8.5f};
         result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(res_data, golden));
     }

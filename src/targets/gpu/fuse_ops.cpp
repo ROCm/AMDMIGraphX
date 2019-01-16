@@ -274,14 +274,8 @@ struct miopen_conv_bias
         return f.execute(ctx, fargs, args[0], args[4]);
     }
 
-    void finalize(context& ctx, const shape&, const std::vector<shape>&)
-    {
-        f.compile(ctx);
-    }
-    shape get_workspace(context& ctx)
-    {
-        return f.get_workspace(ctx);
-    }
+    void finalize(context& ctx, const shape&, const std::vector<shape>&) { f.compile(ctx); }
+    shape get_workspace(context& ctx) { return f.get_workspace(ctx); }
     int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
 };
 
@@ -321,14 +315,8 @@ struct miopen_conv_bias_relu
         miopenSetOpArgsActivForward(fargs.get(), relu, &alpha, &beta, 0, 0, 0);
         return f.execute(ctx, fargs, args[0], args[4]);
     }
-    void finalize(context& ctx, const shape&, const std::vector<shape>&)
-    {
-        f.compile(ctx);
-    }
-    shape get_workspace(context& ctx)
-    {
-        return f.get_workspace(ctx);
-    }
+    void finalize(context& ctx, const shape&, const std::vector<shape>&) { f.compile(ctx); }
+    shape get_workspace(context& ctx) { return f.get_workspace(ctx); }
     int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
 };
 

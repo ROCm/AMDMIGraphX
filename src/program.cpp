@@ -271,6 +271,8 @@ instruction_ref program::end() const { return impl->instructions.end(); }
 
 shape program::get_shape() const { return impl->instructions.back().get_shape(); }
 
+context& program::get_context() const { return impl->ctx; }
+
 instruction_ref program::validate() const
 {
     return std::find_if(impl->instructions.begin(),

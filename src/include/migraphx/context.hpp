@@ -98,6 +98,12 @@ struct context
         (*this).private_detail_te_get_handle().finish();
     }
 
+    friend bool is_shared(const context& private_detail_x, const context& private_detail_y)
+    {
+        return private_detail_x.private_detail_te_handle_mem_var ==
+               private_detail_y.private_detail_te_handle_mem_var;
+    }
+
     private:
     struct private_detail_te_handle_base_type
     {

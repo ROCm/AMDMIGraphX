@@ -367,6 +367,12 @@ struct operation
         return x.private_detail_te_get_handle().operator==(y);
     }
 
+    friend bool is_shared(const operation& private_detail_x, const operation& private_detail_y)
+    {
+        return private_detail_x.private_detail_te_handle_mem_var ==
+               private_detail_y.private_detail_te_handle_mem_var;
+    }
+
     private:
     struct private_detail_te_handle_base_type
     {

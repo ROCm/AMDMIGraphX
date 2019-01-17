@@ -297,6 +297,33 @@ struct cpu_contiguous
     }
 };
 
+struct cpu_pad
+{
+    op::pad op;
+    std::string name() const { return "cpu::contiguous"; }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+    {
+        assert(output_shape.standard());
+        argument result{output_shape};
+        result.visit([&](auto output) {
+            std::fill(output.begin(), output.end(), op.value);
+        });
+
+        visit_all(result, args[0])([&](auto output, auto input) {
+            shape_for_each(output.get_shape(), [&](const auto& idx) {
+                std::vector<std::size_t> new_idx(idx.size());
+                std::transform(idx.begin(), idx.end(), op.pads.begin(), new_idx.begin(), [](auto i, auto j) {
+                    return i + j;
+                });
+                output(new_idx.begin(), new_idx.end()) = input(idx.begin(), idx.end());
+            });
+        });
+
+        return result;
+    }
+};
+
 struct cpu_concat
 {
     op::concat op;
@@ -650,6 +677,7 @@ struct cpu_apply
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
+        apply_map["pad"]        = extend_op<cpu_pad, op::pad>();
         apply_map["concat"]     = extend_op<cpu_concat, op::concat>();
         apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
         apply_map["elu"]        = extend_op<cpu_unary<elu_op>, op::elu>();

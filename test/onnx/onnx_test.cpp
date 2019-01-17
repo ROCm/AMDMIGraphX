@@ -494,6 +494,33 @@ TEST_CASE(constant_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(constant_fill_test)
+{
+    {
+        migraphx::program p;
+		auto l0 = p.add_literal(migraphx::literal{{migraphx::shape::int32_type, {2}}, {2, 3}});
+        std::vector<std::size_t> dims(l0->get_shape().elements());
+        migraphx::literal ls = l0->get_literal();
+        ls.visit([&](auto s) { dims.assign(s.begin(), s.end()); });
+        migraphx::shape s{migraphx::shape::float_type, dims};
+        std::vector<float> value(s.elements(), 1.0);
+        p.add_literal(migraphx::literal{s, value});
+        auto prog = migraphx::parse_onnx("const_fill1.onnx");
+
+        EXPECT(p == prog);
+    }
+
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+        std::vector<float> value(s.elements(), 1.0);
+        p.add_literal(migraphx::literal{s, value});
+        auto prog = migraphx::parse_onnx("const_fill2.onnx");
+
+        EXPECT(p == prog);
+    }
+}
+
 TEST_CASE(gemm_test)
 {
     migraphx::program p;

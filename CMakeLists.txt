@@ -117,7 +117,7 @@ rocm_enable_cppcheck(
         passedByValue
         unusedStructMember
         functionStatic
-        functionConst
+        functionConst:*program.hpp
         definePrefix:*test/include/test.hpp
     FORCE
     INCONCLUSIVE

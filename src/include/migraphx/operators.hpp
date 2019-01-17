@@ -638,6 +638,29 @@ struct pad
     }
 };
 
+struct as_shape
+{
+    shape s;
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.s, "shape"));
+    }
+
+    std::string name() const { return "as_shape"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(1).standard();
+        assert(inputs.front().elements() == s.elements());
+        return s;
+    }
+    argument compute(shape output_shape, std::vector<argument> args) const
+    {
+        return {std::move(output_shape), std::move(args.front().data)};
+    }
+    int output_alias(const std::vector<shape>&) const { return 0; }
+};
+
 struct dot
 {
     float alpha = 1.0;

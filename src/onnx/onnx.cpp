@@ -556,6 +556,7 @@ struct onnx_parser
         return prog.add_literal(migraphx::literal{s, vec_shape});
     }
 
+
     // Use a literal instruction to replace the constantFill operator. In RNN, input shape
     // and value are fixed, so no need to do the actual computation for the constantFill
     // operator
@@ -563,11 +564,6 @@ struct onnx_parser
                                         attribute_map attributes,
                                         std::vector<instruction_ref> args)
     {
-        if(args.size() != 1)
-        {
-            MIGRAPHX_THROW("Constantfill, MIGraphX only handle the case with 1 operand");
-        }
-
         int input_as_shape = 0;
         int dtype          = 1;
         float value        = 0.0f;
@@ -588,28 +584,50 @@ struct onnx_parser
             value = parse_value(attributes.at("value")).at<float>();
         }
 
+        if (contains(attributes, "extra_shape")) {
+            MIGRAPHX_THROW("ConstantFill, cannot handle extra shape attribute");
+        }
+
         if(input_as_shape == 1)
         {
+            if (args.size() != 1)
+            {
+                MIGRAPHX_THROW("ConstantFill, need an input argument as output shape");
+            }
+
+            if (contains(attributes, "shape")) {
+                MIGRAPHX_THROW("ConstantFill, cannot set the shape argument and pass in an input at the same time");
+            }
+
             migraphx::argument in = args[0]->eval();
             if(in.empty())
             {
                 MIGRAPHX_THROW(
-                    "ConstantFill, cannot handle dynamic shape as input for ConstantFill");
+                    "ConstantFill, cannot handle dynamic shape as input");
             }
+
             std::vector<std::size_t> dims;
             in.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
             migraphx::shape s(type, dims);
-            return prog.add_literal(migraphx::literal(s, {value}));
+            std::vector<float> values(s.elements(), value);
+            return prog.add_literal(migraphx::literal(s, values));
         }
         else if(input_as_shape == 0)
         {
-            std::vector<std::size_t> dims = args[0]->get_shape().lens();
+            if (!contains(attributes, "shape")) {
+                MIGRAPHX_THROW("ConstantFill, attribute output shape is needed");
+            }
+
+            literal ls = parse_value(attributes.at("shape"));
+            std::vector<std::size_t> dims(ls.get_shape().elements());
+            ls.visit([&] (auto s) { dims.assign(s.begin(), s.end()); } );
             migraphx::shape s{type, dims};
-            return prog.add_literal(migraphx::literal(s, {value}));
+            std::vector<float> values(s.elements(), value);
+            return prog.add_literal(migraphx::literal(s, values));
         }
         else
         {
-            MIGRAPHX_THROW("Wrong input for ConstantFill");
+            MIGRAPHX_THROW("ConstantFill, wrong value of attribute input_as_shape");
         }
     }
 

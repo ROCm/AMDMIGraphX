@@ -498,7 +498,7 @@ TEST_CASE(constant_fill_test)
 {
     {
         migraphx::program p;
-		auto l0 = p.add_literal(migraphx::literal{{migraphx::shape::int32_type, {2}}, {2, 3}});
+        auto l0 = p.add_literal(migraphx::literal{{migraphx::shape::int32_type, {2}}, {2, 3}});
         std::vector<std::size_t> dims(l0->get_shape().elements());
         migraphx::literal ls = l0->get_literal();
         ls.visit([&](auto s) { dims.assign(s.begin(), s.end()); });

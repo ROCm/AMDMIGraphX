@@ -659,10 +659,8 @@ struct gather
         // max dimension in axis
         std::size_t max_dim = args[0].get_shape().lens()[axis];
         std::vector<std::size_t> vec_indices(args[1].get_shape().lens().size());
-        args[1].visit([&](auto indices) {
-            vec_indices.assign(indices.begin(), indices.end());
-        });
-        std::size_t idx     = vec_indices.at(out_idx[axis]);
+        args[1].visit([&](auto indices) { vec_indices.assign(indices.begin(), indices.end()); });
+        std::size_t idx = vec_indices.at(out_idx[axis]);
         if(idx >= max_dim)
         {
             MIGRAPHX_THROW("Gather, indices are out of range in input tensor");

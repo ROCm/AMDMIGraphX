@@ -223,8 +223,14 @@ inline void run(int argc, const char* argv[])
     {
         std::unordered_map<std::string, std::function<void()>> m(get_test_cases().begin(),
                                                                  get_test_cases().end());
-        for(auto&& name : cases)
-            run_test_case(name, m[name]);
+        for(auto&& name : cases) 
+        {
+            auto f = m.find(name);
+            if (f == m.end())
+                std::cout << "[  ERROR   ] Test case '" << name << "' not found." << std::endl;
+            else
+                run_test_case(name, f->second);
+        }
     }
 }
 

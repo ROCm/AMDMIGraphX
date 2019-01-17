@@ -91,6 +91,8 @@ struct program
 
     shape get_shape() const;
 
+    context& get_context() const;
+
     instruction_ref validate() const;
 
     void compile(const target& t, tracer trace = tracer{});

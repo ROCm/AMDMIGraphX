@@ -41,16 +41,14 @@ struct id_ctx_op
 struct id_ctx_final_op
 {
     std::string name() const { return "id_ctx_final_op"; }
-    migraphx::argument
-    compute(const migraphx::shape&, std::vector<migraphx::argument> args) const
+    migraphx::argument compute(const migraphx::shape&, std::vector<migraphx::argument> args) const
     {
         if(args.empty())
             return {};
         return args.front();
     }
 
-    void finalize(id_target::context&, const migraphx::shape&, std::vector<migraphx::shape>)
-    {}
+    void finalize(id_target::context&, const migraphx::shape&, std::vector<migraphx::shape>) {}
 
     migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
     {

@@ -611,7 +611,7 @@ struct reshape
 struct pad
 {
     std::vector<int64_t> pads;
-    float value = 0.0f;
+    float value      = 0.0f;
     std::string mode = "constant";
 
     template <class Self, class F>
@@ -632,7 +632,7 @@ struct pad
         {
             rdims[i] += pads[i] + pads[i + num_dims];
         }
-        
+
         shape s{inputs.front().type(), rdims};
         return s;
     }

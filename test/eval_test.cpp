@@ -48,7 +48,7 @@ struct id_ctx_final_op
         return args.front();
     }
 
-    void finalize(id_target::context&, const migraphx::shape&, std::vector<migraphx::shape>) {}
+    void finalize(id_target::context&, const migraphx::shape&, const std::vector<migraphx::shape>&) {}
 
     migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
     {
@@ -270,6 +270,8 @@ TEST_CASE(double_reverse_target_test)
     EXPECT(result != migraphx::literal{4});
 }
 
+
+// Check that the program doesnt modify the context directly, and only the operators modify the context
 TEST_CASE(eval_context1)
 {
     migraphx::program p;

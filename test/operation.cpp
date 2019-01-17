@@ -110,11 +110,10 @@ struct final_operation
     {
         MIGRAPHX_THROW("not computable");
     }
-    void finalize(migraphx::context&,
-                               const migraphx::shape&,
-                               const std::vector<migraphx::shape>&) const
-    {}
-
+    void
+    finalize(migraphx::context&, const migraphx::shape&, const std::vector<migraphx::shape>&) const
+    {
+    }
 };
 
 struct final_operation_throw
@@ -124,9 +123,8 @@ struct final_operation_throw
     {
         MIGRAPHX_THROW("not computable");
     }
-    [[gnu::noreturn]] void finalize(migraphx::context&,
-                               const migraphx::shape&,
-                               const std::vector<migraphx::shape>&) const
+    [[gnu::noreturn]] void
+    finalize(migraphx::context&, const migraphx::shape&, const std::vector<migraphx::shape>&) const
     {
         MIGRAPHX_THROW("finalize");
     }
@@ -162,7 +160,7 @@ TEST_CASE(check_run_finalize_throw)
 {
     migraphx::operation op = final_operation_throw{};
     migraphx::context ctx{};
-    EXPECT(test::throws([&]{ op.finalize(ctx, {}, {}); }));
+    EXPECT(test::throws([&] { op.finalize(ctx, {}, {}); }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

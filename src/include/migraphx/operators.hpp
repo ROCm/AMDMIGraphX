@@ -653,9 +653,12 @@ struct gather
     }
 
     template <class T>
-    void compute_index(const T& out_idx, const std::vector<std::size_t>& vec_indices, const std::size_t max_dim, T& in_idx) const
+    void compute_index(const T& out_idx,
+                       const std::vector<std::size_t>& vec_indices,
+                       const std::size_t max_dim,
+                       T& in_idx) const
     {
-        in_idx = out_idx;
+        in_idx          = out_idx;
         std::size_t idx = vec_indices.at(out_idx[axis]);
         if(idx >= max_dim)
         {

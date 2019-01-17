@@ -653,17 +653,13 @@ struct gather
     }
 
     template <class T>
-    void compute_index(const T& out_idx, const std::vector<argument>& args, T& in_idx) const
+    void compute_index(const T& out_idx, const std::vector<std::size_t>& vec_indices, const std::size_t max_dim, T& in_idx) const
     {
         in_idx = out_idx;
-        // max dimension in axis
-        std::size_t max_dim = args[0].get_shape().lens()[axis];
-        std::vector<std::size_t> vec_indices(args[1].get_shape().lens().size());
-        args[1].visit([&](auto indices) { vec_indices.assign(indices.begin(), indices.end()); });
         std::size_t idx = vec_indices.at(out_idx[axis]);
         if(idx >= max_dim)
         {
-            MIGRAPHX_THROW("Gather, indices are out of range in input tensor");
+            MIGRAPHX_THROW("Gather: indices are out of range in input tensor");
         }
         in_idx[axis] = idx;
     }
@@ -671,10 +667,14 @@ struct gather
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
+        // max dimension in axis
+        std::size_t max_dim = args[0].get_shape().lens()[axis];
+        std::vector<std::size_t> vec_indices;
+        args[1].visit([&](auto indices) { vec_indices.assign(indices.begin(), indices.end()); });
         visit_all(result, args[0])([&](auto output, auto input) {
             std::vector<std::size_t> in_idx;
             shape_for_each(output.get_shape(), [&](const auto& idx) {
-                this->compute_index(idx, args, in_idx);
+                this->compute_index(idx, vec_indices, max_dim, in_idx);
                 output(idx.begin(), idx.end()) = input(in_idx.begin(), in_idx.end());
             });
         });

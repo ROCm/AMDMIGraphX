@@ -81,6 +81,7 @@ struct onnx_parser
         add_mem_op("Slice", &onnx_parser::parse_slice);
         add_mem_op("Concat", &onnx_parser::parse_concat);
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
+        add_mem_op("Pad", &onnx_parser::parse_pad);
     }
 
     template <class F>
@@ -523,6 +524,29 @@ struct onnx_parser
             perm             = std::vector<int64_t>(perm_vals.begin(), perm_vals.end());
         }
         return prog.add_instruction(migraphx::op::transpose{perm}, args.front());
+    }
+
+    instruction_ref
+    parse_pad(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        std::vector<int64_t> pads{};
+        float value = 0.0f;
+        if(contains(attributes, "pads"))
+        {
+            auto&& pad_vals = attributes["pads"].ints();
+            pads            = std::vector<int64_t>(pad_vals.begin(), pad_vals.end());
+        }
+        if(contains(attributes, "value"))
+        {
+            value = parse_value(attributes.at("value")).at<float>();
+        }
+        if(contains(attributes, "mode"))
+        {
+            auto mode = attributes.at("mode").s();
+            if(mode != "constant")
+                MIGRAPHX_THROW("migraphx currently only supports constant padding");
+        }
+        return prog.add_instruction(migraphx::op::pad{pads, value}, args.front());
     }
 
     void parse_from(std::istream& is)

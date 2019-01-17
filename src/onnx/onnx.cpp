@@ -546,7 +546,7 @@ struct onnx_parser
     parse_shape(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         if(args.size() != 1)
-            MIGRAPHX_THROW("Shape, operator should have 1 operand");
+            MIGRAPHX_THROW("Shape: operator should have 1 operand");
         std::vector<std::size_t> arg_shape = args[0]->get_shape().lens();
         std::vector<int64_t> vec_shape(arg_shape.size());
         migraphx::shape s(migraphx::shape::int64_type, {arg_shape.size()});
@@ -585,26 +585,26 @@ struct onnx_parser
 
         if(contains(attributes, "extra_shape"))
         {
-            MIGRAPHX_THROW("ConstantFill, cannot handle extra shape attribute");
+            MIGRAPHX_THROW("ConstantFill: cannot handle extra shape attribute");
         }
 
         if(input_as_shape == 1)
         {
             if(args.size() != 1)
             {
-                MIGRAPHX_THROW("ConstantFill, need an input argument as output shape");
+                MIGRAPHX_THROW("ConstantFill: need an input argument as output shape");
             }
 
             if(contains(attributes, "shape"))
             {
-                MIGRAPHX_THROW("ConstantFill, cannot set the shape argument and pass in an input "
+                MIGRAPHX_THROW("ConstantFill: cannot set the shape argument and pass in an input "
                                "at the same time");
             }
 
             migraphx::argument in = args[0]->eval();
             if(in.empty())
             {
-                MIGRAPHX_THROW("ConstantFill, cannot handle dynamic shape as input");
+                MIGRAPHX_THROW("ConstantFill: cannot handle dynamic shape as input");
             }
 
             std::vector<std::size_t> dims;
@@ -617,11 +617,11 @@ struct onnx_parser
         {
             if(!contains(attributes, "shape"))
             {
-                MIGRAPHX_THROW("ConstantFill, attribute output shape is needed");
+                MIGRAPHX_THROW("ConstantFill: attribute output shape is needed");
             }
 
             literal ls = parse_value(attributes.at("shape"));
-            std::vector<std::size_t> dims(ls.get_shape().elements());
+            std::vector<std::size_t> dims;
             ls.visit([&](auto s) { dims.assign(s.begin(), s.end()); });
             migraphx::shape s{type, dims};
             std::vector<float> values(s.elements(), value);
@@ -629,7 +629,7 @@ struct onnx_parser
         }
         else
         {
-            MIGRAPHX_THROW("ConstantFill, wrong value of attribute input_as_shape");
+            MIGRAPHX_THROW("ConstantFill: wrong value of attribute input_as_shape");
         }
     }
 

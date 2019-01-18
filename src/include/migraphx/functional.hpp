@@ -94,12 +94,10 @@ constexpr void each_args(F)
 {
 }
 
-template<class F, class T>
+template <class F, class T>
 auto unpack(F f, T& x)
 {
-    return sequence_c<std::tuple_size<T>{}>([&](auto... is) {
-        f(std::get<is>(x)...);
-    });
+    return sequence_c<std::tuple_size<T>{}>([&](auto... is) { f(std::get<is>(x)...); });
 }
 
 /// Implements a fix-point combinator

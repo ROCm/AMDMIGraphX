@@ -12,6 +12,9 @@ def rocmtestnode(variant, name, body) {
         """
         echo cmd
         sh cmd
+        if (compiler == "hcc") {
+            archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
+        }
     }
     node(name) {
         stage("checkout ${variant}") {

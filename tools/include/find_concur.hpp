@@ -10,17 +10,19 @@
 #include <unordered_map>
 #include <vector>
 
-
 namespace migraphx {
-
 
 #ifdef DOXYGEN
 
 /// An interface for target-dependent analysis to find concurrent instructions
-/// executing in different streams.    
+/// executing in different streams.
 struct find_concur
 {
-    void get_concur(program* p, int num_of_streams, std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>& concur_instrs);
+    void
+    get_concur(program* p,
+               int num_of_streams,
+               std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>&
+                   concur_instrs);
 };
 
 #else
@@ -32,7 +34,6 @@ interface('find_concur',
 %>
 
 #endif
-
 } // namespace migraphx
 
 #endif

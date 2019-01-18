@@ -23,7 +23,6 @@ struct memory_coloring
     std::string name() const { return "memory coloring"; }
     void apply(program& p) const;
 };
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

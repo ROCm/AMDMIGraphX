@@ -2,7 +2,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-           
+
 void memory_coloring_impl::run()
 {
     MIGRAPHX_DEBUG(dump("---Before memory coloring---"));
@@ -291,14 +291,15 @@ void memory_coloring_impl::add_stream_conflicts(std::vector<const instruction*>&
 
 void memory_coloring_impl::add_stream_conflicts()
 {
-    std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>> concur_instrs;
+    std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>
+        concur_instrs;
     f_concur.get_concur(p_program, num_of_streams, concur_instrs);
     MIGRAPHX_DEBUG(dump_concur_instrs(concur_instrs));
-    
-    for (auto iter = concur_instrs.begin(), end = concur_instrs.end(); iter != end; ++iter)
+
+    for(auto iter = concur_instrs.begin(), end = concur_instrs.end(); iter != end; ++iter)
     {
         for(auto s1 = 0; s1 < num_of_streams; ++s1)
-            {
+        {
             std::vector<const instruction*>& i1 = iter->second[s1];
             for(auto s2 = s1 + 1; s2 < num_of_streams; ++s2)
             {

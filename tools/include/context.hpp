@@ -40,7 +40,6 @@ interface('context',
 %>
 
 #endif
-
 } // namespace migraphx
 
 #endif

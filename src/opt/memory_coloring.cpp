@@ -12,6 +12,5 @@ void memory_coloring::apply(program& p) const
         opt.run();
     }
 }
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

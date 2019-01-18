@@ -1,8 +1,8 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_MEMORY_COLORING_IMPL_HPP
 #define MIGRAPHX_GUARD_RTGLIB_MEMORY_COLORING_IMPL_HPP
-#include "common_header.hpp"
-#include "dom_info.hpp"
+#include <migraphx/common_header.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/find_concur.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -53,11 +53,12 @@ using interval_ptr = live_interval*;
 
 struct memory_coloring_impl
 {
-    memory_coloring_impl(program* p, std::string alloc_op, bool p_verify, int num)
+    memory_coloring_impl(program* p, std::string alloc_op, bool p_verify, int num, find_concur f)
         : p_program(p),
           allocation_op(std::move(alloc_op)),
           enable_verify(p_verify),
-          num_of_streams(num)
+          num_of_streams(num),
+          f_concur(f)
     {
         instr2_live.clear();
         live_ranges.clear();
@@ -78,7 +79,7 @@ struct memory_coloring_impl
             conflict_table[val].insert(iter);
         }
     }
-    void propagate_splits(dom_info&);
+    void add_stream_conflicts();
     void add_stream_conflicts(std::vector<const instruction*>&, std::vector<const instruction*>&);
     void build();
     void run();
@@ -162,6 +163,7 @@ struct memory_coloring_impl
     std::string allocation_op{};
     bool enable_verify;
     int num_of_streams;
+    find_concur f_concur;
 };
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

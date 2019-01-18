@@ -18,7 +18,8 @@
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/pre_scheduling.hpp>
-#include <migraph/gpu/machine_model.hpp>
+#include <migraphx/gpu/machine_model.hpp>
+#include <migraphx/gpu/find_concur_gpu.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -53,7 +54,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         fuse_ops{&ctx},
         dead_code_elimination{},
         write_literals{&ctx},
-        memory_coloring{"hip::allocate", num_of_streams},
+        memory_coloring{"hip::allocate", num_of_streams, find_concur_gpu{}},
         eliminate_workspace{},
         eliminate_allocation{"hip::allocate"},
         check_context<context>{},

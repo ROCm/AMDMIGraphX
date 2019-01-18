@@ -23,7 +23,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 #else
 #define MIGRAPHX_DEBUG(s)
 #endif // MIGRAPHX_DEBUG_OPT
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

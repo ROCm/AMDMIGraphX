@@ -8,7 +8,7 @@ void memory_coloring::apply(program& p) const
 {
     if(!enabled(MIGRAPHX_DISABLE_MEMORY_COLORING{}))
     {
-        memory_coloring_impl opt(&p, allocation_op, verify, num_of_streams);
+        memory_coloring_impl opt(&p, allocation_op, verify, num_of_streams, f_concur);
         opt.run();
     }
 }

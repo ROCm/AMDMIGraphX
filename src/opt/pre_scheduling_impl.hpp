@@ -1,6 +1,6 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_PRE_SCHEDULING_IMPL_HPP
 #define MIGRAPHX_GUARD_RTGLIB_PRE_SCHEDULING_IMPL_HPP
-#include "common_header.hpp"
+#include <migraphx/common_header.hpp>
 #include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {

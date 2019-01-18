@@ -1,7 +1,24 @@
-#include "dom_info.hpp"
+#include <migraphx/dom_info.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct program_visitor
+{
+    program* p_program;
+    bool reversed;
+    instruction_ref begin() { return reversed ? std::prev(p_program->end()) : p_program->begin(); }
+    instruction_ref end() { return reversed ? p_program->begin() : std::prev(p_program->end()); }
+
+    instruction_ref next(instruction_ref ins) { return reversed ? std::prev(ins) : std::next(ins); }
+    std::set<const instruction*> get_inputs(instruction_ref ins)
+    {
+        std::set<const instruction*> ret_val;
+        for(auto&& arg : reversed ? ins->outputs() : ins->inputs())
+            ret_val.insert(&(*arg));
+        return ret_val;
+    }
+};
 
 bool dom_info::strictly_dominates(const instruction* ins1, const instruction* ins2)
 {

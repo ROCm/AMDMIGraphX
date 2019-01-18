@@ -1,27 +1,10 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_DOM_INFO_HPP
 #define MIGRAPHX_GUARD_RTGLIB_DOM_INFO_HPP
-#include "common_header.hpp"
-#include "set_operator.hpp"
+#include <migraphx/common_header.hpp>
+#include <migraphx/set_operator.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-struct program_visitor
-{
-    program* p_program;
-    bool reversed;
-    instruction_ref begin() { return reversed ? std::prev(p_program->end()) : p_program->begin(); }
-    instruction_ref end() { return reversed ? p_program->begin() : std::prev(p_program->end()); }
-
-    instruction_ref next(instruction_ref ins) { return reversed ? std::prev(ins) : std::next(ins); }
-    std::set<const instruction*> get_inputs(instruction_ref ins)
-    {
-        std::set<const instruction*> ret_val;
-        for(auto&& arg : reversed ? ins->outputs() : ins->inputs())
-            ret_val.insert(&(*arg));
-        return ret_val;
-    }
-};
 
 struct dom_info
 {

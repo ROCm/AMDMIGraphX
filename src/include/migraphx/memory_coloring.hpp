@@ -4,6 +4,8 @@
 #include <string>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/find_concur.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -16,6 +18,7 @@ struct memory_coloring
 {
     std::string allocation_op{};
     int num_of_streams = 0;
+    find_concur f_concur;
     bool verify = false;
     std::string name() const { return "memory coloring"; }
     void apply(program& p) const;

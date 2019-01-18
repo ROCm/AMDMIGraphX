@@ -18,14 +18,24 @@ namespace migraphx {
 struct context
 {
     /// Wait for any tasks in the context to complete
-    void finish() const;
+    void finish();
+    void set_stream(int ndx);
+    int create_event();
+    void record_event(int event, int stream);
+    void wait_event(int event, int stream);
+    void destroy();
 };
 
 #else
 
 <%
 interface('context',
-    virtual('finish', returns='void', const=True)
+    virtual('finish', returns='void'),
+    virtual('set_stream', returns='void', input = 'int'),
+    virtual('create_event', returns='int'),
+    virtual('record_event', returns='void', event = 'int', input = 'int'),
+    virtual('wait_event', returns='void', event = 'int', input = 'int'),
+    virtual('destroy', returns='void'),
 )
 %>
 

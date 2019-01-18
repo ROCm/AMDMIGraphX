@@ -322,6 +322,18 @@ struct cpu_gemm
     }
 };
 
+struct cpu_gather
+{
+    op::gather op;
+    std::string name() const { return "cpu::gather"; }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+
+    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+    {
+        return op.compute(output_shape, std::move(args));
+    }
+};
+
 struct identity_op
 {
     std::string name() const { return "cpu::identity"; }
@@ -651,6 +663,7 @@ struct cpu_apply
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
         apply_map["concat"]     = extend_op<cpu_concat, op::concat>();
+        apply_map["gather"]     = extend_op<cpu_gather, op::gather>();
         apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
         apply_map["elu"]        = extend_op<cpu_unary<elu_op>, op::elu>();
         apply_map["identity"]   = simple_op<cpu_unary<identity_op>>();

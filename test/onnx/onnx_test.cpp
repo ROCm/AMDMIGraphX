@@ -400,6 +400,45 @@ TEST_CASE(reshape_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(shape_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {3, 4, 5, 6}};
+    auto l0 = p.add_parameter("x", s);
+    migraphx::shape s_shape{migraphx::shape::int64_type, {4}};
+    p.add_literal(s_shape, l0->get_shape().lens());
+    auto prog = migraphx::parse_onnx("shape_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(gather_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto l1 = p.add_parameter("indices", migraphx::shape{migraphx::shape::int32_type, {2, 3}});
+    std::size_t axis = 1;
+    p.add_instruction(migraphx::op::gather{axis}, l0, l1);
+    auto prog = migraphx::parse_onnx("gather_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(shape_gather_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {7, 3, 10}});
+    auto l1 =
+        p.add_literal(migraphx::shape{migraphx::shape::int64_type, {3}}, l0->get_shape().lens());
+    migraphx::shape const_shape{migraphx::shape::int32_type, {1}};
+    auto l2          = p.add_literal(migraphx::literal{const_shape, {1}});
+    std::size_t axis = 0;
+    p.add_instruction(migraphx::op::gather{axis}, l1, l2);
+    auto prog = migraphx::parse_onnx("shape_gather.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(flatten_test)
 {
     migraphx::program p;
@@ -453,6 +492,33 @@ TEST_CASE(constant_test)
     auto prog = migraphx::parse_onnx("constant_test.onnx");
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(constant_fill_test)
+{
+    {
+        migraphx::program p;
+        auto l0 = p.add_literal(migraphx::literal{{migraphx::shape::int32_type, {2}}, {2, 3}});
+        std::vector<std::size_t> dims(l0->get_shape().elements());
+        migraphx::literal ls = l0->get_literal();
+        ls.visit([&](auto s) { dims.assign(s.begin(), s.end()); });
+        migraphx::shape s{migraphx::shape::float_type, dims};
+        std::vector<float> value(s.elements(), 1.0);
+        p.add_literal(migraphx::literal{s, value});
+        auto prog = migraphx::parse_onnx("const_fill1.onnx");
+
+        EXPECT(p == prog);
+    }
+
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+        std::vector<float> value(s.elements(), 1.0);
+        p.add_literal(migraphx::literal{s, value});
+        auto prog = migraphx::parse_onnx("const_fill2.onnx");
+
+        EXPECT(p == prog);
+    }
 }
 
 TEST_CASE(gemm_test)

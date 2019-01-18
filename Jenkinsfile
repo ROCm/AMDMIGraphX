@@ -8,7 +8,7 @@ def rocmtestnode(variant, name, body) {
             mkdir build
             cd build
             CXX=${compiler} CXXFLAGS='-Werror -Wno-fallback' cmake ${flags} .. 
-            CTEST_PARALLEL_LEVEL=32 make -j32 generate all doc check
+            CTEST_PARALLEL_LEVEL=32 make -j32 generate all doc package check
         """
         echo cmd
         sh cmd

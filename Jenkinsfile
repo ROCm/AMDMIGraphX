@@ -13,7 +13,10 @@ def rocmtestnode(variant, name, body) {
         echo cmd
         sh cmd
         if (compiler == "hcc") {
-            archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
+            // Only archive from master or develop
+            if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
+                archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
+            }
         }
     }
     node(name) {

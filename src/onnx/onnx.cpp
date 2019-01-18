@@ -80,6 +80,9 @@ struct onnx_parser
         add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
         add_mem_op("Slice", &onnx_parser::parse_slice);
         add_mem_op("Concat", &onnx_parser::parse_concat);
+        add_mem_op("Gather", &onnx_parser::parse_gather);
+        add_mem_op("Shape", &onnx_parser::parse_shape);
+        add_mem_op("ConstantFill", &onnx_parser::parse_constant_fill);
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
     }
 
@@ -357,6 +360,18 @@ struct onnx_parser
     }
 
     instruction_ref
+    parse_gather(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        std::size_t axis = 0;
+        if(contains(attributes, "axis"))
+        {
+            axis = parse_value(attributes.at("axis")).at<int>();
+        }
+        op::gather op{axis};
+        return prog.add_instruction(op, std::move(args));
+    }
+
+    instruction_ref
     parse_slice(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         op::slice op;
@@ -523,6 +538,99 @@ struct onnx_parser
             perm             = std::vector<int64_t>(perm_vals.begin(), perm_vals.end());
         }
         return prog.add_instruction(migraphx::op::transpose{perm}, args.front());
+    }
+
+    // Use a literal instruction to replace the shape since, output of
+    // shape operator are literals in migraphx
+    instruction_ref
+    parse_shape(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    {
+        if(args.size() != 1)
+            MIGRAPHX_THROW("Shape: operator should have 1 operand");
+        std::vector<std::size_t> arg_shape = args[0]->get_shape().lens();
+        std::vector<int64_t> vec_shape(arg_shape.size());
+        migraphx::shape s(migraphx::shape::int64_type, {arg_shape.size()});
+        std::transform(arg_shape.begin(), arg_shape.end(), vec_shape.begin(), [](auto i) {
+            return int64_t(i);
+        });
+        return prog.add_literal(migraphx::literal{s, vec_shape});
+    }
+
+    // Use a literal instruction to replace the constantFill operator. In RNN, input shape
+    // and value are fixed, so no need to do the actual computation for the constantFill
+    // operator
+    instruction_ref parse_constant_fill(const std::string&,
+                                        attribute_map attributes,
+                                        std::vector<instruction_ref> args)
+    {
+        int input_as_shape = 0;
+        int dtype          = 1;
+        float value        = 0.0f;
+
+        if(contains(attributes, "dtype"))
+        {
+            dtype = parse_value(attributes.at("dtype")).at<int>();
+        }
+        migraphx::shape::type_t type = get_type(dtype);
+
+        if(contains(attributes, "input_as_shape"))
+        {
+            input_as_shape = parse_value(attributes.at("input_as_shape")).at<int>();
+        }
+
+        if(contains(attributes, "value"))
+        {
+            value = parse_value(attributes.at("value")).at<float>();
+        }
+
+        if(contains(attributes, "extra_shape"))
+        {
+            MIGRAPHX_THROW("ConstantFill: cannot handle extra shape attribute");
+        }
+
+        if(input_as_shape == 1)
+        {
+            if(args.size() != 1)
+            {
+                MIGRAPHX_THROW("ConstantFill: need an input argument as output shape");
+            }
+
+            if(contains(attributes, "shape"))
+            {
+                MIGRAPHX_THROW("ConstantFill: cannot set the shape argument and pass in an input "
+                               "at the same time");
+            }
+
+            migraphx::argument in = args[0]->eval();
+            if(in.empty())
+            {
+                MIGRAPHX_THROW("ConstantFill: cannot handle dynamic shape as input");
+            }
+
+            std::vector<std::size_t> dims;
+            in.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
+            migraphx::shape s(type, dims);
+            std::vector<float> values(s.elements(), value);
+            return prog.add_literal(migraphx::literal(s, values));
+        }
+        else if(input_as_shape == 0)
+        {
+            if(!contains(attributes, "shape"))
+            {
+                MIGRAPHX_THROW("ConstantFill: attribute output shape is needed");
+            }
+
+            literal ls = parse_value(attributes.at("shape"));
+            std::vector<std::size_t> dims;
+            ls.visit([&](auto s) { dims.assign(s.begin(), s.end()); });
+            migraphx::shape s{type, dims};
+            std::vector<float> values(s.elements(), value);
+            return prog.add_literal(migraphx::literal(s, values));
+        }
+        else
+        {
+            MIGRAPHX_THROW("ConstantFill: wrong value of attribute input_as_shape");
+        }
     }
 
     void parse_from(std::istream& is)
@@ -773,6 +881,28 @@ struct onnx_parser
                            return d.dim_value();
                        });
         return {shape_type, dims};
+    }
+
+    shape::type_t get_type(int dtype)
+    {
+        switch(dtype)
+        {
+        case 1: return shape::float_type;
+        case 2: return shape::uint8_type;
+        case 3: return shape::int8_type;
+        case 4: return shape::uint16_type;
+        case 5: return shape::int16_type;
+        case 6: return shape::int32_type;
+        case 7: return shape::int64_type;
+        case 10: return shape::half_type;
+        case 11: return shape::double_type;
+        case 12: return shape::uint32_type;
+        case 13: return shape::uint64_type;
+        default:
+        {
+            MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
+        }
+        }
     }
 };
 

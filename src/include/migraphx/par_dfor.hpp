@@ -1,5 +1,5 @@
-#ifndef GUARD_RTGLIB_PAR_DFOR_HPP
-#define GUARD_RTGLIB_PAR_DFOR_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_PAR_DFOR_HPP
+#define MIGRAPHX_GUARD_RTGLIB_PAR_DFOR_HPP
 
 #include <migraphx/par_for.hpp>
 #include <migraphx/functional.hpp>

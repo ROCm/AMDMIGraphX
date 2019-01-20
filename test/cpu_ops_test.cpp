@@ -1286,17 +1286,14 @@ TEST_CASE(min_test)
 TEST_CASE(pad_test)
 {
     migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {2,2}};
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
     auto l0 = p.add_literal(migraphx::literal{s, {1, 2, 3, 4}});
-    p.add_instruction(migraphx::op::pad{{1,1,1,1}}, l0);
+    p.add_instruction(migraphx::op::pad{{1, 1, 1, 1}}, l0);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
     std::vector<float> results_vector(16);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold { 0, 0, 0, 0,
-                             0, 1, 2, 0,
-                             0, 3, 4, 0,
-                             0, 0, 0, 0};
+    std::vector<float> gold{0, 0, 0, 0, 0, 1, 2, 0, 0, 3, 4, 0, 0, 0, 0, 0};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 

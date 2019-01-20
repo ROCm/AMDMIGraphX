@@ -15,9 +15,7 @@ shape hip_pad::compute_shape(std::vector<shape> inputs) const
     return op.compute_shape(inputs);
 }
 
-argument hip_pad::compute(context& ctx,
-                             const shape&,
-                             const std::vector<argument>& args) const
+argument hip_pad::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
     return device::pad(ctx.get_stream().get(), args.back(), args.front(), op.value, op.pads);
 }

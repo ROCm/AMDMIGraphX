@@ -940,8 +940,8 @@ struct test_pad
     {
         migraphx::program p;
         migraphx::shape s0{migraphx::shape::int32_type, {1, 96, 165, 165}};
-        std::vector<int64_t> pads = {0,0,0,0,0,0,1,1};
-        auto l0 = p.add_parameter("x", s0);
+        std::vector<int64_t> pads = {0, 0, 0, 0, 0, 0, 1, 1};
+        auto l0                   = p.add_parameter("x", s0);
         p.add_instruction(migraphx::op::pad{pads}, l0);
         return p;
     }

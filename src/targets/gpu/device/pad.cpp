@@ -10,11 +10,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument pad(hipStream_t stream,
-                argument result,
-                argument arg1,
-                float value,
-                std::vector<std::int64_t> pads)
+argument
+pad(hipStream_t stream, argument result, argument arg1, float value, std::vector<std::int64_t> pads)
 {
     std::size_t nelements = arg1.get_shape().elements();
 
@@ -27,14 +24,14 @@ argument pad(hipStream_t stream,
             const auto* inptr = input.data();
             hip_tensor_descriptor<ndim> desc_input(input.get_shape());
             hip_tensor_descriptor<ndim> desc_output(output.get_shape());
-            gs_launch(stream, nelements)(
-                [=](auto i) { 
-                    auto idx = desc_input.multi(i);
-                    for(std::size_t j = 0; j < ndim;j++) {
-                        idx[j] += offsets[j];
-                    }
-                    outptr[desc_output.linear(idx)] = inptr[i]; 
-                });
+            gs_launch(stream, nelements)([=](auto i) {
+                auto idx = desc_input.multi(i);
+                for(std::size_t j = 0; j < ndim; j++)
+                {
+                    idx[j] += offsets[j];
+                }
+                outptr[desc_output.linear(idx)] = inptr[i];
+            });
         });
     });
     return result;

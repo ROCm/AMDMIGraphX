@@ -40,6 +40,7 @@
 #include <migraphx/gpu/pooling.hpp>
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/concat.hpp>
+#include <migraphx/gpu/pad.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -90,6 +91,7 @@ struct miopen_apply
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
         add_extend_op<miopen_softmax, op::softmax>("softmax");
+        add_extend_op<hip_pad, op::pad>("pad");
 
         add_convolution_op();
         add_pooling_op();

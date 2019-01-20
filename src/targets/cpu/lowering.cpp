@@ -309,7 +309,7 @@ struct cpu_pad
         result.visit([&](auto output) { std::fill(output.begin(), output.end(), op.value); });
 
         visit_all(result, args[0])([&](auto output, auto input) {
-            shape_for_each(output.get_shape(), [&](const auto& idx) {
+            shape_for_each(input.get_shape(), [&](const auto& idx) {
                 std::vector<std::size_t> new_idx(idx.size());
                 std::transform(
                     idx.begin(), idx.end(), op.pads.begin(), new_idx.begin(), [](auto i, auto j) {

@@ -934,6 +934,19 @@ struct test_concat_relu
     }
 };
 
+struct test_pad
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s0{migraphx::shape::int32_type, {1, 96, 165, 165}};
+        std::vector<int64_t> pads = {0,0,0,0,0,0,1,1};
+        auto l0 = p.add_parameter("x", s0);
+        p.add_instruction(migraphx::op::pad{pads}, l0);
+        return p;
+    }
+};
+
 void manual_identity()
 {
     migraphx::program p;
@@ -1023,6 +1036,7 @@ int main()
     verify_program<test_concat>();
     verify_program<test_concat2>();
     verify_program<test_concat_relu>();
+    verify_program<test_pad>();
     verify_program<test_add>();
     verify_program<test_add_half>();
     verify_program<test_mul>();

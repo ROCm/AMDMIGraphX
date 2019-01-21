@@ -14,9 +14,6 @@ namespace gpu {
 
 void eliminate_workspace::apply(program& p) const
 {
-    if(!enabled(MIGRAPHX_DISABLE_MEMORY_COLORING{}))
-        return;
-
     std::size_t n = 0;
     std::vector<instruction_ref> allocs;
     for(auto ins : iterator_for(p))
@@ -32,11 +29,14 @@ void eliminate_workspace::apply(program& p) const
             allocs.push_back(ins);
         }
     }
-    auto ws = p.add_parameter("workspace", shape{shape::int8_type, {n}});
-    for(auto&& a : allocs)
+    if(n > 0)
     {
-        p.replace_instruction(a, ws);
-        p.remove_instruction(a);
+        auto ws = p.add_parameter("workspace", shape{shape::int8_type, {n}});
+        for(auto&& a : allocs)
+        {
+            p.replace_instruction(a, ws);
+            p.remove_instruction(a);
+        }
     }
 }
 

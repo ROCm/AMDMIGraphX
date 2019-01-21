@@ -6,6 +6,8 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
 #include <cmath>
 #include <utility>
@@ -16,7 +18,7 @@ namespace op {
 
 struct not_computable
 {
-    argument compute(context&, const shape&, const std::vector<argument>&) const
+    argument compute(const shape&, const std::vector<argument>&) const
     {
         MIGRAPHX_THROW("not computable");
     }
@@ -63,6 +65,7 @@ struct convolution
         valid
     };
     padding_mode_t padding_mode = default_;
+    int group                   = 1;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -70,7 +73,8 @@ struct convolution
         return pack(f(self.padding, "padding"),
                     f(self.stride, "stride"),
                     f(self.dilation, "dilation"),
-                    f(self.padding_mode, "padding_mode"));
+                    f(self.padding_mode, "padding_mode"),
+                    f(self.group, "group"));
     }
 
     std::string name() const { return "convolution"; }
@@ -296,7 +300,7 @@ struct transpose
         }
         return {t, output_lens, output_strides};
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
@@ -370,6 +374,27 @@ struct concat
         new_lens[axis] = new_dim_axis;
         return {type, new_lens};
     }
+    argument compute(const shape& output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        std::vector<std::size_t> coffsets = compute_offsets(output_shape, args);
+        for(std::size_t l = 0; l < args.size(); l++)
+        {
+            auto argl             = args[l];
+            std::size_t nelements = argl.get_shape().elements();
+            visit_all(result, argl)([&](auto output, auto input) {
+                auto slice_shape =
+                    shape{output_shape.type(), input.get_shape().lens(), output_shape.strides()};
+                auto slice = make_view(slice_shape, output.data() + coffsets[l]);
+                // cppcheck-suppress useStlAlgorithm
+                for(std::size_t i = 0; i < nelements; i++)
+                {
+                    slice[i] = input[i];
+                }
+            });
+        }
+        return result;
+    }
     int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
@@ -437,7 +462,7 @@ struct slice
         }
         return shape{t, new_lens, old_strides};
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         auto input  = args[0];
         auto offset = compute_offset(input.get_shape()) * output_shape.type_size();
@@ -487,7 +512,7 @@ struct squeeze
         }
         return shape{type, new_lens};
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
@@ -526,7 +551,7 @@ struct unsqueeze
         }
         return shape{type, new_lens};
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
@@ -578,10 +603,88 @@ struct reshape
             MIGRAPHX_THROW("Wrong number of elements for reshape");
         return s;
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
+};
+
+struct as_shape
+{
+    shape s;
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.s, "shape"));
+    }
+
+    std::string name() const { return "as_shape"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(1).standard();
+        assert(inputs.front().elements() == s.elements());
+        return s;
+    }
+    argument compute(shape output_shape, std::vector<argument> args) const
+    {
+        return {std::move(output_shape), std::move(args.front().data)};
+    }
+    int output_alias(const std::vector<shape>&) const { return 0; }
+};
+
+struct gather
+{
+    std::size_t axis = 0;
+    std::string name() const { return "gather"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(2);
+        auto lens = inputs[0].lens();
+        if(axis >= lens.size())
+        {
+            MIGRAPHX_THROW("Gather, axis is out of range.");
+        }
+        auto type  = inputs[0].type();
+        lens[axis] = inputs[1].elements();
+
+        return {type, lens};
+    }
+
+    template <class T>
+    void compute_index(const T& out_idx,
+                       const std::vector<std::size_t>& vec_indices,
+                       const std::size_t max_dim,
+                       T& in_idx) const
+    {
+        in_idx          = out_idx;
+        std::size_t idx = vec_indices.at(out_idx[axis]);
+        if(idx >= max_dim)
+        {
+            MIGRAPHX_THROW("Gather: indices are out of range in input tensor");
+        }
+        in_idx[axis] = idx;
+    }
+
+    argument compute(const shape& output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        // max dimension in axis
+        std::size_t max_dim = args[0].get_shape().lens()[axis];
+        std::vector<std::size_t> vec_indices;
+        args[1].visit([&](auto indices) { vec_indices.assign(indices.begin(), indices.end()); });
+        visit_all(result, args[0])([&](auto output, auto input) {
+            std::vector<std::size_t> in_idx;
+            shape_for_each(output.get_shape(), [&](const auto& idx) {
+                this->compute_index(idx, vec_indices, max_dim, in_idx);
+                output(idx.begin(), idx.end()) = input(in_idx.begin(), in_idx.end());
+            });
+        });
+
+        return result;
+    }
+
     int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
@@ -624,7 +727,7 @@ struct identity
 {
     std::string name() const { return "identity"; }
     shape compute_shape(std::vector<shape> inputs) const { return inputs.at(0); }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.at(0).data)};
     }
@@ -742,7 +845,7 @@ struct flatten
             std::accumulate(lens.begin() + axis, lens.end(), std::size_t{1}, std::multiplies<>{});
         return {inputs.at(0).type(), {x, y}};
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
@@ -794,7 +897,7 @@ struct broadcast
             return {t, broadcast_shape.lens(), std::move(bcast_strides)};
         }
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.at(0).data)};
     }
@@ -836,7 +939,7 @@ struct multibroadcast
         }
         return {t, output_lens, bcast_strides};
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.at(0).data)};
     }
@@ -858,7 +961,7 @@ struct scalar
         return {t, scalar_bcast.lens(), strides};
     }
 
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.at(0).data)};
     }
@@ -923,7 +1026,7 @@ struct load
         check_shapes{inputs}.has(1);
         return s;
     }
-    argument compute(context&, const shape&, const std::vector<argument>& args) const
+    argument compute(const shape&, const std::vector<argument>& args) const
     {
         return {s, args[0].data() + offset};
     }
@@ -946,10 +1049,7 @@ struct outline
         check_shapes{inputs, *this}.has(0);
         return s;
     }
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        return {s, nullptr};
-    }
+    argument compute(const shape&, const std::vector<argument>&) const { return {s, nullptr}; }
 };
 
 } // namespace op

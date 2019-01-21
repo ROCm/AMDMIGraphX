@@ -5,6 +5,7 @@
 #include <migraphx/operators.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/par_dfor.hpp>
 #include <migraphx/cpu/gemm.hpp>
 #include <unordered_map>
 #include <utility>
@@ -72,7 +73,7 @@ struct cpu_batch_norm_inference
             visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
                 [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
 
-                    dfor(num_batch, num_channels, image_height, image_width)(
+                    par_dfor(num_batch, num_channels, image_height, image_width)(
                         [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
                             assert((variance(c) + epsilon) > 0);
                             result(n, c, h, w) = gamma(c) * (buffer(n, c, h, w) - mean(c)) /
@@ -87,7 +88,7 @@ struct cpu_batch_norm_inference
             visit_all(output, input, mini_batch_mean, mini_batch_mean, arg_gamma, arg_bias)(
                 [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
 
-                    dfor(num_batch, num_channels, image_height, image_width)(
+                    par_dfor(num_batch, num_channels, image_height, image_width)(
                         [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
                             assert((variance(c, h, w) + epsilon) > 0);
                             result(n, c, h, w) = gamma(c, h, w) *
@@ -112,28 +113,33 @@ struct cpu_convolution
     {
         argument result{output_shape};
         visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
-            auto in_h = input.get_shape().lens()[2];
-            auto in_w = input.get_shape().lens()[3];
+            auto in   = input.get_shape().lens();
+            auto in_h = in[2];
+            auto in_w = in[3];
 
-            auto wei_c = weights.get_shape().lens()[1];
-            auto wei_h = weights.get_shape().lens()[2];
-            auto wei_w = weights.get_shape().lens()[3];
+            auto wei   = weights.get_shape().lens();
+            auto wei_n = wei[0];
+            auto wei_c = wei[1];
+            auto wei_h = wei[2];
+            auto wei_w = wei[3];
 
-            dfor(output_shape.lens()[0],
-                 output_shape.lens()[1],
-                 output_shape.lens()[2],
-                 output_shape.lens()[3])(
+            par_dfor(output_shape.lens()[0],
+                     output_shape.lens()[1],
+                     output_shape.lens()[2],
+                     output_shape.lens()[3])(
                 [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
-                    const int start_x = i * op.stride[0] - op.padding[0];
-                    const int start_y = j * op.stride[1] - op.padding[1];
+                    const int start_x  = i * op.stride[0] - op.padding[0];
+                    const int start_y  = j * op.stride[1] - op.padding[1];
+                    const int group_id = w / (wei_n / op.group);
 
                     double acc = 0;
                     dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t y) {
-                        const int in_x = start_x + x;
-                        const int in_y = start_y + y;
+                        const int in_x  = start_x + x;
+                        const int in_y  = start_y + y;
+                        const int in_ch = group_id * wei_c + k;
                         if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
                         {
-                            acc += input(o, k, in_x, in_y) * weights(w, k, x, y);
+                            acc += input(o, in_ch, in_x, in_y) * weights(w, k, x, y);
                         }
                     });
                     output(o, w, i, j) = acc;
@@ -240,10 +246,10 @@ struct cpu_pooling
             auto in_h  = input.get_shape().lens()[2];
             auto in_w  = input.get_shape().lens()[3];
 
-            dfor(output_shape.lens()[0],
-                 output_shape.lens()[1],
-                 output_shape.lens()[2],
-                 output_shape.lens()[3])(
+            par_dfor(output_shape.lens()[0],
+                     output_shape.lens()[1],
+                     output_shape.lens()[2],
+                     output_shape.lens()[3])(
                 [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
                     const int start_x0 = i * op.stride[0] - op.padding[0];
                     const int start_y0 = j * op.stride[1] - op.padding[1];
@@ -299,24 +305,7 @@ struct cpu_concat
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
-        argument result{output_shape};
-        std::vector<std::size_t> coffsets = op.compute_offsets(output_shape, args);
-        for(std::size_t l = 0; l < args.size(); l++)
-        {
-            auto argl             = args[l];
-            std::size_t nelements = argl.get_shape().elements();
-            visit_all(result, argl)([&](auto output, auto input) {
-                auto slice_shape =
-                    shape{output_shape.type(), input.get_shape().lens(), output_shape.strides()};
-                auto slice = make_view(slice_shape, output.data() + coffsets[l]);
-                // cppcheck-suppress useStlAlgorithm
-                for(std::size_t i = 0; i < nelements; i++)
-                {
-                    slice[i] = input[i];
-                }
-            });
-        }
-        return result;
+        return op.compute(output_shape, std::move(args));
     }
 };
 
@@ -331,6 +320,18 @@ struct cpu_gemm
         argument result{output_shape};
         migemm(result, args[0], args[1], op.alpha, op.beta);
         return result;
+    }
+};
+
+struct cpu_gather
+{
+    op::gather op;
+    std::string name() const { return "cpu::gather"; }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+
+    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+    {
+        return op.compute(output_shape, std::move(args));
     }
 };
 
@@ -663,6 +664,7 @@ struct cpu_apply
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
         apply_map["concat"]     = extend_op<cpu_concat, op::concat>();
+        apply_map["gather"]     = extend_op<cpu_gather, op::gather>();
         apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
         apply_map["elu"]        = extend_op<cpu_unary<elu_op>, op::elu>();
         apply_map["identity"]   = simple_op<cpu_unary<identity_op>>();

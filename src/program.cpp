@@ -271,6 +271,8 @@ instruction_ref program::end() const { return impl->instructions.end(); }
 
 shape program::get_shape() const { return impl->instructions.back().get_shape(); }
 
+context& program::get_context() const { return impl->ctx; }
+
 instruction_ref program::validate() const
 {
     return std::find_if(impl->instructions.begin(),
@@ -308,6 +310,15 @@ void program::compile(const target& t, tracer trace)
     {
         auto index = std::distance(impl->instructions.begin(), invalid);
         MIGRAPHX_THROW("Invalid program from compilation at instruction " + std::to_string(index));
+    }
+    this->finalize();
+}
+
+void program::finalize()
+{
+    for(auto ins : iterator_for(*this))
+    {
+        ins->finalize(this->impl->ctx);
     }
 }
 

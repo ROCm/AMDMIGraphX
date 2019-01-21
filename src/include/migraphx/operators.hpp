@@ -6,6 +6,8 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
 #include <cmath>
 #include <utility>
@@ -628,6 +630,61 @@ struct as_shape
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
+    int output_alias(const std::vector<shape>&) const { return 0; }
+};
+
+struct gather
+{
+    std::size_t axis = 0;
+    std::string name() const { return "gather"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(2);
+        auto lens = inputs[0].lens();
+        if(axis >= lens.size())
+        {
+            MIGRAPHX_THROW("Gather, axis is out of range.");
+        }
+        auto type  = inputs[0].type();
+        lens[axis] = inputs[1].elements();
+
+        return {type, lens};
+    }
+
+    template <class T>
+    void compute_index(const T& out_idx,
+                       const std::vector<std::size_t>& vec_indices,
+                       const std::size_t max_dim,
+                       T& in_idx) const
+    {
+        in_idx          = out_idx;
+        std::size_t idx = vec_indices.at(out_idx[axis]);
+        if(idx >= max_dim)
+        {
+            MIGRAPHX_THROW("Gather: indices are out of range in input tensor");
+        }
+        in_idx[axis] = idx;
+    }
+
+    argument compute(const shape& output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        // max dimension in axis
+        std::size_t max_dim = args[0].get_shape().lens()[axis];
+        std::vector<std::size_t> vec_indices;
+        args[1].visit([&](auto indices) { vec_indices.assign(indices.begin(), indices.end()); });
+        visit_all(result, args[0])([&](auto output, auto input) {
+            std::vector<std::size_t> in_idx;
+            shape_for_each(output.get_shape(), [&](const auto& idx) {
+                this->compute_index(idx, vec_indices, max_dim, in_idx);
+                output(idx.begin(), idx.end()) = input(in_idx.begin(), in_idx.end());
+            });
+        });
+
+        return result;
+    }
+
     int output_alias(const std::vector<shape>&) const { return 0; }
 };
 

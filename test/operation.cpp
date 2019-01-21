@@ -103,4 +103,64 @@ TEST_CASE(operation_default_print)
     EXPECT(s == "simple");
 }
 
+struct final_operation
+{
+    std::string name() const { return "final"; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const
+    {
+        MIGRAPHX_THROW("not computable");
+    }
+    void
+    finalize(migraphx::context&, const migraphx::shape&, const std::vector<migraphx::shape>&) const
+    {
+    }
+};
+
+struct final_operation_throw
+{
+    std::string name() const { return "final"; }
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const
+    {
+        MIGRAPHX_THROW("not computable");
+    }
+    [[gnu::noreturn]] void
+    finalize(migraphx::context&, const migraphx::shape&, const std::vector<migraphx::shape>&) const
+    {
+        MIGRAPHX_THROW("finalize");
+    }
+};
+
+TEST_CASE(check_has_finalize_simple)
+{
+    migraphx::operation op = simple_operation{};
+    EXPECT(not migraphx::has_finalize(op));
+}
+
+TEST_CASE(check_has_finalize)
+{
+    migraphx::operation op = final_operation{};
+    EXPECT(migraphx::has_finalize(op));
+}
+
+TEST_CASE(check_run_finalize)
+{
+    migraphx::operation op = final_operation{};
+    migraphx::context ctx{};
+    op.finalize(ctx, {}, {});
+}
+
+TEST_CASE(check_run_finalize_simple)
+{
+    migraphx::operation op = simple_operation{};
+    migraphx::context ctx{};
+    op.finalize(ctx, {}, {});
+}
+
+TEST_CASE(check_run_finalize_throw)
+{
+    migraphx::operation op = final_operation_throw{};
+    migraphx::context ctx{};
+    EXPECT(test::throws([&] { op.finalize(ctx, {}, {}); }));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

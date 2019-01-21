@@ -104,6 +104,8 @@ struct program
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
     void debug_print(const std::vector<instruction_ref>& inss) const;
+    void finish();
+    void destroy();
 
     friend std::ostream& operator<<(std::ostream& os, const program& p);
     friend bool operator==(const program& x, const program& y);
@@ -112,7 +114,6 @@ struct program
     private:
     std::unique_ptr<program_impl> impl;
 };
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

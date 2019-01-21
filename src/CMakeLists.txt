@@ -20,6 +20,9 @@ add_library(migraphx
     simplify_reshapes.cpp
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp
+    opt/pre_scheduling.cpp
+    opt/pre_scheduling_impl.cpp
+    opt/dom_info.cpp
 )
 rocm_clang_tidy_check(migraphx)
 rocm_install_targets(

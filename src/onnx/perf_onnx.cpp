@@ -31,6 +31,9 @@ int main(int argc, char const* argv[])
         std::cout << "Allocating params ... " << std::endl;
         auto m = create_param_map(p);
         std::cout << "Running performance report ... " << std::endl;
+
         p.perf_report(std::cout, n, m);
+        p.destroy();
+
     }
 }

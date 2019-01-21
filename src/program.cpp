@@ -51,7 +51,12 @@ static void print_instruction(std::ostream& os,
         }
         os << ")";
     }
-
+    if (ins->get_stream() >= 0)
+        os << "(stream=" <<  ins->get_stream() << ")";
+    if (ins->has_mask(WAIT_EVENT))
+        os << " wait ";
+    if (ins->has_mask(RECORD_EVENT))
+        os << " record=" << ins->get_event();
     os << " -> " << ins->get_shape();
 }
 
@@ -280,6 +285,16 @@ instruction_ref program::validate() const
                         [&](const instruction& i) { return !i.valid(impl->instructions.begin()); });
 }
 
+void program::finish()
+{
+    this->impl->ctx.finish();
+}
+
+void program::destroy()
+{
+    this->impl->ctx.destroy();
+}
+           
 void program::compile(const target& t, tracer trace)
 {
     assert(this->validate() == impl->instructions.end());
@@ -318,6 +333,8 @@ void program::finalize()
 {
     for(auto ins : iterator_for(*this))
     {
+        int stream = ins->get_stream();
+        this->impl->ctx.set_stream(stream);
         ins->finalize(this->impl->ctx);
     }
 }
@@ -333,8 +350,13 @@ argument generic_eval(const program& p,
     results.reserve(p.size() * 2);
     std::vector<argument> values;
     values.reserve(16);
+    int num_of_stream = 0;
+    
     for(auto ins : iterator_for(p))
     {
+        int stream = ins->get_stream();
+        ctx.set_stream(stream);
+        num_of_stream = std::max(num_of_stream, stream + 1);
         if(ins->name() == "@literal")
         {
             results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
@@ -361,9 +383,31 @@ argument generic_eval(const program& p,
                     assert(results.find(i) != results.end());
                     return results[i];
                 });
+            if (ins->has_mask(WAIT_EVENT))
+            {
+                for(auto&& arg : ins->inputs())
+                {
+                    int arg_s = arg->get_stream();
+                    if ((arg_s >= 0) && (arg_s != stream))
+                    {
+                        int event = arg->get_event();
+                        assert(event >= 0);
+                        ctx.wait_event(stream, event);
+                    }
+                }
+            }
+
+            int event = ins->get_event();
+            if ((event < 0) && ins->has_mask(RECORD_EVENT))
+            {
+                event = ctx.create_event();
+                ins->set_event(event);
+            }
             results.emplace(ins, trace(ins, [&] {
                                 return ins->get_operator().compute(ctx, ins->get_shape(), values);
                             }));
+            if (event != -1)
+                ctx.record_event(event, stream);
         }
         assert(results.find(ins) != results.end());
     }
@@ -385,7 +429,7 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
     else
     {
         return generic_eval(
-            *this, this->impl->ctx, std::move(params), [](auto&, auto f) { return f(); });
+                            *this, this->impl->ctx, std::move(params), [](auto&, auto f) { return f(); });
     }
 }
 

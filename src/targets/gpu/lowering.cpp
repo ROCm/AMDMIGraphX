@@ -41,6 +41,7 @@
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/concat.hpp>
 #include <migraphx/gpu/pad.hpp>
+#include <migraphx/gpu/gather.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>

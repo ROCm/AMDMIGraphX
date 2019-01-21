@@ -943,6 +943,21 @@ struct test_pad
         std::vector<int64_t> pads = {0, 0, 0, 0, 0, 0, 1, 1};
         auto l0                   = p.add_parameter("x", s0);
         p.add_instruction(migraphx::op::pad{pads}, l0);
+    }
+}
+
+struct test_gather
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
+        migraphx::shape s_indices{migraphx::shape::int32_type, {2, 2}};
+        std::vector<int> indices{1, 2, 2, 1};
+        auto a0          = p.add_parameter("data", s);
+        auto a1          = p.add_literal(migraphx::literal{s_indices, indices});
+        std::size_t axis = 0;
+        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
         return p;
     }
 };

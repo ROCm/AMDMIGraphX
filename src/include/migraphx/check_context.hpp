@@ -16,10 +16,18 @@ struct check_context
         shape compute_shape(const std::vector<shape>&) const { return {}; }
         argument compute(context& ctx, const shape&, const std::vector<argument>&) const
         {
+            this->check(ctx);
+            return {};
+        }
+        void finalize(context& ctx, const shape&, const std::vector<shape>&) const
+        {
+            this->check(ctx);
+        }
+        void check(context& ctx) const
+        {
             T* x = any_cast<T>(&ctx);
             if(x == nullptr)
                 MIGRAPHX_THROW(std::string("Unexpected context type: ") + ctx.type_id().name());
-            return {};
         }
     };
 

@@ -38,7 +38,11 @@ void par_for_impl(std::size_t n, std::size_t threadsize, F f)
     else
     {
         std::vector<joinable_thread> threads(threadsize);
-        const std::size_t grainsize = std::ceil(static_cast<double>(n) / threads.size());
+// Using const here causes gcc 5 to ICE
+#if(!defined(__GNUC__) || __GNUC__ != 5)
+    const
+#endif
+        std::size_t grainsize = std::ceil(static_cast<double>(n) / threads.size());
 
         std::size_t work = 0;
         std::generate(threads.begin(), threads.end(), [=, &work] {

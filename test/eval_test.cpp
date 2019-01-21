@@ -8,9 +8,57 @@
 
 struct id_target
 {
+    struct context
+    {
+        void finish() const {}
+    };
+    migraphx::context ctx = context{};
     std::string name() const { return "id"; }
     std::vector<migraphx::pass> get_passes(migraphx::context&) const { return {}; }
-    migraphx::context get_context() const { return {}; }
+    migraphx::context get_context() const { return ctx; }
+};
+
+struct id_ctx_op
+{
+    std::string name() const { return "id_ctx_op"; }
+    migraphx::argument
+    compute(id_target::context&, const migraphx::shape&, std::vector<migraphx::argument> args) const
+    {
+        if(args.empty())
+            return {};
+        return args.front();
+    }
+
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        if(inputs.empty())
+            return {};
+        return inputs.front();
+    }
+    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+};
+
+struct id_ctx_final_op
+{
+    std::string name() const { return "id_ctx_final_op"; }
+    migraphx::argument compute(const migraphx::shape&, std::vector<migraphx::argument> args) const
+    {
+        if(args.empty())
+            return {};
+        return args.front();
+    }
+
+    void finalize(id_target::context&, const migraphx::shape&, const std::vector<migraphx::shape>&)
+    {
+    }
+
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        if(inputs.empty())
+            return {};
+        return inputs.front();
+    }
+    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
 };
 
 struct reverse_pass
@@ -222,6 +270,54 @@ TEST_CASE(double_reverse_target_test)
     auto result = p.eval({});
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
+}
+
+// Check that the program doesnt modify the context directly, and only the operators modify the
+// context
+TEST_CASE(eval_context1)
+{
+    migraphx::program p;
+    id_target t{};
+    EXPECT(is_shared(t.ctx, t.get_context()));
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    p.add_instruction(sum_op{}, one, two);
+    p.compile(t);
+    EXPECT(is_shared(t.ctx, p.get_context()));
+    p.eval({});
+    EXPECT(is_shared(t.ctx, p.get_context()));
+}
+
+TEST_CASE(eval_context2)
+{
+    migraphx::program p;
+    id_target t{};
+    EXPECT(is_shared(t.ctx, t.get_context()));
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    p.add_instruction(id_ctx_op{}, one, two);
+    p.compile(t);
+    EXPECT(is_shared(t.ctx, p.get_context()));
+    p.eval({});
+    // id_ctx_op will modify the context
+    EXPECT(not is_shared(t.ctx, p.get_context()));
+}
+
+TEST_CASE(eval_context3)
+{
+    migraphx::program p;
+    id_target t{};
+    EXPECT(is_shared(t.ctx, t.get_context()));
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    p.add_instruction(id_ctx_final_op{}, one, two);
+    p.compile(t);
+    // Finalizer will modify the context
+    EXPECT(not is_shared(t.ctx, p.get_context()));
+    auto ctx = p.get_context();
+    p.eval({});
+    EXPECT(is_shared(ctx, p.get_context()));
+    EXPECT(not is_shared(t.ctx, p.get_context()));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

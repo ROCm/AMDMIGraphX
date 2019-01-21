@@ -118,6 +118,8 @@ rocm_enable_cppcheck(
         unusedStructMember
         functionStatic
         functionConst:*program.hpp
+        shadowFunction
+        shadowVar
         definePrefix:*test/include/test.hpp
     FORCE
     INCONCLUSIVE

@@ -111,7 +111,7 @@ struct lhs_expression
 struct capture
 {
     template <class T>
-    auto operator->*(const T& x)
+    auto operator->*(const T& x) const
     {
         return make_lhs_expression(x);
     }

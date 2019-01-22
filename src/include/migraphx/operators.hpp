@@ -598,11 +598,11 @@ struct reshape
                     rdims[i] = missing_dim;
             }
         }
-        if(dims.back() == -1)
-        {
-            rdims.pop_back();
-            std::copy(idims.begin() + rdims.size(), idims.end(), std::back_inserter(rdims));
-        }
+        //if(dims.back() == -1)
+        //{
+        //    rdims.pop_back();
+        //    std::copy(idims.begin() + rdims.size(), idims.end(), std::back_inserter(rdims));
+        //}
         shape s{inputs.front().type(), rdims};
         if(s.elements() != inputs.front().elements())
             MIGRAPHX_THROW("Wrong number of elements for reshape");

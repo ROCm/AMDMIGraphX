@@ -584,7 +584,7 @@ struct reshape
 
             // since rdims using size_t type, -1 is the max value
             // is size_t that cause later compuation incorrect
-            if (dims[i] == -1)
+            if(dims[i] == -1)
                 rdims[i] = 1;
         }
         if(n_neg_dims > 0)

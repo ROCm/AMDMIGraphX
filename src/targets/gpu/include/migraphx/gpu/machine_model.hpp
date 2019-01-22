@@ -3,6 +3,7 @@
 #include <string>
 #include <unordered_map>
 #include <migraphx/pass_config.hpp>
+#include <migraphx/operation.hpp>
 
 namespace migraphx {
 namespace gpu {
@@ -34,15 +35,15 @@ struct op_info
         weight_map["hip::add_relu"]    = std::make_pair(2, 0);
     }
 
-    std::pair<int, int> operator()(const std::string& op)
+    std::pair<int, int> operator()(const operation& op)
     {
-        if(weight_map.find(op) != weight_map.end())
+        if(weight_map.find(op.name()) != weight_map.end())
         {
-            return weight_map[op];
+            return weight_map[op.name()];
         }
         else
         {
-            return std::make_pair(1, 0);
+            return std::make_pair(1, (op.name().compare(0, 5, "gpu::") == 0) ? 0 : 1);
         }
     }
     std::unordered_map<std::string, std::pair<int, int>> weight_map;

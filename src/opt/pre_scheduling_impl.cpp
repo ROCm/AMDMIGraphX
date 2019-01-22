@@ -10,8 +10,7 @@ void pre_scheduling_impl::compute_weights()
     for(auto ins : iterator_for(*p_program))
     {
         dag_node& node             = nodes[ndx];
-        std::string name           = ins->name();
-        std::pair<int, int> weight = weight_func(name);
+        std::pair<int, int> weight = weight_func(ins->get_operator());
         node.weight                = weight.first;
         node.run_on_cpu            = weight.second;
         node.weight_sum += node.weight;

@@ -28,7 +28,7 @@ namespace gpu {
 std::vector<pass> target::get_passes(migraphx::context& gctx) const
 {
     auto& ctx                                                    = any_cast<context>(gctx);
-    std::function<std::pair<int, int>(std::string&)> weight_func = op_info();
+    std::function<std::pair<int, int>(const operation&)> weight_func = op_info();
     int num_of_streams                                           = stream_info().num_of_streams();
     // clang-format off
     return
@@ -50,7 +50,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         dead_code_elimination{},
         eliminate_contiguous{},
         dead_code_elimination{},
-         fuse_ops{&ctx},
+        fuse_ops{&ctx},
         dead_code_elimination{},
         write_literals{&ctx}, 
         pre_scheduling{weight_func, num_of_streams},        

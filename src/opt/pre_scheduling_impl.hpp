@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_PRE_SCHEDULING_IMPL_HPP
 #include <migraphx/common_header.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/operation.hpp>
 
 namespace migraphx {
 
@@ -81,7 +82,7 @@ struct stream_info
 
 struct pre_scheduling_impl
 {
-    pre_scheduling_impl(program* p, std::function<std::pair<int, int>(std::string&)> w, int n)
+    pre_scheduling_impl(program* p, std::function<std::pair<int, int>(const operation&)> w, int n)
         : p_program(p), weight_func(std::move(w)), num_of_streams(n)
     {
         instr2_node.clear();
@@ -153,7 +154,7 @@ struct pre_scheduling_impl
 #endif
     private:
     program* p_program;
-    std::function<std::pair<int, int>(std::string&)> weight_func;
+    std::function<std::pair<int, int>(const operation&)> weight_func;
     int num_of_streams;
     std::vector<dag_node> nodes;
     std::vector<dag_node*> exit_nodes;

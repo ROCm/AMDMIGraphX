@@ -394,6 +394,7 @@ void fuse_ops::apply(program& p) const
         find_conv_bias{ctx},
         find_add_relu{}
     );
+
     // clang-format on
 }
 

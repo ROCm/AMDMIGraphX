@@ -106,7 +106,6 @@ struct find_concur_gpu
                 }
             }
         }
-        MIGRAPHX_DEBUG(dump_concur_instrs(concur_instrs));
     }
 };
 

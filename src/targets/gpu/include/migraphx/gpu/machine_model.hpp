@@ -17,6 +17,7 @@ struct op_info
         weight_map["pooling"]          = std::make_pair(2, 0);
         weight_map["gemm"]             = std::make_pair(2, 0);
         weight_map["broadcast"]        = std::make_pair(1, 1);
+        weight_map["multibroadcast"]   = std::make_pair(1, 1);
         weight_map["contiguous"]       = std::make_pair(1, 1);
         weight_map["transpose"]        = std::make_pair(1, 1);
         weight_map["load"]             = std::make_pair(1, 1);
@@ -26,9 +27,10 @@ struct op_info
         weight_map["hip::allocate"]    = std::make_pair(0, 1);
         weight_map["@outline"]         = std::make_pair(0, 1);
         weight_map["gpu::convolution"] = std::make_pair(4, 0);
-        weight_map["gpu::conv_bias_relu"] = std::make_pair(6, 0);
+        weight_map["gpu::conv_bias_relu"] = std::make_pair(4, 0);
         weight_map["gpu::pooling"]     = std::make_pair(2, 0);
         weight_map["gpu::gemm"]        = std::make_pair(2, 0);
+        weight_map["gpu::concat"]      = std::make_pair(1, 0);
         weight_map["hip::add_relu"]    = std::make_pair(2, 0);
     }
 

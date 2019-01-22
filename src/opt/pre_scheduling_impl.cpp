@@ -196,7 +196,7 @@ void pre_scheduling_impl::schedule(std::list<dag_node*>& sorted_nodes)
     MIGRAPHX_DEBUG(dump("---After assigning stream---"));
     MIGRAPHX_DEBUG(dump(sorted_nodes));
 #endif
-
+#if 0
     if(stream_used)
     {
         sorted_nodes.clear();
@@ -207,7 +207,7 @@ void pre_scheduling_impl::schedule(std::list<dag_node*>& sorted_nodes)
             sorted_nodes.push_back(node);
         }
     }
-
+#endif
 #ifdef MIGRAPHX_DEBUG_OPT
     MIGRAPHX_DEBUG(dump("---After sorting schedule---"));
     MIGRAPHX_DEBUG(dump(sorted_nodes));

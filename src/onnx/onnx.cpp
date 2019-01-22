@@ -661,7 +661,7 @@ struct onnx_parser
         actv_func_map.insert(std::make_pair("relu", op::relu{}));
         actv_func_map.insert(std::make_pair("sigmoid", op::sigmoid{}));
 
-        if (actv_func_map.count(activation_func) == 0) 
+        if(actv_func_map.count(activation_func) == 0)
         {
             MIGRAPHX_THROW("RNN: activation function " + activation_func + " not supported");
         }
@@ -690,7 +690,8 @@ struct onnx_parser
             clip = parse_value(attributes.at("clip")).at<float>();
         }
 
-        return prog.add_instruction(op::rnn{hidden_size, actv_func_map[activation_func], dirct, clip}, std::move(args));
+        return prog.add_instruction(
+            op::rnn{hidden_size, actv_func_map[activation_func], dirct, clip}, std::move(args));
     }
 
     void parse_from(std::istream& is)

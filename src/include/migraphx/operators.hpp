@@ -1062,28 +1062,28 @@ struct rnn
         bidirectional,
     };
 
-    std::size_t hidden_size = 1;
-    operation actv_func = tanh{};
+    std::size_t hidden_size   = 1;
+    operation actv_func       = tanh{};
     rnn_direction_t direction = forward;
-    float clip = 0.0f;
+    float clip                = 0.0f;
 
     std::string name() const { return "rnn"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        auto in_dims = inputs[0].lens();
+        auto in_dims     = inputs[0].lens();
         auto hidden_dims = inputs[1].lens();
-        if (hidden_size != hidden_dims[1]) 
+        if(hidden_size != hidden_dims[1])
         {
             MIGRAPHX_THROW("RNN: hidden size mismatch in attribute and input");
         }
 
         std::size_t num_directions = 1;
-        if (direction == rnn_direction_t::bidirectional)
+        if(direction == rnn_direction_t::bidirectional)
         {
             num_directions = 2;
         }
 
-        if (num_directions != hidden_dims[0])
+        if(num_directions != hidden_dims[0])
         {
             MIGRAPHX_THROW("RNN: num_direction does not match the direction attribute");
         }
@@ -1095,7 +1095,6 @@ struct rnn
         return {inputs[0].type(), out_dims};
     }
 };
-
 
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS

@@ -598,7 +598,7 @@ struct reshape
                     rdims[i] = missing_dim;
             }
         }
-        //if(dims.back() == -1)
+        // if(dims.back() == -1)
         //{
         //    rdims.pop_back();
         //    std::copy(idims.begin() + rdims.size(), idims.end(), std::back_inserter(rdims));

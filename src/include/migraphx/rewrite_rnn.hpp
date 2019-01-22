@@ -7,7 +7,6 @@
 #include <migraphx/operators.hpp>
 #include <migraphx/config.hpp>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 

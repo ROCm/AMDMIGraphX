@@ -581,11 +581,16 @@ struct reshape
         {
             if(dims[i] == 0)
                 rdims[i] = idims[i];
+
+            // since rdims using size_t type, -1 is the max value
+            // is size_t that cause later compuation incorrect
+            if (dims[i] == -1)
+                rdims[i] = 1;
         }
         if(n_neg_dims > 0)
         {
             size_t missing_dim =
-                -inputs.front().elements() /
+                inputs.front().elements() /
                 std::accumulate(rdims.begin(), rdims.end(), 1, std::multiplies<int64_t>());
             for(std::size_t i = 0; i < rdims.size(); i++)
             {

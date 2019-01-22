@@ -84,6 +84,7 @@ struct onnx_parser
         add_mem_op("Shape", &onnx_parser::parse_shape);
         add_mem_op("ConstantFill", &onnx_parser::parse_constant_fill);
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
+        add_mem_op("RNN", &onnx_parser::parse_rnn);
     }
 
     template <class F>
@@ -631,6 +632,65 @@ struct onnx_parser
         {
             MIGRAPHX_THROW("ConstantFill: wrong value of attribute input_as_shape");
         }
+    }
+
+    instruction_ref
+    parse_rnn(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        migraphx::shape input_shape = args[0]->get_shape();
+        migraphx::shape w_shape     = args[1]->get_shape();
+        std::size_t hidden_size     = w_shape.lens()[1];
+
+        if(contains(attributes, "hidden_size"))
+        {
+            hidden_size = parse_value(attributes.at("hidden_size")).at<int>();
+        }
+        else
+        {
+            MIGRAPHX_THROW("RNN: hidden size attribute missing");
+        }
+
+        std::string activation_func = {"tanh"};
+        if(contains(attributes, "activations"))
+        {
+            activation_func = attributes.at("activations").strings(0);
+        }
+
+        std::unordered_map<std::string, operation> actv_func_map;
+        actv_func_map.insert(std::make_pair("tanh", op::tanh{}));
+        actv_func_map.insert(std::make_pair("relu", op::relu{}));
+        actv_func_map.insert(std::make_pair("sigmoid", op::sigmoid{}));
+
+        if (actv_func_map.count(activation_func) == 0) 
+        {
+            MIGRAPHX_THROW("RNN: activation function " + activation_func + " not supported");
+        }
+
+        // Handling of direction to be added later
+        std::string direction{"forward"};
+        if(contains(attributes, "direction"))
+        {
+            direction = attributes.at("direction").s();
+        }
+
+        op::rnn::rnn_direction_t dirct = op::rnn::forward;
+        if(direction == "bidirectional")
+        {
+            dirct = op::rnn::bidirectional;
+        }
+        else if(direction == "reverse")
+        {
+            dirct = op::rnn::reverse;
+        }
+
+        // To be added later
+        float clip = 0.0;
+        if(contains(attributes, "clip"))
+        {
+            clip = parse_value(attributes.at("clip")).at<float>();
+        }
+
+        return prog.add_instruction(op::rnn{hidden_size, actv_func_map[activation_func], dirct, clip}, std::move(args));
     }
 
     void parse_from(std::istream& is)

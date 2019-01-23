@@ -12,6 +12,7 @@ add_library(migraphx
     eliminate_concat.cpp
     fwd_conv_batchnorm_rewrite.cpp
     rewrite_rnn.cpp
+    rewrite_gru.cpp
     env.cpp
     generate.cpp
     instruction.cpp

@@ -21,7 +21,7 @@ struct rewrite_gru
     void apply(program& prog) const;
 
     private:
-    std::vector<instruction_ref> rnn_gru(bool is_forward,
+    std::vector<instruction_ref> gru_oper(bool is_forward,
                                          program& prog,
                                          instruction_ref ins,
                                          instruction_ref input,
@@ -29,7 +29,9 @@ struct rewrite_gru
                                          instruction_ref wh,
                                          instruction_ref ih,
                                          instruction_ref bias,
-                                         operation& actv_func) const;
+                                         int linear_before_reset,
+                                         operation& actv_func1,
+                                         operation& actv_func2) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -96,6 +96,8 @@ struct onnx_parser
         actv_funcs.insert(std::make_pair("tanh", op::tanh{}));
         actv_funcs.insert(std::make_pair("relu", op::relu{}));
         actv_funcs.insert(std::make_pair("sigmoid", op::sigmoid{}));
+        actv_funcs.insert(std::make_pair("leakyrelu", op::leaky_relu{}));
+        actv_funcs.insert(std::make_pair("elu", op::elu{}));
     }
 
     template <class F>

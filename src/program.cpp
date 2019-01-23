@@ -290,11 +290,6 @@ void program::finish()
     this->impl->ctx.finish();
 }
 
-void program::destroy()
-{
-    this->impl->ctx.destroy();
-}
-           
 void program::compile(const target& t, tracer trace)
 {
     assert(this->validate() == impl->instructions.end());

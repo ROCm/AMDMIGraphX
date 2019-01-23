@@ -25,7 +25,6 @@ struct context
     int create_event();
     void record_event(int event, int stream);
     void wait_event(int event, int stream);
-    void destroy();
 };
 
 #else
@@ -37,7 +36,6 @@ interface('context',
     virtual('create_event', returns='int'),
     virtual('record_event', returns='void', event = 'int', input = 'int'),
     virtual('wait_event', returns='void', event = 'int', input = 'int'),
-    virtual('destroy', returns='void'),
 )
 %>
 

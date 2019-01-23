@@ -14,6 +14,7 @@ namespace gpu {
 
 struct hip_device
 {
+    using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
     hip_device() { add_stream(); }
 
     hip_device(std::size_t id) : device_id(id) { add_stream(); }
@@ -103,17 +104,17 @@ struct hip_device
         auto status = hipEventCreateWithFlags(&event, hipEventDisableTiming);
         if(status != hipSuccess)
             MIGRAPHX_THROW("Failed to creat event");
-        events.push_back(event);
+        events.push_back(hip_event_ptr{event});
         return (events.size() - 1);
     }
     void record_event(int event, int stream)
     {
-        hipEventRecord(events.at(event), streams.at(stream).get());
+        hipEventRecord(events.at(event).get(), streams.at(stream).get());
     }
 
     void wait_event(int stream, int event)
     {
-        hipStreamWaitEvent(streams.at(stream).get(), events.at(event), 0);
+        hipStreamWaitEvent(streams.at(stream).get(), events.at(event).get(), 0);
     }
     
     void stream_sync()
@@ -127,20 +128,11 @@ struct hip_device
         }
     }
 
-    void destroy()
-    {
-        if(enabled(MIGRAPHX_DISABLE_NULL_STREAM{})) {
-            int num_of_events = events.size();
-            for (int i= 0; i < num_of_events; i++)
-                hipEventDestroy(events.at(i));
-        }
-    }
-
     private:
     std::size_t device_id      = 0;
     std::size_t current_stream = 0;
     std::vector<stream> streams;
-    std::vector<hipEvent_t> events{};
+    std::vector<shared<hip_event_ptr>> events{};
 };
 
 struct context
@@ -164,10 +156,6 @@ struct context
     {
         get_current_device().stream_sync();
         gpu_sync();
-    }
-
-    void destroy() { 
-        get_current_device().destroy();
     }
 
     private:

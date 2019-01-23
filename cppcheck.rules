@@ -38,7 +38,7 @@
     <message>
         <id>definePrefix</id>
         <severity>style</severity>
-        <summary>Macros must be prefixed with MIGRAPH_</summary>
+        <summary>Macros must be prefixed with MIGRAPHX_</summary>
     </message>
 </rule>
 <rule>

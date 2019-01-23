@@ -5,6 +5,7 @@
 #include <migraphx/operators.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/par_dfor.hpp>
 #include <migraphx/cpu/gemm.hpp>
 #include <unordered_map>
 #include <utility>
@@ -72,7 +73,7 @@ struct cpu_batch_norm_inference
             visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
                 [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
 
-                    dfor(num_batch, num_channels, image_height, image_width)(
+                    par_dfor(num_batch, num_channels, image_height, image_width)(
                         [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
                             assert((variance(c) + epsilon) > 0);
                             result(n, c, h, w) = gamma(c) * (buffer(n, c, h, w) - mean(c)) /
@@ -87,7 +88,7 @@ struct cpu_batch_norm_inference
             visit_all(output, input, mini_batch_mean, mini_batch_mean, arg_gamma, arg_bias)(
                 [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
 
-                    dfor(num_batch, num_channels, image_height, image_width)(
+                    par_dfor(num_batch, num_channels, image_height, image_width)(
                         [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
                             assert((variance(c, h, w) + epsilon) > 0);
                             result(n, c, h, w) = gamma(c, h, w) *
@@ -122,10 +123,10 @@ struct cpu_convolution
             auto wei_h = wei[2];
             auto wei_w = wei[3];
 
-            dfor(output_shape.lens()[0],
-                 output_shape.lens()[1],
-                 output_shape.lens()[2],
-                 output_shape.lens()[3])(
+            par_dfor(output_shape.lens()[0],
+                     output_shape.lens()[1],
+                     output_shape.lens()[2],
+                     output_shape.lens()[3])(
                 [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
                     const int start_x  = i * op.stride[0] - op.padding[0];
                     const int start_y  = j * op.stride[1] - op.padding[1];
@@ -245,10 +246,10 @@ struct cpu_pooling
             auto in_h  = input.get_shape().lens()[2];
             auto in_w  = input.get_shape().lens()[3];
 
-            dfor(output_shape.lens()[0],
-                 output_shape.lens()[1],
-                 output_shape.lens()[2],
-                 output_shape.lens()[3])(
+            par_dfor(output_shape.lens()[0],
+                     output_shape.lens()[1],
+                     output_shape.lens()[2],
+                     output_shape.lens()[3])(
                 [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
                     const int start_x0 = i * op.stride[0] - op.padding[0];
                     const int start_y0 = j * op.stride[1] - op.padding[1];

@@ -84,7 +84,7 @@ struct memory_coloring_impl
     {
         return is_param(ins) && any_cast<builtin::param>(ins->get_operator()).parameter == "output";
     }
-    bool is_allocate(const instruction_ref ins) { return ins->name() == allocation_op; }
+    bool is_allocate(const instruction_ref ins) const { return ins->name() == allocation_op; }
     static bool is_outline(const instruction_ref ins) { return ins->name() == "@outline"; }
     static bool is_literal(const instruction_ref ins) { return ins->name() == "@literal"; }
     static bool is_check_context(const instruction_ref ins)

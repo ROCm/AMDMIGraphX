@@ -22,16 +22,16 @@ struct rewrite_gru
 
     private:
     std::vector<instruction_ref> gru_oper(bool is_forward,
-                                         program& prog,
-                                         instruction_ref ins,
-                                         instruction_ref input,
-                                         instruction_ref wx,
-                                         instruction_ref wh,
-                                         instruction_ref ih,
-                                         instruction_ref bias,
-                                         int linear_before_reset,
-                                         operation& actv_func1,
-                                         operation& actv_func2) const;
+                                          program& prog,
+                                          instruction_ref ins,
+                                          instruction_ref input,
+                                          instruction_ref wx,
+                                          instruction_ref wh,
+                                          instruction_ref ih,
+                                          instruction_ref bias,
+                                          int linear_before_reset,
+                                          operation& actv_func1,
+                                          operation& actv_func2) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

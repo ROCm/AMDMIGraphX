@@ -198,12 +198,12 @@ std::vector<instruction_ref> rewrite_gru::gru_oper(bool is_forward,
     {
         auto wbz = prog.insert_instruction(ins, op::slice{{0}, {0}, {hs}}, bias);
         auto wbr = prog.insert_instruction(ins, op::slice{{0}, {hs}, {2 * hs}}, bias);
-        auto wbh      = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, bias);
+        auto wbh = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, bias);
         br_wbh   = prog.insert_instruction(ins, op::broadcast{1, ih->get_shape()}, wbh);
 
         auto rbz = prog.insert_instruction(ins, op::slice{{0}, {3 * hs}, {4 * hs}}, bias);
         auto rbr = prog.insert_instruction(ins, op::slice{{0}, {4 * hs}, {5 * hs}}, bias);
-        auto rbh      = prog.insert_instruction(ins, op::slice{{0}, {5 * hs}, {6 * hs}}, bias);
+        auto rbh = prog.insert_instruction(ins, op::slice{{0}, {5 * hs}, {6 * hs}}, bias);
         br_rbh   = prog.insert_instruction(ins, op::broadcast{1, ih->get_shape()}, rbh);
 
         auto bz = prog.insert_instruction(ins, op::add{}, wbz, rbz);

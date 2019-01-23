@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_FIND_CONCUR_HPP
-#define MIGRAPH_GUARD_FIND_CONCUR_HPP
+#ifndef MIGRAPH_GUARD_INSERT_INSTRUCTION_HPP
+#define MIGRAPH_GUARD_INSERT_INSTRUCTION_HPP
 
 #include <cassert>
 #include <string>
@@ -7,22 +7,16 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
-#include <unordered_map>
-#include <vector>
 
 namespace migraphx {
 
 #ifdef DOXYGEN
 
-/// An interface for target-dependent analysis to find concurrent instructions
+/// An interface for target-dependent instruction insertion.
 /// executing in different streams.
-struct find_concur
+struct insert_instruction
 {
-    void
-    get_concur(program* p,
-               int num_of_streams,
-               std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>&
-                   concur_instrs);
+    void insert_event(program* p, int mask, instruction_ref ins, std::vector<instruction_ref> args);
 };
 
 #else
@@ -30,21 +24,21 @@ struct find_concur
 /*
  * Type-erased interface for:
  *
- * struct find_concur
+ * struct insert_instruction
  * {
- *      void get_concur(program* p,int num_of_stream,std::unordered_map<const instruction*,
- * std::vector<std::vector<const instruction*>>>& input) ;
+ *      void insert_event(program* p,int mask,instruction_ref ins,std::vector<instruction_ref>
+ * input) ;
  * };
  *
  */
 
-struct find_concur
+struct insert_instruction
 {
     // Constructors
-    find_concur() = default;
+    insert_instruction() = default;
 
     template <typename PrivateDetailTypeErasedT>
-    find_concur(PrivateDetailTypeErasedT value)
+    insert_instruction(PrivateDetailTypeErasedT value)
         : private_detail_te_handle_mem_var(
               std::make_shared<private_detail_te_handle_type<
                   typename std::remove_reference<PrivateDetailTypeErasedT>::type>>(
@@ -54,7 +48,7 @@ struct find_concur
 
     // Assignment
     template <typename PrivateDetailTypeErasedT>
-    find_concur& operator=(PrivateDetailTypeErasedT value)
+    insert_instruction& operator=(PrivateDetailTypeErasedT value)
     {
         if(private_detail_te_handle_mem_var.unique())
             *private_detail_te_handle_mem_var = std::forward<PrivateDetailTypeErasedT>(value);
@@ -95,16 +89,15 @@ struct find_concur
             return private_detail_te_get_handle().type();
     }
 
-    void get_concur(
-        program* p,
-        int num_of_stream,
-        std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>& input)
+    void insert_event(program* p, int mask, instruction_ref ins, std::vector<instruction_ref> input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().get_concur(p, std::move(num_of_stream), input);
+        (*this).private_detail_te_get_handle().insert_event(
+            p, std::move(mask), std::move(ins), std::move(input));
     }
 
-    friend bool is_shared(const find_concur& private_detail_x, const find_concur& private_detail_y)
+    friend bool is_shared(const insert_instruction& private_detail_x,
+                          const insert_instruction& private_detail_y)
     {
         return private_detail_x.private_detail_te_handle_mem_var ==
                private_detail_y.private_detail_te_handle_mem_var;
@@ -117,11 +110,10 @@ struct find_concur
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual void
-        get_concur(program* p,
-                   int num_of_stream,
-                   std::unordered_map<const instruction*,
-                                      std::vector<std::vector<const instruction*>>>& input) = 0;
+        virtual void insert_event(program* p,
+                                  int mask,
+                                  instruction_ref ins,
+                                  std::vector<instruction_ref> input) = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -152,14 +144,14 @@ struct find_concur
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
-        void
-        get_concur(program* p,
-                   int num_of_stream,
-                   std::unordered_map<const instruction*,
-                                      std::vector<std::vector<const instruction*>>>& input) override
+        void insert_event(program* p,
+                          int mask,
+                          instruction_ref ins,
+                          std::vector<instruction_ref> input) override
         {
 
-            private_detail_te_value.get_concur(p, std::move(num_of_stream), input);
+            private_detail_te_value.insert_event(
+                p, std::move(mask), std::move(ins), std::move(input));
         }
 
         PrivateDetailTypeErasedT private_detail_te_value;
@@ -198,19 +190,19 @@ struct find_concur
 };
 
 template <typename ValueType>
-inline const ValueType* any_cast(const find_concur* x)
+inline const ValueType* any_cast(const insert_instruction* x)
 {
     return x->any_cast<ValueType>();
 }
 
 template <typename ValueType>
-inline ValueType* any_cast(find_concur* x)
+inline ValueType* any_cast(insert_instruction* x)
 {
     return x->any_cast<ValueType>();
 }
 
 template <typename ValueType>
-inline ValueType& any_cast(find_concur& x)
+inline ValueType& any_cast(insert_instruction& x)
 {
     auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
     if(y == nullptr)
@@ -219,7 +211,7 @@ inline ValueType& any_cast(find_concur& x)
 }
 
 template <typename ValueType>
-inline const ValueType& any_cast(const find_concur& x)
+inline const ValueType& any_cast(const insert_instruction& x)
 {
     const auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
     if(y == nullptr)

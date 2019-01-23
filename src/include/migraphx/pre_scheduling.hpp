@@ -6,13 +6,14 @@
 #include <migraphx/operation.hpp>
 
 #include <migraphx/program.hpp>
-
+#include <migraphx/insert_instruction.hpp>
 namespace migraphx {
 
 struct pre_scheduling
 {
     std::function<std::pair<int, int>(const operation&)> weight_func;
     int num_of_streams;
+    insert_instruction insert_instr;
     std::string name() const { return "pre scheduling"; }
     void apply(program& p) const;
 };

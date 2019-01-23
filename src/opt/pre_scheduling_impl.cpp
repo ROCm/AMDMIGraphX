@@ -150,20 +150,7 @@ void pre_scheduling_impl::record(stream_info& info, dag_node* node)
         use_node->earliest_cycle = std::max(use_node->earliest_cycle, next_cycle);
     }
     if(node->can_use_stream())
-    {
-        node->ins->set_stream(stream);
-        for(auto&& arg : node->ins->inputs())
-        {
-            int arg_s = arg->get_stream();
-            if((arg_s < 0) || (arg_s == stream))
-                continue;
-            if (!arg->has_mask(RECORD_EVENT)) {
-                //                p_program->insert_instruction(std::next(arg), record_event{arg_s});
-                arg->add_mask(RECORD_EVENT);
-            }
-            node->ins->add_mask(WAIT_EVENT);
-        }
-    }
+        instr2_stream[node->ins] = stream;
 }
 
 void pre_scheduling_impl::schedule(std::list<dag_node*>& sorted_nodes)
@@ -173,8 +160,7 @@ void pre_scheduling_impl::schedule(std::list<dag_node*>& sorted_nodes)
     stream_info info(num_of_streams);
     std::unordered_map<int, int> partition2_stream;
     partition2_stream.clear();
-    std::priority_queue<dag_node*, std::vector<dag_node*>, post_schedule_ordering> queue;
-    bool stream_used = false;
+
     for(auto&& node : sorted_nodes)
     {
         int cur_partition = node->partition;
@@ -188,32 +174,40 @@ void pre_scheduling_impl::schedule(std::list<dag_node*>& sorted_nodes)
             node->stream = get_stream(info, node);
         }
         assert(node->stream >= 0);
-        stream_used = true;
         record(info, node);
         partition2_stream[cur_partition] = node->stream;
-        queue.push(node);
     }
 
 #ifdef MIGRAPHX_DEBUG_OPT
     MIGRAPHX_DEBUG(dump("---After assigning stream---"));
     MIGRAPHX_DEBUG(dump(sorted_nodes));
 #endif
-#if 0
-    if(stream_used)
-    {
-        sorted_nodes.clear();
-        while(!queue.empty())
+    
+    for(auto&& node : sorted_nodes) {
+        instruction_ref ins = node->ins;
+        if (instr2_stream.find(ins) == instr2_stream.end())
+            continue;
+        int stream = instr2_stream[ins];
+        ins->set_stream(stream);
+        for (auto&& arg : ins->inputs())
         {
-            dag_node* node = queue.top();
-            queue.pop();
-            sorted_nodes.push_back(node);
+            int arg_s = arg->get_stream();
+            if((arg_s < 0) || (arg_s == stream))
+                continue;
+            arg->add_mask(RECORD_EVENT);
+            ins->add_mask(WAIT_EVENT);
+            add_mask(arg, RECORD_EVENT);
+            add_mask(ins, WAIT_EVENT);
+#if 0                
+            insert_instr.insert_event(p_program, 1, std::next(arg), {});
+            std::next(arg)->set_stream(arg_s);
+#endif                
         }
+        
+#if 0            
+            args.push_back(std::next(arg));
+#endif            
     }
-#endif
-#ifdef MIGRAPHX_DEBUG_OPT
-    MIGRAPHX_DEBUG(dump("---After sorting schedule---"));
-    MIGRAPHX_DEBUG(dump(sorted_nodes));
-#endif
 }
 
 void pre_scheduling_impl::splice(std::list<dag_node*>& sorted_nodes)

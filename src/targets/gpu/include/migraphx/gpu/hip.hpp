@@ -88,6 +88,51 @@ struct hip_copy
     int output_alias(const std::vector<shape>&) const { return 1; }
 };
 
+struct hip_record_event
+{
+    int event = -1;
+    std::string name() const { return "hip::record_event"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        if(inputs.empty())
+            return {};
+        else
+            return inputs.front();
+    }
+    
+    argument compute(context& ctx, const shape&, const std::vector<argument>&)     {
+        if (event == -1) {
+            event = ctx.create_event();
+        } else {
+            ctx.record_event(event);
+        }
+        migraphx::shape s{migraphx::shape::int32_type, {1}};
+        std::vector<int> data = {event};
+        return migraphx::literal{s, data}.get_argument();
+    }
+};
+
+struct hip_wait_event
+{
+    std::string name() const { return "hip::wait_event"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        if(inputs.empty())
+            return {};
+        else
+            return inputs.front();
+    }
+    
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args)
+    {
+        for (auto arg : args)
+        {
+            ctx.wait_event(*(reinterpret_cast<int*> (arg.data())));
+        }
+        return {};
+    }
+};        
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -1,7 +1,6 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_FIND_CONCUR_GPU_HPP
 #define MIGRAPHX_GUARD_RTGLIB_FIND_CONCUR_GPU_HPP
 
-#include <migraphx/gpu/concat.hpp>
 #include <migraphx/dom_info.hpp>
 #include <migraphx/common_header.hpp>
 namespace migraphx {

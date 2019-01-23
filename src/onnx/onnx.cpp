@@ -86,6 +86,7 @@ struct onnx_parser
         add_mem_op("ConstantFill", &onnx_parser::parse_constant_fill);
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
         add_mem_op("RNN", &onnx_parser::parse_rnn);
+        add_mem_op("GRU", &onnx_parser::parse_gru);
 
         // init the activation function map
         init_actv_func();
@@ -651,8 +652,7 @@ struct onnx_parser
     parse_rnn(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         migraphx::shape input_shape = args[0]->get_shape();
-        migraphx::shape w_shape     = args[1]->get_shape();
-        std::size_t hidden_size     = w_shape.lens()[1];
+        std::size_t hidden_size     = args[1]->get_shape().lens()[1];
 
         if(contains(attributes, "hidden_size"))
         {
@@ -699,6 +699,77 @@ struct onnx_parser
         }
 
         return prog.add_instruction(op::rnn{hidden_size, actv_funcs[activation_func], dirct, clip},
+                                    std::move(args));
+    }
+
+    instruction_ref
+    parse_gru(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        migraphx::shape input_shape = args[0]->get_shape();
+        std::size_t hidden_size     = args[2]->get_shape().lens()[2];
+
+        if(contains(attributes, "hidden_size"))
+        {
+            hidden_size = parse_value(attributes.at("hidden_size")).at<int>();
+        }
+        else
+        {
+            MIGRAPHX_THROW("GRU: hidden size attribute missing");
+        }
+
+        // Handling of direction to be added later
+        std::string direction{"forward"};
+        if(contains(attributes, "direction"))
+        {
+            direction = attributes.at("direction").s();
+        }
+
+        op::gru::gru_direction_t dirct = op::gru::forward;
+        if(direction == "bidirectional")
+        {
+            dirct = op::gru::bidirectional;
+        }
+        else if(direction == "reverse")
+        {
+            dirct = op::gru::reverse;
+        }
+
+        std::vector<std::string> act_funcs = {"sigmoid", "tanh"};
+        if(contains(attributes, "activations"))
+        {
+            act_funcs[0] = attributes.at("activations").strings(0);
+            act_funcs[1] = attributes.at("activations").strings(1);
+        }
+
+        if (act_funcs.size() != 2)
+        {
+            MIGRAPHX_THROW("GRU: wrong activation function attribute");
+        }
+
+        for (std::size_t i = 0; i < act_funcs.size(); ++i)
+        {
+            if(actv_funcs.count(act_funcs.at(i)) == 0)
+            {
+                MIGRAPHX_THROW("GRU: activation function " + act_funcs.at(i) + " not supported");
+            }
+        }
+
+        // To be added later
+        float clip = 0.0;
+        if(contains(attributes, "clip"))
+        {
+            clip = parse_value(attributes.at("clip")).at<float>();
+        }
+
+        int linear_before_reset = 0;
+        if (contains(attributes, "linear_before_reset"))
+        {
+            linear_before_reset = parse_value(attributes.at("linear_before_reset")).at<int>();
+        }
+
+        return prog.add_instruction(op::gru{hidden_size, 
+                                    {actv_funcs[act_funcs.at(0)], actv_funcs[act_funcs.at(1)]}, 
+                                    dirct, clip, linear_before_reset},
                                     std::move(args));
     }
 

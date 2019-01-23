@@ -111,7 +111,7 @@ struct lhs_expression
 struct capture
 {
     template <class T>
-    auto operator->*(const T& x)
+    auto operator->*(const T& x) const
     {
         return make_lhs_expression(x);
     }
@@ -224,7 +224,13 @@ inline void run(int argc, const char* argv[])
         std::unordered_map<std::string, std::function<void()>> m(get_test_cases().begin(),
                                                                  get_test_cases().end());
         for(auto&& name : cases)
-            run_test_case(name, m[name]);
+        {
+            auto f = m.find(name);
+            if(f == m.end())
+                std::cout << "[  ERROR   ] Test case '" << name << "' not found." << std::endl;
+            else
+                run_test_case(name, f->second);
+        }
     }
 }
 

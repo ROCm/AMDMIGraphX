@@ -26,6 +26,8 @@ struct operation
 {
     /// A unique name identifying the operation
     std::string name() const;
+    /// An optional method that can be used to finalize the operator before running
+    void finalize(context& ctx);
     /// This is used to compute the resulting shape from an operation. If an
     /// operation cannot be run with input shapes, then it should throw an
     /// exception.
@@ -55,6 +57,8 @@ struct operation
 
 /// Returns true if operation does not require a context to run compute
 bool is_context_free(const operation& x);
+/// Returns true if the operation has a finalize method
+bool has_finalize(const operation& x);
 
 #else
 
@@ -189,6 +193,44 @@ int output_alias_op(const T& x, const std::vector<shape>& shapes)
     return output_alias_op(rank<1>{}, x, shapes);
 }
 
+template <class T>
+auto finalize_op(
+    rank<1>, T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+    -> decltype(x.finalize(auto_any_cast(ctx), output_shape, input), void())
+{
+    x.finalize(auto_any_cast(ctx), output_shape, input);
+}
+
+template <class T>
+void finalize_op(rank<0>, T&, context&, const shape&, const std::vector<shape>&)
+{
+}
+
+template <class T>
+void finalize_op(T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+{
+    finalize_op(rank<1>{}, x, ctx, output_shape, input);
+}
+
+template <class T>
+auto has_finalize_op(
+    rank<1>, T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+    -> decltype(x.finalize(auto_any_cast(ctx), output_shape, input), std::true_type{});
+
+template <class T>
+auto has_finalize_op(rank<0>, T&, context&, const shape&, const std::vector<shape>&)
+    -> std::false_type;
+
+template <class T>
+auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
+                                                           std::declval<T&>(),
+                                                           std::declval<context&>(),
+                                                           std::declval<const shape&>(),
+                                                           std::declval<std::vector<shape>>()))
+{
+    return {};
+}
+
 /*
  * Type-erased interface for:
  *
@@ -196,7 +238,9 @@ int output_alias_op(const T& x, const std::vector<shape>& shapes)
  * {
  *      std::string name() const;
  *      bool is_context_free() const;
+ *      bool has_finalize() const;
  *      int output_alias(const std::vector<shape>& input) const;
+ *      void finalize(context& ctx,const shape& output,const std::vector<shape>& input) ;
  *      shape compute_shape(const std::vector<shape>& input) const;
  *      argument compute(context& ctx,const shape& output,const std::vector<argument>& input) const;
  *      argument compute(const shape& output,const std::vector<argument>& input) const;
@@ -275,10 +319,22 @@ struct operation
         return (*this).private_detail_te_get_handle().is_context_free();
     }
 
+    bool has_finalize() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().has_finalize();
+    }
+
     int output_alias(const std::vector<shape>& input) const
     {
         assert((*this).private_detail_te_handle_mem_var);
         return (*this).private_detail_te_get_handle().output_alias(input);
+    }
+
+    void finalize(context& ctx, const shape& output, const std::vector<shape>& input)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().finalize(ctx, output, input);
     }
 
     shape compute_shape(const std::vector<shape>& input) const
@@ -311,6 +367,12 @@ struct operation
         return x.private_detail_te_get_handle().operator==(y);
     }
 
+    friend bool is_shared(const operation& private_detail_x, const operation& private_detail_y)
+    {
+        return private_detail_x.private_detail_te_handle_mem_var ==
+               private_detail_y.private_detail_te_handle_mem_var;
+    }
+
     private:
     struct private_detail_te_handle_base_type
     {
@@ -318,10 +380,13 @@ struct operation
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const                                   = 0;
-        virtual bool is_context_free() const                               = 0;
-        virtual int output_alias(const std::vector<shape>& input) const    = 0;
-        virtual shape compute_shape(const std::vector<shape>& input) const = 0;
+        virtual std::string name() const                                = 0;
+        virtual bool is_context_free() const                            = 0;
+        virtual bool has_finalize() const                               = 0;
+        virtual int output_alias(const std::vector<shape>& input) const = 0;
+        virtual void
+        finalize(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
+        virtual shape compute_shape(const std::vector<shape>& input) const           = 0;
         virtual argument
         compute(context& ctx, const shape& output, const std::vector<argument>& input) const    = 0;
         virtual argument compute(const shape& output, const std::vector<argument>& input) const = 0;
@@ -365,10 +430,18 @@ struct operation
             return is_context_free_op(private_detail_te_value);
         }
 
+        bool has_finalize() const override { return has_finalize_op(private_detail_te_value); }
+
         int output_alias(const std::vector<shape>& input) const override
         {
 
             return output_alias_op(private_detail_te_value, input);
+        }
+
+        void finalize(context& ctx, const shape& output, const std::vector<shape>& input) override
+        {
+
+            finalize_op(private_detail_te_value, ctx, output, input);
         }
 
         shape compute_shape(const std::vector<shape>& input) const override
@@ -476,6 +549,14 @@ template <class T>
 bool is_context_free(const T& x)
 {
     return is_context_free_op(x);
+}
+
+inline bool has_finalize(const operation& op) { return op.has_finalize(); }
+
+template <class T>
+bool has_finalize(const T& x)
+{
+    return has_finalize_op(x);
 }
 
 #endif

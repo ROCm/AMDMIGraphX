@@ -119,6 +119,13 @@ struct concat_optimization
         return (*this).private_detail_te_get_handle().get_concat(op);
     }
 
+    friend bool is_shared(const concat_optimization& private_detail_x,
+                          const concat_optimization& private_detail_y)
+    {
+        return private_detail_x.private_detail_te_handle_mem_var ==
+               private_detail_y.private_detail_te_handle_mem_var;
+    }
+
     private:
     struct private_detail_te_handle_base_type
     {

@@ -117,7 +117,7 @@ rocm_enable_cppcheck(
         passedByValue
         unusedStructMember
         functionStatic
-        functionConst:*program.hpp
+        functionConst:*program.*
         shadowFunction
         shadowVar
         definePrefix:*test/include/test.hpp

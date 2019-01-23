@@ -741,12 +741,12 @@ struct onnx_parser
             act_funcs[1] = attributes.at("activations").strings(1);
         }
 
-        if (act_funcs.size() != 2)
+        if(act_funcs.size() != 2)
         {
             MIGRAPHX_THROW("GRU: wrong activation function attribute");
         }
 
-        for (std::size_t i = 0; i < act_funcs.size(); ++i)
+        for(std::size_t i = 0; i < act_funcs.size(); ++i)
         {
             if(actv_funcs.count(act_funcs.at(i)) == 0)
             {
@@ -762,15 +762,18 @@ struct onnx_parser
         }
 
         int linear_before_reset = 0;
-        if (contains(attributes, "linear_before_reset"))
+        if(contains(attributes, "linear_before_reset"))
         {
             linear_before_reset = parse_value(attributes.at("linear_before_reset")).at<int>();
         }
 
-        return prog.add_instruction(op::gru{hidden_size, 
-                                    {actv_funcs[act_funcs.at(0)], actv_funcs[act_funcs.at(1)]}, 
-                                    dirct, clip, linear_before_reset},
-                                    std::move(args));
+        return prog.add_instruction(
+            op::gru{hidden_size,
+                    {actv_funcs[act_funcs.at(0)], actv_funcs[act_funcs.at(1)]},
+                    dirct,
+                    clip,
+                    linear_before_reset},
+            std::move(args));
     }
 
     void parse_from(std::istream& is)

@@ -1331,27 +1331,27 @@ TEST_CASE(min_test)
 TEST_CASE(rnn_test)
 {
     {
-        migraphx::program p; 
-        size_t hidden_size = 8; 
+        migraphx::program p;
+        size_t hidden_size = 8;
         size_t input_size = 6;
         size_t batch_size = 2;
-        size_t seq_len = 5; 
+        size_t seq_len = 5;
         migraphx::shape hidden_shape{migraphx::shape::float_type, {1, batch_size, hidden_size}};
         migraphx::shape input_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        
+
         std::vector<float> input(input_shape.elements(), 0.0);
         input[0] = input[1] = 1.0;
         std::vector<float> init_hidden(hidden_shape.elements(), 0.0);
-        
+
         p.compile(migraphx::cpu::target{});
         migraphx::program::parameter_map m;
         m["input"] = migraphx::argument(input_shape, input.data());
         auto resarg = p.eval(m);
 
-        std::vector<float> res;                              
+        std::vector<float> res;
         resarg.visit([&](auto output) { res.assign(output.begin(), output.end()); } );
 
-        std::vector<float> res_gold{   
+        std::vector<float> res_gold{
      0.596363,   -0.274248,    0.714484,    0.282515,   0.0938349,
     0.185406,    0.283227,   -0.482086,    0.265265,   -0.523217,
      0.50433,    0.400934,    -0.34513,    0.114924,   0.0392658,
@@ -1374,26 +1374,26 @@ TEST_CASE(rnn_test)
 
     {
         migraphx::program p;
-        size_t hidden_size = 6; 
+        size_t hidden_size = 6;
         size_t input_size = 4;
         size_t batch_size = 2;
-        size_t seq_len = 5; 
+        size_t seq_len = 5;
         migraphx::shape hidden_shape{migraphx::shape::float_type, {6, batch_size, hidden_size}};
         migraphx::shape input_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        
+
         std::vector<float> input(input_shape.elements(), 0.0);
         input[0] = input[1] = 1.0;
         std::vector<float> init_hidden(hidden_shape.elements(), 0.0);
-        
+
         p.compile(migraphx::cpu::target{});
         migraphx::program::parameter_map m;
         m["input"] = migraphx::argument(input_shape, &input[0]);
         auto resarg = p.eval(m);
 
-        std::vector<float> res;                              
+        std::vector<float> res;
         resarg.visit([&](auto output) { res.assign(output.begin(), output.end()); } );
 
-        std::vector<float> res_gold{   
+        std::vector<float> res_gold{
   -0.0890872,  -0.0558751,    0.185233,    0.452857,    0.104082,
     0.432953,    0.274236,    0.186055,   -0.367716,    0.266761,
     -0.28489,    0.498758,   0.0140574,   -0.122377,    0.278067,

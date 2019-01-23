@@ -11,10 +11,9 @@ struct context
 {
     void finish() {}
     void set_stream(int) {}
-    void add_stream() {}
     int  create_event() { return -1; }
-    void record_event(int, int) {}
-    void wait_event(int, int) {}
+    void record_event(int) {}
+    void wait_event(int) {}
 };
 
 } // namespace cpu

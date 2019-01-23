@@ -387,7 +387,7 @@ argument generic_eval(const program& p,
                     {
                         int event = arg->get_event();
                         assert(event >= 0);
-                        ctx.wait_event(stream, event);
+                        ctx.wait_event(event);
                     }
                 }
             }
@@ -402,7 +402,7 @@ argument generic_eval(const program& p,
                                 return ins->get_operator().compute(ctx, ins->get_shape(), values);
                             }));
             if (event != -1)
-                ctx.record_event(event, stream);
+                ctx.record_event(event);
         }
         assert(results.find(ins) != results.end());
     }

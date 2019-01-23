@@ -157,7 +157,10 @@ void pre_scheduling_impl::record(stream_info& info, dag_node* node)
             int arg_s = arg->get_stream();
             if((arg_s < 0) || (arg_s == stream))
                 continue;
-            arg->add_mask(RECORD_EVENT);
+            if (!arg->has_mask(RECORD_EVENT)) {
+                //                p_program->insert_instruction(std::next(arg), record_event{arg_s});
+                arg->add_mask(RECORD_EVENT);
+            }
             node->ins->add_mask(WAIT_EVENT);
         }
     }

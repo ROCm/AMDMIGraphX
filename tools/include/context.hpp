@@ -23,8 +23,8 @@ struct context
     void finish();
     void set_stream(int ndx);
     int create_event();
-    void record_event(int event, int stream);
-    void wait_event(int event, int stream);
+    void record_event(int event);
+    void wait_event(int event);
 };
 
 #else
@@ -34,8 +34,8 @@ interface('context',
     virtual('finish', returns='void'),
     virtual('set_stream', returns='void', input = 'int'),
     virtual('create_event', returns='int'),
-    virtual('record_event', returns='void', event = 'int', input = 'int'),
-    virtual('wait_event', returns='void', event = 'int', input = 'int'),
+    virtual('record_event', returns='void', input = 'int'),
+    virtual('wait_event', returns='void', input = 'int'),
 )
 %>
 

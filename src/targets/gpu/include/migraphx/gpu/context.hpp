@@ -107,14 +107,14 @@ struct hip_device
         events.push_back(hip_event_ptr{event});
         return (events.size() - 1);
     }
-    void record_event(int event, int stream)
+    void record_event(int event)
     {
-        hipEventRecord(events.at(event).get(), streams.at(stream).get());
+        hipEventRecord(events.at(event).get(), streams.at(current_stream).get());
     }
 
-    void wait_event(int stream, int event)
+    void wait_event(int event)
     {
-        hipStreamWaitEvent(streams.at(stream).get(), events.at(event).get(), 0);
+        hipStreamWaitEvent(streams.at(current_stream).get(), events.at(event).get(), 0);
     }
     
     void stream_sync()
@@ -148,8 +148,8 @@ struct context
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
     void set_stream(int n) { if (n >= 0) get_current_device().set_stream(n); }
     int create_event() { return get_current_device().create_event(); }
-    void record_event(int event, int stream) { get_current_device().record_event(event, stream); }
-    void wait_event(int stream, int event) { get_current_device().wait_event(stream, event); }
+    void record_event(int event) { get_current_device().record_event(event); }
+    void wait_event(int event) { get_current_device().wait_event(event); }
 
     std::vector<argument> literals{};
     void finish()

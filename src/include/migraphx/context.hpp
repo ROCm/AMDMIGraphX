@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_CONTEXT_HPP
-#define MIGRAPH_GUARD_CONTEXT_HPP
+#ifndef MIGRAPHX_GUARD_CONTEXT_HPP
+#define MIGRAPHX_GUARD_CONTEXT_HPP
 
 #include <cassert>
 #include <string>
@@ -7,8 +7,10 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
 #ifdef DOXYGEN
 
@@ -21,9 +23,8 @@ struct context
     void finish();
     void set_stream(int ndx);
     int create_event();
-    void record_event(int event, int stream);
-    void wait_event(int event, int stream);
-    void destroy();
+    void record_event(int event);
+    void wait_event(int event);
 };
 
 #else
@@ -36,9 +37,8 @@ struct context
  *      void finish() ;
  *      void set_stream(int input) ;
  *      int create_event() ;
- *      void record_event(int event,int input) ;
- *      void wait_event(int event,int input) ;
- *      void destroy() ;
+ *      void record_event(int input) ;
+ *      void wait_event(int input) ;
  * };
  *
  */
@@ -106,16 +106,10 @@ struct context
         (*this).private_detail_te_get_handle().finish();
     }
 
-    friend bool is_shared(const context& private_detail_x, const context& private_detail_y)
-    {
-        return private_detail_x.private_detail_te_handle_mem_var ==
-               private_detail_y.private_detail_te_handle_mem_var;
-    }
-
     void set_stream(int input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().set_stream(std::move(input));
+        (*this).private_detail_te_get_handle().set_stream(std::move(input));
     }
 
     int create_event()
@@ -124,24 +118,22 @@ struct context
         return (*this).private_detail_te_get_handle().create_event();
     }
 
-    void record_event(int event, int input)
+    void record_event(int input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().record_event(std::move(event),
-                                                                   std::move(input));
+        (*this).private_detail_te_get_handle().record_event(std::move(input));
     }
 
-    void wait_event(int event, int input)
+    void wait_event(int input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().wait_event(std::move(event),
-                                                                 std::move(input));
+        (*this).private_detail_te_get_handle().wait_event(std::move(input));
     }
 
-    void destroy()
+    friend bool is_shared(const context& private_detail_x, const context& private_detail_y)
     {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().destroy();
+        return private_detail_x.private_detail_te_handle_mem_var ==
+               private_detail_y.private_detail_te_handle_mem_var;
     }
 
     private:
@@ -151,12 +143,11 @@ struct context
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual void finish()                           = 0;
-        virtual void set_stream(int input)              = 0;
-        virtual int create_event()                      = 0;
-        virtual void record_event(int event, int input) = 0;
-        virtual void wait_event(int event, int input)   = 0;
-        virtual void destroy()                          = 0;
+        virtual void finish()                = 0;
+        virtual void set_stream(int input)   = 0;
+        virtual int create_event()           = 0;
+        virtual void record_event(int input) = 0;
+        virtual void wait_event(int input)   = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -187,31 +178,27 @@ struct context
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
-
-        void finish() override { return private_detail_te_value.finish(); }
+        void finish() override { private_detail_te_value.finish(); }
 
         void set_stream(int input) override
         {
 
-            return private_detail_te_value.set_stream(std::move(input));
+            private_detail_te_value.set_stream(std::move(input));
         }
 
         int create_event() override { return private_detail_te_value.create_event(); }
 
-        void record_event(int event, int input) override
+        void record_event(int input) override
         {
 
-            return private_detail_te_value.record_event(std::move(event), std::move(input));
+            private_detail_te_value.record_event(std::move(input));
         }
 
-        void wait_event(int event, int input) override
+        void wait_event(int input) override
         {
 
-            return private_detail_te_value.wait_event(std::move(event), std::move(input));
+            private_detail_te_value.wait_event(std::move(input));
         }
-
-        void destroy() override { return private_detail_te_value.destroy(); }
-
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -279,6 +266,7 @@ inline const ValueType& any_cast(const context& x)
 }
 
 #endif
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

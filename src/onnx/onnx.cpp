@@ -720,7 +720,7 @@ struct onnx_parser
                 result = ops[node.op_type()](get_attributes(node), args);
             }
             // Even no output nodes produce output in migraphx
-            if (node.output().empty() and result.size() == 1) 
+            if(node.output().empty() and result.size() == 1)
             {
                 instructions[name] = result.front();
             }
@@ -765,9 +765,9 @@ struct onnx_parser
         std::size_t n = 0;
         for(auto&& node : graph.node())
         {
-            if (node.output().empty()) 
+            if(node.output().empty())
             {
-                if (node.name().empty())
+                if(node.name().empty())
                 {
                     result["migraphx_unamed_node_" + std::to_string(n)] = node;
                     n++;

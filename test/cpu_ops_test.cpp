@@ -112,7 +112,7 @@ TEST_CASE(gather_test)
         auto a0 = p.add_literal(migraphx::literal{s, data});
         migraphx::shape s_indices{migraphx::shape::int32_type, {1, 2}};
         std::vector<int> indices{0, 2};
-        auto a1          = p.add_literal(migraphx::literal{s_indices, indices});
+        auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
         int axis = 0;
         p.add_instruction(migraphx::op::gather{axis}, a0, a1);
         p.compile(migraphx::cpu::target{});
@@ -132,7 +132,7 @@ TEST_CASE(gather_test)
         auto a0 = p.add_literal(migraphx::literal{s, data});
         migraphx::shape s_indices{migraphx::shape::int32_type, {1, 2}};
         std::vector<int> indices{0, 2};
-        auto a1          = p.add_literal(migraphx::literal{s_indices, indices});
+        auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
         int axis = 1;
         p.add_instruction(migraphx::op::gather{axis}, a0, a1);
         p.compile(migraphx::cpu::target{});

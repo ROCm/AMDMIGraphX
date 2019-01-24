@@ -649,7 +649,7 @@ struct gather
         }
 
         // negative axis means counting dimensions from back
-        if (axis < 0) 
+        if(axis < 0)
         {
             axis += n_dim;
         }

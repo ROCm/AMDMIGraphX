@@ -24,7 +24,8 @@ struct onnx_parser
 {
     using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
     using node_map      = std::unordered_map<std::string, onnx::NodeProto>;
-    using op_func = std::function<std::vector<instruction_ref>(attribute_map, std::vector<instruction_ref>)>;
+    using op_func =
+        std::function<std::vector<instruction_ref>(attribute_map, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog    = program();
@@ -719,9 +720,13 @@ struct onnx_parser
             {
                 result = ops[node.op_type()](get_attributes(node), args);
             }
-            std::transform(node.output().begin(), node.output().end(), result.begin(), std::inserter(instructions, instructions.end()), [](auto&& onnx_out, auto&& parse_out) {
-                return std::make_pair(onnx_out, parse_out);
-            });
+            std::transform(node.output().begin(),
+                           node.output().end(),
+                           result.begin(),
+                           std::inserter(instructions, instructions.end()),
+                           [](auto&& onnx_out, auto&& parse_out) {
+                               return std::make_pair(onnx_out, parse_out);
+                           });
         }
     }
 

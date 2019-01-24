@@ -640,17 +640,24 @@ struct as_shape
 
 struct gather
 {
-    std::size_t axis = 0;
+    mutable int axis = 0;
     std::string name() const { return "gather"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2);
         auto lens = inputs[0].lens();
-        if(axis >= lens.size())
+        if(axis >= lens.size() || axis < -lens.size())
         {
             MIGRAPHX_THROW("Gather, axis is out of range.");
         }
+
+        // negative value means counting dimensions from back
+        if (axis < 0)
+        {
+            axis += lens.size();
+        }
+
         auto type  = inputs[0].type();
         lens[axis] = inputs[1].elements();
 

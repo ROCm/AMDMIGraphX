@@ -685,7 +685,7 @@ struct onnx_parser
         }
         for(auto&& p : nodes)
         {
-            for (auto&& output : p.second.output())
+            for(auto&& output : p.second.output())
                 this->parse_node(output);
         }
     }
@@ -725,9 +725,7 @@ struct onnx_parser
                            result.end(),
                            node.output().begin(),
                            std::inserter(instructions, instructions.end()),
-                           [](auto&& x, auto&& y) {
-                               return std::make_pair(y, x);
-                           });
+                           [](auto&& x, auto&& y) { return std::make_pair(y, x); });
         }
     }
 

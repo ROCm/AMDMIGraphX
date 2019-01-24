@@ -685,8 +685,7 @@ struct onnx_parser
         }
         for(auto&& p : nodes)
         {
-            for(auto&& output : p.second.output())
-                this->parse_node(output);
+            this->parse_node(p.first);
         }
     }
 
@@ -720,12 +719,20 @@ struct onnx_parser
             {
                 result = ops[node.op_type()](get_attributes(node), args);
             }
-            assert(node.output().size() >= result.size());
-            std::transform(result.begin(),
-                           result.end(),
-                           node.output().begin(),
-                           std::inserter(instructions, instructions.end()),
-                           [](auto&& x, auto&& y) { return std::make_pair(y, x); });
+            // Even no output nodes produce output in migraphx
+            if (node.output().empty() and result.size() == 1) 
+            {
+                instructions[name] = result.front();
+            }
+            else
+            {
+                assert(node.output().size() >= result.size());
+                std::transform(result.begin(),
+                               result.end(),
+                               node.output().begin(),
+                               std::inserter(instructions, instructions.end()),
+                               [](auto&& x, auto&& y) { return std::make_pair(y, x); });
+            }
         }
     }
 
@@ -755,8 +762,21 @@ struct onnx_parser
     static node_map get_nodes(const onnx::GraphProto& graph)
     {
         std::unordered_map<std::string, onnx::NodeProto> result;
+        std::size_t n = 0;
         for(auto&& node : graph.node())
         {
+            if (node.output().empty()) 
+            {
+                if (node.name().empty())
+                {
+                    result["migraphx_unamed_node_" + std::to_string(n)] = node;
+                    n++;
+                }
+                else
+                {
+                    result[node.name()] = node;
+                }
+            }
             for(auto&& output : node.output())
             {
                 result[output] = node;

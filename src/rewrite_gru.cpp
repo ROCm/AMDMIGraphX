@@ -103,14 +103,16 @@ void rewrite_gru::apply(program& prog) const
                                         gru_op.actv_funcs.at(2),
                                         gru_op.actv_funcs.at(3));
 
-            auto final_output = prog.insert_instruction(ins, op::concat{0}, ret_forward[1], ret_reverse[1]);
+            auto final_output =
+                prog.insert_instruction(ins, op::concat{0}, ret_forward[1], ret_reverse[1]);
 
             // add the dimension of num_direction
             ret_forward[0] = prog.insert_instruction(ins, op::unsqueeze{{1}}, ret_forward[0]);
             ret_reverse[0] = prog.insert_instruction(ins, op::unsqueeze{{1}}, ret_reverse[0]);
 
             // concat the forward and reverse output
-            auto replaced_arg = prog.replace_instruction(ins, op::concat{1}, {ret_forward[0], ret_reverse[0]});
+            auto replaced_arg =
+                prog.replace_instruction(ins, op::concat{1}, {ret_forward[0], ret_reverse[0]});
             replaced_arg->add_output(final_output);
         }
         else

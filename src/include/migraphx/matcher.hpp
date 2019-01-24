@@ -214,7 +214,6 @@ void find_matches(program& p, Ms&&... ms)
         bool match = false;
         each_args(
             [&](auto&& m) {
-                // cppcheck-suppress knownConditionTrueFalse
                 if(match)
                     return;
                 auto r = match_instruction(p, ins, m.matcher());

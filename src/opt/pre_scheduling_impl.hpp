@@ -104,6 +104,7 @@ struct pre_scheduling_impl
     void reorder();
     void run();
     void splice(std::list<dag_node*>&);
+    void annotate(std::list<dag_node*>&);
     static bool compare_exit_nodes(dag_node* d1, dag_node* d2)
     {
         return (d1->weight_sum > d2->weight_sum);

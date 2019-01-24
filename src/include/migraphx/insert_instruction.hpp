@@ -16,7 +16,9 @@ namespace migraphx {
 /// executing in different streams.
 struct insert_instruction
 {
-    void insert_event(program* p, int mask, instruction_ref ins, std::vector<instruction_ref> args);
+    void insert_record_event(program* p, instruction_ref ins, int event);
+    insert_wait_event(program* p, instruction_ref ins, std::vector<instruction_ref> args);
+    void insert_stream(program* p, instruction_ref ins, int stream);
 };
 
 #else
@@ -26,8 +28,9 @@ struct insert_instruction
  *
  * struct insert_instruction
  * {
- *      void insert_event(program* p,int mask,instruction_ref ins,std::vector<instruction_ref>
- * input) ;
+ *      void insert_record_event(program* p,instruction_ref ins,int input) ;
+ *      void insert_wait_event(program* p,instruction_ref ins,std::vector<instruction_ref> input) ;
+ *      void insert_stream(program* p,instruction_ref ins,int input) ;
  * };
  *
  */
@@ -89,11 +92,24 @@ struct insert_instruction
             return private_detail_te_get_handle().type();
     }
 
-    void insert_event(program* p, int mask, instruction_ref ins, std::vector<instruction_ref> input)
+    void insert_record_event(program* p, instruction_ref ins, int input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().insert_event(
-            p, std::move(mask), std::move(ins), std::move(input));
+        (*this).private_detail_te_get_handle().insert_record_event(
+            p, std::move(ins), std::move(input));
+    }
+
+    void insert_wait_event(program* p, instruction_ref ins, std::vector<instruction_ref> input)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().insert_wait_event(
+            p, std::move(ins), std::move(input));
+    }
+
+    void insert_stream(program* p, instruction_ref ins, int input)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().insert_stream(p, std::move(ins), std::move(input));
     }
 
     friend bool is_shared(const insert_instruction& private_detail_x,
@@ -110,10 +126,10 @@ struct insert_instruction
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual void insert_event(program* p,
-                                  int mask,
-                                  instruction_ref ins,
-                                  std::vector<instruction_ref> input) = 0;
+        virtual void insert_record_event(program* p, instruction_ref ins, int input) = 0;
+        virtual void
+        insert_wait_event(program* p, instruction_ref ins, std::vector<instruction_ref> input) = 0;
+        virtual void insert_stream(program* p, instruction_ref ins, int input)                 = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -144,14 +160,24 @@ struct insert_instruction
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
-        void insert_event(program* p,
-                          int mask,
-                          instruction_ref ins,
-                          std::vector<instruction_ref> input) override
+        void insert_record_event(program* p, instruction_ref ins, int input) override
         {
 
-            private_detail_te_value.insert_event(
-                p, std::move(mask), std::move(ins), std::move(input));
+            private_detail_te_value.insert_record_event(p, std::move(ins), std::move(input));
+        }
+
+        void insert_wait_event(program* p,
+                               instruction_ref ins,
+                               std::vector<instruction_ref> input) override
+        {
+
+            private_detail_te_value.insert_wait_event(p, std::move(ins), std::move(input));
+        }
+
+        void insert_stream(program* p, instruction_ref ins, int input) override
+        {
+
+            private_detail_te_value.insert_stream(p, std::move(ins), std::move(input));
         }
 
         PrivateDetailTypeErasedT private_detail_te_value;

@@ -106,6 +106,7 @@ void pre_scheduling_impl::reorder()
 #endif
     schedule(sorted_nodes);
     splice(sorted_nodes);
+    annotate(sorted_nodes);
 
 #ifdef MIGRAPHX_DEBUG_OPT
     verify();
@@ -182,32 +183,6 @@ void pre_scheduling_impl::schedule(std::list<dag_node*>& sorted_nodes)
     MIGRAPHX_DEBUG(dump("---After assigning stream---"));
     MIGRAPHX_DEBUG(dump(sorted_nodes));
 #endif
-    
-    for(auto&& node : sorted_nodes) {
-        instruction_ref ins = node->ins;
-        if (instr2_stream.find(ins) == instr2_stream.end())
-            continue;
-        int stream = instr2_stream[ins];
-        ins->set_stream(stream);
-        for (auto&& arg : ins->inputs())
-        {
-            int arg_s = arg->get_stream();
-            if((arg_s < 0) || (arg_s == stream))
-                continue;
-            arg->add_mask(RECORD_EVENT);
-            ins->add_mask(WAIT_EVENT);
-            add_mask(arg, RECORD_EVENT);
-            add_mask(ins, WAIT_EVENT);
-#if 0                
-            insert_instr.insert_event(p_program, 1, std::next(arg), {});
-            std::next(arg)->set_stream(arg_s);
-#endif                
-        }
-        
-#if 0            
-            args.push_back(std::next(arg));
-#endif            
-    }
 }
 
 void pre_scheduling_impl::splice(std::list<dag_node*>& sorted_nodes)
@@ -222,9 +197,38 @@ void pre_scheduling_impl::splice(std::list<dag_node*>& sorted_nodes)
     } while(iter != begin);
 
 #ifdef MIGRAPHX_DEBUG_OPT
-    MIGRAPHX_DEBUG(dump("---After pre-scheduling---"));
+    MIGRAPHX_DEBUG(dump("---After splice in pre-scheduling---"));
     MIGRAPHX_DEBUG(dump_program());
 #endif
+}
+
+void pre_scheduling_impl::annotate(std::list<dag_node*>& sorted_nodes)
+{
+    for (auto&& node : sorted_nodes) {
+        instruction_ref ins = node->ins;
+        if (instr2_stream.find(ins) == instr2_stream.end())
+            continue;
+        int stream = instr2_stream[ins];
+        ins->set_stream(stream);
+        // insert_instr.insert_stream(p_program, ins, stream);
+        for (auto&& arg : ins->inputs())
+        {
+            int arg_s = arg->get_stream();
+            if((arg_s < 0) || (arg_s == stream))
+                continue;
+            arg->add_mask(RECORD_EVENT);
+            ins->add_mask(WAIT_EVENT);
+            add_mask(arg, RECORD_EVENT);
+            add_mask(ins, WAIT_EVENT);
+#if 0                
+            insert_instr.insert_event(p_program, 1, std::next(arg), {});
+            std::next(arg)->set_stream(arg_s);
+#endif                
+        }
+#if 0            
+            args.push_back(std::next(arg));
+#endif
+    }
 }
 
 void pre_scheduling_impl::run()

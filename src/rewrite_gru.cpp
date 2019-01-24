@@ -173,7 +173,8 @@ std::vector<instruction_ref> rewrite_gru::gru_oper(bool is_forward,
     long hs        = static_cast<long>(r->get_shape().lens()[1]);
     long seq_index = is_forward ? 0 : seq_len - 1;
 
-    migraphx::shape s(input->get_shape().type(), {input->get_shape().lens()[1], static_cast<std::size_t>(hs)});
+    migraphx::shape s(input->get_shape().type(),
+                      {input->get_shape().lens()[1], static_cast<std::size_t>(hs)});
     std::vector<int> data(s.elements(), 1);
     auto l1 = prog.add_literal(migraphx::literal{s, data});
 
@@ -211,8 +212,8 @@ std::vector<instruction_ref> rewrite_gru::gru_oper(bool is_forward,
         br_bz   = prog.insert_instruction(ins, op::broadcast{1, ih->get_shape()}, bz);
         auto br = prog.insert_instruction(ins, op::add{}, wbr, rbr);
         br_br   = prog.insert_instruction(ins, op::broadcast{1, ih->get_shape()}, br);
-        auto bh   = prog.insert_instruction(ins, op::add{}, wbh, rbh);
-        br_bh = prog.insert_instruction(ins, op::broadcast{1, ih->get_shape()}, bh);
+        auto bh = prog.insert_instruction(ins, op::add{}, wbh, rbh);
+        br_bh   = prog.insert_instruction(ins, op::broadcast{1, ih->get_shape()}, bh);
     }
 
     for(long i = 0; i < seq_len; i++)

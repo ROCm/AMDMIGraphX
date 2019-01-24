@@ -599,6 +599,11 @@ struct onnx_parser
             input_as_shape = parse_value(attributes.at("input_as_shape")).at<int>();
         }
 
+        if(contains(attributes, "value"))
+        {
+            value = parse_value(attributes.at("value")).at<float>();
+        }
+
         if(contains(attributes, "extra_shape"))
         {
             MIGRAPHX_THROW("ConstantFill: cannot handle extra shape attribute");

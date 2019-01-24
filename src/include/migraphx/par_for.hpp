@@ -54,6 +54,7 @@ void par_for_impl(std::size_t n, std::size_t threadsize, F f)
                     f(i);
                 }
             });
+            // cppcheck-suppress unreadVariable
             work += grainsize;
             return result;
         });

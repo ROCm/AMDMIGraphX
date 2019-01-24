@@ -113,7 +113,7 @@ TEST_CASE(gather_test)
         migraphx::shape s_indices{migraphx::shape::int32_type, {1, 2}};
         std::vector<int> indices{0, 2};
         auto a1          = p.add_literal(migraphx::literal{s_indices, indices});
-        std::size_t axis = 0;
+        int axis = 0;
         p.add_instruction(migraphx::op::gather{axis}, a0, a1);
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
@@ -133,7 +133,7 @@ TEST_CASE(gather_test)
         migraphx::shape s_indices{migraphx::shape::int32_type, {1, 2}};
         std::vector<int> indices{0, 2};
         auto a1          = p.add_literal(migraphx::literal{s_indices, indices});
-        std::size_t axis = 1;
+        int axis = 1;
         p.add_instruction(migraphx::op::gather{axis}, a0, a1);
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});

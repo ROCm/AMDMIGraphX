@@ -296,7 +296,7 @@ TEST_CASE(max_test)
     auto l0     = p.add_instruction(migraphx::op::max{}, input0, input1);
     p.add_instruction(migraphx::op::max{}, l0, input2);
 
-    auto prog = migraphx::parse_onnx("max_test.onnx");
+    migraphx::parse_onnx("max_test.onnx");
 }
 
 TEST_CASE(acos_test)
@@ -319,7 +319,7 @@ TEST_CASE(min_test)
     auto l0     = p.add_instruction(migraphx::op::min{}, input0, input1);
     p.add_instruction(migraphx::op::min{}, l0, input2);
 
-    auto prog = migraphx::parse_onnx("min_test.onnx");
+    migraphx::parse_onnx("min_test.onnx");
 }
 
 TEST_CASE(atan_test)
@@ -558,7 +558,7 @@ TEST_CASE(group_conv_test)
     migraphx::op::convolution op;
     op.group = 4;
     p.add_instruction(op, l0, l1);
-    auto prog = migraphx::parse_onnx("group_conv_test.onnx");
+    migraphx::parse_onnx("group_conv_test.onnx");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -685,7 +685,8 @@ struct onnx_parser
         }
         for(auto&& p : nodes)
         {
-            this->parse_node(get_name(p.second));
+            for (auto&& output : p.second.output())
+                this->parse_node(output);
         }
     }
 
@@ -701,7 +702,6 @@ struct onnx_parser
             {
                 if(nodes.count(input) > 0)
                 {
-                    // auto&& iname = get_name(nodes.at(input));
                     assert(name != input);
                     this->parse_node(input);
                     args.push_back(instructions.at(input));
@@ -720,12 +720,13 @@ struct onnx_parser
             {
                 result = ops[node.op_type()](get_attributes(node), args);
             }
-            std::transform(node.output().begin(),
-                           node.output().end(),
-                           result.begin(),
+            assert(node.output().size() >= result.size());
+            std::transform(result.begin(),
+                           result.end(),
+                           node.output().begin(),
                            std::inserter(instructions, instructions.end()),
-                           [](auto&& onnx_out, auto&& parse_out) {
-                               return std::make_pair(onnx_out, parse_out);
+                           [](auto&& x, auto&& y) {
+                               return std::make_pair(y, x);
                            });
         }
     }
@@ -758,7 +759,6 @@ struct onnx_parser
         std::unordered_map<std::string, onnx::NodeProto> result;
         for(auto&& node : graph.node())
         {
-            result[get_name(node)] = node;
             for(auto&& output : node.output())
             {
                 result[output] = node;

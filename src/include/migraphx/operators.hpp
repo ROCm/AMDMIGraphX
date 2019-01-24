@@ -651,14 +651,15 @@ struct gather
         // negative axis means counting dimensions from back
         int axis_index = (axis < 0) ? (n_dim + axis) : axis;
 
-        auto type  = inputs[0].type();
+        auto type        = inputs[0].type();
         lens[axis_index] = inputs[1].elements();
 
         return {type, lens};
     }
 
     template <class T>
-    void compute_index(const T& out_idx, const int axis_index,
+    void compute_index(const T& out_idx,
+                       const int axis_index,
                        const std::vector<std::size_t>& vec_indices,
                        const std::size_t max_dim,
                        T& in_idx) const

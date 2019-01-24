@@ -27,9 +27,9 @@ argument gather(hipStream_t stream,
                 hip_tensor_descriptor<ndim> desc_input(input.get_shape());
                 hip_tensor_descriptor<ndim> desc_output(output.get_shape());
                 gs_launch(stream, nelements)([=](auto i) {
-                    auto lens  = desc_output.multi(i);
+                    auto lens        = desc_output.multi(i);
                     lens[axis_index] = indices_ptr[lens[axis_index]];
-                    outptr[i]  = inptr[desc_input.linear(lens)];
+                    outptr[i]        = inptr[desc_input.linear(lens)];
                 });
             });
         });

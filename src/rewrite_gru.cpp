@@ -173,8 +173,9 @@ std::vector<instruction_ref> rewrite_gru::gru_oper(bool is_forward,
     long hs        = static_cast<long>(r->get_shape().lens()[1]);
     long seq_index = is_forward ? 0 : seq_len - 1;
 
-    migraphx::shape s(input->get_shape().type(), {1});
-    auto l1 = prog.add_literal(migraphx::literal{s, {1}});
+    migraphx::shape s(input->get_shape().type(), {input->get_shape().lens()[1], static_cast<std::size_t>(hs)});
+    std::vector<int> data(s.elements(), 1);
+    auto l1 = prog.add_literal(migraphx::literal{s, data});
 
     // weight matrix
     std::vector<int64_t> perm{1, 0};
@@ -210,7 +211,8 @@ std::vector<instruction_ref> rewrite_gru::gru_oper(bool is_forward,
         br_bz   = prog.insert_instruction(ins, op::broadcast{1, ih->get_shape()}, bz);
         auto br = prog.insert_instruction(ins, op::add{}, wbr, rbr);
         br_br   = prog.insert_instruction(ins, op::broadcast{1, ih->get_shape()}, br);
-        br_bh   = prog.insert_instruction(ins, op::add{}, br_wbh, br_rbh);
+        auto bh   = prog.insert_instruction(ins, op::add{}, wbh, rbh);
+        br_bh = prog.insert_instruction(ins, op::broadcast{1, ih->get_shape()}, bh);
     }
 
     for(long i = 0; i < seq_len; i++)
@@ -229,7 +231,7 @@ std::vector<instruction_ref> rewrite_gru::gru_oper(bool is_forward,
 
         // equation f(Xt*(Wr^T) + Ht-1*(Rr^T) + Wbr + Rbr)
         auto xwrt    = prog.insert_instruction(ins, op::dot{}, xt, twr);
-        auto hrrt    = prog.insert_instruction(ins, op::dot{}, xt, trr);
+        auto hrrt    = prog.insert_instruction(ins, op::dot{}, ih, trr);
         auto xwhr_rt = prog.insert_instruction(ins, op::add{}, xwrt, hrrt);
         if(bias != prog.end())
         {
@@ -254,7 +256,7 @@ std::vector<instruction_ref> rewrite_gru::gru_oper(bool is_forward,
         {
             // equation ht = g(Xt*(Wh^T) + (rt (.) (Ht-1*(Rh^T) + Rbh)) + Wbh)
             auto xwht   = prog.insert_instruction(ins, op::dot{}, xt, twh);
-            auto ih_rht = prog.insert_instruction(ins, op::dot{}, ih, twh);
+            auto ih_rht = prog.insert_instruction(ins, op::dot{}, ih, trh);
             if(bias != prog.end())
             {
                 ih_rht = prog.insert_instruction(ins, op::add{}, ih_rht, br_rbh);

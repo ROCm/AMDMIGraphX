@@ -362,7 +362,7 @@ struct onnx_parser
     instruction_ref
     parse_gather(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        std::size_t axis = 0;
+        int axis = 0;
         if(contains(attributes, "axis"))
         {
             axis = parse_value(attributes.at("axis")).at<int>();

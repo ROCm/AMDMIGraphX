@@ -614,7 +614,13 @@ struct pad
 {
     std::vector<int64_t> pads;
     float value      = 0.0f;
-    std::string mode = "constant";
+    enum padding_mode_t
+    {
+        constant_, //NOLINT
+        reflect_, //NOLINT
+        edge
+    };
+    padding_mode_t mode = constant_;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

@@ -217,7 +217,7 @@ TEST_CASE(gather)
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
         migraphx::shape indices{migraphx::shape::int32_type, {2, 3}};
-        std::size_t axis = 1;
+        int axis = 1;
         expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 6, 4, 5}},
                      migraphx::op::gather{axis},
                      input,
@@ -227,7 +227,7 @@ TEST_CASE(gather)
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
         migraphx::shape indices{migraphx::shape::int32_type, {2, 3}};
-        std::size_t axis = 4;
+        int axis = 4;
         throws_shape(migraphx::op::gather{axis}, input, indices);
     }
 }

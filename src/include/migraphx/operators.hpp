@@ -647,15 +647,16 @@ struct gather
     {
         check_shapes{inputs, *this}.has(2);
         auto lens = inputs[0].lens();
-        if(axis >= lens.size() || axis < -lens.size())
+        int n_dim = static_cast<int>(lens.size());
+        if(axis >= n_dim || axis < -n_dim)
         {
-            MIGRAPHX_THROW("Gather, axis is out of range.");
+            MIGRAPHX_THROW("Gather: axis is out of range.");
         }
 
-        // negative value means counting dimensions from back
+        // negative axis means counting dimensions from back
         if(axis < 0)
         {
-            axis += lens.size();
+            axis += n_dim;
         }
 
         auto type  = inputs[0].type();

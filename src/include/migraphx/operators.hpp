@@ -967,8 +967,7 @@ struct scalar
     shape compute_shape(std::vector<shape> inputs) const
     {
         assert(check_shapes{inputs}.has(1).only_dims(1).size() == 1);
-        auto t     = inputs.at(0).type();
-        auto input = inputs.at(0);
+        auto t = inputs.at(0).type();
         std::vector<std::size_t> strides(scalar_bcast.lens().size(), 0);
         return {t, scalar_bcast.lens(), strides};
     }

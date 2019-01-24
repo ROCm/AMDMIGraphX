@@ -565,7 +565,7 @@ TEST_CASE(pad_test)
 {
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 2}});
-    p.add_instruction(migraphx::op::pad{{1,1,1,1}}, l0);
+    p.add_instruction(migraphx::op::pad{{1, 1, 1, 1}}, l0);
     migraphx::parse_onnx("pad_test.onnx");
 }
 

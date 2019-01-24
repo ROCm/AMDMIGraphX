@@ -944,7 +944,7 @@ struct test_pad
         std::vector<int64_t> pads1 = {0, 0, 0, 0, 1, 1, 1, 1};
         std::vector<int64_t> pads2 = {1, 1, 1, 1, 0, 0, 0, 0};
         std::vector<int64_t> pads3 = {1, 0, 1, 0, 1, 0, 2, 0};
-        auto l0                   = p.add_parameter("x", s0);
+        auto l0                    = p.add_parameter("x", s0);
         p.add_instruction(migraphx::op::pad{pads0}, l0);
         p.add_instruction(migraphx::op::pad{pads1}, l0);
         p.add_instruction(migraphx::op::pad{pads2}, l0);

@@ -653,7 +653,7 @@ struct gather
         }
 
         // negative value means counting dimensions from back
-        if (axis < 0)
+        if(axis < 0)
         {
             axis += lens.size();
         }

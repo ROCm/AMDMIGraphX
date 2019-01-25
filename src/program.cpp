@@ -328,8 +328,7 @@ void program::finalize()
 {
     for(auto ins : iterator_for(*this))
     {
-        int stream = ins->get_stream();
-        this->impl->ctx.set_stream(stream);
+        // this->impl->ctx.set_stream(ins->get_stream());
         ins->finalize(this->impl->ctx);
     }
 }
@@ -350,7 +349,7 @@ argument generic_eval(const program& p,
     for(auto ins : iterator_for(p))
     {
         int stream = ins->get_stream();
-        ctx.set_stream(stream);
+        // ctx.set_stream(stream);
         num_of_stream = std::max(num_of_stream, stream + 1);
         if(ins->name() == "@literal")
         {

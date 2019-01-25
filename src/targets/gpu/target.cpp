@@ -21,6 +21,7 @@
 #include <migraphx/gpu/machine_model.hpp>
 #include <migraphx/gpu/find_concur_gpu.hpp>
 #include <migraphx/gpu/insert_instruction_gpu.hpp>
+#include <migraphx/gpu/eliminate_set_stream.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -56,6 +57,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         write_literals{&ctx}, 
         pre_scheduling{weight_func, num_of_streams, insert_instruction_gpu{}},
         memory_coloring{"hip::allocate", num_of_streams, find_concur_gpu{}},
+        eliminate_set_stream{},            
         eliminate_workspace{},
         eliminate_allocation{"hip::allocate"},
         check_context<context>{},

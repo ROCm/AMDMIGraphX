@@ -210,7 +210,7 @@ void pre_scheduling_impl::annotate(std::list<dag_node*>& sorted_nodes)
             continue;
         int stream = instr2_stream[ins];
         ins->set_stream(stream);
-        // insert_instr.insert_stream(p_program, ins, stream);
+        insert_instr.insert_stream(p_program, ins, stream);
         for (auto&& arg : ins->inputs())
         {
             int arg_s = arg->get_stream();

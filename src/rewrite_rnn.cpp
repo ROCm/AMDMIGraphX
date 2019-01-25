@@ -106,7 +106,7 @@ void rewrite_rnn::apply(program& prog) const
                                         trans_hw_forward,
                                         ih_forward,
                                         bias_forward,
-                                        rnn_op.actv_func);
+                                        rnn_op.actv_funcs.at(0));
             auto ret_reverse = rnn_oper(false,
                                         prog,
                                         ins,
@@ -115,7 +115,7 @@ void rewrite_rnn::apply(program& prog) const
                                         trans_hw_reverse,
                                         ih_reverse,
                                         bias_reverse,
-                                        rnn_op.actv_func);
+                                        rnn_op.actv_funcs.at(1));
 
             // auto final_output = prog.insert_instruction(ins, op::concat{0}, ret_forward[1],
 
@@ -128,7 +128,7 @@ void rewrite_rnn::apply(program& prog) const
         }
         else
         {
-            bool is_forward = (dicrt == op::rnn::rnn_direction_t::forward) ? true : false;
+            bool is_forward = (dicrt == op::rnn::forward) ? true : false;
             std::vector<int64_t> perm{1, 0};
             // process input weight matrix
             auto sxw      = prog.insert_instruction(ins, op::squeeze{{0}}, args[1]);
@@ -160,8 +160,15 @@ void rewrite_rnn::apply(program& prog) const
             {
                 ih = prog.add_literal(migraphx::literal{s, data});
             }
-            auto ret = rnn_oper(
-                is_forward, prog, ins, args[0], trans_xw, trans_hw, ih, bias, rnn_op.actv_func);
+            auto ret = rnn_oper(is_forward,
+                                prog,
+                                ins,
+                                args[0],
+                                trans_xw,
+                                trans_hw,
+                                ih,
+                                bias,
+                                rnn_op.actv_funcs.at(0));
 
             // add the dimension of num_direction
             prog.replace_instruction(ins, op::unsqueeze{{1}}, ret[0]);

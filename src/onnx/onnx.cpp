@@ -748,15 +748,15 @@ struct onnx_parser
         // need 4 activation functions
         if(dirct == op::gru::bidirectional)
         {
-            // 4 activation functions are used in the bidirectional 
+            // 4 activation functions are used in the bidirectional
             // scenario. No spec is provided in onnx::operator. we
             // use the algorithm that: if 1 actv function is provides,
             // repeat 1 four times. If 2 actv functins are provides,
             // assume forward and reverse use the same pair of actv
             // functions. For the case of 3 actv functions provided,
-            // assume the 3rd one is repeated once and used by the 
-            // reverse direction. 
-            // This may need change later 
+            // assume the 3rd one is repeated once and used by the
+            // reverse direction.
+            // This may need change later
             if(vec_names.size() == 1)
             {
                 vec_names.insert(vec_names.end(), 3, vec_names.at(0));

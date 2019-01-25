@@ -14,7 +14,6 @@ namespace gpu {
 
 struct hip_device
 {
-    using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
     hip_device() { add_stream(); }
 
     hip_device(std::size_t id) : device_id(id) { add_stream(); }
@@ -84,6 +83,38 @@ struct hip_device
         shared<rocblas_handle_ptr> rbhandle = nullptr;
     };
 
+    struct event
+    {
+        using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
+
+        event() {}
+
+        event(std::size_t device_number) : id(device_number) {}
+
+        void setup() { set_device(id); }
+
+        static hip_event_ptr create_event()
+        {
+            hipEvent_t event;
+            auto status = hipEventCreateWithFlags(&event, hipEventDisableTiming);
+            if(status != hipSuccess)
+                MIGRAPHX_THROW("Failed to creat event");
+            return hip_event_ptr{event};
+        }
+
+        hipEvent_t get()
+        {
+            setup();
+            if (s == nullptr)
+                s = create_event();
+            assert(s.get() != nullptr);
+             return s.get();
+        }
+        private:
+        std::size_t id                     = 0;
+        shared<hip_event_ptr> s            = nullptr;
+    };
+
     void add_stream()
     {
         int num_of_streams = 1;
@@ -100,15 +131,12 @@ struct hip_device
     void set_stream(std::size_t n) { current_stream = n; }
     int create_event()
     {
-        hipEvent_t event;
-        auto status = hipEventCreateWithFlags(&event, hipEventDisableTiming);
-        if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to creat event");
-        events.push_back(hip_event_ptr{event});
-        return (events.size() - 1);
+        return events.size();
     }
     void record_event(int event)
     {
+        for (int i = events.size(); i <= event; ++i)
+            events.emplace_back(device_id);
         hipEventRecord(events.at(event).get(), streams.at(current_stream).get());
     }
 
@@ -132,7 +160,7 @@ struct hip_device
     std::size_t device_id      = 0;
     std::size_t current_stream = 0;
     std::vector<stream> streams;
-    std::vector<shared<hip_event_ptr>> events{};
+    std::vector<event> events;
 };
 
 struct context

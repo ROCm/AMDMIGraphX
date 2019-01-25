@@ -685,10 +685,10 @@ struct onnx_parser
         {
             auto names = attributes.at("activations").strings();
             vec_names.clear();
-            for_each(names.begin(), names.end(), [&](auto &fn) { vec_names.push_back(fn); } );
+            for_each(names.begin(), names.end(), [&](auto& fn) { vec_names.push_back(fn); });
         }
 
-        for_each(vec_names.begin(), vec_names.end(), [&] (auto &fn) {
+        for_each(vec_names.begin(), vec_names.end(), [&](auto& fn) {
             if(map_actv_funcs.count(fn) == 0)
             {
                 MIGRAPHX_THROW("RNN: activation function " + fn + " not supported");
@@ -698,19 +698,19 @@ struct onnx_parser
         // bidirectional should have two activation functions
         // if only one actv function is provides, we use it in both
         // forward and reverse direction
-        if (dirct == op::rnn::bidirectional)
+        if(dirct == op::rnn::bidirectional)
         {
-            if (vec_names.size() == 1)
+            if(vec_names.size() == 1)
             {
                 vec_names.push_back(vec_names.at(0));
             }
         }
 
         std::vector<operation> vec_actv_funcs;
-        for_each(vec_names.begin(), vec_names.end(), [&] (auto &fn) {
+        for_each(vec_names.begin(), vec_names.end(), [&](auto& fn) {
             vec_actv_funcs.push_back(map_actv_funcs[fn]);
         });
-        
+
         // To be added later
         float clip = 0.0;
         if(contains(attributes, "clip"))

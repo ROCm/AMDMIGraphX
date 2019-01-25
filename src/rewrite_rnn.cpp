@@ -160,8 +160,15 @@ void rewrite_rnn::apply(program& prog) const
             {
                 ih = prog.add_literal(migraphx::literal{s, data});
             }
-            auto ret = rnn_oper(
-                is_forward, prog, ins, args[0], trans_xw, trans_hw, ih, bias, rnn_op.actv_funcs.at(0));
+            auto ret = rnn_oper(is_forward,
+                                prog,
+                                ins,
+                                args[0],
+                                trans_xw,
+                                trans_hw,
+                                ih,
+                                bias,
+                                rnn_op.actv_funcs.at(0));
 
             // add the dimension of num_direction
             prog.replace_instruction(ins, op::unsqueeze{{1}}, ret[0]);

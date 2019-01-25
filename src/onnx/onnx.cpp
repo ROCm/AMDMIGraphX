@@ -746,19 +746,6 @@ struct onnx_parser
         return result;
     }
 
-    static std::string get_name(const onnx::NodeProto& node)
-    {
-        if(node.name().empty())
-        {
-            std::string generated = "migraphx_unnamed_node";
-            return std::accumulate(node.output().begin(),
-                                   node.output().end(),
-                                   generated,
-                                   [](auto x, auto y) { return x + "_" + y; });
-        }
-        return node.name();
-    }
-
     static node_map get_nodes(const onnx::GraphProto& graph)
     {
         std::unordered_map<std::string, onnx::NodeProto> result;

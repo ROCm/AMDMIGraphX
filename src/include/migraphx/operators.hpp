@@ -634,9 +634,9 @@ struct pad
         check_shapes{inputs, *this}.has(1);
         auto&& idims = inputs.front().lens();
         std::vector<std::size_t> rdims(idims.begin(), idims.end());
-        auto num_dims = rdims.size();
+        std::size_t num_dims = rdims.size();
 
-        for(int i = 0; i < num_dims; i++)
+        for(std::size_t i = 0; i < num_dims; i++)
         {
             rdims[i] += pads[i] + pads[i + num_dims];
         }

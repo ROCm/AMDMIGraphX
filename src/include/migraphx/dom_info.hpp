@@ -22,7 +22,7 @@ struct dom_info
     bool strictly_dominates(const instruction* ins1, const instruction* ins2);
     // whether ins1 strictly post-dominates ins2.
     bool strictly_post_dominates(const instruction* ins1, const instruction* ins2);
-    bool has_stream(instruction_ref ins);
+    static instruction* get_stream(program* p, instruction_ref ins);
     program* p_program;
     // map instruction to its immediate dominator.
     std::unordered_map<const instruction*, const instruction*> instr2_idom;

@@ -344,13 +344,11 @@ argument generic_eval(const program& p,
     results.reserve(p.size() * 2);
     std::vector<argument> values;
     values.reserve(16);
-    int num_of_stream = 0;
     
     for(auto ins : iterator_for(p))
     {
         int stream = ins->get_stream();
         // ctx.set_stream(stream);
-        num_of_stream = std::max(num_of_stream, stream + 1);
         if(ins->name() == "@literal")
         {
             results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));

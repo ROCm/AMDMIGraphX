@@ -47,17 +47,17 @@ bool dom_info::strictly_post_dominates(const instruction* ins1, const instructio
     return false;
 }
 
-bool dom_info::has_stream(instruction_ref ins)
+instruction * dom_info::get_stream(program * p, instruction_ref ins)
 {
     instruction_ref iter = ins;
-    if (iter != p_program->begin())
+    if (iter != p->begin())
     {
         iter = std::prev(iter);
         if (iter->name() == "gpu::wait_event")
             iter = std::prev(iter);
-        return (iter->name() == "gpu::set_stream");
+        return (iter->name() == "gpu::set_stream") ? &(*iter) : nullptr;
     }
-    return false;
+    return nullptr;
 }
 
 void dom_info::compute_dom(bool reversed)
@@ -76,7 +76,7 @@ void dom_info::compute_dom(bool reversed)
     {
         const instruction* p_ins = &(*ins);
         instr2_points[p_ins]     = cur_points;
-        if(!has_stream(ins))
+        if(get_stream(p_program, ins) == nullptr)
         {
             if(reversed)
                 cur_points--;
@@ -93,7 +93,7 @@ void dom_info::compute_dom(bool reversed)
         // find dominators.
         for(auto&& iter : vis.get_inputs(ins))
         {
-            if(!has_stream(iter))
+            if(get_stream(p_program, iter) == nullptr)
                 continue;
             const instruction * p_arg = &(*iter);
             cnt++;

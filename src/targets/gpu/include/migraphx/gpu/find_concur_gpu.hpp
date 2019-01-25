@@ -3,6 +3,8 @@
 
 #include <migraphx/dom_info.hpp>
 #include <migraphx/common_header.hpp>
+#include <migraphx/gpu/event.hpp>
+
 namespace migraphx {
 namespace gpu {
 
@@ -16,6 +18,13 @@ struct find_concur_gpu
         dom_info info(p);
         info.compute_dom(true);
         propagate_splits(p, num_of_streams, concur_instrs, info);
+    }
+    int get_stream(program *p, instruction_ref ins)
+    {
+        instruction * stream = dom_info::get_stream(p, ins);
+        if (stream != nullptr)
+            return any_cast<gpu::set_stream>(stream->get_operator()).stream;
+        return -1;
     }
     void propagate_splits(program* p, int num_of_streams,
                           std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>& concur_instrs, dom_info& info)
@@ -31,7 +40,7 @@ struct find_concur_gpu
         {
             const instruction* p_iter = &(*ins);
             instr2_points[p_iter]     = cur_points++;
-            int stream                = ins->get_stream();
+            int stream                = get_stream(p, ins);
             if(stream < 0)
                 continue;
 
@@ -41,7 +50,7 @@ struct find_concur_gpu
                 std::set<int> stream_set;
                 for(auto&& arg : ins->outputs())
                 {
-                    int arg_stream = arg->get_stream();
+                    int arg_stream = get_stream(p, arg);
                     if(arg_stream >= 0)
                         stream_set.insert(arg_stream);
                 }
@@ -54,7 +63,7 @@ struct find_concur_gpu
                 std::set<int> stream_set;
                 for(auto&& arg : ins->inputs())
                 {
-                    int arg_stream = arg->get_stream();
+                    int arg_stream = get_stream(p, arg);
                     if(arg_stream >= 0)
                         stream_set.insert(arg_stream);
                 }

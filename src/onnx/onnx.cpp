@@ -116,14 +116,12 @@ struct onnx_parser
         add_op(name, [this, x](attribute_map attributes, std::vector<instruction_ref> args) {
             if(args.size() != 2)
                 MIGRAPHX_THROW("binary operators should have 2 operands");
-            if(contains(attributes, "broadcast"))
+            if(contains(attributes, "broadcast") and contains(attributes, "axis"))
             {
                 uint64_t broadcasted = parse_value(attributes.at("broadcast")).at<uint64_t>();
                 if(broadcasted != 0)
                 {
-                    uint64_t axis = (contains(attributes, "axis"))
-                                        ? parse_value(attributes.at("axis")).at<uint64_t>()
-                                        : 0;
+                    uint64_t axis = parse_value(attributes.at("axis")).at<uint64_t>();
                     auto l =
                         prog.add_instruction(op::broadcast{axis, args[0]->get_shape()}, args[1]);
                     return prog.add_instruction(x, args[0], l);

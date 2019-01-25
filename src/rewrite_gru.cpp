@@ -103,7 +103,7 @@ void rewrite_gru::apply(program& prog) const
                                         gru_op.actv_funcs.at(2),
                                         gru_op.actv_funcs.at(3));
 
-            //auto final_output =
+            // auto final_output =
             //    prog.insert_instruction(ins, op::concat{0}, ret_forward[1], ret_reverse[1]);
 
             // add the dimension of num_direction

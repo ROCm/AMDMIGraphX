@@ -613,11 +613,11 @@ struct reshape
 struct pad
 {
     std::vector<int64_t> pads;
-    float value      = 0.0f;
+    float value = 0.0f;
     enum padding_mode_t
     {
-        constant_, //NOLINT
-        reflect_, //NOLINT
+        constant_, // NOLINT
+        reflect_,  // NOLINT
         edge
     };
     padding_mode_t mode = constant_;

@@ -636,7 +636,7 @@ struct pad
         std::vector<std::size_t> rdims(idims.begin(), idims.end());
         auto num_dims = rdims.size();
 
-        for(auto i = 0; i < num_dims; i++)
+        for(int i = 0; i < num_dims; i++)
         {
             rdims[i] += pads[i] + pads[i + num_dims];
         }

@@ -948,6 +948,7 @@ struct test_pad
         p.add_instruction(migraphx::op::pad{pads0}, l0);
         p.add_instruction(migraphx::op::pad{pads1}, l0);
         p.add_instruction(migraphx::op::pad{pads2}, l0);
+        p.add_instruction(migraphx::op::pad{pads3}, l0);
         return p;
     }
 };

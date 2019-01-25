@@ -11,12 +11,9 @@ struct program_visitor
     instruction_ref end() { return reversed ? p_program->begin() : std::prev(p_program->end()); }
 
     instruction_ref next(instruction_ref ins) { return reversed ? std::prev(ins) : std::next(ins); }
-    std::set<const instruction*> get_inputs(instruction_ref ins)
+    const std::vector<instruction_ref>& get_inputs(instruction_ref ins)
     {
-        std::set<const instruction*> ret_val;
-        for(auto&& arg : reversed ? ins->outputs() : ins->inputs())
-            ret_val.insert(&(*arg));
-        return ret_val;
+        return reversed ? ins->outputs() : ins->inputs();
     }
 };
 
@@ -50,6 +47,19 @@ bool dom_info::strictly_post_dominates(const instruction* ins1, const instructio
     return false;
 }
 
+bool dom_info::has_stream(instruction_ref ins)
+{
+    instruction_ref iter = ins;
+    if (iter != p_program->begin())
+    {
+        iter = std::prev(iter);
+        if (iter->name() == "gpu::wait_event")
+            iter = std::prev(iter);
+        return (iter->name() == "gpu::set_stream");
+    }
+    return false;
+}
+
 void dom_info::compute_dom(bool reversed)
 {
     std::size_t num_of_instrs = p_program->size();
@@ -58,7 +68,7 @@ void dom_info::compute_dom(bool reversed)
     std::unordered_map<const instruction*, std::set<const instruction*>> instr2_doms;
     std::unordered_map<const instruction*, int> instr2_points;
     int cur_points  = reversed ? num_of_instrs - 1 : 0;
-    bool has_stream = false;
+    bool seen_stream = false;
     program_visitor vis{p_program, reversed};
     std::unordered_map<const instruction*, const instruction*>& instr2_dom_tree =
         (reversed ? instr2_ipdom : instr2_idom);
@@ -66,7 +76,7 @@ void dom_info::compute_dom(bool reversed)
     {
         const instruction* p_ins = &(*ins);
         instr2_points[p_ins]     = cur_points;
-        if(ins->get_stream() < 0)
+        if(!has_stream(ins))
         {
             if(reversed)
                 cur_points--;
@@ -77,14 +87,15 @@ void dom_info::compute_dom(bool reversed)
                 break;
             continue;
         }
-        has_stream               = true;
+        seen_stream               = true;
         const instruction* p_tmp = nullptr;
         int cnt                  = 0;
         // find dominators.
-        for(auto& p_arg : vis.get_inputs(ins))
+        for(auto&& iter : vis.get_inputs(ins))
         {
-            if(p_arg->get_stream() < 0)
+            if(!has_stream(iter))
                 continue;
+            const instruction * p_arg = &(*iter);
             cnt++;
             assert(instr2_doms.find(p_arg) != instr2_doms.end());
             if(p_tmp == nullptr)
@@ -138,7 +149,7 @@ void dom_info::compute_dom(bool reversed)
         else
             cur_points++;
     }
-    if(has_stream)
+    if(seen_stream)
     {
         MIGRAPHX_DEBUG(dump_doms(instr2_points, reversed));
     }

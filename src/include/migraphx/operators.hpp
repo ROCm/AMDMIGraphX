@@ -617,7 +617,7 @@ struct pad
     enum padding_mode_t
     {
         constant_pad,
-        reflect_pad,  // NOLINT
+        reflect_pad, // NOLINT
         edge_pad
     };
     padding_mode_t mode = constant_pad;

@@ -616,11 +616,11 @@ struct pad
     float value = 0.0f;
     enum padding_mode_t
     {
-        constant_, // NOLINT
-        reflect_,  // NOLINT
-        edge
+        constant_pad,
+        reflect_pad,  // NOLINT
+        edge_pad
     };
-    padding_mode_t mode = constant_;
+    padding_mode_t mode = constant_pad;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

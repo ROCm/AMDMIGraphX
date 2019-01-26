@@ -204,6 +204,7 @@ void pre_scheduling_impl::splice(std::list<dag_node*>& sorted_nodes)
 
 void pre_scheduling_impl::annotate(std::list<dag_node*>& sorted_nodes)
 {
+    int event = 0;
     for (auto&& node : sorted_nodes) {
         instruction_ref ins = node->ins;
         if (instr2_stream.find(ins) == instr2_stream.end())
@@ -211,24 +212,38 @@ void pre_scheduling_impl::annotate(std::list<dag_node*>& sorted_nodes)
         int stream = instr2_stream[ins];
         ins->set_stream(stream);
         insert_instr.insert_stream(p_program, ins, stream);
+
+        std::vector<int> events;
         for (auto&& arg : ins->inputs())
         {
-            int arg_s = arg->get_stream();
-            if((arg_s < 0) || (arg_s == stream))
+            if (instr2_stream.find(arg) == instr2_stream.end())
                 continue;
-            arg->add_mask(RECORD_EVENT);
+            int arg_s = instr2_stream[arg];
+            if(arg_s == stream)
+                continue;
+            if (!has_mask(arg, RECORD_EVENT)) {
+                events.push_back(event);
+                arg->set_event(event);
+                arg->add_mask(RECORD_EVENT);
+#if 0
+                insert_instr.insert_record_event(p_program, std::next(arg), event);
+#endif
+                event++;
+            }
+            
             ins->add_mask(WAIT_EVENT);
             add_mask(arg, RECORD_EVENT);
             add_mask(ins, WAIT_EVENT);
-#if 0                
-            insert_instr.insert_event(p_program, 1, std::next(arg), {});
-            std::next(arg)->set_stream(arg_s);
-#endif                
         }
-#if 0            
-            args.push_back(std::next(arg));
-#endif
+#if 0        
+        for (auto && i : events)
+        {
+            insert_instr.insert_wait_event(p_program, ins, i);
+        }
+#endif        
     }
+    if (event > 0)
+        insert_instr.insert_create_events(p_program, p_program->begin(), event);
 }
 
 void pre_scheduling_impl::run()

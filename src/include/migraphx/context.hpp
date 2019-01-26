@@ -22,7 +22,7 @@ struct context
     /// Wait for any tasks in the context to complete
     void finish();
     void set_stream(int ndx);
-    int create_event();
+    void create_events(int num_of_events);
     void record_event(int event);
     void wait_event(int event);
 };
@@ -36,7 +36,7 @@ struct context
  * {
  *      void finish() ;
  *      void set_stream(int input) ;
- *      int create_event() ;
+ *      void create_events(int input) ;
  *      void record_event(int input) ;
  *      void wait_event(int input) ;
  * };
@@ -112,10 +112,10 @@ struct context
         (*this).private_detail_te_get_handle().set_stream(std::move(input));
     }
 
-    int create_event()
+    void create_events(int input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().create_event();
+        (*this).private_detail_te_get_handle().create_events(std::move(input));
     }
 
     void record_event(int input)
@@ -143,11 +143,11 @@ struct context
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual void finish()                = 0;
-        virtual void set_stream(int input)   = 0;
-        virtual int create_event()           = 0;
-        virtual void record_event(int input) = 0;
-        virtual void wait_event(int input)   = 0;
+        virtual void finish()                 = 0;
+        virtual void set_stream(int input)    = 0;
+        virtual void create_events(int input) = 0;
+        virtual void record_event(int input)  = 0;
+        virtual void wait_event(int input)    = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -186,7 +186,11 @@ struct context
             private_detail_te_value.set_stream(std::move(input));
         }
 
-        int create_event() override { return private_detail_te_value.create_event(); }
+        void create_events(int input) override
+        {
+
+            private_detail_te_value.create_events(std::move(input));
+        }
 
         void record_event(int input) override
         {

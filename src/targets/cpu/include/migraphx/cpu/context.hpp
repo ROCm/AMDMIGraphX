@@ -11,7 +11,7 @@ struct context
 {
     void finish() {}
     void set_stream(int) {}
-    int  create_event() { return -1; }
+    void create_events(int) {}
     void record_event(int) {}
     void wait_event(int) {}
 };

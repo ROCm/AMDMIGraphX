@@ -375,6 +375,7 @@ argument generic_eval(const program& p,
                     assert(results.find(i) != results.end());
                     return results[i];
                 });
+#if 1            
             if (ins->has_mask(WAIT_EVENT))
             {
                 for(auto&& arg : ins->inputs())
@@ -389,17 +390,14 @@ argument generic_eval(const program& p,
                 }
             }
 
-            int event = ins->get_event();
-            if ((event < 0) && ins->has_mask(RECORD_EVENT))
-            {
-                event = ctx.create_event();
-                ins->set_event(event);
-            }
+#endif            
             results.emplace(ins, trace(ins, [&] {
                                 return ins->get_operator().compute(ctx, ins->get_shape(), values);
                             }));
-            if (event != -1)
-                ctx.record_event(event);
+#if 1
+            if (ins->has_mask(RECORD_EVENT))
+                ctx.record_event(ins->get_event());
+#endif            
         }
         assert(results.find(ins) != results.end());
     }

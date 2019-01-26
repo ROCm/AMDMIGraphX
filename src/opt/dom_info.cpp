@@ -53,7 +53,7 @@ instruction * dom_info::get_stream(program * p, instruction_ref ins)
     if (iter != p->begin())
     {
         iter = std::prev(iter);
-        if (iter->name() == "gpu::wait_event")
+        while (iter->name() == "gpu::wait_event")
             iter = std::prev(iter);
         return (iter->name() == "gpu::set_stream") ? &(*iter) : nullptr;
     }

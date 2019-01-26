@@ -9,9 +9,37 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+struct create_events
+{
+    int num_of_events = 0;
+    template<class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.num_of_events, "event"));
+    }
+    std::string name() const { return "gpu::create_events"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        if(inputs.empty())
+            return {};
+        else
+            return inputs.front();
+    }
+    
+    argument compute(context& ctx, const shape&, const std::vector<argument>&) const  {
+        ctx.create_events(num_of_events);
+        return {};
+    }
+};
+    
 struct record_event
 {
     int event = -1;
+    template<class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.event, "event"));
+    }
     std::string name() const { return "gpu::record_event"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
@@ -21,20 +49,20 @@ struct record_event
             return inputs.front();
     }
     
-    argument compute(context& ctx, const shape&, const std::vector<argument>&)     {
-        if (event == -1) {
-            event = ctx.create_event();
-        } else {
-            ctx.record_event(event);
-        }
-        migraphx::shape s{migraphx::shape::int32_type, {1}};
-        std::vector<int> data = {event};
-        return migraphx::literal{s, data}.get_argument();
+    argument compute(context& ctx, const shape&, const std::vector<argument>&) const  {
+        ctx.record_event(event);
+        return {};
     }
 };
 
 struct wait_event
 {
+    int event = -1;
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.event, "event"));
+    }
     std::string name() const { return "gpu::wait_event"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
@@ -44,12 +72,9 @@ struct wait_event
             return inputs.front();
     }
     
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args)
+    argument compute(context& ctx, const shape&, const std::vector<argument>&) const
     {
-        for (auto arg : args)
-        {
-            ctx.wait_event(*(reinterpret_cast<int*> (arg.data())));
-        }
+        ctx.wait_event(event);
         return {};
     }
 };

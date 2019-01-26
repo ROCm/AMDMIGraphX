@@ -110,7 +110,7 @@ struct hip_device
     void set_stream(std::size_t n) { current_stream = n; }
     void create_events(int num_of_events)
     {
-        for (int i = 0; i < num_of_events; ++i)
+        for (int i = events.size(); i < num_of_events; ++i)
             events.emplace_back(create_event());
     }
     void record_event(int event)

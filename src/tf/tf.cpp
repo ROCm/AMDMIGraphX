@@ -136,9 +136,10 @@ struct tf_parser
     instruction_ref
     parse_batchnorm(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        float epsilon                                     = 1e-4f;
-        float momentum                                    = 1.f;
-        op::batch_norm_inference::bn_infer_mode_t bn_mode = op::batch_norm_inference::per_activation;
+        float epsilon  = 1e-4f;
+        float momentum = 1.f;
+        op::batch_norm_inference::bn_infer_mode_t bn_mode =
+            op::batch_norm_inference::per_activation;
         if(contains(attributes, "epsilon"))
         {
             epsilon = attributes.at("epsilon").f();

@@ -1070,7 +1070,6 @@ struct test_conv_bn_relu_pooling2
 
 int main()
 {
-    verify_program<test_pad>();
     verify_program<test_abs>();
     verify_program<test_concat>();
     verify_program<test_concat2>();

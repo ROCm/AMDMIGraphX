@@ -7,7 +7,7 @@ int main(int argc, char const* argv[])
         bool is_nhwc = true;
         if(argc > 2)
         {
-            if(argv[2] == "nchw")
+            if(strcmp(argv[2], "nchw") == 0)
                 is_nhwc = false;
         }
         std::string file = argv[1];

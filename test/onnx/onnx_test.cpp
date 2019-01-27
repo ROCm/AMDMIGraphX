@@ -296,7 +296,7 @@ TEST_CASE(max_test)
     auto l0     = p.add_instruction(migraphx::op::max{}, input0, input1);
     p.add_instruction(migraphx::op::max{}, l0, input2);
 
-    auto prog = migraphx::parse_onnx("max_test.onnx");
+    migraphx::parse_onnx("max_test.onnx");
 }
 
 TEST_CASE(acos_test)
@@ -319,7 +319,7 @@ TEST_CASE(min_test)
     auto l0     = p.add_instruction(migraphx::op::min{}, input0, input1);
     p.add_instruction(migraphx::op::min{}, l0, input2);
 
-    auto prog = migraphx::parse_onnx("min_test.onnx");
+    migraphx::parse_onnx("min_test.onnx");
 }
 
 TEST_CASE(atan_test)
@@ -415,9 +415,9 @@ TEST_CASE(shape_test)
 TEST_CASE(gather_test)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
-    auto l1 = p.add_parameter("indices", migraphx::shape{migraphx::shape::int32_type, {2, 3}});
-    std::size_t axis = 1;
+    auto l0  = p.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto l1  = p.add_parameter("indices", migraphx::shape{migraphx::shape::int32_type, {2, 3}});
+    int axis = 1;
     p.add_instruction(migraphx::op::gather{axis}, l0, l1);
     auto prog = migraphx::parse_onnx("gather_test.onnx");
 
@@ -431,8 +431,8 @@ TEST_CASE(shape_gather_test)
     auto l1 =
         p.add_literal(migraphx::shape{migraphx::shape::int64_type, {3}}, l0->get_shape().lens());
     migraphx::shape const_shape{migraphx::shape::int32_type, {1}};
-    auto l2          = p.add_literal(migraphx::literal{const_shape, {1}});
-    std::size_t axis = 0;
+    auto l2  = p.add_literal(migraphx::literal{const_shape, {1}});
+    int axis = 0;
     p.add_instruction(migraphx::op::gather{axis}, l1, l2);
     auto prog = migraphx::parse_onnx("shape_gather.onnx");
 
@@ -558,7 +558,7 @@ TEST_CASE(group_conv_test)
     migraphx::op::convolution op;
     op.group = 4;
     p.add_instruction(op, l0, l1);
-    auto prog = migraphx::parse_onnx("group_conv_test.onnx");
+    migraphx::parse_onnx("group_conv_test.onnx");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

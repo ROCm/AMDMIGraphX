@@ -8,10 +8,16 @@ def rocmtestnode(variant, name, body) {
             mkdir build
             cd build
             CXX=${compiler} CXXFLAGS='-Werror -Wno-fallback' cmake ${flags} .. 
-            CTEST_PARALLEL_LEVEL=32 make -j32 generate all doc check
+            CTEST_PARALLEL_LEVEL=32 make -j32 generate all doc package check
         """
         echo cmd
         sh cmd
+        if (compiler == "hcc") {
+            // Only archive from master or develop
+            if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
+                archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
+            }
+        }
     }
     node(name) {
         stage("checkout ${variant}") {

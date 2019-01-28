@@ -1167,6 +1167,20 @@ struct rnn_last_output
     }
 };
 
+struct gru_last_output
+{
+    std::string name() const { return "gru_last_output"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        auto dims = inputs[0].lens();
+
+        // remove the first dimension, remaing are output shape
+        dims.erase(dims.begin());
+        return {inputs[0].type(), dims};
+    }
+};
+
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -26,7 +26,7 @@ void rewrite_rnn::apply(program& prog) const
             std::size_t hidden_size = args[1]->get_shape().lens()[1];
             std::size_t batch_size  = seq_shape.lens()[1];
             shape::type_t type      = seq_shape.type();
-            migraphx::shape ih_shape{type, {batch_size, hidden_size}};
+            migraphx::shape ih_shape{type, {1, batch_size, hidden_size}};
             std::vector<char> data(ih_shape.bytes(), 0);
 
             auto rnn_op                    = any_cast<op::rnn>(ins->get_operator());
@@ -133,7 +133,7 @@ void rewrite_rnn::apply(program& prog) const
         }
 
         // rewrite the rnn_last_output operator that right after the rnn
-        // operator. Intuitively, we can do a slice on the input to get
+        // operator. Intuitively, we can do a slice on its input to get
         // the last output, but it is already existed in the rnn operator,
         // so we can just use it as the output here
         if(ins->name() == "rnn_last_output")

@@ -640,7 +640,7 @@ struct as_shape
 
 struct gather
 {
-    mutable int axis = 0;
+    int axis = 0;
     std::string name() const { return "gather"; }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -654,43 +654,44 @@ struct gather
         }
 
         // negative axis means counting dimensions from back
-        if(axis < 0)
-        {
-            axis += n_dim;
-        }
+        int axis_index = (axis < 0) ? (n_dim + axis) : axis;
 
-        auto type  = inputs[0].type();
-        lens[axis] = inputs[1].elements();
+        auto type        = inputs[0].type();
+        lens[axis_index] = inputs[1].elements();
 
         return {type, lens};
     }
 
     template <class T>
     void compute_index(const T& out_idx,
+                       const int axis_index,
                        const std::vector<std::size_t>& vec_indices,
                        const std::size_t max_dim,
                        T& in_idx) const
     {
         in_idx          = out_idx;
-        std::size_t idx = vec_indices.at(out_idx[axis]);
+        std::size_t idx = vec_indices.at(out_idx[axis_index]);
         if(idx >= max_dim)
         {
             MIGRAPHX_THROW("Gather: indices are out of range in input tensor");
         }
-        in_idx[axis] = idx;
+        in_idx[axis_index] = idx;
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
+        // negative axis means counting dimensions from back
+        int axis_index = (axis < 0) ? (output_shape.lens().size() + axis) : axis;
+
         // max dimension in axis
-        std::size_t max_dim = args[0].get_shape().lens()[axis];
+        std::size_t max_dim = args[0].get_shape().lens()[axis_index];
         std::vector<std::size_t> vec_indices;
         args[1].visit([&](auto indices) { vec_indices.assign(indices.begin(), indices.end()); });
         visit_all(result, args[0])([&](auto output, auto input) {
             std::vector<std::size_t> in_idx;
             shape_for_each(output.get_shape(), [&](const auto& idx) {
-                this->compute_index(idx, vec_indices, max_dim, in_idx);
+                this->compute_index(idx, axis_index, vec_indices, max_dim, in_idx);
                 output(idx.begin(), idx.end()) = input(in_idx.begin(), in_idx.end());
             });
         });
@@ -1149,6 +1150,20 @@ struct gru
         out_dims.back() = hidden_size;
 
         return {inputs[0].type(), out_dims};
+    }
+};
+
+struct rnn_last_output
+{
+    std::string name() const { return "rnn_last_output"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        auto dims = inputs[0].lens();
+
+        // remove the first dimension, remaing are output shape
+        dims.erase(dims.begin());
+        return {inputs[0].type(), dims};
     }
 };
 

@@ -13,7 +13,7 @@ namespace device {
 argument gather(hipStream_t stream,
                 const migraphx::shape& output_shape,
                 std::vector<migraphx::argument> args,
-                std::size_t axis);
+                int axis);
 
 } // namespace device
 } // namespace gpu

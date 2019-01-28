@@ -655,7 +655,7 @@ struct onnx_parser
         }
     }
 
-    instruction_ref
+    std::vector<instruction_ref>
     parse_rnn(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         migraphx::shape input_shape = args[0]->get_shape();
@@ -726,8 +726,17 @@ struct onnx_parser
             clip = parse_value(attributes.at("clip")).at<float>();
         }
 
-        return prog.add_instruction(op::rnn{hidden_size, vec_actv_funcs, dirct, clip},
+        std::vector<instruction_ref> result;
+        // first output for the concatenation of hidden states
+        auto hidden_states = prog.add_instruction(op::rnn{hidden_size, vec_actv_funcs, dirct, clip},
                                     std::move(args));
+        result.push_back(hidden_states);
+
+        // second out for the last hidden state
+        //auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
+        //result.push_back(last_output);
+
+        return result;
     }
 
     void parse_from(std::istream& is)

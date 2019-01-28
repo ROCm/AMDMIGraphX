@@ -21,7 +21,7 @@ struct rewrite_rnn
     void apply(program& prog) const;
 
     private:
-    std::vector<instruction_ref> rnn_oper(bool is_forward,
+    std::vector<instruction_ref> rnn_cell(bool is_forward,
                                           program& prog,
                                           instruction_ref ins,
                                           instruction_ref input,

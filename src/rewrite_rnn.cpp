@@ -136,10 +136,10 @@ void rewrite_rnn::apply(program& prog) const
         // operator. Intuitively, we can do a slice on the input to get
         // the last output, but it is already existed in the rnn operator,
         // so we can just use it as the output here
-        if (ins->name() == "rnn_last_output")
+        if(ins->name() == "rnn_last_output")
         {
             // if rnn operator is executed, the last_output != prog.end()
-            if (last_output != prog.end())
+            if(last_output != prog.end())
             {
                 prog.replace_instruction(ins, op::identity{}, last_output);
                 last_output = prog.end();

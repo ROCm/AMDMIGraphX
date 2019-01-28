@@ -136,15 +136,15 @@ void rewrite_rnn::apply(program& prog) const
         // operator. Intuitively, we can do a slice on the input to get
         // the last output, but it is already existed in the rnn operator,
         // so we can just use it as the output here
-        // if (ins->name() == "rnn_last_output")
-        //{
-        //    // if rnn operator is executed, the last_output != prog.end()
-        //    if (last_output != prog.end())
-        //    {
-        //        prog.replace_instruction(ins, op::identity{}, last_output);
-        //        last_output = prog.end();
-        //    }
-        //}
+        if (ins->name() == "rnn_last_output")
+        {
+            // if rnn operator is executed, the last_output != prog.end()
+            if (last_output != prog.end())
+            {
+                prog.replace_instruction(ins, op::identity{}, last_output);
+                last_output = prog.end();
+            }
+        }
     }
 }
 
@@ -161,7 +161,7 @@ std::vector<instruction_ref> rewrite_rnn::rnn_cell(bool is_forward,
     // squeeze and transpose w
     std::vector<int64_t> perm{1, 0};
     auto sw      = prog.insert_instruction(ins, op::squeeze{{0}}, w);
-    auto tran_sw = prog.insert_instruction(sw, op::transpose{perm}, sw);
+    auto tran_sw = prog.insert_instruction(ins, op::transpose{perm}, sw);
 
     // squeeze and transpose r
     auto sr      = prog.insert_instruction(ins, op::squeeze{{0}}, r);

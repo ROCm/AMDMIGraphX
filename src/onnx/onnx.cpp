@@ -733,8 +733,8 @@ struct onnx_parser
         result.push_back(hidden_states);
 
         // second out for the last hidden state
-        // auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
-        // result.push_back(last_output);
+        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
+        result.push_back(last_output);
 
         return result;
     }

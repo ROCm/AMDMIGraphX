@@ -13,7 +13,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct program;
 
 /**
- * Rewrite rnn to gemm and add.
+ * Rewrite gru to gemm, mul, and add.
  */
 struct rewrite_gru
 {
@@ -21,14 +21,14 @@ struct rewrite_gru
     void apply(program& prog) const;
 
     private:
-    std::vector<instruction_ref> gru_oper(bool is_forward,
+    std::vector<instruction_ref> gru_cell(bool is_forward,
                                           program& prog,
                                           instruction_ref ins,
                                           instruction_ref input,
                                           instruction_ref wx,
                                           instruction_ref wh,
-                                          instruction_ref ih,
                                           instruction_ref bias,
+                                          instruction_ref ih,
                                           int linear_before_reset,
                                           operation& actv_func1,
                                           operation& actv_func2) const;

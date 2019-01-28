@@ -729,12 +729,12 @@ struct onnx_parser
         std::vector<instruction_ref> result;
         // first output for the concatenation of hidden states
         auto hidden_states = prog.add_instruction(op::rnn{hidden_size, vec_actv_funcs, dirct, clip},
-                                    std::move(args));
+                                                  std::move(args));
         result.push_back(hidden_states);
 
         // second out for the last hidden state
-        //auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
-        //result.push_back(last_output);
+        // auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
+        // result.push_back(last_output);
 
         return result;
     }

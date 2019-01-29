@@ -206,14 +206,12 @@ struct tf_parser
             {
                 op.stride[0] = stride[1];
                 op.stride[1] = stride[2];
-                
             }
             else
             {
                 op.stride[0] = stride[2];
-                op.stride[1] = stride[3];            
+                op.stride[1] = stride[3];
             }
-            
         }
         if(contains(attributes, "dilations"))
         {
@@ -233,7 +231,6 @@ struct tf_parser
                 op.dilation[0] = dilation[2];
                 op.dilation[1] = dilation[3];
             }
-            
         }
 
         auto l0 = prog.add_instruction(op::transpose{{2, 3, 0, 1}}, args[1]);
@@ -276,7 +273,6 @@ struct tf_parser
                 op.stride[0] = stride[2];
                 op.stride[1] = stride[3];
             }
-            
         }
         if(contains(attributes, "ksize"))
         {

@@ -159,7 +159,8 @@ struct tf_parser
         std::size_t axis     = args[axis_idx]->eval().at<int64_t>();
         op::concat op{axis};
         // return only first N arguments (assuming last index is the axis value)
-        return prog.add_instruction(op, std::vector<instruction_ref>(args.begin(), args.begin() + axis));
+        return prog.add_instruction(
+            op, std::vector<instruction_ref>(args.begin(), args.begin() + axis));
     }
 
     instruction_ref parse_constant(const std::string&,
@@ -236,7 +237,7 @@ struct tf_parser
             }
         }
         auto l0 = args[0];
-        if (l0->name() == "@param")
+        if(l0->name() == "@param")
         {
             if(is_nhwc)
                 l0 = prog.add_instruction(op::transpose{{0, 3, 1, 2}}, l0);

@@ -25,10 +25,10 @@ struct rewrite_rnn
                                           program& prog,
                                           instruction_ref ins,
                                           instruction_ref input,
-                                          instruction_ref wx,
-                                          instruction_ref wh,
-                                          instruction_ref ih,
+                                          instruction_ref w,
+                                          instruction_ref r,
                                           instruction_ref bias,
+                                          instruction_ref ih,
                                           operation& actv_func) const;
 };
 

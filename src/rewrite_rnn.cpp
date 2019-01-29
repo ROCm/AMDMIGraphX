@@ -97,7 +97,7 @@ void rewrite_rnn::apply(program& prog) const
             }
             else
             {
-                bool is_forward = (dicrt == op::rnn::rnn_direction_t::forward) ? true : false;
+                bool is_forward = (dicrt == op::rnn::rnn_direction_t::forward);
                 // input weight matrix
                 auto w = args[1];
 

@@ -40,6 +40,7 @@
 #include <migraphx/gpu/pooling.hpp>
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/concat.hpp>
+#include <migraphx/gpu/pad.hpp>
 #include <migraphx/gpu/gather.hpp>
 #include <utility>
 #include <functional>
@@ -92,6 +93,8 @@ struct miopen_apply
         add_extend_op<hip_concat, op::concat>("concat");
         add_extend_op<miopen_softmax, op::softmax>("softmax");
         add_extend_op<hip_gather, op::gather>("gather");
+        add_extend_op<hip_pad, op::pad>("pad");
+
         add_convolution_op();
         add_pooling_op();
         add_batch_norm_inference_op();

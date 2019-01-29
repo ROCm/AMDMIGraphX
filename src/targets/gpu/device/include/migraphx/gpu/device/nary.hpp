@@ -313,6 +313,12 @@ void nary_impl(hipStream_t stream, F f, argument result, Arguments... args)
         nary_nonstandard_impl(stream, f, result, args...);
 }
 
+template <class F>
+void nary_impl(hipStream_t stream, F f, argument result)
+{
+    nary_standard_impl(stream, f, result);
+}
+
 template <class... Arguments>
 auto nary_nonstandard(hipStream_t stream, argument result, Arguments... args)
 {

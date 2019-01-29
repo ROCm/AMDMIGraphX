@@ -251,7 +251,7 @@ struct onnx_parser
 
             if(s.find("SAME") != std::string::npos)
             {
-                op.padding_mode = op::convolution::same;
+                op.padding_mode = op::padding_mode_t::same;
             }
         }
         if(contains(attributes, "group"))

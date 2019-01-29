@@ -610,6 +610,42 @@ struct reshape
     int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
+struct pad
+{
+    std::vector<int64_t> pads;
+    float value = 0.0f;
+    enum padding_mode_t
+    {
+        constant_pad,
+        reflect_pad,
+        edge_pad
+    };
+    padding_mode_t mode = constant_pad;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.mode, "mode"), f(self.pads, "pads"), f(self.value, "value"));
+    }
+
+    std::string name() const { return "pad"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        auto&& idims = inputs.front().lens();
+        std::vector<std::size_t> rdims(idims.begin(), idims.end());
+        std::size_t num_dims = rdims.size();
+
+        for(std::size_t i = 0; i < num_dims; i++)
+        {
+            rdims[i] += pads[i] + pads[i + num_dims];
+        }
+
+        shape s{inputs.front().type(), rdims};
+        return s;
+    }
+};
+
 struct as_shape
 {
     shape s;

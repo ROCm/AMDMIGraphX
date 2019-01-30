@@ -1098,7 +1098,7 @@ struct rnn
 
         if(num_directions != hidden_dims[0])
         {
-            MIGRAPHX_THROW("RNN: num_direction does not match the direction attribute");
+            MIGRAPHX_THROW("RNN: num_direction mismatch in attribute and input");
         }
 
         std::vector<std::size_t> out_dims(in_dims);

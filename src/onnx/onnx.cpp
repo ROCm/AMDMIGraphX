@@ -732,7 +732,7 @@ struct onnx_parser
                                                   std::move(args));
         result.push_back(hidden_states);
 
-        // second out for the last hidden state
+        // second output for the last hidden state
         auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
         result.push_back(last_output);
 

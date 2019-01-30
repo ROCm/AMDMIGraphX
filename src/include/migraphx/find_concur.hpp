@@ -18,11 +18,11 @@ namespace migraphx {
 /// executing in different streams.
 struct find_concur
 {
-    void
-    get_concur(program* p,
-               int num_of_streams,
-               std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>&
-                   concur_instrs);
+    void get_concur(program* p,
+                    int num_of_streams,
+                    std::unordered_map<const instruction*,
+                                       std::vector<std::vector<const instruction*>>>& concur_instrs,
+                    std::unordered_map<const instruction*, int>& instr2_points);
 };
 
 #else
@@ -33,7 +33,8 @@ struct find_concur
  * struct find_concur
  * {
  *      void get_concur(program* p,int num_of_stream,std::unordered_map<const instruction*,
- * std::vector<std::vector<const instruction*>>>& input) ;
+ * std::vector<std::vector<const instruction*>>>& concur_instrs,std::unordered_map<const
+ * instruction*, int>& input) ;
  * };
  *
  */
@@ -95,13 +96,15 @@ struct find_concur
             return private_detail_te_get_handle().type();
     }
 
-    void get_concur(
-        program* p,
-        int num_of_stream,
-        std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>& input)
+    void get_concur(program* p,
+                    int num_of_stream,
+                    std::unordered_map<const instruction*,
+                                       std::vector<std::vector<const instruction*>>>& concur_instrs,
+                    std::unordered_map<const instruction*, int>& input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().get_concur(p, std::move(num_of_stream), input);
+        (*this).private_detail_te_get_handle().get_concur(
+            p, std::move(num_of_stream), concur_instrs, input);
     }
 
     friend bool is_shared(const find_concur& private_detail_x, const find_concur& private_detail_y)
@@ -121,7 +124,8 @@ struct find_concur
         get_concur(program* p,
                    int num_of_stream,
                    std::unordered_map<const instruction*,
-                                      std::vector<std::vector<const instruction*>>>& input) = 0;
+                                      std::vector<std::vector<const instruction*>>>& concur_instrs,
+                   std::unordered_map<const instruction*, int>& input) = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -156,10 +160,11 @@ struct find_concur
         get_concur(program* p,
                    int num_of_stream,
                    std::unordered_map<const instruction*,
-                                      std::vector<std::vector<const instruction*>>>& input) override
+                                      std::vector<std::vector<const instruction*>>>& concur_instrs,
+                   std::unordered_map<const instruction*, int>& input) override
         {
 
-            private_detail_te_value.get_concur(p, std::move(num_of_stream), input);
+            private_detail_te_value.get_concur(p, std::move(num_of_stream), concur_instrs, input);
         }
 
         PrivateDetailTypeErasedT private_detail_te_value;

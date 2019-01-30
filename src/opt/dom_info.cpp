@@ -47,19 +47,6 @@ bool dom_info::strictly_post_dominates(const instruction* ins1, const instructio
     return false;
 }
 
-instruction * dom_info::get_stream(program * p, instruction_ref ins)
-{
-    instruction_ref iter = ins;
-    if (iter != p->begin())
-    {
-        iter = std::prev(iter);
-        while (iter->name() == "gpu::wait_event")
-            iter = std::prev(iter);
-        return (iter->name() == "gpu::set_stream") ? &(*iter) : nullptr;
-    }
-    return nullptr;
-}
-
 void dom_info::compute_dom(bool reversed)
 {
     std::size_t num_of_instrs = p_program->size();
@@ -76,7 +63,7 @@ void dom_info::compute_dom(bool reversed)
     {
         const instruction* p_ins = &(*ins);
         instr2_points[p_ins]     = cur_points;
-        if(get_stream(p_program, ins) == nullptr)
+        if(ins->get_stream() < 0)
         {
             if(reversed)
                 cur_points--;
@@ -93,7 +80,7 @@ void dom_info::compute_dom(bool reversed)
         // find dominators.
         for(auto&& iter : vis.get_inputs(ins))
         {
-            if(get_stream(p_program, iter) == nullptr)
+            if(iter->get_stream() < 0)
                 continue;
             const instruction * p_arg = &(*iter);
             cnt++;
@@ -152,6 +139,94 @@ void dom_info::compute_dom(bool reversed)
     if(seen_stream)
     {
         MIGRAPHX_DEBUG(dump_doms(instr2_points, reversed));
+    }
+}
+
+void dom_info::propagate_splits(int num_of_streams, std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>& concur_instrs, std::unordered_map<const instruction*, int>& instr2_points)
+{
+    std::unordered_map<instruction_ref, bool> is_split;
+    std::unordered_map<instruction_ref, bool> is_merge;
+    std::unordered_map<instruction_ref, std::set<const instruction*>> split_from;
+    int cur_points = 0;
+    instr2_points.clear();
+
+    for(auto ins : iterator_for(*p_program))
+    {
+        const instruction* p_iter = &(*ins);
+        instr2_points[p_iter]     = cur_points++;
+        int stream                = ins->get_stream();
+        if(stream < 0)
+            continue;
+
+        // Identify split points.
+        if(ins->has_mask(RECORD_EVENT))
+        {
+            std::set<int> stream_set;
+            for(auto&& arg : ins->outputs())
+            {
+                int arg_stream = arg->get_stream();
+                if(arg_stream >= 0)
+                    stream_set.insert(arg_stream);
+            }
+            if(stream_set.size() > 1)
+                is_split[ins] = true;
+        }
+        // Identify merge points.
+        if(ins->has_mask(WAIT_EVENT))
+        {
+            std::set<int> stream_set;
+            for(auto&& arg : ins->inputs())
+             {
+                 int arg_stream = arg->get_stream();
+                 if(arg_stream >= 0)
+                     stream_set.insert(arg_stream);
+             }
+            if(stream_set.size() > 1)
+                is_merge[ins] = true;
+        }
+
+        for(auto&& arg : ins->inputs())
+        {
+            // Input is a split point.
+            if(is_split.find(arg) != is_split.end())
+                split_from[ins].insert(&(*arg));
+            // Union inputs' split points.
+            if((split_from.find(arg) != split_from.end()) && !split_from[arg].empty())
+            {
+                if(split_from.find(ins) == split_from.end())
+                    split_from[ins] = split_from[arg];
+                else
+                    split_from[ins] = set_op::set_union(split_from[ins], split_from[arg]);
+            }
+        }
+
+        if(is_merge[ins])
+        {
+            assert(split_from.find(ins) != split_from.end());
+            std::set<const instruction*> del_set;
+            // post-dominator kills split point.
+            for(auto& split : split_from[ins])
+            {
+                if(strictly_post_dominates(p_iter, split))
+                    del_set.insert(split);
+            }
+            split_from[ins] = set_op::set_difference(split_from[ins], del_set);
+        }
+
+        if(split_from.find(ins) != split_from.end())
+         {
+             // Collect concur instructions for each split point.
+             for(auto& split : split_from[ins])
+             {
+                 if(concur_instrs.find(split) == concur_instrs.end())
+                 {
+                     std::vector<std::vector<const instruction*>> instr_stack;
+                     instr_stack.resize(num_of_streams);
+                     concur_instrs[split] = instr_stack;
+                 }
+                 concur_instrs[split][stream].push_back(p_iter);
+             }
+         }
     }
 }
 

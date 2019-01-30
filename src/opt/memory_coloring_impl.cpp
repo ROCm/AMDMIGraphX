@@ -293,7 +293,7 @@ void memory_coloring_impl::add_stream_conflicts()
 {
     std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>
         concur_instrs;
-    f_concur.get_concur(p_program, num_of_streams, concur_instrs);
+    f_concur.get_concur(p_program, num_of_streams, concur_instrs, instr2_points);
     MIGRAPHX_DEBUG(dump_concur_instrs(concur_instrs));
 
     for(auto iter = concur_instrs.begin(), end = concur_instrs.end(); iter != end; ++iter)

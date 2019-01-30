@@ -22,14 +22,16 @@ struct find_concur
     get_concur(program* p,
                int num_of_streams,
                std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>&
-                   concur_instrs);
+               concur_instrs,
+               std::unordered_map<const instruction*, int>& instr2_points
+               );
 };
 
 #else
 
 <%
 interface('find_concur',
-          virtual('get_concur', returns='void', p = 'program*', num_of_stream = 'int', input = 'std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>&')
+          virtual('get_concur', returns='void', p = 'program*', num_of_stream = 'int', concur_instrs = 'std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>&', input = 'std::unordered_map<const instruction*, int>&')
 )
 %>
 

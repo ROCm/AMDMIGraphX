@@ -3,6 +3,9 @@
 #include <stack>
 namespace migraphx {
 
+// Compute accumulated weights for each node in the DAG. Collect exit nodes
+// and sort them according to accumulated weights.
+//    
 void pre_scheduling_impl::compute_weights()
 {
     int ndx = 0;
@@ -41,6 +44,10 @@ void pre_scheduling_impl::compute_weights()
     }
 }
 
+// Do topology sort according to accumulated weight.  Identify critial paths.
+// Schedule nodes into streams.  Reorder instructions according to topological
+// order and annoate streams and events in the instructions.
+//    
 void pre_scheduling_impl::reorder()
 {
     std::list<dag_node*> sorted_nodes;
@@ -113,6 +120,8 @@ void pre_scheduling_impl::reorder()
 #endif
 }
 
+// Assign stream to nodes according to load balance.
+//    
 int pre_scheduling_impl::get_stream(stream_info& info, dag_node* node)
 {
     int max_cycle = info.max_cycle;
@@ -136,6 +145,8 @@ int pre_scheduling_impl::get_stream(stream_info& info, dag_node* node)
     return min_cycle_stream;
 }
 
+//  Record the stream-assignment.
+//    
 void pre_scheduling_impl::record(stream_info& info, dag_node* node)
 {
     int stream               = node->stream;
@@ -154,6 +165,8 @@ void pre_scheduling_impl::record(stream_info& info, dag_node* node)
         instr2_stream[node->ins] = stream;
 }
 
+//  Assign nodes to streams.
+//    
 void pre_scheduling_impl::schedule(std::list<dag_node*>& sorted_nodes)
 {
     if(num_of_streams == 0)
@@ -185,6 +198,8 @@ void pre_scheduling_impl::schedule(std::list<dag_node*>& sorted_nodes)
 #endif
 }
 
+// Reorder the instructions ino topological order.
+//    
 void pre_scheduling_impl::splice(std::list<dag_node*>& sorted_nodes)
 {
     auto begin                    = sorted_nodes.begin();
@@ -202,17 +217,24 @@ void pre_scheduling_impl::splice(std::list<dag_node*>& sorted_nodes)
 #endif
 }
 
+//  Annotate streams and events in the instruction.  Insert set_stream
+//  instructions.
+//    
 void pre_scheduling_impl::annotate(std::list<dag_node*>& sorted_nodes)
 {
     int event = 0;
+    int last_stream = -1;
     for (auto&& node : sorted_nodes) {
         instruction_ref ins = node->ins;
         if (instr2_stream.find(ins) == instr2_stream.end())
             continue;
         int stream = instr2_stream[ins];
         ins->set_stream(stream);
-        insert_instr.insert_stream(p_program, ins, stream);
-
+        if (last_stream != stream)
+         {
+             insert_instr.insert_stream(p_program, ins, stream);
+             last_stream = stream;
+         }
         std::vector<int> events;
         for (auto&& arg : ins->inputs())
         {

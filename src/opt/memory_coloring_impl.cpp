@@ -264,6 +264,8 @@ void memory_coloring_impl::verify()
     }
 }
 
+// Add conflicts of concurrent instructions into conflict table.
+//
 void memory_coloring_impl::add_stream_conflicts(std::vector<const instruction*>& i1,
                                                 std::vector<const instruction*>& i2)
 {
@@ -289,6 +291,9 @@ void memory_coloring_impl::add_stream_conflicts(std::vector<const instruction*>&
     }
 }
 
+// Identify concurrent instructions in different streams and add conflicts to
+// conflict table.
+//           
 void memory_coloring_impl::add_stream_conflicts()
 {
     std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>

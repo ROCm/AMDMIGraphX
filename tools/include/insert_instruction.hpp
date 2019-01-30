@@ -13,7 +13,7 @@ namespace migraphx {
 #ifdef DOXYGEN
 
 /// An interface for target-dependent instruction insertion.
-/// executing in different streams.
+/// for multi-stream execution.
 struct insert_instruction
 {
     void

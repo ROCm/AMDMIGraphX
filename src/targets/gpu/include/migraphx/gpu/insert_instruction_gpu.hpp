@@ -27,7 +27,6 @@ struct insert_instruction_gpu
         
         p->insert_instruction(ins, set_stream{stream});
     }
-    
 };
 
 } // namespace gpu

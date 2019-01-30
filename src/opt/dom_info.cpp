@@ -3,6 +3,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+// A unified interface to visit programs top-down or bottom-up.
 struct program_visitor
 {
     program* p_program;
@@ -17,6 +18,9 @@ struct program_visitor
     }
 };
 
+// Query whether ins1 strictly dominates ins2.  ins1 strictly dominates
+// ins2 if ins1 dominates ins2 and ins1 is not ins2.
+//           
 bool dom_info::strictly_dominates(const instruction* ins1, const instruction* ins2)
 {
     if(ins1 != ins2)
@@ -32,6 +36,9 @@ bool dom_info::strictly_dominates(const instruction* ins1, const instruction* in
     return false;
 }
 
+// Query whether ins1 strictly post-dominates ins2.  ins1 strictly post-dominates
+// ins2 if ins1 post-dominates ins2 and ins1 is not ins2.
+//           
 bool dom_info::strictly_post_dominates(const instruction* ins1, const instruction* ins2)
 {
     if(ins1 != ins2)
@@ -47,6 +54,9 @@ bool dom_info::strictly_post_dominates(const instruction* ins1, const instructio
     return false;
 }
 
+//  Compute dominator or post-dominator.  Instructions that do not use
+//  streams are left out.
+//           
 void dom_info::compute_dom(bool reversed)
 {
     std::size_t num_of_instrs = p_program->size();
@@ -142,6 +152,9 @@ void dom_info::compute_dom(bool reversed)
     }
 }
 
+//  Propagate split points through the graph and identify concurrent instructions.
+//  Concurrent instructions have the same split points and different streams.
+//           
 void dom_info::propagate_splits(int num_of_streams, std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>& concur_instrs, std::unordered_map<const instruction*, int>& instr2_points)
 {
     std::unordered_map<instruction_ref, bool> is_split;
@@ -158,7 +171,8 @@ void dom_info::propagate_splits(int num_of_streams, std::unordered_map<const ins
         if(stream < 0)
             continue;
 
-        // Identify split points.
+        // Identify split points.  A split point has more than one
+        // outputs that are executed in different streams.
         if(ins->has_mask(RECORD_EVENT))
         {
             std::set<int> stream_set;
@@ -171,7 +185,8 @@ void dom_info::propagate_splits(int num_of_streams, std::unordered_map<const ins
             if(stream_set.size() > 1)
                 is_split[ins] = true;
         }
-        // Identify merge points.
+        // Identify merge points.  A merge point has more than one
+        // inputs that are executed in different streams.
         if(ins->has_mask(WAIT_EVENT))
         {
             std::set<int> stream_set;

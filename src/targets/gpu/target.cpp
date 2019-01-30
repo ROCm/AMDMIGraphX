@@ -57,7 +57,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         write_literals{&ctx}, 
         pre_scheduling{weight_func, num_of_streams, insert_instruction_gpu{}},
         memory_coloring{"hip::allocate", num_of_streams, find_concur_gpu{}},
-        eliminate_set_stream{},            
         eliminate_workspace{},
         eliminate_allocation{"hip::allocate"},
         check_context<context>{},

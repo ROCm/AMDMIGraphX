@@ -232,13 +232,13 @@ struct onnx_parser
             {
                 // insert zeros for pad op (args[0] has 4 dims)
                 padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
-                l0 = prog.add_instruction(op::pad{padding}, l0);
+                l0      = prog.add_instruction(op::pad{padding}, l0);
             }
             else
             {
                 op.padding[0] = padding[0];
                 op.padding[1] = padding[1];
-            }   
+            }
         }
         if(contains(attributes, "strides"))
         {
@@ -298,7 +298,7 @@ struct onnx_parser
             {
                 // insert zeros for pad op (args[0] has 4 dims)
                 padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
-                l0 = prog.add_instruction(op::pad{padding}, l0);
+                l0      = prog.add_instruction(op::pad{padding}, l0);
             }
             else
             {

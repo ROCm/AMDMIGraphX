@@ -183,10 +183,9 @@ std::vector<instruction_ref> rewrite_rnn::rnn_cell(bool is_forward,
 
     instruction_ref hidden_out, last_out;
     std::size_t seq_len = input->get_shape().lens()[0];
-    long seq_index      = is_forward ? 0 : seq_len - 1;
     for(std::size_t i = 0; i < seq_len; i++)
     {
-        seq_index = is_forward ? i : (seq_len - 1 - i);
+        long seq_index = is_forward ? i : (seq_len - 1 - i);
         auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, input);
         xt      = prog.insert_instruction(ins, op::squeeze{{0}}, xt);
         auto xt_wi = prog.insert_instruction(ins, op::dot{}, xt, tran_sw);

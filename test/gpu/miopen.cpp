@@ -1058,7 +1058,7 @@ struct test_rnn_forward
         std::size_t hidden_size = 4;
         std::size_t input_size  = 3;
         std::size_t num_dirct   = 1;
-        float clip = 0.0f;
+        float clip              = 0.0f;
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
@@ -1067,21 +1067,22 @@ struct test_rnn_forward
         migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
 
-        auto seq = p.add_parameter("seq", in_shape);
-        auto ih = p.add_parameter("ih", ih_shape);
-        auto w = p.add_parameter("w", w_shape);
-        auto r = p.add_parameter("r", r_shape);
+        auto seq  = p.add_parameter("seq", in_shape);
+        auto ih   = p.add_parameter("ih", ih_shape);
+        auto w    = p.add_parameter("w", w_shape);
+        auto r    = p.add_parameter("r", r_shape);
         auto bias = p.add_parameter("bias", b_shape);
 
-        auto output = p.add_instruction(migraphx::op::rnn{hidden_size,
-                                            {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn::forward,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          ih);
+        auto output =
+            p.add_instruction(migraphx::op::rnn{hidden_size,
+                                                {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                migraphx::op::rnn::forward,
+                                                clip},
+                              seq,
+                              w,
+                              r,
+                              bias,
+                              ih);
         auto last = p.add_instruction(migraphx::op::rnn_last_output{}, output);
         p.add_instruction(migraphx::op::add{}, last, last);
 
@@ -1098,7 +1099,7 @@ struct test_rnn_reverse
         std::size_t hidden_size = 4;
         std::size_t input_size  = 3;
         std::size_t num_dirct   = 1;
-        float clip = 0.0f;
+        float clip              = 0.0f;
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
@@ -1107,24 +1108,25 @@ struct test_rnn_reverse
         migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
 
-        auto seq = p.add_parameter("seq", in_shape);
-        auto ih = p.add_parameter("ih", ih_shape);
-        auto w = p.add_parameter("w", w_shape);
-        auto r = p.add_parameter("r", r_shape);
+        auto seq  = p.add_parameter("seq", in_shape);
+        auto ih   = p.add_parameter("ih", ih_shape);
+        auto w    = p.add_parameter("w", w_shape);
+        auto r    = p.add_parameter("r", r_shape);
         auto bias = p.add_parameter("bias", b_shape);
 
-        auto output = p.add_instruction(migraphx::op::rnn{hidden_size,
-                                            {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn::reverse,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          ih);
+        auto output =
+            p.add_instruction(migraphx::op::rnn{hidden_size,
+                                                {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                migraphx::op::rnn::reverse,
+                                                clip},
+                              seq,
+                              w,
+                              r,
+                              bias,
+                              ih);
         auto last = p.add_instruction(migraphx::op::rnn_last_output{}, output);
         p.add_instruction(migraphx::op::add{}, last, last);
-        
+
         return p;
     }
 };
@@ -1138,7 +1140,7 @@ struct test_rnn_bidirectional
         std::size_t hidden_size = 4;
         std::size_t input_size  = 3;
         std::size_t num_dirct   = 2;
-        float clip = 0.0f;
+        float clip              = 0.0f;
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
@@ -1147,24 +1149,25 @@ struct test_rnn_bidirectional
         migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
 
-        auto seq = p.add_parameter("seq", in_shape);
-        auto ih = p.add_parameter("ih", ih_shape);
-        auto w = p.add_parameter("w", w_shape);
-        auto r = p.add_parameter("r", r_shape);
+        auto seq  = p.add_parameter("seq", in_shape);
+        auto ih   = p.add_parameter("ih", ih_shape);
+        auto w    = p.add_parameter("w", w_shape);
+        auto r    = p.add_parameter("r", r_shape);
         auto bias = p.add_parameter("bias", b_shape);
 
-        auto output = p.add_instruction(migraphx::op::rnn{hidden_size,
-                                            {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn::bidirectional,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          ih);
+        auto output =
+            p.add_instruction(migraphx::op::rnn{hidden_size,
+                                                {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                migraphx::op::rnn::bidirectional,
+                                                clip},
+                              seq,
+                              w,
+                              r,
+                              bias,
+                              ih);
         auto last = p.add_instruction(migraphx::op::rnn_last_output{}, output);
         p.add_instruction(migraphx::op::add{}, last, last);
-        
+
         return p;
     }
 };

@@ -799,8 +799,7 @@ struct onnx_parser
                 // is prim::Undefined, and it is ignored by protobuf. We use a
                 // hack to ignore this argument for these three operators
                 const std::string& op_type = node.op_type();
-                if((op_type == "RNN" || op_type == "LSTM" || op_type == "GRU") &&
-                   input.empty())
+                if((op_type == "RNN" || op_type == "LSTM" || op_type == "GRU") && input.empty())
                 {
                     continue;
                 }

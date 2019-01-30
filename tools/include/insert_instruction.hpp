@@ -17,10 +17,6 @@ namespace migraphx {
 struct insert_instruction
 {
     void
-    insert_create_events(program* p,
-                         instruction_ref ins,
-                         int num_of_events);
-    void
     insert_record_event(program* p,
                         instruction_ref ins,
                         int event);
@@ -39,7 +35,6 @@ struct insert_instruction
 
 <%
 interface('insert_instruction',
-          virtual('insert_create_events', returns='void', p = 'program*', ins ='instruction_ref', input = 'int'),
           virtual('insert_record_event', returns='void', p = 'program*', ins ='instruction_ref', input = 'int'),
           virtual('insert_wait_event', returns='void', p = 'program*', ins = 'instruction_ref', input = 'int'),
           virtual('insert_stream', returns='void', p = 'program*', ins ='instruction_ref', input = 'int')

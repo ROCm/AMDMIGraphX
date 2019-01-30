@@ -326,11 +326,14 @@ void program::compile(const target& t, tracer trace)
 
 void program::finalize()
 {
+    int max_event = -1;
     for(auto ins : iterator_for(*this))
     {
-        // this->impl->ctx.set_stream(ins->get_stream());
         ins->finalize(this->impl->ctx);
+        max_event = std::max(max_event, ins->get_event());
     }
+    if (max_event >= 0)
+        this->impl->ctx.create_events(max_event + 1);
 }
 
 template <class F>
@@ -375,7 +378,7 @@ argument generic_eval(const program& p,
                     assert(results.find(i) != results.end());
                     return results[i];
                 });
-#if 1            
+
             if (ins->has_mask(WAIT_EVENT))
             {
                 for(auto&& arg : ins->inputs())
@@ -390,14 +393,12 @@ argument generic_eval(const program& p,
                 }
             }
 
-#endif            
             results.emplace(ins, trace(ins, [&] {
                                 return ins->get_operator().compute(ctx, ins->get_shape(), values);
                             }));
-#if 1
+
             if (ins->has_mask(RECORD_EVENT))
                 ctx.record_event(ins->get_event());
-#endif            
         }
         assert(results.find(ins) != results.end());
     }

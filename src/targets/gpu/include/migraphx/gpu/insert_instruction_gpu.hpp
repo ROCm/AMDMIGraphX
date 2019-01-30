@@ -8,12 +8,6 @@ namespace gpu {
 
 struct insert_instruction_gpu
 {
-    void insert_create_events(program* p,
-                              instruction_ref ins,
-                              int num_of_events)
-    {
-        p->insert_instruction(ins, create_events{num_of_events});
-    }
     void insert_record_event(program* p,
                              instruction_ref ins,
                              int event)

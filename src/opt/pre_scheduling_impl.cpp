@@ -237,13 +237,10 @@ void pre_scheduling_impl::annotate(std::list<dag_node*>& sorted_nodes)
         }
 #if 0        
         for (auto && i : events)
-        {
             insert_instr.insert_wait_event(p_program, ins, i);
-        }
 #endif        
     }
-    if (event > 0)
-        insert_instr.insert_create_events(p_program, p_program->begin(), event);
+
 }
 
 void pre_scheduling_impl::run()

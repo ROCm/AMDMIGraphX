@@ -65,7 +65,7 @@ struct convolution
     std::array<std::size_t, 2> padding  = {{0, 0}};
     std::array<std::size_t, 2> stride   = {{1, 1}};
     std::array<std::size_t, 2> dilation = {{1, 1}};
-    
+
     padding_mode_t padding_mode = default_;
     int group                   = 1;
 
@@ -191,7 +191,7 @@ struct pooling
     std::array<std::size_t, 2> padding = {{0, 0}};
     std::array<std::size_t, 2> stride  = {{1, 1}};
     std::array<std::size_t, 2> lengths = {{1, 1}};
-    padding_mode_t padding_mode = default_;
+    padding_mode_t padding_mode        = default_;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -215,10 +215,10 @@ struct pooling
         assert(lengths[0] <= (input.lens()[2] + 2 * padding[0]));
         assert(lengths[1] <= (input.lens()[3] + 2 * padding[1]));
 
-        
         if(padding_mode == default_)
         {
-            return {t,
+            return {
+                t,
                 {
                     input.lens()[0],
                     input.lens()[1],
@@ -247,26 +247,25 @@ struct pooling
         else if(padding_mode == valid)
         {
             return {t,
-                {
-                input.lens()[0],
-                    input.lens()[1],
-                    std::size_t(std::max<std::ptrdiff_t>(
-                        1,
-                        std::ptrdiff_t(std::floor((input.lens()[2] - lengths[0]) /
-                                                  static_cast<float>(stride[0]))) +
-                            1)),
-                    std::size_t(std::max<std::ptrdiff_t>(
-                        1,
-                        std::ptrdiff_t(std::floor((input.lens()[3] - lengths[1]) /
-                                                  static_cast<float>(stride[1]))) +
-                            1)),
-                }};
+                    {
+                        input.lens()[0],
+                        input.lens()[1],
+                        std::size_t(std::max<std::ptrdiff_t>(
+                            1,
+                            std::ptrdiff_t(std::floor((input.lens()[2] - lengths[0]) /
+                                                      static_cast<float>(stride[0]))) +
+                                1)),
+                        std::size_t(std::max<std::ptrdiff_t>(
+                            1,
+                            std::ptrdiff_t(std::floor((input.lens()[3] - lengths[1]) /
+                                                      static_cast<float>(stride[1]))) +
+                                1)),
+                    }};
         }
         else
         {
             MIGRAPHX_THROW("Invalid padding mode");
         }
-        
     }
 };
 

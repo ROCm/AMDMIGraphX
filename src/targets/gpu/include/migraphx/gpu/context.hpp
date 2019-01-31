@@ -98,7 +98,7 @@ struct hip_device
     void add_stream()
     {
         int num_of_streams = 1;
-        assert(streams.size() == 0);
+        assert(streams.empty());
         if(enabled(MIGRAPHX_DISABLE_NULL_STREAM{}))
             num_of_streams = stream_info().num_of_streams();
         for(int i = 0; i < num_of_streams; ++i)

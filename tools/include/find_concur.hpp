@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_FIND_CONCUR_HPP
-#define MIGRAPH_GUARD_FIND_CONCUR_HPP
+#ifndef MIGRAPHX_GUARD_FIND_CONCUR_HPP
+#define MIGRAPHX_GUARD_FIND_CONCUR_HPP
 
 #include <cassert>
 #include <string>

@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_INSERT_INSTRUCTION_HPP
-#define MIGRAPH_GUARD_INSERT_INSTRUCTION_HPP
+#ifndef MIGRAPHX_GUARD_INSERT_INSTRUCTION_HPP
+#define MIGRAPHX_GUARD_INSERT_INSTRUCTION_HPP
 
 #include <cassert>
 #include <string>
@@ -98,28 +98,25 @@ struct insert_instruction
     void insert_create_events(program* p, instruction_ref ins, int input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().insert_create_events(
-            p, std::move(ins), std::move(input));
+        (*this).private_detail_te_get_handle().insert_create_events(p, ins, input);
     }
 
     void insert_record_event(program* p, instruction_ref ins, int input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().insert_record_event(
-            p, std::move(ins), std::move(input));
+        (*this).private_detail_te_get_handle().insert_record_event(p, ins, input);
     }
 
     void insert_wait_event(program* p, instruction_ref ins, int input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().insert_wait_event(
-            p, std::move(ins), std::move(input));
+        (*this).private_detail_te_get_handle().insert_wait_event(p, ins, input);
     }
 
     void insert_stream(program* p, instruction_ref ins, int input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().insert_stream(p, std::move(ins), std::move(input));
+        (*this).private_detail_te_get_handle().insert_stream(p, ins, input);
     }
 
     friend bool is_shared(const insert_instruction& private_detail_x,
@@ -173,25 +170,25 @@ struct insert_instruction
         void insert_create_events(program* p, instruction_ref ins, int input) override
         {
 
-            private_detail_te_value.insert_create_events(p, std::move(ins), std::move(input));
+            private_detail_te_value.insert_create_events(p, ins, input);
         }
 
         void insert_record_event(program* p, instruction_ref ins, int input) override
         {
 
-            private_detail_te_value.insert_record_event(p, std::move(ins), std::move(input));
+            private_detail_te_value.insert_record_event(p, ins, input);
         }
 
         void insert_wait_event(program* p, instruction_ref ins, int input) override
         {
 
-            private_detail_te_value.insert_wait_event(p, std::move(ins), std::move(input));
+            private_detail_te_value.insert_wait_event(p, ins, input);
         }
 
         void insert_stream(program* p, instruction_ref ins, int input) override
         {
 
-            private_detail_te_value.insert_stream(p, std::move(ins), std::move(input));
+            private_detail_te_value.insert_stream(p, ins, input);
         }
 
         PrivateDetailTypeErasedT private_detail_te_value;

@@ -34,7 +34,7 @@ struct dag_node
     int earliest_cycle = -1;
     instruction_ref ins;
     bool is_literal() const { return (ins->name() == "@literal"); }
-    bool can_use_stream() const { return (!run_on_cpu); }
+    bool can_use_stream() const { return (run_on_cpu == 0); }
 
 #ifdef MIGRAPHX_DEBUG_OPT
     void dump();
@@ -93,7 +93,7 @@ struct pre_scheduling_impl
                         std::function<std::pair<int, int>(const operation&)> w,
                         int n,
                         insert_instruction ins)
-        : p_program(p), weight_func(std::move(w)), num_of_streams(n), insert_instr(ins)
+        : p_program(p), weight_func(std::move(w)), num_of_streams(n), insert_instr(std::move(ins))
     {
         instr2_node.clear();
         instr2_mask.clear();
@@ -159,21 +159,21 @@ struct pre_scheduling_impl
         }
     };
 
-    bool has_mask(instruction_ref ins, int m)
+    bool has_mask(instruction_ref ins, unsigned int m)
     {
         if(instr2_mask.find(ins) != instr2_mask.end())
         {
-            int mask = instr2_mask[ins];
-            return ((mask & (1 << m)) != 0);
+            unsigned int mask = instr2_mask[ins];
+            return ((mask & (1u << m)) != 0);
         }
         return false;
     }
 
-    void add_mask(instruction_ref ins, int m)
+    void add_mask(instruction_ref ins, unsigned int m)
     {
-        int mask = (instr2_mask.find(ins) != instr2_mask.end()) ? instr2_mask[ins] : 0;
-        if((mask & (1 << m)) == 0)
-            instr2_mask[ins] = (mask + (1 << m));
+        unsigned int mask = (instr2_mask.find(ins) != instr2_mask.end()) ? instr2_mask[ins] : 0;
+        if((mask & (1u << m)) == 0)
+            instr2_mask[ins] = (mask + (1u << m));
     }
 
 #ifdef MIGRAPHX_DEBUG_OPT
@@ -191,7 +191,7 @@ struct pre_scheduling_impl
     std::vector<dag_node*> exit_nodes;
     std::unordered_map<instruction_ref, dag_node*> instr2_node;
     std::unordered_map<instruction_ref, int> instr2_stream;
-    std::unordered_map<instruction_ref, int> instr2_mask;
+    std::unordered_map<instruction_ref, unsigned int> instr2_mask;
     dag_partition partition_info;
 };
 } // namespace migraphx

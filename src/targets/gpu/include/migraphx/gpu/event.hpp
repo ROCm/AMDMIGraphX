@@ -12,7 +12,7 @@ namespace gpu {
 struct create_events
 {
     int num_of_events = 0;
-    template<class Self, class F>
+    template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.num_of_events, "event"));
@@ -25,17 +25,18 @@ struct create_events
         else
             return inputs.front();
     }
-    
-    argument compute(context& ctx, const shape&, const std::vector<argument>&) const  {
+
+    argument compute(context& ctx, const shape&, const std::vector<argument>&) const
+    {
         ctx.create_events(num_of_events);
         return {};
     }
 };
-    
+
 struct record_event
 {
     int event = -1;
-    template<class Self, class F>
+    template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.event, "event"));
@@ -48,8 +49,9 @@ struct record_event
         else
             return inputs.front();
     }
-    
-    argument compute(context& ctx, const shape&, const std::vector<argument>&) const  {
+
+    argument compute(context& ctx, const shape&, const std::vector<argument>&) const
+    {
         ctx.record_event(event);
         return {};
     }
@@ -71,7 +73,7 @@ struct wait_event
         else
             return inputs.front();
     }
-    
+
     argument compute(context& ctx, const shape&, const std::vector<argument>&) const
     {
         ctx.wait_event(event);
@@ -95,18 +97,14 @@ struct set_stream
         else
             return inputs.front();
     }
-    
+
     argument compute(context& ctx, const shape&, const std::vector<argument>&) const
     {
         ctx.set_stream(stream);
         return {};
     }
-    void finalize(context& ctx, const shape&, std::vector<shape>)
-    {
-        ctx.set_stream(stream);
-    }
-};    
-
+    void finalize(context& ctx, const shape&, const std::vector<shape>&) { ctx.set_stream(stream); }
+};
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -58,7 +58,7 @@ struct memory_coloring_impl
           allocation_op(std::move(alloc_op)),
           enable_verify(p_verify),
           num_of_streams(num),
-          f_concur(f)
+          f_concur(std::move(f))
     {
         instr2_live.clear();
         live_ranges.clear();

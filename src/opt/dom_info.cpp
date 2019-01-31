@@ -54,6 +54,40 @@ bool dom_info::strictly_post_dominates(const instruction* ins1, const instructio
     return false;
 }
 
+//  Among p_ins's dominators, find ones that strictly dominates or post-dominators others.
+//
+void dom_info::find_dom_tree(
+    std::unordered_map<const instruction*, std::set<const instruction*>>& instr2_doms,
+    const instruction* p_ins,
+    std::unordered_map<const instruction*, const instruction*>& instr2_dom_tree,
+    std::unordered_map<const instruction*, const instruction*>& idom)
+{
+    for(auto& iter1 : instr2_doms[p_ins])
+    {
+        auto dom_check = [& dom_tree = idom, ins1 = iter1](const instruction* ins2) {
+            if(ins1 == ins2)
+                return false;
+            const instruction* iter = ins2;
+            ;
+            while(dom_tree.find(iter) != dom_tree.end())
+            {
+                if(ins1 == dom_tree[iter])
+                    return true;
+                iter = dom_tree[iter];
+            }
+            return false;
+        };
+
+        // check whether iter1 strictly dominates or post-dominates any other notes in
+        // p_ins's dominators or post-dominators.
+        if(!std::any_of(instr2_doms[p_ins].begin(), instr2_doms[p_ins].end(), dom_check))
+        {
+            assert(instr2_dom_tree.find(p_ins) == instr2_dom_tree.end());
+            instr2_dom_tree[p_ins] = iter1;
+        }
+    }
+}
+
 //  Compute dominator or post-dominator.  Instructions that do not use
 //  streams are left out.
 //
@@ -109,33 +143,9 @@ void dom_info::compute_dom(bool reversed)
         }
         else if(cnt > 0)
         {
-            for(auto& iter1 : instr2_doms[p_ins])
-            {
-                std::unordered_map<const instruction*, const instruction*>& idom =
-                    reversed ? instr2_ipdom : instr2_idom;
-                auto dom_check = [& dom_tree = idom, ins1 = iter1](const instruction* ins2) {
-                    if(ins1 != ins2)
-                    {
-                        const instruction* iter = ins2;
-                        ;
-                        while(dom_tree.find(iter) != dom_tree.end())
-                        {
-                            if(ins1 == dom_tree[iter])
-                                return true;
-                            iter = dom_tree[iter];
-                        }
-                    }
-                    return false;
-                };
-
-                // check whether iter1 strictly dominates or post-dominates any other notes in
-                // p_ins's dominators or post-dominators.
-                if(!std::any_of(instr2_doms[p_ins].begin(), instr2_doms[p_ins].end(), dom_check))
-                {
-                    assert(instr2_dom_tree.find(p_ins) == instr2_dom_tree.end());
-                    instr2_dom_tree[p_ins] = iter1;
-                }
-            }
+            std::unordered_map<const instruction*, const instruction*>& idom =
+                reversed ? instr2_ipdom : instr2_idom;
+            find_dom_tree(instr2_doms, p_ins, instr2_dom_tree, idom);
         }
 
         instr2_doms[p_ins].insert(p_ins);
@@ -150,6 +160,45 @@ void dom_info::compute_dom(bool reversed)
     {
         MIGRAPHX_DEBUG(dump_doms(instr2_points, reversed));
     }
+}
+
+// Identify split points.  A split point has more than one
+// outputs that are executed in different streams.
+
+bool dom_info::is_split_point(instruction_ref ins)
+{
+    if(ins->has_mask(record_event))
+    {
+        std::set<int> stream_set;
+        for(auto&& arg : ins->outputs())
+        {
+            int arg_stream = arg->get_stream();
+            if(arg_stream >= 0)
+                stream_set.insert(arg_stream);
+        }
+        if(stream_set.size() > 1)
+            return true;
+    }
+    return false;
+}
+
+// Identify merge points.  A merge point has more than one
+// inputs that are executed in different streams.
+bool dom_info::is_merge_point(instruction_ref ins)
+{
+    if(ins->has_mask(wait_event))
+    {
+        std::set<int> stream_set;
+        for(auto&& arg : ins->inputs())
+        {
+            int arg_stream = arg->get_stream();
+            if(arg_stream >= 0)
+                stream_set.insert(arg_stream);
+        }
+        if(stream_set.size() > 1)
+            return true;
+    }
+    return false;
 }
 
 //  Propagate split points through the graph and identify concurrent instructions.
@@ -175,34 +224,8 @@ void dom_info::propagate_splits(
         if(stream < 0)
             continue;
 
-        // Identify split points.  A split point has more than one
-        // outputs that are executed in different streams.
-        if(ins->has_mask(RECORD_EVENT))
-        {
-            std::set<int> stream_set;
-            for(auto&& arg : ins->outputs())
-            {
-                int arg_stream = arg->get_stream();
-                if(arg_stream >= 0)
-                    stream_set.insert(arg_stream);
-            }
-            if(stream_set.size() > 1)
-                is_split[ins] = true;
-        }
-        // Identify merge points.  A merge point has more than one
-        // inputs that are executed in different streams.
-        if(ins->has_mask(WAIT_EVENT))
-        {
-            std::set<int> stream_set;
-            for(auto&& arg : ins->inputs())
-            {
-                int arg_stream = arg->get_stream();
-                if(arg_stream >= 0)
-                    stream_set.insert(arg_stream);
-            }
-            if(stream_set.size() > 1)
-                is_merge[ins] = true;
-        }
+        is_split[ins] = is_split_point(ins);
+        is_merge[ins] = is_merge_point(ins);
 
         for(auto&& arg : ins->inputs())
         {

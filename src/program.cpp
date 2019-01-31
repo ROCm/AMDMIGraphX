@@ -53,9 +53,9 @@ static void print_instruction(std::ostream& os,
     }
     if(ins->get_stream() >= 0)
         os << "(stream=" << ins->get_stream() << ")";
-    if(ins->has_mask(WAIT_EVENT))
+    if(ins->has_mask(wait_event))
         os << " wait ";
-    if(ins->has_mask(RECORD_EVENT))
+    if(ins->has_mask(record_event))
         os << " record=" << ins->get_event();
     os << " -> " << ins->get_shape();
 }
@@ -370,17 +370,16 @@ argument generic_eval(const program& p,
                     return results[i];
                 });
 
-            if(ins->has_mask(WAIT_EVENT))
+            if(ins->has_mask(wait_event))
             {
                 for(auto&& arg : ins->inputs())
                 {
                     int arg_s = arg->get_stream();
-                    if((arg_s >= 0) && (arg_s != stream))
-                    {
-                        int event = arg->get_event();
-                        assert(event >= 0);
-                        ctx.wait_event(event);
-                    }
+                    if((arg_s < 0) || (arg_s == stream))
+                        continue;
+                    int event = arg->get_event();
+                    assert(event >= 0);
+                    ctx.wait_event(event);
                 }
             }
 
@@ -388,7 +387,7 @@ argument generic_eval(const program& p,
                                 return ins->get_operator().compute(ctx, ins->get_shape(), values);
                             }));
 
-            if(ins->has_mask(RECORD_EVENT))
+            if(ins->has_mask(record_event))
                 ctx.record_event(ins->get_event());
         }
         assert(results.find(ins) != results.end());

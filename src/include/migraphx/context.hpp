@@ -109,25 +109,25 @@ struct context
     void set_stream(int input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().set_stream(std::move(input));
+        (*this).private_detail_te_get_handle().set_stream(input);
     }
 
     void create_events(int input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().create_events(std::move(input));
+        (*this).private_detail_te_get_handle().create_events(input);
     }
 
     void record_event(int input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().record_event(std::move(input));
+        (*this).private_detail_te_get_handle().record_event(input);
     }
 
     void wait_event(int input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().wait_event(std::move(input));
+        (*this).private_detail_te_get_handle().wait_event(input);
     }
 
     friend bool is_shared(const context& private_detail_x, const context& private_detail_y)
@@ -180,29 +180,13 @@ struct context
 
         void finish() override { private_detail_te_value.finish(); }
 
-        void set_stream(int input) override
-        {
+        void set_stream(int input) override { private_detail_te_value.set_stream(input); }
 
-            private_detail_te_value.set_stream(std::move(input));
-        }
+        void create_events(int input) override { private_detail_te_value.create_events(input); }
 
-        void create_events(int input) override
-        {
+        void record_event(int input) override { private_detail_te_value.record_event(input); }
 
-            private_detail_te_value.create_events(std::move(input));
-        }
-
-        void record_event(int input) override
-        {
-
-            private_detail_te_value.record_event(std::move(input));
-        }
-
-        void wait_event(int input) override
-        {
-
-            private_detail_te_value.wait_event(std::move(input));
-        }
+        void wait_event(int input) override { private_detail_te_value.wait_event(input); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };

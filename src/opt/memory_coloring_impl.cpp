@@ -269,23 +269,23 @@ void memory_coloring_impl::verify()
 void memory_coloring_impl::add_stream_conflicts(std::vector<const instruction*>& i1,
                                                 std::vector<const instruction*>& i2)
 {
-    for(auto ins1 = i1.begin(), end1 = i1.end(); ins1 != end1; ++ins1)
+    for(auto& ins1 : i1)
     {
-        if(instr2_live.find(*ins1) == instr2_live.end())
+        if(instr2_live.find(ins1) == instr2_live.end())
             continue;
-        interval_ptr interval1 = instr2_live[*ins1];
+        interval_ptr interval1 = instr2_live[ins1];
         int id1                = interval1->id;
-        for(auto ins2 = i2.begin(), end2 = i2.end(); ins2 != end2; ++ins2)
+        for(auto& ins2 : i2)
         {
-            if(instr2_live.find(*ins2) == instr2_live.end())
+            if(instr2_live.find(ins2) == instr2_live.end())
                 continue;
-            interval_ptr interval2 = instr2_live[*ins2];
+            interval_ptr interval2 = instr2_live[ins2];
             int id2                = interval2->id;
             conflict_table[id1].insert(id2);
             conflict_table[id2].insert(id1);
 #ifdef MIGRAPHX_DEBUG_OPT
-            std::cout << "@" << instr2_points[*ins1] << " id:" << id1 << " => "
-                      << "@" << instr2_points[*ins2] << " id:" << id2 << std::endl;
+            std::cout << "@" << instr2_points[ins1] << " id:" << id1 << " => "
+                      << "@" << instr2_points[ins2] << " id:" << id2 << std::endl;
 #endif
         }
     }
@@ -301,14 +301,14 @@ void memory_coloring_impl::add_stream_conflicts()
     f_concur.get_concur(p_program, num_of_streams, concur_instrs, instr2_points);
     MIGRAPHX_DEBUG(dump_concur_instrs(concur_instrs));
 
-    for(auto iter = concur_instrs.begin(), end = concur_instrs.end(); iter != end; ++iter)
+    for(auto& iter : concur_instrs)
     {
         for(auto s1 = 0; s1 < num_of_streams; ++s1)
         {
-            std::vector<const instruction*>& i1 = iter->second[s1];
+            std::vector<const instruction*>& i1 = iter.second[s1];
             for(auto s2 = s1 + 1; s2 < num_of_streams; ++s2)
             {
-                std::vector<const instruction*>& i2 = iter->second[s2];
+                std::vector<const instruction*>& i2 = iter.second[s2];
                 add_stream_conflicts(i1, i2);
             }
         }

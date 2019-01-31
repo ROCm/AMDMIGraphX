@@ -244,20 +244,20 @@ void pre_scheduling_impl::annotate(std::list<dag_node*>& sorted_nodes)
             int arg_s = instr2_stream[arg];
             if(arg_s == stream)
                 continue;
-            if(!has_mask(arg, RECORD_EVENT))
+            if(!has_mask(arg, record_event))
             {
                 events.push_back(event);
                 arg->set_event(event);
-                arg->add_mask(RECORD_EVENT);
+                arg->add_mask(record_event);
 #if 0
                 insert_instr.insert_record_event(p_program, std::next(arg), event);
 #endif
                 event++;
             }
 
-            ins->add_mask(WAIT_EVENT);
-            add_mask(arg, RECORD_EVENT);
-            add_mask(ins, WAIT_EVENT);
+            ins->add_mask(wait_event);
+            add_mask(arg, record_event);
+            add_mask(ins, wait_event);
         }
 #if 0        
         for (auto && i : events)
@@ -269,7 +269,7 @@ void pre_scheduling_impl::annotate(std::list<dag_node*>& sorted_nodes)
     {
         insert_instr.insert_create_events(p_program, p_program->begin(), event);
     }
-#endif    
+#endif
 }
 
 void pre_scheduling_impl::run()

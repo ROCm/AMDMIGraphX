@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_FIND_CONCUR_HPP
-#define MIGRAPH_GUARD_FIND_CONCUR_HPP
+#ifndef MIGRAPHX_GUARD_FIND_CONCUR_HPP
+#define MIGRAPHX_GUARD_FIND_CONCUR_HPP
 
 #include <cassert>
 #include <string>
@@ -103,8 +103,7 @@ struct find_concur
                     std::unordered_map<const instruction*, int>& input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().get_concur(
-            p, std::move(num_of_stream), concur_instrs, input);
+        (*this).private_detail_te_get_handle().get_concur(p, num_of_stream, concur_instrs, input);
     }
 
     friend bool is_shared(const find_concur& private_detail_x, const find_concur& private_detail_y)
@@ -164,7 +163,7 @@ struct find_concur
                    std::unordered_map<const instruction*, int>& input) override
         {
 
-            private_detail_te_value.get_concur(p, std::move(num_of_stream), concur_instrs, input);
+            private_detail_te_value.get_concur(p, num_of_stream, concur_instrs, input);
         }
 
         PrivateDetailTypeErasedT private_detail_te_value;

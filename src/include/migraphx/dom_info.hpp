@@ -14,10 +14,17 @@ struct dom_info
         instr2_ipdom.clear();
     }
     void compute_dom(bool);
+    void
+    find_dom_tree(std::unordered_map<const instruction*, std::set<const instruction*>>& instr2_doms,
+                  const instruction* p_ins,
+                  std::unordered_map<const instruction*, const instruction*>& instr2_dom_tree,
+                  std::unordered_map<const instruction*, const instruction*>& idom);
 
 #ifdef MIGRAPHX_DEBUG_OPT
     void dump_doms(std::unordered_map<const instruction*, int>&, bool);
 #endif
+    bool is_split_point(instruction_ref ins);
+    bool is_merge_point(instruction_ref ins);
     // whethere ins1 strictly dominates ins2
     bool strictly_dominates(const instruction* ins1, const instruction* ins2);
     // whether ins1 strictly post-dominates ins2.

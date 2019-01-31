@@ -140,12 +140,7 @@ struct im2col
     std::array<std::size_t, 2> padding  = {{0, 0}};
     std::array<std::size_t, 2> stride   = {{1, 1}};
     std::array<std::size_t, 2> dilation = {{1, 1}};
-    enum padding_mode_t
-    {
-        default_, // NOLINT
-        same,
-        valid
-    };
+
     padding_mode_t padding_mode = default_;
 
     template <class Self, class F>
@@ -654,13 +649,13 @@ struct pad
 {
     std::vector<int64_t> pads;
     float value = 0.0f;
-    enum padding_mode_t
+    enum pad_op_mode_t
     {
         constant_pad,
         reflect_pad,
         edge_pad
     };
-    padding_mode_t mode = constant_pad;
+    pad_op_mode_t mode = constant_pad;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

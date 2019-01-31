@@ -18,13 +18,11 @@ namespace migraphx {
 /// executing in different streams.
 struct find_concur
 {
-    void
-    get_concur(program* p,
-               int num_of_streams,
-               std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>&
-               concur_instrs,
-               std::unordered_map<const instruction*, int>& instr2_points
-               );
+    void get_concur(program* p,
+                    int num_of_streams,
+                    std::unordered_map<const instruction*,
+                                       std::vector<std::vector<const instruction*>>>& concur_instrs,
+                    std::unordered_map<const instruction*, int>& instr2_points);
 };
 
 #else

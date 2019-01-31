@@ -962,8 +962,8 @@ struct test_pooling_autopad
         auto l0 = p.add_parameter("x", s0);
         migraphx::op::pooling op{"max"};
         op.padding_mode = migraphx::op::padding_mode_t::same;
-        op.lengths = {2, 2};
-        op.stride = {2, 2};
+        op.lengths      = {2, 2};
+        op.stride       = {2, 2};
         p.add_instruction(op, l0);
         return p;
     }

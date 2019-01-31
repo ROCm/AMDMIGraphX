@@ -136,11 +136,11 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
     assert(has_instruction(rep));
     assert(ins != rep);
 
-    if (ins == std::prev(this->end()))
+    if(ins == std::prev(this->end()))
     {
         // additional check to ensure the ins to be replaced is either
         // the rnn_last_output, gru_last_output, or lstm_last_output
-        if (ins->name() == "rnn_last_output")
+        if(ins->name() == "rnn_last_output")
         {
             return replace_instruction(ins, op::identity{}, rep);
         }

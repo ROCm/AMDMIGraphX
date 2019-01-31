@@ -90,7 +90,7 @@ struct tf_parser
     template <class T>
     void add_binary_op(std::string name, T x)
     {
-            add_op(name, [this, x](attribute_map attributes, std::vector<instruction_ref> args) {
+        add_op(name, [this, x](attribute_map attributes, std::vector<instruction_ref> args) {
             if(args.size() != 2)
                 MIGRAPHX_THROW("binary operators should have 2 operands");
             auto l0 = args[1];
@@ -98,7 +98,7 @@ struct tf_parser
             {
                 if(is_nhwc)
                 {
-                    l0 = prog.add_instruction(op::transpose{{0,3,1,2}}, args[1]);
+                    l0 = prog.add_instruction(op::transpose{{0, 3, 1, 2}}, args[1]);
                 }
             }
             return add_broadcastable_binary_op(args[0], l0, x);
@@ -160,10 +160,9 @@ struct tf_parser
     instruction_ref
     parse_batchnorm(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        float epsilon  = 1e-5f;
-        float momentum = 0.9f;
-        op::batch_norm_inference::bn_infer_mode_t bn_mode =
-            op::batch_norm_inference::spatial;
+        float epsilon                                     = 1e-5f;
+        float momentum                                    = 0.9f;
+        op::batch_norm_inference::bn_infer_mode_t bn_mode = op::batch_norm_inference::spatial;
         if(contains(attributes, "epsilon"))
         {
             epsilon = attributes.at("epsilon").f();
@@ -385,7 +384,7 @@ struct tf_parser
         auto l0 = args[0];
         if(is_nhwc)
         {
-            l0 = prog.add_instruction(op::transpose{{0,2,3,1}}, args[0]);
+            l0 = prog.add_instruction(op::transpose{{0, 2, 3, 1}}, args[0]);
         }
         return prog.add_instruction(op, l0);
     }

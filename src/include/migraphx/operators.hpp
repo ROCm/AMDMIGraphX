@@ -395,7 +395,6 @@ struct concat
         }
         return result;
     }
-    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct slice
@@ -698,8 +697,6 @@ struct gather
 
         return result;
     }
-
-    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct dot

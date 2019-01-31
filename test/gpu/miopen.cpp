@@ -1084,7 +1084,6 @@ struct test_rnn_forward
                               bias,
                               ih);
         auto last = p.add_instruction(migraphx::op::rnn_last_output{}, output);
-        p.add_instruction(migraphx::op::add{}, last, last);
 
         return p;
     }
@@ -1124,8 +1123,6 @@ struct test_rnn_reverse
                               r,
                               bias,
                               ih);
-        auto last = p.add_instruction(migraphx::op::rnn_last_output{}, output);
-        p.add_instruction(migraphx::op::add{}, last, last);
 
         return p;
     }
@@ -1166,7 +1163,6 @@ struct test_rnn_bidirectional
                               bias,
                               ih);
         auto last = p.add_instruction(migraphx::op::rnn_last_output{}, output);
-        p.add_instruction(migraphx::op::add{}, last, last);
 
         return p;
     }
@@ -1232,4 +1228,6 @@ int main()
     verify_program<test_gather>();
     verify_program<test_gather_neg_axis>();
     verify_program<test_rnn_forward>();
+    verify_program<test_rnn_reverse>();
+    verify_program<test_rnn_bidirectional>();
 }

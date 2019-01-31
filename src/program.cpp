@@ -1,6 +1,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/operators.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>
@@ -134,6 +135,17 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
     assert(has_instruction(ins));
     assert(has_instruction(rep));
     assert(ins != rep);
+
+    if (ins == std::prev(this->end()))
+    {
+        // additional check to ensure the ins to be replaced is either
+        // the rnn_last_output, gru_last_output, or lstm_last_output
+        if (ins->name() == "rnn_last_output")
+        {
+            return replace_instruction(ins, op::identity{}, rep);
+        }
+    }
+
     // TODO: Should it be an error if the output is empty?
     if(ins->outputs().empty())
     {

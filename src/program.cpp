@@ -51,11 +51,11 @@ static void print_instruction(std::ostream& os,
         }
         os << ")";
     }
-    if (ins->get_stream() >= 0)
-        os << "(stream=" <<  ins->get_stream() << ")";
-    if (ins->has_mask(WAIT_EVENT))
+    if(ins->get_stream() >= 0)
+        os << "(stream=" << ins->get_stream() << ")";
+    if(ins->has_mask(WAIT_EVENT))
         os << " wait ";
-    if (ins->has_mask(RECORD_EVENT))
+    if(ins->has_mask(RECORD_EVENT))
         os << " record=" << ins->get_event();
     os << " -> " << ins->get_shape();
 }
@@ -285,11 +285,6 @@ instruction_ref program::validate() const
                         [&](const instruction& i) { return !i.valid(impl->instructions.begin()); });
 }
 
-void program::finish()
-{
-    this->impl->ctx.finish();
-}
-
 void program::compile(const target& t, tracer trace)
 {
     assert(this->validate() == impl->instructions.end());
@@ -326,14 +321,10 @@ void program::compile(const target& t, tracer trace)
 
 void program::finalize()
 {
-    int max_event = -1;
     for(auto ins : iterator_for(*this))
     {
         ins->finalize(this->impl->ctx);
-        max_event = std::max(max_event, ins->get_event());
     }
-    if (max_event >= 0)
-        this->impl->ctx.create_events(max_event + 1);
 }
 
 template <class F>
@@ -347,7 +338,7 @@ argument generic_eval(const program& p,
     results.reserve(p.size() * 2);
     std::vector<argument> values;
     values.reserve(16);
-    
+
     for(auto ins : iterator_for(p))
     {
         int stream = ins->get_stream();
@@ -379,12 +370,12 @@ argument generic_eval(const program& p,
                     return results[i];
                 });
 
-            if (ins->has_mask(WAIT_EVENT))
+            if(ins->has_mask(WAIT_EVENT))
             {
                 for(auto&& arg : ins->inputs())
                 {
                     int arg_s = arg->get_stream();
-                    if ((arg_s >= 0) && (arg_s != stream))
+                    if((arg_s >= 0) && (arg_s != stream))
                     {
                         int event = arg->get_event();
                         assert(event >= 0);
@@ -397,7 +388,7 @@ argument generic_eval(const program& p,
                                 return ins->get_operator().compute(ctx, ins->get_shape(), values);
                             }));
 
-            if (ins->has_mask(RECORD_EVENT))
+            if(ins->has_mask(RECORD_EVENT))
                 ctx.record_event(ins->get_event());
         }
         assert(results.find(ins) != results.end());
@@ -420,7 +411,7 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
     else
     {
         return generic_eval(
-                            *this, this->impl->ctx, std::move(params), [](auto&, auto f) { return f(); });
+            *this, this->impl->ctx, std::move(params), [](auto&, auto f) { return f(); });
     }
 }
 
@@ -546,6 +537,5 @@ std::ostream& operator<<(std::ostream& os, const program& p)
     print_program(os, p, [](auto&&...) {});
     return os;
 }
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

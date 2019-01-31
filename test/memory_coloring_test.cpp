@@ -24,12 +24,12 @@ struct set_stream
 
 struct find_concur
 {
-    void get_concur(migraphx::program* p,
-                    int num_of_streams,
-                    std::unordered_map<const migraphx::instruction*, std::vector<std::vector<const migraphx::instruction*>>>&
-                    concur_instrs,
-                    std::unordered_map<const migraphx::instruction*, int>& instr2_points
-                    )
+    void get_concur(
+        migraphx::program* p,
+        int num_of_streams,
+        std::unordered_map<const migraphx::instruction*,
+                           std::vector<std::vector<const migraphx::instruction*>>>& concur_instrs,
+        std::unordered_map<const migraphx::instruction*, int>& instr2_points)
     {
         migraphx::dom_info info(p);
         info.compute_dom(true);
@@ -75,7 +75,6 @@ bool no_allocate(const migraphx::program& p)
     return std::none_of(p.begin(), p.end(), [](auto&& ins) { return ins.name() == "allocate"; });
 }
 
-#if 0
 TEST_CASE(test1)
 {
     migraphx::program p;
@@ -641,8 +640,6 @@ TEST_CASE(literal_test)
     CHECK(lit == result);
 }
 
-#endif
-
 TEST_CASE(concurrent_test)
 {
     migraphx::program p;
@@ -677,13 +674,13 @@ TEST_CASE(concurrent_test)
     p7->set_stream(2);
     p7->add_mask(migraphx::RECORD_EVENT);
     auto a8 = add_alloc(p, {migraphx::shape::float_type, {40}});
-    auto p8 = p.add_instruction(migraphx::op::concat{0}, a8,  p4, p5, p7);;
+    auto p8 = p.add_instruction(migraphx::op::concat{0}, a8, p4, p5, p7);
+    ;
     p8->set_stream(0);
     p8->add_mask(migraphx::WAIT_EVENT);
     p.insert_instruction(p8, set_stream{0});
     p.compile(memory_coloring_target{});
     CHECK(p.get_parameter_shape("scratch").bytes() == 960);
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

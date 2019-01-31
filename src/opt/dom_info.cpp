@@ -20,7 +20,7 @@ struct program_visitor
 
 // Query whether ins1 strictly dominates ins2.  ins1 strictly dominates
 // ins2 if ins1 dominates ins2 and ins1 is not ins2.
-//           
+//
 bool dom_info::strictly_dominates(const instruction* ins1, const instruction* ins2)
 {
     if(ins1 != ins2)
@@ -38,7 +38,7 @@ bool dom_info::strictly_dominates(const instruction* ins1, const instruction* in
 
 // Query whether ins1 strictly post-dominates ins2.  ins1 strictly post-dominates
 // ins2 if ins1 post-dominates ins2 and ins1 is not ins2.
-//           
+//
 bool dom_info::strictly_post_dominates(const instruction* ins1, const instruction* ins2)
 {
     if(ins1 != ins2)
@@ -56,7 +56,7 @@ bool dom_info::strictly_post_dominates(const instruction* ins1, const instructio
 
 //  Compute dominator or post-dominator.  Instructions that do not use
 //  streams are left out.
-//           
+//
 void dom_info::compute_dom(bool reversed)
 {
     std::size_t num_of_instrs = p_program->size();
@@ -64,7 +64,7 @@ void dom_info::compute_dom(bool reversed)
         return;
     std::unordered_map<const instruction*, std::set<const instruction*>> instr2_doms;
     std::unordered_map<const instruction*, int> instr2_points;
-    int cur_points  = reversed ? num_of_instrs - 1 : 0;
+    int cur_points   = reversed ? num_of_instrs - 1 : 0;
     bool seen_stream = false;
     program_visitor vis{p_program, reversed};
     std::unordered_map<const instruction*, const instruction*>& instr2_dom_tree =
@@ -84,7 +84,7 @@ void dom_info::compute_dom(bool reversed)
                 break;
             continue;
         }
-        seen_stream               = true;
+        seen_stream              = true;
         const instruction* p_tmp = nullptr;
         int cnt                  = 0;
         // find dominators.
@@ -92,7 +92,7 @@ void dom_info::compute_dom(bool reversed)
         {
             if(iter->get_stream() < 0)
                 continue;
-            const instruction * p_arg = &(*iter);
+            const instruction* p_arg = &(*iter);
             cnt++;
             assert(instr2_doms.find(p_arg) != instr2_doms.end());
             if(p_tmp == nullptr)
@@ -154,8 +154,12 @@ void dom_info::compute_dom(bool reversed)
 
 //  Propagate split points through the graph and identify concurrent instructions.
 //  Concurrent instructions have the same split points and different streams.
-//           
-void dom_info::propagate_splits(int num_of_streams, std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>& concur_instrs, std::unordered_map<const instruction*, int>& instr2_points)
+//
+void dom_info::propagate_splits(
+    int num_of_streams,
+    std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>&
+        concur_instrs,
+    std::unordered_map<const instruction*, int>& instr2_points)
 {
     std::unordered_map<instruction_ref, bool> is_split;
     std::unordered_map<instruction_ref, bool> is_merge;
@@ -191,11 +195,11 @@ void dom_info::propagate_splits(int num_of_streams, std::unordered_map<const ins
         {
             std::set<int> stream_set;
             for(auto&& arg : ins->inputs())
-             {
-                 int arg_stream = arg->get_stream();
-                 if(arg_stream >= 0)
-                     stream_set.insert(arg_stream);
-             }
+            {
+                int arg_stream = arg->get_stream();
+                if(arg_stream >= 0)
+                    stream_set.insert(arg_stream);
+            }
             if(stream_set.size() > 1)
                 is_merge[ins] = true;
         }
@@ -229,19 +233,19 @@ void dom_info::propagate_splits(int num_of_streams, std::unordered_map<const ins
         }
 
         if(split_from.find(ins) != split_from.end())
-         {
-             // Collect concur instructions for each split point.
-             for(auto& split : split_from[ins])
-             {
-                 if(concur_instrs.find(split) == concur_instrs.end())
-                 {
-                     std::vector<std::vector<const instruction*>> instr_stack;
-                     instr_stack.resize(num_of_streams);
-                     concur_instrs[split] = instr_stack;
-                 }
-                 concur_instrs[split][stream].push_back(p_iter);
-             }
-         }
+        {
+            // Collect concur instructions for each split point.
+            for(auto& split : split_from[ins])
+            {
+                if(concur_instrs.find(split) == concur_instrs.end())
+                {
+                    std::vector<std::vector<const instruction*>> instr_stack;
+                    instr_stack.resize(num_of_streams);
+                    concur_instrs[split] = instr_stack;
+                }
+                concur_instrs[split][stream].push_back(p_iter);
+            }
+        }
     }
 }
 

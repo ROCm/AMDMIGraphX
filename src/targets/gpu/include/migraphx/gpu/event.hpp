@@ -9,6 +9,29 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+struct create_events
+{
+    int num_of_events = 0;
+    template<class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.num_of_events, "event"));
+    }
+    std::string name() const { return "gpu::create_events"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        if(inputs.empty())
+            return {};
+        else
+            return inputs.front();
+    }
+    
+    argument compute(context& ctx, const shape&, const std::vector<argument>&) const  {
+        ctx.create_events(num_of_events);
+        return {};
+    }
+};
+    
 struct record_event
 {
     int event = -1;

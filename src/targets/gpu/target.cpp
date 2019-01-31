@@ -29,9 +29,9 @@ namespace gpu {
 
 std::vector<pass> target::get_passes(migraphx::context& gctx) const
 {
-    auto& ctx                                                    = any_cast<context>(gctx);
+    auto& ctx                                                        = any_cast<context>(gctx);
     std::function<std::pair<int, int>(const operation&)> weight_func = op_info();
-    int num_of_streams                                           = stream_info().num_of_streams();
+    int num_of_streams = stream_info().num_of_streams();
     // clang-format off
     return
     {

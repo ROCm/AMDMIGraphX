@@ -15,7 +15,6 @@ struct context
     void record_event(int) {}
     void wait_event(int) {}
 };
-
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -16,25 +16,18 @@ namespace migraphx {
 /// for multi-stream execution.
 struct insert_instruction
 {
-    void
-    insert_record_event(program* p,
-                        instruction_ref ins,
-                        int event);
-    void
-    insert_wait_event(program* p,
-                      instruction_ref ins,
-                      int event);
+    void insert_create_events(program* p, instruction_ref ins, int num_of_events);
+    void insert_record_event(program* p, instruction_ref ins, int event);
+    void insert_wait_event(program* p, instruction_ref ins, int event);
 
-    void
-    insert_stream(program* p,
-                  instruction_ref ins,
-                  int stream);
+    void insert_stream(program* p, instruction_ref ins, int stream);
 };
 
 #else
 
 <%
 interface('insert_instruction',
+          virtual('insert_create_events', returns='void', p = 'program*', ins ='instruction_ref', input = 'int'),
           virtual('insert_record_event', returns='void', p = 'program*', ins ='instruction_ref', input = 'int'),
           virtual('insert_wait_event', returns='void', p = 'program*', ins = 'instruction_ref', input = 'int'),
           virtual('insert_stream', returns='void', p = 'program*', ins ='instruction_ref', input = 'int')

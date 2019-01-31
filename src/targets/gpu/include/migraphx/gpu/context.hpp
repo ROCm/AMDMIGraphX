@@ -15,7 +15,7 @@ namespace gpu {
 struct hip_device
 {
     using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
-    
+
     hip_device() { add_stream(); }
 
     hip_device(std::size_t id) : device_id(id) { add_stream(); }
@@ -78,6 +78,7 @@ struct hip_device
             assert(rbhandle.get() != nullptr);
             return rbhandle.get();
         }
+
         private:
         std::size_t id                      = 0;
         shared<hip_stream_ptr> s            = nullptr;
@@ -98,23 +99,25 @@ struct hip_device
     {
         int num_of_streams = 1;
         assert(streams.size() == 0);
-        if (enabled(MIGRAPHX_DISABLE_NULL_STREAM{}))
-            num_of_streams =  stream_info().num_of_streams();
-        for (int i = 0; i < num_of_streams; ++i)
+        if(enabled(MIGRAPHX_DISABLE_NULL_STREAM{}))
+            num_of_streams = stream_info().num_of_streams();
+        for(int i = 0; i < num_of_streams; ++i)
             streams.emplace_back(device_id);
     }
 
     stream& get_stream() { return streams.at(current_stream); }
-    
 
     void set_stream(std::size_t n) { current_stream = n; }
     void create_events(int num_of_events)
     {
-        for (int i = events.size(); i < num_of_events; ++i)
+        for(int i = events.size(); i < num_of_events; ++i)
             events.emplace_back(create_event());
     }
     void record_event(int event)
     {
+        for(int i = events.size(); i <= event; ++i)
+            events.emplace_back(create_event());
+
         hipEventRecord(events.at(event).get(), streams.at(current_stream).get());
     }
 
@@ -122,13 +125,15 @@ struct hip_device
     {
         hipStreamWaitEvent(streams.at(current_stream).get(), events.at(event).get(), 0);
     }
-    
+
     void stream_sync()
     {
-        if(enabled(MIGRAPHX_DISABLE_NULL_STREAM{})) {
+        if(enabled(MIGRAPHX_DISABLE_NULL_STREAM{}))
+        {
             int num_of_streams = streams.size();
-            if (num_of_streams > 0) {
-                for (int i = 0; i < num_of_streams; i++)
+            if(num_of_streams > 0)
+            {
+                for(int i = 0; i < num_of_streams; i++)
                     hipStreamSynchronize(streams.at(i).get());
             }
         }
@@ -152,7 +157,11 @@ struct context
     }
 
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
-    void set_stream(int n) { if (n >= 0) get_current_device().set_stream(n); }
+    void set_stream(int n)
+    {
+        if(n >= 0)
+            get_current_device().set_stream(n);
+    }
     void create_events(int num_of_events) { get_current_device().create_events(num_of_events); }
     void record_event(int event) { get_current_device().record_event(event); }
     void wait_event(int event) { get_current_device().wait_event(event); }

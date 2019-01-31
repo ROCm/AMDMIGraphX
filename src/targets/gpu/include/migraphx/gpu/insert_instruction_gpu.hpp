@@ -8,29 +8,25 @@ namespace gpu {
 
 struct insert_instruction_gpu
 {
-    void insert_record_event(program* p,
-                             instruction_ref ins,
-                             int event)
+    void insert_create_events(program* p, instruction_ref ins, int num_of_events)
+    {
+        p->insert_instruction(ins, create_events{num_of_events});
+    }
+    void insert_record_event(program* p, instruction_ref ins, int event)
     {
         p->insert_instruction(ins, record_event{event});
     }
-    void insert_wait_event(program* p,
-                           instruction_ref ins,
-                           int event)
+    void insert_wait_event(program* p, instruction_ref ins, int event)
     {
         p->insert_instruction(ins, wait_event{event});
     }
-    void insert_stream(program* p,
-                       instruction_ref ins,
-                       int stream)
+    void insert_stream(program* p, instruction_ref ins, int stream)
     {
-        
+
         p->insert_instruction(ins, set_stream{stream});
     }
 };
-
 } // namespace gpu
-
 } // namespace migraphx
 
 #endif

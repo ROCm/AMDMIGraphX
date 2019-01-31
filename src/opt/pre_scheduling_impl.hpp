@@ -86,12 +86,14 @@ enum instruction_mask
     RECORD_EVENT = 0,
     WAIT_EVENT = 1
 };
-#endif    
+#endif
 struct pre_scheduling_impl
 {
-    pre_scheduling_impl(program* p, std::function<std::pair<int, int>(const operation&)> w, int n, insert_instruction ins)
-        : p_program(p), weight_func(std::move(w)), num_of_streams(n),
-          insert_instr(ins)
+    pre_scheduling_impl(program* p,
+                        std::function<std::pair<int, int>(const operation&)> w,
+                        int n,
+                        insert_instruction ins)
+        : p_program(p), weight_func(std::move(w)), num_of_streams(n), insert_instr(ins)
     {
         instr2_node.clear();
         instr2_mask.clear();
@@ -159,7 +161,8 @@ struct pre_scheduling_impl
 
     bool has_mask(instruction_ref ins, int m)
     {
-        if (instr2_mask.find(ins) != instr2_mask.end()) {
+        if(instr2_mask.find(ins) != instr2_mask.end())
+        {
             int mask = instr2_mask[ins];
             return ((mask & (1 << m)) != 0);
         }
@@ -169,8 +172,8 @@ struct pre_scheduling_impl
     void add_mask(instruction_ref ins, int m)
     {
         int mask = (instr2_mask.find(ins) != instr2_mask.end()) ? instr2_mask[ins] : 0;
-        if ((mask & ( 1 << m)) == 0)
-            instr2_mask[ins] = (mask + ( 1 << m));
+        if((mask & (1 << m)) == 0)
+            instr2_mask[ins] = (mask + (1 << m));
     }
 
 #ifdef MIGRAPHX_DEBUG_OPT

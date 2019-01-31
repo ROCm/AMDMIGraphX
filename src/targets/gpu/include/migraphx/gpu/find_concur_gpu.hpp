@@ -12,8 +12,8 @@ struct find_concur_gpu
 {
     void get_concur(program* p,
                     int num_of_streams,
-                    std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>&
-                    concur_instrs,
+                    std::unordered_map<const instruction*,
+                                       std::vector<std::vector<const instruction*>>>& concur_instrs,
                     std::unordered_map<const instruction*, int>& instr2_points)
     {
         dom_info info(p);
@@ -21,9 +21,7 @@ struct find_concur_gpu
         info.propagate_splits(num_of_streams, concur_instrs, instr2_points);
     }
 };
-
 } // namespace gpu
-
 } // namespace migraphx
 
 #endif

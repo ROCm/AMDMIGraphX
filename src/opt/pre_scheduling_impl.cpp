@@ -5,7 +5,7 @@ namespace migraphx {
 
 // Compute accumulated weights for each node in the DAG. Collect exit nodes
 // and sort them according to accumulated weights.
-//    
+//
 void pre_scheduling_impl::compute_weights()
 {
     int ndx = 0;
@@ -47,7 +47,7 @@ void pre_scheduling_impl::compute_weights()
 // Do topology sort according to accumulated weight.  Identify critial paths.
 // Schedule nodes into streams.  Reorder instructions according to topological
 // order and annoate streams and events in the instructions.
-//    
+//
 void pre_scheduling_impl::reorder()
 {
     std::list<dag_node*> sorted_nodes;
@@ -121,7 +121,7 @@ void pre_scheduling_impl::reorder()
 }
 
 // Assign stream to nodes according to load balance.
-//    
+//
 int pre_scheduling_impl::get_stream(stream_info& info, dag_node* node)
 {
     int max_cycle = info.max_cycle;
@@ -146,7 +146,7 @@ int pre_scheduling_impl::get_stream(stream_info& info, dag_node* node)
 }
 
 //  Record the stream-assignment.
-//    
+//
 void pre_scheduling_impl::record(stream_info& info, dag_node* node)
 {
     int stream               = node->stream;
@@ -166,7 +166,7 @@ void pre_scheduling_impl::record(stream_info& info, dag_node* node)
 }
 
 //  Assign nodes to streams.
-//    
+//
 void pre_scheduling_impl::schedule(std::list<dag_node*>& sorted_nodes)
 {
     if(num_of_streams == 0)
@@ -199,7 +199,7 @@ void pre_scheduling_impl::schedule(std::list<dag_node*>& sorted_nodes)
 }
 
 // Reorder the instructions ino topological order.
-//    
+//
 void pre_scheduling_impl::splice(std::list<dag_node*>& sorted_nodes)
 {
     auto begin                    = sorted_nodes.begin();
@@ -219,31 +219,33 @@ void pre_scheduling_impl::splice(std::list<dag_node*>& sorted_nodes)
 
 //  Annotate streams and events in the instruction.  Insert set_stream
 //  instructions.
-//    
+//
 void pre_scheduling_impl::annotate(std::list<dag_node*>& sorted_nodes)
 {
-    int event = 0;
+    int event       = 0;
     int last_stream = -1;
-    for (auto&& node : sorted_nodes) {
+    for(auto&& node : sorted_nodes)
+    {
         instruction_ref ins = node->ins;
-        if (instr2_stream.find(ins) == instr2_stream.end())
+        if(instr2_stream.find(ins) == instr2_stream.end())
             continue;
         int stream = instr2_stream[ins];
         ins->set_stream(stream);
-        if (last_stream != stream)
-         {
-             insert_instr.insert_stream(p_program, ins, stream);
-             last_stream = stream;
-         }
-        std::vector<int> events;
-        for (auto&& arg : ins->inputs())
+        if(last_stream != stream)
         {
-            if (instr2_stream.find(arg) == instr2_stream.end())
+            insert_instr.insert_stream(p_program, ins, stream);
+            last_stream = stream;
+        }
+        std::vector<int> events;
+        for(auto&& arg : ins->inputs())
+        {
+            if(instr2_stream.find(arg) == instr2_stream.end())
                 continue;
             int arg_s = instr2_stream[arg];
             if(arg_s == stream)
                 continue;
-            if (!has_mask(arg, RECORD_EVENT)) {
+            if(!has_mask(arg, RECORD_EVENT))
+            {
                 events.push_back(event);
                 arg->set_event(event);
                 arg->add_mask(RECORD_EVENT);
@@ -252,7 +254,7 @@ void pre_scheduling_impl::annotate(std::list<dag_node*>& sorted_nodes)
 #endif
                 event++;
             }
-            
+
             ins->add_mask(WAIT_EVENT);
             add_mask(arg, RECORD_EVENT);
             add_mask(ins, WAIT_EVENT);
@@ -260,9 +262,14 @@ void pre_scheduling_impl::annotate(std::list<dag_node*>& sorted_nodes)
 #if 0        
         for (auto && i : events)
             insert_instr.insert_wait_event(p_program, ins, i);
-#endif        
+#endif
     }
-
+#if 0    
+    if(event > 0)
+    {
+        insert_instr.insert_create_events(p_program, p_program->begin(), event);
+    }
+#endif    
 }
 
 void pre_scheduling_impl::run()

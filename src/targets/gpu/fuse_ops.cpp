@@ -384,7 +384,6 @@ void fuse_ops::apply(program& p) const
 
     // clang-format on
 }
-
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

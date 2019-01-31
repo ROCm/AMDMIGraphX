@@ -37,49 +37,31 @@ struct weight_func
 {
     weight_func()
     {
-        weight_map["@param"]           = std::make_pair(1, 1);
-        weight_map["@literal"]         = std::make_pair(1, 1);
+        weight_map["@param"]   = std::make_pair(1, 1);
+        weight_map["@literal"] = std::make_pair(1, 1);
     };
     std::pair<int, int> operator()(const migraphx::operation& op)
     {
         if(weight_map.find(op.name()) != weight_map.end())
             return weight_map[op.name()];
         else
-            return std::make_pair(1,0);
+            return std::make_pair(1, 0);
     }
     std::unordered_map<std::string, std::pair<int, int>> weight_map;
 };
 
 struct insert_instruction
 {
-    void insert_create_events(migraphx::program* p,
-                              migraphx::instruction_ref ins,
-                              int num_of_events)
+    void insert_stream(migraphx::program* p, migraphx::instruction_ref ins, int stream)
     {
-        p->insert_instruction(ins, create_events{num_of_events});
-    }
-    
-    void insert_stream(migraphx::program* p,
-                       migraphx::instruction_ref ins,
-                       int stream)
-    {
-        
+
         p->insert_instruction(ins, set_stream{stream});
     }
 
-    void insert_record_event(migraphx::program*,
-                             migraphx::instruction_ref,
-                             int)
-    {
+    void insert_create_events(migraphx::program*, migraphx::instruction_ref, int) {}
+    void insert_record_event(migraphx::program*, migraphx::instruction_ref, int) {}
 
-    }
-
-    void insert_wait_event(migraphx::program*,
-                           migraphx::instruction_ref,
-                           int)
-    {
-    }
-
+    void insert_wait_event(migraphx::program*, migraphx::instruction_ref, int) {}
 };
 
 struct stream_execution_target
@@ -95,23 +77,18 @@ struct stream_execution_target
 TEST_CASE(test1)
 {
     migraphx::program p;
-    auto in1 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {32, 256, 35, 35}});
-    auto l1 = p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 256, 1, 1}}));
+    auto in1 =
+        p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {32, 256, 35, 35}});
+    auto l1 =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {64, 256, 1, 1}}));
     auto p1 = p.add_instruction(migraphx::op::convolution{}, in1, l1);
-    auto l2 = p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {48, 256, 1, 1}}));
+    auto l2 =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {48, 256, 1, 1}}));
     auto p2 = p.add_instruction(migraphx::op::convolution{}, in1, l2);
     p.add_instruction(migraphx::op::concat{1}, p1, p2);
     p.compile(stream_execution_target{});
-    CHECK(std::count_if(p.begin(), p.end(), [](auto&& ins) { return ins.name() == "gpu::set_stream"; }) == 3);
-
+    CHECK(std::count_if(
+              p.begin(), p.end(), [](auto&& ins) { return ins.name() == "gpu::set_stream"; }) == 3);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }
-
-
-
-
-
-
-
-

@@ -36,20 +36,34 @@ struct tf_parser
 
     std::unordered_map<std::string, op_func> ops;
 
+    void nhwc_to_nchw(std::size_t& dim)
+    {
+        switch(dim)
+        {
+        case 0: dim = 0; break;
+        case 1: dim = 2; break;
+        case 2: dim = 3; break;
+        case 3: dim = 1; break;
+        }
+    }
+
     tf_parser()
     {
         add_generic_op("Identity", op::identity{});
         add_generic_op("Relu", op::relu{});
 
-        add_binary_op("BiasAdd", op::add{});
+        // add_binary_op("BiasAdd", op::add{});
 
         add_mem_op("AvgPool", &tf_parser::parse_pooling);
-        // add_mem_op("ConcatV2", &tf_parser::parse_concat);
+        add_mem_op("BiasAdd", &tf_parser::parse_biasadd);
+        add_mem_op("ConcatV2", &tf_parser::parse_concat);
         add_mem_op("Const", &tf_parser::parse_constant);
         add_mem_op("Conv2D", &tf_parser::parse_conv);
         add_mem_op("FusedBatchNorm", &tf_parser::parse_batchnorm);
         add_mem_op("MaxPool", &tf_parser::parse_pooling);
-        // add_mem_op("Reshape", &tf_parser::parse_reshape);
+        add_mem_op("Reshape", &tf_parser::parse_reshape);
+        add_mem_op("Softmax", &tf_parser::parse_softmax);
+        add_mem_op("Squeeze", &tf_parser::parse_squeeze);
     }
 
     template <class F>
@@ -76,10 +90,18 @@ struct tf_parser
     template <class T>
     void add_binary_op(std::string name, T x)
     {
-        add_op(name, [this, x](attribute_map, std::vector<instruction_ref> args) {
+            add_op(name, [this, x](attribute_map attributes, std::vector<instruction_ref> args) {
             if(args.size() != 2)
                 MIGRAPHX_THROW("binary operators should have 2 operands");
-            return add_broadcastable_binary_op(args[0], args[1], x);
+            auto l0 = args[1];
+            if(contains(attributes, "data_format"))
+            {
+                if(is_nhwc)
+                {
+                    l0 = prog.add_instruction(op::transpose{{0,3,1,2}}, args[1]);
+                }
+            }
+            return add_broadcastable_binary_op(args[0], l0, x);
         });
     }
 
@@ -138,10 +160,10 @@ struct tf_parser
     instruction_ref
     parse_batchnorm(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        float epsilon  = 1e-4f;
-        float momentum = 1.f;
+        float epsilon  = 1e-5f;
+        float momentum = 0.9f;
         op::batch_norm_inference::bn_infer_mode_t bn_mode =
-            op::batch_norm_inference::per_activation;
+            op::batch_norm_inference::spatial;
         if(contains(attributes, "epsilon"))
         {
             epsilon = attributes.at("epsilon").f();
@@ -152,15 +174,29 @@ struct tf_parser
     }
 
     instruction_ref
+    parse_biasadd(const std::string&, attribute_map, std::vector<instruction_ref> args)
+    {
+        // assume second arg is bias
+        std::vector<int64_t> dims;
+        copy(args[0]->get_shape().lens(), std::back_inserter(dims));
+        auto l0 = prog.add_instruction(op::reshape{dims}, args[1]);
+        return prog.add_instruction(op::add{}, args[0], l0);
+    }
+
+    instruction_ref
     parse_concat(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         // get index for axis within args
         std::size_t axis_idx = attributes.at("N").i();
         std::size_t axis     = args[axis_idx]->eval().at<int64_t>();
+        if(is_nhwc and axis < 4)
+        {
+            nhwc_to_nchw(axis);
+        }
         op::concat op{axis};
         // return only first N arguments (assuming last index is the axis value)
         return prog.add_instruction(
-            op, std::vector<instruction_ref>(args.begin(), args.begin() + axis));
+            op, std::vector<instruction_ref>(args.begin(), args.begin() + args.size() - 1));
     }
 
     instruction_ref parse_constant(const std::string&,
@@ -328,6 +364,30 @@ struct tf_parser
         {
             throw std::runtime_error("Failed reading tf file");
         }
+    }
+
+    instruction_ref
+    parse_softmax(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    {
+        auto dims = args.front()->get_shape().lens();
+        auto r =
+            prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1]), 1, 1}}, args.front());
+        auto s = prog.add_instruction(op::softmax{}, r);
+        return prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1])}}, s);
+    }
+
+    instruction_ref
+    parse_squeeze(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        op::squeeze op;
+        auto axes = attributes.at("squeeze_dims").list().i();
+        copy(axes, std::back_inserter(op.axes));
+        auto l0 = args[0];
+        if(is_nhwc)
+        {
+            l0 = prog.add_instruction(op::transpose{{0,2,3,1}}, args[0]);
+        }
+        return prog.add_instruction(op, l0);
     }
 
     void parse_graph(const tensorflow::GraphDef& graph)

@@ -1623,7 +1623,7 @@ TEST_CASE(rnn_reverse)
 TEST_CASE(rnn_bidirectional)
 {
     std::size_t batch_size  = 2;
-    std::size_t seq_len     = 1;
+    std::size_t seq_len     = 2;
     std::size_t hidden_size = 4;
     std::size_t input_size  = 3;
     std::size_t num_dirct   = 2;

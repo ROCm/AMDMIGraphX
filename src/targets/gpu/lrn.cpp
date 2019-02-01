@@ -1,11 +1,11 @@
-#include <migraph/gpu/lrn.hpp>
-#include <migraph/operators.hpp>
-#include <migraph/manage_ptr.hpp>
-#include <migraph/gpu/miopen.hpp>
+#include <migraphx/gpu/lrn.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/manage_ptr.hpp>
+#include <migraphx/gpu/miopen.hpp>
 #include <utility>
 
-namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 shape miopen_lrn::compute_shape(const std::vector<shape>& inputs) const
@@ -36,5 +36,5 @@ argument miopen_lrn::compute(context& ctx,
 }
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

@@ -42,6 +42,14 @@
     </message>
 </rule>
 <rule>
+    <pattern>mutable \w+</pattern>
+    <message>
+        <id>MutableVariable</id>
+        <severity>style</severity>
+        <summary>Do not create mutable variables.</summary>
+    </message>
+</rule>
+<rule>
     <pattern>(memcpy|strcpy|strncpy|strcat|strncat) \(</pattern>
     <message>
         <id>useStlAlgorithms</id>

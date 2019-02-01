@@ -2,8 +2,10 @@
 #define MIGRAPHX_GUARD_RTGLIB_INSERT_INSTRUCTION_GPU_HPP
 
 #include <migraphx/gpu/event.hpp>
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct insert_instruction_gpu
@@ -27,6 +29,7 @@ struct insert_instruction_gpu
     }
 };
 } // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

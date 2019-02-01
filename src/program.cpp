@@ -321,10 +321,14 @@ void program::compile(const target& t, tracer trace)
 
 void program::finalize()
 {
+    int max_event = -1;
     for(auto ins : iterator_for(*this))
     {
         ins->finalize(this->impl->ctx);
+        max_event = std::max(max_event, ins->get_event());
     }
+    if(max_event >= 0)
+        this->impl->ctx.create_events(max_event + 1);
 }
 
 template <class F>

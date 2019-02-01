@@ -8,7 +8,12 @@
 #include <type_traits>
 #include <utility>
 
+#include <migraphx/instruction_ref.hpp>
+
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct program;
 
 #ifdef DOXYGEN
 
@@ -35,6 +40,8 @@ interface('insert_instruction',
 %>
 
 #endif
+
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

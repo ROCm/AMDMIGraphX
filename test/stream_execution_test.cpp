@@ -66,12 +66,21 @@ struct insert_instruction
 
 struct stream_execution_target
 {
+    struct context
+    {
+        void finish() const {}
+        void set_stream(int) {}
+        void create_events(int) {}
+        void record_event(int) {}
+        void wait_event(int) {}
+    };
+    migraphx::context ctx = context{};
     std::string name() const { return "stream_execution"; }
     std::vector<migraphx::pass> get_passes(migraphx::context&) const
     {
         return {migraphx::pre_scheduling{weight_func(), 2, insert_instruction{}}};
     }
-    migraphx::context get_context() const { return {}; }
+    migraphx::context get_context() const { return {ctx}; }
 };
 
 TEST_CASE(test1)

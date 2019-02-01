@@ -6,6 +6,7 @@
 #include <migraphx/gpu/event.hpp>
 
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct find_concur_gpu
@@ -22,6 +23,7 @@ struct find_concur_gpu
     }
 };
 } // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

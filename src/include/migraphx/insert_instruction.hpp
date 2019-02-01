@@ -8,7 +8,12 @@
 #include <type_traits>
 #include <utility>
 
+#include <migraphx/instruction_ref.hpp>
+
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct program;
 
 #ifdef DOXYGEN
 
@@ -257,6 +262,7 @@ inline const ValueType& any_cast(const insert_instruction& x)
 }
 
 #endif
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

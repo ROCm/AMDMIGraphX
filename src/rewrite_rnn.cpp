@@ -207,7 +207,7 @@ std::vector<instruction_ref> rewrite_rnn::rnn_cell(bool is_forward,
     }
 
     instruction_ref hidden_out = prog.end(), last_out;
-    last_out = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, sih);
+    last_out                   = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, sih);
     std::size_t seq_len        = input->get_shape().lens()[0];
     for(std::size_t i = 0; i < seq_len; i++)
     {

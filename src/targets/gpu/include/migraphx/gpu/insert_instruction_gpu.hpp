@@ -1,11 +1,14 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_INSERT_INSTRUCTION_GPU_HPP
 #define MIGRAPHX_GUARD_RTGLIB_INSERT_INSTRUCTION_GPU_HPP
 
-#include <migraphx/gpu/event.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/config.hpp>
+#include <migraphx/gpu/event.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
 namespace gpu {
 
 struct insert_instruction_gpu

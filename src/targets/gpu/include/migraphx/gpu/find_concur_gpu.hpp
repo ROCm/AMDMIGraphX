@@ -1,9 +1,12 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_FIND_CONCUR_GPU_HPP
 #define MIGRAPHX_GUARD_RTGLIB_FIND_CONCUR_GPU_HPP
 
+#include <migraphx/program.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/config.hpp>
 #include <migraphx/dom_info.hpp>
 #include <migraphx/common_header.hpp>
-#include <migraphx/gpu/event.hpp>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

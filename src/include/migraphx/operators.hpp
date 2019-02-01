@@ -632,7 +632,7 @@ struct reshape
                     rdims[i] = missing_dim;
             }
         }
-        
+
         shape s{inputs.front().type(), rdims};
         if(s.elements() != inputs.front().elements())
             MIGRAPHX_THROW("Wrong number of elements for reshape");

@@ -739,8 +739,9 @@ struct onnx_parser
             }
         });
 
-        // bidirectional should have two activation functions
-        // if only one actv function is provides, we use it in both
+        // bidirectional case should have two activation functions.
+        // one is for forward, and the other is for reverse. 
+        // if only one actv function is provided, we use it in both
         // forward and reverse direction
         if(dirct == op::rnn::bidirectional)
         {
@@ -750,9 +751,9 @@ struct onnx_parser
             }
         }
 
-        std::vector<operation> vec_actv_funcs;
-        for_each(vec_names.begin(), vec_names.end(), [&](auto& fn) {
-            vec_actv_funcs.push_back(map_actv_funcs[fn]);
+        std::vector<operation> vec_actv_funcs(vec_names.size());
+        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](auto& fn) {
+            return map_actv_funcs[fn];
         });
 
         // To be added later

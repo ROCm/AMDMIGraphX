@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void rewrite_rnn::apply(program& prog) const
 {
-    instruction_ref last_output = prog.end();
+    std::unordered_map<instruction_ref, instruction_ref> map_last_output;
     for(auto ins : iterator_for(prog))
     {
         // rewrite rnn operator
@@ -87,14 +87,15 @@ void rewrite_rnn::apply(program& prog) const
 
                 auto concat_output =
                     prog.insert_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
-                last_output = prog.insert_instruction(ins, op::squeeze{{0}}, concat_output);
+                auto last_output = prog.insert_instruction(ins, op::squeeze{{0}}, concat_output);
 
                 // The following logic is to ensure the last instruction rewritten from
                 // rnn operator is a concat instruction
                 // sequence len is 1
+                instruction_ref hidden_output{};
                 if(ret_forward[0] == prog.end())
                 {
-                    prog.replace_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
+                    hidden_output = prog.replace_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
                 }
                 else
                 {
@@ -102,8 +103,9 @@ void rewrite_rnn::apply(program& prog) const
                         prog.insert_instruction(ins, op::concat{0}, ret_forward[0], ret_forward[1]);
                     ret_reverse[0] =
                         prog.insert_instruction(ins, op::concat{0}, ret_reverse[1], ret_reverse[0]);
-                    prog.replace_instruction(ins, op::concat{1}, {ret_forward[0], ret_reverse[0]});
+                    hidden_output = prog.replace_instruction(ins, op::concat{1}, {ret_forward[0], ret_reverse[0]});
                 }
+                map_last_output[hidden_output] = last_output;
             }
             else
             {
@@ -135,21 +137,23 @@ void rewrite_rnn::apply(program& prog) const
 
                 auto ret = rnn_cell(
                     is_forward, prog, ins, args[0], w, r, bias, ih, rnn_op.actv_funcs.at(0));
-                last_output = prog.insert_instruction(ins, op::squeeze{{0}}, ret[1]);
+                auto last_output = prog.insert_instruction(ins, op::squeeze{{0}}, ret[1]);
 
                 // following logic is to ensure the last instruction is a
                 // concat instruction
                 // sequence len is 1
+                instruction_ref hidden_output{};
                 if(ret[0] == prog.end())
                 {
-                    prog.replace_instruction(ins, op::concat{0}, ret[1]);
+                    hidden_output = prog.replace_instruction(ins, op::concat{0}, ret[1]);
                 }
                 else
                 {
                     auto concat_arg0 = is_forward ? ret[0] : ret[1];
                     auto concat_arg1 = is_forward ? ret[1] : ret[0];
-                    prog.replace_instruction(ins, op::concat{0}, concat_arg0, concat_arg1);
+                    hidden_output = prog.replace_instruction(ins, op::concat{0}, concat_arg0, concat_arg1);
                 }
+                map_last_output[hidden_output] = last_output;
             }
         }
 
@@ -159,16 +163,15 @@ void rewrite_rnn::apply(program& prog) const
         // so we can just use it as the output here
         if(ins->name() == "rnn_last_output")
         {
-            // if rnn operator is executed, the last_output != prog.end()
-            if(last_output != prog.end())
+            auto inputs = ins->inputs();
+            assert(inputs.size() == 1);
+            auto arg = inputs[0];
+            if (map_last_output.count(arg) == 0)
             {
-                prog.replace_instruction(ins, last_output);
-                last_output = prog.end();
+                MIGRAPHX_THROW("RNN_LAST_OUTPUT: no related rnn operator as its input");
             }
-            else
-            {
-                MIGRAPHX_THROW("RNN_LAST_OUTPUT: must put after rnn operator");
-            }
+
+            prog.replace_instruction(ins, map_last_output[arg]);
         }
     }
 }

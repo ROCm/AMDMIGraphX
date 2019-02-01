@@ -7,8 +7,6 @@
 
 namespace migraphx {
 
-static int min_partition_threshold = 2;
-
 struct dag_node
 {
     dag_node()
@@ -51,7 +49,7 @@ struct dag_partition
 
     int create_partition()
     {
-        weight_sum.push_back(0.0f);
+        weight_sum.push_back(0);
         return num_of_partition++;
     }
     void add_weight(dag_node* node)
@@ -80,13 +78,7 @@ struct stream_info
     int num_of_streams;
     int max_cycle;
 };
-#if 0
-enum instruction_mask
-{
-    RECORD_EVENT = 0,
-    WAIT_EVENT = 1
-};
-#endif
+
 struct pre_scheduling_impl
 {
     pre_scheduling_impl(program* p,
@@ -182,6 +174,8 @@ struct pre_scheduling_impl
     void dump(std::list<dag_node*>&);
     void verify();
 #endif
+    static const int min_partition_threshold = 2;
+
     private:
     program* p_program;
     std::function<std::pair<int, int>(const operation&)> weight_func;

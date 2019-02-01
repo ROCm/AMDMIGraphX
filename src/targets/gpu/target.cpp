@@ -21,7 +21,6 @@
 #include <migraphx/gpu/machine_model.hpp>
 #include <migraphx/gpu/find_concur_gpu.hpp>
 #include <migraphx/gpu/insert_instruction_gpu.hpp>
-#include <migraphx/gpu/eliminate_set_stream.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

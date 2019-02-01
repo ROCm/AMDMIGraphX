@@ -64,7 +64,8 @@ void dom_info::find_dom_tree(
 {
     for(auto& iter1 : instr2_doms[p_ins])
     {
-        auto dom_check = [& dom_tree = idom, ins1 = iter1](const instruction* ins2) {
+        auto dom_check = [& dom_tree = idom, ins1 = iter1 ](const instruction* ins2)
+        {
             if(ins1 == ins2)
                 return false;
             const instruction* iter = ins2;

@@ -1187,6 +1187,18 @@ struct rnn_last_output
     }
 };
 
+struct undefined
+{
+    std::string name() const { return "undefined"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(0);
+        return {};
+    }
+
+    argument compute(const shape&, const std::vector<argument>&) const { return {{}, nullptr}; }
+};
+
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

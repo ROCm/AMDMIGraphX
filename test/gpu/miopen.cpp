@@ -1107,7 +1107,8 @@ struct test_rnn_forward
         auto r    = p.add_parameter("r", r_shape);
         auto bias = p.add_parameter("bias", b_shape);
         auto ih   = p.add_parameter("ih", ih_shape);
-
+        auto und  = p.add_instruction(migraphx::op::undefined{});
+        
         auto output =
             p.add_instruction(migraphx::op::rnn{hidden_size,
                                                 {migraphx::op::tanh{}, migraphx::op::tanh{}},
@@ -1117,6 +1118,7 @@ struct test_rnn_forward
                               w,
                               r,
                               bias,
+                              und,
                               ih);
         p.add_instruction(migraphx::op::rnn_last_output{}, output);
 
@@ -1147,6 +1149,7 @@ struct test_rnn_forward10
         auto r    = p.add_parameter("r", r_shape);
         auto bias = p.add_parameter("bias", b_shape);
         auto ih   = p.add_parameter("ih", ih_shape);
+        auto und  = p.add_instruction(migraphx::op::undefined{});
 
         auto output =
             p.add_instruction(migraphx::op::rnn{hidden_size,
@@ -1157,6 +1160,7 @@ struct test_rnn_forward10
                               w,
                               r,
                               bias,
+                              und,
                               ih);
         p.add_instruction(migraphx::op::rnn_last_output{}, output);
 
@@ -1187,6 +1191,7 @@ struct test_rnn_reverse
         auto r    = p.add_parameter("r", r_shape);
         auto bias = p.add_parameter("bias", b_shape);
         auto ih   = p.add_parameter("ih", ih_shape);
+        auto und  = p.add_instruction(migraphx::op::undefined{});
 
         p.add_instruction(migraphx::op::rnn{hidden_size,
                                             {migraphx::op::tanh{}, migraphx::op::tanh{}},
@@ -1196,6 +1201,7 @@ struct test_rnn_reverse
                           w,
                           r,
                           bias,
+                          und,
                           ih);
 
         return p;
@@ -1225,6 +1231,7 @@ struct test_rnn_reverse2
         auto r    = p.add_parameter("r", r_shape);
         auto bias = p.add_parameter("bias", b_shape);
         auto ih   = p.add_parameter("ih", ih_shape);
+        auto und  = p.add_instruction(migraphx::op::undefined{});
 
         p.add_instruction(migraphx::op::rnn{hidden_size,
                                             {migraphx::op::tanh{}, migraphx::op::tanh{}},
@@ -1234,6 +1241,7 @@ struct test_rnn_reverse2
                           w,
                           r,
                           bias,
+                          und,
                           ih);
 
         return p;
@@ -1328,6 +1336,7 @@ struct test_rnn_5args
         auto w    = p.add_parameter("w", w_shape);
         auto r    = p.add_parameter("r", r_shape);
         auto bias = p.add_parameter("bias", b_shape);
+        auto und  = p.add_instruction(migraphx::op::undefined{});
 
         auto output =
             p.add_instruction(migraphx::op::rnn{hidden_size,
@@ -1337,7 +1346,8 @@ struct test_rnn_5args
                               seq,
                               w,
                               r,
-                              bias);
+                              bias,
+                              und);
         p.add_instruction(migraphx::op::rnn_last_output{}, output);
 
         return p;
@@ -1367,6 +1377,7 @@ struct test_rnn_bidirectional
         auto r    = p.add_parameter("r", r_shape);
         auto bias = p.add_parameter("bias", b_shape);
         auto ih   = p.add_parameter("ih", ih_shape);
+        auto und  = p.add_instruction(migraphx::op::undefined{});
 
         auto output =
             p.add_instruction(migraphx::op::rnn{hidden_size,
@@ -1377,6 +1388,7 @@ struct test_rnn_bidirectional
                               w,
                               r,
                               bias,
+                              und,
                               ih);
         p.add_instruction(migraphx::op::rnn_last_output{}, output);
 
@@ -1407,7 +1419,7 @@ struct test_rnn_bidirectional10
         auto r    = p.add_parameter("r", r_shape);
         auto bias = p.add_parameter("bias", b_shape);
         auto ih   = p.add_parameter("ih", ih_shape);
-
+        auto und  = p.add_instruction(migraphx::op::undefined{});
         auto output =
             p.add_instruction(migraphx::op::rnn{hidden_size,
                                                 {migraphx::op::tanh{}, migraphx::op::tanh{}},
@@ -1417,6 +1429,7 @@ struct test_rnn_bidirectional10
                               w,
                               r,
                               bias,
+                              und,
                               ih);
         p.add_instruction(migraphx::op::rnn_last_output{}, output);
 

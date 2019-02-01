@@ -16,10 +16,10 @@ void rewrite_rnn::apply(program& prog) const
         // rewrite rnn operator
         if(ins->name() == "rnn")
         {
-            // could be 3 to 6 inputs, but the 5th input is undefined in
-            // pytorch exported onnx, and it is ignored by protobuf. So
-            // for input arguments 5 and 6, we need to check the shape,
-            // then based on the shape to judge the specific input info
+            // could be 3 to 6 inputs, but the parse_rnn function will
+            // append undefined operators to make 6 arguments when parsing
+            // an onnx file. Another case is user can have only 3 arguments
+            // when writing their program.
             auto args = ins->inputs();
 
             shape seq_shape         = args[0]->get_shape();
@@ -44,7 +44,7 @@ void rewrite_rnn::apply(program& prog) const
                 // process bias
                 instruction_ref bias_forward, bias_reverse;
                 bias_forward = bias_reverse = prog.end();
-                if(args.size() >= 4)
+                if(args.size() >= 4 && args[3]->get_operator().name() != "undefined")
                 {
                     bias_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[3]);
                     bias_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[3]);
@@ -53,12 +53,10 @@ void rewrite_rnn::apply(program& prog) const
                 // process intial hidden state, it could be the 6th argument
                 // or the 5th one (if the sequence len argument is ignored)
                 instruction_ref ih_forward, ih_reverse;
-                if(args.size() == 6 ||
-                   (args.size() == 5 && args[4]->get_shape().lens().size() == 3))
+                if(args.size() == 6 && args[5]->get_operator().name() != "undefined")
                 {
-                    auto arg_ih = (args.size() == 6) ? args[5] : args[4];
-                    ih_forward  = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, arg_ih);
-                    ih_reverse  = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, arg_ih);
+                    ih_forward  = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[5]);
+                    ih_reverse  = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[5]);
                 }
                 else
                 {
@@ -120,17 +118,16 @@ void rewrite_rnn::apply(program& prog) const
 
                 // process bias and initial hidden state
                 instruction_ref bias = prog.end();
-                if(args.size() >= 4)
+                if(args.size() >= 4 && args[3]->get_operator().name() != "undefined")
                 {
                     bias = args[3];
                 }
 
                 // process intial hidden state
                 instruction_ref ih;
-                if(args.size() == 6 ||
-                   (args.size() == 5 && args[4]->get_shape().lens().size() == 3))
+                if(args.size() == 6  && args[5]->get_operator().name() != "undefined")
                 {
-                    ih = (args.size() == 6) ? args[5] : args[4];
+                    ih = args[5];
                 }
                 else
                 {

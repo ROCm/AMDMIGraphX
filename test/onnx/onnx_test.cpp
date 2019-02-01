@@ -549,8 +549,8 @@ TEST_CASE(rnn_test)
 
         auto seq =
             p.add_parameter("seq", migraphx::shape{migraphx::shape::float_type, {sl, bs, is}});
-        auto w = p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {nd, hs, is}});
-        auto r = p.add_parameter("r", migraphx::shape{migraphx::shape::float_type, {nd, hs, hs}});
+        auto w   = p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {nd, hs, is}});
+        auto r   = p.add_parameter("r", migraphx::shape{migraphx::shape::float_type, {nd, hs, hs}});
         auto und = p.add_instruction(migraphx::op::undefined{});
 
         auto out_hs =
@@ -560,7 +560,10 @@ TEST_CASE(rnn_test)
                                                 clip},
                               seq,
                               w,
-                              r, und, und, und);
+                              r,
+                              und,
+                              und,
+                              und);
         p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
         auto prog = migraphx::parse_onnx("onnx_rnn_3args.onnx");
 

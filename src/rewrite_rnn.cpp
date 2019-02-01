@@ -55,8 +55,8 @@ void rewrite_rnn::apply(program& prog) const
                 instruction_ref ih_forward, ih_reverse;
                 if(args.size() == 6 && args[5]->get_operator().name() != "undefined")
                 {
-                    ih_forward  = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[5]);
-                    ih_reverse  = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[5]);
+                    ih_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[5]);
+                    ih_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[5]);
                 }
                 else
                 {
@@ -125,7 +125,7 @@ void rewrite_rnn::apply(program& prog) const
 
                 // process intial hidden state
                 instruction_ref ih;
-                if(args.size() == 6  && args[5]->get_operator().name() != "undefined")
+                if(args.size() == 6 && args[5]->get_operator().name() != "undefined")
                 {
                     ih = args[5];
                 }

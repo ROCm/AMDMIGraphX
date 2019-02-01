@@ -765,7 +765,7 @@ struct onnx_parser
 
         // if the number of arguments is less than 6, append
         // undefined operator to have 6 arguments
-        if (args.size() < 6)
+        if(args.size() < 6)
         {
             auto ins = prog.add_instruction(op::undefined{});
             args.insert(args.end(), (6 - args.size()), ins);
@@ -830,9 +830,9 @@ struct onnx_parser
         }
     }
 
-    void parse_undefined(const std::string &name)
+    void parse_undefined(const std::string& name)
     {
-        auto ins = prog.add_instruction(op::undefined{});
+        auto ins           = prog.add_instruction(op::undefined{});
         instructions[name] = ins;
     }
 
@@ -851,7 +851,7 @@ struct onnx_parser
                     assert(name != input);
                     this->parse_node(input);
                 }
-                else if (input.empty())
+                else if(input.empty())
                 {
                     this->parse_undefined(input);
                 }

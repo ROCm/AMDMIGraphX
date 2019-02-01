@@ -1,14 +1,14 @@
-#include <migraph/gpu/write_literals.hpp>
-#include <migraph/iterator_for.hpp>
-#include <migraph/gpu/hip.hpp>
-#include <migraph/instruction.hpp>
-#include <migraph/env.hpp>
+#include <migraphx/gpu/write_literals.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/gpu/hip.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/env.hpp>
 
-namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPH_DECLARE_ENV_VAR(MIGRAPH_COPY_LITERALS)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_COPY_LITERALS)
 
 struct hip_load_literal
 {
@@ -33,7 +33,7 @@ void write_literals::apply(program& p) const
     {
         if(ins->name() == "@literal")
         {
-            if(enabled(MIGRAPH_COPY_LITERALS{}))
+            if(enabled(MIGRAPHX_COPY_LITERALS{}))
             {
                 literal l  = ins->get_literal();
                 auto pre   = p.add_literal(l);
@@ -53,5 +53,5 @@ void write_literals::apply(program& p) const
 }
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

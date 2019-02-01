@@ -2,7 +2,7 @@
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 
-add_library(migraph 
+add_library(migraphx 
     auto_contiguous.cpp
     common_subexpression_elimination.cpp
     constant_propagate.cpp
@@ -21,29 +21,29 @@ add_library(migraph
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp
 )
-rocm_clang_tidy_check(migraph)
+rocm_clang_tidy_check(migraphx)
 rocm_install_targets(
-  TARGETS migraph
+  TARGETS migraphx
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 find_path(HALF_INCLUDE_DIR half.hpp)
 # TODO: Fix the incorrect path
-target_include_directories(migraph SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
+target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 
 set(PACKAGE_DEPENDS)
 
 add_subdirectory(onnx)
 add_subdirectory(targets/cpu)
-if(MIGRAPH_ENABLE_GPU)
+if(MIGRAPHX_ENABLE_GPU)
 list(APPEND PACKAGE_DEPENDS MIOpen rocblas)
 add_subdirectory(targets/gpu)
 endif()
 
 rocm_export_targets(
-  TARGETS migraph::migraph
-  NAMESPACE migraph::
+  TARGETS migraphx::migraphx
+  NAMESPACE migraphx::
   DEPENDS
     ${PACKAGE_DEPENDS}
 )

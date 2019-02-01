@@ -1,6 +1,6 @@
-# MIGraph
+# AMD MIGraphX
 
-AMD's library for graph optimizations.
+AMD's graph optimization engine.
 
 ## Prerequisites
 * [ROCm cmake modules](https://github.com/RadeonOpenCompute/rocm-cmake) **required**
@@ -20,7 +20,7 @@ cmake -P install_deps.cmake --prefix /some/local/dir
 ```
 
 
-## Building MIGraph from source
+## Building MIGraphX from source
 
 ## Configuring with cmake
 
@@ -71,6 +71,12 @@ The tests can be run by using the 'check' target:
 
 ` cmake --build . --config Release --target check ` **OR** ` make check `
 
+## Building the documentation
+
+HTML and PDF documentation can be built using:
+
+`cmake --build . --config Release --target doc` **OR** `make doc`
+
 This will build a local searchable web site inside the doc/html folder.
 
 Documentation is built using [Doxygen](http://www.stack.nl/~dimitri/doxygen/download.html), [Sphinx](http://www.sphinx-doc.org/en/stable/index.html), and [Breathe](https://breathe.readthedocs.io/en/latest/)
@@ -80,14 +86,6 @@ Requirements for both Sphinx and Breathe can be installed with:
 `pip install -r doc/requirements.txt`
 
 Depending on your setup `sudo` may be required for the pip install.
-
-## Building the documentation
-
-HTML and PDF documentation can be built using:
-
-`cmake --build . --config Release --target doc` **OR** `make doc`
-
-The generated documentation will be located in `doc/doxygen/`.
 
 ## Formatting the code
 
@@ -107,8 +105,8 @@ Also, githooks can be installed to format the code per-commit:
 
 The easiest way to setup the development environment is to use docker. You can build the top-level docker file:
 
-    docker build -t migraph .
+    docker build -t migraphx .
 
 Then to enter the developement environment use `docker run`:
 
-    docker run --device='/dev/kfd' --device='/dev/dri' -v=`pwd`:/data -w /data --group-add video -it migraph
+    docker run --device='/dev/kfd' --device='/dev/dri' -v=`pwd`:/data -w /data --group-add video -it migraphx

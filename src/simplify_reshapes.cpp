@@ -1,15 +1,26 @@
-#include <migraph/simplify_reshapes.hpp>
-#include <migraph/program.hpp>
-#include <migraph/instruction.hpp>
-#include <migraph/operators.hpp>
-#include <migraph/iterator_for.hpp>
-#include <migraph/ranges.hpp>
+#include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/ranges.hpp>
 #include <unordered_set>
 
-namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
-bool is_reshaper(const std::string& name)
+// Reshapers that can't handle nonstandard input shapes
+bool is_nonstandard_reshaper(instruction_ref ins)
+{
+    // clang-format off
+    static const std::unordered_set<std::string> names = {
+        "reshape"
+    };
+    // clang-format on
+    return contains(names, ins->name()) and ins->inputs().front()->name() == "contiguous";
+}
+
+bool is_reshaper(instruction_ref ins)
 {
     // clang-format off
     static const std::unordered_set<std::string> names = {
@@ -19,26 +30,27 @@ bool is_reshaper(const std::string& name)
         "contiguous"
     };
     // clang-format on
-    return contains(names, name);
+    return contains(names, ins->name()) and not is_nonstandard_reshaper(ins);
 }
 
 void simplify_reshapes::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
     {
-        if(not is_reshaper(ins->name()))
+        if(not is_reshaper(ins))
             continue;
         if(ins->outputs().size() != 1)
             continue;
-        if(is_reshaper(ins->outputs().front()->name()))
+        if(is_reshaper(ins->outputs().front()))
             continue;
         // Gather reshapes
         std::vector<instruction_ref> reshapes{ins};
-        while(is_reshaper(reshapes.back()->name()))
+        while(is_reshaper(reshapes.back()))
         {
             assert(!reshapes.back()->inputs().empty());
             assert(p.has_instruction(reshapes.back()->inputs().front()));
-            reshapes.push_back(reshapes.back()->inputs().front());
+            auto input = reshapes.back()->inputs().front();
+            reshapes.push_back(input);
         }
 
         std::pair<instruction_ref, instruction_ref> r{p.end(), p.end()};
@@ -58,7 +70,14 @@ void simplify_reshapes::apply(program& p) const
             p.replace_instruction(r.first, r.second);
         }
     }
+    // Replace all reshapes with as_shape
+    for(auto ins : iterator_for(p))
+    {
+        if(ins->name() != "reshape")
+            continue;
+        p.replace_instruction(ins, op::as_shape{ins->get_shape()}, ins->inputs());
+    }
 }
 
-} // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

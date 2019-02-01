@@ -1,19 +1,19 @@
 
-#include <migraph/cpu/target.hpp>
-#include <migraph/cpu/lowering.hpp>
-#include <migraph/auto_contiguous.hpp>
+#include <migraphx/cpu/target.hpp>
+#include <migraphx/cpu/lowering.hpp>
+#include <migraphx/auto_contiguous.hpp>
 
-namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
 
 std::string target::name() const { return "cpu"; }
 
-std::vector<pass> target::get_passes(migraph::context&) const
+std::vector<pass> target::get_passes(migraphx::context&) const
 {
     return {auto_contiguous{}, lowering{}};
 }
 
 } // namespace cpu
-} // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

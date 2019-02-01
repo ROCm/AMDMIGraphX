@@ -4,17 +4,20 @@
 #include <numeric>
 #include <stdexcept>
 
-#include <migraph/onnx.hpp>
+#include <migraphx/onnx.hpp>
 
-#include <migraph/gpu/target.hpp>
-#include <migraph/gpu/hip.hpp>
-#include <migraph/generate.hpp>
+#include <migraphx/gpu/target.hpp>
+#include <migraphx/gpu/hip.hpp>
+#include <migraphx/generate.hpp>
 
 #include "softmax.hpp"
 
 auto reverse_int(unsigned int i)
 {
-    unsigned char c1, c2, c3, c4;
+    unsigned char c1;
+    unsigned char c2;
+    unsigned char c3;
+    unsigned char c4;
     c1 = i & 255u;
     c2 = (i >> 8u) & 255u;
     c3 = (i >> 16u) & 255u;
@@ -32,7 +35,9 @@ read_mnist_images(const std::string& full_path, int& number_of_images, int& imag
 
     if(file.is_open())
     {
-        int magic_number = 0, n_rows = 0, n_cols = 0;
+        int magic_number = 0;
+        int n_rows       = 0;
+        int n_cols       = 0;
 
         file.read(reinterpret_cast<char*>(&magic_number), sizeof(magic_number));
         magic_number = reverse_int(magic_number);
@@ -113,20 +118,20 @@ int main(int argc, char const* argv[])
         std::vector<int32_t> labels = read_mnist_labels(labelfile, nlabels);
 
         std::string file = argv[1];
-        auto prog        = migraph::parse_onnx(file);
+        auto prog        = migraphx::parse_onnx(file);
         std::cout << prog << std::endl << std::endl;
-        prog.compile(migraph::gpu::target{});
-        auto s = migraph::shape{migraph::shape::float_type, {1, 1, 28, 28}};
+        prog.compile(migraphx::gpu::target{});
+        auto s = migraphx::shape{migraphx::shape::float_type, {1, 1, 28, 28}};
         std::cout << s << std::endl;
         auto ptr = input.data();
-        migraph::program::parameter_map m;
+        migraphx::program::parameter_map m;
         m["output"] =
-            migraph::gpu::to_gpu(migraph::generate_argument(prog.get_parameter_shape("output")));
+            migraphx::gpu::to_gpu(migraphx::generate_argument(prog.get_parameter_shape("output")));
         for(int i = 0; i < 20; i++)
         {
             std::cout << "label: " << labels[i] << "  ---->  ";
-            m["0"]      = migraph::gpu::to_gpu(migraph::argument{s, &ptr[784 * i]});
-            auto result = migraph::gpu::from_gpu(prog.eval(m));
+            m["0"]      = migraphx::gpu::to_gpu(migraphx::argument{s, &ptr[784 * i]});
+            auto result = migraphx::gpu::from_gpu(prog.eval(m));
             std::vector<float> logits;
             result.visit([&](auto output) { logits.assign(output.begin(), output.end()); });
             std::vector<float> probs = softmax(logits);

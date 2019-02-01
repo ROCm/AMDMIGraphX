@@ -1,17 +1,17 @@
-#include <migraph/shape.hpp>
-#include <migraph/argument.hpp>
-#include <migraph/gpu/device/concat.hpp>
-#include <migraph/gpu/device/tensor.hpp>
-#include <migraph/gpu/device/launch.hpp>
+#include <migraphx/shape.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/gpu/device/concat.hpp>
+#include <migraphx/gpu/device/tensor.hpp>
+#include <migraphx/gpu/device/launch.hpp>
 
-namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
 argument concat(hipStream_t stream,
-                const migraph::shape& output_shape,
-                std::vector<migraph::argument> args,
+                const migraphx::shape& output_shape,
+                std::vector<migraphx::argument> args,
                 std::vector<std::size_t> offsets)
 {
     for(std::size_t l = 0; l < args.size() - 1; l++)
@@ -34,5 +34,5 @@ argument concat(hipStream_t stream,
 
 } // namespace device
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

@@ -1,10 +1,10 @@
-#include <migraph/fwd_conv_batchnorm_rewrite.hpp>
-#include <migraph/program.hpp>
-#include <migraph/cpu/target.hpp>
-#include <migraph/operators.hpp>
-#include <migraph/instruction.hpp>
+#include <migraphx/fwd_conv_batchnorm_rewrite.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/cpu/target.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/instruction.hpp>
 #include <test.hpp>
-#include <migraph/verify.hpp>
+#include <migraphx/verify.hpp>
 
 TEST_CASE(fwd_conv_batchnorm_rewrite_test)
 {
@@ -30,29 +30,30 @@ TEST_CASE(fwd_conv_batchnorm_rewrite_test)
         -0.62146691, -2.40572931, -1.47175612, 1.49654601,  -1.07070376, -0.65908074, -0.28457694,
         1.60046717,  0.20677642,  -1.51844486, 0.41203847,  -0.01285751, 0.07948031,  -0.91507006,
         -1.59481079, -0.12856238, 0.39970482,  -1.89015158, 0.66969754,  0.10312618};
-    migraph::shape xs{migraph::shape::float_type, {1, 3, 6, 6}};
-    migraph::shape ws{migraph::shape::float_type, {1, 3, 3, 3}};
-    migraph::shape vars{migraph::shape::float_type, {1}};
+    migraphx::shape xs{migraphx::shape::float_type, {1, 3, 6, 6}};
+    migraphx::shape ws{migraphx::shape::float_type, {1, 3, 3, 3}};
+    migraphx::shape vars{migraphx::shape::float_type, {1}};
 
     auto create_program = [&]() {
-        migraph::program p;
-        auto x    = p.add_literal(xs, xdata);
-        auto w    = p.add_literal(ws, wdata);
-        auto conv = p.add_instruction(migraph::op::convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}}, x, w);
-        auto scale    = p.add_literal(migraph::literal{vars, {3.0f}});
-        auto bias     = p.add_literal(migraph::literal{vars, {8.1f}});
-        auto mean     = p.add_literal(migraph::literal{vars, {4.0f}});
-        auto variance = p.add_literal(migraph::literal{vars, {37.11f}});
-        p.add_instruction(migraph::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
+        migraphx::program p;
+        auto x = p.add_literal(xs, xdata);
+        auto w = p.add_literal(ws, wdata);
+        auto conv =
+            p.add_instruction(migraphx::op::convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}}, x, w);
+        auto scale    = p.add_literal(migraphx::literal{vars, {3.0f}});
+        auto bias     = p.add_literal(migraphx::literal{vars, {8.1f}});
+        auto mean     = p.add_literal(migraphx::literal{vars, {4.0f}});
+        auto variance = p.add_literal(migraphx::literal{vars, {37.11f}});
+        p.add_instruction(migraphx::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
         return p;
     };
 
-    migraph::program p1 = create_program();
-    migraph::program p2 = create_program();
-    migraph::fwd_conv_batchnorm_rewrite opt;
+    migraphx::program p1 = create_program();
+    migraphx::program p2 = create_program();
+    migraphx::fwd_conv_batchnorm_rewrite opt;
     opt.apply(p2);
-    p1.compile(migraph::cpu::target{});
-    p2.compile(migraph::cpu::target{});
+    p1.compile(migraphx::cpu::target{});
+    p2.compile(migraphx::cpu::target{});
 
     auto result1 = p1.eval({});
     auto result2 = p2.eval({});
@@ -61,7 +62,7 @@ TEST_CASE(fwd_conv_batchnorm_rewrite_test)
     std::vector<float> results_vector2;
     result1.visit([&](auto output) { results_vector1.assign(output.begin(), output.end()); });
     result2.visit([&](auto output) { results_vector2.assign(output.begin(), output.end()); });
-    EXPECT(migraph::verify_range(results_vector1, results_vector2));
+    EXPECT(migraphx::verify_range(results_vector1, results_vector2));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

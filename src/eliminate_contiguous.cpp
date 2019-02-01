@@ -1,14 +1,14 @@
-#include <migraph/eliminate_contiguous.hpp>
-#include <migraph/program.hpp>
-#include <migraph/instruction.hpp>
-#include <migraph/operators.hpp>
-#include <migraph/iterator_for.hpp>
-#include <migraph/ranges.hpp>
-#include <migraph/stringutils.hpp>
+#include <migraphx/eliminate_contiguous.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
 #include <utility>
 
-namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
 bool try_compute_shape(const operation& op, const std::vector<instruction_ref>& args)
 {
@@ -47,5 +47,5 @@ void eliminate_contiguous::apply(program& p) const
     }
 }
 
-} // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

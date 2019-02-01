@@ -7,35 +7,35 @@ target_compile_options(onnx-proto PRIVATE -w)
 target_link_libraries(onnx-proto PRIVATE ${PROTOBUF_LIBRARY})
 set_target_properties(onnx-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
 
-add_library(migraph_onnx onnx.cpp)
-set_target_properties(migraph_onnx PROPERTIES EXPORT_NAME onnx)
-rocm_clang_tidy_check(migraph_onnx)
-target_link_libraries(migraph_onnx PRIVATE onnx-proto)
-target_link_libraries(migraph_onnx PUBLIC migraph)
+add_library(migraphx_onnx onnx.cpp)
+set_target_properties(migraphx_onnx PROPERTIES EXPORT_NAME onnx)
+rocm_clang_tidy_check(migraphx_onnx)
+target_link_libraries(migraphx_onnx PRIVATE onnx-proto)
+target_link_libraries(migraphx_onnx PUBLIC migraphx)
 
 rocm_install_targets(
-  TARGETS migraph_onnx
+  TARGETS migraphx_onnx
 )
 
 add_executable(read_onnx read_onnx.cpp)
 rocm_clang_tidy_check(read_onnx)
-target_link_libraries(read_onnx migraph_onnx)
+target_link_libraries(read_onnx migraphx_onnx)
 
 
-if(MIGRAPH_ENABLE_GPU)
+if(MIGRAPHX_ENABLE_GPU)
 add_executable(mnist mnist.cpp)
 rocm_clang_tidy_check(mnist)
-target_link_libraries(mnist migraph_cpu migraph_gpu migraph_onnx)
+target_link_libraries(mnist migraphx_cpu migraphx_gpu migraphx_onnx)
 
 add_executable(cifar10 cifar10.cpp)
 rocm_clang_tidy_check(cifar10)
-target_link_libraries(cifar10 migraph_cpu migraph_gpu migraph_onnx)
+target_link_libraries(cifar10 migraphx_cpu migraphx_gpu migraphx_onnx)
 
 add_executable(verify_onnx verify_onnx.cpp)
 rocm_clang_tidy_check(verify_onnx)
-target_link_libraries(verify_onnx migraph_onnx migraph_cpu migraph_gpu)
+target_link_libraries(verify_onnx migraphx_onnx migraphx_cpu migraphx_gpu)
 
 add_executable(perf_onnx perf_onnx.cpp)
 rocm_clang_tidy_check(perf_onnx)
-target_link_libraries(perf_onnx migraph_onnx migraph_cpu migraph_gpu)
+target_link_libraries(perf_onnx migraphx_onnx migraphx_cpu migraphx_gpu)
 endif()

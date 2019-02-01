@@ -1,16 +1,16 @@
-#include <migraph/program.hpp>
-#include <migraph/iterator_for.hpp>
-#include <migraph/instruction.hpp>
-#include <migraph/operators.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/operators.hpp>
 #include <sstream>
 #include "test.hpp"
 
 template <class... Ts>
-void expect_shape(const migraph::shape& expected, const migraph::operation& op, Ts... xs)
+void expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs)
 {
-    migraph::program p;
-    std::vector<migraph::shape> shapes{xs...};
-    std::vector<migraph::instruction_ref> args(shapes.size());
+    migraphx::program p;
+    std::vector<migraphx::shape> shapes{xs...};
+    std::vector<migraphx::instruction_ref> args(shapes.size());
     std::transform(
         shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) { return p.add_outline(s); });
     p.add_instruction(op, args);
@@ -24,11 +24,11 @@ void expect_shape(const migraph::shape& expected, const migraph::operation& op, 
 }
 
 template <class... Ts>
-void throws_shape(const migraph::operation& op, Ts... xs)
+void throws_shape(const migraphx::operation& op, Ts... xs)
 {
-    migraph::program p;
-    std::vector<migraph::shape> shapes{xs...};
-    std::vector<migraph::instruction_ref> args(shapes.size());
+    migraphx::program p;
+    std::vector<migraphx::shape> shapes{xs...};
+    std::vector<migraphx::instruction_ref> args(shapes.size());
     std::transform(
         shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) { return p.add_outline(s); });
     bool thrown = test::throws([&] { p.add_instruction(op, args); });
@@ -46,7 +46,7 @@ struct always_false : std::false_type
 };
 
 template <class... Ts>
-void throws_shape(const migraph::shape&, Ts...)
+void throws_shape(const migraphx::shape&, Ts...)
 {
     static_assert(always_false<Ts...>{},
                   "An expected shape should not be passed to throws_shape function");
@@ -55,94 +55,97 @@ void throws_shape(const migraph::shape&, Ts...)
 TEST_CASE(batch_norm_inference_shape)
 {
     const size_t channels = 3;
-    migraph::shape s{migraph::shape::float_type, {4, channels, 3, 3}};
-    migraph::shape vars{migraph::shape::float_type, {channels}};
-    expect_shape(s, migraph::op::batch_norm_inference{}, s, vars, vars, vars, vars);
-    throws_shape(migraph::op::batch_norm_inference{}, s);
-    throws_shape(migraph::op::batch_norm_inference{}, s, vars, vars, vars, vars, vars);
+    migraphx::shape s{migraphx::shape::float_type, {4, channels, 3, 3}};
+    migraphx::shape vars{migraphx::shape::float_type, {channels}};
+    expect_shape(s, migraphx::op::batch_norm_inference{}, s, vars, vars, vars, vars);
+    throws_shape(migraphx::op::batch_norm_inference{}, s);
+    throws_shape(migraphx::op::batch_norm_inference{}, s, vars, vars, vars, vars, vars);
 }
 
 TEST_CASE(convolution_shape)
 {
-    migraph::shape output{migraph::shape::float_type, {4, 4, 1, 1}};
-    migraph::shape input{migraph::shape::float_type, {4, 3, 3, 3}};
-    migraph::shape weights{migraph::shape::float_type, {4, 3, 3, 3}};
-    expect_shape(output, migraph::op::convolution{}, input, weights);
-    throws_shape(migraph::op::convolution{}, input);
+    migraphx::shape output{migraphx::shape::float_type, {4, 4, 1, 1}};
+    migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
+    expect_shape(output, migraphx::op::convolution{}, input, weights);
+    throws_shape(migraphx::op::convolution{}, input);
 
-    migraph::shape input2{migraph::shape::float_type, {3, 3}};
-    migraph::shape weights2{migraph::shape::float_type, {3, 3}};
-    throws_shape(migraph::op::convolution{}, input2, weights2);
-    throws_shape(migraph::op::convolution{}, input2, weights);
+    migraphx::shape input2{migraphx::shape::float_type, {3, 3}};
+    migraphx::shape weights2{migraphx::shape::float_type, {3, 3}};
+    throws_shape(migraphx::op::convolution{}, input2, weights2);
+    throws_shape(migraphx::op::convolution{}, input2, weights);
 }
 
 TEST_CASE(transpose_shape)
 {
-    migraph::shape input{migraph::shape::float_type, {2, 2}};
-    migraph::shape output{migraph::shape::float_type, {2, 2}, {1, 2}};
-    expect_shape(input, migraph::op::transpose{{0, 1}}, input);
-    expect_shape(output, migraph::op::transpose{{1, 0}}, input);
-    throws_shape(migraph::op::transpose{{1, 2}}, input);
+    migraphx::shape input{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 2}, {1, 2}};
+    expect_shape(input, migraphx::op::transpose{{0, 1}}, input);
+    expect_shape(output, migraphx::op::transpose{{1, 0}}, input);
+    throws_shape(migraphx::op::transpose{{1, 2}}, input);
 }
 
 TEST_CASE(contiguous_shape)
 {
-    migraph::shape output{migraph::shape::float_type, {2, 2}};
-    migraph::shape input{migraph::shape::float_type, {2, 2}, {1, 2}};
-    expect_shape(output, migraph::op::contiguous{}, input);
-    throws_shape(migraph::op::contiguous{}, input, input);
+    migraphx::shape output{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape input{migraphx::shape::float_type, {2, 2}, {1, 2}};
+    expect_shape(output, migraphx::op::contiguous{}, input);
+    throws_shape(migraphx::op::contiguous{}, input, input);
 
-    migraph::shape single{migraph::shape::float_type, {2}};
-    expect_shape(single, migraph::op::contiguous{}, single);
+    migraphx::shape single{migraphx::shape::float_type, {2}};
+    expect_shape(single, migraphx::op::contiguous{}, single);
 }
 
 TEST_CASE(reshape_shape)
 {
-    migraph::shape input{migraph::shape::float_type, {24, 1, 1, 1}};
+    migraphx::shape input{migraphx::shape::float_type, {24, 1, 1, 1}};
     for(auto&& new_shape :
         std::vector<std::vector<int64_t>>{{8, 3, 1, 1}, {1, 3, 4, 2}, {1, 3, 4, 2}})
     {
         std::vector<std::size_t> lens(new_shape.size());
         std::copy(new_shape.begin(), new_shape.end(), lens.begin());
-        migraph::shape output{migraph::shape::float_type, lens};
-        expect_shape(output, migraph::op::reshape{new_shape}, input);
+        migraphx::shape output{migraphx::shape::float_type, lens};
+        expect_shape(output, migraphx::op::reshape{new_shape}, input);
     }
 
     for(auto&& new_shape : std::vector<std::vector<int64_t>>{{8, 3, 2, 2}, {1, 3, -1, -1}})
     {
-        throws_shape(migraph::op::reshape{new_shape}, input);
+        throws_shape(migraphx::op::reshape{new_shape}, input);
     }
 }
 
 TEST_CASE(flatten_shape)
 {
-    migraph::shape input{migraph::shape::float_type, {2, 4, 6, 8}};
-    expect_shape(migraph::shape{migraph::shape::float_type, {1, 2 * 4 * 6 * 8}},
-                 migraph::op::flatten{0},
+    migraphx::shape input{migraphx::shape::float_type, {2, 4, 6, 8}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 2 * 4 * 6 * 8}},
+                 migraphx::op::flatten{0},
                  input);
-    expect_shape(
-        migraph::shape{migraph::shape::float_type, {2, 4 * 6 * 8}}, migraph::op::flatten{1}, input);
-    expect_shape(
-        migraph::shape{migraph::shape::float_type, {2 * 4, 6 * 8}}, migraph::op::flatten{2}, input);
-    expect_shape(
-        migraph::shape{migraph::shape::float_type, {2 * 4 * 6, 8}}, migraph::op::flatten{3}, input);
-    expect_shape(migraph::shape{migraph::shape::float_type, {2 * 4 * 6 * 8, 1}},
-                 migraph::op::flatten{4},
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 4 * 6 * 8}},
+                 migraphx::op::flatten{1},
                  input);
-    throws_shape(migraph::op::flatten{5}, input);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {2 * 4, 6 * 8}},
+                 migraphx::op::flatten{2},
+                 input);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {2 * 4 * 6, 8}},
+                 migraphx::op::flatten{3},
+                 input);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {2 * 4 * 6 * 8, 1}},
+                 migraphx::op::flatten{4},
+                 input);
+    throws_shape(migraphx::op::flatten{5}, input);
 }
 
 TEST_CASE(slice_shape)
 {
-    migraph::shape input{migraph::shape::int32_type, {2, 2, 3}};
-    expect_shape(migraph::shape{migraph::shape::int32_type, {2, 2, 2}, {6, 3, 1}},
-                 migraph::op::slice{{2}, {1}, {3}},
+    migraphx::shape input{migraphx::shape::int32_type, {2, 2, 3}};
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}},
+                 migraphx::op::slice{{2}, {1}, {3}},
                  input);
-    expect_shape(migraph::shape{migraph::shape::int32_type, {2, 2, 2}, {6, 3, 1}},
-                 migraph::op::slice{{0, 1, 2}, {0, 0, 1}, {2, 2, 3}},
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}},
+                 migraphx::op::slice{{0, 1, 2}, {0, 0, 1}, {2, 2, 3}},
                  input);
-    expect_shape(migraph::shape{migraph::shape::int32_type, {2, 2, 1}, {6, 3, 1}},
-                 migraph::op::slice{{2}, {2}, {10}},
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {2, 2, 1}, {6, 3, 1}},
+                 migraphx::op::slice{{2}, {2}, {10}},
                  input);
 }
 
@@ -150,62 +153,99 @@ TEST_CASE(multibroadcast)
 {
     {
         std::vector<std::size_t> lens{4, 2, 5, 3};
-        migraph::shape input{migraph::shape::float_type, {2, 1, 3}};
-        expect_shape(migraph::shape{migraph::shape::float_type, lens, {0, 3, 0, 1}},
-                     migraph::op::multibroadcast{lens},
+        migraphx::shape input{migraphx::shape::float_type, {2, 1, 3}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, lens, {0, 3, 0, 1}},
+                     migraphx::op::multibroadcast{lens},
                      input);
     }
     {
         std::vector<std::size_t> lens{4, 2, 5, 3};
-        migraph::shape input{migraph::shape::float_type, {2, 1, 1}};
-        expect_shape(migraph::shape{migraph::shape::float_type, lens, {0, 1, 0, 0}},
-                     migraph::op::multibroadcast{lens},
+        migraphx::shape input{migraphx::shape::float_type, {2, 1, 1}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, lens, {0, 1, 0, 0}},
+                     migraphx::op::multibroadcast{lens},
                      input);
     }
     {
         std::vector<std::size_t> lens{4, 2, 5, 3};
-        migraph::shape input{migraph::shape::float_type, {5, 1}};
-        expect_shape(migraph::shape{migraph::shape::float_type, lens, {0, 0, 1, 0}},
-                     migraph::op::multibroadcast{lens},
+        migraphx::shape input{migraphx::shape::float_type, {5, 1}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, lens, {0, 0, 1, 0}},
+                     migraphx::op::multibroadcast{lens},
                      input);
     }
     {
         std::vector<std::size_t> lens{4, 2, 5, 3};
-        migraph::shape input{migraph::shape::float_type, {4, 1, 1, 1}};
-        expect_shape(migraph::shape{migraph::shape::float_type, lens, {1, 0, 0, 0}},
-                     migraph::op::multibroadcast{lens},
+        migraphx::shape input{migraphx::shape::float_type, {4, 1, 1, 1}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, lens, {1, 0, 0, 0}},
+                     migraphx::op::multibroadcast{lens},
                      input);
     }
     {
         std::vector<std::size_t> lens{4, 2, 5, 3};
-        migraph::shape input{migraph::shape::float_type, {3}};
-        expect_shape(migraph::shape{migraph::shape::float_type, lens, {0, 0, 0, 1}},
-                     migraph::op::multibroadcast{lens},
+        migraphx::shape input{migraphx::shape::float_type, {3}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, lens, {0, 0, 0, 1}},
+                     migraphx::op::multibroadcast{lens},
                      input);
     }
     {
         std::vector<std::size_t> lens{4, 4, 1, 3};
-        migraph::shape input{migraph::shape::float_type, {4, 1, 3}};
-        expect_shape(migraph::shape{migraph::shape::float_type, lens, {0, 3, 3, 1}},
-                     migraph::op::multibroadcast{lens},
+        migraphx::shape input{migraphx::shape::float_type, {4, 1, 3}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, lens, {0, 3, 3, 1}},
+                     migraphx::op::multibroadcast{lens},
                      input);
     }
     {
         std::vector<std::size_t> lens{4, 1, 1, 3};
-        migraph::shape input{migraph::shape::float_type, {4, 1, 1, 1}};
-        expect_shape(migraph::shape{migraph::shape::float_type, lens, {1, 1, 1, 0}},
-                     migraph::op::multibroadcast{lens},
+        migraphx::shape input{migraphx::shape::float_type, {4, 1, 1, 1}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, lens, {1, 1, 1, 0}},
+                     migraphx::op::multibroadcast{lens},
                      input);
     }
     {
         std::vector<std::size_t> lens{4, 1, 3};
-        migraph::shape input{migraph::shape::float_type, {4, 1, 1, 1}};
-        throws_shape(migraph::op::multibroadcast{lens}, input);
+        migraphx::shape input{migraphx::shape::float_type, {4, 1, 1, 1}};
+        throws_shape(migraphx::op::multibroadcast{lens}, input);
     }
     {
         std::vector<std::size_t> lens{4, 1, 3};
-        migraph::shape input{migraph::shape::float_type, {}};
-        throws_shape(migraph::op::multibroadcast{lens}, input);
+        migraphx::shape input{migraphx::shape::float_type, {}};
+        throws_shape(migraphx::op::multibroadcast{lens}, input);
+    }
+}
+
+TEST_CASE(gather)
+{
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        migraphx::shape indices{migraphx::shape::int32_type, {2, 3}};
+        int axis = 1;
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 6, 4, 5}},
+                     migraphx::op::gather{axis},
+                     input,
+                     indices);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        migraphx::shape indices{migraphx::shape::int32_type, {2, 3}};
+        int axis = -4;
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {6, 3, 4, 5}},
+                     migraphx::op::gather{axis},
+                     input,
+                     indices);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        migraphx::shape indices{migraphx::shape::int32_type, {2, 3}};
+        int axis = 4;
+        throws_shape(migraphx::op::gather{axis}, input, indices);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        migraphx::shape indices{migraphx::shape::int32_type, {2, 3}};
+        int axis = -5;
+        throws_shape(migraphx::op::gather{axis}, input, indices);
     }
 }
 

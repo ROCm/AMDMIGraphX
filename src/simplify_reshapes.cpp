@@ -14,7 +14,8 @@ bool is_nonstandard_reshaper(instruction_ref ins)
 {
     // clang-format off
     static const std::unordered_set<std::string> names = {
-        "reshape"
+        "reshape",
+        "contiguous"
     };
     // clang-format on
     return contains(names, ins->name()) and ins->inputs().front()->name() == "contiguous";

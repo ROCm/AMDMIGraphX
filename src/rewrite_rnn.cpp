@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void rewrite_rnn::apply(program& prog) const
 {
-    instruction_ref last_output = prog.end();
+    std::unordered_map<instruction_ref, instruction_ref> map_last_output;
     for(auto ins : iterator_for(prog))
     {
         // rewrite rnn operator
@@ -27,7 +27,7 @@ void rewrite_rnn::apply(program& prog) const
             std::size_t batch_size  = seq_shape.lens()[1];
             shape::type_t type      = seq_shape.type();
             migraphx::shape ih_shape{type, {1, batch_size, hidden_size}};
-            std::vector<char> data(ih_shape.bytes(), 0);
+            std::vector<float> data(ih_shape.elements(), 0);
 
             auto rnn_op                    = any_cast<op::rnn>(ins->get_operator());
             op::rnn::rnn_direction_t dicrt = rnn_op.direction;
@@ -85,19 +85,33 @@ void rewrite_rnn::apply(program& prog) const
                                             ih_reverse,
                                             rnn_op.actv_funcs.at(1));
 
-                last_output =
-                    prog.insert_instruction(ins, op::concat{0}, ret_forward[1], ret_reverse[1]);
+                auto concat_output =
+                    prog.insert_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
+                auto last_output = prog.insert_instruction(ins, op::squeeze{{0}}, concat_output);
 
-                // add the dimension of num_direction
-                ret_forward[0] = prog.insert_instruction(ins, op::unsqueeze{{1}}, ret_forward[0]);
-                ret_reverse[0] = prog.insert_instruction(ins, op::unsqueeze{{1}}, ret_reverse[0]);
-
-                // concat the forward and reverse output
-                prog.replace_instruction(ins, op::concat{1}, {ret_forward[0], ret_reverse[0]});
+                // The following logic is to ensure the last instruction rewritten from
+                // rnn operator is a concat instruction
+                // sequence len is 1
+                instruction_ref hidden_output{};
+                if(ret_forward[0] == prog.end())
+                {
+                    hidden_output = prog.replace_instruction(
+                        ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
+                }
+                else
+                {
+                    ret_forward[0] =
+                        prog.insert_instruction(ins, op::concat{0}, ret_forward[0], ret_forward[1]);
+                    ret_reverse[0] =
+                        prog.insert_instruction(ins, op::concat{0}, ret_reverse[1], ret_reverse[0]);
+                    hidden_output = prog.replace_instruction(
+                        ins, op::concat{1}, {ret_forward[0], ret_reverse[0]});
+                }
+                map_last_output[hidden_output] = last_output;
             }
             else
             {
-                bool is_forward = (dicrt == op::rnn::rnn_direction_t::forward) ? true : false;
+                bool is_forward = (dicrt == op::rnn::rnn_direction_t::forward);
                 // input weight matrix
                 auto w = args[1];
 
@@ -125,10 +139,24 @@ void rewrite_rnn::apply(program& prog) const
 
                 auto ret = rnn_cell(
                     is_forward, prog, ins, args[0], w, r, bias, ih, rnn_op.actv_funcs.at(0));
-                last_output = ret[1];
+                auto last_output = prog.insert_instruction(ins, op::squeeze{{0}}, ret[1]);
 
-                // add the dimension of num_direction
-                prog.replace_instruction(ins, op::unsqueeze{{1}}, ret[0]);
+                // following logic is to ensure the last instruction is a
+                // concat instruction
+                // sequence len is 1
+                instruction_ref hidden_output{};
+                if(ret[0] == prog.end())
+                {
+                    hidden_output = prog.replace_instruction(ins, op::concat{0}, ret[1]);
+                }
+                else
+                {
+                    auto concat_arg0 = is_forward ? ret[0] : ret[1];
+                    auto concat_arg1 = is_forward ? ret[1] : ret[0];
+                    hidden_output =
+                        prog.replace_instruction(ins, op::concat{0}, concat_arg0, concat_arg1);
+                }
+                map_last_output[hidden_output] = last_output;
             }
         }
 
@@ -138,12 +166,15 @@ void rewrite_rnn::apply(program& prog) const
         // so we can just use it as the output here
         if(ins->name() == "rnn_last_output")
         {
-            // if rnn operator is executed, the last_output != prog.end()
-            if(last_output != prog.end())
+            auto inputs = ins->inputs();
+            assert(inputs.size() == 1);
+            auto arg = inputs[0];
+            if(map_last_output.count(arg) == 0)
             {
-                prog.replace_instruction(ins, op::identity{}, last_output);
-                last_output = prog.end();
+                MIGRAPHX_THROW("RNN_LAST_OUTPUT: no related rnn operator as its input");
             }
+
+            prog.replace_instruction(ins, map_last_output[arg]);
         }
     }
 }
@@ -181,11 +212,12 @@ std::vector<instruction_ref> rewrite_rnn::rnn_cell(bool is_forward,
         bias       = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, b);
     }
 
-    instruction_ref hidden_out, last_out;
-    std::size_t seq_len = input->get_shape().lens()[0];
-    long seq_index      = is_forward ? 0 : seq_len - 1;
+    instruction_ref hidden_out = prog.end(), last_out;
+    last_out                   = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, sih);
+    std::size_t seq_len        = input->get_shape().lens()[0];
     for(std::size_t i = 0; i < seq_len; i++)
     {
+        long seq_index = is_forward ? i : (seq_len - 1 - i);
         auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, input);
         xt      = prog.insert_instruction(ins, op::squeeze{{0}}, xt);
         auto xt_wi = prog.insert_instruction(ins, op::dot{}, xt, tran_sw);
@@ -205,29 +237,33 @@ std::vector<instruction_ref> rewrite_rnn::rnn_cell(bool is_forward,
         ht  = prog.insert_instruction(ins, actv_func, ht);
         sih = ht;
 
-        // add the dimension of sequence length
-        last_out = prog.insert_instruction(ins, op::unsqueeze{{0}}, ht);
+        // add the dimensions of sequence length (axis 0 for sequence length,
+        // axis 1 for num_directions
+        last_out = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, ht);
 
-        if(is_forward)
+        // concatenation for the last last_out is performed in the apply()
+        // function to ensure the last instruction is concat, then we have
+        // output inserted
+        if(i < seq_len - 1)
         {
-            hidden_out = (seq_index == 0)
-                             ? last_out
-                             : prog.insert_instruction(ins, op::concat{0}, hidden_out, last_out);
+            if(is_forward)
+            {
+                hidden_out =
+                    (seq_index == 0)
+                        ? last_out
+                        : prog.insert_instruction(ins, op::concat{0}, hidden_out, last_out);
+            }
+            else
+            {
+                hidden_out =
+                    (seq_index == seq_len - 1)
+                        ? last_out
+                        : prog.insert_instruction(ins, op::concat{0}, last_out, hidden_out);
+            }
         }
-        else
-        {
-            hidden_out = (seq_index == seq_len - 1)
-                             ? last_out
-                             : prog.insert_instruction(ins, op::concat{0}, last_out, hidden_out);
-        }
-        seq_index = is_forward ? (seq_index + 1) : (seq_index - 1);
     }
 
-    std::vector<instruction_ref> out_args;
-    out_args.push_back(hidden_out);
-    out_args.push_back(last_out);
-
-    return out_args;
+    return {hidden_out, last_out};
 }
 
 } // namespace MIGRAPHX_INLINE_NS

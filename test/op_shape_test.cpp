@@ -249,4 +249,161 @@ TEST_CASE(gather)
     }
 }
 
+TEST_CASE(rnn)
+{
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 2;
+        std::size_t hidden_size = 4;
+        std::size_t input_size  = 3;
+        std::size_t num_dirct   = 1;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
+
+        expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                     {seq_len, num_dirct, batch_size, hidden_size}},
+                     migraphx::op::rnn{
+                         hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn::forward, clip},
+                     in_shape,
+                     w_shape,
+                     r_shape,
+                     b_shape,
+                     ih_shape);
+    }
+
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 2;
+        std::size_t hidden_size = 4;
+        std::size_t input_size  = 3;
+        std::size_t num_dirct   = 1;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
+
+        expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                     {seq_len, num_dirct, batch_size, hidden_size}},
+                     migraphx::op::rnn{
+                         hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn::reverse, clip},
+                     in_shape,
+                     w_shape,
+                     r_shape,
+                     b_shape,
+                     ih_shape);
+    }
+
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 2;
+        std::size_t hidden_size = 4;
+        std::size_t input_size  = 3;
+        std::size_t num_dirct   = 2;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
+
+        expect_shape(
+            migraphx::shape{migraphx::shape::float_type,
+                            {seq_len, num_dirct, batch_size, hidden_size}},
+            migraphx::op::rnn{
+                hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn::bidirectional, clip},
+            in_shape,
+            w_shape,
+            r_shape,
+            b_shape,
+            ih_shape);
+    }
+
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 2;
+        std::size_t hidden_size = 4;
+        std::size_t input_size  = 3;
+        std::size_t num_dirct   = 1;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
+
+        throws_shape(
+            migraphx::op::rnn{
+                hidden_size + 1, {migraphx::op::tanh{}}, migraphx::op::rnn::forward, clip},
+            in_shape,
+            w_shape,
+            r_shape,
+            b_shape,
+            ih_shape);
+    }
+
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 2;
+        std::size_t hidden_size = 4;
+        std::size_t input_size  = 3;
+        std::size_t num_dirct   = 1;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
+
+        throws_shape(
+            migraphx::op::rnn{
+                hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn::bidirectional, clip},
+            in_shape,
+            w_shape,
+            r_shape,
+            b_shape,
+            ih_shape);
+    }
+
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 2;
+        std::size_t hidden_size = 4;
+        std::size_t input_size  = 3;
+        std::size_t num_dirct   = 2;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
+
+        throws_shape(
+            migraphx::op::rnn{
+                hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn::forward, clip},
+            in_shape,
+            w_shape,
+            r_shape,
+            b_shape,
+            ih_shape);
+    }
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

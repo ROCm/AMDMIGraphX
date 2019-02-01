@@ -1,6 +1,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_SET_OPERATOR_IMPL_HPP
 #define MIGRAPHX_GUARD_RTGLIB_SET_OPERATOR_IMPL_HPP
 
+#include <utility>
 namespace migraphx {
 namespace set_op {
 

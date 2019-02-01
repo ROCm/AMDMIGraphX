@@ -88,6 +88,7 @@ struct onnx_parser
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
         add_mem_op("RNN", &onnx_parser::parse_rnn);
         add_mem_op("GRU", &onnx_parser::parse_gru);
+        add_mem_op("Pad", &onnx_parser::parse_pad);
 
         // init the activation function map
         init_actv_func();
@@ -229,24 +230,30 @@ struct onnx_parser
     parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         op::convolution op;
+        auto l0 = args[0];
         if(contains(attributes, "pads"))
         {
             if(contains(attributes, "auto_pad"))
             {
                 MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
             }
-            std::vector<std::size_t> padding(4);
-            copy(attributes["pads"].ints(), padding.begin());
+            std::vector<std::int64_t> padding;
+            copy(attributes["pads"].ints(), std::back_inserter(padding));
             if(padding.size() != 4)
             {
                 MIGRAPHX_THROW("padding should have 4 values");
             }
             if(padding[0] != padding[2] || padding[1] != padding[3])
             {
-                MIGRAPHX_THROW("migraphx does not support asymetric padding");
+                // insert zeros for pad op (args[0] has 4 dims)
+                padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
+                l0      = prog.add_instruction(op::pad{padding}, l0);
             }
-            op.padding[0] = padding[0];
-            op.padding[1] = padding[1];
+            else
+            {
+                op.padding[0] = padding[0];
+                op.padding[1] = padding[1];
+            }
         }
         if(contains(attributes, "strides"))
         {
@@ -266,7 +273,7 @@ struct onnx_parser
 
             if(s.find("SAME") != std::string::npos)
             {
-                op.padding_mode = op::convolution::same;
+                op.padding_mode = op::padding_mode_t::same;
             }
         }
         if(contains(attributes, "group"))
@@ -280,7 +287,7 @@ struct onnx_parser
             auto l2       = prog.add_instruction(op::broadcast{axis, l1->get_shape()}, args[2]);
             return prog.add_instruction(op::add{}, l1, l2);
         }
-        return prog.add_instruction(op, args);
+        return prog.add_instruction(op, l0, args[1]);
     }
 
     instruction_ref parse_pooling(const std::string& name,
@@ -288,6 +295,7 @@ struct onnx_parser
                                   std::vector<instruction_ref> args)
     {
         op::pooling op{ends_with(name, "MaxPool") ? "max" : "average"};
+        auto l0 = args[0];
         if(starts_with(name, "Global"))
         {
             auto lens  = args.front()->get_shape().lens();
@@ -295,18 +303,23 @@ struct onnx_parser
         }
         if(contains(attributes, "pads"))
         {
-            std::vector<std::size_t> padding(4);
-            copy(attributes["pads"].ints(), padding.begin());
+            std::vector<std::int64_t> padding;
+            copy(attributes["pads"].ints(), std::back_inserter(padding));
             if(padding.size() != 4)
             {
                 MIGRAPHX_THROW("padding should have 4 values");
             }
             if(padding[0] != padding[2] || padding[1] != padding[3])
             {
-                MIGRAPHX_THROW("migraphx does not support asymetric padding");
+                // insert zeros for pad op (args[0] has 4 dims)
+                padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
+                l0      = prog.add_instruction(op::pad{padding}, l0);
             }
-            op.padding[0] = padding[0];
-            op.padding[1] = padding[1];
+            else
+            {
+                op.padding[0] = padding[0];
+                op.padding[1] = padding[1];
+            }
         }
         if(contains(attributes, "strides"))
         {
@@ -319,13 +332,14 @@ struct onnx_parser
         if(contains(attributes, "auto_pad"))
         {
             auto s = attributes["auto_pad"].s();
-            if(to_upper(s) != "NOTSET")
+            if(s.find("SAME_UPPER") == std::string::npos)
             {
-                MIGRAPHX_THROW("auto_pad is not supported for pooling");
+                MIGRAPHX_THROW("auto_pad only supports SAME_UPPER for pooling");
             }
+            op.padding_mode = op::padding_mode_t::same;
         }
 
-        return prog.add_instruction(op, std::move(args));
+        return prog.add_instruction(op, l0);
     }
 
     instruction_ref
@@ -563,6 +577,28 @@ struct onnx_parser
         return prog.add_instruction(migraphx::op::transpose{perm}, args.front());
     }
 
+    instruction_ref
+    parse_pad(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        std::vector<int64_t> pads{};
+        float value = 0.0f;
+        if(contains(attributes, "pads"))
+        {
+            auto&& pad_vals = attributes["pads"].ints();
+            pads            = std::vector<int64_t>(pad_vals.begin(), pad_vals.end());
+        }
+        if(contains(attributes, "value"))
+        {
+            value = parse_value(attributes.at("value")).at<float>();
+        }
+        if(contains(attributes, "mode"))
+        {
+            auto mode = attributes.at("mode").s();
+            if(mode != "constant")
+                MIGRAPHX_THROW("migraphx currently only supports constant padding");
+        }
+        return prog.add_instruction(migraphx::op::pad{pads, value}, args.front());
+    }
     // Use a literal instruction to replace the shape since, output of
     // shape operator are literals in migraphx
     instruction_ref
@@ -664,11 +700,11 @@ struct onnx_parser
 
         if(contains(attributes, "hidden_size"))
         {
-            hidden_size = parse_value(attributes.at("hidden_size")).at<int>();
-        }
-        else
-        {
-            MIGRAPHX_THROW("RNN: hidden size attribute missing");
+            std::size_t hidden_size_att = parse_value(attributes.at("hidden_size")).at<int>();
+            if(hidden_size != hidden_size_att)
+            {
+                MIGRAPHX_THROW("RNN: hidden size mismatch in input and attribute");
+            }
         }
 
         // Handling of direction to be added later
@@ -699,12 +735,13 @@ struct onnx_parser
         for_each(vec_names.begin(), vec_names.end(), [&](auto& fn) {
             if(map_actv_funcs.count(fn) == 0)
             {
-                MIGRAPHX_THROW("RNN: activation function " + fn + " not supported");
+                MIGRAPHX_THROW("RNN: activation function " + std::string(fn) + " not supported");
             }
         });
 
-        // bidirectional should have two activation functions
-        // if only one actv function is provides, we use it in both
+        // bidirectional case should have two activation functions.
+        // one is for forward, and the other is for reverse.
+        // if only one actv function is provided, we use it in both
         // forward and reverse direction
         if(dirct == op::rnn::bidirectional)
         {
@@ -714,9 +751,9 @@ struct onnx_parser
             }
         }
 
-        std::vector<operation> vec_actv_funcs;
-        for_each(vec_names.begin(), vec_names.end(), [&](auto& fn) {
-            vec_actv_funcs.push_back(map_actv_funcs[fn]);
+        std::vector<operation> vec_actv_funcs(vec_names.size());
+        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](auto& fn) {
+            return map_actv_funcs[fn];
         });
 
         // To be added later
@@ -915,9 +952,8 @@ struct onnx_parser
                 // For RNN, LSTM, and GRU operators, one of the input arguments
                 // is prim::Undefined, and it is ignored by protobuf. We use a
                 // hack to ignore this argument for these three operators
-                std::string op_type = node.op_type();
-                if((op_type == "RNN" || op_type == "LSTM" || op_type == "GRU") &&
-                   input.empty() == true)
+                const std::string& op_type = node.op_type();
+                if((op_type == "RNN" || op_type == "LSTM" || op_type == "GRU") && input.empty())
                 {
                     continue;
                 }

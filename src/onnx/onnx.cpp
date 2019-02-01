@@ -740,7 +740,7 @@ struct onnx_parser
         });
 
         // bidirectional case should have two activation functions.
-        // one is for forward, and the other is for reverse. 
+        // one is for forward, and the other is for reverse.
         // if only one actv function is provided, we use it in both
         // forward and reverse direction
         if(dirct == op::rnn::bidirectional)

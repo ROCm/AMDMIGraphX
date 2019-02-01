@@ -28,6 +28,7 @@ add_library(migraphx_device
     device/contiguous.cpp
     device/mul.cpp
     device/concat.cpp
+    device/pad.cpp
     device/gather.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
@@ -57,6 +58,7 @@ add_library(migraphx_gpu
     sigmoid.cpp
     abs.cpp
     elu.cpp
+    pad.cpp
     gather.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)

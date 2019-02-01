@@ -202,6 +202,8 @@ void pre_scheduling_impl::schedule(std::list<dag_node*>& sorted_nodes)
 //
 void pre_scheduling_impl::splice(std::list<dag_node*>& sorted_nodes)
 {
+    if(sorted_nodes.size() <= 1)
+        return;
     auto begin                    = sorted_nodes.begin();
     auto iter                     = sorted_nodes.end();
     instruction_ref insert_before = (*(--iter))->ins;

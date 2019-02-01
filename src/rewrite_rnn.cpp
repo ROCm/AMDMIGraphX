@@ -26,8 +26,8 @@ void rewrite_rnn::apply(program& prog) const
             std::size_t hidden_size = args[1]->get_shape().lens()[1];
             std::size_t batch_size  = seq_shape.lens()[1];
             shape::type_t type      = seq_shape.type();
-            migraphx::shape ih_shape{type, {batch_size, hidden_size}};
-            std::vector<char> data(ih_shape.bytes(), 0);
+            migraphx::shape ih_shape{type, {1, batch_size, hidden_size}};
+            std::vector<float> data(ih_shape.elements(), 0);
 
             auto rnn_op                    = any_cast<op::rnn>(ins->get_operator());
             op::rnn::rnn_direction_t dicrt = rnn_op.direction;
@@ -207,6 +207,7 @@ std::vector<instruction_ref> rewrite_rnn::rnn_cell(bool is_forward,
     }
 
     instruction_ref hidden_out = prog.end(), last_out;
+    last_out = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, sih);
     std::size_t seq_len        = input->get_shape().lens()[0];
     for(std::size_t i = 0; i < seq_len; i++)
     {
@@ -256,11 +257,7 @@ std::vector<instruction_ref> rewrite_rnn::rnn_cell(bool is_forward,
         }
     }
 
-    std::vector<instruction_ref> out_args;
-    out_args.push_back(hidden_out);
-    out_args.push_back(last_out);
-
-    return out_args;
+    return {hidden_out, last_out};
 }
 
 } // namespace MIGRAPHX_INLINE_NS

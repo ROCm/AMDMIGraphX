@@ -23,7 +23,7 @@ using fusion_plan_descriptor = MIGRAPHX_MANAGE_PTR(miopenFusionPlanDescriptor_t,
                                                    miopenDestroyFusionPlan);
 using fused_operator_args    = MIGRAPHX_MANAGE_PTR(miopenOperatorArgs_t, miopenDestroyOperatorArgs);
 
-using lrn_descriptor = MIGRAPH_MANAGE_PTR(miopenLRNDescriptor_t, miopenDestroyLRNDescriptor);
+using lrn_descriptor = MIGRAPHX_MANAGE_PTR(miopenLRNDescriptor_t, miopenDestroyLRNDescriptor);
 
 template <class Result, class F, class... Ts>
 Result make_obj(F f, Ts... xs)
@@ -91,7 +91,7 @@ inline pooling_descriptor make_pooling(const migraphx::op::pooling& op)
     return p;
 }
 
-inline lrn_descriptor make_lrn(const migraph::op::lrn& op)
+inline lrn_descriptor make_lrn(const migraphx::op::lrn& op)
 {
     auto ldesc = make_obj<lrn_descriptor>(&miopenCreateLRNDescriptor);
     miopenSetLRNDescriptor(ldesc.get(), miopenLRNCrossChannel, op.size, op.alpha, op.beta, op.bias);

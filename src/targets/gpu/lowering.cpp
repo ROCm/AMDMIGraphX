@@ -93,10 +93,10 @@ struct miopen_apply
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
         add_extend_op<miopen_softmax, op::softmax>("softmax");
-        add_extend_op<miopen_lrn, op::lrn>("lrn");
         add_extend_op<hip_gather, op::gather>("gather");
         add_extend_op<hip_pad, op::pad>("pad");
 
+        add_lrn_op();
         add_convolution_op();
         add_pooling_op();
         add_batch_norm_inference_op();
@@ -157,9 +157,9 @@ struct miopen_apply
         });
     }
 
-    void apply_lrn(instruction_ref ins)
+    void add_lrn_op()
     {
-        apply_map.emplace("lrn", [=](insruction_ref ins) {
+        apply_map.emplace("lrn", [=](instruction_ref ins) {
             auto&& op   = any_cast<op::lrn>(ins->get_operator());
             auto ldesc  = make_lrn(op);
             auto output = insert_allocation(ins, ins->get_shape());

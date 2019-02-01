@@ -1108,7 +1108,7 @@ struct test_rnn_forward
         auto bias = p.add_parameter("bias", b_shape);
         auto ih   = p.add_parameter("ih", ih_shape);
         auto und  = p.add_instruction(migraphx::op::undefined{});
-        
+
         auto output =
             p.add_instruction(migraphx::op::rnn{hidden_size,
                                                 {migraphx::op::tanh{}, migraphx::op::tanh{}},

@@ -10,7 +10,12 @@
 #include <unordered_map>
 #include <vector>
 
+#include <migraphx/instruction.hpp>
+
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct program;
 
 #ifdef DOXYGEN
 
@@ -34,6 +39,8 @@ interface('find_concur',
 %>
 
 #endif
+
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

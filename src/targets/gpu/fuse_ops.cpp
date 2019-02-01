@@ -344,6 +344,7 @@ void apply_conv_bias(context& ctx, program& p, match::matcher_result r)
     Op cb{conv_op, input_ins->get_shape(), weights_ins->get_shape(), bias_ins->get_shape()};
     // TODO: Insert ws allocation
     auto ws = cb.get_workspace(ctx);
+    (void)ws;
     p.replace_instruction(ins, cb, input_ins, weights_ins, old_ws_ins, bias_ins, alloc_ins);
 }
 
@@ -381,9 +382,9 @@ void fuse_ops::apply(program& p) const
         find_conv_bias{ctx},
         find_add_relu{}
     );
-
     // clang-format on
 }
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

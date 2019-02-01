@@ -1,9 +1,10 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_EVENT_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_EVENT_HPP
 
-//#include <migraphx/operators.hpp>
-//#include <migraphx/config.hpp>
-// #include <utility>
+#include <migraphx/instruction.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/config.hpp>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

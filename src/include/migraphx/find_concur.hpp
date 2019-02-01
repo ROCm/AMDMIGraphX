@@ -10,7 +10,12 @@
 #include <unordered_map>
 #include <vector>
 
+#include <migraphx/instruction.hpp>
+
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct program;
 
 #ifdef DOXYGEN
 
@@ -232,6 +237,7 @@ inline const ValueType& any_cast(const find_concur& x)
 }
 
 #endif
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

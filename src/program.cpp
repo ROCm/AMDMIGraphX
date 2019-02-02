@@ -5,6 +5,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/pass_config.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -342,6 +343,7 @@ argument generic_eval(const program& p,
     results.reserve(p.size() * 2);
     std::vector<argument> values;
     values.reserve(16);
+    bool enable_event_as_instr = enabled(MIGRAPHX_ENABLE_EVENT_AS_INSTRUCTION{});
 
     for(auto ins : iterator_for(p))
     {
@@ -374,7 +376,7 @@ argument generic_eval(const program& p,
                     return results[i];
                 });
 
-            if(ins->has_mask(wait_event))
+            if(!enable_event_as_instr && ins->has_mask(wait_event))
             {
                 for(auto&& arg : ins->inputs())
                 {
@@ -391,7 +393,7 @@ argument generic_eval(const program& p,
                                 return ins->get_operator().compute(ctx, ins->get_shape(), values);
                             }));
 
-            if(ins->has_mask(record_event))
+            if(!enable_event_as_instr && ins->has_mask(record_event))
                 ctx.record_event(ins->get_event());
         }
         assert(results.find(ins) != results.end());

@@ -1,5 +1,6 @@
 #include "pre_scheduling_impl.hpp"
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/pass_config.hpp>
 #include <stack>
 namespace migraphx {
 
@@ -224,8 +225,9 @@ void pre_scheduling_impl::splice(std::list<dag_node*>& sorted_nodes)
 //
 void pre_scheduling_impl::annotate(std::list<dag_node*>& sorted_nodes)
 {
-    int event       = 0;
-    int last_stream = -1;
+    int event                  = 0;
+    int last_stream            = -1;
+    bool enable_event_as_instr = enabled(MIGRAPHX_ENABLE_EVENT_AS_INSTRUCTION{});
     for(auto&& node : sorted_nodes)
     {
         instruction_ref ins = node->ins;
@@ -251,9 +253,8 @@ void pre_scheduling_impl::annotate(std::list<dag_node*>& sorted_nodes)
                 events.push_back(event);
                 arg->set_event(event);
                 arg->add_mask(record_event);
-#if 0
-                insert_instr.insert_record_event(p_program, std::next(arg), event);
-#endif
+                if(enable_event_as_instr)
+                    insert_instr.insert_record_event(p_program, std::next(arg), event);
                 event++;
             }
 
@@ -261,17 +262,12 @@ void pre_scheduling_impl::annotate(std::list<dag_node*>& sorted_nodes)
             add_mask(arg, record_event);
             add_mask(ins, wait_event);
         }
-#if 0        
-        for (auto && i : events)
-            insert_instr.insert_wait_event(p_program, ins, i);
-#endif
+        if(enable_event_as_instr)
+        {
+            for(auto&& i : events)
+                insert_instr.insert_wait_event(p_program, ins, i);
+        }
     }
-#if 0    
-    if(event > 0)
-    {
-        insert_instr.insert_create_events(p_program, p_program->begin(), event);
-    }
-#endif
 }
 
 void pre_scheduling_impl::run()

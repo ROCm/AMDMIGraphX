@@ -33,6 +33,5 @@ int main(int argc, char const* argv[])
         std::cout << "Running performance report ... " << std::endl;
 
         p.perf_report(std::cout, n, m);
-
     }
 }

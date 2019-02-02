@@ -1453,9 +1453,9 @@ struct test_rnn_bi_3args
         migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
 
-        auto seq  = p.add_parameter("seq", in_shape);
-        auto w    = p.add_parameter("w", w_shape);
-        auto r    = p.add_parameter("r", r_shape);
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
         auto output =
             p.add_instruction(migraphx::op::rnn{hidden_size,
                                                 {migraphx::op::tanh{}, migraphx::op::tanh{}},
@@ -1469,7 +1469,6 @@ struct test_rnn_bi_3args
         return p;
     }
 };
-
 
 int main()
 {

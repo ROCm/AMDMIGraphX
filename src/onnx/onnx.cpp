@@ -763,6 +763,14 @@ struct onnx_parser
             clip = parse_value(attributes.at("clip")).at<float>();
         }
 
+        // if the number of arguments is less than 6, append
+        // undefined operator to have 6 arguments
+        if(args.size() < 6)
+        {
+            auto ins = prog.add_instruction(op::undefined{});
+            args.insert(args.end(), (6 - args.size()), ins);
+        }
+
         std::vector<instruction_ref> result;
         // first output for the concatenation of hidden states
         auto hidden_states = prog.add_instruction(op::rnn{hidden_size, vec_actv_funcs, dirct, clip},
@@ -939,6 +947,12 @@ struct onnx_parser
         }
     }
 
+    void parse_undefined(const std::string& name)
+    {
+        auto ins           = prog.add_instruction(op::undefined{});
+        instructions[name] = ins;
+    }
+
     void parse_node(const std::string& name)
     {
         if(name.empty())
@@ -949,25 +963,16 @@ struct onnx_parser
             std::vector<instruction_ref> args;
             for(auto&& input : node.input())
             {
-                // For RNN, LSTM, and GRU operators, one of the input arguments
-                // is prim::Undefined, and it is ignored by protobuf. We use a
-                // hack to ignore this argument for these three operators
-                const std::string& op_type = node.op_type();
-                if((op_type == "RNN" || op_type == "LSTM" || op_type == "GRU") && input.empty())
-                {
-                    continue;
-                }
-
                 if(nodes.count(input) > 0)
                 {
                     assert(name != input);
                     this->parse_node(input);
-                    args.push_back(instructions.at(input));
                 }
-                else
+                else if(input.empty())
                 {
-                    args.push_back(instructions.at(input));
+                    this->parse_undefined(input);
                 }
+                args.push_back(instructions.at(input));
             }
             std::vector<instruction_ref> result;
             if(ops.count(node.op_type()) == 0)

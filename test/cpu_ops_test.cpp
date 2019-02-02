@@ -1812,6 +1812,64 @@ TEST_CASE(rnn_bidirectional)
 
         EXPECT(migraphx::verify_range(last_output_data, last_output_data_gold));
     }
+    {
+        std::vector<float> ih_data(num_dirct * batch_size * hidden_size, 0);
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        auto seq = p.add_literal(migraphx::literal{in_shape, input});
+
+        auto w_data = wf_data;
+        w_data.insert(w_data.end(), wr_data.begin(), wr_data.end());
+        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
+        auto w = p.add_literal(migraphx::literal{w_shape, w_data});
+
+        auto r_data = rf_data;
+        r_data.insert(r_data.end(), rr_data.begin(), rr_data.end());
+        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
+        auto r = p.add_literal(migraphx::literal{r_shape, r_data});
+
+        auto bias_data = biasf_data;
+        bias_data.insert(bias_data.end(), biasr_data.begin(), biasr_data.end());
+        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
+        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
+
+        auto out_hs =
+            p.add_instruction(migraphx::op::rnn{hidden_size,
+                                                {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                migraphx::op::rnn::bidirectional,
+                                                clip},
+                              seq,
+                              w,
+                              r,
+                              bias);
+
+        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
+        p.compile(migraphx::cpu::target{});
+
+        auto last_output = p.eval({});
+        std::vector<float> last_output_data;
+        last_output.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
+
+        std::vector<float> last_output_data_gold{0.03445704,
+                                                 0.19167931,
+                                                 -0.3946827,
+                                                 -0.30889652,
+                                                 -0.22276389,
+                                                 0.44193283,
+                                                 -0.16477929,
+                                                 -0.11893477,
+                                                 -0.29385301,
+                                                 0.16796815,
+                                                 0.51075965,
+                                                 0.40258689,
+                                                 -0.13818839,
+                                                 0.44124447,
+                                                 0.14365635,
+                                                 0.14803654};
+
+        EXPECT(migraphx::verify_range(last_output_data, last_output_data_gold));
+    }
 }
 
 TEST_CASE(pad_test)

@@ -35,6 +35,7 @@ target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLU
 set(PACKAGE_DEPENDS)
 
 add_subdirectory(onnx)
+add_subdirectory(py)
 add_subdirectory(targets/cpu)
 if(MIGRAPHX_ENABLE_GPU)
 list(APPEND PACKAGE_DEPENDS MIOpen rocblas)

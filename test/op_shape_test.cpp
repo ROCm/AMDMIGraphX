@@ -108,12 +108,13 @@ TEST_CASE(reshape_shape)
         expect_shape(output, migraphx::op::reshape{new_shape}, input);
     }
 
-    for(auto&& new_shape : std::vector<std::vector<int64_t>>{{8, 3, 2, 2}, {1, 3, -1, -1}, {3, 0, 0}, {3, 2, 0}})
+    for(auto&& new_shape :
+        std::vector<std::vector<int64_t>>{{8, 3, 2, 2}, {1, 3, -1, -1}, {3, 0, 0}, {3, 2, 0}})
     {
         throws_shape(migraphx::op::reshape{new_shape}, input);
     }
 
-    std::vector<std::pair<std::vector<int64_t>, migraphx::shape>> minus1_tests {
+    std::vector<std::pair<std::vector<int64_t>, migraphx::shape>> minus1_tests{
         {{2, -1, 3}, {migraphx::shape::float_type, {2, 4, 3}}},
         {{0, -1, 0}, {migraphx::shape::float_type, {24, 1, 1}}},
         {{2, -1, 0}, {migraphx::shape::float_type, {2, 12, 1}}},
@@ -122,10 +123,9 @@ TEST_CASE(reshape_shape)
         {{-1, 2, 3}, {migraphx::shape::float_type, {4, 2, 3}}},
         {{-1, 0, 3}, {migraphx::shape::float_type, {8, 1, 3}}},
         {{-1, 0, 0}, {migraphx::shape::float_type, {24, 1, 1}}},
-        {{-1, 3, 0}, {migraphx::shape::float_type, {8, 3, 1}}}
-    };
+        {{-1, 3, 0}, {migraphx::shape::float_type, {8, 3, 1}}}};
 
-    for (auto &it : minus1_tests)
+    for(auto& it : minus1_tests)
     {
         expect_shape(it.second, migraphx::op::reshape{it.first}, input);
     }

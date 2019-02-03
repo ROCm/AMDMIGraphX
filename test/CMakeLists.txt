@@ -120,6 +120,15 @@ add_test(NAME test_onnx COMMAND $<TARGET_FILE:test_onnx> WORKING_DIRECTORY ${CMA
 add_dependencies(tests test_onnx)
 add_dependencies(check test_onnx)
 
+# tf test
+add_executable(test_tf tf/tf_test.cpp)
+rocm_clang_tidy_check(test_tf)
+target_link_libraries(test_tf migraphx_tf)
+target_include_directories(test_tf PUBLIC include)
+add_test(NAME test_tf COMMAND $<TARGET_FILE:test_tf> WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tf) 
+add_dependencies(tests test_tf)
+add_dependencies(check test_tf)
+
 function(test_header NAME HEADER)
 
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp 

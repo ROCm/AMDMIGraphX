@@ -52,7 +52,7 @@ struct tf_parser
         add_generic_op("Identity", op::identity{});
         add_generic_op("Relu", op::relu{});
 
-        // add_binary_op("BiasAdd", op::add{});
+        add_binary_op("Add", op::add{});
 
         add_mem_op("AvgPool", &tf_parser::parse_pooling);
         add_mem_op("BiasAdd", &tf_parser::parse_biasadd);
@@ -337,8 +337,13 @@ struct tf_parser
                 op.lengths[1] = ksize[3];
             }
         }
-
-        return prog.add_instruction(op, std::move(args));
+        auto l0 = args[0];
+        if(l0->name() == "@param")
+        {
+            if(is_nhwc)
+                l0 = prog.add_instruction(op::transpose{{0, 3, 1, 2}}, l0);
+        }
+        return prog.add_instruction(op, l0);
     }
 
     instruction_ref

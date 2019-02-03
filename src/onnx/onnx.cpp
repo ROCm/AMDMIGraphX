@@ -832,8 +832,8 @@ struct onnx_parser
         {
             // 4 activation functions are used in the bidirectional
             // scenario. No spec is provided in onnx::operator. we
-            // use the algorithm that: if 1 actv function is provides,
-            // repeat 1 four times. If 2 actv functins are provides,
+            // use the algorithm that: if 1 actv function is provided,
+            // repeat 1 four times. If 2 actv functins are provided,
             // assume forward and reverse use the same pair of actv
             // functions. For the case of 3 actv functions provided,
             // assume the 3rd one is repeated once and used by the
@@ -869,12 +869,11 @@ struct onnx_parser
             }
         });
 
-        std::vector<operation> vec_actv_funcs;
-        for_each(vec_names.begin(), vec_names.end(), [&](auto& name) {
-            vec_actv_funcs.push_back(map_actv_funcs[name]);
+        std::vector<operation> vec_actv_funcs(vec_names.size());
+        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](auto& name) {
+            return map_actv_funcs[name];
         });
 
-        // To be added later
         float clip = 0.0;
         if(contains(attributes, "clip"))
         {
@@ -887,18 +886,22 @@ struct onnx_parser
             linear_before_reset = parse_value(attributes.at("linear_before_reset")).at<int>();
         }
 
-        std::vector<instruction_ref> result;
+        // append undefined opeator to make 6 arguments
+        if (args.size() < 6)
+        {
+            auto ins = prog.add_instruction(op::undefined{});
+            args.insert(args.end(), 6 - args.size(), ins);
+        }
+
         // first output for concatenation of hidden states
         auto hidden_states = prog.add_instruction(
             op::gru{hidden_size, vec_actv_funcs, dirct, clip, linear_before_reset},
             std::move(args));
-        result.push_back(hidden_states);
 
         // second output for last gru output
         auto last_output = prog.add_instruction(op::gru_last_output{}, hidden_states);
-        result.push_back(last_output);
 
-        return result;
+        return {hidden_states, last_output};
     }
 
     void parse_from(std::istream& is)

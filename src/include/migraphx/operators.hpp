@@ -1173,6 +1173,20 @@ struct rnn
     }
 };
 
+struct rnn_last_output
+{
+    std::string name() const { return "rnn_last_output"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        auto dims = inputs[0].lens();
+
+        // remove the first dimension, remaing are output shape
+        dims.erase(dims.begin());
+        return {inputs[0].type(), dims};
+    }
+};
+
 struct gru
 {
     enum gru_direction_t
@@ -1214,20 +1228,6 @@ struct gru
         out_dims.back() = hidden_size;
 
         return {inputs[0].type(), out_dims};
-    }
-};
-
-struct rnn_last_output
-{
-    std::string name() const { return "rnn_last_output"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs, *this}.has(1);
-        auto dims = inputs[0].lens();
-
-        // remove the first dimension, remaing are output shape
-        dims.erase(dims.begin());
-        return {inputs[0].type(), dims};
     }
 };
 

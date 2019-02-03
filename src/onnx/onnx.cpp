@@ -887,7 +887,7 @@ struct onnx_parser
         }
 
         // append undefined opeator to make 6 arguments
-        if (args.size() < 6)
+        if(args.size() < 6)
         {
             auto ins = prog.add_instruction(op::undefined{});
             args.insert(args.end(), 6 - args.size(), ins);

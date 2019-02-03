@@ -22,7 +22,7 @@ void rewrite_gru::apply(program& prog) const
 
             shape seq_shape         = args[0]->get_shape();
             std::size_t hidden_size = args[2]->get_shape().lens()[2];
-            std::size_t batch_size      = seq_shape.lens()[1];
+            std::size_t batch_size  = seq_shape.lens()[1];
             shape::type_t type      = seq_shape.type();
             migraphx::shape ih_shape{type, {1, batch_size, hidden_size}};
             std::vector<char> data(ih_shape.bytes(), 0);
@@ -52,8 +52,8 @@ void rewrite_gru::apply(program& prog) const
                 instruction_ref ih_forward, ih_reverse;
                 if(args.size() == 6 && args[5]->get_operator().name() != "undefined")
                 {
-                    ih_forward  = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[5]);
-                    ih_reverse  = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[5]);
+                    ih_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[5]);
+                    ih_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[5]);
                 }
                 else
                 {
@@ -93,7 +93,8 @@ void rewrite_gru::apply(program& prog) const
                 ret_reverse[0] = prog.insert_instruction(ins, op::unsqueeze{{1}}, ret_reverse[0]);
 
                 // concat the forward and reverse output
-                auto hidden_state = prog.replace_instruction(ins, op::concat{1}, {ret_forward[0], ret_reverse[0]});
+                auto hidden_state =
+                    prog.replace_instruction(ins, op::concat{1}, {ret_forward[0], ret_reverse[0]});
                 map_last_output[hidden_state] = last_output;
             }
             else

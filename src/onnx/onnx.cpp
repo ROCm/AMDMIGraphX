@@ -771,17 +771,14 @@ struct onnx_parser
             args.insert(args.end(), (6 - args.size()), ins);
         }
 
-        std::vector<instruction_ref> result;
         // first output for the concatenation of hidden states
         auto hidden_states = prog.add_instruction(op::rnn{hidden_size, vec_actv_funcs, dirct, clip},
                                                   std::move(args));
-        result.push_back(hidden_states);
 
         // second output for the last hidden state
         auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
-        result.push_back(last_output);
 
-        return result;
+        return {hidden_states, last_output};
     }
 
     void parse_from(std::istream& is)

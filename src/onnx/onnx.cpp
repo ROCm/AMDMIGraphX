@@ -85,6 +85,7 @@ struct onnx_parser
         add_mem_op("Shape", &onnx_parser::parse_shape);
         add_mem_op("ConstantFill", &onnx_parser::parse_constant_fill);
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
+        add_mem_op("Pad", &onnx_parser::parse_pad);
     }
 
     template <class F>
@@ -214,24 +215,30 @@ struct onnx_parser
     parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         op::convolution op;
+        auto l0 = args[0];
         if(contains(attributes, "pads"))
         {
             if(contains(attributes, "auto_pad"))
             {
                 MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
             }
-            std::vector<std::size_t> padding(4);
-            copy(attributes["pads"].ints(), padding.begin());
+            std::vector<std::int64_t> padding;
+            copy(attributes["pads"].ints(), std::back_inserter(padding));
             if(padding.size() != 4)
             {
                 MIGRAPHX_THROW("padding should have 4 values");
             }
             if(padding[0] != padding[2] || padding[1] != padding[3])
             {
-                MIGRAPHX_THROW("migraphx does not support asymetric padding");
+                // insert zeros for pad op (args[0] has 4 dims)
+                padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
+                l0      = prog.add_instruction(op::pad{padding}, l0);
             }
-            op.padding[0] = padding[0];
-            op.padding[1] = padding[1];
+            else
+            {
+                op.padding[0] = padding[0];
+                op.padding[1] = padding[1];
+            }
         }
         if(contains(attributes, "strides"))
         {
@@ -265,7 +272,7 @@ struct onnx_parser
             auto l2       = prog.add_instruction(op::broadcast{axis, l1->get_shape()}, args[2]);
             return prog.add_instruction(op::add{}, l1, l2);
         }
-        return prog.add_instruction(op, args);
+        return prog.add_instruction(op, l0, args[1]);
     }
 
     instruction_ref parse_pooling(const std::string& name,
@@ -273,6 +280,7 @@ struct onnx_parser
                                   std::vector<instruction_ref> args)
     {
         op::pooling op{ends_with(name, "MaxPool") ? "max" : "average"};
+        auto l0 = args[0];
         if(starts_with(name, "Global"))
         {
             auto lens  = args.front()->get_shape().lens();
@@ -280,18 +288,23 @@ struct onnx_parser
         }
         if(contains(attributes, "pads"))
         {
-            std::vector<std::size_t> padding(4);
-            copy(attributes["pads"].ints(), padding.begin());
+            std::vector<std::int64_t> padding;
+            copy(attributes["pads"].ints(), std::back_inserter(padding));
             if(padding.size() != 4)
             {
                 MIGRAPHX_THROW("padding should have 4 values");
             }
             if(padding[0] != padding[2] || padding[1] != padding[3])
             {
-                MIGRAPHX_THROW("migraphx does not support asymetric padding");
+                // insert zeros for pad op (args[0] has 4 dims)
+                padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
+                l0      = prog.add_instruction(op::pad{padding}, l0);
             }
-            op.padding[0] = padding[0];
-            op.padding[1] = padding[1];
+            else
+            {
+                op.padding[0] = padding[0];
+                op.padding[1] = padding[1];
+            }
         }
         if(contains(attributes, "strides"))
         {
@@ -304,13 +317,14 @@ struct onnx_parser
         if(contains(attributes, "auto_pad"))
         {
             auto s = attributes["auto_pad"].s();
-            if(to_upper(s) != "NOTSET")
+            if(s.find("SAME_UPPER") == std::string::npos)
             {
-                MIGRAPHX_THROW("auto_pad is not supported for pooling");
+                MIGRAPHX_THROW("auto_pad only supports SAME_UPPER for pooling");
             }
+            op.padding_mode = op::padding_mode_t::same;
         }
 
-        return prog.add_instruction(op, std::move(args));
+        return prog.add_instruction(op, l0);
     }
 
     instruction_ref
@@ -548,6 +562,28 @@ struct onnx_parser
         return prog.add_instruction(migraphx::op::transpose{perm}, args.front());
     }
 
+    instruction_ref
+    parse_pad(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        std::vector<int64_t> pads{};
+        float value = 0.0f;
+        if(contains(attributes, "pads"))
+        {
+            auto&& pad_vals = attributes["pads"].ints();
+            pads            = std::vector<int64_t>(pad_vals.begin(), pad_vals.end());
+        }
+        if(contains(attributes, "value"))
+        {
+            value = parse_value(attributes.at("value")).at<float>();
+        }
+        if(contains(attributes, "mode"))
+        {
+            auto mode = attributes.at("mode").s();
+            if(mode != "constant")
+                MIGRAPHX_THROW("migraphx currently only supports constant padding");
+        }
+        return prog.add_instruction(migraphx::op::pad{pads, value}, args.front());
+    }
     // Use a literal instruction to replace the shape since, output of
     // shape operator are literals in migraphx
     instruction_ref

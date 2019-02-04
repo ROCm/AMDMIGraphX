@@ -66,14 +66,16 @@ PYBIND11_MODULE(migraphx, m)
     py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())
         .def_buffer([](migraphx::argument& x) -> py::buffer_info { return to_buffer_info(x); });
 
+    py::class_<migraphx::target>(m, "target");
+
     py::class_<migraphx::program>(m, "program")
         .def("get_parameter_shapes", &migraphx::program::get_parameter_shapes)
         .def("compile", [](migraphx::program& p, const migraphx::target& t) { p.compile(t); })
-        .def("eval", &migraphx::program::eval);
+        .def("run", &migraphx::program::eval);
 
     m.def("parse_onnx", &migraphx::parse_onnx);
 
-    m.def("target", [](const std::string& name) -> migraphx::target {
+    m.def("get_target", [](const std::string& name) -> migraphx::target {
         if(name == "cpu")
             return migraphx::cpu::target{};
         throw std::runtime_error("Target not found: " + name);

@@ -1140,7 +1140,7 @@ struct rnn
     };
 
     std::size_t hidden_size = 1;
-    std::vector<operation> actv_funcs{tanh{}};
+    std::vector<operation> actv_funcs{tanh{}, tanh{}};
     rnn_direction_t direction = forward;
     float clip                = 0.0f;
 
@@ -1190,7 +1190,7 @@ struct rnn_last_output
 struct undefined
 {
     std::string name() const { return "undefined"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(0);
         return {};

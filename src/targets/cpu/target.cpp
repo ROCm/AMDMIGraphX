@@ -9,21 +9,22 @@
 #include <migraphx/dead_code_elimination.hpp>
 >>>>>>> rnn_operator
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace cpu {
-
-std::string target::name() const { return "cpu"; }
-
-std::vector<pass> target::get_passes(migraphx::context&) const
+namespace migraphx
 {
-    return {auto_contiguous{},
-            rewrite_rnn{},
-            dead_code_elimination{},
-            lowering{},
-            dead_code_elimination{}};
-}
+    inline namespace MIGRAPHX_INLINE_NS {
+    namespace cpu {
 
-} // namespace cpu
-} // namespace MIGRAPHX_INLINE_NS
+    std::string target::name() const { return "cpu"; }
+
+    std::vector<pass> target::get_passes(migraphx::context&) const
+    {
+        return {auto_contiguous{},
+                rewrite_rnn{},
+                dead_code_elimination{},
+                lowering{},
+                dead_code_elimination{}};
+    }
+
+    } // namespace cpu
+    } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

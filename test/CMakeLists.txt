@@ -112,7 +112,8 @@ if(MIGRAPHX_ENABLE_GPU)
 endif()
 
 # Onnx test
-add_executable(test_onnx onnx/onnx_test.cpp)
+set(TEST_ONNX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/onnx)
+add_executable(test_onnx ${TEST_ONNX_DIR}/onnx_test.cpp)
 rocm_clang_tidy_check(test_onnx)
 target_link_libraries(test_onnx migraphx_onnx)
 target_include_directories(test_onnx PUBLIC include)

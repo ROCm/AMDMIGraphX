@@ -74,7 +74,7 @@ PYBIND11_MODULE(migraphx, m)
     m.def("parse_onnx", &migraphx::parse_onnx);
 
     m.def("target", [](const std::string& name) -> migraphx::target {
-        if (name == "cpu")
+        if(name == "cpu")
             return migraphx::cpu::target{};
         throw std::runtime_error("Target not found: " + name);
     });

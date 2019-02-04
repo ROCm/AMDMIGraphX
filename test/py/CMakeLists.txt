@@ -13,4 +13,4 @@ function(add_py_test NAME SCRIPT)
         COMMENT "${PYTHON_EXECUTABLE} ${SCRIPT}")
 endfunction()
 
-add_py_test(test test.py)
+add_py_test(test test.py WORKING_DIRECTORY ${TEST_ONNX_DIR})

@@ -489,9 +489,9 @@ struct test_sub
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {3}};
-        auto x   = p.add_parameter("x", s);
-        auto y   = p.add_parameter("y", s);
-        auto z   = p.add_parameter("z", s);
+        auto x    = p.add_parameter("x", s);
+        auto y    = p.add_parameter("y", s);
+        auto z    = p.add_parameter("z", s);
         auto diff = p.add_instruction(migraphx::op::sub{}, x, y);
         p.add_instruction(migraphx::op::sub{}, diff, z);
         return p;
@@ -505,10 +505,10 @@ struct test_sub2
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
         migraphx::shape b{migraphx::shape::float_type, {3}};
-        auto x   = p.add_parameter("x", s);
-        auto y   = p.add_parameter("y", s);
-        auto z   = p.add_parameter("z", b);
-        auto zb  = p.add_instruction(migraphx::op::broadcast{1, s}, z);
+        auto x    = p.add_parameter("x", s);
+        auto y    = p.add_parameter("y", s);
+        auto z    = p.add_parameter("z", b);
+        auto zb   = p.add_instruction(migraphx::op::broadcast{1, s}, z);
         auto diff = p.add_instruction(migraphx::op::sub{}, x, y);
         p.add_instruction(migraphx::op::sub{}, diff, zb);
         return p;
@@ -591,10 +591,10 @@ struct test_sub_broadcast6
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {3}};
-        auto x   = p.add_parameter("x", {migraphx::shape::float_type, {2, 2, 3}});
-        auto y   = p.add_parameter("y", {migraphx::shape::float_type, {2, 2}});
-        auto z   = p.add_parameter("z", {migraphx::shape::float_type, {2, 2, 3}});
-        auto by  = p.add_instruction(migraphx::op::broadcast{0, x->get_shape()}, y);
+        auto x    = p.add_parameter("x", {migraphx::shape::float_type, {2, 2, 3}});
+        auto y    = p.add_parameter("y", {migraphx::shape::float_type, {2, 2}});
+        auto z    = p.add_parameter("z", {migraphx::shape::float_type, {2, 2, 3}});
+        auto by   = p.add_instruction(migraphx::op::broadcast{0, x->get_shape()}, y);
         auto diff = p.add_instruction(migraphx::op::sub{}, x, by);
         p.add_instruction(migraphx::op::sub{}, diff, z);
         return p;

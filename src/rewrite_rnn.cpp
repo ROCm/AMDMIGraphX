@@ -29,7 +29,7 @@ void rewrite_rnn::apply(program& prog) const
             migraphx::shape ih_shape{type, {1, batch_size, hidden_size}};
             std::vector<float> data(ih_shape.elements(), 0);
 
-            auto actv_funcs = compute_actv_funcs(ins);
+            auto actv_funcs                = compute_actv_funcs(ins);
             auto rnn_op                    = any_cast<op::rnn>(ins->get_operator());
             op::rnn::rnn_direction_t dicrt = rnn_op.direction;
             if(dicrt == op::rnn::bidirectional)
@@ -135,8 +135,8 @@ void rewrite_rnn::apply(program& prog) const
                     ih = prog.add_literal(migraphx::literal{ih_shape, data});
                 }
 
-                auto ret = rnn_cell(
-                    is_forward, prog, ins, args[0], w, r, bias, ih, actv_funcs.at(0));
+                auto ret =
+                    rnn_cell(is_forward, prog, ins, args[0], w, r, bias, ih, actv_funcs.at(0));
                 auto last_output = prog.insert_instruction(ins, op::squeeze{{0}}, ret[1]);
 
                 // following logic is to ensure the last instruction is a
@@ -264,21 +264,20 @@ std::vector<instruction_ref> rewrite_rnn::rnn_cell(bool is_forward,
     return {hidden_out, last_out};
 }
 
-
 std::vector<operation> rewrite_rnn::compute_actv_funcs(instruction_ref ins) const
 {
     auto rnn_op = any_cast<op::rnn>(ins->get_operator());
     // before rewrite the rnn operator, need to ensure
-    // we have 2 actv funcs. If less than 2, use the 
+    // we have 2 actv funcs. If less than 2, use the
     // algorithm in parse_rnn to make 2 actv functions
-    if (rnn_op.direction == op::rnn::bidirectional)
+    if(rnn_op.direction == op::rnn::bidirectional)
     {
-        if (rnn_op.actv_funcs.size() == 0)
+        if(rnn_op.actv_funcs.size() == 0)
         {
             // default is tanh
             return {op::tanh{}, op::tanh{}};
         }
-        else if (rnn_op.actv_funcs.size() == 1)
+        else if(rnn_op.actv_funcs.size() == 1)
         {
             return {rnn_op.actv_funcs.at(0), rnn_op.actv_funcs.at(0)};
         }
@@ -289,7 +288,7 @@ std::vector<operation> rewrite_rnn::compute_actv_funcs(instruction_ref ins) cons
     }
     else
     {
-        if (rnn_op.actv_funcs.size() == 0)
+        if(rnn_op.actv_funcs.size() == 0)
         {
             // default is tanh
             return {op::tanh{}};

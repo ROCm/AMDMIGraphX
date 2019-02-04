@@ -1140,7 +1140,7 @@ struct rnn
     };
 
     std::size_t hidden_size = 1;
-    std::vector<operation> actv_funcs{tanh{}};
+    std::vector<operation> actv_funcs{tanh{}, tanh{}};
     rnn_direction_t direction = forward;
     float clip                = 0.0f;
 

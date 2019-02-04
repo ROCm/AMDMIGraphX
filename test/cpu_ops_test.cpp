@@ -1459,7 +1459,7 @@ TEST_CASE(rnn_forward)
 
         auto out_hs =
             p.add_instruction(migraphx::op::rnn{hidden_size,
-                                                {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                {},
                                                 migraphx::op::rnn::forward,
                                                 clip},
                               seq,
@@ -1599,7 +1599,7 @@ TEST_CASE(rnn_reverse)
 
         auto out_hs =
             p.add_instruction(migraphx::op::rnn{hidden_size,
-                                                {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                {},
                                                 migraphx::op::rnn::reverse,
                                                 clip},
                               seq,
@@ -1724,7 +1724,7 @@ TEST_CASE(rnn_bidirectional)
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
         p.add_instruction(migraphx::op::rnn{hidden_size,
-                                            {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                            {},
                                             migraphx::op::rnn::bidirectional,
                                             clip},
                           seq,
@@ -1776,7 +1776,7 @@ TEST_CASE(rnn_bidirectional)
 
         auto out_hs =
             p.add_instruction(migraphx::op::rnn{hidden_size,
-                                                {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                {migraphx::op::tanh{}},
                                                 migraphx::op::rnn::bidirectional,
                                                 clip},
                               seq,

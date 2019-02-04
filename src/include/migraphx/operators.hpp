@@ -71,8 +71,10 @@ struct lrn
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.alpha, "alpha"), f(self.beta, "beta"), f(self.bias, "bias"), f(self.size, "size"));
+        return pack(f(self.alpha, "alpha"),
+                    f(self.beta, "beta"),
+                    f(self.bias, "bias"),
+                    f(self.size, "size"));
     }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -80,7 +82,6 @@ struct lrn
         check_shapes{inputs, *this}.has(1);
         return inputs.front();
     }
-
 };
 
 struct convolution

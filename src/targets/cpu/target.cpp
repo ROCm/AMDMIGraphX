@@ -3,11 +3,8 @@
 #include <migraphx/cpu/lowering.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/rewrite_rnn.hpp>
-<<<<<<< HEAD
 #include <migraphx/rewrite_gru.hpp>
-=======
 #include <migraphx/dead_code_elimination.hpp>
->>>>>>> rnn_operator
 
 namespace migraphx
 {

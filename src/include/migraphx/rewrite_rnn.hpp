@@ -30,6 +30,8 @@ struct rewrite_rnn
                                           instruction_ref bias,
                                           instruction_ref ih,
                                           operation& actv_func) const;
+
+    std::vector<operation> compute_actv_funcs(instruction_ref ins) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

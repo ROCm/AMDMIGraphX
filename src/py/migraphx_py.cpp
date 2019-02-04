@@ -2,6 +2,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/cpu/target.hpp>
 #include <migraphx/onnx.hpp>
 
 namespace py = pybind11;
@@ -70,6 +72,14 @@ PYBIND11_MODULE(migraphx, m)
         .def("eval", &migraphx::program::eval);
 
     m.def("parse_onnx", &migraphx::parse_onnx);
+
+    m.def("target", [](const std::string& name) -> migraphx::target {
+        if (name == "cpu")
+            return migraphx::cpu::target{};
+        throw std::runtime_error("Target not found: " + name);
+    });
+
+    m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);
 
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;

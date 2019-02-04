@@ -120,6 +120,8 @@ add_test(NAME test_onnx COMMAND $<TARGET_FILE:test_onnx> WORKING_DIRECTORY ${CMA
 add_dependencies(tests test_onnx)
 add_dependencies(check test_onnx)
 
+add_subdirectory(py)
+
 function(test_header NAME HEADER)
 
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp 

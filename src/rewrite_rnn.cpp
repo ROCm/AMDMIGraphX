@@ -272,7 +272,7 @@ std::vector<operation> rewrite_rnn::compute_actv_funcs(instruction_ref ins) cons
     // algorithm in parse_rnn to make 2 actv functions
     if(rnn_op.direction == op::rnn::bidirectional)
     {
-        if(rnn_op.actv_funcs.size() == 0)
+        if(rnn_op.actv_funcs.empty())
         {
             // default is tanh
             return {op::tanh{}, op::tanh{}};
@@ -288,7 +288,7 @@ std::vector<operation> rewrite_rnn::compute_actv_funcs(instruction_ref ins) cons
     }
     else
     {
-        if(rnn_op.actv_funcs.size() == 0)
+        if(rnn_op.actv_funcs.empty())
         {
             // default is tanh
             return {op::tanh{}};

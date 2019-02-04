@@ -34,6 +34,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         fwd_conv_batchnorm_rewrite{},
         dead_code_elimination{},
         rewrite_rnn{},
+        dead_code_elimination{},
         rewrite_gru{},
         dead_code_elimination{},
         //common_subexpression_elimination{},

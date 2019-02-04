@@ -68,17 +68,19 @@ struct lrn
     int size    = 1;
     std::string name() const { return "lrn"; }
 
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(
+            f(self.alpha, "alpha"), f(self.beta, "beta"), f(self.bias, "bias"), f(self.size, "size"));
+    }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
         return inputs.front();
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const lrn& op)
-    {
-        os << op.name() << ":" << op.alpha << ":" << op.beta << ":" << op.bias << ":" << op.size;
-        return os;
-    }
 };
 
 struct convolution

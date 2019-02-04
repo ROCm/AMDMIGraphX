@@ -1190,7 +1190,7 @@ struct rnn_last_output
 struct undefined
 {
     std::string name() const { return "undefined"; }
-    shape compute_shape(const std::vector<shape> &inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(0);
         return {};

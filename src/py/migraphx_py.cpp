@@ -5,6 +5,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/onnx.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace py = pybind11;
 
@@ -61,7 +62,12 @@ PYBIND11_MODULE(migraphx, m)
         .def("transposed", &migraphx::shape::transposed)
         .def("broadcasted", &migraphx::shape::broadcasted)
         .def("standard", &migraphx::shape::standard)
-        .def("scalar", &migraphx::shape::scalar);
+        .def("scalar", &migraphx::shape::scalar)
+        .def("__repr__",
+            [](const migraphx::shape &s) {
+                return migraphx::to_string(s);
+            }
+        );
 
     py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())
         .def_buffer([](migraphx::argument& x) -> py::buffer_info { return to_buffer_info(x); });
@@ -71,7 +77,12 @@ PYBIND11_MODULE(migraphx, m)
     py::class_<migraphx::program>(m, "program")
         .def("get_parameter_shapes", &migraphx::program::get_parameter_shapes)
         .def("compile", [](migraphx::program& p, const migraphx::target& t) { p.compile(t); })
-        .def("run", &migraphx::program::eval);
+        .def("run", &migraphx::program::eval)
+        .def("__repr__",
+            [](const migraphx::program &p) {
+                return migraphx::to_string(p);
+            }
+        );
 
     m.def("parse_onnx", &migraphx::parse_onnx);
 

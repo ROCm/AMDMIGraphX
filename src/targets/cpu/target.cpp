@@ -13,13 +13,11 @@ std::string target::name() const { return "cpu"; }
 
 std::vector<pass> target::get_passes(migraphx::context&) const
 {
-    return {
-        auto_contiguous{}, 
-        rewrite_rnn{},
-        dead_code_elimination{},
-        lowering{},
-        dead_code_elimination{}
-        };
+    return {auto_contiguous{},
+            rewrite_rnn{},
+            dead_code_elimination{},
+            lowering{},
+            dead_code_elimination{}};
 }
 
 } // namespace cpu

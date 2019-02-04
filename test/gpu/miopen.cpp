@@ -1542,5 +1542,5 @@ int main()
     verify_program<test_rnn_5args>();
     verify_program<test_rnn_bidirectional>();
     verify_program<test_rnn_bidirectional10>();
-    // verify_program<test_rnn_bi_3args>();
+    verify_program<test_rnn_bi_3args>();
 }

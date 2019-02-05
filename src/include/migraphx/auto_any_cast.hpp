@@ -5,6 +5,10 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+// Forward declare any_cast
+template<class T>
+const T& any_cast(const T&);
+
 namespace detail {
 
 template <class U>

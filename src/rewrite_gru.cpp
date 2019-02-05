@@ -15,7 +15,7 @@ void rewrite_gru::apply(program& prog) const
     {
         if(ins->name() == "gru")
         {
-            const auto actv_funcs = compute_actv_funcs(ins);            
+            const auto actv_funcs = compute_actv_funcs(ins);
             // could be 3 to 5 inputs (though onnx::rnn has 6 inputs,
             // the 5th one is undefined and ignored by protobuf. so
             // we need to process up to 5 inputs
@@ -71,7 +71,7 @@ void rewrite_gru::apply(program& prog) const
                                             bias_forward,
                                             ih_forward,
                                             gru_op.linear_before_reset,
-                                            actv_funcs.at(0), 
+                                            actv_funcs.at(0),
                                             actv_funcs.at(1));
 
                 auto ret_reverse = gru_cell(false,
@@ -83,7 +83,7 @@ void rewrite_gru::apply(program& prog) const
                                             bias_reverse,
                                             ih_reverse,
                                             gru_op.linear_before_reset,
-                                            actv_funcs.at(2), 
+                                            actv_funcs.at(2),
                                             actv_funcs.at(3));
 
                 auto concat_output =
@@ -143,7 +143,7 @@ void rewrite_gru::apply(program& prog) const
                                     bias,
                                     ih,
                                     gru_op.linear_before_reset,
-                                    actv_funcs.at(0), 
+                                    actv_funcs.at(0),
                                     actv_funcs.at(1));
 
                 auto last_output = prog.insert_instruction(ins, op::squeeze{{0}}, ret[1]);
@@ -348,20 +348,20 @@ std::vector<operation> rewrite_gru::compute_actv_funcs(instruction_ref ins) cons
         if(gru_op.actv_funcs.empty())
             return {op::sigmoid{}, op::tanh{}, op::sigmoid{}, op::tanh{}};
         else if(gru_op.actv_funcs.size() == 1)
-            return {gru_op.actv_funcs.at(0), 
+            return {gru_op.actv_funcs.at(0),
                     gru_op.actv_funcs.at(0),
                     gru_op.actv_funcs.at(0),
                     gru_op.actv_funcs.at(0)};
-        else if (gru_op.actv_funcs.size() == 2)
+        else if(gru_op.actv_funcs.size() == 2)
             return {gru_op.actv_funcs.at(0),
-            gru_op.actv_funcs.at(1),
-            gru_op.actv_funcs.at(0),
-            gru_op.actv_funcs.at(1)};
-        else if (gru_op.actv_funcs.size() == 3)
+                    gru_op.actv_funcs.at(1),
+                    gru_op.actv_funcs.at(0),
+                    gru_op.actv_funcs.at(1)};
+        else if(gru_op.actv_funcs.size() == 3)
             return {gru_op.actv_funcs.at(0),
-            gru_op.actv_funcs.at(1),
-            gru_op.actv_funcs.at(2),
-            gru_op.actv_funcs.at(0)};
+                    gru_op.actv_funcs.at(1),
+                    gru_op.actv_funcs.at(2),
+                    gru_op.actv_funcs.at(0)};
         else
             return gru_op.actv_funcs;
     }
@@ -369,9 +369,8 @@ std::vector<operation> rewrite_gru::compute_actv_funcs(instruction_ref ins) cons
     {
         if(gru_op.actv_funcs.empty())
             return {op::sigmoid{}, op::tanh{}};
-        else if (gru_op.actv_funcs.size() == 1)
-            return {gru_op.actv_funcs.at(0), 
-                    gru_op.actv_funcs.at(0)};
+        else if(gru_op.actv_funcs.size() == 1)
+            return {gru_op.actv_funcs.at(0), gru_op.actv_funcs.at(0)};
         else
             return gru_op.actv_funcs;
     }

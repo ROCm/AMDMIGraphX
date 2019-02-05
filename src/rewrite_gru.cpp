@@ -10,7 +10,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void rewrite_gru::apply(program& prog) const
 {
-    std::unordered_map<instruction_ref, instruction_ref> map_last_output;
     for(auto ins : iterator_for(prog))
     {
         if(ins->name() == "gru")
@@ -30,6 +29,7 @@ void rewrite_gru::apply(program& prog) const
 
             auto gru_op                    = any_cast<op::gru>(ins->get_operator());
             op::gru::gru_direction_t dicrt = gru_op.direction;
+            instruction_ref last_output{};
             if(dicrt == op::gru::bidirectional)
             {
                 // w weight matrix
@@ -65,11 +65,11 @@ void rewrite_gru::apply(program& prog) const
                 auto ret_forward = gru_cell(true,
                                             prog,
                                             ins,
-                                            args[0],
+                                            {args[0],
                                             w_forward,
                                             r_forward,
                                             bias_forward,
-                                            ih_forward,
+                                            ih_forward},
                                             gru_op.linear_before_reset,
                                             actv_funcs.at(0),
                                             actv_funcs.at(1));
@@ -77,18 +77,18 @@ void rewrite_gru::apply(program& prog) const
                 auto ret_reverse = gru_cell(false,
                                             prog,
                                             ins,
-                                            args[0],
+                                            {args[0],
                                             w_reverse,
                                             r_reverse,
                                             bias_reverse,
-                                            ih_reverse,
+                                            ih_reverse},
                                             gru_op.linear_before_reset,
                                             actv_funcs.at(2),
                                             actv_funcs.at(3));
 
                 auto concat_output =
                     prog.insert_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
-                auto last_output = prog.insert_instruction(ins, op::squeeze{{0}}, concat_output);
+                last_output = prog.insert_instruction(ins, op::squeeze{{0}}, concat_output);
 
                 // The following logic is to ensure the last instruction rewritten
                 // from gru operator is a concat
@@ -107,7 +107,6 @@ void rewrite_gru::apply(program& prog) const
                     hidden_state = prog.replace_instruction(
                         ins, op::concat{1}, {ret_forward[0], ret_reverse[0]});
                 }
-                map_last_output[hidden_state] = last_output;
             }
             else
             {
@@ -137,16 +136,12 @@ void rewrite_gru::apply(program& prog) const
                 auto ret = gru_cell(is_forward,
                                     prog,
                                     ins,
-                                    args[0],
-                                    w,
-                                    r,
-                                    bias,
-                                    ih,
+                                    {args[0], w, r, bias, ih},
                                     gru_op.linear_before_reset,
                                     actv_funcs.at(0),
                                     actv_funcs.at(1));
 
-                auto last_output = prog.insert_instruction(ins, op::squeeze{{0}}, ret[1]);
+                last_output = prog.insert_instruction(ins, op::squeeze{{0}}, ret[1]);
 
                 instruction_ref hidden_state{};
                 if(ret[0] == prog.end())
@@ -160,20 +155,17 @@ void rewrite_gru::apply(program& prog) const
                     hidden_state =
                         prog.replace_instruction(ins, op::concat{0}, concat_arg0, concat_arg1);
                 }
-                map_last_output[hidden_state] = last_output;
             }
-        }
 
-        // rewrite the gru_last_output operator that right after the gru
-        // operator. Intuitively, we can do a slice on its input to get
-        // the last output, but it is already existed in the rnn operator,
-        // so we can just use it as the output here
-        if(ins->name() == "gru_last_output")
-        {
-            auto inputs = ins->inputs();
-            assert(inputs.size() == 1);
-            assert(map_last_output.count(inputs[0]) > 0);
-            prog.replace_instruction(ins, map_last_output[inputs[0]]);
+            // replace the corresponding gru_last_output instruction
+            // with the last_output, if gru_last_output exists
+            auto last_output_it = std::find_if(ins->outputs().begin(), ins->outputs().end(), [](auto i) {
+                return i->name() == "gru_last_output";
+            });
+            if (last_output_it != ins->outputs().end())
+            {
+                prog.replace_instruction(*last_output_it, last_output);
+            }
         }
     }
 }
@@ -181,22 +173,24 @@ void rewrite_gru::apply(program& prog) const
 std::vector<instruction_ref> rewrite_gru::gru_cell(bool is_forward,
                                                    program& prog,
                                                    instruction_ref ins,
-                                                   instruction_ref input,
-                                                   instruction_ref w,
-                                                   instruction_ref r,
-                                                   instruction_ref bias,
-                                                   instruction_ref ih,
+                                                   std::vector<instruction_ref> inputs,
                                                    int linear_before_reset,
                                                    const operation& actv_func1,
                                                    const operation& actv_func2) const
 {
-    assert(actv_funcs.size() == 2);
+    assert(inputs.size() == 5);
+    auto seq = inputs.at(0);
+    auto w = inputs.at(1);
+    auto r = inputs.at(2);
+    auto bias = inputs.at(3);
+    auto ih = inputs.at(4);
+
     instruction_ref hidden_states = prog.end(), last_output;
-    long seq_len                  = static_cast<long>(input->get_shape().lens()[0]);
+    long seq_len                  = static_cast<long>(seq->get_shape().lens()[0]);
     long hs                       = static_cast<long>(r->get_shape().lens()[2]);
 
-    migraphx::shape s(input->get_shape().type(),
-                      {input->get_shape().lens()[1], static_cast<std::size_t>(hs)});
+    migraphx::shape s(seq->get_shape().type(),
+                      {seq->get_shape().lens()[1], static_cast<std::size_t>(hs)});
     std::vector<int> data(s.elements(), 1);
     auto l1 = prog.add_literal(migraphx::literal{s, data});
 
@@ -253,7 +247,7 @@ std::vector<instruction_ref> rewrite_gru::gru_cell(bool is_forward,
     for(long i = 0; i < seq_len; i++)
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
-        auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, input);
+        auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, seq);
         xt      = prog.insert_instruction(ins, op::squeeze{{0}}, xt);
 
         // equation f(xt*(Wz^T) + Ht-1 * (Rz^T) + Wbz + Rbz)

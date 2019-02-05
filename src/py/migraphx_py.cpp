@@ -6,6 +6,10 @@
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/stringutils.hpp>
+#ifdef HAVE_GPU
+#include <migraphx/gpu/target.hpp>
+#include <migraphx/gpu/hip.hpp>
+#endif
 
 namespace py = pybind11;
 
@@ -81,10 +85,22 @@ PYBIND11_MODULE(migraphx, m)
     m.def("get_target", [](const std::string& name) -> migraphx::target {
         if(name == "cpu")
             return migraphx::cpu::target{};
+#ifdef HAVE_GPU
+        if(name == "gpu")
+            return migraphx::gpu::target{};
+#endif
         throw std::runtime_error("Target not found: " + name);
     });
 
     m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);
+
+#ifdef HAVE_GPU
+    m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);
+    m.def("to_gpu", &migraphx::gpu::to_gpu, py::arg("arg"), py::arg("host") = false);
+    m.def("from_gpu", &migraphx::gpu::from_gpu);
+    m.def("gpu_sync", &migraphx::gpu::gpu_sync);
+    m.def("copy_to_gpu", &migraphx::gpu::copy_to_gpu);
+#endif
 
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;

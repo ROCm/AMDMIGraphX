@@ -430,7 +430,6 @@ struct concat
         }
         return result;
     }
-    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct slice
@@ -616,11 +615,16 @@ struct reshape
         {
             if(dims[i] == 0)
                 rdims[i] = idims[i];
+
+            // since rdims using size_t type, -1 is the max value
+            // is size_t that cause later compuation incorrect
+            if(dims[i] == -1)
+                rdims[i] = 1;
         }
         if(n_neg_dims > 0)
         {
             size_t missing_dim =
-                -inputs.front().elements() /
+                inputs.front().elements() /
                 std::accumulate(rdims.begin(), rdims.end(), 1, std::multiplies<int64_t>());
             for(std::size_t i = 0; i < rdims.size(); i++)
             {
@@ -628,11 +632,7 @@ struct reshape
                     rdims[i] = missing_dim;
             }
         }
-        if(dims.back() == -1)
-        {
-            rdims.pop_back();
-            std::copy(idims.begin() + rdims.size(), idims.end(), std::back_inserter(rdims));
-        }
+
         shape s{inputs.front().type(), rdims};
         if(s.elements() != inputs.front().elements())
             MIGRAPHX_THROW("Wrong number of elements for reshape");
@@ -764,8 +764,6 @@ struct gather
 
         return result;
     }
-
-    int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct dot
@@ -1129,6 +1127,76 @@ struct outline
         return s;
     }
     argument compute(const shape&, const std::vector<argument>&) const { return {s, nullptr}; }
+};
+
+struct rnn
+{
+
+    enum rnn_direction_t
+    {
+        forward,
+        reverse,
+        bidirectional,
+    };
+
+    std::size_t hidden_size = 1;
+    std::vector<operation> actv_funcs{tanh{}, tanh{}};
+    rnn_direction_t direction = forward;
+    float clip                = 0.0f;
+
+    std::string name() const { return "rnn"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        auto in_dims     = inputs[0].lens();
+        auto hidden_dims = inputs[2].lens();
+        if(hidden_size != hidden_dims[2])
+        {
+            MIGRAPHX_THROW("RNN: hidden size mismatch in attribute and input");
+        }
+
+        std::size_t num_directions = 1;
+        if(direction == bidirectional)
+        {
+            num_directions = 2;
+        }
+
+        if(num_directions != hidden_dims[0])
+        {
+            MIGRAPHX_THROW("RNN: num_direction mismatch in attribute and input");
+        }
+
+        std::vector<std::size_t> out_dims(in_dims);
+        out_dims.insert(out_dims.begin() + 1, num_directions);
+        out_dims.back() = hidden_size;
+
+        return {inputs[0].type(), out_dims};
+    }
+};
+
+struct rnn_last_output
+{
+    std::string name() const { return "rnn_last_output"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        auto dims = inputs[0].lens();
+
+        // remove the first dimension, remaing are output shape
+        dims.erase(dims.begin());
+        return {inputs[0].type(), dims};
+    }
+};
+
+struct undefined
+{
+    std::string name() const { return "undefined"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(0);
+        return {};
+    }
+
+    argument compute(const shape&, const std::vector<argument>&) const { return {{}, nullptr}; }
 };
 
 } // namespace op

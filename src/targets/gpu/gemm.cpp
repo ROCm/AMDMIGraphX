@@ -107,6 +107,7 @@ argument miopen_gemm::compute(context& ctx,
                              ldc);
 
     });
+
     return args[2];
 }
 

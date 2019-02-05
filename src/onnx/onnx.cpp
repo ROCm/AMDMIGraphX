@@ -32,6 +32,7 @@ struct onnx_parser
     bool is_pytorch = false;
 
     std::unordered_map<std::string, op_func> ops;
+    std::unordered_map<std::string, operation> map_actv_funcs;
 
     onnx_parser()
     {
@@ -85,7 +86,20 @@ struct onnx_parser
         add_mem_op("Shape", &onnx_parser::parse_shape);
         add_mem_op("ConstantFill", &onnx_parser::parse_constant_fill);
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
+        add_mem_op("RNN", &onnx_parser::parse_rnn);
         add_mem_op("Pad", &onnx_parser::parse_pad);
+
+        // init the activation function map
+        init_actv_func();
+    }
+
+    void init_actv_func()
+    {
+        map_actv_funcs.insert(std::make_pair("tanh", op::tanh{}));
+        map_actv_funcs.insert(std::make_pair("relu", op::relu{}));
+        map_actv_funcs.insert(std::make_pair("sigmoid", op::sigmoid{}));
+        map_actv_funcs.insert(std::make_pair("leakyrelu", op::leaky_relu{}));
+        map_actv_funcs.insert(std::make_pair("elu", op::elu{}));
     }
 
     template <class F>
@@ -677,6 +691,96 @@ struct onnx_parser
         }
     }
 
+    std::vector<instruction_ref>
+    parse_rnn(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        migraphx::shape input_shape = args[0]->get_shape();
+        migraphx::shape w_shape     = args[1]->get_shape();
+        std::size_t hidden_size     = w_shape.lens()[1];
+
+        if(contains(attributes, "hidden_size"))
+        {
+            std::size_t hidden_size_att = parse_value(attributes.at("hidden_size")).at<int>();
+            if(hidden_size != hidden_size_att)
+            {
+                MIGRAPHX_THROW("RNN: hidden size mismatch in input and attribute");
+            }
+        }
+
+        // Handling of direction to be added later
+        std::string direction{"forward"};
+        if(contains(attributes, "direction"))
+        {
+            direction = attributes.at("direction").s();
+        }
+
+        op::rnn::rnn_direction_t dirct = op::rnn::forward;
+        if(direction == "bidirectional")
+        {
+            dirct = op::rnn::bidirectional;
+        }
+        else if(direction == "reverse")
+        {
+            dirct = op::rnn::reverse;
+        }
+
+        std::vector<std::string> vec_names{"tanh"};
+        if(contains(attributes, "activations"))
+        {
+            auto names = attributes.at("activations").strings();
+            vec_names.clear();
+            for_each(names.begin(), names.end(), [&](auto& fn) { vec_names.push_back(fn); });
+        }
+
+        for_each(vec_names.begin(), vec_names.end(), [&](auto& fn) {
+            if(map_actv_funcs.count(fn) == 0)
+            {
+                MIGRAPHX_THROW("RNN: activation function " + std::string(fn) + " not supported");
+            }
+        });
+
+        // bidirectional case should have two activation functions.
+        // one is for forward, and the other is for reverse.
+        // if only one actv function is provided, we use it in both
+        // forward and reverse direction
+        if(dirct == op::rnn::bidirectional)
+        {
+            if(vec_names.size() == 1)
+            {
+                vec_names.push_back(vec_names.at(0));
+            }
+        }
+
+        std::vector<operation> vec_actv_funcs(vec_names.size());
+        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](auto& fn) {
+            return map_actv_funcs[fn];
+        });
+
+        // To be added later
+        float clip = 0.0;
+        if(contains(attributes, "clip"))
+        {
+            clip = parse_value(attributes.at("clip")).at<float>();
+        }
+
+        // if the number of arguments is less than 6, append
+        // undefined operator to have 6 arguments
+        if(args.size() < 6)
+        {
+            auto ins = prog.add_instruction(op::undefined{});
+            args.insert(args.end(), (6 - args.size()), ins);
+        }
+
+        // first output for the concatenation of hidden states
+        auto hidden_states = prog.add_instruction(op::rnn{hidden_size, vec_actv_funcs, dirct, clip},
+                                                  std::move(args));
+
+        // second output for the last hidden state
+        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
+
+        return {hidden_states, last_output};
+    }
+
     void parse_from(std::istream& is)
     {
         onnx::ModelProto model;
@@ -723,6 +827,12 @@ struct onnx_parser
         }
     }
 
+    void parse_undefined(const std::string& name)
+    {
+        auto ins           = prog.add_instruction(op::undefined{});
+        instructions[name] = ins;
+    }
+
     void parse_node(const std::string& name)
     {
         if(name.empty())
@@ -737,12 +847,12 @@ struct onnx_parser
                 {
                     assert(name != input);
                     this->parse_node(input);
-                    args.push_back(instructions.at(input));
                 }
-                else
+                else if(input.empty())
                 {
-                    args.push_back(instructions.at(input));
+                    this->parse_undefined(input);
                 }
+                args.push_back(instructions.at(input));
             }
             std::vector<instruction_ref> result;
             if(ops.count(node.op_type()) == 0)

@@ -616,10 +616,10 @@ TEST_CASE(lrn_test)
 
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 28, 24, 24}});
     migraphx::op::lrn op;
-    op.size = 5;
+    op.size  = 5;
     op.alpha = 0.0001;
-    op.beta = 0.75;
-    op.bias = 1.0;
+    op.beta  = 0.75;
+    op.bias  = 1.0;
     p.add_instruction(op, l0);
     migraphx::parse_onnx("lrn_test.onnx");
 }

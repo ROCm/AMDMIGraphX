@@ -15,4 +15,5 @@ endfunction()
 add_dependencies(tests migraphx_py)
 add_dependencies(check migraphx_py)
 
-add_py_test(test test.py WORKING_DIRECTORY ${TEST_ONNX_DIR})
+add_py_test(cpu cpu.py WORKING_DIRECTORY ${TEST_ONNX_DIR})
+add_py_test(gpu gpu.py WORKING_DIRECTORY ${TEST_ONNX_DIR})

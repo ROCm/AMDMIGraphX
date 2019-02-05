@@ -62,29 +62,23 @@ void rewrite_gru::apply(program& prog) const
                     ih_reverse = prog.add_literal(migraphx::literal{ih_shape, data});
                 }
 
-                auto ret_forward = gru_cell(true,
-                                            prog,
-                                            ins,
-                                            {args[0],
-                                            w_forward,
-                                            r_forward,
-                                            bias_forward,
-                                            ih_forward},
-                                            gru_op.linear_before_reset,
-                                            actv_funcs.at(0),
-                                            actv_funcs.at(1));
+                auto ret_forward =
+                    gru_cell(true,
+                             prog,
+                             ins,
+                             {args[0], w_forward, r_forward, bias_forward, ih_forward},
+                             gru_op.linear_before_reset,
+                             actv_funcs.at(0),
+                             actv_funcs.at(1));
 
-                auto ret_reverse = gru_cell(false,
-                                            prog,
-                                            ins,
-                                            {args[0],
-                                            w_reverse,
-                                            r_reverse,
-                                            bias_reverse,
-                                            ih_reverse},
-                                            gru_op.linear_before_reset,
-                                            actv_funcs.at(2),
-                                            actv_funcs.at(3));
+                auto ret_reverse =
+                    gru_cell(false,
+                             prog,
+                             ins,
+                             {args[0], w_reverse, r_reverse, bias_reverse, ih_reverse},
+                             gru_op.linear_before_reset,
+                             actv_funcs.at(2),
+                             actv_funcs.at(3));
 
                 auto concat_output =
                     prog.insert_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
@@ -159,10 +153,11 @@ void rewrite_gru::apply(program& prog) const
 
             // replace the corresponding gru_last_output instruction
             // with the last_output, if gru_last_output exists
-            auto last_output_it = std::find_if(ins->outputs().begin(), ins->outputs().end(), [](auto i) {
-                return i->name() == "gru_last_output";
-            });
-            if (last_output_it != ins->outputs().end())
+            auto last_output_it =
+                std::find_if(ins->outputs().begin(), ins->outputs().end(), [](auto i) {
+                    return i->name() == "gru_last_output";
+                });
+            if(last_output_it != ins->outputs().end())
             {
                 prog.replace_instruction(*last_output_it, last_output);
             }
@@ -179,11 +174,11 @@ std::vector<instruction_ref> rewrite_gru::gru_cell(bool is_forward,
                                                    const operation& actv_func2) const
 {
     assert(inputs.size() == 5);
-    auto seq = inputs.at(0);
-    auto w = inputs.at(1);
-    auto r = inputs.at(2);
+    auto seq  = inputs.at(0);
+    auto w    = inputs.at(1);
+    auto r    = inputs.at(2);
     auto bias = inputs.at(3);
-    auto ih = inputs.at(4);
+    auto ih   = inputs.at(4);
 
     instruction_ref hidden_states = prog.end(), last_output;
     long seq_len                  = static_cast<long>(seq->get_shape().lens()[0]);

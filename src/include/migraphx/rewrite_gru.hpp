@@ -25,13 +25,15 @@ struct rewrite_gru
                                           program& prog,
                                           instruction_ref ins,
                                           instruction_ref input,
-                                          instruction_ref wx,
-                                          instruction_ref wh,
+                                          instruction_ref w,
+                                          instruction_ref r,
                                           instruction_ref bias,
                                           instruction_ref ih,
                                           int linear_before_reset,
-                                          operation& actv_func1,
-                                          operation& actv_func2) const;
+                                          const operation& actv_func1,
+                                          const operation& actv_func2) const;
+
+    std::vector<operation> compute_actv_funcs(instruction_ref ins) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

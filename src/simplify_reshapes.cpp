@@ -22,18 +22,18 @@ bool is_reshaper(instruction_ref ins)
 
 bool is_transpose_output(instruction_ref ins)
 {
-    if (ins->outputs().size() != 1)
+    if(ins->outputs().size() != 1)
         return false;
-    if (ins->outputs().front()->name() == "contiguous")
+    if(ins->outputs().front()->name() == "contiguous")
         return is_transpose_output(ins->outputs().front());
     return ins->outputs().front()->name() == "transpose";
 }
 
 instruction_ref find_transpose_input(instruction_ref ins)
 {
-    if (ins->inputs().size() != 1)
+    if(ins->inputs().size() != 1)
         return ins;
-    if (ins->inputs().front()->name() == "contiguous")
+    if(ins->inputs().front()->name() == "contiguous")
         return find_transpose_input(ins->inputs().front());
     if(ins->inputs().front()->name() == "transpose")
         return ins->inputs().front();
@@ -47,7 +47,7 @@ void simplify_reshapes::apply(program& p) const
     {
         if(ins->outputs().empty() and ins != end)
             continue;
-        if(is_reshaper(ins)) 
+        if(is_reshaper(ins))
         {
             if(std::any_of(ins->outputs().begin(), ins->outputs().end(), &is_reshaper))
                 continue;
@@ -78,9 +78,9 @@ void simplify_reshapes::apply(program& p) const
                 p.replace_instruction(r.first, r.second);
             }
         }
-        else if (ins->name() == "transpose") 
+        else if(ins->name() == "transpose")
         {
-            if (is_transpose_output(ins))
+            if(is_transpose_output(ins))
                 continue;
             auto x = ins;
             auto t = ins;
@@ -89,7 +89,7 @@ void simplify_reshapes::apply(program& p) const
                 x = t;
                 t = find_transpose_input(x);
             } while(x != t and t->name() == "transpose");
-            if (t == ins or t->name() != "transpose")
+            if(t == ins or t->name() != "transpose")
                 continue;
             p.replace_instruction(ins, t->inputs().front());
         }

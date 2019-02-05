@@ -610,4 +610,18 @@ TEST_CASE(pad_test)
     migraphx::parse_onnx("pad_test.onnx");
 }
 
+TEST_CASE(lrn_test)
+{
+    migraphx::program p;
+
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 28, 24, 24}});
+    migraphx::op::lrn op;
+    op.size = 5;
+    op.alpha = 0.0001;
+    op.beta = 0.75;
+    op.bias = 1.0;
+    p.add_instruction(op, l0);
+    migraphx::parse_onnx("lrn_test.onnx");
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

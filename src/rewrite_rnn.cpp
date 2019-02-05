@@ -154,6 +154,11 @@ void rewrite_rnn::apply(program& prog) const
                     hidden_output =
                         prog.replace_instruction(ins, op::concat{0}, concat_arg0, concat_arg1);
                 }
+                // auto last_it = std::find_if();
+                // if(last_it != ins->outputs().end())
+                // {
+
+                // }
                 map_last_output[hidden_output] = last_output;
             }
         }

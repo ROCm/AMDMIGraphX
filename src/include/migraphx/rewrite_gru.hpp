@@ -24,11 +24,7 @@ struct rewrite_gru
     std::vector<instruction_ref> gru_cell(bool is_forward,
                                           program& prog,
                                           instruction_ref ins,
-                                          instruction_ref input,
-                                          instruction_ref w,
-                                          instruction_ref r,
-                                          instruction_ref bias,
-                                          instruction_ref ih,
+                                          std::vector<instruction_ref> inputs,
                                           int linear_before_reset,
                                           const operation& actv_func1,
                                           const operation& actv_func2) const;

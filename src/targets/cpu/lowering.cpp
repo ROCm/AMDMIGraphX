@@ -120,7 +120,7 @@ struct cpu_lrn
             float alphaoverarea = op.alpha / op.size;
             int radius          = (op.size - 1) / 2;
 
-            dfor(n_batch, height, width)([&](int b, int h, int w) {
+            par_dfor(n_batch, height, width)([&](int b, int h, int w) {
                 float scale = 0;
                 dfor(channels)([&](int c) {
                     auto start = (c - radius) < 0 ? 0 : (c - radius);

@@ -142,7 +142,7 @@ TEST_CASE(transpose_contiguous)
     auto c1 = p.add_instruction(migraphx::op::contiguous{}, t);
     p.add_instruction(pass_op{}, c1);
     auto out_shape = p.get_shape();
-    auto n = std::distance(p.begin(), p.end());
+    auto n         = std::distance(p.begin(), p.end());
     p.compile(simplify_reshapes_target{});
     EXPECT(p.get_shape() == out_shape);
     EXPECT(std::distance(p.begin(), p.end()) == n);
@@ -158,7 +158,7 @@ TEST_CASE(transpose_double_contiguous)
     auto c2 = p.add_instruction(migraphx::op::contiguous{}, c1);
     p.add_instruction(pass_op{}, c2);
     auto out_shape = p.get_shape();
-    auto n = std::distance(p.begin(), p.end());
+    auto n         = std::distance(p.begin(), p.end());
     p.compile(simplify_reshapes_target{});
     EXPECT(p.get_shape() == out_shape);
     EXPECT(std::distance(p.begin(), p.end()) == n - 1);

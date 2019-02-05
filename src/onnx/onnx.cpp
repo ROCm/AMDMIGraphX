@@ -818,10 +818,8 @@ struct onnx_parser
         {
             auto names = attributes.at("activations").strings();
             vec_names.clear();
-            for(auto& fn : names)
-            {
-                vec_names.push_back(fn);
-            }
+            vec_names.resize(names.size());
+            std::transform(names.begin(), names.end(), vec_names.begin(), [] (auto &str) { return str; });
         }
 
         // need 4 activation functions

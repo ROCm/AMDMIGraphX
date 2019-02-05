@@ -287,7 +287,7 @@ struct cpu_contiguous
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
-        return op.compute(output_shape, args);
+        return op.compute(output_shape, std::move(args));
     }
 };
 

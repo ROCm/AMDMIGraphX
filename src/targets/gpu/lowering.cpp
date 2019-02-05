@@ -56,6 +56,7 @@ struct miopen_apply
     program* prog = nullptr;
     context ctx{};
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
+    instruction_ref last{};
 
     void check_shape(shape x, instruction_ref i)
     {
@@ -66,6 +67,7 @@ struct miopen_apply
 
     void init()
     {
+        this->last = instruction::get_output_alias(std::prev(prog->end()));
         add_miopen_simple_op<miopen_relu>("relu", make_relu);
         add_miopen_simple_op<miopen_sigmoid>("sigmoid", make_sigmoid);
         add_miopen_simple_op<miopen_abs>("abs", make_abs);
@@ -117,7 +119,7 @@ struct miopen_apply
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
     {
-        if(ins == --prog->end() and tag.empty())
+        if(ins == last and tag.empty())
         {
             return prog->add_parameter("output", s);
         }

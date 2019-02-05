@@ -15,6 +15,7 @@
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/common_subexpression_elimination.hpp>
 #include <migraphx/fwd_conv_batchnorm_rewrite.hpp>
+#include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 
@@ -31,14 +32,16 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         dead_code_elimination{},
         fwd_conv_batchnorm_rewrite{},
         dead_code_elimination{},
-        common_subexpression_elimination{},
+        rewrite_rnn{},
         dead_code_elimination{},
+        //common_subexpression_elimination{},
+        //dead_code_elimination{},
         simplify_algebra{},
         dead_code_elimination{},
         constant_propagate{},
         dead_code_elimination{},
         auto_contiguous{},
-        simplify_reshapes{},
+        //simplify_reshapes{},
         dead_code_elimination{},
         lowering{ctx},
         eliminate_concat{concat_gpu_optimization{}},

@@ -466,6 +466,170 @@ TEST_CASE(shape_gather_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(rnn_test)
+{
+    std::size_t sl = 5;  // sequence len
+    std::size_t bs = 3;  // batch size
+    std::size_t hs = 20; // hidden size
+    std::size_t is = 10; // input size
+    std::size_t nd = 2;  // num directions
+    float clip     = 0.0f;
+    // bidirectional
+    {
+        migraphx::program p;
+
+        auto seq =
+            p.add_parameter("seq", migraphx::shape{migraphx::shape::float_type, {sl, bs, is}});
+        auto w = p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {nd, hs, is}});
+        auto r = p.add_parameter("r", migraphx::shape{migraphx::shape::float_type, {nd, hs, hs}});
+        auto bias =
+            p.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {nd, 2 * hs}});
+        auto seq_len =
+            p.add_parameter("seq_len", migraphx::shape{migraphx::shape::int32_type, {bs}});
+        auto ih = p.add_parameter("h0", migraphx::shape{migraphx::shape::float_type, {nd, bs, hs}});
+
+        auto out_hs =
+            p.add_instruction(migraphx::op::rnn{hs,
+                                                {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
+                                                migraphx::op::rnn::bidirectional,
+                                                clip},
+                              seq,
+                              w,
+                              r,
+                              bias,
+                              seq_len,
+                              ih);
+        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
+        auto prog = migraphx::parse_onnx("onnx_rnn_bi.onnx");
+
+        EXPECT(p == prog);
+    }
+
+    // forward
+    {
+        nd = 1;
+        migraphx::program p;
+
+        auto seq =
+            p.add_parameter("seq", migraphx::shape{migraphx::shape::float_type, {sl, bs, is}});
+        auto w = p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {nd, hs, is}});
+        auto r = p.add_parameter("r", migraphx::shape{migraphx::shape::float_type, {nd, hs, hs}});
+        auto bias =
+            p.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {nd, 2 * hs}});
+        auto seq_len =
+            p.add_parameter("seq_len", migraphx::shape{migraphx::shape::int32_type, {bs}});
+        auto ih = p.add_parameter("h0", migraphx::shape{migraphx::shape::float_type, {nd, bs, hs}});
+
+        auto out_hs =
+            p.add_instruction(migraphx::op::rnn{hs,
+                                                {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
+                                                migraphx::op::rnn::forward,
+                                                clip},
+                              seq,
+                              w,
+                              r,
+                              bias,
+                              seq_len,
+                              ih);
+        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
+        auto prog = migraphx::parse_onnx("onnx_rnn_forward.onnx");
+
+        EXPECT(p == prog);
+    }
+
+    // reverse
+    {
+        nd = 1;
+        migraphx::program p;
+
+        auto seq =
+            p.add_parameter("seq", migraphx::shape{migraphx::shape::float_type, {sl, bs, is}});
+        auto w = p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {nd, hs, is}});
+        auto r = p.add_parameter("r", migraphx::shape{migraphx::shape::float_type, {nd, hs, hs}});
+        auto bias =
+            p.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {nd, 2 * hs}});
+        auto seq_len =
+            p.add_parameter("seq_len", migraphx::shape{migraphx::shape::int32_type, {bs}});
+        auto ih = p.add_parameter("h0", migraphx::shape{migraphx::shape::float_type, {nd, bs, hs}});
+
+        auto out_hs =
+            p.add_instruction(migraphx::op::rnn{hs,
+                                                {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
+                                                migraphx::op::rnn::reverse,
+                                                clip},
+                              seq,
+                              w,
+                              r,
+                              bias,
+                              seq_len,
+                              ih);
+        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
+        auto prog = migraphx::parse_onnx("onnx_rnn_reverse.onnx");
+
+        EXPECT(p == prog);
+    }
+
+    // 3 argumments
+    {
+        nd = 1;
+        migraphx::program p;
+
+        auto seq =
+            p.add_parameter("seq", migraphx::shape{migraphx::shape::float_type, {sl, bs, is}});
+        auto w   = p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {nd, hs, is}});
+        auto r   = p.add_parameter("r", migraphx::shape{migraphx::shape::float_type, {nd, hs, hs}});
+        auto und = p.add_instruction(migraphx::op::undefined{});
+
+        auto out_hs =
+            p.add_instruction(migraphx::op::rnn{hs,
+                                                {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
+                                                migraphx::op::rnn::reverse,
+                                                clip},
+                              seq,
+                              w,
+                              r,
+                              und,
+                              und,
+                              und);
+        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
+        auto prog = migraphx::parse_onnx("onnx_rnn_3args.onnx");
+
+        EXPECT(p == prog);
+    }
+
+    // 5 argumments
+    {
+        nd = 1;
+        migraphx::program p;
+
+        auto seq =
+            p.add_parameter("seq", migraphx::shape{migraphx::shape::float_type, {sl, bs, is}});
+        auto w = p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {nd, hs, is}});
+        auto r = p.add_parameter("r", migraphx::shape{migraphx::shape::float_type, {nd, hs, hs}});
+        auto bias =
+            p.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {nd, 2 * hs}});
+        auto seq_len =
+            p.add_parameter("seq_len", migraphx::shape{migraphx::shape::int32_type, {bs}});
+        auto und = p.add_instruction(migraphx::op::undefined{});
+
+        auto out_hs =
+            p.add_instruction(migraphx::op::rnn{hs,
+                                                {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
+                                                migraphx::op::rnn::reverse,
+                                                clip},
+                              seq,
+                              w,
+                              r,
+                              bias,
+                              seq_len,
+                              und);
+        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
+        auto prog = migraphx::parse_onnx("onnx_rnn_5args.onnx");
+
+        EXPECT(p == prog);
+    }
+}
+
 TEST_CASE(flatten_test)
 {
     migraphx::program p;

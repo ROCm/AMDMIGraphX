@@ -382,6 +382,17 @@ struct contiguous
         auto t    = inputs.at(0).type();
         return {t, lens};
     }
+    argument compute(const shape& output_shape, std::vector<argument> args) const
+    {
+        assert(output_shape.standard());
+        argument result{output_shape};
+        visit_all(result, args[0])([&](auto output, auto input) {
+            shape_for_each(output.get_shape(), [&](const auto& idx) {
+                output(idx.begin(), idx.end()) = input(idx.begin(), idx.end());
+            });
+        });
+        return result;
+    }
 };
 
 struct concat

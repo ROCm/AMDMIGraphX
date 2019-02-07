@@ -24,14 +24,14 @@ struct rewrite_rnn
     // for vanilla rnn operators
     void apply_vanilla_rnn(program& prog, instruction_ref ins) const;
     std::vector<instruction_ref> vanilla_rnn_cell(bool is_forward,
-                                          program& prog,
-                                          instruction_ref ins,
-                                          instruction_ref input,
-                                          instruction_ref w,
-                                          instruction_ref r,
-                                          instruction_ref bias,
-                                          instruction_ref ih,
-                                          operation& actv_func) const;
+                                                  program& prog,
+                                                  instruction_ref ins,
+                                                  instruction_ref input,
+                                                  instruction_ref w,
+                                                  instruction_ref r,
+                                                  instruction_ref bias,
+                                                  instruction_ref ih,
+                                                  operation& actv_func) const;
     std::vector<operation> vanilla_rnn_actv_funcs(instruction_ref ins) const;
 
     // for gru operators

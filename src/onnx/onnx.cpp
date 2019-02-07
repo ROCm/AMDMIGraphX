@@ -900,6 +900,159 @@ struct onnx_parser
         return {hidden_states, last_output};
     }
 
+    std::vector<instruction_ref>
+    parse_lstm(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        migraphx::shape input_shape = args[0]->get_shape();
+        std::size_t hidden_size     = args[2]->get_shape().lens()[2];
+
+        if(contains(attributes, "hidden_size"))
+        {
+            std::size_t hidden_size_att = parse_value(attributes.at("hidden_size")).at<int>();
+            if(hidden_size != hidden_size_att)
+            {
+                MIGRAPHX_THROW("LSTM: hidden size mismatch in input and attribute");
+            }
+        }
+
+        // Handling of direction to be added later
+        std::string direction{"forward"};
+        if(contains(attributes, "direction"))
+        {
+            direction = attributes.at("direction").s();
+        }
+
+        op::lstm::lstm_direction_t dirct = op::lstm::forward;
+        if(direction == "bidirectional")
+        {
+            dirct = op::lstm::bidirectional;
+        }
+        else if(direction == "reverse")
+        {
+            dirct = op::lstm::reverse;
+        }
+        else if (direction == "forward")
+        {
+            dirct = op::lstm::forward;
+        }
+        else
+        {
+            MIGRAPHX_THROW("LSTM: incorrect direction attribute");
+        }
+
+        std::vector<std::string> vec_names = {"sigmoid", "tanh", "tanh"};
+        if(contains(attributes, "activations"))
+        {
+            auto names = attributes.at("activations").strings();
+            vec_names.clear();
+            vec_names.resize(names.size());
+            std::transform(
+                names.begin(), names.end(), vec_names.begin(), [](auto& str) { return str; });
+        }
+
+        // need 6 activation functions for bidirectional directions
+        if(dirct == op::lstm::bidirectional)
+        {
+            // 6 activation functions are used in the bidirectional
+            // scenario. No spec is provided in onnx::operator. we
+            // use the algorithm that: if 1 actv function is provided,
+            // repeat 1st six times. If 2 actv functins are provided,
+            // repeat 2nd once, then repeat all three once
+            // if 3 actv funcs are provide, repeat all three once. 
+            // the same algorithm is used for 4, 5, and 6 actv funcions
+            // provided. This may need change later
+            switch(vec_names.size())
+            {
+            case 1: 
+                vec_names.insert(vec_names.end(), 5, vec_names.back());
+                break;
+
+            case 2:
+                // repeat the 2nd actv func once, then repeat all three another time
+                vec_names.push_back(vec_names.back());
+                vec_names.insert(vec_names.end(), vec_names.begin(), vec_names.end());
+                break;
+
+            case 3:
+                // repeat all three actv funcs once
+                vec_names.insert(vec_names.end(), vec_names.begin(), vec_names.end());
+                break;
+
+            case 4:
+                vec_names.insert(vec_names.end(), 2, vec_names.back());
+                break;
+
+            case 5:
+                vec_names.push_back(vec_names.back());
+                break;
+
+            default:
+                break;
+            }
+        }
+        else
+        {
+            switch(vec_names.size())
+            {
+            case 1: 
+                vec_names.insert(vec_names.end(), 2, vec_names.back());
+                break;
+
+            case 2:
+                // repeat the 2nd actv func once, so we have 3 actv funcs
+                vec_names.push_back(vec_names.back());
+                break;
+
+            default:
+                break;
+            }
+        }
+
+        for_each(vec_names.begin(), vec_names.end(), [&](auto& name) {
+            if(map_actv_funcs.count(name) == 0)
+            {
+                MIGRAPHX_THROW("LSTM: activation function " + std::string(name) + " not supported");
+            }
+        });
+
+        std::vector<operation> vec_actv_funcs(vec_names.size());
+        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](auto& name) {
+            return map_actv_funcs[name];
+        });
+
+        float clip = 0.0;
+        if(contains(attributes, "clip"))
+        {
+            clip = parse_value(attributes.at("clip")).at<float>();
+        }
+
+        int input_forget = 0;
+        if(contains(attributes, "input_forget"))
+        {
+            input_forget = parse_value(attributes.at("input_forget")).at<int>();
+        }
+
+        // append undefined opeator to make 6 arguments
+        if(args.size() < 8)
+        {
+            auto ins = prog.add_instruction(op::undefined{});
+            args.insert(args.end(), 6 - args.size(), ins);
+        }
+
+        // first output for concatenation of hidden states
+        auto hidden_states = prog.add_instruction(
+            op::lstm{hidden_size, vec_actv_funcs, dirct, clip, input_forget},
+            std::move(args));
+
+        // second output for last lstm output
+        auto last_output = prog.add_instruction(op::lstm_last_output{}, hidden_states);
+
+        // third output for last cell output
+        auto last_cell_output = prog.add_instruction(op::lstm_last_cell_output{}, hidden_states);
+
+        return {hidden_states, last_output, last_cell_output};
+    }
+
     void parse_from(std::istream& is)
     {
         onnx::ModelProto model;

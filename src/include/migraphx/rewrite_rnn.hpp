@@ -49,13 +49,13 @@ struct rewrite_rnn
     // for lstm operators
     void apply_lstm(program& prog, instruction_ref ins) const;
     std::vector<instruction_ref> lstm_cell(bool is_forward,
-                                          program& prog,
-                                          instruction_ref ins,
-                                          std::vector<instruction_ref> inputs,
-                                          int linear_before_reset,
-                                          const operation& actv_func1,
-                                          const operation& actv_func2,
-                                          const operation& actv_func3) const;
+                                           program& prog,
+                                           instruction_ref ins,
+                                           std::vector<instruction_ref> inputs,
+                                           int linear_before_reset,
+                                           const operation& actv_func1,
+                                           const operation& actv_func2,
+                                           const operation& actv_func3) const;
 
     std::vector<operation> lstm_actv_funcs(instruction_ref ins) const;
 };

@@ -138,6 +138,43 @@ TEST_CASE(rnn_forward)
         EXPECT(migraphx::verify_range(last_output_data, last_output_data_gold));
     }
 
+    // multiple rnn_last_output operators
+    {
+        migraphx::program p;
+        auto seq  = p.add_literal(migraphx::literal{in_shape, input});
+        auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
+        auto und  = p.add_instruction(migraphx::op::undefined{});
+
+        auto out_hs =
+            p.add_instruction(migraphx::op::rnn{hidden_size, {}, migraphx::op::rnn::forward, clip},
+                              seq,
+                              w,
+                              r,
+                              bias,
+                              und,
+                              ih);
+        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
+        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
+        p.compile(migraphx::cpu::target{});
+
+        auto last_output = p.eval({});
+        std::vector<float> last_output_data;
+        last_output.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
+
+        std::vector<float> last_output_data_gold{0.03445704,
+                                                 0.19167931,
+                                                 -0.3946827,
+                                                 -0.30889652,
+                                                 -0.22276389,
+                                                 0.44193283,
+                                                 -0.16477929,
+                                                 -0.11893477};
+        EXPECT(migraphx::verify_range(last_output_data, last_output_data_gold));
+    }
+
     // 3 args
     {
         migraphx::program p;
@@ -597,6 +634,48 @@ TEST_CASE(gru_forward)
                               bias,
                               und,
                               ih);
+        p.add_instruction(migraphx::op::gru_last_output{}, concat_hs);
+        p.compile(migraphx::cpu::target{});
+        auto hs_concat = p.eval({});
+        std::vector<float> hs_data;
+        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+
+        std::vector<float> hs_data_gold{-0.3969709,
+                                        0.43360898,
+                                        0.35775262,
+                                        0.23280787,
+                                        -0.52179873,
+                                        -0.21944991,
+                                        0.4535257,
+                                        -0.13735442,
+                                        0.51757574,
+                                        0.50380427};
+
+        EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
+    }
+
+    // two gru_last_output operators after gru
+    {
+        migraphx::program p;
+        auto seq  = p.add_literal(migraphx::literal{in_shape, input});
+        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
+        auto und  = p.add_instruction(migraphx::op::undefined{});
+        auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        auto concat_hs =
+            p.add_instruction(migraphx::op::gru{hidden_size,
+                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                                migraphx::op::gru::forward,
+                                                clip,
+                                                1},
+                              seq,
+                              w,
+                              r,
+                              bias,
+                              und,
+                              ih);
+        p.add_instruction(migraphx::op::gru_last_output{}, concat_hs);
         p.add_instruction(migraphx::op::gru_last_output{}, concat_hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});

@@ -10,7 +10,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void rewrite_rnn::apply(program& prog) const
 {
-    std::unordered_map<instruction_ref, instruction_ref> map_last_output;
     for(auto ins : iterator_for(prog))
     {
         // rewrite rnn operator
@@ -32,6 +31,7 @@ void rewrite_rnn::apply(program& prog) const
             auto actv_funcs                = compute_actv_funcs(ins);
             auto rnn_op                    = any_cast<op::rnn>(ins->get_operator());
             op::rnn::rnn_direction_t dicrt = rnn_op.direction;
+            instruction_ref last_output{};
             if(dicrt == op::rnn::bidirectional)
             {
                 // input weight matrix
@@ -87,7 +87,7 @@ void rewrite_rnn::apply(program& prog) const
 
                 auto concat_output =
                     prog.insert_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
-                auto last_output = prog.insert_instruction(ins, op::squeeze{{0}}, concat_output);
+                last_output = prog.insert_instruction(ins, op::squeeze{{0}}, concat_output);
 
                 // The following logic is to ensure the last instruction rewritten from
                 // rnn operator is a concat instruction
@@ -107,7 +107,6 @@ void rewrite_rnn::apply(program& prog) const
                     hidden_output = prog.replace_instruction(
                         ins, op::concat{1}, {ret_forward[0], ret_reverse[0]});
                 }
-                map_last_output[hidden_output] = last_output;
             }
             else
             {
@@ -138,7 +137,7 @@ void rewrite_rnn::apply(program& prog) const
 
                 auto ret =
                     rnn_cell(is_forward, prog, ins, args[0], w, r, bias, ih, actv_funcs.at(0));
-                auto last_output = prog.insert_instruction(ins, op::squeeze{{0}}, ret[1]);
+                last_output = prog.insert_instruction(ins, op::squeeze{{0}}, ret[1]);
 
                 // following logic is to ensure the last instruction is a
                 // concat instruction
@@ -155,30 +154,23 @@ void rewrite_rnn::apply(program& prog) const
                     hidden_output =
                         prog.replace_instruction(ins, op::concat{0}, concat_arg0, concat_arg1);
                 }
-                // auto last_it = std::find_if();
-                // if(last_it != ins->outputs().end())
-                // {
-
-                // }
-                map_last_output[hidden_output] = last_output;
             }
-        }
 
-        // rewrite the rnn_last_output operator that right after the rnn
-        // operator. Intuitively, we can do a slice on its input to get
-        // the last output, but it is already existed in the rnn operator,
-        // so we can just use it as the output here
-        if(ins->name() == "rnn_last_output")
-        {
-            auto inputs = ins->inputs();
-            assert(inputs.size() == 1);
-            auto arg = inputs[0];
-            if(map_last_output.count(arg) == 0)
+            // search its output to find if there are rnn_last_output operator
+            // while loop to handle case of multiple rnn_last_output operators
+            auto last_output_it = ins->outputs().begin();
+            while (last_output_it != ins->outputs().end())
             {
-                MIGRAPHX_THROW("RNN_LAST_OUTPUT: no related rnn operator as its input");
-            }
+                last_output_it = std::find_if(last_output_it, ins->outputs().end(), [] (auto i) {
+                    return i->name() == "rnn_last_output";
+                });
 
-            prog.replace_instruction(ins, map_last_output[arg]);
+                if(last_output_it != ins->outputs().end())
+                {
+                    prog.replace_instruction(*last_output_it, last_output);
+                    last_output_it++;
+                }
+            }
         }
     }
 }

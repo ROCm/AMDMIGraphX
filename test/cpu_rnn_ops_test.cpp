@@ -15,55 +15,56 @@ TEST_CASE(rnn_forward)
     std::size_t hidden_size = 4;
     std::size_t input_size  = 3;
     std::size_t num_dirct   = 1;
-    std::vector<float> wf_data{0.4691,
-                               0.3185,
-                               -0.2227,
-                               0.4423,
-                               -0.0609,
-                               -0.2803,
-                               0.1744,
-                               0.3146,
-                               0.4049,
-                               -0.3973,
-                               -0.0890,
-                               -0.1636};
-    std::vector<float> rf_data{-0.0456,
-                               0.1061,
-                               0.1574,
-                               -0.4928,
-                               -0.4300,
-                               -0.1909,
-                               -0.0225,
-                               -0.2668,
-                               0.1840,
-                               -0.4453,
-                               -0.4896,
-                               0.1302,
-                               -0.0929,
-                               0.3545,
-                               -0.4981,
-                               0.0616};
-    std::vector<float> biasf_data{
+    std::vector<float> w_data{0.4691,
+                              0.3185,
+                              -0.2227,
+                              0.4423,
+                              -0.0609,
+                              -0.2803,
+                              0.1744,
+                              0.3146,
+                              0.4049,
+                              -0.3973,
+                              -0.0890,
+                              -0.1636};
+
+    std::vector<float> r_data{-0.0456,
+                              0.1061,
+                              0.1574,
+                              -0.4928,
+                              -0.4300,
+                              -0.1909,
+                              -0.0225,
+                              -0.2668,
+                              0.1840,
+                              -0.4453,
+                              -0.4896,
+                              0.1302,
+                              -0.0929,
+                              0.3545,
+                              -0.4981,
+                              0.0616};
+
+    std::vector<float> bias_data{
         -0.4938, 0.4355, -0.3186, 0.2094, 0.1037, -0.1071, 0.4504, -0.3990};
+    std::vector<float> ih_data(num_dirct * batch_size * hidden_size, 0);
     std::vector<float> input(seq_len * batch_size * input_size, 0);
     input[0] = input[1] = 1.0;
-    float clip          = 0.0f;
+    migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+    migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+    migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
+    migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
+    float clip = 0.0f;
+    // concatenation of hidden states as program output
     {
-        std::vector<float> ih_data(num_dirct * batch_size * hidden_size, 0);
 
         migraphx::program p;
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        auto seq = p.add_literal(migraphx::literal{in_shape, input});
-
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-        auto ih = p.add_literal(migraphx::literal{ih_shape, ih_data});
-
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
-        auto w = p.add_literal(migraphx::literal{w_shape, wf_data});
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
-        auto r = p.add_literal(migraphx::literal{r_shape, rf_data});
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
-        auto bias = p.add_literal(migraphx::literal{b_shape, biasf_data});
+        auto seq  = p.add_literal(migraphx::literal{in_shape, input});
+        auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
         p.add_instruction(migraphx::op::rnn{hidden_size,
@@ -100,22 +101,14 @@ TEST_CASE(rnn_forward)
         EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
     }
 
+    // rnn last output as program output
     {
-        std::vector<float> ih_data(num_dirct * batch_size * hidden_size, 0);
-
         migraphx::program p;
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        auto seq = p.add_literal(migraphx::literal{in_shape, input});
-
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-        auto ih = p.add_literal(migraphx::literal{ih_shape, ih_data});
-
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
-        auto w = p.add_literal(migraphx::literal{w_shape, wf_data});
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
-        auto r = p.add_literal(migraphx::literal{r_shape, rf_data});
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
-        auto bias = p.add_literal(migraphx::literal{b_shape, biasf_data});
+        auto seq  = p.add_literal(migraphx::literal{in_shape, input});
+        auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
         auto out_hs =
@@ -144,6 +137,27 @@ TEST_CASE(rnn_forward)
                                                  -0.11893477};
         EXPECT(migraphx::verify_range(last_output_data, last_output_data_gold));
     }
+
+    // 3 args
+    {
+        migraphx::program p;
+        auto seq = p.add_literal(migraphx::literal{in_shape, input});
+        auto w   = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r   = p.add_literal(migraphx::literal{r_shape, r_data});
+
+        auto out_hs = p.add_instruction(
+            migraphx::op::rnn{hidden_size, {}, migraphx::op::rnn::forward, clip}, seq, w, r);
+        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
+        p.compile(migraphx::cpu::target{});
+
+        auto last_output = p.eval({});
+        std::vector<float> last_output_data;
+        last_output.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
+
+        std::vector<float> last_output_data_gold{
+            0.2935145, -0.23719997, -0.31123261, -0.18357255, 0., 0., 0., 0.};
+        EXPECT(migraphx::verify_range(last_output_data, last_output_data_gold));
+    }
 }
 
 TEST_CASE(rnn_reverse)
@@ -153,60 +167,56 @@ TEST_CASE(rnn_reverse)
     std::size_t hidden_size = 4;
     std::size_t input_size  = 3;
     std::size_t num_dirct   = 1;
-    std::vector<float> wr_data{-0.0296,
-                               -0.1341,
-                               0.1761,
-                               -0.2325,
-                               -0.0717,
-                               0.1852,
-                               0.2720,
-                               0.1471,
-                               -0.1097,
-                               0.3363,
-                               -0.0587,
-                               -0.2302};
-    std::vector<float> rr_data{0.2528,
-                               -0.2333,
-                               0.3973,
-                               0.1593,
-                               -0.0388,
-                               0.1702,
-                               0.3829,
-                               -0.0712,
-                               -0.1668,
-                               0.3074,
-                               -0.2854,
-                               0.4049,
-                               -0.3737,
-                               -0.1051,
-                               0.4482,
-                               -0.2841};
-    std::vector<float> biasr_data{-0.3188, 0.1341, -0.4446, 0.1389, 0.3117, 0.3664, 0.2352, 0.2552};
+    std::vector<float> w_data{-0.0296,
+                              -0.1341,
+                              0.1761,
+                              -0.2325,
+                              -0.0717,
+                              0.1852,
+                              0.2720,
+                              0.1471,
+                              -0.1097,
+                              0.3363,
+                              -0.0587,
+                              -0.2302};
+    std::vector<float> r_data{0.2528,
+                              -0.2333,
+                              0.3973,
+                              0.1593,
+                              -0.0388,
+                              0.1702,
+                              0.3829,
+                              -0.0712,
+                              -0.1668,
+                              0.3074,
+                              -0.2854,
+                              0.4049,
+                              -0.3737,
+                              -0.1051,
+                              0.4482,
+                              -0.2841};
+    std::vector<float> bias_data{-0.3188, 0.1341, -0.4446, 0.1389, 0.3117, 0.3664, 0.2352, 0.2552};
     std::vector<float> input(seq_len * batch_size * input_size, 0);
     input[0] = input[1] = 1.0;
-    float clip          = 0.0f;
+    std::vector<float> ih_data(num_dirct * batch_size * hidden_size, 0);
+    float clip = 0.0f;
+    migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+    migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
+    migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
+    migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+    // concatenation of hidden states as program output
     {
-        std::vector<float> ih_data(num_dirct * batch_size * hidden_size, 0);
 
         migraphx::program p;
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        auto seq = p.add_literal(migraphx::literal{in_shape, input});
-
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-        auto ih = p.add_literal(migraphx::literal{ih_shape, ih_data});
-
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
-        auto w = p.add_literal(migraphx::literal{w_shape, wr_data});
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
-        auto r = p.add_literal(migraphx::literal{r_shape, rr_data});
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
-        auto bias = p.add_literal(migraphx::literal{b_shape, biasr_data});
+        auto seq  = p.add_literal(migraphx::literal{in_shape, input});
+        auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
-        p.add_instruction(migraphx::op::rnn{hidden_size,
-                                            {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn::reverse,
-                                            clip},
+        p.add_instruction(migraphx::op::rnn{hidden_size, {}, migraphx::op::rnn::reverse, clip},
                           seq,
                           w,
                           r,
@@ -237,22 +247,14 @@ TEST_CASE(rnn_reverse)
         EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
     }
 
+    // rnn last output as program output
     {
-        std::vector<float> ih_data(num_dirct * batch_size * hidden_size, 0);
-
         migraphx::program p;
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        auto seq = p.add_literal(migraphx::literal{in_shape, input});
-
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-        auto ih = p.add_literal(migraphx::literal{ih_shape, ih_data});
-
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
-        auto w = p.add_literal(migraphx::literal{w_shape, wr_data});
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
-        auto r = p.add_literal(migraphx::literal{r_shape, rr_data});
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
-        auto bias = p.add_literal(migraphx::literal{b_shape, biasr_data});
+        auto seq  = p.add_literal(migraphx::literal{in_shape, input});
+        auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
         auto out_hs =
@@ -290,94 +292,54 @@ TEST_CASE(rnn_bidirectional)
     std::size_t hidden_size = 4;
     std::size_t input_size  = 3;
     std::size_t num_dirct   = 2;
-    std::vector<float> wf_data{0.4691,
-                               0.3185,
-                               -0.2227,
-                               0.4423,
-                               -0.0609,
-                               -0.2803,
-                               0.1744,
-                               0.3146,
-                               0.4049,
-                               -0.3973,
-                               -0.0890,
-                               -0.1636};
-    std::vector<float> wr_data{-0.0296,
-                               -0.1341,
-                               0.1761,
-                               -0.2325,
-                               -0.0717,
-                               0.1852,
-                               0.2720,
-                               0.1471,
-                               -0.1097,
-                               0.3363,
-                               -0.0587,
-                               -0.2302};
-    std::vector<float> rf_data{-0.0456,
-                               0.1061,
-                               0.1574,
-                               -0.4928,
-                               -0.4300,
-                               -0.1909,
-                               -0.0225,
-                               -0.2668,
-                               0.1840,
-                               -0.4453,
-                               -0.4896,
-                               0.1302,
-                               -0.0929,
-                               0.3545,
-                               -0.4981,
-                               0.0616};
-    std::vector<float> rr_data{0.2528,
-                               -0.2333,
-                               0.3973,
-                               0.1593,
-                               -0.0388,
-                               0.1702,
-                               0.3829,
-                               -0.0712,
-                               -0.1668,
-                               0.3074,
-                               -0.2854,
-                               0.4049,
-                               -0.3737,
-                               -0.1051,
-                               0.4482,
-                               -0.2841};
-    std::vector<float> biasf_data{
-        -0.4938, 0.4355, -0.3186, 0.2094, 0.1037, -0.1071, 0.4504, -0.3990};
-    std::vector<float> biasr_data{-0.3188, 0.1341, -0.4446, 0.1389, 0.3117, 0.3664, 0.2352, 0.2552};
+    std::vector<float> w_data{0.4691,  0.3185,  -0.2227, 0.4423,  -0.0609, -0.2803,
+                              0.1744,  0.3146,  0.4049,  -0.3973, -0.0890, -0.1636,
+                              -0.0296, -0.1341, 0.1761,  -0.2325, -0.0717, 0.1852,
+                              0.2720,  0.1471,  -0.1097, 0.3363,  -0.0587, -0.2302};
+
+    std::vector<float> r_data{-0.0456, 0.1061,  0.1574,  -0.4928, -0.4300, -0.1909, -0.0225,
+                              -0.2668, 0.1840,  -0.4453, -0.4896, 0.1302,  -0.0929, 0.3545,
+                              -0.4981, 0.0616,  0.2528,  -0.2333, 0.3973,  0.1593,  -0.0388,
+                              0.1702,  0.3829,  -0.0712, -0.1668, 0.3074,  -0.2854, 0.4049,
+                              -0.3737, -0.1051, 0.4482,  -0.2841};
+
+    std::vector<float> bias_data{-0.4938,
+                                 0.4355,
+                                 -0.3186,
+                                 0.2094,
+                                 0.1037,
+                                 -0.1071,
+                                 0.4504,
+                                 -0.3990,
+                                 -0.3188,
+                                 0.1341,
+                                 -0.4446,
+                                 0.1389,
+                                 0.3117,
+                                 0.3664,
+                                 0.2352,
+                                 0.2552};
+
     std::vector<float> input(seq_len * batch_size * input_size, 0);
     input[0] = input[1] = 1.0;
-    float clip          = 0.0f;
+    std::vector<float> ih_data(num_dirct * batch_size * hidden_size, 0);
+
+    migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+    migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+    migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
+    migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
+    float clip = 0.0f;
+    // concatenation of hidden state for program output
     {
-        std::vector<float> ih_data(num_dirct * batch_size * hidden_size, 0);
 
         migraphx::program p;
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        auto seq = p.add_literal(migraphx::literal{in_shape, input});
-
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-        auto ih = p.add_literal(migraphx::literal{ih_shape, ih_data});
-
-        auto w_data = wf_data;
-        w_data.insert(w_data.end(), wr_data.begin(), wr_data.end());
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
-        auto w = p.add_literal(migraphx::literal{w_shape, w_data});
-
-        auto r_data = rf_data;
-        r_data.insert(r_data.end(), rr_data.begin(), rr_data.end());
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
-        auto r = p.add_literal(migraphx::literal{r_shape, r_data});
-
-        auto bias_data = biasf_data;
-        bias_data.insert(bias_data.end(), biasr_data.begin(), biasr_data.end());
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
+        auto seq  = p.add_literal(migraphx::literal{in_shape, input});
+        auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
         auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = p.add_instruction(migraphx::op::undefined{});
-
         p.add_instruction(
             migraphx::op::rnn{hidden_size, {}, migraphx::op::rnn::bidirectional, clip},
             seq,
@@ -400,30 +362,13 @@ TEST_CASE(rnn_bidirectional)
             -0.20639211, 0.37488942};
         EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
     }
-
+    // last rnn output for program output
     {
-        std::vector<float> ih_data(num_dirct * batch_size * hidden_size, 0);
-
         migraphx::program p;
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        auto seq = p.add_literal(migraphx::literal{in_shape, input});
-
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
-        auto ih = p.add_literal(migraphx::literal{ih_shape, ih_data});
-
-        auto w_data = wf_data;
-        w_data.insert(w_data.end(), wr_data.begin(), wr_data.end());
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
-        auto w = p.add_literal(migraphx::literal{w_shape, w_data});
-
-        auto r_data = rf_data;
-        r_data.insert(r_data.end(), rr_data.begin(), rr_data.end());
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
-        auto r = p.add_literal(migraphx::literal{r_shape, r_data});
-
-        auto bias_data = biasf_data;
-        bias_data.insert(bias_data.end(), biasr_data.begin(), biasr_data.end());
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
+        auto seq  = p.add_literal(migraphx::literal{in_shape, input});
+        auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
         auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
@@ -463,26 +408,13 @@ TEST_CASE(rnn_bidirectional)
 
         EXPECT(migraphx::verify_range(last_output_data, last_output_data_gold));
     }
+
+    // 4 args
     {
-        std::vector<float> ih_data(num_dirct * batch_size * hidden_size, 0);
-
         migraphx::program p;
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        auto seq = p.add_literal(migraphx::literal{in_shape, input});
-
-        auto w_data = wf_data;
-        w_data.insert(w_data.end(), wr_data.begin(), wr_data.end());
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
-        auto w = p.add_literal(migraphx::literal{w_shape, w_data});
-
-        auto r_data = rf_data;
-        r_data.insert(r_data.end(), rr_data.begin(), rr_data.end());
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
-        auto r = p.add_literal(migraphx::literal{r_shape, r_data});
-
-        auto bias_data = biasf_data;
-        bias_data.insert(bias_data.end(), biasr_data.begin(), biasr_data.end());
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
+        auto seq  = p.add_literal(migraphx::literal{in_shape, input});
+        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
         auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
 
         auto out_hs =
@@ -518,6 +450,35 @@ TEST_CASE(rnn_bidirectional)
                                                  0.44124447,
                                                  0.14365635,
                                                  0.14803654};
+
+        EXPECT(migraphx::verify_range(last_output_data, last_output_data_gold));
+    }
+
+    // 3 args
+    {
+        migraphx::program p;
+        auto seq = p.add_literal(migraphx::literal{in_shape, input});
+        auto w   = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r   = p.add_literal(migraphx::literal{r_shape, r_data});
+
+        p.add_instruction(migraphx::op::rnn{hidden_size,
+                                            {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                            migraphx::op::rnn::bidirectional,
+                                            clip},
+                          seq,
+                          w,
+                          r);
+        p.compile(migraphx::cpu::target{});
+
+        auto last_output = p.eval({});
+        std::vector<float> last_output_data;
+        last_output.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
+
+        std::vector<float> last_output_data_gold{
+            0.6570473,   0.36392266,  0.45342238,  -0.45127486, 0., 0., 0., 0.,
+            -0.16225325, -0.29515147, 0.39617197,  0.27068236,  0., 0., 0., 0.,
+            0.2935145,   -0.23719997, -0.31123261, -0.18357255, 0., 0., 0., 0.,
+            0.,          0.,          0.,          0.,          0., 0., 0., 0.};
 
         EXPECT(migraphx::verify_range(last_output_data, last_output_data_gold));
     }

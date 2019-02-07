@@ -790,7 +790,7 @@ struct onnx_parser
         if(contains(attributes, "hidden_size"))
         {
             std::size_t hidden_size_att = parse_value(attributes.at("hidden_size")).at<int>();
-            if (hidden_size != hidden_size_att)
+            if(hidden_size != hidden_size_att)
             {
                 MIGRAPHX_THROW("GRU: hidden size mismatch in input and attribute");
             }

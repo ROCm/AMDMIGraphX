@@ -789,11 +789,11 @@ struct onnx_parser
 
         if(contains(attributes, "hidden_size"))
         {
-            hidden_size = parse_value(attributes.at("hidden_size")).at<int>();
-        }
-        else
-        {
-            MIGRAPHX_THROW("GRU: hidden size attribute missing");
+            std::size_t hidden_size_att = parse_value(attributes.at("hidden_size")).at<int>();
+            if (hidden_size != hidden_size_att)
+            {
+                MIGRAPHX_THROW("GRU: hidden size mismatch in input and attribute");
+            }
         }
 
         // Handling of direction to be added later
@@ -861,7 +861,7 @@ struct onnx_parser
         for_each(vec_names.begin(), vec_names.end(), [&](auto& name) {
             if(map_actv_funcs.count(name) == 0)
             {
-                MIGRAPHX_THROW("GRU: activation function " + name + " not supported");
+                MIGRAPHX_THROW("GRU: activation function " + std::string(name) + " not supported");
             }
         });
 

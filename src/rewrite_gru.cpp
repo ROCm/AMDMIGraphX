@@ -154,13 +154,19 @@ void rewrite_gru::apply(program& prog) const
 
             // replace the corresponding gru_last_output instruction
             // with the last_output, if gru_last_output exists
-            auto last_output_it =
-                std::find_if(ins->outputs().begin(), ins->outputs().end(), [](auto i) {
+            // while loop to handle case of multiple gru_last_output operators
+            auto last_output_it = ins->outputs().begin();
+            while (last_output_it != ins->outputs().end())
+            {
+                last_output_it = std::find_if(last_output_it, ins->outputs().end(), [] (auto i) {
                     return i->name() == "gru_last_output";
                 });
-            if(last_output_it != ins->outputs().end())
-            {
-                prog.replace_instruction(*last_output_it, last_output);
+
+                if(last_output_it != ins->outputs().end())
+                {
+                    prog.replace_instruction(*last_output_it, last_output);
+                    last_output_it++;
+                }
             }
         }
     }

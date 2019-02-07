@@ -22,8 +22,6 @@ void rewrite_rnn::apply(program& prog) const
             apply_gru(prog, ins);
         }
     }
-
-    return;
 }
 
 void rewrite_rnn::apply_vallina_rnn(program& prog, instruction_ref ins) const
@@ -183,8 +181,6 @@ void rewrite_rnn::apply_vallina_rnn(program& prog, instruction_ref ins) const
             last_output_it++;
         }
     }
-
-    return;
 }
 
 std::vector<instruction_ref> rewrite_rnn::rnn_cell(bool is_forward,
@@ -465,8 +461,6 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
             last_output_it++;
         }
     }
-
-    return;
 }
 
 std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,

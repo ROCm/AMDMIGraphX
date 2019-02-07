@@ -52,7 +52,7 @@ struct rewrite_rnn
                                            program& prog,
                                            instruction_ref ins,
                                            std::vector<instruction_ref> inputs,
-                                           int linear_before_reset,
+                                           int input_forget,
                                            const operation& actv_func1,
                                            const operation& actv_func2,
                                            const operation& actv_func3) const;

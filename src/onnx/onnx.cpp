@@ -1026,7 +1026,7 @@ struct onnx_parser
         if(args.size() < 8)
         {
             auto ins = prog.add_instruction(op::undefined{});
-            args.insert(args.end(), 6 - args.size(), ins);
+            args.insert(args.end(), 8 - args.size(), ins);
         }
 
         // first output for concatenation of hidden states

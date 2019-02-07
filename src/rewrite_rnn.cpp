@@ -479,8 +479,8 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
 
     instruction_ref hidden_states = prog.end();
     instruction_ref last_output{};
-    long seq_len                  = static_cast<long>(seq->get_shape().lens()[0]);
-    long hs                       = static_cast<long>(r->get_shape().lens()[2]);
+    long seq_len = static_cast<long>(seq->get_shape().lens()[0]);
+    long hs      = static_cast<long>(r->get_shape().lens()[2]);
 
     migraphx::shape s(seq->get_shape().type(),
                       {seq->get_shape().lens()[1], static_cast<std::size_t>(hs)});

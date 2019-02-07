@@ -43,6 +43,7 @@
 #include <migraphx/gpu/concat.hpp>
 #include <migraphx/gpu/pad.hpp>
 #include <migraphx/gpu/gather.hpp>
+#include <migraphx/gpu/lrn.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -99,6 +100,7 @@ struct miopen_apply
         add_extend_op<hip_gather, op::gather>("gather");
         add_extend_op<hip_pad, op::pad>("pad");
 
+        add_lrn_op();
         add_convolution_op();
         add_pooling_op();
         add_batch_norm_inference_op();
@@ -156,6 +158,17 @@ struct miopen_apply
 
             return prog->replace_instruction(
                 ins, miopen_pooling{op, std::move(pd)}, ins->inputs().at(0), output);
+        });
+    }
+
+    void add_lrn_op()
+    {
+        apply_map.emplace("lrn", [=](instruction_ref ins) {
+            auto&& op   = any_cast<op::lrn>(ins->get_operator());
+            auto ldesc  = make_lrn(op);
+            auto output = insert_allocation(ins, ins->get_shape());
+            return prog->replace_instruction(
+                ins, miopen_lrn{std::move(ldesc)}, ins->inputs().at(0), output);
         });
     }
 

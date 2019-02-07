@@ -64,6 +64,7 @@ struct onnx_parser
         add_variadic_op("Max", op::max{});
         add_variadic_op("Min", op::min{});
 
+        add_mem_op("LRN", &onnx_parser::parse_lrn);
         add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
         add_mem_op("Elu", &onnx_parser::parse_elu);
@@ -533,6 +534,25 @@ struct onnx_parser
             alpha = parse_value(attributes.at("alpha")).at<float>();
         }
         op::elu op{alpha};
+        return prog.add_instruction(op, args.front());
+    }
+
+    instruction_ref
+    parse_lrn(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        float alpha = 0.0001;
+        float beta  = 0.75;
+        float bias  = 1.0;
+        int size    = 1;
+        if(contains(attributes, "alpha"))
+            alpha = parse_value(attributes.at("alpha")).at<float>();
+        if(contains(attributes, "beta"))
+            beta = parse_value(attributes.at("beta")).at<float>();
+        if(contains(attributes, "bias"))
+            bias = parse_value(attributes.at("bias")).at<float>();
+        if(contains(attributes, "size"))
+            size = parse_value(attributes.at("size")).at<int>();
+        op::lrn op{alpha, beta, bias, size};
         return prog.add_instruction(op, args.front());
     }
 

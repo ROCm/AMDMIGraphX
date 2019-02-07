@@ -25,7 +25,7 @@ void rewrite_gru::apply(program& prog) const
             std::size_t batch_size  = seq_shape.lens()[1];
             shape::type_t type      = seq_shape.type();
             migraphx::shape ih_shape{type, {1, batch_size, hidden_size}};
-            std::vector<char> data(ih_shape.bytes(), 0);
+            std::vector<float> data(ih_shape.elements(), 0.0);
 
             auto gru_op                    = any_cast<op::gru>(ins->get_operator());
             op::gru::gru_direction_t dicrt = gru_op.direction;
@@ -41,8 +41,8 @@ void rewrite_gru::apply(program& prog) const
                 auto r_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[2]);
 
                 // bias
-                instruction_ref bias_forward, bias_reverse;
-                bias_forward = bias_reverse = prog.end();
+                instruction_ref bias_forward = prog.end();
+                instruction_ref bias_reverse = prog.end();
                 if(args.size() >= 4 && args[3]->get_operator().name() != "undefined")
                 {
                     bias_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[3]);
@@ -50,7 +50,8 @@ void rewrite_gru::apply(program& prog) const
                 }
 
                 // intial hidden state
-                instruction_ref ih_forward, ih_reverse;
+                instruction_ref ih_forward{};
+                instruction_ref ih_reverse{};
                 if(args.size() == 6 && args[5]->get_operator().name() != "undefined")
                 {
                     ih_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[5]);
@@ -117,7 +118,7 @@ void rewrite_gru::apply(program& prog) const
                 }
 
                 // intial hidden state
-                instruction_ref ih;
+                instruction_ref ih{};
                 if(args.size() == 6 && args[5]->get_operator().name() != "undefined")
                 {
                     ih = args[5];
@@ -215,7 +216,11 @@ std::vector<instruction_ref> rewrite_gru::gru_cell(bool is_forward,
     auto sih = prog.insert_instruction(ins, op::squeeze{{0}}, ih);
 
     // bias
-    instruction_ref brcst_bz, brcst_br, brcst_wbh, brcst_rbh, brcst_bh;
+    instruction_ref brcst_bz{};
+    instruction_ref brcst_br{};
+    instruction_ref brcst_wbh{};
+    instruction_ref brcst_rbh{};
+    instruction_ref brcst_bh{};
     if(bias != prog.end())
     {
         auto sbias = prog.insert_instruction(ins, op::squeeze{{0}}, bias);

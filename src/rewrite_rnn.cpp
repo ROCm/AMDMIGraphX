@@ -789,6 +789,11 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
         }
         else
         {
+            ret_forward[0] =
+                prog.insert_instruction(ins, op::concat{0}, ret_forward[0], ret_forward[1]);
+            ret_reverse[0] =
+                prog.insert_instruction(ins, op::concat{0}, ret_reverse[1], ret_reverse[0]);
+            prog.replace_instruction(ins, op::concat{1}, {ret_forward[0], ret_reverse[0]});
         }
     }
     else

@@ -21,9 +21,9 @@ struct rewrite_rnn
     void apply(program& prog) const;
 
     private:
-    // for vallina rnn operators
-    void apply_vallina_rnn(program& prog, instruction_ref ins) const;
-    std::vector<instruction_ref> rnn_cell(bool is_forward,
+    // for vanilla rnn operators
+    void apply_vanilla_rnn(program& prog, instruction_ref ins) const;
+    std::vector<instruction_ref> vanilla_rnn_cell(bool is_forward,
                                           program& prog,
                                           instruction_ref ins,
                                           instruction_ref input,
@@ -32,7 +32,7 @@ struct rewrite_rnn
                                           instruction_ref bias,
                                           instruction_ref ih,
                                           operation& actv_func) const;
-    std::vector<operation> rnn_actv_funcs(instruction_ref ins) const;
+    std::vector<operation> vanilla_rnn_actv_funcs(instruction_ref ins) const;
 
     // for gru operators
     void apply_gru(program& prog, instruction_ref ins) const;

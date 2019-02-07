@@ -1517,8 +1517,10 @@ struct test_gru_forward_last
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, hidden_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, hidden_size}};
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
         migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
 
@@ -1559,8 +1561,10 @@ struct test_gru_forward_hs
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, hidden_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, hidden_size}};
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
         migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
 
@@ -1572,15 +1576,15 @@ struct test_gru_forward_hs
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
         p.add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::gru::forward,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih);
+                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                            migraphx::op::gru::forward,
+                                            clip},
+                          seq,
+                          w,
+                          r,
+                          bias,
+                          und,
+                          ih);
 
         return p;
     }
@@ -1599,22 +1603,24 @@ struct test_gru_forward_3args_und
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, hidden_size}};
-        auto seq  = p.add_parameter("seq", in_shape);
-        auto w    = p.add_parameter("w", w_shape);
-        auto r    = p.add_parameter("r", r_shape);
-        auto und  = p.add_instruction(migraphx::op::undefined{});
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
+        auto und = p.add_instruction(migraphx::op::undefined{});
         p.add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::gru::forward,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              und,
-                              und,
-                              und);
+                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                            migraphx::op::gru::forward,
+                                            clip},
+                          seq,
+                          w,
+                          r,
+                          und,
+                          und,
+                          und);
 
         return p;
     }
@@ -1633,18 +1639,20 @@ struct test_gru_forward_3args
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, hidden_size}};
-        auto seq  = p.add_parameter("seq", in_shape);
-        auto w    = p.add_parameter("w", w_shape);
-        auto r    = p.add_parameter("r", r_shape);
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
         p.add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::gru::forward,
-                                                clip},
-                              seq,
-                              w,
-                              r);
+                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                            migraphx::op::gru::forward,
+                                            clip},
+                          seq,
+                          w,
+                          r);
 
         return p;
     }
@@ -1663,18 +1671,20 @@ struct test_gru_forward_seq1
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, hidden_size}};
-        auto seq  = p.add_parameter("seq", in_shape);
-        auto w    = p.add_parameter("w", w_shape);
-        auto r    = p.add_parameter("r", r_shape);
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
         p.add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::gru::forward,
-                                                clip},
-                              seq,
-                              w,
-                              r);
+                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                            migraphx::op::gru::forward,
+                                            clip},
+                          seq,
+                          w,
+                          r);
 
         return p;
     }
@@ -1693,18 +1703,15 @@ struct test_gru_forward_default_actv
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, hidden_size}};
-        auto seq  = p.add_parameter("seq", in_shape);
-        auto w    = p.add_parameter("w", w_shape);
-        auto r    = p.add_parameter("r", r_shape);
-        p.add_instruction(migraphx::op::gru{hidden_size,
-                                                {},
-                                                migraphx::op::gru::forward,
-                                                clip},
-                              seq,
-                              w,
-                              r);
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
+        p.add_instruction(
+            migraphx::op::gru{hidden_size, {}, migraphx::op::gru::forward, clip}, seq, w, r);
 
         return p;
     }
@@ -1723,8 +1730,10 @@ struct test_gru_forward_default_actv1
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, hidden_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, hidden_size}};
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
         migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
 
@@ -1735,16 +1744,15 @@ struct test_gru_forward_default_actv1
         auto ih   = p.add_parameter("ih", ih_shape);
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
-        p.add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}},
-                                                migraphx::op::gru::forward,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih);
+        p.add_instruction(
+            migraphx::op::gru{
+                hidden_size, {migraphx::op::sigmoid{}}, migraphx::op::gru::forward, clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih);
 
         return p;
     }
@@ -1763,8 +1771,10 @@ struct test_gru_reverse_last
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, hidden_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, hidden_size}};
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
         migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
 
@@ -1805,18 +1815,20 @@ struct test_gru_reverse_3args
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, hidden_size}};
-        auto seq  = p.add_parameter("seq", in_shape);
-        auto w    = p.add_parameter("w", w_shape);
-        auto r    = p.add_parameter("r", r_shape);
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
         p.add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::gru::reverse,
-                                                clip},
-                              seq,
-                              w,
-                              r);
+                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                            migraphx::op::gru::reverse,
+                                            clip},
+                          seq,
+                          w,
+                          r);
 
         return p;
     }
@@ -1835,8 +1847,10 @@ struct test_gru_bidirct_last
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, hidden_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, hidden_size}};
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
         migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
 
@@ -1877,8 +1891,10 @@ struct test_gru_bidirct_hs
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, hidden_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, hidden_size}};
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
         migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
 
@@ -1890,15 +1906,15 @@ struct test_gru_bidirct_hs
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
         p.add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::gru::bidirectional,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih);
+                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                            migraphx::op::gru::bidirectional,
+                                            clip},
+                          seq,
+                          w,
+                          r,
+                          bias,
+                          und,
+                          ih);
 
         return p;
     }
@@ -1917,22 +1933,24 @@ struct test_gru_bidirct_3args_und
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, hidden_size}};
-        auto seq  = p.add_parameter("seq", in_shape);
-        auto w    = p.add_parameter("w", w_shape);
-        auto r    = p.add_parameter("r", r_shape);
-        auto und  = p.add_instruction(migraphx::op::undefined{});
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
+        auto und = p.add_instruction(migraphx::op::undefined{});
         p.add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::gru::bidirectional,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              und,
-                              und,
-                              und);
+                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                            migraphx::op::gru::bidirectional,
+                                            clip},
+                          seq,
+                          w,
+                          r,
+                          und,
+                          und,
+                          und);
 
         return p;
     }
@@ -1951,18 +1969,20 @@ struct test_gru_bidirct_3args
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, hidden_size}};
-        auto seq  = p.add_parameter("seq", in_shape);
-        auto w    = p.add_parameter("w", w_shape);
-        auto r    = p.add_parameter("r", r_shape);
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
         p.add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::gru::bidirectional,
-                                                clip},
-                              seq,
-                              w,
-                              r);
+                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                            migraphx::op::gru::bidirectional,
+                                            clip},
+                          seq,
+                          w,
+                          r);
 
         return p;
     }
@@ -1981,18 +2001,20 @@ struct test_gru_bidirct_seq1
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, hidden_size}};
-        auto seq  = p.add_parameter("seq", in_shape);
-        auto w    = p.add_parameter("w", w_shape);
-        auto r    = p.add_parameter("r", r_shape);
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
         p.add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::gru::bidirectional,
-                                                clip},
-                              seq,
-                              w,
-                              r);
+                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                            migraphx::op::gru::bidirectional,
+                                            clip},
+                          seq,
+                          w,
+                          r);
 
         return p;
     }
@@ -2011,18 +2033,15 @@ struct test_gru_bidirct_default_actv
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, hidden_size}};
-        auto seq  = p.add_parameter("seq", in_shape);
-        auto w    = p.add_parameter("w", w_shape);
-        auto r    = p.add_parameter("r", r_shape);
-        p.add_instruction(migraphx::op::gru{hidden_size,
-                                                {},
-                                                migraphx::op::gru::bidirectional,
-                                                clip},
-                              seq,
-                              w,
-                              r);
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
+        p.add_instruction(
+            migraphx::op::gru{hidden_size, {}, migraphx::op::gru::bidirectional, clip}, seq, w, r);
 
         return p;
     }
@@ -2041,8 +2060,10 @@ struct test_gru_bidirct_default_actv1
 
         migraphx::program p;
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size, hidden_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 3 * hidden_size, hidden_size}};
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
         migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
 
@@ -2053,21 +2074,19 @@ struct test_gru_bidirct_default_actv1
         auto ih   = p.add_parameter("ih", ih_shape);
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
-        p.add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}},
-                                                migraphx::op::gru::bidirectional,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih);
+        p.add_instruction(
+            migraphx::op::gru{
+                hidden_size, {migraphx::op::sigmoid{}}, migraphx::op::gru::bidirectional, clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih);
 
         return p;
     }
 };
-
 
 int main()
 {

@@ -2722,243 +2722,351 @@ TEST_CASE(gru_bidirectional)
         EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
     }
 
-    // // 3 args
-    // {
-    //     migraphx::program p;
-    //     auto seq = p.add_literal(migraphx::literal{in_shape, input});
-    //     auto w = p.add_literal(migraphx::literal{w_shape, w_data});
-    //     auto r = p.add_literal(migraphx::literal{r_shape, r_data});
-    //     p.add_instruction(migraphx::op::gru{hidden_size,
-    //                                         {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-    //                                         migraphx::op::gru::forward,
-    //                                         clip,
-    //                                         1},
-    //                       seq,
-    //                       w,
-    //                       r);
+    // 3 args
+    {
+        migraphx::program p;
+        auto seq = p.add_literal(migraphx::literal{in_shape, input});
+        auto w = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r = p.add_literal(migraphx::literal{r_shape, r_data});
+        p.add_instruction(migraphx::op::gru{hidden_size,
+                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                            migraphx::op::gru::bidirectional,
+                                            clip,
+                                            0},
+                          seq,
+                          w,
+                          r);
 
-    //     p.compile(migraphx::cpu::target{});
-    //     auto hs_concat = p.eval({});
-    //     std::vector<float> hs_data;
-    //     hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        p.compile(migraphx::cpu::target{});
+        auto hs_concat = p.eval({});
+        std::vector<float> hs_data;
+        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
-    //     std::vector<float> hs_data_gold{
-    //         -0.114674, -0.129581, -0.218156, -0.140788, -0.114242,
-    //         -0.346569, 0.321367, -0.0838253, 0.102097, 0.00232137,
-    //         -0.149055, 0.0590743, -0.0533094, -0.0446122, -0.112588,
-    //         0.0153261, 0.168883, -0.326836, 0.0843562, 0.160872,
-    //         -0.232523, 0.00214573, 0.231693, -0.160475, -0.518952,
-    //         0.0467166, 0.12327, -0.374162, 0.137778, 0.251976};
+        std::vector<float> hs_data_gold{
+            0.0863793, -0.227845, 0.0283059, -0.258645, 0.14187, 0.43541, 0.190748,
+            -0.530196, -0.440444, 0.293767, 0.0402142, 0.0788687, -0.013, -0.233298, 
+            -0.0739615, 0.467104, 0.446285, 0.306097, 0.125636, 0.272524, 0.0949838, 
+            0.0522264, -0.0872712, -0.084203, 0.140013, 0.12739, -0.0111171, -0.431119, 
+            -0.468382, 0.388067, -0.109174, -0.119064, -0.0242958, -0.180555, 0.118983, 
+            0.341578, 0.275472, 0.0853083, 0.332205, -0.0498387, 0.140338, 0.0319435, 
+            0.247019, 0.275848, -0.158223, 0.0495464, -0.0681034, -0.418158, -0.523234, 
+            0.469122, -0.306578, -0.221095, -0.106449, -0.248934, -0.00682121, 0.288407, 
+            0.198708, 0.0695644, 0.211621, 0.00246037};
 
-    //     EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
-    // }
+        EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
+    }
 
-    // // 4 args (bias is used)
-    // {
-    //     migraphx::program p;
-    //     auto seq = p.add_literal(migraphx::literal{in_shape, input});
-    //     auto w = p.add_literal(migraphx::literal{w_shape, w_data});
-    //     auto r = p.add_literal(migraphx::literal{r_shape, r_data});
-    //     auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
-    //     p.add_instruction(migraphx::op::gru{hidden_size,
-    //                                         {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-    //                                         migraphx::op::gru::forward,
-    //                                         clip,
-    //                                         1},
-    //                       seq,
-    //                       w,
-    //                       r,
-    //                       bias);
+    // 4 args (bias is used)
+    {
+        migraphx::program p;
+        auto seq = p.add_literal(migraphx::literal{in_shape, input});
+        auto w = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
+        p.add_instruction(migraphx::op::gru{hidden_size,
+                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                            migraphx::op::gru::bidirectional,
+                                            clip,
+                                            1},
+                          seq,
+                          w,
+                          r,
+                          bias);
 
-    //     p.compile(migraphx::cpu::target{});
-    //     auto hs_concat = p.eval({});
-    //     std::vector<float> hs_data;
-    //     hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        p.compile(migraphx::cpu::target{});
+        auto hs_concat = p.eval({});
+        std::vector<float> hs_data;
+        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
-    //     std::vector<float> hs_data_gold{
-    //         -0.273619, 0.0931375, -0.104717, 0.0203752, -0.0797887,
-    //         -0.493948, 0.472118, -0.0336318, 0.332706, 0.0182268,
-    //         -0.341684, 0.38063, 0.0589275, 0.2644, -0.115737,
-    //         -0.152324, 0.442277, -0.201626, 0.408909, 0.12905,
-    //         -0.416866, 0.377186, 0.32922, 0.162214, -0.519973,
-    //         -0.140072, 0.465076, -0.229563, 0.500164, 0.195166};
+        std::vector<float> hs_data_gold{
+           -0.156667,    -0.248473,    0.0255282,     -0.24566,     0.211589,
+            0.192707,     0.253025,    -0.515283,    -0.414174,     0.227127,
+            0.124773,     0.284532,    -0.203929,    -0.120517,      -0.2794,
+            0.547635,     0.518549,    0.0447674,     0.258461,    0.0502881,
+           -0.219516,    0.0927382,   -0.0760062,   -0.0906231,     0.237615,
+           -0.215638,    0.0128074,    -0.425813,    -0.433378,     0.375383,
+          -0.0381738,     0.117793,    -0.180851,   -0.0841245,    -0.116649,
+            0.419469,     0.393515,    -0.076395,     0.427436,    -0.264071,
+           -0.185829,    0.0483585,     0.242955,      0.25233,    0.0148512,
+           -0.304127,   -0.0616653,    -0.411568,    -0.491748,     0.476508,
+           -0.313413,   -0.0361821,    -0.173037,    -0.235731,    -0.163113,
+            0.349008,     0.248674,   -0.0295413,     0.291437,    -0.165005};
 
-    //     EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
-    // }
+        EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
+    }
 
-    // // 4 args (ih is used)
-    // {
-    //     migraphx::program p;
-    //     auto seq = p.add_literal(migraphx::literal{in_shape, input});
-    //     auto w = p.add_literal(migraphx::literal{w_shape, w_data});
-    //     auto r = p.add_literal(migraphx::literal{r_shape, r_data});
-    //     auto ih = p.add_literal(migraphx::literal{ih_shape, ih_data});
-    //     auto und  = p.add_instruction(migraphx::op::undefined{});
-    //     p.add_instruction(migraphx::op::gru{hidden_size,
-    //                                         {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-    //                                         migraphx::op::gru::forward,
-    //                                         clip,
-    //                                         1},
-    //                       seq,
-    //                       w,
-    //                       r,
-    //                       und,
-    //                       und,
-    //                       ih);
+    // 4 args (ih is used)
+    {
+        migraphx::program p;
+        auto seq = p.add_literal(migraphx::literal{in_shape, input});
+        auto w = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto ih = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        auto und  = p.add_instruction(migraphx::op::undefined{});
+        p.add_instruction(migraphx::op::gru{hidden_size,
+                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                            migraphx::op::gru::bidirectional,
+                                            clip,
+                                            1},
+                          seq,
+                          w,
+                          r,
+                          und,
+                          und,
+                          ih);
 
-    //     p.compile(migraphx::cpu::target{});
-    //     auto hs_concat = p.eval({});
-    //     std::vector<float> hs_data;
-    //     hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        p.compile(migraphx::cpu::target{});
+        auto hs_concat = p.eval({});
+        std::vector<float> hs_data;
+        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
-    //     std::vector<float> hs_data_gold{
-    //         -0.0801064, 0.27025, -0.20704, 0.333579, -0.0452438,
-    //         -0.56265, 0.061061, 0.262172, 0.405193, 0.775226,
-    //         -0.100683, 0.258729, -0.0187297, 0.215815, -0.108936,
-    //         -0.0941018, 0.129665, -0.159421, 0.190636, 0.597412,
-    //         -0.197, 0.0885705, 0.269396, -0.0414511, -0.515137,
-    //         -0.03075, 0.158326, -0.296488, 0.177983, 0.519498};
+        std::vector<float> hs_data_gold{
+			0.248571,    0.0982155,   0.00808877,    0.0986508,    0.0969705,
+			0.434692,    -0.141696,    -0.164271,    -0.121157,     0.863222,
+		  -0.0718357,     0.137711,     0.109221,  -0.00207995,    0.0331223,
+			0.262705,     0.346587,     0.457158,     0.240744,     0.404261,
+			0.222779,     0.179757,   -0.0845316,    0.0690347,      0.10204,
+			0.100155,    -0.190286,    -0.122062,    -0.274379,     0.547281,
+		   -0.226753,   -0.0397069,     0.120404,     0.171299,     0.259989,
+		   0.0864604,     0.111322,     0.331784,     0.604653,     0.181017,
+			0.237426,    0.0911999,     0.233106,      0.32996,     -0.17175,
+		   0.0190231,    -0.154805,    -0.205631,    -0.405354,     0.519054,
+		   -0.380409,   -0.0350301,  -0.00633752,     0.403791,     0.181883,
+		  -0.0977917,   -0.0339407,     0.413089,     0.721238,     0.431879};
+        EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
+    }
 
-    //     EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
-    // }
+    // no activation function specified, so default is used.
+    {
+        migraphx::program p;
+        auto seq  = p.add_literal(migraphx::literal{in_shape, input});
+        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
+        auto und  = p.add_instruction(migraphx::op::undefined{});
+        auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        auto concat_hs =
+            p.add_instruction(migraphx::op::gru{hidden_size,
+                                                {},
+                                                migraphx::op::gru::bidirectional,
+                                                clip,
+                                                1},
+                              seq,
+                              w,
+                              r,
+                              bias,
+                              und,
+                              ih);
+        p.add_instruction(migraphx::op::gru_last_output{}, concat_hs);
+        p.compile(migraphx::cpu::target{});
+        auto hs_concat = p.eval({});
+        std::vector<float> hs_data;
+        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
-    // // no activation function specified, so default is used.
-    // {
-    //     migraphx::program p;
-    //     auto seq = p.add_literal(migraphx::literal{in_shape, input});
-    //     auto w = p.add_literal(migraphx::literal{w_shape, w_data});
-    //     auto r = p.add_literal(migraphx::literal{r_shape, r_data});
-    //     auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
-    //     auto und  = p.add_instruction(migraphx::op::undefined{});
-    //     auto ih = p.add_literal(migraphx::literal{ih_shape, ih_data});
-    //     auto concat_hs = p.add_instruction(migraphx::op::gru{hidden_size,
-    //                                         {},
-    //                                         migraphx::op::gru::forward,
-    //                                         clip,
-    //                                         1},
-    //                       seq,
-    //                       w,
-    //                       r,
-    //                       bias,
-    //                       und,
-    //                       ih);
-    //     p.add_instruction(migraphx::op::gru_last_output{}, concat_hs);
-    //     p.compile(migraphx::cpu::target{});
-    //     auto hs_concat = p.eval({});
-    //     std::vector<float> hs_data;
-    //     hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        std::vector<float> hs_data_gold{-0.0959787, 0.0794681, 0.241526,  0.321104,  0.00693533,
+                                        -0.311839,  -0.12802,  -0.16643,  -0.393849, 0.648851,
+                                        0.0248217,  0.435231,  -0.144448, 0.101531,  -0.111305,
+                                        0.381317,   0.468983,  0.230557,  0.348021,  0.180229};
 
-    //     std::vector<float> hs_data_gold{
-    //         -0.3969709 ,  0.43360898,  0.35775262,  0.23280787, -0.52179873,
-    //         -0.21944991,  0.4535257 , -0.13735442,  0.51757574,  0.50380427};
+        EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
+    }
 
-    //     EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
-    // }
+    // 1 activation function (sigmoid) specified
+    {
+        migraphx::program p;
+        auto seq = p.add_literal(migraphx::literal{in_shape, input});
+        auto w = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
+        auto und  = p.add_instruction(migraphx::op::undefined{});
+        auto ih = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        p.add_instruction(migraphx::op::gru{hidden_size,
+                                            {migraphx::op::sigmoid{}},
+                                            migraphx::op::gru::bidirectional,
+                                            clip,
+                                            0},
+                          seq,
+                          w,
+                          r,
+                          bias,
+                          und,
+                          ih);
+        p.compile(migraphx::cpu::target{});
+        auto hs_concat = p.eval({});
+        std::vector<float> hs_data;
+        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
-    // // 1 activation function (sigmoid) specified
-    // {
-    //     migraphx::program p;
-    //     auto seq = p.add_literal(migraphx::literal{in_shape, input});
-    //     auto w = p.add_literal(migraphx::literal{w_shape, w_data});
-    //     auto r = p.add_literal(migraphx::literal{r_shape, r_data});
-    //     auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
-    //     auto und  = p.add_instruction(migraphx::op::undefined{});
-    //     auto ih = p.add_literal(migraphx::literal{ih_shape, ih_data});
-    //     p.add_instruction(migraphx::op::gru{hidden_size,
-    //                                         {migraphx::op::sigmoid{}},
-    //                                         migraphx::op::gru::forward,
-    //                                         clip,
-    //                                         1},
-    //                       seq,
-    //                       w,
-    //                       r,
-    //                       bias,
-    //                       und,
-    //                       ih);
-    //     p.compile(migraphx::cpu::target{});
-    //     auto hs_concat = p.eval({});
-    //     std::vector<float> hs_data;
-    //     hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        std::vector<float> hs_data_gold{
+			0.325495,     0.469214,     0.164517,     0.585327,     0.328398,
+			0.457928,     0.065011,      0.35986,     0.545029,     0.859425,
+			0.427923,     0.667133,      0.41591,     0.540971,     0.365475,
+			0.482058,     0.565495,     0.556993,     0.607649,     0.543627,
+			0.428915,     0.537405,     0.306046,     0.518399,     0.403561,
+			0.410694,     0.301163,     0.407397,     0.471334,     0.726446,
+			0.309389,     0.612072,     0.360619,     0.590861,     0.366545,
+			0.367001,     0.433829,     0.501275,      0.72481,     0.512745,
+			0.463795,     0.539649,     0.487682,     0.554471,     0.395916,
+			0.430744,     0.415923,     0.424275,     0.409655,     0.698256,
+			0.126883,     0.554374,     0.216137,     0.671491,     0.263833,
+		   0.0678646,     0.132732,     0.477083,     0.802206,     0.626802};
+        EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
+    }
 
-    //     std::vector<float> hs_data_gold{
-    //         0.26905832, 0.5669211 , 0.20464146, 0.67195725, 0.24752215,
-    //         0.11411376, 0.12353572, 0.4245067 , 0.73908687, 0.8644615,
-    //         0.34754312, 0.61424744, 0.36769435, 0.6499579 , 0.3168031,
-    //         0.3296533 , 0.3055136 , 0.42514813, 0.6851256 , 0.7967266,
-    //         0.35652235, 0.6033026 , 0.52634895, 0.5815402 , 0.3001663,
-    //         0.39814138, 0.4354002 , 0.4310627 , 0.6708563 , 0.7509278};
+    // 1 activation function (tanh) specified
+    {
+        migraphx::program p;
+        auto seq = p.add_literal(migraphx::literal{in_shape, input});
+        auto w = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
+        auto und  = p.add_instruction(migraphx::op::undefined{});
+        auto ih = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        p.add_instruction(migraphx::op::gru{hidden_size,
+                                            {migraphx::op::tanh{}},
+                                            migraphx::op::gru::bidirectional,
+                                            clip,
+                                            1},
+                          seq,
+                          w,
+                          r,
+                          bias,
+                          und,
+                          ih);
+        p.compile(migraphx::cpu::target{});
+        auto hs_concat = p.eval({});
+        std::vector<float> hs_data;
+        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
-    //     EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
-    // }
+        std::vector<float> hs_data_gold{
+		   0.0919632,    -0.398302,   -0.0267752,    -0.326771,     0.401983,
+			0.949841,     0.557779,    -0.745259,     -1.52726,     0.946066,
+			0.330446,     0.301982,    -0.443763,   -0.0655817,    -0.326473,
+			0.861394,     0.560799,    -0.101768,     0.145142,     0.128956,
+		   -0.329758,     0.458253,    -0.339208,     0.289109,      0.36728,
+			-1.09574,    -0.181394,    -0.575781,    -0.823083,     0.804262,
+		  -0.0965933,      0.20405,    -0.430215,   0.00884668,    0.0716857,
+			0.844222,     0.516472,    -0.191571,     0.596968,    -0.545405,
+		   -0.336693,   -0.0280516,     0.339058,      1.00367,      0.12655,
+		  -0.0984504,    -0.174945,      -0.5365,     0.183188,      0.66716,
+		   -0.704461,    -0.393346,    -0.627123,     0.210395,    0.0563026,
+			 0.31419,     0.759629,  0.000258222,     0.350835,    -0.682684};
 
-    // // 1 activation function (tanh) specified
-    // {
-    //     migraphx::program p;
-    //     auto seq = p.add_literal(migraphx::literal{in_shape, input});
-    //     auto w = p.add_literal(migraphx::literal{w_shape, w_data});
-    //     auto r = p.add_literal(migraphx::literal{r_shape, r_data});
-    //     auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
-    //     auto und  = p.add_instruction(migraphx::op::undefined{});
-    //     auto ih = p.add_literal(migraphx::literal{ih_shape, ih_data});
-    //     auto concat_hs = p.add_instruction(migraphx::op::gru{hidden_size,
-    //                                         {migraphx::op::tanh{}},
-    //                                         migraphx::op::gru::forward,
-    //                                         clip,
-    //                                         1},
-    //                       seq,
-    //                       w,
-    //                       r,
-    //                       bias,
-    //                       und,
-    //                       ih);
-    //     p.add_instruction(migraphx::op::gru_last_output{}, concat_hs);
-    //     p.compile(migraphx::cpu::target{});
-    //     auto hs_concat = p.eval({});
-    //     std::vector<float> hs_data;
-    //     hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
+    }
 
-    //     std::vector<float> hs_data_gold{
-    //         -0.49333298, -0.06104589,  0.5629142,  -0.97955984, -0.9314696,
-    //         -0.03033514,  0.5280315,  -0.27354342,  0.65615714,  0.53612584};
+    // 3 activation functions specified
+    {
+        migraphx::program p;
+        auto seq = p.add_literal(migraphx::literal{in_shape, input});
+        auto w = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
+        auto und  = p.add_instruction(migraphx::op::undefined{});
+        auto ih = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        auto concat_hs = p.add_instruction(migraphx::op::gru{hidden_size,
+                                            {migraphx::op::tanh{}, migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                            migraphx::op::gru::bidirectional,
+                                            clip,
+                                            1},
+                          seq,
+                          w,
+                          r,
+                          bias,
+                          und,
+                          ih);
+        p.add_instruction(migraphx::op::gru_last_output{}, concat_hs);
+        p.compile(migraphx::cpu::target{});
+        auto hs_concat = p.eval({});
+        std::vector<float> hs_data;
+        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
-    //     EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
-    // }
+        std::vector<float> hs_data_gold{
+            0.351019,     0.474363,     0.570719,     0.717703,     0.468843,
+             1.15142,     0.457633,     0.300962,     0.361245,     0.666199,
+            0.330446,     0.301982,    -0.443763,   -0.0655817,    -0.326473,
+            0.861394,     0.560799,    -0.101768,     0.145142,     0.128956};
+        EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
+    }
 
-    // // seq length of 1
-    // {
-    //     migraphx::program p;
-    //     seq_len = 1;
-    //     migraphx::shape in_shape_one{migraphx::shape::float_type, {seq_len, batch_size,
-    //     input_size}}; std::vector<float> input_one{-0.8432, -0.9887,  1.3041, -2.6430, -0.3306,
-    //     -0.8504}; auto seq = p.add_literal(migraphx::literal{in_shape_one, input_one}); auto w =
-    //     p.add_literal(migraphx::literal{w_shape, w_data}); auto r =
-    //     p.add_literal(migraphx::literal{r_shape, r_data}); auto bias =
-    //     p.add_literal(migraphx::literal{b_shape, bias_data}); auto und  =
-    //     p.add_instruction(migraphx::op::undefined{}); auto ih =
-    //     p.add_literal(migraphx::literal{ih_shape, ih_data});
-    //     p.add_instruction(migraphx::op::gru{hidden_size,
-    //                                         {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-    //                                         migraphx::op::gru::forward,
-    //                                         clip,
-    //                                         1},
-    //                       seq,
-    //                       w,
-    //                       r,
-    //                       bias,
-    //                       und,
-    //                       ih);
+    // 4 activation functions all specified
+    {
+        migraphx::program p;
+        auto seq  = p.add_literal(migraphx::literal{in_shape, input});
+        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
+        auto und  = p.add_instruction(migraphx::op::undefined{});
+        auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        p.add_instruction(migraphx::op::gru{hidden_size,
+                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{},
+                                            migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                            migraphx::op::gru::bidirectional,
+                                            clip,
+                                            1},
+                          seq,
+                          w,
+                          r,
+                          bias,
+                          und,
+                          ih);
 
-    //     p.compile(migraphx::cpu::target{});
-    //     auto hs_concat = p.eval({});
-    //     std::vector<float> hs_data;
-    //     hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        p.compile(migraphx::cpu::target{});
+        auto hs_concat = p.eval({});
+        std::vector<float> hs_data;
+        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
-    //     std::vector<float> hs_data_gold{
-    //         -0.27298412,  0.42363745, -0.09368783,  0.4823072 , -0.02183238,
-    //         -0.6873896 ,  0.16144305,  0.31932795,  0.6104771 ,  0.79759157};
+        std::vector<float> hs_data_gold{
+            0.0352243, 0.0146756,  0.00570925, 0.152446,  0.208683,   0.214342,   -0.0454273,
+            -0.135177, -0.0800739, 0.903659,   0.0248217, 0.435231,   -0.144448,  0.101531,
+            -0.111305, 0.381317,   0.468983,   0.230557,  0.348021,   0.180229,   -0.0930435,
+            0.174108,  -0.063834,  0.0909285,  0.22759,   -0.221983,  -0.139656,  -0.0938906,
+            -0.247681, 0.69647,    -0.159396,  0.299061,  -0.116652,  0.238649,   0.109945,
+            0.192866,  0.307073,   0.191113,   0.658287,  -0.0340374, -0.0959787, 0.0794681,
+            0.241526,  0.321104,   0.00693533, -0.311839, -0.12802,   -0.16643,   -0.393849,
+            0.648851,  -0.395918,  0.231694,   -0.160503, 0.383289,   0.0879262,  -0.0254665,
+            0.079043,  0.322652,   0.752701,   0.243775};
 
-    //     EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
-    // }
+        EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
+    }
+
+
+    // seq length of 1
+    {
+        migraphx::program p;
+        seq_len = 1;
+        migraphx::shape in_shape_one{migraphx::shape::float_type, {seq_len, batch_size,input_size}}; 
+        std::vector<float> input_one{-0.8432, -0.9887,  1.3041, -2.6430, -0.3306, -0.8504}; 
+        auto seq = p.add_literal(migraphx::literal{in_shape_one, input_one}); 
+        auto w = p.add_literal(migraphx::literal{w_shape, w_data}); 
+        auto r = p.add_literal(migraphx::literal{r_shape, r_data}); 
+        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data}); 
+        auto und  = p.add_instruction(migraphx::op::undefined{}); 
+        auto ih = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        p.add_instruction(migraphx::op::gru{hidden_size,
+                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                            migraphx::op::gru::bidirectional,
+                                            clip,
+                                            1},
+                          seq,
+                          w,
+                          r,
+                          bias,
+                          und,
+                          ih);
+
+        p.compile(migraphx::cpu::target{});
+        auto hs_concat = p.eval({});
+        std::vector<float> hs_data;
+        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+
+        std::vector<float> hs_data_gold{
+           0.0352243,    0.0146756,   0.00570925,     0.152446,     0.208683,
+            0.214342,   -0.0454273,    -0.135177,   -0.0800739,     0.903659,
+          -0.0271321,     0.624762,    -0.117084,     0.509115,   -0.0175078,
+           -0.144492,   -0.0115366,     0.409153,     0.487015,     0.550755};
+
+        EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
+    }
 }
 
 TEST_CASE(pad_test)

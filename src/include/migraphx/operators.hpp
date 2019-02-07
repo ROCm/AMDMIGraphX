@@ -1269,7 +1269,7 @@ struct lstm
     std::vector<operation> actv_funcs{sigmoid{}, tanh{}, tanh{}};
     gru_direction_t direction = forward;
     float clip                = 0.0f;
-    int input_forget   = 0;
+    int input_forget          = 0;
 
     std::string name() const { return "lstm"; }
     shape compute_shape(std::vector<shape> inputs) const

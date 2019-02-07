@@ -156,9 +156,9 @@ void rewrite_gru::apply(program& prog) const
             // with the last_output, if gru_last_output exists
             // while loop to handle case of multiple gru_last_output operators
             auto last_output_it = ins->outputs().begin();
-            while (last_output_it != ins->outputs().end())
+            while(last_output_it != ins->outputs().end())
             {
-                last_output_it = std::find_if(last_output_it, ins->outputs().end(), [] (auto i) {
+                last_output_it = std::find_if(last_output_it, ins->outputs().end(), [](auto i) {
                     return i->name() == "gru_last_output";
                 });
 

@@ -159,9 +159,9 @@ void rewrite_rnn::apply(program& prog) const
             // search its output to find if there are rnn_last_output operator
             // while loop to handle case of multiple rnn_last_output operators
             auto last_output_it = ins->outputs().begin();
-            while (last_output_it != ins->outputs().end())
+            while(last_output_it != ins->outputs().end())
             {
-                last_output_it = std::find_if(last_output_it, ins->outputs().end(), [] (auto i) {
+                last_output_it = std::find_if(last_output_it, ins->outputs().end(), [](auto i) {
                     return i->name() == "rnn_last_output";
                 });
 

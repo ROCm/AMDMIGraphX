@@ -477,7 +477,8 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
     auto bias = inputs.at(3);
     auto ih   = inputs.at(4);
 
-    instruction_ref hidden_states = prog.end(), last_output;
+    instruction_ref hidden_states = prog.end();
+    instruction_ref last_output{};
     long seq_len                  = static_cast<long>(seq->get_shape().lens()[0]);
     long hs                       = static_cast<long>(r->get_shape().lens()[2]);
 

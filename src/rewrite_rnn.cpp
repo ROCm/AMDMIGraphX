@@ -918,9 +918,15 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     auto ic   = inputs.at(5);
     auto pph  = inputs.at(6);
 
-    instruction_ref
+    instruction_ref hidden_states = prog.end();
+    instruction_ref last_output{};
+    instruction_ref last_cell_output{};
 
-        return {};
+    migraphx::shape seq_shape = seq->get_shape();
+    long seq_len = static_cast<long>(seq_shape.lens()[0]);
+    long hs = static_cast<long>(r->get_shape().lens()[2]);
+
+    
 }
 
 std::vector<operation> rewrite_rnn::lstm_actv_funcs(instruction_ref ins) const

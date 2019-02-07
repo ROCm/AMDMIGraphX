@@ -57,7 +57,7 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
         // process bias
         instruction_ref bias_forward = prog.end();
         instruction_ref bias_reverse = prog.end();
-        if(args.size() >= 4 && args[3]->get_operator().name() != "undefined")
+        if(args.size() >= 4 && args[3]->name() != "undefined")
         {
             bias_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[3]);
             bias_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[3]);
@@ -67,7 +67,7 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
         // or the 5th one (if the sequence len argument is ignored)
         instruction_ref ih_forward{};
         instruction_ref ih_reverse{};
-        if(args.size() == 6 && args[5]->get_operator().name() != "undefined")
+        if(args.size() == 6 && args[5]->name() != "undefined")
         {
             ih_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[5]);
             ih_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[5]);
@@ -131,14 +131,14 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
 
         // process bias and initial hidden state
         instruction_ref bias = prog.end();
-        if(args.size() >= 4 && args[3]->get_operator().name() != "undefined")
+        if(args.size() >= 4 && args[3]->name() != "undefined")
         {
             bias = args[3];
         }
 
         // process intial hidden state
         instruction_ref ih;
-        if(args.size() == 6 && args[5]->get_operator().name() != "undefined")
+        if(args.size() == 6 && args[5]->name() != "undefined")
         {
             ih = args[5];
         }
@@ -340,7 +340,7 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
         // bias
         instruction_ref bias_forward = prog.end();
         instruction_ref bias_reverse = prog.end();
-        if(args.size() >= 4 && args[3]->get_operator().name() != "undefined")
+        if(args.size() >= 4 && args[3]->name() != "undefined")
         {
             bias_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[3]);
             bias_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[3]);
@@ -349,7 +349,7 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
         // intial hidden state
         instruction_ref ih_forward{};
         instruction_ref ih_reverse{};
-        if(args.size() == 6 && args[5]->get_operator().name() != "undefined")
+        if(args.size() == 6 && args[5]->name() != "undefined")
         {
             ih_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[5]);
             ih_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[5]);
@@ -407,14 +407,14 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
 
         // bias
         instruction_ref bias = prog.end();
-        if(args.size() >= 4 && args[3]->get_operator().name() != "undefined")
+        if(args.size() >= 4 && args[3]->name() != "undefined")
         {
             bias = args[3];
         }
 
         // intial hidden state
         instruction_ref ih{};
-        if(args.size() == 6 && args[5]->get_operator().name() != "undefined")
+        if(args.size() == 6 && args[5]->name() != "undefined")
         {
             ih = args[5];
         }

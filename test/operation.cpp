@@ -1,5 +1,6 @@
 
 #include <migraphx/operation.hpp>
+#include <migraphx/context.hpp>
 #include <sstream>
 #include <string>
 #include "test.hpp"

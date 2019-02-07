@@ -1,5 +1,6 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <basic_ops.hpp>
+#include <migraphx/operators.hpp>
 #include <test.hpp>
 
 struct dce_target
@@ -106,6 +107,23 @@ TEST_CASE(depth_test)
     auto count = std::distance(p.begin(), p.end());
     p.compile(dce_target{});
     EXPECT(std::distance(p.begin(), p.end()) == (count - 4));
+    auto result = p.eval({});
+    EXPECT(result == migraphx::literal{3});
+    EXPECT(result != migraphx::literal{4});
+}
+
+TEST_CASE(undefined_test)
+{
+    migraphx::program p;
+
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto undef = p.add_instruction(migraphx::op::undefined{});
+    p.add_instruction(sum_op{}, one, two);
+    auto count = std::distance(p.begin(), p.end());
+    p.compile(dce_target{});
+    EXPECT(std::distance(p.begin(), p.end()) == count - 1);
+    EXPECT(not p.has_instruction(undef));
     auto result = p.eval({});
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});

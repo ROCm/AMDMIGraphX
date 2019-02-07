@@ -19,13 +19,7 @@ struct create_events
         return pack(f(self.num_of_events, "event"));
     }
     std::string name() const { return "gpu::create_events"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        if(inputs.empty())
-            return {};
-        else
-            return inputs.front();
-    }
+    shape compute_shape(const std::vector<shape>&) const { return {}; }
 
     argument compute(context& ctx, const shape&, const std::vector<argument>&) const
     {
@@ -43,13 +37,7 @@ struct record_event
         return pack(f(self.event, "event"));
     }
     std::string name() const { return "gpu::record_event"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        if(inputs.empty())
-            return {};
-        else
-            return inputs.front();
-    }
+    shape compute_shape(const std::vector<shape>&) const { return {}; }
 
     argument compute(context& ctx, const shape&, const std::vector<argument>&) const
     {
@@ -67,13 +55,7 @@ struct wait_event
         return pack(f(self.event, "event"));
     }
     std::string name() const { return "gpu::wait_event"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        if(inputs.empty())
-            return {};
-        else
-            return inputs.front();
-    }
+    shape compute_shape(const std::vector<shape>&) const { return {}; }
 
     argument compute(context& ctx, const shape&, const std::vector<argument>&) const
     {
@@ -91,16 +73,11 @@ struct set_stream
         return pack(f(self.stream, "stream"));
     }
     std::string name() const { return "gpu::set_stream"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        if(inputs.empty())
-            return {};
-        else
-            return inputs.front();
-    }
+    shape compute_shape(const std::vector<shape>&) const { return {}; }
 
     argument compute(context& ctx, const shape&, const std::vector<argument>&) const
     {
+        assert(stream >= 0);
         ctx.set_stream(stream);
         return {};
     }

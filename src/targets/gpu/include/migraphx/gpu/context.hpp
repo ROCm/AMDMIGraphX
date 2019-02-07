@@ -16,9 +16,9 @@ struct hip_device
 {
     using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
 
-    hip_device() { add_stream(); }
+    hip_device() { add_streams(); }
 
-    hip_device(std::size_t id) : device_id(id) { add_stream(); }
+    hip_device(std::size_t id) : device_id(id) { add_streams(); }
 
     struct stream
     {
@@ -95,7 +95,7 @@ struct hip_device
         return hip_event_ptr{event};
     }
 
-    void add_stream()
+    void add_streams()
     {
         int num_of_streams = 1;
         assert(streams.empty());

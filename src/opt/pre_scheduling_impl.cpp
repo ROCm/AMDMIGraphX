@@ -116,9 +116,8 @@ void pre_scheduling_impl::reorder()
     splice(sorted_nodes);
     annotate(sorted_nodes);
 
-#ifdef MIGRAPHX_DEBUG_OPT
-    verify();
-#endif
+    if(enable_verify)
+        verify();
 }
 
 // Assign stream to nodes according to load balance.
@@ -282,6 +281,19 @@ void pre_scheduling_impl::run()
     reorder();
 }
 
+void pre_scheduling_impl::verify()
+{
+    std::unordered_map<instruction_ref, bool> visited;
+    for(auto ins : iterator_for(*p_program))
+    {
+        for(auto&& arg : ins->inputs())
+        {
+            assert(visited.find(arg) != visited.end());
+        }
+        visited[ins] = true;
+    }
+}
+
 #ifdef MIGRAPHX_DEBUG_OPT
 void pre_scheduling_impl::dump(const std::string& str) { std::cout << str << std::endl; }
 
@@ -302,19 +314,6 @@ void pre_scheduling_impl::dump(std::list<dag_node*>& sorted_nodes)
             }
             std::cout << std::endl;
         }
-    }
-}
-
-void pre_scheduling_impl::verify()
-{
-    std::unordered_map<instruction_ref, bool> visited;
-    for(auto ins : iterator_for(*p_program))
-    {
-        for(auto&& arg : ins->inputs())
-        {
-            assert(visited.find(arg) != visited.end());
-        }
-        visited[ins] = true;
     }
 }
 

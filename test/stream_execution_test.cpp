@@ -9,7 +9,7 @@
 struct set_stream
 {
     int stream = -1;
-    std::string name() const { return "gpu::set_stream"; }
+    std::string name() const { return "set_stream"; }
 
     migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
     {
@@ -78,7 +78,7 @@ struct stream_execution_target
     std::string name() const { return "stream_execution"; }
     std::vector<migraphx::pass> get_passes(migraphx::context&) const
     {
-        return {migraphx::pre_scheduling{weight_func(), 2, insert_instruction{}}};
+        return {migraphx::pre_scheduling{weight_func(), 2, insert_instruction{}, true}};
     }
     migraphx::context get_context() const { return {ctx}; }
 };
@@ -97,7 +97,15 @@ TEST_CASE(test1)
     p.add_instruction(migraphx::op::concat{1}, p1, p2);
     p.compile(stream_execution_target{});
     CHECK(std::count_if(
-              p.begin(), p.end(), [](auto&& ins) { return ins.name() == "gpu::set_stream"; }) == 3);
+              p.begin(), p.end(), [](auto&& ins) { return ins.name() == "set_stream"; }) == 3);
+    CHECK(std::count_if(p.begin(), p.end(), [](auto&& ins) { return ins.get_stream() == 0; }) == 2);
+    CHECK(std::count_if(p.begin(), p.end(), [](auto&& ins) { return ins.get_stream() == 1; }) == 1);
+    CHECK(std::count_if(p.begin(), p.end(), [](auto&& ins) {
+              return ins.has_mask(migraphx::record_event);
+          }) == 1);
+    CHECK(std::count_if(p.begin(), p.end(), [](auto&& ins) {
+              return ins.has_mask(migraphx::wait_event);
+          }) == 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

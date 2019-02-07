@@ -3,7 +3,7 @@
 
 #include <utility>
 namespace migraphx {
-namespace set_op {
+inline namespace MIGRAPHX_INLINE_NS {
 
 template <typename Set, typename Key = typename Set::value_type>
 static inline Set set_intersection(const Set& lhs, const Set& rhs)
@@ -44,7 +44,7 @@ static inline Set set_difference(const Set& lhs, const Set& rhs)
     }
     return std::move(dset);
 }
-} // namespace set_op
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

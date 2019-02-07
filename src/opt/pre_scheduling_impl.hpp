@@ -84,8 +84,13 @@ struct pre_scheduling_impl
     pre_scheduling_impl(program* p,
                         std::function<std::pair<int, int>(const operation&)> w,
                         int n,
-                        insert_instruction ins)
-        : p_program(p), weight_func(std::move(w)), num_of_streams(n), insert_instr(std::move(ins))
+                        insert_instruction ins,
+                        bool v)
+        : p_program(p),
+          weight_func(std::move(w)),
+          num_of_streams(n),
+          insert_instr(std::move(ins)),
+          enable_verify(v)
     {
         instr2_node.clear();
         instr2_mask.clear();
@@ -167,12 +172,12 @@ struct pre_scheduling_impl
         if((mask & (1u << m)) == 0)
             instr2_mask[ins] = (mask + (1u << m));
     }
+    void verify();
 
 #ifdef MIGRAPHX_DEBUG_OPT
     void dump(const std::string&);
     void dump_program();
     void dump(std::list<dag_node*>&);
-    void verify();
 #endif
     static const int min_partition_threshold = 2;
 
@@ -187,6 +192,7 @@ struct pre_scheduling_impl
     std::unordered_map<instruction_ref, int> instr2_stream;
     std::unordered_map<instruction_ref, unsigned int> instr2_mask;
     dag_partition partition_info;
+    bool enable_verify;
 };
 } // namespace migraphx
 #endif

@@ -28,7 +28,7 @@ struct find_concur
                     std::unordered_map<const instruction*,
                                        std::vector<std::vector<const instruction*>>>& concur_instrs,
                     std::unordered_map<const instruction*, int>& instr2_points);
-};
+} const;
 
 #else
 
@@ -39,7 +39,7 @@ struct find_concur
  * {
  *      void get_concur(program* p,int num_of_stream,std::unordered_map<const instruction*,
  * std::vector<std::vector<const instruction*>>>& concur_instrs,std::unordered_map<const
- * instruction*, int>& input) ;
+ * instruction*, int>& input) const;
  * };
  *
  */
@@ -105,7 +105,7 @@ struct find_concur
                     int num_of_stream,
                     std::unordered_map<const instruction*,
                                        std::vector<std::vector<const instruction*>>>& concur_instrs,
-                    std::unordered_map<const instruction*, int>& input)
+                    std::unordered_map<const instruction*, int>& input) const
     {
         assert((*this).private_detail_te_handle_mem_var);
         (*this).private_detail_te_get_handle().get_concur(p, num_of_stream, concur_instrs, input);
@@ -129,7 +129,7 @@ struct find_concur
                    int num_of_stream,
                    std::unordered_map<const instruction*,
                                       std::vector<std::vector<const instruction*>>>& concur_instrs,
-                   std::unordered_map<const instruction*, int>& input) = 0;
+                   std::unordered_map<const instruction*, int>& input) const = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -165,7 +165,7 @@ struct find_concur
                    int num_of_stream,
                    std::unordered_map<const instruction*,
                                       std::vector<std::vector<const instruction*>>>& concur_instrs,
-                   std::unordered_map<const instruction*, int>& input) override
+                   std::unordered_map<const instruction*, int>& input) const override
         {
 
             private_detail_te_value.get_concur(p, num_of_stream, concur_instrs, input);
@@ -237,6 +237,7 @@ inline const ValueType& any_cast(const find_concur& x)
 }
 
 #endif
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

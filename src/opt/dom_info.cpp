@@ -133,8 +133,7 @@ void dom_info::compute_dom(bool reversed)
             if(p_tmp == nullptr)
                 instr2_doms[p_ins] = instr2_doms[p_arg];
             else
-                instr2_doms[p_ins] =
-                    set_op::set_intersection(instr2_doms[p_ins], instr2_doms[p_arg]);
+                instr2_doms[p_ins] = set_intersection(instr2_doms[p_ins], instr2_doms[p_arg]);
             p_tmp = p_arg;
         }
         // find immediate dominators.
@@ -239,7 +238,7 @@ void dom_info::propagate_splits(
                 if(split_from.find(ins) == split_from.end())
                     split_from[ins] = split_from[arg];
                 else
-                    split_from[ins] = set_op::set_union(split_from[ins], split_from[arg]);
+                    split_from[ins] = set_union(split_from[ins], split_from[arg]);
             }
         }
 
@@ -253,7 +252,7 @@ void dom_info::propagate_splits(
                 if(strictly_post_dominates(p_iter, split))
                     del_set.insert(split);
             }
-            split_from[ins] = set_op::set_difference(split_from[ins], del_set);
+            split_from[ins] = set_difference(split_from[ins], del_set);
         }
 
         if(split_from.find(ins) != split_from.end())

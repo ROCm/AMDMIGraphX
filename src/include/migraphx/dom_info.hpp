@@ -6,6 +6,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+//  Compute dominators, post-dominators, dominator tree, post-dominator tree
+//  for instructions with streams.  Also do program analysis to identify
+//  concurrent instructions in different streams.
 struct dom_info
 {
     dom_info(program* p) : p_program(p)
@@ -29,6 +32,7 @@ struct dom_info
     bool strictly_dominates(const instruction* ins1, const instruction* ins2);
     // whether ins1 strictly post-dominates ins2.
     bool strictly_post_dominates(const instruction* ins1, const instruction* ins2);
+    // Program analysis to identify concurrent instructions.
     void propagate_splits(
         int num_of_streams,
         std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>&

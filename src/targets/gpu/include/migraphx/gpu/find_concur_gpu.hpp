@@ -18,7 +18,7 @@ struct find_concur_gpu
                     int num_of_streams,
                     std::unordered_map<const instruction*,
                                        std::vector<std::vector<const instruction*>>>& concur_instrs,
-                    std::unordered_map<const instruction*, int>& instr2_points)
+                    std::unordered_map<const instruction*, int>& instr2_points) const
     {
         dom_info info(p);
         info.compute_dom(true);

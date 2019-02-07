@@ -931,7 +931,7 @@ struct onnx_parser
         {
             dirct = op::lstm::reverse;
         }
-        else if (direction == "forward")
+        else if(direction == "forward")
         {
             dirct = op::lstm::forward;
         }
@@ -958,14 +958,12 @@ struct onnx_parser
             // use the algorithm that: if 1 actv function is provided,
             // repeat 1st six times. If 2 actv functins are provided,
             // repeat 2nd once, then repeat all three once
-            // if 3 actv funcs are provide, repeat all three once. 
+            // if 3 actv funcs are provide, repeat all three once.
             // the same algorithm is used for 4, 5, and 6 actv funcions
             // provided. This may need change later
             switch(vec_names.size())
             {
-            case 1: 
-                vec_names.insert(vec_names.end(), 5, vec_names.back());
-                break;
+            case 1: vec_names.insert(vec_names.end(), 5, vec_names.back()); break;
 
             case 2:
                 // repeat the 2nd actv func once, then repeat all three another time
@@ -978,33 +976,25 @@ struct onnx_parser
                 vec_names.insert(vec_names.end(), vec_names.begin(), vec_names.end());
                 break;
 
-            case 4:
-                vec_names.insert(vec_names.end(), 2, vec_names.back());
-                break;
+            case 4: vec_names.insert(vec_names.end(), 2, vec_names.back()); break;
 
-            case 5:
-                vec_names.push_back(vec_names.back());
-                break;
+            case 5: vec_names.push_back(vec_names.back()); break;
 
-            default:
-                break;
+            default: break;
             }
         }
         else
         {
             switch(vec_names.size())
             {
-            case 1: 
-                vec_names.insert(vec_names.end(), 2, vec_names.back());
-                break;
+            case 1: vec_names.insert(vec_names.end(), 2, vec_names.back()); break;
 
             case 2:
                 // repeat the 2nd actv func once, so we have 3 actv funcs
                 vec_names.push_back(vec_names.back());
                 break;
 
-            default:
-                break;
+            default: break;
             }
         }
 
@@ -1041,8 +1031,7 @@ struct onnx_parser
 
         // first output for concatenation of hidden states
         auto hidden_states = prog.add_instruction(
-            op::lstm{hidden_size, vec_actv_funcs, dirct, clip, input_forget},
-            std::move(args));
+            op::lstm{hidden_size, vec_actv_funcs, dirct, clip, input_forget}, std::move(args));
 
         // second output for last lstm output
         auto last_output = prog.add_instruction(op::lstm_last_output{}, hidden_states);

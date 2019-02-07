@@ -676,13 +676,13 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
 }
 
 std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
-                                        program& prog,
-                                        instruction_ref ins,
-                                        std::vector<instruction_ref> inputs,
-                                        int linear_before_reset,
-                                        const operation& actv_func1,
-                                        const operation& actv_func2,
-                                        const operation& actv_func3) const
+                                                    program& prog,
+                                                    instruction_ref ins,
+                                                    std::vector<instruction_ref> inputs,
+                                                    int linear_before_reset,
+                                                    const operation& actv_func1,
+                                                    const operation& actv_func2,
+                                                    const operation& actv_func3) const
 {
     return {};
 }
@@ -694,55 +694,69 @@ std::vector<operation> rewrite_rnn::lstm_actv_funcs(instruction_ref ins) const
     // we have 6 actv funcs, even though a user does not
     // specifiy any actv func. If less than 46, use the
     // algorithm in parse_lstm to make 6 actv functions
-    const auto &actv_funcs = lstm_op.actv_funcs;
+    const auto& actv_funcs     = lstm_op.actv_funcs;
     std::size_t num_actv_funcs = actv_funcs.size();
     if(lstm_op.direction == op::lstm::bidirectional)
     {
         switch(num_actv_funcs)
         {
         case 0:
-            return {op::sigmoid{}, op::tanh{}, op::tanh{},
-                    op::sigmoid{}, op::tanh{}, op::tanh{}};
+            return {op::sigmoid{}, op::tanh{}, op::tanh{}, op::sigmoid{}, op::tanh{}, op::tanh{}};
 
         case 1:
-            return {actv_funcs.at(0), actv_funcs.at(0), actv_funcs.at(0), 
-                    actv_funcs.at(0), actv_funcs.at(0), actv_funcs.at(0)};
+            return {actv_funcs.at(0),
+                    actv_funcs.at(0),
+                    actv_funcs.at(0),
+                    actv_funcs.at(0),
+                    actv_funcs.at(0),
+                    actv_funcs.at(0)};
 
         case 2:
-            return {actv_funcs.at(0), actv_funcs.at(1), actv_funcs.at(1), 
-                    actv_funcs.at(0), actv_funcs.at(1), actv_funcs.at(1)};
-        
+            return {actv_funcs.at(0),
+                    actv_funcs.at(1),
+                    actv_funcs.at(1),
+                    actv_funcs.at(0),
+                    actv_funcs.at(1),
+                    actv_funcs.at(1)};
+
         case 3:
-            return {actv_funcs.at(0), actv_funcs.at(1), actv_funcs.at(2), 
-                    actv_funcs.at(0), actv_funcs.at(1), actv_funcs.at(2)};
+            return {actv_funcs.at(0),
+                    actv_funcs.at(1),
+                    actv_funcs.at(2),
+                    actv_funcs.at(0),
+                    actv_funcs.at(1),
+                    actv_funcs.at(2)};
 
         case 4:
-            return {actv_funcs.at(0), actv_funcs.at(1), actv_funcs.at(2), 
-                    actv_funcs.at(3), actv_funcs.at(3), actv_funcs.at(3)};
+            return {actv_funcs.at(0),
+                    actv_funcs.at(1),
+                    actv_funcs.at(2),
+                    actv_funcs.at(3),
+                    actv_funcs.at(3),
+                    actv_funcs.at(3)};
 
         case 5:
-            return {actv_funcs.at(0), actv_funcs.at(1), actv_funcs.at(2), 
-                    actv_funcs.at(3), actv_funcs.at(4), actv_funcs.at(4)};
+            return {actv_funcs.at(0),
+                    actv_funcs.at(1),
+                    actv_funcs.at(2),
+                    actv_funcs.at(3),
+                    actv_funcs.at(4),
+                    actv_funcs.at(4)};
 
-        default:
-            return actv_funcs;
+        default: return actv_funcs;
         }
     }
     else
     {
         switch(num_actv_funcs)
         {
-        case 0:
-            return {op::sigmoid{}, op::tanh{}, op::tanh{}};
+        case 0: return {op::sigmoid{}, op::tanh{}, op::tanh{}};
 
-        case 1:
-            return {actv_funcs.at(0), actv_funcs.at(0), actv_funcs.at(0)};
+        case 1: return {actv_funcs.at(0), actv_funcs.at(0), actv_funcs.at(0)};
 
-        case 2:
-            return {actv_funcs.at(0), actv_funcs.at(1), actv_funcs.at(1)};
-        
-        default:
-            return actv_funcs;
+        case 2: return {actv_funcs.at(0), actv_funcs.at(1), actv_funcs.at(1)};
+
+        default: return actv_funcs;
         }
     }
 }

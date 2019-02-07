@@ -923,10 +923,8 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     instruction_ref last_cell_output{};
 
     migraphx::shape seq_shape = seq->get_shape();
-    long seq_len = static_cast<long>(seq_shape.lens()[0]);
-    long hs = static_cast<long>(r->get_shape().lens()[2]);
-
-    
+    long seq_len              = static_cast<long>(seq_shape.lens()[0]);
+    long hs                   = static_cast<long>(r->get_shape().lens()[2]);
 }
 
 std::vector<operation> rewrite_rnn::lstm_actv_funcs(instruction_ref ins) const

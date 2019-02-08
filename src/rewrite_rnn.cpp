@@ -16,10 +16,13 @@ void rewrite_rnn::apply(program& prog) const
         {
             apply_vanilla_rnn(prog, ins);
         }
-
-        if(ins->name() == "gru")
+        else if(ins->name() == "gru")
         {
             apply_gru(prog, ins);
+        }
+        else if(ins->name() == "lstm")
+        {
+            apply_lstm(prog, ins);
         }
     }
 }

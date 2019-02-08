@@ -741,6 +741,16 @@ TEST_CASE(gru_test)
 
         EXPECT(p == prog);
     }
+}
+
+TEST_CASE(gru_test_args)
+{
+    std::size_t sl = 5;  // sequence len
+    std::size_t bs = 3;  // batch size
+    std::size_t hs = 20; // hidden size
+    std::size_t is = 10; // input size
+    std::size_t nd = 2;  // num directions
+    float clip     = 0.0f;
 
     // 3 arguments
     {
@@ -836,7 +846,16 @@ TEST_CASE(gru_test)
 
         EXPECT(p == prog);
     }
+}
 
+TEST_CASE(gru_test_actv_funcs)
+{
+    std::size_t sl = 5;  // sequence len
+    std::size_t bs = 3;  // batch size
+    std::size_t hs = 20; // hidden size
+    std::size_t is = 10; // input size
+    std::size_t nd = 2;  // num directions
+    float clip     = 0.0f;
     // bidirection, 0 actv function
     {
         nd = 2;

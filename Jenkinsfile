@@ -101,7 +101,8 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Debug') {
         // TODO: Enanle integer
         def sanitizers = "undefined"
-        cmake_build("hcc", "-DCMAKE_BUILD_TYPE=debug -DCMAKE_CXX_FLAGS_DEBUG='-g -fno-omit-frame-pointer -fsanitize-minimal-runtime -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}'")
+        def debug_flags = "-g -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
+        cmake_build("hcc", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
     }
     stage('Clang Release') {
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release")
@@ -120,7 +121,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
         // TODO: Add bounds-strict
         def sanitizers = "undefined,address"
         def debug_flags = "-g -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
+        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
 
     }
     stage('Codecov') {

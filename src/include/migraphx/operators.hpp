@@ -1177,7 +1177,7 @@ struct rnn
     std::size_t hidden_size = 1;
     std::vector<operation> actv_funcs{tanh{}, tanh{}};
     rnn_direction direction = rnn_direction::forward;
-    float clip                = 0.0f;
+    float clip              = 0.0f;
 
     std::string name() const { return "rnn"; }
     shape compute_shape(std::vector<shape> inputs) const
@@ -1227,8 +1227,8 @@ struct gru
     std::size_t hidden_size = 1;
     std::vector<operation> actv_funcs{sigmoid{}, tanh{}};
     rnn_direction direction = rnn_direction::forward;
-    float clip                = 0.0f;
-    int linear_before_reset   = 0;
+    float clip              = 0.0f;
+    int linear_before_reset = 0;
 
     std::string name() const { return "gru"; }
     shape compute_shape(std::vector<shape> inputs) const

@@ -1723,7 +1723,10 @@ struct test_gru_forward_default_actv
         auto w   = p.add_parameter("w", w_shape);
         auto r   = p.add_parameter("r", r_shape);
         p.add_instruction(
-            migraphx::op::gru{hidden_size, {}, migraphx::op::rnn_direction::forward, clip}, seq, w, r);
+            migraphx::op::gru{hidden_size, {}, migraphx::op::rnn_direction::forward, clip},
+            seq,
+            w,
+            r);
 
         return p;
     }
@@ -2053,7 +2056,10 @@ struct test_gru_bidirct_default_actv
         auto w   = p.add_parameter("w", w_shape);
         auto r   = p.add_parameter("r", r_shape);
         p.add_instruction(
-            migraphx::op::gru{hidden_size, {}, migraphx::op::rnn_direction::bidirectional, clip}, seq, w, r);
+            migraphx::op::gru{hidden_size, {}, migraphx::op::rnn_direction::bidirectional, clip},
+            seq,
+            w,
+            r);
 
         return p;
     }
@@ -2086,15 +2092,16 @@ struct test_gru_bidirct_default_actv1
         auto ih   = p.add_parameter("ih", ih_shape);
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
-        p.add_instruction(
-            migraphx::op::gru{
-                hidden_size, {migraphx::op::sigmoid{}}, migraphx::op::rnn_direction::bidirectional, clip},
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+        p.add_instruction(migraphx::op::gru{hidden_size,
+                                            {migraphx::op::sigmoid{}},
+                                            migraphx::op::rnn_direction::bidirectional,
+                                            clip},
+                          seq,
+                          w,
+                          r,
+                          bias,
+                          und,
+                          ih);
 
         return p;
     }

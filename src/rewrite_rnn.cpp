@@ -40,8 +40,8 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
     migraphx::shape ih_shape{type, {1, batch_size, hidden_size}};
     std::vector<float> data(ih_shape.elements(), 0);
 
-    auto actv_funcs                = vanilla_rnn_actv_funcs(ins);
-    auto rnn_op                    = any_cast<op::rnn>(ins->get_operator());
+    auto actv_funcs         = vanilla_rnn_actv_funcs(ins);
+    auto rnn_op             = any_cast<op::rnn>(ins->get_operator());
     op::rnn_direction dicrt = rnn_op.direction;
     instruction_ref last_output{};
     if(dicrt == op::rnn_direction::bidirectional)
@@ -322,7 +322,7 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
     migraphx::shape ih_shape{type, {1, batch_size, hidden_size}};
     std::vector<float> data(ih_shape.elements(), 0.0);
 
-    auto gru_op                    = any_cast<op::gru>(ins->get_operator());
+    auto gru_op             = any_cast<op::gru>(ins->get_operator());
     op::rnn_direction dicrt = gru_op.direction;
     instruction_ref last_output{};
     if(dicrt == op::rnn_direction::bidirectional)

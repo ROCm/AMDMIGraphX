@@ -1614,7 +1614,7 @@ TEST_CASE(gru_bidirectional_args)
                                0.1483,  -0.3902, -0.5348, 0.4178,  1.0175, 0.9212};
 
     float clip = 0.0f;
- 
+
     // 3 args
     {
         migraphx::program p;
@@ -1798,7 +1798,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
                                0.1483,  -0.3902, -0.5348, 0.4178,  1.0175, 0.9212};
 
     float clip = 0.0f;
- 
+
     // no activation function specified, so default is used.
     {
         migraphx::program p;

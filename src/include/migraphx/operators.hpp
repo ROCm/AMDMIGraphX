@@ -60,6 +60,30 @@ struct batch_norm_inference
     }
 };
 
+struct lrn
+{
+    float alpha = 0.0001;
+    float beta  = 0.75;
+    float bias  = 1.0;
+    int size    = 1;
+    std::string name() const { return "lrn"; }
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.alpha, "alpha"),
+                    f(self.beta, "beta"),
+                    f(self.bias, "bias"),
+                    f(self.size, "size"));
+    }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        return inputs.front();
+    }
+};
+
 struct convolution
 {
     std::array<std::size_t, 2> padding  = {{0, 0}};

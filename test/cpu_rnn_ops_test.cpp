@@ -111,14 +111,14 @@ TEST_CASE(rnn_forward)
         auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
-        auto out_hs =
-            p.add_instruction(migraphx::op::rnn{hidden_size, {}, migraphx::op::rnn_direction::forward, clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih);
+        auto out_hs = p.add_instruction(
+            migraphx::op::rnn{hidden_size, {}, migraphx::op::rnn_direction::forward, clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih);
 
         p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
         p.compile(migraphx::cpu::target{});
@@ -148,14 +148,14 @@ TEST_CASE(rnn_forward)
         auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
-        auto out_hs =
-            p.add_instruction(migraphx::op::rnn{hidden_size, {}, migraphx::op::rnn_direction::forward, clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih);
+        auto out_hs = p.add_instruction(
+            migraphx::op::rnn{hidden_size, {}, migraphx::op::rnn_direction::forward, clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih);
         p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
         p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
         p.compile(migraphx::cpu::target{});
@@ -183,7 +183,10 @@ TEST_CASE(rnn_forward)
         auto r   = p.add_literal(migraphx::literal{r_shape, r_data});
 
         auto out_hs = p.add_instruction(
-            migraphx::op::rnn{hidden_size, {}, migraphx::op::rnn_direction::forward, clip}, seq, w, r);
+            migraphx::op::rnn{hidden_size, {}, migraphx::op::rnn_direction::forward, clip},
+            seq,
+            w,
+            r);
         p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
         p.compile(migraphx::cpu::target{});
 
@@ -294,13 +297,14 @@ TEST_CASE(rnn_reverse)
         auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
-        p.add_instruction(migraphx::op::rnn{hidden_size, {}, migraphx::op::rnn_direction::reverse, clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          und,
-                          ih);
+        p.add_instruction(
+            migraphx::op::rnn{hidden_size, {}, migraphx::op::rnn_direction::reverse, clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
@@ -335,14 +339,14 @@ TEST_CASE(rnn_reverse)
         auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
-        auto out_hs =
-            p.add_instruction(migraphx::op::rnn{hidden_size, {}, migraphx::op::rnn_direction::reverse, clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih);
+        auto out_hs = p.add_instruction(
+            migraphx::op::rnn{hidden_size, {}, migraphx::op::rnn_direction::reverse, clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih);
 
         p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
         p.compile(migraphx::cpu::target{});
@@ -451,15 +455,17 @@ TEST_CASE(rnn_bidirectional)
         auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
-        auto out_hs = p.add_instruction(
-            migraphx::op::rnn{
-                hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn_direction::bidirectional, clip},
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+        auto out_hs =
+            p.add_instruction(migraphx::op::rnn{hidden_size,
+                                                {migraphx::op::tanh{}},
+                                                migraphx::op::rnn_direction::bidirectional,
+                                                clip},
+                              seq,
+                              w,
+                              r,
+                              bias,
+                              und,
+                              ih);
 
         p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
         p.compile(migraphx::cpu::target{});
@@ -589,11 +595,22 @@ TEST_CASE(rnn_bidirectional)
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
-        std::vector<float> hs_data_gold{
-            0.37780784,  0.61055139,  0.55168478, -0.5888475, 
-            -0.37144644, 0.31708236,  0.13104209, -0.18736027, 
-            -0.16915828, 0.1938169,   0.20667936, 0.58609703,
-            -0.0070999,  0.46251031, -0.20639211, 0.37488942};
+        std::vector<float> hs_data_gold{0.37780784,
+                                        0.61055139,
+                                        0.55168478,
+                                        -0.5888475,
+                                        -0.37144644,
+                                        0.31708236,
+                                        0.13104209,
+                                        -0.18736027,
+                                        -0.16915828,
+                                        0.1938169,
+                                        0.20667936,
+                                        0.58609703,
+                                        -0.0070999,
+                                        0.46251031,
+                                        -0.20639211,
+                                        0.37488942};
 
         EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
     }
@@ -1074,15 +1091,17 @@ TEST_CASE(gru_forward_actv_funcs)
         auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = p.add_instruction(migraphx::op::undefined{});
         auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
-        p.add_instruction(
-            migraphx::op::gru{
-                hidden_size, {migraphx::op::sigmoid{}}, migraphx::op::rnn_direction::forward, clip, 1},
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+        p.add_instruction(migraphx::op::gru{hidden_size,
+                                            {migraphx::op::sigmoid{}},
+                                            migraphx::op::rnn_direction::forward,
+                                            clip,
+                                            1},
+                          seq,
+                          w,
+                          r,
+                          bias,
+                          und,
+                          ih);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
@@ -1365,13 +1384,14 @@ TEST_CASE(gru_reverse)
         auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = p.add_instruction(migraphx::op::undefined{});
         auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
-        p.add_instruction(migraphx::op::gru{hidden_size, {}, migraphx::op::rnn_direction::reverse, clip, 1},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          und,
-                          ih);
+        p.add_instruction(
+            migraphx::op::gru{hidden_size, {}, migraphx::op::rnn_direction::reverse, clip, 1},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
@@ -1917,15 +1937,17 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = p.add_instruction(migraphx::op::undefined{});
         auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
-        p.add_instruction(
-            migraphx::op::gru{
-                hidden_size, {migraphx::op::sigmoid{}}, migraphx::op::rnn_direction::bidirectional, clip, 0},
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+        p.add_instruction(migraphx::op::gru{hidden_size,
+                                            {migraphx::op::sigmoid{}},
+                                            migraphx::op::rnn_direction::bidirectional,
+                                            clip,
+                                            0},
+                          seq,
+                          w,
+                          r,
+                          bias,
+                          und,
+                          ih);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
@@ -1952,15 +1974,17 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = p.add_instruction(migraphx::op::undefined{});
         auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
-        p.add_instruction(
-            migraphx::op::gru{
-                hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn_direction::bidirectional, clip, 1},
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
+        p.add_instruction(migraphx::op::gru{hidden_size,
+                                            {migraphx::op::tanh{}},
+                                            migraphx::op::rnn_direction::bidirectional,
+                                            clip,
+                                            1},
+                          seq,
+                          w,
+                          r,
+                          bias,
+                          und,
+                          ih);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;

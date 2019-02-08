@@ -288,7 +288,8 @@ void pre_scheduling_impl::verify()
     {
         for(auto&& arg : ins->inputs())
         {
-            assert(visited.find(arg) != visited.end());
+            if(visited.find(arg) == visited.end())
+                MIGRAPHX_THROW("Input not visited");
         }
         visited[ins] = true;
     }

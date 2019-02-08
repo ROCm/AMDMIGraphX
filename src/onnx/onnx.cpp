@@ -64,6 +64,7 @@ struct onnx_parser
         add_variadic_op("Max", op::max{});
         add_variadic_op("Min", op::min{});
 
+        add_mem_op("LRN", &onnx_parser::parse_lrn);
         add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
         add_mem_op("Elu", &onnx_parser::parse_elu);
@@ -88,6 +89,7 @@ struct onnx_parser
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
         add_mem_op("RNN", &onnx_parser::parse_rnn);
         add_mem_op("GRU", &onnx_parser::parse_gru);
+        add_mem_op("LSTM", &onnx_parser::parse_lstm);
         add_mem_op("Pad", &onnx_parser::parse_pad);
 
         // init the activation function map
@@ -537,6 +539,25 @@ struct onnx_parser
         return prog.add_instruction(op, args.front());
     }
 
+    instruction_ref
+    parse_lrn(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        float alpha = 0.0001;
+        float beta  = 0.75;
+        float bias  = 1.0;
+        int size    = 1;
+        if(contains(attributes, "alpha"))
+            alpha = parse_value(attributes.at("alpha")).at<float>();
+        if(contains(attributes, "beta"))
+            beta = parse_value(attributes.at("beta")).at<float>();
+        if(contains(attributes, "bias"))
+            bias = parse_value(attributes.at("bias")).at<float>();
+        if(contains(attributes, "size"))
+            size = parse_value(attributes.at("size")).at<int>();
+        op::lrn op{alpha, beta, bias, size};
+        return prog.add_instruction(op, args.front());
+    }
+
     instruction_ref parse_imagescaler(const std::string&,
                                       attribute_map attributes,
                                       std::vector<instruction_ref> args)
@@ -714,14 +735,14 @@ struct onnx_parser
             direction = attributes.at("direction").s();
         }
 
-        op::rnn::rnn_direction_t dirct = op::rnn::forward;
+        op::rnn_direction dirct = op::rnn_direction::forward;
         if(direction == "bidirectional")
         {
-            dirct = op::rnn::bidirectional;
+            dirct = op::rnn_direction::bidirectional;
         }
         else if(direction == "reverse")
         {
-            dirct = op::rnn::reverse;
+            dirct = op::rnn_direction::reverse;
         }
 
         std::vector<std::string> vec_names{"tanh"};
@@ -743,7 +764,7 @@ struct onnx_parser
         // one is for forward, and the other is for reverse.
         // if only one actv function is provided, we use it in both
         // forward and reverse direction
-        if(dirct == op::rnn::bidirectional)
+        if(dirct == op::rnn_direction::bidirectional)
         {
             if(vec_names.size() == 1)
             {
@@ -803,14 +824,14 @@ struct onnx_parser
             direction = attributes.at("direction").s();
         }
 
-        op::gru::gru_direction_t dirct = op::gru::forward;
+        op::rnn_direction dirct = op::rnn_direction::forward;
         if(direction == "bidirectional")
         {
-            dirct = op::gru::bidirectional;
+            dirct = op::rnn_direction::bidirectional;
         }
         else if(direction == "reverse")
         {
-            dirct = op::gru::reverse;
+            dirct = op::rnn_direction::reverse;
         }
 
         std::vector<std::string> vec_names = {"sigmoid", "tanh"};
@@ -824,7 +845,7 @@ struct onnx_parser
         }
 
         // need 4 activation functions
-        if(dirct == op::gru::bidirectional)
+        if(dirct == op::rnn_direction::bidirectional)
         {
             // 4 activation functions are used in the bidirectional
             // scenario. No spec is provided in onnx::operator. we
@@ -895,7 +916,7 @@ struct onnx_parser
             std::move(args));
 
         // second output for last gru output
-        auto last_output = prog.add_instruction(op::gru_last_output{}, hidden_states);
+        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
 
         return {hidden_states, last_output};
     }
@@ -922,18 +943,18 @@ struct onnx_parser
             direction = attributes.at("direction").s();
         }
 
-        op::lstm::lstm_direction_t dirct = op::lstm::forward;
+        op::rnn_direction dirct = op::rnn_direction::forward;
         if(direction == "bidirectional")
         {
-            dirct = op::lstm::bidirectional;
+            dirct = op::rnn_direction::bidirectional;
         }
         else if(direction == "reverse")
         {
-            dirct = op::lstm::reverse;
+            dirct = op::rnn_direction::reverse;
         }
         else if(direction == "forward")
         {
-            dirct = op::lstm::forward;
+            dirct = op::rnn_direction::forward;
         }
         else
         {
@@ -951,7 +972,7 @@ struct onnx_parser
         }
 
         // need 6 activation functions for bidirectional directions
-        if(dirct == op::lstm::bidirectional)
+        if(dirct == op::rnn_direction::bidirectional)
         {
             // 6 activation functions are used in the bidirectional
             // scenario. No spec is provided in onnx::operator. we
@@ -1034,7 +1055,7 @@ struct onnx_parser
             op::lstm{hidden_size, vec_actv_funcs, dirct, clip, input_forget}, std::move(args));
 
         // second output for last lstm output
-        auto last_output = prog.add_instruction(op::lstm_last_output{}, hidden_states);
+        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
 
         // third output for last cell output
         auto last_cell_output = prog.add_instruction(op::lstm_last_cell_output{}, hidden_states);

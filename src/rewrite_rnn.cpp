@@ -43,11 +43,11 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
     migraphx::shape ih_shape{type, {1, batch_size, hidden_size}};
     std::vector<float> data(ih_shape.elements(), 0);
 
-    auto actv_funcs                = vanilla_rnn_actv_funcs(ins);
-    auto rnn_op                    = any_cast<op::rnn>(ins->get_operator());
-    op::rnn::rnn_direction_t dicrt = rnn_op.direction;
+    auto actv_funcs         = vanilla_rnn_actv_funcs(ins);
+    auto rnn_op             = any_cast<op::rnn>(ins->get_operator());
+    op::rnn_direction dicrt = rnn_op.direction;
     instruction_ref last_output{};
-    if(dicrt == op::rnn::bidirectional)
+    if(dicrt == op::rnn_direction::bidirectional)
     {
         // input weight matrix
         auto w_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[1]);
@@ -107,11 +107,9 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
         // The following logic is to ensure the last instruction rewritten from
         // rnn operator is a concat instruction
         // sequence len is 1
-        instruction_ref hidden_output{};
         if(ret_forward[0] == prog.end())
         {
-            hidden_output =
-                prog.replace_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
+            prog.replace_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
         }
         else
         {
@@ -119,13 +117,12 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
                 prog.insert_instruction(ins, op::concat{0}, ret_forward[0], ret_forward[1]);
             ret_reverse[0] =
                 prog.insert_instruction(ins, op::concat{0}, ret_reverse[1], ret_reverse[0]);
-            hidden_output =
-                prog.replace_instruction(ins, op::concat{1}, {ret_forward[0], ret_reverse[0]});
+            prog.replace_instruction(ins, op::concat{1}, {ret_forward[0], ret_reverse[0]});
         }
     }
     else
     {
-        bool is_forward = (dicrt == op::rnn::forward);
+        bool is_forward = (dicrt == op::rnn_direction::forward);
         // input weight matrix
         auto w = args[1];
 
@@ -157,16 +154,15 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
         // following logic is to ensure the last instruction is a
         // concat instruction
         // sequence len is 1
-        instruction_ref hidden_output{};
         if(ret[0] == prog.end())
         {
-            hidden_output = prog.replace_instruction(ins, op::concat{0}, ret[1]);
+            prog.replace_instruction(ins, op::concat{0}, ret[1]);
         }
         else
         {
             auto concat_arg0 = is_forward ? ret[0] : ret[1];
             auto concat_arg1 = is_forward ? ret[1] : ret[0];
-            hidden_output = prog.replace_instruction(ins, op::concat{0}, concat_arg0, concat_arg1);
+            prog.replace_instruction(ins, op::concat{0}, concat_arg0, concat_arg1);
         }
     }
 
@@ -282,7 +278,7 @@ std::vector<operation> rewrite_rnn::vanilla_rnn_actv_funcs(instruction_ref ins) 
     // append undefined operators to make 6 arguments when parsing
     // an onnx file. Another case is user can have any num of arguments
     // when writing their program.
-    if(rnn_op.direction == op::rnn::bidirectional)
+    if(rnn_op.direction == op::rnn_direction::bidirectional)
     {
         if(rnn_op.actv_funcs.empty())
         {
@@ -329,10 +325,10 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
     migraphx::shape ih_shape{type, {1, batch_size, hidden_size}};
     std::vector<float> data(ih_shape.elements(), 0.0);
 
-    auto gru_op                    = any_cast<op::gru>(ins->get_operator());
-    op::gru::gru_direction_t dicrt = gru_op.direction;
+    auto gru_op             = any_cast<op::gru>(ins->get_operator());
+    op::rnn_direction dicrt = gru_op.direction;
     instruction_ref last_output{};
-    if(dicrt == op::gru::bidirectional)
+    if(dicrt == op::rnn_direction::bidirectional)
     {
         // w weight matrix
         auto w_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[1]);
@@ -402,7 +398,7 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
     }
     else
     {
-        bool is_forward = (dicrt == op::gru::forward);
+        bool is_forward = (dicrt == op::rnn_direction::forward);
         // weight matrix
         auto w = args[1];
         auto r = args[2];
@@ -447,14 +443,14 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
         }
     }
 
-    // replace the corresponding gru_last_output instruction
-    // with the last_output, if gru_last_output exists
-    // while loop to handle case of multiple gru_last_output operators
+    // replace the corresponding rnn_last_output instruction
+    // with the last_output, if rnn_last_output exists
+    // while loop to handle case of multiple rnn_last_output operators
     auto last_output_it = ins->outputs().begin();
     while(last_output_it != ins->outputs().end())
     {
         last_output_it = std::find_if(last_output_it, ins->outputs().end(), [](auto i) {
-            return i->name() == "gru_last_output";
+            return i->name() == "rnn_last_output";
         });
 
         if(last_output_it != ins->outputs().end())
@@ -638,7 +634,7 @@ std::vector<operation> rewrite_rnn::gru_actv_funcs(instruction_ref ins) const
     // we have 4 actv funcs, even though a user does not
     // specifiy any actv func. If less than 4, use the
     // algorithm in parse_gru to make 4 actv functions
-    if(gru_op.direction == op::gru::bidirectional)
+    if(gru_op.direction == op::rnn_direction::bidirectional)
     {
         if(gru_op.actv_funcs.empty())
             return {op::sigmoid{}, op::tanh{}, op::sigmoid{}, op::tanh{}};
@@ -689,11 +685,11 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
 
     auto actv_funcs                  = lstm_actv_funcs(ins);
     auto lstm_op                     = any_cast<op::lstm>(ins->get_operator());
-    op::lstm::lstm_direction_t dirct = lstm_op.direction;
+    op::rnn_direction dirct = lstm_op.direction;
 
     instruction_ref last_output{};
     instruction_ref last_cell_output{};
-    if(dirct == op::lstm::bidirectional)
+    if(dirct == op::rnn_direction::bidirectional)
     {
         // input weight matrix
         // input weight matrix
@@ -799,7 +795,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
     }
     else
     {
-        bool is_forward = (dirct == op::lstm::forward);
+        bool is_forward = (dirct == op::rnn_direction::forward);
         // weight matrices
         auto w = args[1];
         auto r = args[2];
@@ -1100,7 +1096,7 @@ std::vector<operation> rewrite_rnn::lstm_actv_funcs(instruction_ref ins) const
     // algorithm in parse_lstm to make 6 actv functions
     const auto& actv_funcs     = lstm_op.actv_funcs;
     std::size_t num_actv_funcs = actv_funcs.size();
-    if(lstm_op.direction == op::lstm::bidirectional)
+    if(lstm_op.direction == op::rnn_direction::bidirectional)
     {
         switch(num_actv_funcs)
         {

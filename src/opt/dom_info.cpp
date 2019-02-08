@@ -18,24 +18,6 @@ struct program_visitor
     }
 };
 
-// Query whether ins1 strictly dominates ins2.  ins1 strictly dominates
-// ins2 if ins1 dominates ins2 and ins1 is not ins2.
-//
-bool dom_info::strictly_dominates(const instruction* ins1, const instruction* ins2)
-{
-    if(ins1 != ins2)
-    {
-        const instruction* iter = ins2;
-        while(instr2_idom.find(iter) != instr2_idom.end())
-        {
-            if(ins1 == instr2_idom[iter])
-                return true;
-            iter = instr2_idom[iter];
-        }
-    }
-    return false;
-}
-
 // Query whether ins1 strictly post-dominates ins2.  ins1 strictly post-dominates
 // ins2 if ins1 post-dominates ins2 and ins1 is not ins2.
 //

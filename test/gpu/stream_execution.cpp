@@ -29,12 +29,9 @@ migraphx::program create_program(bool is_cpu)
     return p;
 }
 
-migraphx::argument run_gpu(bool use_stream)
+migraphx::argument run_gpu()
 {
-    if(use_stream)
-        setenv("MIGRAPHX_DISABLE_NULL_STREAM", "1", 1);
-    else
-        setenv("MIGRAPHX_DISABLE_NULL_STREAM", "0", 1);
+    setenv("MIGRAPHX_DISABLE_NULL_STREAM", "1", 1);
     migraphx::program p = create_program(false);
     p.compile(migraphx::gpu::target{});
     migraphx::program::parameter_map m;
@@ -42,7 +39,9 @@ migraphx::argument run_gpu(bool use_stream)
     {
         m[x.first] = migraphx::gpu::to_gpu(migraphx::generate_argument(x.second));
     }
-    return migraphx::gpu::from_gpu(p.eval(m));
+    auto ret_val = migraphx::gpu::from_gpu(p.eval(m));
+    p.finish();
+    return ret_val;
 }
 
 migraphx::argument run_cpu()
@@ -59,7 +58,7 @@ migraphx::argument run_cpu()
 
 void gpu_stream_execution_test()
 {
-    auto result1 = run_gpu(true);
+    auto result1 = run_gpu();
     auto result2 = run_cpu();
     verify_args("test", result2, result1);
 }

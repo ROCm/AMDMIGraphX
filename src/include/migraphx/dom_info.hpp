@@ -28,8 +28,6 @@ struct dom_info
 #endif
     bool is_split_point(instruction_ref ins);
     bool is_merge_point(instruction_ref ins);
-    // whethere ins1 strictly dominates ins2
-    bool strictly_dominates(const instruction* ins1, const instruction* ins2);
     // whether ins1 strictly post-dominates ins2.
     bool strictly_post_dominates(const instruction* ins1, const instruction* ins2);
     // Program analysis to identify concurrent instructions.

@@ -332,6 +332,8 @@ void program::finalize()
         this->impl->ctx.create_events(max_event + 1);
 }
 
+void program::finish() { this->impl->ctx.finish(); }
+
 template <class F>
 argument generic_eval(const program& p,
                       context& ctx,

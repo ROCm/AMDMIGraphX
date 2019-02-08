@@ -96,6 +96,7 @@ TEST_CASE(test1)
     auto p2 = p.add_instruction(migraphx::op::convolution{}, in1, l2);
     p.add_instruction(migraphx::op::concat{1}, p1, p2);
     p.compile(stream_execution_target{});
+    std::cout << p << std::endl;
     CHECK(std::count_if(
               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "set_stream"; }) == 3);
     CHECK(std::count_if(p.begin(), p.end(), [](auto&& ins) { return ins.get_stream() == 0; }) == 2);

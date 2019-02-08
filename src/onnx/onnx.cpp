@@ -734,14 +734,14 @@ struct onnx_parser
             direction = attributes.at("direction").s();
         }
 
-        op::rnn::rnn_direction_t dirct = op::rnn::forward;
+        op::rnn_direction dirct = op::rnn_direction::forward;
         if(direction == "bidirectional")
         {
-            dirct = op::rnn::bidirectional;
+            dirct = op::rnn_direction::bidirectional;
         }
         else if(direction == "reverse")
         {
-            dirct = op::rnn::reverse;
+            dirct = op::rnn_direction::reverse;
         }
 
         std::vector<std::string> vec_names{"tanh"};
@@ -763,7 +763,7 @@ struct onnx_parser
         // one is for forward, and the other is for reverse.
         // if only one actv function is provided, we use it in both
         // forward and reverse direction
-        if(dirct == op::rnn::bidirectional)
+        if(dirct == op::rnn_direction::bidirectional)
         {
             if(vec_names.size() == 1)
             {
@@ -823,14 +823,14 @@ struct onnx_parser
             direction = attributes.at("direction").s();
         }
 
-        op::gru::gru_direction_t dirct = op::gru::forward;
+        op::rnn_direction dirct = op::rnn_direction::forward;
         if(direction == "bidirectional")
         {
-            dirct = op::gru::bidirectional;
+            dirct = op::rnn_direction::bidirectional;
         }
         else if(direction == "reverse")
         {
-            dirct = op::gru::reverse;
+            dirct = op::rnn_direction::reverse;
         }
 
         std::vector<std::string> vec_names = {"sigmoid", "tanh"};
@@ -844,7 +844,7 @@ struct onnx_parser
         }
 
         // need 4 activation functions
-        if(dirct == op::gru::bidirectional)
+        if(dirct == op::rnn_direction::bidirectional)
         {
             // 4 activation functions are used in the bidirectional
             // scenario. No spec is provided in onnx::operator. we
@@ -915,7 +915,7 @@ struct onnx_parser
             std::move(args));
 
         // second output for last gru output
-        auto last_output = prog.add_instruction(op::gru_last_output{}, hidden_states);
+        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
 
         return {hidden_states, last_output};
     }

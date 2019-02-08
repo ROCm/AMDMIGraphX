@@ -42,9 +42,9 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
 
     auto actv_funcs                = vanilla_rnn_actv_funcs(ins);
     auto rnn_op                    = any_cast<op::rnn>(ins->get_operator());
-    op::rnn::rnn_direction_t dicrt = rnn_op.direction;
+    op::rnn_direction dicrt = rnn_op.direction;
     instruction_ref last_output{};
-    if(dicrt == op::rnn::bidirectional)
+    if(dicrt == op::rnn_direction::bidirectional)
     {
         // input weight matrix
         auto w_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[1]);
@@ -119,7 +119,7 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
     }
     else
     {
-        bool is_forward = (dicrt == op::rnn::forward);
+        bool is_forward = (dicrt == op::rnn_direction::forward);
         // input weight matrix
         auto w = args[1];
 
@@ -275,7 +275,7 @@ std::vector<operation> rewrite_rnn::vanilla_rnn_actv_funcs(instruction_ref ins) 
     // append undefined operators to make 6 arguments when parsing
     // an onnx file. Another case is user can have any num of arguments
     // when writing their program.
-    if(rnn_op.direction == op::rnn::bidirectional)
+    if(rnn_op.direction == op::rnn_direction::bidirectional)
     {
         if(rnn_op.actv_funcs.empty())
         {
@@ -323,9 +323,9 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
     std::vector<float> data(ih_shape.elements(), 0.0);
 
     auto gru_op                    = any_cast<op::gru>(ins->get_operator());
-    op::gru::gru_direction_t dicrt = gru_op.direction;
+    op::rnn_direction dicrt = gru_op.direction;
     instruction_ref last_output{};
-    if(dicrt == op::gru::bidirectional)
+    if(dicrt == op::rnn_direction::bidirectional)
     {
         // w weight matrix
         auto w_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[1]);
@@ -395,7 +395,7 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
     }
     else
     {
-        bool is_forward = (dicrt == op::gru::forward);
+        bool is_forward = (dicrt == op::rnn_direction::forward);
         // weight matrix
         auto w = args[1];
         auto r = args[2];
@@ -440,14 +440,14 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
         }
     }
 
-    // replace the corresponding gru_last_output instruction
-    // with the last_output, if gru_last_output exists
-    // while loop to handle case of multiple gru_last_output operators
+    // replace the corresponding rnn_last_output instruction
+    // with the last_output, if rnn_last_output exists
+    // while loop to handle case of multiple rnn_last_output operators
     auto last_output_it = ins->outputs().begin();
     while(last_output_it != ins->outputs().end())
     {
         last_output_it = std::find_if(last_output_it, ins->outputs().end(), [](auto i) {
-            return i->name() == "gru_last_output";
+            return i->name() == "rnn_last_output";
         });
 
         if(last_output_it != ins->outputs().end())
@@ -631,7 +631,7 @@ std::vector<operation> rewrite_rnn::gru_actv_funcs(instruction_ref ins) const
     // we have 4 actv funcs, even though a user does not
     // specifiy any actv func. If less than 4, use the
     // algorithm in parse_gru to make 4 actv functions
-    if(gru_op.direction == op::gru::bidirectional)
+    if(gru_op.direction == op::rnn_direction::bidirectional)
     {
         if(gru_op.actv_funcs.empty())
             return {op::sigmoid{}, op::tanh{}, op::sigmoid{}, op::tanh{}};

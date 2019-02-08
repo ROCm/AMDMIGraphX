@@ -285,7 +285,7 @@ TEST_CASE(rnn)
         expect_shape(migraphx::shape{migraphx::shape::float_type,
                                      {seq_len, num_dirct, batch_size, hidden_size}},
                      migraphx::op::rnn{
-                         hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn::forward, clip},
+                         hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn_direction::forward, clip},
                      in_shape,
                      w_shape,
                      r_shape,
@@ -310,7 +310,7 @@ TEST_CASE(rnn)
         expect_shape(migraphx::shape{migraphx::shape::float_type,
                                      {seq_len, num_dirct, batch_size, hidden_size}},
                      migraphx::op::rnn{
-                         hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn::reverse, clip},
+                         hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn_direction::reverse, clip},
                      in_shape,
                      w_shape,
                      r_shape,
@@ -336,7 +336,7 @@ TEST_CASE(rnn)
             migraphx::shape{migraphx::shape::float_type,
                             {seq_len, num_dirct, batch_size, hidden_size}},
             migraphx::op::rnn{
-                hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn::bidirectional, clip},
+                hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn_direction::bidirectional, clip},
             in_shape,
             w_shape,
             r_shape,
@@ -360,7 +360,7 @@ TEST_CASE(rnn)
 
         throws_shape(
             migraphx::op::rnn{
-                hidden_size + 1, {migraphx::op::tanh{}}, migraphx::op::rnn::forward, clip},
+                hidden_size + 1, {migraphx::op::tanh{}}, migraphx::op::rnn_direction::forward, clip},
             in_shape,
             w_shape,
             r_shape,
@@ -384,7 +384,7 @@ TEST_CASE(rnn)
 
         throws_shape(
             migraphx::op::rnn{
-                hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn::bidirectional, clip},
+                hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn_direction::bidirectional, clip},
             in_shape,
             w_shape,
             r_shape,
@@ -408,7 +408,7 @@ TEST_CASE(rnn)
 
         throws_shape(
             migraphx::op::rnn{
-                hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn::forward, clip},
+                hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn_direction::forward, clip},
             in_shape,
             w_shape,
             r_shape,
@@ -438,7 +438,7 @@ TEST_CASE(gru)
         expect_shape(migraphx::shape{migraphx::shape::float_type,
                                      {seq_len, num_dirct, batch_size, hidden_size}},
                      migraphx::op::gru{
-                         hidden_size, {migraphx::op::tanh{}}, migraphx::op::gru::forward, clip},
+                         hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn_direction::forward, clip},
                      in_shape,
                      w_shape,
                      r_shape,
@@ -465,7 +465,7 @@ TEST_CASE(gru)
         expect_shape(migraphx::shape{migraphx::shape::float_type,
                                      {seq_len, num_dirct, batch_size, hidden_size}},
                      migraphx::op::gru{
-                         hidden_size, {migraphx::op::tanh{}}, migraphx::op::gru::reverse, clip},
+                         hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn_direction::reverse, clip},
                      in_shape,
                      w_shape,
                      r_shape,
@@ -493,7 +493,7 @@ TEST_CASE(gru)
             migraphx::shape{migraphx::shape::float_type,
                             {seq_len, num_dirct, batch_size, hidden_size}},
             migraphx::op::gru{
-                hidden_size, {migraphx::op::tanh{}}, migraphx::op::gru::bidirectional, clip},
+                hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn_direction::bidirectional, clip},
             in_shape,
             w_shape,
             r_shape,
@@ -519,7 +519,7 @@ TEST_CASE(gru)
 
         throws_shape(
             migraphx::op::gru{
-                hidden_size + 1, {migraphx::op::tanh{}}, migraphx::op::gru::forward, clip},
+                hidden_size + 1, {migraphx::op::tanh{}}, migraphx::op::rnn_direction::forward, clip},
             in_shape,
             w_shape,
             r_shape,
@@ -545,7 +545,7 @@ TEST_CASE(gru)
 
         throws_shape(
             migraphx::op::gru{
-                hidden_size, {migraphx::op::tanh{}}, migraphx::op::gru::bidirectional, clip},
+                hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn_direction::bidirectional, clip},
             in_shape,
             w_shape,
             r_shape,
@@ -571,7 +571,7 @@ TEST_CASE(gru)
 
         throws_shape(
             migraphx::op::gru{
-                hidden_size, {migraphx::op::tanh{}}, migraphx::op::gru::forward, clip},
+                hidden_size, {migraphx::op::tanh{}}, migraphx::op::rnn_direction::forward, clip},
             in_shape,
             w_shape,
             r_shape,

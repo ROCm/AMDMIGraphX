@@ -1164,19 +1164,19 @@ struct outline
     argument compute(const shape&, const std::vector<argument>&) const { return {s, nullptr}; }
 };
 
+// indicate rnn computation direction
+enum class rnn_direction
+{
+    forward,
+    reverse,
+    bidirectional,
+};
+
 struct rnn
 {
-
-    enum rnn_direction_t
-    {
-        forward,
-        reverse,
-        bidirectional,
-    };
-
     std::size_t hidden_size = 1;
     std::vector<operation> actv_funcs{tanh{}, tanh{}};
-    rnn_direction_t direction = forward;
+    rnn_direction direction = rnn_direction::forward;
     float clip                = 0.0f;
 
     std::string name() const { return "rnn"; }
@@ -1190,7 +1190,7 @@ struct rnn
         }
 
         std::size_t num_directions = 1;
-        if(direction == bidirectional)
+        if(direction == rnn_direction::bidirectional)
         {
             num_directions = 2;
         }
@@ -1224,16 +1224,9 @@ struct rnn_last_output
 
 struct gru
 {
-    enum gru_direction_t
-    {
-        forward,
-        reverse,
-        bidirectional,
-    };
-
     std::size_t hidden_size = 1;
     std::vector<operation> actv_funcs{sigmoid{}, tanh{}};
-    gru_direction_t direction = forward;
+    rnn_direction direction = rnn_direction::forward;
     float clip                = 0.0f;
     int linear_before_reset   = 0;
 
@@ -1248,7 +1241,7 @@ struct gru
         }
 
         std::size_t num_directions = 1;
-        if(direction == bidirectional)
+        if(direction == rnn_direction::bidirectional)
         {
             num_directions = 2;
         }
@@ -1263,20 +1256,6 @@ struct gru
         out_dims.back() = hidden_size;
 
         return {inputs[0].type(), out_dims};
-    }
-};
-
-struct gru_last_output
-{
-    std::string name() const { return "gru_last_output"; }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs, *this}.has(1);
-        auto dims = inputs[0].lens();
-
-        // remove the first dimension, remaing are output shape
-        dims.erase(dims.begin());
-        return {inputs[0].type(), dims};
     }
 };
 

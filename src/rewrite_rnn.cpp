@@ -683,8 +683,8 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
     migraphx::shape pph_shape{type, {1, 3 * hidden_size}};
     std::vector<float> pph_data(pph_shape.elements(), 0.0);
 
-    auto actv_funcs                  = lstm_actv_funcs(ins);
-    auto lstm_op                     = any_cast<op::lstm>(ins->get_operator());
+    auto actv_funcs         = lstm_actv_funcs(ins);
+    auto lstm_op            = any_cast<op::lstm>(ins->get_operator());
     op::rnn_direction dirct = lstm_op.direction;
 
     instruction_ref last_output{};

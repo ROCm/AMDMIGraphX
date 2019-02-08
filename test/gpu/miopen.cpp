@@ -1156,7 +1156,7 @@ struct test_rnn_forward
         auto output =
             p.add_instruction(migraphx::op::rnn{hidden_size,
                                                 {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn::forward,
+                                                migraphx::op::rnn_direction::forward,
                                                 clip},
                               seq,
                               w,
@@ -1198,7 +1198,7 @@ struct test_rnn_forward10
         auto output =
             p.add_instruction(migraphx::op::rnn{hidden_size,
                                                 {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn::forward,
+                                                migraphx::op::rnn_direction::forward,
                                                 clip},
                               seq,
                               w,
@@ -1239,7 +1239,7 @@ struct test_rnn_reverse
 
         p.add_instruction(migraphx::op::rnn{hidden_size,
                                             {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn::reverse,
+                                            migraphx::op::rnn_direction::reverse,
                                             clip},
                           seq,
                           w,
@@ -1279,7 +1279,7 @@ struct test_rnn_reverse2
 
         p.add_instruction(migraphx::op::rnn{hidden_size,
                                             {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn::reverse,
+                                            migraphx::op::rnn_direction::reverse,
                                             clip},
                           seq,
                           w,
@@ -1314,7 +1314,7 @@ struct test_rnn_3args
 
         p.add_instruction(migraphx::op::rnn{hidden_size,
                                             {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn::reverse,
+                                            migraphx::op::rnn_direction::reverse,
                                             clip},
                           seq,
                           w,
@@ -1348,7 +1348,7 @@ struct test_rnn_4args
 
         p.add_instruction(migraphx::op::rnn{hidden_size,
                                             {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn::reverse,
+                                            migraphx::op::rnn_direction::reverse,
                                             clip},
                           seq,
                           w,
@@ -1385,7 +1385,7 @@ struct test_rnn_5args
         auto output =
             p.add_instruction(migraphx::op::rnn{hidden_size,
                                                 {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn::forward,
+                                                migraphx::op::rnn_direction::forward,
                                                 clip},
                               seq,
                               w,
@@ -1426,7 +1426,7 @@ struct test_rnn_bidirectional
         auto output =
             p.add_instruction(migraphx::op::rnn{hidden_size,
                                                 {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn::bidirectional,
+                                                migraphx::op::rnn_direction::bidirectional,
                                                 clip},
                               seq,
                               w,
@@ -1467,7 +1467,7 @@ struct test_rnn_bidirectional10
         auto output =
             p.add_instruction(migraphx::op::rnn{hidden_size,
                                                 {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn::bidirectional,
+                                                migraphx::op::rnn_direction::bidirectional,
                                                 clip},
                               seq,
                               w,
@@ -1505,7 +1505,7 @@ struct test_rnn_bi_3args
         auto output =
             p.add_instruction(migraphx::op::rnn{hidden_size,
                                                 {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn::bidirectional,
+                                                migraphx::op::rnn_direction::bidirectional,
                                                 clip},
                               seq,
                               w,
@@ -1546,7 +1546,7 @@ struct test_gru_forward_last
         auto output =
             p.add_instruction(migraphx::op::gru{hidden_size,
                                                 {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::gru::forward,
+                                                migraphx::op::rnn_direction::forward,
                                                 clip},
                               seq,
                               w,
@@ -1554,7 +1554,7 @@ struct test_gru_forward_last
                               bias,
                               und,
                               ih);
-        p.add_instruction(migraphx::op::gru_last_output{}, output);
+        p.add_instruction(migraphx::op::rnn_last_output{}, output);
 
         return p;
     }
@@ -1589,7 +1589,7 @@ struct test_gru_forward_hs
 
         p.add_instruction(migraphx::op::gru{hidden_size,
                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::gru::forward,
+                                            migraphx::op::rnn_direction::forward,
                                             clip},
                           seq,
                           w,
@@ -1625,7 +1625,7 @@ struct test_gru_forward_3args_und
         auto und = p.add_instruction(migraphx::op::undefined{});
         p.add_instruction(migraphx::op::gru{hidden_size,
                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::gru::forward,
+                                            migraphx::op::rnn_direction::forward,
                                             clip},
                           seq,
                           w,
@@ -1660,7 +1660,7 @@ struct test_gru_forward_3args
         auto r   = p.add_parameter("r", r_shape);
         p.add_instruction(migraphx::op::gru{hidden_size,
                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::gru::forward,
+                                            migraphx::op::rnn_direction::forward,
                                             clip},
                           seq,
                           w,
@@ -1692,7 +1692,7 @@ struct test_gru_forward_seq1
         auto r   = p.add_parameter("r", r_shape);
         p.add_instruction(migraphx::op::gru{hidden_size,
                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::gru::forward,
+                                            migraphx::op::rnn_direction::forward,
                                             clip},
                           seq,
                           w,
@@ -1723,7 +1723,7 @@ struct test_gru_forward_default_actv
         auto w   = p.add_parameter("w", w_shape);
         auto r   = p.add_parameter("r", r_shape);
         p.add_instruction(
-            migraphx::op::gru{hidden_size, {}, migraphx::op::gru::forward, clip}, seq, w, r);
+            migraphx::op::gru{hidden_size, {}, migraphx::op::rnn_direction::forward, clip}, seq, w, r);
 
         return p;
     }
@@ -1758,7 +1758,7 @@ struct test_gru_forward_default_actv1
 
         p.add_instruction(
             migraphx::op::gru{
-                hidden_size, {migraphx::op::sigmoid{}}, migraphx::op::gru::forward, clip},
+                hidden_size, {migraphx::op::sigmoid{}}, migraphx::op::rnn_direction::forward, clip},
             seq,
             w,
             r,
@@ -1800,7 +1800,7 @@ struct test_gru_reverse_last
         auto output =
             p.add_instruction(migraphx::op::gru{hidden_size,
                                                 {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::gru::reverse,
+                                                migraphx::op::rnn_direction::reverse,
                                                 clip},
                               seq,
                               w,
@@ -1808,7 +1808,7 @@ struct test_gru_reverse_last
                               bias,
                               und,
                               ih);
-        p.add_instruction(migraphx::op::gru_last_output{}, output);
+        p.add_instruction(migraphx::op::rnn_last_output{}, output);
 
         return p;
     }
@@ -1836,7 +1836,7 @@ struct test_gru_reverse_3args
         auto r   = p.add_parameter("r", r_shape);
         p.add_instruction(migraphx::op::gru{hidden_size,
                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::gru::reverse,
+                                            migraphx::op::rnn_direction::reverse,
                                             clip},
                           seq,
                           w,
@@ -1876,7 +1876,7 @@ struct test_gru_bidirct_last
         auto output =
             p.add_instruction(migraphx::op::gru{hidden_size,
                                                 {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::gru::bidirectional,
+                                                migraphx::op::rnn_direction::bidirectional,
                                                 clip},
                               seq,
                               w,
@@ -1884,7 +1884,7 @@ struct test_gru_bidirct_last
                               bias,
                               und,
                               ih);
-        p.add_instruction(migraphx::op::gru_last_output{}, output);
+        p.add_instruction(migraphx::op::rnn_last_output{}, output);
 
         return p;
     }
@@ -1919,7 +1919,7 @@ struct test_gru_bidirct_hs
 
         p.add_instruction(migraphx::op::gru{hidden_size,
                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::gru::bidirectional,
+                                            migraphx::op::rnn_direction::bidirectional,
                                             clip},
                           seq,
                           w,
@@ -1955,7 +1955,7 @@ struct test_gru_bidirct_3args_und
         auto und = p.add_instruction(migraphx::op::undefined{});
         p.add_instruction(migraphx::op::gru{hidden_size,
                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::gru::bidirectional,
+                                            migraphx::op::rnn_direction::bidirectional,
                                             clip},
                           seq,
                           w,
@@ -1990,7 +1990,7 @@ struct test_gru_bidirct_3args
         auto r   = p.add_parameter("r", r_shape);
         p.add_instruction(migraphx::op::gru{hidden_size,
                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::gru::bidirectional,
+                                            migraphx::op::rnn_direction::bidirectional,
                                             clip},
                           seq,
                           w,
@@ -2022,7 +2022,7 @@ struct test_gru_bidirct_seq1
         auto r   = p.add_parameter("r", r_shape);
         p.add_instruction(migraphx::op::gru{hidden_size,
                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::gru::bidirectional,
+                                            migraphx::op::rnn_direction::bidirectional,
                                             clip},
                           seq,
                           w,
@@ -2053,7 +2053,7 @@ struct test_gru_bidirct_default_actv
         auto w   = p.add_parameter("w", w_shape);
         auto r   = p.add_parameter("r", r_shape);
         p.add_instruction(
-            migraphx::op::gru{hidden_size, {}, migraphx::op::gru::bidirectional, clip}, seq, w, r);
+            migraphx::op::gru{hidden_size, {}, migraphx::op::rnn_direction::bidirectional, clip}, seq, w, r);
 
         return p;
     }
@@ -2088,7 +2088,7 @@ struct test_gru_bidirct_default_actv1
 
         p.add_instruction(
             migraphx::op::gru{
-                hidden_size, {migraphx::op::sigmoid{}}, migraphx::op::gru::bidirectional, clip},
+                hidden_size, {migraphx::op::sigmoid{}}, migraphx::op::rnn_direction::bidirectional, clip},
             seq,
             w,
             r,

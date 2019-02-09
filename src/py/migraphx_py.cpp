@@ -41,8 +41,7 @@ struct skip_half
         f(a);
     }
 
-    void operator()(migraphx::shape::as<migraphx::half>) const
-    {}
+    void operator()(migraphx::shape::as<migraphx::half>) const {}
 };
 
 template <class F>
@@ -77,7 +76,7 @@ migraphx::shape to_shape(const py::buffer_info& info)
 {
     migraphx::shape::type_t t;
     visit_types([&](auto as) {
-        if (info.format == py::format_descriptor<decltype(as())>::format())
+        if(info.format == py::format_descriptor<decltype(as())>::format())
             t = as.type_enum();
     });
     return migraphx::shape{t, info.shape, info.strides};
@@ -104,7 +103,7 @@ PYBIND11_MODULE(migraphx, m)
         .def_buffer([](migraphx::argument& x) -> py::buffer_info { return to_buffer_info(x); })
         .def("__init__", [](migraphx::argument& x, py::buffer b) {
             py::buffer_info info = b.request();
-            new (&x) migraphx::argument(to_shape(info), info.ptr);
+            new(&x) migraphx::argument(to_shape(info), info.ptr);
         });
 
     py::class_<migraphx::target>(m, "target");

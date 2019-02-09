@@ -61,16 +61,19 @@ struct shape
     shape(type_t t);
     shape(type_t t, std::vector<std::size_t> l);
     shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s);
-    
-    template<class Range>
-    shape(type_t t, const Range& l)
-    : shape(t, std::vector<std::size_t>(l.begin(), l.end()))
-    {}
 
-    template<class Range1, class Range2>
+    template <class Range>
+    shape(type_t t, const Range& l) : shape(t, std::vector<std::size_t>(l.begin(), l.end()))
+    {
+    }
+
+    template <class Range1, class Range2>
     shape(type_t t, const Range1& l, const Range2& s)
-    : shape(t, std::vector<std::size_t>(l.begin(), l.end()), std::vector<std::size_t>(s.begin(), s.end()))
-    {}
+        : shape(t,
+                std::vector<std::size_t>(l.begin(), l.end()),
+                std::vector<std::size_t>(s.begin(), s.end()))
+    {
+    }
 
     type_t type() const;
     const std::vector<std::size_t>& lens() const;
@@ -152,10 +155,7 @@ struct shape
             return reinterpret_cast<const T*>(buffer) + n;
         }
 
-        type_t type_enum() const
-        {
-            return get_type<T>{};
-        }
+        type_t type_enum() const { return get_type<T>{}; }
     };
 
     template <class Visitor>
@@ -174,8 +174,7 @@ struct shape
     template <class Visitor>
     static void visit_types(Visitor v)
     {
-#define MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL(x, t) \
-        v(as<t>());
+#define MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL(x, t) v(as<t>());
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL)
 #undef MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL
     }

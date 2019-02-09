@@ -513,7 +513,7 @@ void program::debug_print(const std::vector<instruction_ref>& inss) const
 
 void program::dry_run(std::unordered_map<std::string, argument> params) const
 {
-    auto& ctx          = this->impl->ctx;
+    auto& ctx = this->impl->ctx;
     generic_eval(*this, ctx, params, [](auto&&...) { return argument{}; });
 }
 

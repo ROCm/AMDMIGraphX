@@ -381,17 +381,15 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
 {
     auto& ctx = this->impl->ctx;
 #ifndef NDEBUG
-    auto sctx = ctx;
+    auto sctx          = ctx;
     auto check_context = [&](auto f) {
         assert(is_shared(ctx, sctx));
         auto x = f();
-        sctx = ctx;
+        sctx   = ctx;
         return x;
     };
 #else
-    auto check_context = [](auto f) {
-        return f();
-    };
+    auto check_context = [](auto f) { return f(); };
 #endif
     if(enabled(MIGRAPHX_TRACE_EVAL{}))
     {
@@ -459,8 +457,7 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     overhead_vec.reserve(n);
     for(std::size_t i = 0; i < n; i++)
     {
-        overhead_vec.push_back(time<milliseconds>(
-            [&] { dry_run(params); }));
+        overhead_vec.push_back(time<milliseconds>([&] { dry_run(params); }));
     }
 
     double total_time             = common_average(total_vec);

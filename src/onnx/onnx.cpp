@@ -88,6 +88,7 @@ struct onnx_parser
         add_mem_op("ConstantFill", &onnx_parser::parse_constant_fill);
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
         add_mem_op("RNN", &onnx_parser::parse_rnn);
+        add_mem_op("GRU", &onnx_parser::parse_gru);
         add_mem_op("Pad", &onnx_parser::parse_pad);
 
         // init the activation function map
@@ -715,8 +716,7 @@ struct onnx_parser
     parse_rnn(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         migraphx::shape input_shape = args[0]->get_shape();
-        migraphx::shape w_shape     = args[1]->get_shape();
-        std::size_t hidden_size     = w_shape.lens()[1];
+        std::size_t hidden_size     = args[1]->get_shape().lens()[1];
 
         if(contains(attributes, "hidden_size"))
         {
@@ -734,14 +734,14 @@ struct onnx_parser
             direction = attributes.at("direction").s();
         }
 
-        op::rnn::rnn_direction_t dirct = op::rnn::forward;
+        op::rnn_direction dirct = op::rnn_direction::forward;
         if(direction == "bidirectional")
         {
-            dirct = op::rnn::bidirectional;
+            dirct = op::rnn_direction::bidirectional;
         }
         else if(direction == "reverse")
         {
-            dirct = op::rnn::reverse;
+            dirct = op::rnn_direction::reverse;
         }
 
         std::vector<std::string> vec_names{"tanh"};
@@ -763,7 +763,7 @@ struct onnx_parser
         // one is for forward, and the other is for reverse.
         // if only one actv function is provided, we use it in both
         // forward and reverse direction
-        if(dirct == op::rnn::bidirectional)
+        if(dirct == op::rnn_direction::bidirectional)
         {
             if(vec_names.size() == 1)
             {
@@ -796,6 +796,125 @@ struct onnx_parser
                                                   std::move(args));
 
         // second output for the last hidden state
+        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
+
+        return {hidden_states, last_output};
+    }
+
+    std::vector<instruction_ref>
+    parse_gru(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        migraphx::shape input_shape = args[0]->get_shape();
+        std::size_t hidden_size     = args[2]->get_shape().lens()[2];
+
+        if(contains(attributes, "hidden_size"))
+        {
+            std::size_t hidden_size_att = parse_value(attributes.at("hidden_size")).at<int>();
+            if(hidden_size != hidden_size_att)
+            {
+                MIGRAPHX_THROW("GRU: hidden size mismatch in input and attribute");
+            }
+        }
+
+        // Handling of direction to be added later
+        std::string direction{"forward"};
+        if(contains(attributes, "direction"))
+        {
+            direction = attributes.at("direction").s();
+        }
+
+        op::rnn_direction dirct = op::rnn_direction::forward;
+        if(direction == "bidirectional")
+        {
+            dirct = op::rnn_direction::bidirectional;
+        }
+        else if(direction == "reverse")
+        {
+            dirct = op::rnn_direction::reverse;
+        }
+
+        std::vector<std::string> vec_names = {"sigmoid", "tanh"};
+        if(contains(attributes, "activations"))
+        {
+            auto names = attributes.at("activations").strings();
+            vec_names.clear();
+            vec_names.resize(names.size());
+            std::transform(
+                names.begin(), names.end(), vec_names.begin(), [](auto& str) { return str; });
+        }
+
+        // need 4 activation functions
+        if(dirct == op::rnn_direction::bidirectional)
+        {
+            // 4 activation functions are used in the bidirectional
+            // scenario. No spec is provided in onnx::operator. we
+            // use the algorithm that: if 1 actv function is provided,
+            // repeat 1 four times. If 2 actv functins are provided,
+            // assume forward and reverse use the same pair of actv
+            // functions. For the case of 3 actv functions provided,
+            // assume the 3rd one is repeated once and used by the
+            // reverse direction.
+            // This may need change later
+            if(vec_names.size() == 1)
+            {
+                vec_names.insert(vec_names.end(), 3, vec_names.at(0));
+            }
+            else if(vec_names.size() == 2)
+            {
+                // repeat the activation functions
+                vec_names.push_back(vec_names.at(0));
+                vec_names.push_back(vec_names.at(1));
+            }
+            else if(vec_names.size() == 3)
+            {
+                vec_names.push_back(vec_names.at(2));
+            }
+        }
+        else
+        {
+            if(vec_names.size() == 1)
+            {
+                vec_names.push_back(vec_names.at(0));
+            }
+        }
+
+        for_each(vec_names.begin(), vec_names.end(), [&](auto& name) {
+            if(map_actv_funcs.count(name) == 0)
+            {
+                MIGRAPHX_THROW("GRU: activation function " + std::string(name) + " not supported");
+            }
+        });
+
+        std::vector<operation> vec_actv_funcs(vec_names.size());
+        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](auto& name) {
+            return map_actv_funcs[name];
+        });
+
+        float clip = 0.0;
+        if(contains(attributes, "clip"))
+        {
+            clip = parse_value(attributes.at("clip")).at<float>();
+        }
+
+        int linear_before_reset = 0;
+        if(contains(attributes, "linear_before_reset"))
+        {
+            linear_before_reset = parse_value(attributes.at("linear_before_reset")).at<int>();
+        }
+
+        // append undefined opeator to make 6 arguments
+        if(args.size() < 6)
+        {
+            auto ins = prog.add_instruction(op::undefined{});
+            args.insert(args.end(), 6 - args.size(), ins);
+        }
+
+        // first output for concatenation of hidden states
+        auto hidden_states = prog.add_instruction(
+            op::gru{hidden_size, vec_actv_funcs, dirct, clip, linear_before_reset},
+            std::move(args));
+
+        // second output for last gru output
         auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
 
         return {hidden_states, last_output};

@@ -97,7 +97,9 @@ const std::vector<instruction_ref>& instruction::outputs() const { return output
 
 bool operator==(const instruction& x, const instruction& y)
 {
-    static_assert(sizeof(instruction) == (sizeof(x.op) + sizeof(x.result) + sizeof(x.output) + sizeof(x.arguments) + sizeof(x.lit)), "Update equality operator");
+    static_assert(sizeof(instruction) == (sizeof(x.op) + sizeof(x.result) + sizeof(x.output) +
+                                          sizeof(x.arguments) + sizeof(x.lit)),
+                  "Update equality operator");
     if(std::tie(x.result, x.op, x.arguments) != std::tie(y.result, y.op, y.arguments))
         return false;
     if(x.name() == "@literal")

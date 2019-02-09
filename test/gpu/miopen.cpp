@@ -122,7 +122,14 @@ migraphx::argument run_gpu(migraphx::program& p)
         m[x.first] =
             migraphx::gpu::to_gpu(migraphx::generate_argument(x.second, get_hash(x.first)));
     }
+    // Program should have an output parameter
     EXPECT(bool{m.find("output") != m.end()});
+    // Ensure the program doesn't modify the context in a dry run
+    auto ctx = p.get_context();
+    assert(&ctx != &p.get_context());
+    EXPECT(is_shared(ctx, p.get_context()));
+    p.dry_run(m);
+    EXPECT(is_shared(ctx, p.get_context()));
     return migraphx::gpu::from_gpu(p.eval(m));
 }
 

@@ -21,17 +21,30 @@ struct rewrite_rnn
     void apply(program& prog) const;
 
     private:
-    std::vector<instruction_ref> rnn_cell(bool is_forward,
+    // for vanilla rnn operators
+    void apply_vanilla_rnn(program& prog, instruction_ref ins) const;
+    std::vector<instruction_ref> vanilla_rnn_cell(bool is_forward,
+                                                  program& prog,
+                                                  instruction_ref ins,
+                                                  instruction_ref input,
+                                                  instruction_ref w,
+                                                  instruction_ref r,
+                                                  instruction_ref bias,
+                                                  instruction_ref ih,
+                                                  operation& actv_func) const;
+    std::vector<operation> vanilla_rnn_actv_funcs(instruction_ref ins) const;
+
+    // for gru operators
+    void apply_gru(program& prog, instruction_ref ins) const;
+    std::vector<instruction_ref> gru_cell(bool is_forward,
                                           program& prog,
                                           instruction_ref ins,
-                                          instruction_ref input,
-                                          instruction_ref w,
-                                          instruction_ref r,
-                                          instruction_ref bias,
-                                          instruction_ref ih,
-                                          operation& actv_func) const;
+                                          std::vector<instruction_ref> inputs,
+                                          int linear_before_reset,
+                                          const operation& actv_func1,
+                                          const operation& actv_func2) const;
 
-    std::vector<operation> compute_actv_funcs(instruction_ref ins) const;
+    std::vector<operation> gru_actv_funcs(instruction_ref ins) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

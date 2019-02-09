@@ -511,6 +511,12 @@ void program::debug_print(const std::vector<instruction_ref>& inss) const
     std::cout << std::endl;
 }
 
+void program::dry_run(std::unordered_map<std::string, argument> params) const
+{
+    auto& ctx          = this->impl->ctx;
+    generic_eval(*this, ctx, params, [](auto&&...) { return argument{}; });
+}
+
 bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }
 
 std::ostream& operator<<(std::ostream& os, const program& p)

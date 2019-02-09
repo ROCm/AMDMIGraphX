@@ -105,6 +105,8 @@ struct program
     void debug_print(instruction_ref ins) const;
     void debug_print(const std::vector<instruction_ref>& inss) const;
 
+    void dry_run(parameter_map params) const;
+
     friend std::ostream& operator<<(std::ostream& os, const program& p);
     friend bool operator==(const program& x, const program& y);
     friend bool operator!=(const program& x, const program& y) { return !(x == y); }

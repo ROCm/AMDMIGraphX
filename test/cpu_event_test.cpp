@@ -9,7 +9,7 @@
 
 // This is a test to trigger the code in cpu's context.hpp and runtime
 // codes in program.cpp.
-// 
+//
 
 TEST_CASE(test1)
 {

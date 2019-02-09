@@ -30,6 +30,7 @@ add_library(migraphx_device
     device/concat.cpp
     device/pad.cpp
     device/gather.cpp
+    device/sub.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_clang_tidy_check(migraphx_device)
@@ -60,6 +61,7 @@ add_library(migraphx_gpu
     elu.cpp
     pad.cpp
     gather.cpp
+    lrn.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_clang_tidy_check(migraphx_gpu)

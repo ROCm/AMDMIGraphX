@@ -1,6 +1,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/operators.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>
@@ -134,6 +135,12 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
     assert(has_instruction(ins));
     assert(has_instruction(rep));
     assert(ins != rep);
+
+    if(ins == std::prev(this->end()))
+    {
+        return replace_instruction(ins, op::identity{}, rep);
+    }
+
     // TODO: Should it be an error if the output is empty?
     if(ins->outputs().empty())
     {
@@ -372,20 +379,31 @@ argument generic_eval(const program& p,
 
 argument program::eval(std::unordered_map<std::string, argument> params) const
 {
+    auto& ctx = this->impl->ctx;
+#ifndef NDEBUG
+    auto sctx          = ctx;
+    auto check_context = [&](auto f) {
+        assert(is_shared(ctx, sctx));
+        auto x = f();
+        sctx   = ctx;
+        return x;
+    };
+#else
+    auto check_context = [](auto f) { return f(); };
+#endif
     if(enabled(MIGRAPHX_TRACE_EVAL{}))
     {
-        auto& ctx = this->impl->ctx;
-        return generic_eval(*this, this->impl->ctx, std::move(params), [&](auto& ins, auto f) {
+        return generic_eval(*this, ctx, std::move(params), [&](auto& ins, auto f) {
             ctx.finish();
             std::cout << "Run instruction: ";
             this->debug_print(ins);
-            return f();
+            return check_context(f);
         });
     }
     else
     {
         return generic_eval(
-            *this, this->impl->ctx, std::move(params), [](auto&, auto f) { return f(); });
+            *this, ctx, std::move(params), [&](auto&, auto f) { return check_context(f); });
     }
 }
 
@@ -439,8 +457,7 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     overhead_vec.reserve(n);
     for(std::size_t i = 0; i < n; i++)
     {
-        overhead_vec.push_back(time<milliseconds>(
-            [&] { generic_eval(*this, ctx, params, [](auto...) { return argument{}; }); }));
+        overhead_vec.push_back(time<milliseconds>([&] { dry_run(params); }));
     }
 
     double total_time             = common_average(total_vec);
@@ -502,6 +519,12 @@ void program::debug_print(const std::vector<instruction_ref>& inss) const
     for(auto ins : inss)
         debug_print(ins);
     std::cout << std::endl;
+}
+
+void program::dry_run(std::unordered_map<std::string, argument> params) const
+{
+    auto& ctx = this->impl->ctx;
+    generic_eval(*this, ctx, std::move(params), [](auto&&...) { return argument{}; });
 }
 
 bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }

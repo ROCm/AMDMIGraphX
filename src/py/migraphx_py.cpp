@@ -14,7 +14,7 @@
 namespace py = pybind11;
 
 template <class F>
-struct skip_half
+struct throw_half
 {
     F f;
 
@@ -31,9 +31,30 @@ struct skip_half
 };
 
 template <class F>
+struct skip_half
+{
+    F f;
+
+    template <class A>
+    void operator()(A a) const
+    {
+        f(a);
+    }
+
+    void operator()(migraphx::shape::as<migraphx::half>) const
+    {}
+};
+
+template <class F>
 void visit_type(const migraphx::shape& s, F f)
 {
-    s.visit_type(skip_half<F>{f});
+    s.visit_type(throw_half<F>{f});
+}
+
+template <class F>
+void visit_types(F f)
+{
+    migraphx::shape::visit_types(skip_half<F>{f});
 }
 
 template <class T>
@@ -50,6 +71,16 @@ py::buffer_info to_buffer_info(T& x)
                             s.strides());
     });
     return b;
+}
+
+migraphx::shape to_shape(const py::buffer_info& info)
+{
+    migraphx::shape::type_t t;
+    visit_types([&](auto as) {
+        if (info.format == py::format_descriptor<decltype(as())>::format())
+            t = as.type_enum();
+    });
+    return migraphx::shape{t, info.shape, info.strides};
 }
 
 PYBIND11_MODULE(migraphx, m)
@@ -70,7 +101,11 @@ PYBIND11_MODULE(migraphx, m)
         .def("__repr__", [](const migraphx::shape& s) { return migraphx::to_string(s); });
 
     py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())
-        .def_buffer([](migraphx::argument& x) -> py::buffer_info { return to_buffer_info(x); });
+        .def_buffer([](migraphx::argument& x) -> py::buffer_info { return to_buffer_info(x); })
+        .def("__init__", [](migraphx::argument& x, py::buffer b) {
+            py::buffer_info info = b.request();
+            new (&x) migraphx::argument(to_shape(info), info.ptr);
+        });
 
     py::class_<migraphx::target>(m, "target");
 

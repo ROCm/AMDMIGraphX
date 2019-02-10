@@ -1,7 +1,8 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_SIN_HPP
-#define MIGRAPH_GUARD_RTGLIB_SIN_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_SIN_HPP
+#define MIGRAPHX_GUARD_RTGLIB_SIN_HPP
 
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/oper.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/operators.hpp>
@@ -19,19 +20,15 @@
 #include <utility>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-struct hip_sin
+struct hip_sin : unary_device<hip_sin, device::sin>
 {
-    std::string name() const { return "gpu::sin"; }
-    shape compute_shape(const std::vector<shape>& inputs) const;
-    argument compute(context&, const shape&, const std::vector<argument>& args) const;
-    int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
 };
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

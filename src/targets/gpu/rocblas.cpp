@@ -1,7 +1,7 @@
 #include <migraphx/gpu/rocblas.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 rocblas_handle_ptr create_rocblas_handle_ptr()
@@ -19,5 +19,5 @@ rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s)
 }
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

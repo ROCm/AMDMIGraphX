@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_PASS_HPP
-#define MIGRAPH_GUARD_PASS_HPP
+#ifndef MIGRAPHX_GUARD_PASS_HPP
+#define MIGRAPHX_GUARD_PASS_HPP
 
 #include <cassert>
 #include <string>
@@ -10,7 +10,7 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
 
@@ -105,7 +105,13 @@ struct pass
     void apply(program& p) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().apply(p);
+        (*this).private_detail_te_get_handle().apply(p);
+    }
+
+    friend bool is_shared(const pass& private_detail_x, const pass& private_detail_y)
+    {
+        return private_detail_x.private_detail_te_handle_mem_var ==
+               private_detail_y.private_detail_te_handle_mem_var;
     }
 
     private:
@@ -149,7 +155,7 @@ struct pass
 
         std::string name() const override { return private_detail_te_value.name(); }
 
-        void apply(program& p) const override { return private_detail_te_value.apply(p); }
+        void apply(program& p) const override { private_detail_te_value.apply(p); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -218,7 +224,7 @@ inline const ValueType& any_cast(const pass& x)
 
 #endif
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

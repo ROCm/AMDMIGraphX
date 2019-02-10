@@ -8,13 +8,11 @@
 #include <migraphx/pass_config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 void eliminate_allocation::apply(program& p) const
 {
     assert(alignment > 0);
-    if(!enabled(MIGRAPH_DISABLE_MEMORY_COLORING{}))
-        return;
 
     std::size_t n = 0;
     std::vector<std::pair<instruction_ref, std::size_t>> allocs;
@@ -27,15 +25,18 @@ void eliminate_allocation::apply(program& p) const
         std::size_t padding = (alignment - (size % alignment)) % alignment;
         n += size + padding;
     }
-    auto mem = p.add_parameter("memory", shape{shape::int8_type, {n}});
-    for(auto&& pp : allocs)
+    if(n > 0)
     {
-        auto ins    = pp.first;
-        auto s      = ins->get_shape();
-        auto offset = pp.second;
-        p.replace_instruction(ins, op::load{s, offset}, mem);
+        auto mem = p.add_parameter("memory", shape{shape::int8_type, {n}});
+        for(auto&& pp : allocs)
+        {
+            auto ins    = pp.first;
+            auto s      = ins->get_shape();
+            auto offset = pp.second;
+            p.replace_instruction(ins, op::load{s, offset}, mem);
+        }
     }
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

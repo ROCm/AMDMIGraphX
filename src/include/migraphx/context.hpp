@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_CONTEXT_HPP
-#define MIGRAPH_GUARD_CONTEXT_HPP
+#ifndef MIGRAPHX_GUARD_CONTEXT_HPP
+#define MIGRAPHX_GUARD_CONTEXT_HPP
 
 #include <cassert>
 #include <string>
@@ -10,7 +10,7 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 #ifdef DOXYGEN
 
@@ -95,7 +95,13 @@ struct context
     void finish() const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().finish();
+        (*this).private_detail_te_get_handle().finish();
+    }
+
+    friend bool is_shared(const context& private_detail_x, const context& private_detail_y)
+    {
+        return private_detail_x.private_detail_te_handle_mem_var ==
+               private_detail_y.private_detail_te_handle_mem_var;
     }
 
     private:
@@ -136,7 +142,7 @@ struct context
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
-        void finish() const override { return private_detail_te_value.finish(); }
+        void finish() const override { private_detail_te_value.finish(); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -205,7 +211,7 @@ inline const ValueType& any_cast(const context& x)
 
 #endif
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

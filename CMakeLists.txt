@@ -34,9 +34,9 @@ endif()
 
 if(CMAKE_CXX_COMPILER MATCHES ".*hcc")
     message(STATUS "Enable miopen backend")
-    set(MIGRAPH_ENABLE_GPU On CACHE BOOL "")
+    set(MIGRAPHX_ENABLE_GPU On CACHE BOOL "")
 else()
-    set(MIGRAPH_ENABLE_GPU Off CACHE BOOL "")
+    set(MIGRAPHX_ENABLE_GPU Off CACHE BOOL "")
 endif()
 
 add_compile_options(-std=c++14)
@@ -52,6 +52,7 @@ rocm_enable_clang_tidy(
         -clang-analyzer-optin.performance.Padding
         -clang-diagnostic-deprecated-declarations
         -clang-diagnostic-extern-c-compat
+        -clang-diagnostic-disabled-macro-expansion
         -clang-diagnostic-unused-command-line-argument
         -cppcoreguidelines-pro-bounds-array-to-pointer-decay
         -cppcoreguidelines-pro-bounds-constant-array-index
@@ -70,13 +71,12 @@ rocm_enable_clang_tidy(
         -hicpp-explicit-conversions
         -hicpp-no-array-decay
         -hicpp-special-member-functions
+        -hicpp-uppercase-literal-suffix
         -hicpp-use-override
         # This check is broken
-        -hicpp-use-auto
         -llvm-header-guard
         -llvm-include-order
         -misc-macro-parentheses
-        -modernize-use-auto
         -modernize-use-override
         -modernize-pass-by-value
         -modernize-use-default-member-init
@@ -84,7 +84,12 @@ rocm_enable_clang_tidy(
         -readability-braces-around-statements
         -readability-else-after-return
         -readability-named-parameter
+        -readability-uppercase-literal-suffix,
+        -*-avoid-c-arrays
         -*-explicit-constructor
+        -*-magic-numbers
+        -*-non-private-member-variables-in-classes
+        -*-use-auto
         -*-use-emplace
         -*-use-equals-default
     ERRORS
@@ -93,7 +98,8 @@ rocm_enable_clang_tidy(
     HEADER_FILTER
         ".*hpp"
     EXTRA_ARGS
-        -DMIGRAPH_USE_CLANG_TIDY
+        -DMIGRAPHX_USE_CLANG_TIDY
+        "-Dmain\\\\(...\\\\)=main\\\\(__VA_ARGS__\\\\) // NOLINT"
 
 )
 include(ROCMCppCheck)
@@ -111,7 +117,9 @@ rocm_enable_cppcheck(
         passedByValue
         unusedStructMember
         functionStatic
-        functionConst
+        functionConst:*program.*
+        shadowFunction
+        shadowVar
         definePrefix:*test/include/test.hpp
     FORCE
     INCONCLUSIVE
@@ -124,6 +132,7 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/cpu/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/miopen/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
         CPPCHECK=1
 )
@@ -132,11 +141,11 @@ enable_testing()
 
 include(ROCMCreatePackage)
 rocm_create_package(
-    NAME MIGraph
+    NAME MIGraphX
     DESCRIPTION "AMD's graph optimizer"
     MAINTAINER "Paul Fultz II <paul.fultz@amd.com>"
     LDCONFIG
-    DEPENDS miopen-hip rocblas hip_hcc
+    DEPENDS miopen-hip rocblas hip_hcc half
 )
 
 add_subdirectory(src)

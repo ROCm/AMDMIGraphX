@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_PROGRAM_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_PROGRAM_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_PROGRAM_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_PROGRAM_HPP
 
 #include <list>
 #include <unordered_map>
@@ -14,7 +14,7 @@
 #include <iostream>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 struct program_impl;
 
@@ -91,15 +91,21 @@ struct program
 
     shape get_shape() const;
 
+    context& get_context() const;
+
     instruction_ref validate() const;
 
     void compile(const target& t, tracer trace = tracer{});
+
+    void finalize();
 
     void perf_report(std::ostream& os, std::size_t n, parameter_map params) const;
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
     void debug_print(const std::vector<instruction_ref>& inss) const;
+
+    void dry_run(parameter_map params) const;
 
     friend std::ostream& operator<<(std::ostream& os, const program& p);
     friend bool operator==(const program& x, const program& y);
@@ -109,7 +115,7 @@ struct program
     std::unique_ptr<program_impl> impl;
 };
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

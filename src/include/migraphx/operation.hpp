@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_OPERAND_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_OPERAND_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_OPERAND_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_OPERAND_HPP
 
 #include <cassert>
 #include <string>
@@ -7,16 +7,16 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
-#include <migraphx/shape.hpp>
 #include <migraphx/reflect.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/argument.hpp>
-#include <migraphx/context.hpp>
 #include <migraphx/auto_any_cast.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct context;
 
 #ifdef DOXYGEN
 
@@ -26,6 +26,8 @@ struct operation
 {
     /// A unique name identifying the operation
     std::string name() const;
+    /// An optional method that can be used to finalize the operator before running
+    void finalize(context& ctx);
     /// This is used to compute the resulting shape from an operation. If an
     /// operation cannot be run with input shapes, then it should throw an
     /// exception.
@@ -52,6 +54,11 @@ struct operation
     /// implemented, it will just print the operation's name.
     friend std::ostream& operator<<(std::ostream& os, const operation& op);
 };
+
+/// Returns true if operation does not require a context to run compute
+bool is_context_free(const operation& x);
+/// Returns true if the operation has a finalize method
+bool has_finalize(const operation& x);
 
 #else
 
@@ -89,7 +96,7 @@ auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
 } // namespace operation_equal
 
 template <class T>
-auto compute_op(rank<1>,
+auto compute_op(rank<2>,
                 const T& x,
                 context& ctx,
                 const shape& output_shape,
@@ -100,17 +107,71 @@ auto compute_op(rank<1>,
 }
 
 template <class T>
+auto compute_op(
+    rank<1>, const T& x, context&, const shape& output_shape, const std::vector<argument>& input)
+    -> decltype(x.compute(output_shape, input))
+{
+    return x.compute(output_shape, input);
+}
+
+template <class T>
 argument compute_op(rank<0>, const T& x, context&, const shape&, const std::vector<argument>&)
 {
     std::string name = x.name();
-    MIGRAPH_THROW("Not computable: " + name);
+    MIGRAPHX_THROW("Not computable: " + name);
 }
 
 template <class T>
 argument
 compute_op(const T& x, context& ctx, const shape& output_shape, const std::vector<argument>& input)
 {
-    return compute_op(rank<1>{}, x, ctx, output_shape, input);
+    return compute_op(rank<2>{}, x, ctx, output_shape, input);
+}
+
+template <class T>
+auto compute_op(rank<2>, const T& x, const shape& output_shape, const std::vector<argument>& input)
+    -> decltype(x.compute(output_shape, input))
+{
+    return x.compute(output_shape, input);
+}
+
+template <class T>
+auto compute_op(rank<1>, const T& x, const shape& output_shape, const std::vector<argument>& input)
+    -> decltype(x.compute(auto_any_cast(std::declval<context&>()), output_shape, input))
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Not computable without a context: " + name);
+}
+
+template <class T>
+argument compute_op(rank<0>, const T& x, const shape&, const std::vector<argument>&)
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Not computable: " + name);
+}
+
+template <class T>
+argument compute_op(const T& x, const shape& output_shape, const std::vector<argument>& input)
+{
+    return compute_op(rank<2>{}, x, output_shape, input);
+}
+
+template <class T>
+auto is_context_free_op(rank<1>,
+                        const T& x,
+                        const shape& output_shape,
+                        const std::vector<argument>& input)
+    -> decltype(x.compute(output_shape, input), std::true_type{});
+
+template <class T>
+auto is_context_free_op(rank<0>, const T&, const shape&, const std::vector<argument>&)
+    -> std::false_type;
+
+template <class T>
+auto is_context_free_op(const T& x) -> decltype(is_context_free_op(
+    rank<1>{}, x, std::declval<const shape&>(), std::declval<std::vector<argument>>()))
+{
+    return {};
 }
 
 template <class T>
@@ -132,15 +193,57 @@ int output_alias_op(const T& x, const std::vector<shape>& shapes)
     return output_alias_op(rank<1>{}, x, shapes);
 }
 
+template <class T>
+auto finalize_op(
+    rank<1>, T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+    -> decltype(x.finalize(auto_any_cast(ctx), output_shape, input), void())
+{
+    x.finalize(auto_any_cast(ctx), output_shape, input);
+}
+
+template <class T>
+void finalize_op(rank<0>, T&, context&, const shape&, const std::vector<shape>&)
+{
+}
+
+template <class T>
+void finalize_op(T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+{
+    finalize_op(rank<1>{}, x, ctx, output_shape, input);
+}
+
+template <class T>
+auto has_finalize_op(
+    rank<1>, T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+    -> decltype(x.finalize(auto_any_cast(ctx), output_shape, input), std::true_type{});
+
+template <class T>
+auto has_finalize_op(rank<0>, T&, context&, const shape&, const std::vector<shape>&)
+    -> std::false_type;
+
+template <class T>
+auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
+                                                           std::declval<T&>(),
+                                                           std::declval<context&>(),
+                                                           std::declval<const shape&>(),
+                                                           std::declval<std::vector<shape>>()))
+{
+    return {};
+}
+
 /*
  * Type-erased interface for:
  *
  * struct operation
  * {
  *      std::string name() const;
+ *      bool is_context_free() const;
+ *      bool has_finalize() const;
  *      int output_alias(const std::vector<shape>& input) const;
+ *      void finalize(context& ctx,const shape& output,const std::vector<shape>& input) ;
  *      shape compute_shape(const std::vector<shape>& input) const;
  *      argument compute(context& ctx,const shape& output,const std::vector<argument>& input) const;
+ *      argument compute(const shape& output,const std::vector<argument>& input) const;
  *     friend std::ostream & operator<<(std::ostream & os,const operation & op) ;
  *     friend bool operator==(const operation & x,const operation & y) ;
  * };
@@ -210,10 +313,28 @@ struct operation
         return (*this).private_detail_te_get_handle().name();
     }
 
+    bool is_context_free() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().is_context_free();
+    }
+
+    bool has_finalize() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().has_finalize();
+    }
+
     int output_alias(const std::vector<shape>& input) const
     {
         assert((*this).private_detail_te_handle_mem_var);
         return (*this).private_detail_te_get_handle().output_alias(input);
+    }
+
+    void finalize(context& ctx, const shape& output, const std::vector<shape>& input)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().finalize(ctx, output, input);
     }
 
     shape compute_shape(const std::vector<shape>& input) const
@@ -228,6 +349,12 @@ struct operation
         return (*this).private_detail_te_get_handle().compute(ctx, output, input);
     }
 
+    argument compute(const shape& output, const std::vector<argument>& input) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().compute(output, input);
+    }
+
     friend std::ostream& operator<<(std::ostream& os, const operation& op)
     {
         assert(op.private_detail_te_handle_mem_var);
@@ -240,6 +367,12 @@ struct operation
         return x.private_detail_te_get_handle().operator==(y);
     }
 
+    friend bool is_shared(const operation& private_detail_x, const operation& private_detail_y)
+    {
+        return private_detail_x.private_detail_te_handle_mem_var ==
+               private_detail_y.private_detail_te_handle_mem_var;
+    }
+
     private:
     struct private_detail_te_handle_base_type
     {
@@ -247,13 +380,18 @@ struct operation
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const                                   = 0;
-        virtual int output_alias(const std::vector<shape>& input) const    = 0;
-        virtual shape compute_shape(const std::vector<shape>& input) const = 0;
+        virtual std::string name() const                                = 0;
+        virtual bool is_context_free() const                            = 0;
+        virtual bool has_finalize() const                               = 0;
+        virtual int output_alias(const std::vector<shape>& input) const = 0;
+        virtual void
+        finalize(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
+        virtual shape compute_shape(const std::vector<shape>& input) const           = 0;
         virtual argument
-        compute(context& ctx, const shape& output, const std::vector<argument>& input) const = 0;
-        virtual std::ostream& operator_shift_left(std::ostream& os) const                    = 0;
-        virtual bool operator==(const operation& y) const                                    = 0;
+        compute(context& ctx, const shape& output, const std::vector<argument>& input) const    = 0;
+        virtual argument compute(const shape& output, const std::vector<argument>& input) const = 0;
+        virtual std::ostream& operator_shift_left(std::ostream& os) const                       = 0;
+        virtual bool operator==(const operation& y) const                                       = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -286,10 +424,24 @@ struct operation
 
         std::string name() const override { return private_detail_te_value.name(); }
 
+        bool is_context_free() const override
+        {
+
+            return is_context_free_op(private_detail_te_value);
+        }
+
+        bool has_finalize() const override { return has_finalize_op(private_detail_te_value); }
+
         int output_alias(const std::vector<shape>& input) const override
         {
 
             return output_alias_op(private_detail_te_value, input);
+        }
+
+        void finalize(context& ctx, const shape& output, const std::vector<shape>& input) override
+        {
+
+            finalize_op(private_detail_te_value, ctx, output, input);
         }
 
         shape compute_shape(const std::vector<shape>& input) const override
@@ -304,6 +456,12 @@ struct operation
         {
 
             return compute_op(private_detail_te_value, ctx, output, input);
+        }
+
+        argument compute(const shape& output, const std::vector<argument>& input) const override
+        {
+
+            return compute_op(private_detail_te_value, output, input);
         }
 
         std::ostream& operator_shift_left(std::ostream& os) const override
@@ -385,9 +543,25 @@ inline const ValueType& any_cast(const operation& x)
 
 inline bool operator!=(const operation& x, const operation& y) { return !(x == y); }
 
+inline bool is_context_free(const operation& op) { return op.is_context_free(); }
+
+template <class T>
+bool is_context_free(const T& x)
+{
+    return is_context_free_op(x);
+}
+
+inline bool has_finalize(const operation& op) { return op.has_finalize(); }
+
+template <class T>
+bool has_finalize(const T& x)
+{
+    return has_finalize_op(x);
+}
+
 #endif
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_MIOPEN_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_MIOPEN_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_MIOPEN_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_MIOPEN_HPP
 
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/operators.hpp>
@@ -7,21 +7,23 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-using miopen_handle          = MIGRAPH_MANAGE_PTR(miopenHandle_t, miopenDestroy);
-using tensor_descriptor      = MIGRAPH_MANAGE_PTR(miopenTensorDescriptor_t,
-                                             miopenDestroyTensorDescriptor);
-using convolution_descriptor = MIGRAPH_MANAGE_PTR(miopenConvolutionDescriptor_t,
-                                                  miopenDestroyConvolutionDescriptor);
-using pooling_descriptor     = MIGRAPH_MANAGE_PTR(miopenPoolingDescriptor_t,
-                                              miopenDestroyPoolingDescriptor);
-using activation_descriptor  = MIGRAPH_MANAGE_PTR(miopenActivationDescriptor_t,
-                                                 miopenDestroyActivationDescriptor);
-using fusion_plan_descriptor = MIGRAPH_MANAGE_PTR(miopenFusionPlanDescriptor_t,
-                                                  miopenDestroyFusionPlan);
-using fused_operator_args    = MIGRAPH_MANAGE_PTR(miopenOperatorArgs_t, miopenDestroyOperatorArgs);
+using miopen_handle          = MIGRAPHX_MANAGE_PTR(miopenHandle_t, miopenDestroy);
+using tensor_descriptor      = MIGRAPHX_MANAGE_PTR(miopenTensorDescriptor_t,
+                                              miopenDestroyTensorDescriptor);
+using convolution_descriptor = MIGRAPHX_MANAGE_PTR(miopenConvolutionDescriptor_t,
+                                                   miopenDestroyConvolutionDescriptor);
+using pooling_descriptor     = MIGRAPHX_MANAGE_PTR(miopenPoolingDescriptor_t,
+                                               miopenDestroyPoolingDescriptor);
+using activation_descriptor  = MIGRAPHX_MANAGE_PTR(miopenActivationDescriptor_t,
+                                                  miopenDestroyActivationDescriptor);
+using fusion_plan_descriptor = MIGRAPHX_MANAGE_PTR(miopenFusionPlanDescriptor_t,
+                                                   miopenDestroyFusionPlan);
+using fused_operator_args    = MIGRAPHX_MANAGE_PTR(miopenOperatorArgs_t, miopenDestroyOperatorArgs);
+
+using lrn_descriptor = MIGRAPHX_MANAGE_PTR(miopenLRNDescriptor_t, miopenDestroyLRNDescriptor);
 
 template <class Result, class F, class... Ts>
 Result make_obj(F f, Ts... xs)
@@ -30,7 +32,7 @@ Result make_obj(F f, Ts... xs)
     auto status                = f(&x, xs...);
     Result r{x};
     if(status != miopenStatusSuccess)
-        MIGRAPH_THROW("MIOpen call failed");
+        MIGRAPHX_THROW("MIOpen call failed");
     return r;
 }
 
@@ -46,7 +48,7 @@ inline tensor_descriptor make_tensor(const migraphx::shape& s)
     else if(s.type() == shape::half_type)
         d = miopenHalf;
     else
-        MIGRAPH_THROW("Unsupported type");
+        MIGRAPHX_THROW("Unsupported type");
     miopenSetTensorDescriptor(t.get(), d, s.lens().size(), lens.data(), strides.data());
     return t;
 }
@@ -54,14 +56,19 @@ inline tensor_descriptor make_tensor(const migraphx::shape& s)
 inline convolution_descriptor make_conv(const migraphx::op::convolution& op)
 {
     auto c = make_obj<convolution_descriptor>(&miopenCreateConvolutionDescriptor);
+    miopenConvolutionMode_t c_mode = miopenConvolution;
+    if(op.group > 1)
+        c_mode = miopenGroupConv;
     miopenInitConvolutionDescriptor(c.get(),
-                                    miopenConvolution,
+                                    c_mode,
                                     op.padding[0],
                                     op.padding[1],
                                     op.stride[0],
                                     op.stride[1],
                                     op.dilation[0],
                                     op.dilation[1]);
+    if(op.group > 1)
+        miopenSetConvolutionGroupCount(c.get(), op.group);
     return c;
 }
 
@@ -84,6 +91,13 @@ inline pooling_descriptor make_pooling(const migraphx::op::pooling& op)
     return p;
 }
 
+inline lrn_descriptor make_lrn(const migraphx::op::lrn& op)
+{
+    auto ldesc = make_obj<lrn_descriptor>(&miopenCreateLRNDescriptor);
+    miopenSetLRNDescriptor(ldesc.get(), miopenLRNCrossChannel, op.size, op.alpha, op.beta, op.bias);
+    return ldesc;
+}
+
 inline activation_descriptor make_relu()
 {
     auto ad = make_obj<activation_descriptor>(&miopenCreateActivationDescriptor);
@@ -91,10 +105,40 @@ inline activation_descriptor make_relu()
     return ad;
 }
 
+inline activation_descriptor make_sigmoid()
+{
+    auto ad = make_obj<activation_descriptor>(&miopenCreateActivationDescriptor);
+    miopenSetActivationDescriptor(ad.get(), miopenActivationLOGISTIC, 0, 0, 0);
+    return ad;
+}
+
+inline activation_descriptor make_tanh()
+{
+    auto ad = make_obj<activation_descriptor>(&miopenCreateActivationDescriptor);
+    // onnx operator does not apply additional scaling for tanh
+    // defaults for alpha and beta are therefore set to 1
+    miopenSetActivationDescriptor(ad.get(), miopenActivationTANH, 1, 1, 0);
+    return ad;
+}
+
+inline activation_descriptor make_abs()
+{
+    auto ad = make_obj<activation_descriptor>(&miopenCreateActivationDescriptor);
+    miopenSetActivationDescriptor(ad.get(), miopenActivationABS, 0, 0, 0);
+    return ad;
+}
+
 inline activation_descriptor make_leaky_relu(double alpha)
 {
     auto ad = make_obj<activation_descriptor>(&miopenCreateActivationDescriptor);
     miopenSetActivationDescriptor(ad.get(), miopenActivationLEAKYRELU, alpha, 0, 0);
+    return ad;
+}
+
+inline activation_descriptor make_elu(double alpha)
+{
+    auto ad = make_obj<activation_descriptor>(&miopenCreateActivationDescriptor);
+    miopenSetActivationDescriptor(ad.get(), miopenActivationELU, alpha, 0, 0);
     return ad;
 }
 
@@ -117,7 +161,7 @@ inline fused_operator_args make_fused_args()
 }
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

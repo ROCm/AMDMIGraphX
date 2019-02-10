@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_INSTRUCTION_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_INSTRUCTION_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_INSTRUCTION_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_INSTRUCTION_HPP
 
 #include <migraphx/literal.hpp>
 #include <migraphx/shape.hpp>
@@ -11,9 +11,10 @@
 #include <utility>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 shape compute_shape(const operation& op, const std::vector<instruction_ref>& args);
+std::vector<shape> to_shapes(const std::vector<instruction_ref>& args);
 
 struct instruction
 {
@@ -71,7 +72,11 @@ struct instruction
     static void
     replace(instruction_ref ins, operation o, const shape& r, std::vector<instruction_ref> args);
 
-    static instruction_ref get_output_alias(instruction_ref ins);
+    argument eval() const;
+
+    void finalize(context& ctx);
+
+    static instruction_ref get_output_alias(instruction_ref ins, bool shallow = false);
 
     private:
     // internal
@@ -90,7 +95,7 @@ struct instruction
     std::vector<instruction_ref> arguments;
     literal lit;
 };
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 namespace std {

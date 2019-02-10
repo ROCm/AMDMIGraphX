@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_CONCAT_OPT_HPP
-#define MIGRAPH_GUARD_CONCAT_OPT_HPP
+#ifndef MIGRAPHX_GUARD_CONCAT_OPT_HPP
+#define MIGRAPHX_GUARD_CONCAT_OPT_HPP
 
 #include <cassert>
 #include <string>
@@ -13,7 +13,7 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
 
@@ -117,6 +117,13 @@ struct concat_optimization
     {
         assert((*this).private_detail_te_handle_mem_var);
         return (*this).private_detail_te_get_handle().get_concat(op);
+    }
+
+    friend bool is_shared(const concat_optimization& private_detail_x,
+                          const concat_optimization& private_detail_y)
+    {
+        return private_detail_x.private_detail_te_handle_mem_var ==
+               private_detail_y.private_detail_te_handle_mem_var;
     }
 
     private:
@@ -235,7 +242,8 @@ inline const ValueType& any_cast(const concat_optimization& x)
 }
 
 #endif
-} // namespace MIGRAPH_INLINE_NS
+
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

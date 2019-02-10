@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_CONCAT_OPT_HPP
-#define MIGRAPH_GUARD_CONCAT_OPT_HPP
+#ifndef MIGRAPHX_GUARD_CONCAT_OPT_HPP
+#define MIGRAPHX_GUARD_CONCAT_OPT_HPP
 
 #include <cassert>
 #include <string>
@@ -10,8 +10,10 @@
 
 #include <migraphx/operation.hpp>
 #include <migraphx/operators.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
 
@@ -40,6 +42,7 @@ interface('concat_optimization',
 
 #endif
 
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

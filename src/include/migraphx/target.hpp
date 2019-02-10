@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_TARGET_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_TARGET_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_TARGET_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_TARGET_HPP
 
 #include <cassert>
 #include <string>
@@ -13,7 +13,7 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 #ifdef DOXYGEN
 
@@ -125,6 +125,12 @@ struct target
     {
         assert((*this).private_detail_te_handle_mem_var);
         return (*this).private_detail_te_get_handle().get_context();
+    }
+
+    friend bool is_shared(const target& private_detail_x, const target& private_detail_y)
+    {
+        return private_detail_x.private_detail_te_handle_mem_var ==
+               private_detail_y.private_detail_te_handle_mem_var;
     }
 
     private:
@@ -244,7 +250,7 @@ inline const ValueType& any_cast(const target& x)
 
 #endif
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

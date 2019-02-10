@@ -1,10 +1,10 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_MEMORY_COLORING_IMPL_HPP
-#define MIGRAPH_GUARD_RTGLIB_MEMORY_COLORING_IMPL_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_MEMORY_COLORING_IMPL_HPP
+#define MIGRAPHX_GUARD_RTGLIB_MEMORY_COLORING_IMPL_HPP
 #include "common_header.hpp"
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 static const int invalid_offset = -1;
 
@@ -15,7 +15,7 @@ struct live_range
     long long offset; // offset to base pointer of allocated memory trunk.
     int vn;           // value number that identifies this live_range.
     long long size;   // size of required memory in bytes
-#ifdef MIGRAPH_DEBUG_OPT
+#ifdef MIGRAPHX_DEBUG_OPT
     void dump();
 #endif
 };
@@ -35,7 +35,7 @@ struct live_interval
     int get_end() const { return segment.end; }
     long long get_offset() const { return segment.offset; }
 
-#ifdef MIGRAPH_DEBUG_OPT
+#ifdef MIGRAPHX_DEBUG_OPT
     void dump();
 #endif
 
@@ -84,7 +84,7 @@ struct memory_coloring_impl
     {
         return is_param(ins) && any_cast<builtin::param>(ins->get_operator()).parameter == "output";
     }
-    bool is_allocate(const instruction_ref ins) { return ins->name() == allocation_op; }
+    bool is_allocate(const instruction_ref ins) const { return ins->name() == allocation_op; }
     static bool is_outline(const instruction_ref ins) { return ins->name() == "@outline"; }
     static bool is_literal(const instruction_ref ins) { return ins->name() == "@literal"; }
     static bool is_check_context(const instruction_ref ins)
@@ -101,7 +101,7 @@ struct memory_coloring_impl
         return ((end1 < range2.offset) || (end2 < range1.offset));
     }
     void verify();
-#ifdef MIGRAPH_DEBUG_OPT
+#ifdef MIGRAPHX_DEBUG_OPT
     void dump(const std::string&);
     void dump_program();
     void dump_intervals();
@@ -154,6 +154,6 @@ struct memory_coloring_impl
     bool enable_verify;
 };
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif

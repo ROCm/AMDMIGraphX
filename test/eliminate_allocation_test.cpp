@@ -103,6 +103,6 @@ TEST_CASE(float_aligned)
 
 int main(int argc, const char* argv[])
 {
-    setenv("MIGRAPH_DISABLE_MEMORY_COLORING", "1", 1);
+    setenv("MIGRAPHX_DISABLE_MEMORY_COLORING", "1", 1);
     test::run(argc, argv);
 }

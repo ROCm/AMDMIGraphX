@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_DEVICE_NARY_HPP
-#define MIGRAPH_GUARD_RTGLIB_DEVICE_NARY_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_NARY_HPP
+#define MIGRAPHX_GUARD_RTGLIB_DEVICE_NARY_HPP
 
 #include <migraphx/gpu/device/tensor.hpp>
 #include <migraphx/gpu/device/launch.hpp>
@@ -9,7 +9,7 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
@@ -87,7 +87,7 @@ void trinary_broadcast_vec_impl(hipStream_t stream,
         const std::size_t bdim_vec_len = bdim_len / vec_size;
 
         launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
-            MIGRAPH_DEVICE_SHARED vec4<type> buffer[2048 / vec_size];
+            MIGRAPHX_DEVICE_SHARED vec4<type> buffer[2048 / vec_size];
             // Load bias into LDS
             for(size_t i = idx.local; i < bdim_vec_len; i += nlocal)
             {
@@ -144,7 +144,7 @@ void trinary_broadcast_impl(hipStream_t stream,
         const std::size_t n       = output.size();
 
         launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
-            MIGRAPH_DEVICE_SHARED type buffer[2048];
+            MIGRAPHX_DEVICE_SHARED type buffer[2048];
             // Load bias into LDS
             for(size_t i = idx.local; i < bdim_len; i += nlocal)
             {
@@ -192,7 +192,7 @@ void binary_broadcast_vec_impl(
         const std::size_t bdim_vec_len = bdim_len / vec_size;
 
         launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
-            MIGRAPH_DEVICE_SHARED vec4<type> buffer[2048 / vec_size];
+            MIGRAPHX_DEVICE_SHARED vec4<type> buffer[2048 / vec_size];
             // Load bias into LDS
             for(size_t i = idx.local; i < bdim_vec_len; i += nlocal)
             {
@@ -243,7 +243,7 @@ void binary_broadcast_impl(
         const std::size_t n       = output.size();
 
         launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
-            MIGRAPH_DEVICE_SHARED type buffer[2048];
+            MIGRAPHX_DEVICE_SHARED type buffer[2048];
             // Load bias into LDS
             for(size_t i = idx.local; i < bdim_len; i += nlocal)
             {
@@ -311,6 +311,12 @@ void nary_impl(hipStream_t stream, F f, argument result, Arguments... args)
         nary_standard_impl(stream, f, result, args...);
     else
         nary_nonstandard_impl(stream, f, result, args...);
+}
+
+template <class F>
+void nary_impl(hipStream_t stream, F f, argument result)
+{
+    nary_standard_impl(stream, f, result);
 }
 
 template <class... Arguments>
@@ -396,7 +402,7 @@ inline auto nary(hipStream_t stream,
 
 } // namespace device
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

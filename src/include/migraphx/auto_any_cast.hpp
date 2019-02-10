@@ -1,9 +1,13 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_AUTO_ANY_CAST_HPP
-#define MIGRAPH_GUARD_RTGLIB_AUTO_ANY_CAST_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_AUTO_ANY_CAST_HPP
+#define MIGRAPHX_GUARD_RTGLIB_AUTO_ANY_CAST_HPP
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
+
+// Forward declare any_cast
+template <class T>
+const T& any_cast(const T&);
 
 namespace detail {
 
@@ -34,7 +38,7 @@ detail::auto_any_caster<T> auto_any_cast(T& x)
     return {x};
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

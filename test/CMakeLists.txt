@@ -10,12 +10,12 @@ set(CTEST_PARALLEL_LEVEL ${N} CACHE STRING "CTest parallel level")
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j ${CTEST_PARALLEL_LEVEL} -C ${CMAKE_CFG_INTDIR} --timeout 1500)
 add_custom_target(tests)
 
-find_program(MIGRAPH_GDB gdb)
+find_program(MIGRAPHX_GDB gdb)
 
-if(MIGRAPH_GDB)
-    set(MIGRAPH_TEST_GDB On CACHE BOOL "")
+if(MIGRAPHX_GDB)
+    set(MIGRAPHX_TEST_GDB On CACHE BOOL "")
 else()
-    set(MIGRAPH_TEST_GDB Off CACHE BOOL "")
+    set(MIGRAPHX_TEST_GDB Off CACHE BOOL "")
 endif()
 
 set(SKIP_TESTS)
@@ -34,8 +34,8 @@ function(add_test_command NAME EXE)
                     %1 ${ARGN}")
         add_test(NAME ${NAME} COMMAND ${WINE_CMD} cmd /c "${CMAKE_CURRENT_BINARY_DIR}/test_${NAME}.cmd" $<TARGET_FILE:${EXE}>)
     else()
-        if(MIGRAPH_TEST_GDB)
-            # add_test(NAME ${NAME} COMMAND ${MIGRAPH_GDB} 
+        if(MIGRAPHX_TEST_GDB)
+            # add_test(NAME ${NAME} COMMAND ${MIGRAPHX_GDB} 
             #     --batch
             #     --return-child-result
             #     -ex "set disable-randomization off"
@@ -54,7 +54,7 @@ function(add_test_command NAME EXE)
                     if(EXISTS ${TEST_DIR}/core)
                         set(\$ENV{UBSAN_OPTIONS} print_stacktrace=1)
                         set(\$ENV{ASAN_OPTIONS} print_stacktrace=1)
-                        execute_process(COMMAND ${MIGRAPH_GDB} $<TARGET_FILE:${EXE}> ${TEST_DIR}/core -batch -ex bt)
+                        execute_process(COMMAND ${MIGRAPHX_GDB} $<TARGET_FILE:${EXE}> ${TEST_DIR}/core -batch -ex bt)
                     endif()
                     message(FATAL_ERROR \"Test failed\")
                 endif()
@@ -95,7 +95,7 @@ foreach(TEST ${TESTS})
     rocm_clang_tidy_check(test_${BASE_NAME})
 endforeach()
 
-if(MIGRAPH_ENABLE_GPU)
+if(MIGRAPHX_ENABLE_GPU)
     # gpu tests
     file(GLOB GPU_TESTS gpu/*.cpp)
 
@@ -112,13 +112,18 @@ if(MIGRAPH_ENABLE_GPU)
 endif()
 
 # Onnx test
-add_executable(test_onnx onnx/onnx_test.cpp)
+set(TEST_ONNX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/onnx)
+add_executable(test_onnx ${TEST_ONNX_DIR}/onnx_test.cpp)
 rocm_clang_tidy_check(test_onnx)
 target_link_libraries(test_onnx migraphx_onnx)
 target_include_directories(test_onnx PUBLIC include)
 add_test(NAME test_onnx COMMAND $<TARGET_FILE:test_onnx> WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/onnx) 
 add_dependencies(tests test_onnx)
 add_dependencies(check test_onnx)
+
+if(MIGRAPHX_ENABLE_PYTHON)
+add_subdirectory(py)
+endif()
 
 function(test_header NAME HEADER)
 
@@ -142,7 +147,7 @@ function(test_headers PREFIX)
         string(MAKE_C_IDENTIFIER ${HEADER_REL} TEST_NAME)
         get_filename_component(BASE_NAME ${HEADER} NAME_WE)
         test_header(header_${TEST_NAME} ${PREFIX}/${BASE_NAME}.hpp)
-        if(MIGRAPH_ENABLE_GPU)
+        if(MIGRAPHX_ENABLE_GPU)
             target_link_libraries(header_${TEST_NAME} migraphx_gpu)
         endif()
     endforeach()
@@ -150,6 +155,6 @@ endfunction()
 
 test_headers(migraphx ${CMAKE_SOURCE_DIR}/src/include/migraphx/*.hpp)
 test_headers(migraphx/cpu ${CMAKE_SOURCE_DIR}/src/targets/cpu/include/migraphx/cpu/*.hpp)
-if(MIGRAPH_ENABLE_GPU)
+if(MIGRAPHX_ENABLE_GPU)
 test_headers(migraphx/gpu ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/*.hpp)
 endif()

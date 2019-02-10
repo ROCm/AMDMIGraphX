@@ -594,7 +594,7 @@ TEST_CASE(test38)
     auto p83    = p.add_instruction(pass_op{}, p78, p77);
     p.add_instruction(pass_op{}, output, p83, p63);
     p.compile(memory_coloring_target{});
-    CHECK(p.get_parameter_shape("scratch").bytes() == 7225344);
+    CHECK(p.get_parameter_shape("scratch").bytes() == 7225344); // Optimal solution is 6422528
     CHECK(no_allocate(p));
 }
 

@@ -8,6 +8,7 @@ AMD's graph optimization engine.
 * [HIP](https://github.com/ROCm-Developer-Tools/HIP) for running on the GPU
 * [Protobuf](https://github.com/google/protobuf) for reading [onxx](https://github.com/onnx/onnx) files
 * [Half](http://half.sourceforge.net/) - IEEE 754-based half-precision floating point library
+* [pybind11](https://pybind11.readthedocs.io/en/stable/) - for python bindings
 
 ## Installing the dependencies
 

@@ -97,6 +97,8 @@ PYBIND11_MODULE(migraphx, m)
         .def("broadcasted", &migraphx::shape::broadcasted)
         .def("standard", &migraphx::shape::standard)
         .def("scalar", &migraphx::shape::scalar)
+        .def("__eq__", std::equal_to<migraphx::shape>{})
+        .def("__ne__", std::not_equal_to<migraphx::shape>{})
         .def("__repr__", [](const migraphx::shape& s) { return migraphx::to_string(s); });
 
     py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())
@@ -104,14 +106,20 @@ PYBIND11_MODULE(migraphx, m)
         .def("__init__", [](migraphx::argument& x, py::buffer b) {
             py::buffer_info info = b.request();
             new(&x) migraphx::argument(to_shape(info), info.ptr);
-        });
+        })
+        .def("__eq__", std::equal_to<migraphx::argument>{})
+        .def("__ne__", std::not_equal_to<migraphx::argument>{})
+        .def("__repr__", [](const migraphx::argument& x) { return migraphx::to_string(x); });
 
     py::class_<migraphx::target>(m, "target");
 
     py::class_<migraphx::program>(m, "program")
         .def("get_parameter_shapes", &migraphx::program::get_parameter_shapes)
+        .def("get_shape", &migraphx::program::get_shape)
         .def("compile", [](migraphx::program& p, const migraphx::target& t) { p.compile(t); })
         .def("run", &migraphx::program::eval)
+        .def("__eq__", std::equal_to<migraphx::program>{})
+        .def("__ne__", std::not_equal_to<migraphx::program>{})
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
 
     m.def("parse_onnx", &migraphx::parse_onnx);

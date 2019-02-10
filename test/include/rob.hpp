@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_ROB_HPP
-#define MIGRAPH_GUARD_ROB_HPP
+#ifndef MIGRAPHX_GUARD_ROB_HPP
+#define MIGRAPHX_GUARD_ROB_HPP
 
 #ifdef __clang__
 #pragma clang diagnostic push
@@ -30,7 +30,8 @@ struct mem_data_ptr
     using type = T C::*;
 };
 
-#define MIGRAPH_ROB(name, Type, C, mem)                \
+// NOLINTNEXTLINE
+#define MIGRAPHX_ROB(name, Type, C, mem)               \
     struct name##_tag : mem_data_ptr<C, Type>          \
     {                                                  \
     };                                                 \

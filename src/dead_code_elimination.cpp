@@ -6,7 +6,7 @@
 #include <migraphx/ranges.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 template <class Range, class Iterator>
 std::ptrdiff_t bidistance(const Range& r, Iterator start, Iterator last)
@@ -41,8 +41,9 @@ void dead_code_elimination::apply(program& p) const
         // Skip the last instruction
         if(i == last)
             break;
-        // Skip instruction with empty shape as output unless its a builtin
-        if(i->get_shape().elements() == 0 and not(i->name().front() == '@'))
+        // Skip instruction with empty shape as output unless its a builtin or undefined
+        if(i->get_shape().elements() == 0 and not(i->name().front() == '@') and
+           not(i->name() == "undefined"))
             continue;
         assert(bidistance(p, i, last) > 0);
         fix([&](auto self, auto leaf) {
@@ -62,5 +63,5 @@ void dead_code_elimination::apply(program& p) const
     p.remove_instructions(std::next(last), p.end());
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -11,6 +11,7 @@ add_library(migraphx
     eliminate_contiguous.cpp
     eliminate_concat.cpp
     fwd_conv_batchnorm_rewrite.cpp
+    rewrite_rnn.cpp
     env.cpp
     generate.cpp
     instruction.cpp
@@ -35,8 +36,9 @@ target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLU
 set(PACKAGE_DEPENDS)
 
 add_subdirectory(onnx)
+add_subdirectory(py)
 add_subdirectory(targets/cpu)
-if(MIGRAPH_ENABLE_GPU)
+if(MIGRAPHX_ENABLE_GPU)
 list(APPEND PACKAGE_DEPENDS MIOpen rocblas)
 add_subdirectory(targets/gpu)
 endif()

@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_SHAPE_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_SHAPE_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_SHAPE_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_SHAPE_HPP
 
 #include <vector>
 #include <cassert>
@@ -12,7 +12,7 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 struct shape_impl;
 
@@ -21,7 +21,7 @@ struct shape
 
 // Add new types here
 // clang-format off
-#define MIGRAPH_SHAPE_VISIT_TYPES(m) \
+#define MIGRAPHX_SHAPE_VISIT_TYPES(m) \
     m(half_type, half) \
     m(float_type, float) \
     m(double_type, double) \
@@ -35,22 +35,22 @@ struct shape
     m(uint64_type, uint64_t)
 // clang-format on
 
-#define MIGRAPH_SHAPE_ENUM_TYPES(x, t) x,
+#define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,
     enum type_t
     {
-        MIGRAPH_SHAPE_VISIT_TYPES(MIGRAPH_SHAPE_ENUM_TYPES)
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES)
     };
-#undef MIGRAPH_SHAPE_ENUM_TYPES
+#undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
     template <class T, class = void>
     struct get_type;
-#define MIGRAPH_SHAPE_GET_TYPE(x, t)                          \
+#define MIGRAPHX_SHAPE_GENERATE_GET_TYPE(x, t)                \
     template <class T>                                        \
     struct get_type<t, T> : std::integral_constant<type_t, x> \
     {                                                         \
     };
-    MIGRAPH_SHAPE_VISIT_TYPES(MIGRAPH_SHAPE_GET_TYPE)
-#undef MIGRAPH_SHAPE_GET_TYPE
+    MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_GET_TYPE)
+#undef MIGRAPHX_SHAPE_GENERATE_GET_TYPE
 
     template <class T>
     struct get_type<const T> : get_type<T>
@@ -61,6 +61,19 @@ struct shape
     shape(type_t t);
     shape(type_t t, std::vector<std::size_t> l);
     shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s);
+
+    template <class Range>
+    shape(type_t t, const Range& l) : shape(t, std::vector<std::size_t>(l.begin(), l.end()))
+    {
+    }
+
+    template <class Range1, class Range2>
+    shape(type_t t, const Range1& l, const Range2& s)
+        : shape(t,
+                std::vector<std::size_t>(l.begin(), l.end()),
+                std::vector<std::size_t>(s.begin(), s.end()))
+    {
+    }
 
     type_t type() const;
     const std::vector<std::size_t>& lens() const;
@@ -141,6 +154,8 @@ struct shape
         {
             return reinterpret_cast<const T*>(buffer) + n;
         }
+
+        type_t type_enum() const { return get_type<T>{}; }
     };
 
     template <class Visitor>
@@ -148,12 +163,20 @@ struct shape
     {
         switch(this->type())
         {
-#define MIGRAPH_SHAPE_VISITOR_CASE(x, t) \
+#define MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE(x, t) \
     case x: v(as<t>()); return;
-            MIGRAPH_SHAPE_VISIT_TYPES(MIGRAPH_SHAPE_VISITOR_CASE)
-#undef MIGRAPH_SHAPE_VISITOR_CASE
+            MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE)
+#undef MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE
         }
-        MIGRAPH_THROW("Unknown type");
+        MIGRAPHX_THROW("Unknown type");
+    }
+
+    template <class Visitor>
+    static void visit_types(Visitor v)
+    {
+#define MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL(x, t) v(as<t>());
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL)
+#undef MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL
     }
 
     private:
@@ -163,7 +186,7 @@ struct shape
     std::string type_string() const;
 };
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

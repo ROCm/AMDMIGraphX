@@ -1,15 +1,15 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_ENV_HPP
-#define MIGRAPH_GUARD_RTGLIB_ENV_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_ENV_HPP
+#define MIGRAPHX_GUARD_RTGLIB_ENV_HPP
 
 #include <vector>
 #include <string>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 // Declare a cached environment variable
-#define MIGRAPH_DECLARE_ENV_VAR(x)                \
+#define MIGRAPHX_DECLARE_ENV_VAR(x)               \
     struct x                                      \
     {                                             \
         static const char* value() { return #x; } \
@@ -33,7 +33,7 @@ bool disabled(T)
     return result;
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

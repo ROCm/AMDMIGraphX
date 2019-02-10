@@ -5,14 +5,14 @@
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 ==============================================================================*/
 
-#ifndef MIGRAPH_GUARD_RTGLIB_HALF_HPP
-#define MIGRAPH_GUARD_RTGLIB_HALF_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_HALF_HPP
+#define MIGRAPHX_GUARD_RTGLIB_HALF_HPP
 
 #include <half.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 using half = half_float::half;
 
@@ -33,7 +33,7 @@ struct deduce<half_float::detail::expr>
 template <class T>
 using deduce = typename detail::deduce<T>::type;
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

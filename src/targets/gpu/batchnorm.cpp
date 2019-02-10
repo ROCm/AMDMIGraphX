@@ -5,7 +5,7 @@
 #include <utility>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 shape miopen_batch_norm_inference::compute_shape(const std::vector<shape>& inputs) const
@@ -22,7 +22,8 @@ argument miopen_batch_norm_inference::compute(context& ctx,
     auto y_desc  = make_tensor(output_shape);
     auto bn_desc = make_tensor(args[3].get_shape());
 
-    float alpha = 1.0, beta = 0.0f;
+    float alpha = 1.0;
+    float beta  = 0.0f;
 
     miopenBatchNormalizationForwardInference(ctx.get_stream().get_miopen(),
                                              miopenBatchNormMode_t(op.bn_mode),
@@ -43,5 +44,5 @@ argument miopen_batch_norm_inference::compute(context& ctx,
 }
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

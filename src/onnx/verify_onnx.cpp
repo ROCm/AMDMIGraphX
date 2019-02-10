@@ -116,7 +116,7 @@ void verify_reduced_program(F f, double tolerance = 80)
 {
     migraphx::program p = f();
     auto n              = std::distance(p.begin(), p.end());
-    for(int i = 0; i < n; i++)
+    for(std::size_t i = 0; i < n; i++)
     {
         verify_reduced(f, i, tolerance);
     }

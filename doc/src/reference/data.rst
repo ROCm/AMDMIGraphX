@@ -21,7 +21,7 @@ raw_data
 
 .. doxygenstruct:: migraphx::raw_data
 
-.. doxygenfunction:: migraphx::MIGRAPH_INLINE_NS::visit_all
+.. doxygenfunction:: migraphx::MIGRAPHX_INLINE_NS::visit_all
 
 
 tensor_view

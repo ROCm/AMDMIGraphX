@@ -1,24 +1,33 @@
-#ifndef MIGRAPH_GUARD_OPERATORS_HPP
-#define MIGRAPH_GUARD_OPERATORS_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_HPP
+#define MIGRAPHX_GUARD_OPERATORS_HPP
 
 #include <array>
 #include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
 #include <cmath>
 #include <utility>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
+
+enum padding_mode_t
+{
+    default_, // NOLINT
+    same,
+    valid
+};
 
 struct not_computable
 {
-    argument compute(context&, const shape&, const std::vector<argument>&) const
+    argument compute(const shape&, const std::vector<argument>&) const
     {
-        MIGRAPH_THROW("not computable");
+        MIGRAPHX_THROW("not computable");
     }
 };
 
@@ -51,18 +60,38 @@ struct batch_norm_inference
     }
 };
 
+struct lrn
+{
+    float alpha = 0.0001;
+    float beta  = 0.75;
+    float bias  = 1.0;
+    int size    = 1;
+    std::string name() const { return "lrn"; }
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.alpha, "alpha"),
+                    f(self.beta, "beta"),
+                    f(self.bias, "bias"),
+                    f(self.size, "size"));
+    }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        return inputs.front();
+    }
+};
+
 struct convolution
 {
     std::array<std::size_t, 2> padding  = {{0, 0}};
     std::array<std::size_t, 2> stride   = {{1, 1}};
     std::array<std::size_t, 2> dilation = {{1, 1}};
-    enum padding_mode_t
-    {
-        default_, // NOLINT
-        same,
-        valid
-    };
+
     padding_mode_t padding_mode = default_;
+    int group                   = 1;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -70,7 +99,8 @@ struct convolution
         return pack(f(self.padding, "padding"),
                     f(self.stride, "stride"),
                     f(self.dilation, "dilation"),
-                    f(self.padding_mode, "padding_mode"));
+                    f(self.padding_mode, "padding_mode"),
+                    f(self.group, "group"));
     }
 
     std::string name() const { return "convolution"; }
@@ -124,7 +154,7 @@ struct convolution
         }
         else
         {
-            MIGRAPH_THROW("Invalid padding mode");
+            MIGRAPHX_THROW("Invalid padding mode");
         }
     }
 };
@@ -134,12 +164,7 @@ struct im2col
     std::array<std::size_t, 2> padding  = {{0, 0}};
     std::array<std::size_t, 2> stride   = {{1, 1}};
     std::array<std::size_t, 2> dilation = {{1, 1}};
-    enum padding_mode_t
-    {
-        default_, // NOLINT
-        same,
-        valid
-    };
+
     padding_mode_t padding_mode = default_;
 
     template <class Self, class F>
@@ -163,7 +188,7 @@ struct im2col
         auto kernel_width   = weights.lens()[3];
         check_shapes{inputs, *this}.has(2);
         if(batch_size != 1)
-            MIGRAPH_THROW("im2col only support batch_size 1");
+            MIGRAPHX_THROW("im2col only support batch_size 1");
         auto output_height = std::size_t(std::max<std::ptrdiff_t>(
             1,
             (input.lens()[2] - (1 + dilation[0] * (kernel_height - 1)) + 2 * padding[0]) /
@@ -185,12 +210,14 @@ struct pooling
     std::array<std::size_t, 2> padding = {{0, 0}};
     std::array<std::size_t, 2> stride  = {{1, 1}};
     std::array<std::size_t, 2> lengths = {{1, 1}};
+    padding_mode_t padding_mode        = default_;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.mode, "mode"),
                     f(self.padding, "padding"),
+                    f(self.padding, "padding_mode"),
                     f(self.stride, "stride"),
                     f(self.lengths, "lengths"));
     }
@@ -207,7 +234,10 @@ struct pooling
         assert(lengths[0] <= (input.lens()[2] + 2 * padding[0]));
         assert(lengths[1] <= (input.lens()[3] + 2 * padding[1]));
 
-        return {t,
+        if(padding_mode == default_)
+        {
+            return {
+                t,
                 {
                     input.lens()[0],
                     input.lens()[1],
@@ -222,6 +252,39 @@ struct pooling
                                                   static_cast<float>(stride[1]))) +
                             1)),
                 }};
+        }
+        else if(padding_mode == same)
+        {
+            return {t,
+                    {input.lens()[0],
+                     input.lens()[1],
+                     static_cast<std::size_t>(
+                         std::ceil(static_cast<double>(input.lens()[2]) / stride[0])),
+                     static_cast<std::size_t>(
+                         std::ceil(static_cast<double>(input.lens()[3]) / stride[1]))}};
+        }
+        else if(padding_mode == valid)
+        {
+            return {t,
+                    {
+                        input.lens()[0],
+                        input.lens()[1],
+                        std::size_t(std::max<std::ptrdiff_t>(
+                            1,
+                            std::ptrdiff_t(std::floor((input.lens()[2] - lengths[0]) /
+                                                      static_cast<float>(stride[0]))) +
+                                1)),
+                        std::size_t(std::max<std::ptrdiff_t>(
+                            1,
+                            std::ptrdiff_t(std::floor((input.lens()[3] - lengths[1]) /
+                                                      static_cast<float>(stride[1]))) +
+                                1)),
+                    }};
+        }
+        else
+        {
+            MIGRAPHX_THROW("Invalid padding mode");
+        }
     }
 };
 
@@ -234,10 +297,28 @@ struct leaky_relu
         check_shapes{inputs, *this}.has(1);
         return inputs.front();
     }
-    friend std::ostream& operator<<(std::ostream& os, const leaky_relu& op)
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
     {
-        os << op.name() << ":" << op.alpha;
-        return os;
+        return pack(f(self.alpha, "alpha"));
+    }
+};
+
+struct elu
+{
+    std::string name() const { return "elu"; }
+    float alpha;
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        return inputs.front();
+    }
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.alpha, "alpha"));
     }
 };
 
@@ -261,30 +342,36 @@ struct transpose
         auto t             = input.type();
         if(dims.size() != input_lens.size())
         {
-            MIGRAPH_THROW("Permutation has wrong number of axes");
+            MIGRAPHX_THROW("Permutation has wrong number of axes");
         }
         std::vector<int64_t> axes(dims.size());
         std::iota(axes.begin(), axes.end(), 0);
         if(!std::is_permutation(axes.begin(), axes.end(), dims.begin()))
         {
-            MIGRAPH_THROW("Invalid permutation");
+            MIGRAPHX_THROW("Invalid permutation");
         }
         std::vector<size_t> output_lens(input_lens.size());
         std::vector<size_t> output_strides(input_lens.size());
-        for(int i = 0; i < output_lens.size(); i++)
+        for(std::size_t i = 0; i < output_lens.size(); i++)
         {
             output_lens[i]    = input_lens[dims[i]];
             output_strides[i] = input_strides[dims[i]];
         }
         return {t, output_lens, output_strides};
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
     int output_alias(const std::vector<shape>&) const { return 0; }
 };
 
+/// The contiguous operator takes a non-standard input tensor and returns
+/// the same tensor but in standard form. For example, if input tensor A which has lens = (4,5)
+/// is first transposed, i.e. lens = (5,4), this tensor's data layout remained the same
+/// during the transpose operation; only it's shape lengths and strides were changed.
+/// This leaves the tensor in a non-standard form. The contiguous operator copies the
+/// underlying data such that resulting tensor is returned to a standard form.
 struct contiguous
 {
     std::string name() const { return "contiguous"; }
@@ -295,6 +382,17 @@ struct contiguous
         auto t    = inputs.at(0).type();
         return {t, lens};
     }
+    argument compute(const shape& output_shape, std::vector<argument> args) const
+    {
+        assert(output_shape.standard());
+        argument result{output_shape};
+        visit_all(result, args[0])([&](auto output, auto input) {
+            shape_for_each(output.get_shape(), [&](const auto& idx) {
+                output(idx.begin(), idx.end()) = input(idx.begin(), idx.end());
+            });
+        });
+        return result;
+    }
 };
 
 struct concat
@@ -302,7 +400,7 @@ struct concat
     std::size_t axis = 0;
     std::string name() const { return "concat"; }
     std::vector<std::size_t> compute_offsets(const shape& output_shape,
-                                             const std::vector<argument> args) const
+                                             const std::vector<argument>& args) const
     {
         std::vector<std::size_t> offsets;
         std::vector<std::size_t> offset(args[0].get_shape().lens().size(), 0);
@@ -318,7 +416,7 @@ struct concat
     {
         if(inputs.empty())
         {
-            MIGRAPH_THROW("Number of input tensors should exceed 0");
+            MIGRAPHX_THROW("Number of input tensors should exceed 0");
         }
 
         const auto& first_shape_lens = inputs.front().lens();
@@ -331,7 +429,7 @@ struct concat
                        return s.lens()[l] == first_shape_lens[l];
                    }))
                 {
-                    MIGRAPH_THROW("Non-axis dimensions should match");
+                    MIGRAPHX_THROW("Non-axis dimensions should match");
                 }
             }
         }
@@ -346,7 +444,27 @@ struct concat
         new_lens[axis] = new_dim_axis;
         return {type, new_lens};
     }
-    int output_alias(const std::vector<shape>&) const { return 0; }
+    argument compute(const shape& output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        std::vector<std::size_t> coffsets = compute_offsets(output_shape, args);
+        for(std::size_t l = 0; l < args.size(); l++)
+        {
+            auto argl             = args[l];
+            std::size_t nelements = argl.get_shape().elements();
+            visit_all(result, argl)([&](auto output, auto input) {
+                auto slice_shape =
+                    shape{output_shape.type(), input.get_shape().lens(), output_shape.strides()};
+                auto slice = make_view(slice_shape, output.data() + coffsets[l]);
+                // cppcheck-suppress useStlAlgorithm
+                for(std::size_t i = 0; i < nelements; i++)
+                {
+                    slice[i] = input[i];
+                }
+            });
+        }
+        return result;
+    }
 };
 
 struct slice
@@ -400,18 +518,9 @@ struct slice
         auto t                  = input_shape.type();
         const auto& old_lens    = input_shape.lens();
         const auto& old_strides = input_shape.strides();
-        // std::vector<int64_t> t_axes(old_lens.size());
-        // if(axes.size() == 0)
-        // {
-        //     std::iota(t_axes.begin(), t_axes.end(), 0);
-        // }
-        // else
-        // {
-        //     std::copy(axes.begin(), axes.end(), t_axes.begin());
-        // }
         if(starts.size() != axes.size() || axes.size() != ends.size())
         {
-            MIGRAPH_THROW("inconsistent sizes");
+            MIGRAPHX_THROW("inconsistent sizes");
         }
         std::vector<std::size_t> new_lens = old_lens;
         for(std::size_t i = 0; i < axes.size(); i++)
@@ -422,7 +531,7 @@ struct slice
         }
         return shape{t, new_lens, old_strides};
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         auto input  = args[0];
         auto offset = compute_offset(input.get_shape()) * output_shape.type_size();
@@ -450,7 +559,7 @@ struct squeeze
         if(std::any_of(
                axes.begin(), axes.end(), [&](auto axis) { return input_shape.lens()[axis] != 1; }))
         {
-            MIGRAPH_THROW("squeeze axis dimension should be equal to 1");
+            MIGRAPHX_THROW("squeeze axis dimension should be equal to 1");
         }
         std::vector<std::size_t> new_lens;
         if(axes.empty())
@@ -472,7 +581,7 @@ struct squeeze
         }
         return shape{type, new_lens};
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
@@ -511,7 +620,7 @@ struct unsqueeze
         }
         return shape{type, new_lens};
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
@@ -536,16 +645,21 @@ struct reshape
         std::vector<std::size_t> rdims(dims.begin(), dims.end());
         auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
         if(n_neg_dims > 1)
-            MIGRAPH_THROW("Dimensions for reshape can only have one -1 dim");
+            MIGRAPHX_THROW("Dimensions for reshape can only have one -1 dim");
         for(std::size_t i = 0; i < dims.size(); i++)
         {
             if(dims[i] == 0)
                 rdims[i] = idims[i];
+
+            // since rdims using size_t type, -1 is the max value
+            // is size_t that cause later compuation incorrect
+            if(dims[i] == -1)
+                rdims[i] = 1;
         }
         if(n_neg_dims > 0)
         {
             size_t missing_dim =
-                -inputs.front().elements() /
+                inputs.front().elements() /
                 std::accumulate(rdims.begin(), rdims.end(), 1, std::multiplies<int64_t>());
             for(std::size_t i = 0; i < rdims.size(); i++)
             {
@@ -553,21 +667,138 @@ struct reshape
                     rdims[i] = missing_dim;
             }
         }
-        if(dims.back() == -1)
-        {
-            rdims.pop_back();
-            std::copy(idims.begin() + rdims.size(), idims.end(), std::back_inserter(rdims));
-        }
+
         shape s{inputs.front().type(), rdims};
         if(s.elements() != inputs.front().elements())
-            MIGRAPH_THROW("Wrong number of elements for reshape");
+            MIGRAPHX_THROW("Wrong number of elements for reshape");
         return s;
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
     int output_alias(const std::vector<shape>&) const { return 0; }
+};
+
+struct pad
+{
+    std::vector<int64_t> pads;
+    float value = 0.0f;
+    enum pad_op_mode_t
+    {
+        constant_pad,
+        reflect_pad,
+        edge_pad
+    };
+    pad_op_mode_t mode = constant_pad;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.mode, "mode"), f(self.pads, "pads"), f(self.value, "value"));
+    }
+
+    std::string name() const { return "pad"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        auto&& idims = inputs.front().lens();
+        std::vector<std::size_t> rdims(idims.begin(), idims.end());
+        std::size_t num_dims = rdims.size();
+
+        for(std::size_t i = 0; i < num_dims; i++)
+        {
+            rdims[i] += pads[i] + pads[i + num_dims];
+        }
+
+        shape s{inputs.front().type(), rdims};
+        return s;
+    }
+};
+
+struct as_shape
+{
+    shape s;
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.s, "shape"));
+    }
+
+    std::string name() const { return "as_shape"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(1).standard();
+        assert(inputs.front().elements() == s.elements());
+        return s;
+    }
+    argument compute(shape output_shape, std::vector<argument> args) const
+    {
+        return {std::move(output_shape), std::move(args.front().data)};
+    }
+    int output_alias(const std::vector<shape>&) const { return 0; }
+};
+
+struct gather
+{
+    int axis = 0;
+    std::string name() const { return "gather"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(2);
+        auto lens = inputs[0].lens();
+        int n_dim = static_cast<int>(lens.size());
+        if(axis >= n_dim || axis < -n_dim)
+        {
+            MIGRAPHX_THROW("Gather: axis is out of range.");
+        }
+
+        // negative axis means counting dimensions from back
+        int axis_index = (axis < 0) ? (n_dim + axis) : axis;
+
+        auto type        = inputs[0].type();
+        lens[axis_index] = inputs[1].elements();
+
+        return {type, lens};
+    }
+
+    template <class T>
+    void compute_index(const T& out_idx,
+                       const int axis_index,
+                       const std::vector<std::size_t>& vec_indices,
+                       const std::size_t max_dim,
+                       T& in_idx) const
+    {
+        in_idx          = out_idx;
+        std::size_t idx = vec_indices.at(out_idx[axis_index]);
+        if(idx >= max_dim)
+        {
+            MIGRAPHX_THROW("Gather: indices are out of range in input tensor");
+        }
+        in_idx[axis_index] = idx;
+    }
+
+    argument compute(const shape& output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        // negative axis means counting dimensions from back
+        int axis_index = (axis < 0) ? (output_shape.lens().size() + axis) : axis;
+
+        // max dimension in axis
+        std::size_t max_dim = args[0].get_shape().lens()[axis_index];
+        std::vector<std::size_t> vec_indices;
+        args[1].visit([&](auto indices) { vec_indices.assign(indices.begin(), indices.end()); });
+        visit_all(result, args[0])([&](auto output, auto input) {
+            std::vector<std::size_t> in_idx;
+            shape_for_each(output.get_shape(), [&](const auto& idx) {
+                this->compute_index(idx, axis_index, vec_indices, max_dim, in_idx);
+                output(idx.begin(), idx.end()) = input(in_idx.begin(), in_idx.end());
+            });
+        });
+
+        return result;
+    }
 };
 
 struct dot
@@ -590,8 +821,8 @@ struct dot
         auto t         = a.type();
 
         if(a.lens()[1] != b.lens()[0])
-            MIGRAPH_THROW("Inner dimensions do not match: {" + to_string_range(a.lens()) + "} x {" +
-                          to_string_range(b.lens()) + "}");
+            MIGRAPHX_THROW("Inner dimensions do not match: {" + to_string_range(a.lens()) +
+                           "} x {" + to_string_range(b.lens()) + "}");
         return {t, {a.lens()[0], b.lens()[1]}};
     }
 };
@@ -609,7 +840,7 @@ struct identity
 {
     std::string name() const { return "identity"; }
     shape compute_shape(std::vector<shape> inputs) const { return inputs.at(0); }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.at(0).data)};
     }
@@ -624,6 +855,11 @@ struct abs : unary
 struct exp : unary
 {
     std::string name() const { return "exp"; }
+};
+
+struct log : unary
+{
+    std::string name() const { return "log"; }
 };
 
 struct sin : unary
@@ -654,6 +890,16 @@ struct acos : unary
 struct atan : unary
 {
     std::string name() const { return "atan"; }
+};
+
+struct sinh : unary
+{
+    std::string name() const { return "sinh"; }
+};
+
+struct cosh : unary
+{
+    std::string name() const { return "cosh"; }
 };
 
 struct tanh : unary
@@ -704,7 +950,7 @@ struct flatten
 
         if(axis > lens.size())
         {
-            MIGRAPH_THROW("axis for flatten must be less than tensor rank");
+            MIGRAPHX_THROW("axis for flatten must be less than tensor rank");
         }
         auto x =
             std::accumulate(lens.begin(), lens.begin() + axis, std::size_t{1}, std::multiplies<>{});
@@ -712,12 +958,21 @@ struct flatten
             std::accumulate(lens.begin() + axis, lens.end(), std::size_t{1}, std::multiplies<>{});
         return {inputs.at(0).type(), {x, y}};
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
     int output_alias(const std::vector<shape>&) const { return 0; }
 };
+
+/// The broadcast operator performs the numpy-style broadcasting of an axis of a given tensor. This
+/// is achieved primarily by setting the stride of the broadcasted axis to zero. Linear indicies are
+/// computed from multi-indicies by computing the inner product on the multi-index with the strides.
+/// For example, if we have a tensor A(2,3) it has lengths of (2,3) and strides of (3,1). If we want
+/// to compute the linear offset that corresponds to the element on the 2nd row (i = 1) and 3rd
+/// column (j = 2), we compute the following inner product (1,2) dot (3, 1) = 1*3 + 2*1 = 5. It is
+/// obvious from there that we can negate the effects of a given axis by setting the stride of that
+/// axis to zero.
 struct broadcast
 {
     uint64_t axis = 0;
@@ -742,7 +997,7 @@ struct broadcast
            }))
         {
             if(axis != 0)
-                MIGRAPH_THROW("when broadcasting tensor of size 1, axis should be 0");
+                MIGRAPHX_THROW("when broadcasting tensor of size 1, axis should be 0");
             return {t, broadcast_shape.lens(), std::move(bcast_strides)};
         }
         else
@@ -750,12 +1005,12 @@ struct broadcast
             assert(broadcast_shape.lens().size() - axis >= input.lens().size());
             if(!std::equal(
                    input.lens().begin(), input.lens().end(), broadcast_shape.lens().begin() + axis))
-                MIGRAPH_THROW("when broadcasting success sizes must match");
+                MIGRAPHX_THROW("when broadcasting success sizes must match");
             std::copy(input.strides().begin(), input.strides().end(), bcast_strides.begin() + axis);
             return {t, broadcast_shape.lens(), std::move(bcast_strides)};
         }
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.at(0).data)};
     }
@@ -781,10 +1036,10 @@ struct multibroadcast
         auto input = inputs.at(0);
 
         if(input.lens().empty())
-            MIGRAPH_THROW("inputs dimensions should be > 0");
+            MIGRAPHX_THROW("inputs dimensions should be > 0");
 
         if(input.lens().size() > output_lens.size())
-            MIGRAPH_THROW("inputs dimensions should <= output size");
+            MIGRAPHX_THROW("inputs dimensions should <= output size");
 
         std::vector<size_t> bcast_strides(output_lens.size(), 0);
         auto offset = output_lens.size() - input.lens().size();
@@ -797,7 +1052,7 @@ struct multibroadcast
         }
         return {t, output_lens, bcast_strides};
     }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.at(0).data)};
     }
@@ -813,13 +1068,12 @@ struct scalar
     shape compute_shape(std::vector<shape> inputs) const
     {
         assert(check_shapes{inputs}.has(1).only_dims(1).size() == 1);
-        auto t     = inputs.at(0).type();
-        auto input = inputs.at(0);
+        auto t = inputs.at(0).type();
         std::vector<std::size_t> strides(scalar_bcast.lens().size(), 0);
         return {t, scalar_bcast.lens(), strides};
     }
 
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.at(0).data)};
     }
@@ -857,6 +1111,16 @@ struct div : binary
     std::string name() const { return "div"; }
 };
 
+struct max : binary
+{
+    std::string name() const { return "max"; }
+};
+
+struct min : binary
+{
+    std::string name() const { return "min"; }
+};
+
 struct load
 {
     shape s;
@@ -874,7 +1138,7 @@ struct load
         check_shapes{inputs}.has(1);
         return s;
     }
-    argument compute(context&, const shape&, const std::vector<argument>& args) const
+    argument compute(const shape&, const std::vector<argument>& args) const
     {
         return {s, args[0].data() + offset};
     }
@@ -897,14 +1161,118 @@ struct outline
         check_shapes{inputs, *this}.has(0);
         return s;
     }
-    argument compute(context&, const shape&, const std::vector<argument>&) const
+    argument compute(const shape&, const std::vector<argument>&) const { return {s, nullptr}; }
+};
+
+// indicate rnn computation direction
+enum class rnn_direction
+{
+    forward,
+    reverse,
+    bidirectional,
+};
+
+struct rnn
+{
+    std::size_t hidden_size = 1;
+    std::vector<operation> actv_funcs{tanh{}, tanh{}};
+    rnn_direction direction = rnn_direction::forward;
+    float clip              = 0.0f;
+
+    std::string name() const { return "rnn"; }
+    shape compute_shape(std::vector<shape> inputs) const
     {
-        return {s, nullptr};
+        auto in_dims     = inputs[0].lens();
+        auto hidden_dims = inputs[2].lens();
+        if(hidden_size != hidden_dims[2])
+        {
+            MIGRAPHX_THROW("RNN: hidden size mismatch in attribute and input");
+        }
+
+        std::size_t num_directions = 1;
+        if(direction == rnn_direction::bidirectional)
+        {
+            num_directions = 2;
+        }
+
+        if(num_directions != hidden_dims[0])
+        {
+            MIGRAPHX_THROW("RNN: num_direction mismatch in attribute and input");
+        }
+
+        std::vector<std::size_t> out_dims(in_dims);
+        out_dims.insert(out_dims.begin() + 1, num_directions);
+        out_dims.back() = hidden_size;
+
+        return {inputs[0].type(), out_dims};
     }
 };
 
+struct rnn_last_output
+{
+    std::string name() const { return "rnn_last_output"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        auto dims = inputs[0].lens();
+
+        // remove the first dimension, remaing are output shape
+        dims.erase(dims.begin());
+        return {inputs[0].type(), dims};
+    }
+};
+
+struct gru
+{
+    std::size_t hidden_size = 1;
+    std::vector<operation> actv_funcs{sigmoid{}, tanh{}};
+    rnn_direction direction = rnn_direction::forward;
+    float clip              = 0.0f;
+    int linear_before_reset = 0;
+
+    std::string name() const { return "gru"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        auto in_dims     = inputs[0].lens();
+        auto hidden_dims = inputs[2].lens();
+        if(hidden_size != hidden_dims[2])
+        {
+            MIGRAPHX_THROW("GRU: hidden size mismatch in attribute and input");
+        }
+
+        std::size_t num_directions = 1;
+        if(direction == rnn_direction::bidirectional)
+        {
+            num_directions = 2;
+        }
+
+        if(num_directions != hidden_dims[0])
+        {
+            MIGRAPHX_THROW("GRU: num_direction does not match the direction attribute");
+        }
+
+        std::vector<std::size_t> out_dims(in_dims);
+        out_dims.insert(out_dims.begin() + 1, num_directions);
+        out_dims.back() = hidden_size;
+
+        return {inputs[0].type(), out_dims};
+    }
+};
+
+struct undefined
+{
+    std::string name() const { return "undefined"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(0);
+        return {};
+    }
+
+    argument compute(const shape&, const std::vector<argument>&) const { return {{}, nullptr}; }
+};
+
 } // namespace op
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_TENSOR_VIEW_HPP
-#define MIGRAPH_GUARD_TENSOR_VIEW_HPP
+#ifndef MIGRAPHX_GUARD_TENSOR_VIEW_HPP
+#define MIGRAPHX_GUARD_TENSOR_VIEW_HPP
 
 #include <migraphx/shape.hpp>
 #include <migraphx/float_equal.hpp>
@@ -10,7 +10,7 @@
 #include <utility>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 template <class T>
 struct tensor_view
@@ -29,7 +29,7 @@ struct tensor_view
 
     const T* data() const { return this->m_data; }
 
-    template <class... Ts, MIGRAPH_REQUIRES(std::is_integral<Ts>{}...)>
+    template <class... Ts, MIGRAPHX_REQUIRES(std::is_integral<Ts>{}...)>
     const T& operator()(Ts... xs) const
     {
         assert(std::vector<std::size_t>{static_cast<std::size_t>(xs)...} < m_shape.lens());
@@ -37,7 +37,7 @@ struct tensor_view
         return m_data[m_shape.index({static_cast<std::size_t>(xs)...})];
     }
 
-    template <class... Ts, MIGRAPH_REQUIRES(std::is_integral<Ts>{}...)>
+    template <class... Ts, MIGRAPHX_REQUIRES(std::is_integral<Ts>{}...)>
     T& operator()(Ts... xs)
     {
         assert(std::vector<std::size_t>{static_cast<std::size_t>(xs)...} < m_shape.lens());
@@ -45,13 +45,13 @@ struct tensor_view
         return m_data[m_shape.index({static_cast<std::size_t>(xs)...})];
     }
 
-    template <class Iterator, MIGRAPH_REQUIRES(not std::is_integral<Iterator>{})>
+    template <class Iterator, MIGRAPHX_REQUIRES(not std::is_integral<Iterator>{})>
     const T& operator()(Iterator start, Iterator last) const
     {
         return m_data[m_shape.index(start, last)];
     }
 
-    template <class Iterator, MIGRAPH_REQUIRES(not std::is_integral<Iterator>{})>
+    template <class Iterator, MIGRAPHX_REQUIRES(not std::is_integral<Iterator>{})>
     T& operator()(Iterator start, Iterator last)
     {
         return m_data[m_shape.index(start, last)];
@@ -164,12 +164,12 @@ bool operator!=(const tensor_view<T>& x, const tensor_view<U>& y)
 }
 
 template <class T>
-tensor_view<T> make_view(shape s, T* data)
+tensor_view<T> make_view(const shape& s, T* data)
 {
     return {s, data};
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

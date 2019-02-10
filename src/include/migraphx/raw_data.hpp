@@ -1,13 +1,13 @@
 
-#ifndef MIGRAPH_GUARD_RAW_DATA_HPP
-#define MIGRAPH_GUARD_RAW_DATA_HPP
+#ifndef MIGRAPHX_GUARD_RAW_DATA_HPP
+#define MIGRAPHX_GUARD_RAW_DATA_HPP
 
 #include <migraphx/tensor_view.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 struct raw_data_base
 {
@@ -126,7 +126,7 @@ struct raw_data : raw_data_base
         auto&& s      = static_cast<const Derived&>(*this).get_shape();
         auto&& buffer = static_cast<const Derived&>(*this).data();
         if(s.type() != migraphx::shape::get_type<T>{})
-            MIGRAPH_THROW("Incorrect data type for raw data");
+            MIGRAPHX_THROW("Incorrect data type for raw data");
         return make_view(s, reinterpret_cast<T*>(buffer));
     }
 
@@ -143,8 +143,8 @@ struct raw_data : raw_data_base
 
 template <class T,
           class U,
-          MIGRAPH_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
-                           std::is_base_of<raw_data_base, U>{})>
+          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
+                            std::is_base_of<raw_data_base, U>{})>
 bool operator==(const T& x, const U& y)
 {
     auto&& xshape = x.get_shape();
@@ -166,8 +166,8 @@ bool operator==(const T& x, const U& y)
 
 template <class T,
           class U,
-          MIGRAPH_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
-                           std::is_base_of<raw_data_base, U>{})>
+          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
+                            std::is_base_of<raw_data_base, U>{})>
 bool operator!=(const T& x, const U& y)
 {
     return !(x == y);
@@ -198,14 +198,14 @@ auto visit_all(T&& x, Ts&&... xs)
     auto&& s                                   = x.get_shape();
     std::initializer_list<shape::type_t> types = {xs.get_shape().type()...};
     if(!std::all_of(types.begin(), types.end(), [&](shape::type_t t) { return t == s.type(); }))
-        MIGRAPH_THROW("Types must be the same");
+        MIGRAPHX_THROW("Types must be the same");
     return [&](auto v) {
         // Workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70100
         detail::visit_all_impl(s, v, x, xs...);
     };
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

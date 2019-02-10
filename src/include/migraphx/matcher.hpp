@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_RTGLIB_MATCHER_HPP
-#define MIGRAPH_GUARD_RTGLIB_MATCHER_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
+#define MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
 
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
@@ -10,7 +10,7 @@
 #include <unordered_map>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 namespace match {
 
@@ -169,7 +169,7 @@ basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
 }
 
 /// This macro takes care of the boilerplate for defining a matcher
-#define MIGRAPH_BASIC_MATCHER(name, ...)                                      \
+#define MIGRAPHX_BASIC_MATCHER(name, ...)                                     \
     struct name##_m                                                           \
     {                                                                         \
         instruction_ref match(__VA_ARGS__) const;                             \
@@ -178,7 +178,7 @@ basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
     inline instruction_ref name##_m::match(__VA_ARGS__) const
 
 /// This macro takes care of the boilerplate for defining a predicate matcher
-#define MIGRAPH_PRED_MATCHER(name, ...)                                                   \
+#define MIGRAPHX_PRED_MATCHER(name, ...)                                                  \
     struct name##_m                                                                       \
     {                                                                                     \
         bool operator()(__VA_ARGS__) const;                                               \
@@ -214,7 +214,6 @@ void find_matches(program& p, Ms&&... ms)
         bool match = false;
         each_args(
             [&](auto&& m) {
-                // cppcheck-suppress knownConditionTrueFalse
                 if(match)
                     return;
                 auto r = match_instruction(p, ins, m.matcher());
@@ -266,22 +265,22 @@ auto any_of(Ts... ms)
     });
 }
 
-MIGRAPH_PRED_MATCHER(any, instruction_ref) { return true; }
-MIGRAPH_PRED_MATCHER(none, instruction_ref) { return false; }
-MIGRAPH_PRED_MATCHER(standard_shape, instruction_ref ins) { return ins->get_shape().standard(); }
-MIGRAPH_PRED_MATCHER(broadcast_shape, instruction_ref ins)
+MIGRAPHX_PRED_MATCHER(any, instruction_ref) { return true; }
+MIGRAPHX_PRED_MATCHER(none, instruction_ref) { return false; }
+MIGRAPHX_PRED_MATCHER(standard_shape, instruction_ref ins) { return ins->get_shape().standard(); }
+MIGRAPHX_PRED_MATCHER(broadcast_shape, instruction_ref ins)
 {
     return ins->get_shape().broadcasted();
 }
 
-MIGRAPH_BASIC_MATCHER(output, matcher_context& ctx, instruction_ref ins)
+MIGRAPHX_BASIC_MATCHER(output, matcher_context& ctx, instruction_ref ins)
 {
     if(ins->outputs().size() == 1)
         return ins->outputs().front();
     return ctx.not_found();
 }
 
-MIGRAPH_BASIC_MATCHER(used_once, matcher_context& ctx, instruction_ref ins)
+MIGRAPHX_BASIC_MATCHER(used_once, matcher_context& ctx, instruction_ref ins)
 {
     if(ins->outputs().size() == 1)
         return ins;
@@ -340,7 +339,7 @@ inline auto either_arg(std::size_t i, std::size_t j)
 }
 
 } // namespace match
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

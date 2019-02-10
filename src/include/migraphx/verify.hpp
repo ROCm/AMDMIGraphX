@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_VERIFY_HPP
-#define MIGRAPH_GUARD_VERIFY_HPP
+#ifndef MIGRAPHX_GUARD_VERIFY_HPP
+#define MIGRAPHX_GUARD_VERIFY_HPP
 
 #include <algorithm>
 #include <cmath>
@@ -11,7 +11,7 @@
 #include <migraphx/config.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPH_INLINE_NS {
+inline namespace MIGRAPHX_INLINE_NS {
 
 // Compute the value of a range
 template <class R>
@@ -173,6 +173,6 @@ bool verify_range(R1&& r1, R2&& r2, double tolerance = 80, double* out_error = n
     return error <= threshold;
 }
 
-} // namespace MIGRAPH_INLINE_NS
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif

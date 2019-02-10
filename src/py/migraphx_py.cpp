@@ -103,10 +103,11 @@ PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())
         .def_buffer([](migraphx::argument& x) -> py::buffer_info { return to_buffer_info(x); })
-        .def("__init__", [](migraphx::argument& x, py::buffer b) {
-            py::buffer_info info = b.request();
-            new(&x) migraphx::argument(to_shape(info), info.ptr);
-        })
+        .def("__init__",
+             [](migraphx::argument& x, py::buffer b) {
+                 py::buffer_info info = b.request();
+                 new(&x) migraphx::argument(to_shape(info), info.ptr);
+             })
         .def("__eq__", std::equal_to<migraphx::argument>{})
         .def("__ne__", std::not_equal_to<migraphx::argument>{})
         .def("__repr__", [](const migraphx::argument& x) { return migraphx::to_string(x); });

@@ -695,8 +695,10 @@ struct tf_parser
     {
         std::vector<size_t> dims;
         auto input_dims = s.dim();
-        std::transform(input_dims.begin(), input_dims.end(), std::back_inserter(dims), 
-            [](tensorflow::TensorShapeProto_Dim dim) { return dim.size(); });
+        std::transform(input_dims.begin(),
+                       input_dims.end(),
+                       std::back_inserter(dims),
+                       [](tensorflow::TensorShapeProto_Dim dim) { return dim.size(); });
         return dims;
     }
 };

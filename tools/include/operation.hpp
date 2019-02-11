@@ -7,16 +7,16 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
-#include <migraphx/shape.hpp>
 #include <migraphx/reflect.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/argument.hpp>
-#include <migraphx/context.hpp>
 #include <migraphx/auto_any_cast.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct context;
 
 #ifdef DOXYGEN
 

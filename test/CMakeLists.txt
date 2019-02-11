@@ -112,7 +112,8 @@ if(MIGRAPHX_ENABLE_GPU)
 endif()
 
 # Onnx test
-add_executable(test_onnx onnx/onnx_test.cpp)
+set(TEST_ONNX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/onnx)
+add_executable(test_onnx ${TEST_ONNX_DIR}/onnx_test.cpp)
 rocm_clang_tidy_check(test_onnx)
 target_link_libraries(test_onnx migraphx_onnx)
 target_include_directories(test_onnx PUBLIC include)
@@ -128,6 +129,10 @@ target_include_directories(test_tf PUBLIC include)
 add_test(NAME test_tf COMMAND $<TARGET_FILE:test_tf> WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tf) 
 add_dependencies(tests test_tf)
 add_dependencies(check test_tf)
+
+if(MIGRAPHX_ENABLE_PYTHON)
+add_subdirectory(py)
+endif()
 
 function(test_header NAME HEADER)
 

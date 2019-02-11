@@ -22,6 +22,7 @@
 #include <migraphx/gpu/elu.hpp>
 #include <migraphx/gpu/softmax.hpp>
 #include <migraphx/gpu/add.hpp>
+#include <migraphx/gpu/sub.hpp>
 #include <migraphx/gpu/exp.hpp>
 #include <migraphx/gpu/log.hpp>
 #include <migraphx/gpu/sin.hpp>
@@ -42,6 +43,7 @@
 #include <migraphx/gpu/concat.hpp>
 #include <migraphx/gpu/pad.hpp>
 #include <migraphx/gpu/gather.hpp>
+#include <migraphx/gpu/lrn.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -55,6 +57,7 @@ struct miopen_apply
     program* prog = nullptr;
     context ctx{};
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
+    instruction_ref last{};
 
     void check_shape(shape x, instruction_ref i)
     {
@@ -65,6 +68,7 @@ struct miopen_apply
 
     void init()
     {
+        this->last = instruction::get_output_alias(std::prev(prog->end()));
         add_miopen_simple_op<miopen_relu>("relu", make_relu);
         add_miopen_simple_op<miopen_sigmoid>("sigmoid", make_sigmoid);
         add_miopen_simple_op<miopen_abs>("abs", make_abs);
@@ -74,6 +78,7 @@ struct miopen_apply
         add_miopen_extend_op<miopen_elu, op::elu>("elu", make_elu);
 
         add_generic_op<hip_add>("add");
+        add_generic_op<hip_sub>("sub");
         add_generic_op<hip_exp>("exp");
         add_generic_op<hip_log>("log");
         add_generic_op<hip_sin>("sin");
@@ -95,6 +100,7 @@ struct miopen_apply
         add_extend_op<hip_gather, op::gather>("gather");
         add_extend_op<hip_pad, op::pad>("pad");
 
+        add_lrn_op();
         add_convolution_op();
         add_pooling_op();
         add_batch_norm_inference_op();
@@ -115,7 +121,7 @@ struct miopen_apply
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
     {
-        if(ins == --prog->end() and tag.empty())
+        if(ins == last and tag.empty())
         {
             return prog->add_parameter("output", s);
         }
@@ -152,6 +158,17 @@ struct miopen_apply
 
             return prog->replace_instruction(
                 ins, miopen_pooling{op, std::move(pd)}, ins->inputs().at(0), output);
+        });
+    }
+
+    void add_lrn_op()
+    {
+        apply_map.emplace("lrn", [=](instruction_ref ins) {
+            auto&& op   = any_cast<op::lrn>(ins->get_operator());
+            auto ldesc  = make_lrn(op);
+            auto output = insert_allocation(ins, ins->get_shape());
+            return prog->replace_instruction(
+                ins, miopen_lrn{std::move(ldesc)}, ins->inputs().at(0), output);
         });
     }
 

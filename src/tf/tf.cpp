@@ -176,7 +176,7 @@ struct tf_parser
     parse_biasadd(const std::string&, attribute_map, std::vector<instruction_ref> args)
     {
         uint64_t axis = 1;
-        auto l0 = prog.add_instruction(op::broadcast{axis, args[0]->get_shape()}, args[1]);
+        auto l0       = prog.add_instruction(op::broadcast{axis, args[0]->get_shape()}, args[1]);
         return prog.add_instruction(op::add{}, args[0], l0);
     }
 
@@ -516,7 +516,9 @@ struct tf_parser
         case tensorflow::DataType::DT_VARIANT:
             break; // throw std::runtime_error("Unsupported type VARIANT");
         case tensorflow::DataType::DT_UINT32: shape_type = shape::uint32_type; break;
-        case tensorflow::DataType::DT_UINT64: shape_type = shape::uint64_type; break;
+        case tensorflow::DataType::DT_UINT64:
+            shape_type = shape::uint64_type;
+            break;
 
         // tf pb should not use these types
         case tensorflow::DataType::DT_FLOAT_REF: break;
@@ -614,8 +616,10 @@ struct tf_parser
             case tensorflow::DataType::DT_VARIANT_REF: throw std::runtime_error("");
             case tensorflow::DataType::DT_UINT32_REF: throw std::runtime_error("");
             case tensorflow::DataType::DT_UINT64_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DataType_INT_MAX_SENTINEL_DO_NOT_USE_: throw std::runtime_error("");
-            case tensorflow::DataType::DataType_INT_MIN_SENTINEL_DO_NOT_USE_: throw std::runtime_error("");
+            case tensorflow::DataType::DataType_INT_MAX_SENTINEL_DO_NOT_USE_:
+                throw std::runtime_error("");
+            case tensorflow::DataType::DataType_INT_MIN_SENTINEL_DO_NOT_USE_:
+                throw std::runtime_error("");
             }
             MIGRAPHX_THROW("Invalid tensor type");
         }
@@ -678,8 +682,10 @@ struct tf_parser
         case tensorflow::DataType::DT_VARIANT_REF: throw std::runtime_error("");
         case tensorflow::DataType::DT_UINT32_REF: throw std::runtime_error("");
         case tensorflow::DataType::DT_UINT64_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DataType_INT_MAX_SENTINEL_DO_NOT_USE_: throw std::runtime_error("");
-        case tensorflow::DataType::DataType_INT_MIN_SENTINEL_DO_NOT_USE_: throw std::runtime_error("");
+        case tensorflow::DataType::DataType_INT_MAX_SENTINEL_DO_NOT_USE_:
+            throw std::runtime_error("");
+        case tensorflow::DataType::DataType_INT_MIN_SENTINEL_DO_NOT_USE_:
+            throw std::runtime_error("");
         }
         MIGRAPHX_THROW("Invalid tensor type");
     }

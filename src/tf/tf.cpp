@@ -44,6 +44,7 @@ struct tf_parser
         case 1: dim = 2; break;
         case 2: dim = 3; break;
         case 3: dim = 1; break;
+        default: break;
         }
     }
 
@@ -173,7 +174,7 @@ struct tf_parser
     }
 
     instruction_ref
-    parse_biasadd(const std::string&, attribute_map, std::vector<instruction_ref> args)
+    parse_biasadd(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         uint64_t axis = 1;
         auto l0       = prog.add_instruction(op::broadcast{axis, args[0]->get_shape()}, args[1]);
@@ -345,7 +346,7 @@ struct tf_parser
     }
 
     instruction_ref
-    parse_reshape(const std::string&, attribute_map, std::vector<instruction_ref> args)
+    parse_reshape(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         op::reshape op;
         if(args.size() != 2)
@@ -550,7 +551,7 @@ struct tf_parser
         return shape_type;
     }
 
-    static literal parse_tensor(const tensorflow::TensorProto t)
+    static literal parse_tensor(const tensorflow::TensorProto& t)
     {
         std::vector<size_t> dims = parse_dims(t.tensor_shape());
         if(dims.empty())
@@ -694,10 +695,8 @@ struct tf_parser
     {
         std::vector<size_t> dims;
         auto input_dims = s.dim();
-        for(auto dim : input_dims)
-        {
-            dims.push_back(dim.size());
-        }
+        std::transform(input_dims.begin(), input_dims.end(), std::back_inserter(dims), 
+            [](tensorflow::TensorShapeProto_Dim dim) { return dim.size(); });
         return dims;
     }
 };

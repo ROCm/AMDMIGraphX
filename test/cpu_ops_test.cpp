@@ -5,6 +5,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/verify.hpp>
+#include <migraphx/onnx.hpp>
 #include "test.hpp"
 
 float sigmoid(float x) { return 1 / (1 + expf(-x)); }
@@ -728,6 +729,20 @@ TEST_CASE(leaky_relu_test)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {-0.01f, 0.f, 1.f};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(lrn_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {1, 5, 1, 1}};
+    auto l = p.add_literal(migraphx::literal{s, {-2.0f, 1.0f, 0.f, 1.0f, 2.0f}});
+    p.add_instruction(migraphx::op::lrn{0.0001, 0.75, 1, 5}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(5);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {-2 / 1.000075, 1 / 1.00009, 0 / 1.000145, 1 / 1.00009, 2 / 1.000075};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 

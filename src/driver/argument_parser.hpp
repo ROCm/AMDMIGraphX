@@ -52,33 +52,35 @@ struct argument_parser
     void add(T& x, std::vector<std::string> flags, Fs... fs)
     {
         arguments.emplace_back(flags, [&](auto&&, const std::vector<std::string>& params) {
-            if (params.empty())
+            if(params.empty())
                 throw std::runtime_error("Flag with no value.");
             x = value_parser<T>::apply(params.back());
             return false;
         });
 
-        argument& arg   = arguments.back();
-        arg.type        = migraphx::get_type_name<T>();
+        argument& arg = arguments.back();
+        arg.type      = migraphx::get_type_name<T>();
         migraphx::each_args([&](auto f) { f(x, arg); }, fs...);
     }
 
-    template<class F>
+    template <class F>
     static auto write_action(F f)
     {
         return [=](auto& x, auto& arg) {
-            arg.action = [f, &](auto& self, const std::vector<std::string>& params) {
+            arg.action = [ f, &](auto& self, const std::vector<std::string>& params)
+            {
                 f(self, x, params);
                 return false;
             };
         };
     }
 
-    template<class F>
+    template <class F>
     static auto do_action(F f)
     {
         return [=](auto&, auto& arg) {
-            arg.action = [f, &](auto& self, const std::vector<std::string>&) {
+            arg.action = [ f, &](auto& self, const std::vector<std::string>&)
+            {
                 f(self);
                 return true;
             };
@@ -88,16 +90,17 @@ struct argument_parser
     static auto write_range()
     {
         return write_action([](auto& self, auto& x, auto& params) {
-            std::transform(param.begin(), params.end(), std::inserter(x, x.end()), [](std::string y) {
-                return value_parser<T>::apply(params.back());
-            });
+            std::transform(param.begin(),
+                           params.end(),
+                           std::inserter(x, x.end()),
+                           [](std::string y) { return value_parser<T>::apply(params.back()); });
         })
     }
 
     static auto show_help()
     {
         return do_action([](auto& self) {
-            for(auto&& arg:self.arguments) 
+            for(auto&& arg : self.arguments)
             {
                 std::cout << std::endl;
                 std::string prefix = "    ";
@@ -107,7 +110,7 @@ struct argument_parser
                     std::cout << a;
                     prefix = ", ";
                 }
-                if (not arg.type.empty())
+                if(not arg.type.empty())
                     std::cout << " [" << arg.type << "]";
                 std::cout << std::endl;
                 std::cout << "        " << arg.help << std::endl;
@@ -118,17 +121,16 @@ struct argument_parser
 
     static auto help(std::string help)
     {
-        return [=](auto&, auto& arg) {
-            arg.help = help;
-        };
+        return [=](auto&, auto& arg) { arg.help = help; };
     }
 
-    template<class T>
+    template <class T>
     static auto set_value(T value)
     {
         return [=](auto& x, auto& arg) {
-            arg.type = "";
-            arg.action = [value, &](auto& self, const std::vector<std::string>& params) {
+            arg.type   = "";
+            arg.action = [ value, &](auto& self, const std::vector<std::string>& params)
+            {
                 x = value;
                 return false;
             };
@@ -138,20 +140,18 @@ struct argument_parser
     void parse(std::vector<std::string> args)
     {
         std::set<std::string> keywords;
-        for(auto&& arg:arguments)
+        for(auto&& arg : arguments)
         {
             keywords.insert(arg.flags.begin(), arg.flags.end());
         }
-        auto arg_map = generic_parse(as, [&](std::string x) {
-            return (keywords.count(x) > 0);
-        });
-        for(auto&& arg:arguments)
+        auto arg_map = generic_parse(as, [&](std::string x) { return (keywords.count(x) > 0); });
+        for(auto&& arg : arguments)
         {
-            for(auto&& flag:arg.flags)
+            for(auto&& flag : arg.flags)
             {
-                if (arg_map.count(flag) > 0) 
+                if(arg_map.count(flag) > 0)
                 {
-                    if (arg.action(*this, arg_map[flag]))
+                    if(arg.action(*this, arg_map[flag]))
                         return;
                 }
             }
@@ -179,8 +179,9 @@ struct argument_parser
         }
         return result;
     }
+
     private:
-        std::vector<argument> arguments;
+    std::vector<argument> arguments;
 };
 
 #endif

@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_CONTEXT_HPP
-#define MIGRAPHX_GUARD_CONTEXT_HPP
+#ifndef MIGRAPHX_GUARD_FIND_CONCUR_HPP
+#define MIGRAPHX_GUARD_FIND_CONCUR_HPP
 
 #include <cassert>
 #include <string>
@@ -7,49 +7,50 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
-#include <migraphx/config.hpp>
+#include <unordered_map>
+#include <vector>
+
+#include <migraphx/instruction.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct program;
+
 #ifdef DOXYGEN
 
-/// A context is used to store internal data for a `target`. A context is
-/// constructed by a target during compilation and passed to the operations
-/// during `eval`.
-struct context
+/// An interface for target-dependent analysis to find concurrent instructions
+/// executing in different streams.
+struct find_concur
 {
-    /// Wait for any tasks in the context to complete
-    void finish();
-    void set_stream(int ndx);
-    void create_events(int num_of_events);
-    void record_event(int event);
-    void wait_event(int event);
-};
+    void get_concur(program* p,
+                    int num_of_streams,
+                    std::unordered_map<const instruction*,
+                                       std::vector<std::vector<const instruction*>>>& concur_instrs,
+                    std::unordered_map<const instruction*, int>& instr2_points);
+} const;
 
 #else
 
 /*
  * Type-erased interface for:
  *
- * struct context
+ * struct find_concur
  * {
- *      void finish() ;
- *      void set_stream(int input) ;
- *      void create_events(int input) ;
- *      void record_event(int input) ;
- *      void wait_event(int input) ;
+ *      void get_concur(program* p,int num_of_stream,std::unordered_map<const instruction*,
+ * std::vector<std::vector<const instruction*>>>& concur_instrs,std::unordered_map<const
+ * instruction*, int>& input) const;
  * };
  *
  */
 
-struct context
+struct find_concur
 {
     // Constructors
-    context() = default;
+    find_concur() = default;
 
     template <typename PrivateDetailTypeErasedT>
-    context(PrivateDetailTypeErasedT value)
+    find_concur(PrivateDetailTypeErasedT value)
         : private_detail_te_handle_mem_var(
               std::make_shared<private_detail_te_handle_type<
                   typename std::remove_reference<PrivateDetailTypeErasedT>::type>>(
@@ -59,7 +60,7 @@ struct context
 
     // Assignment
     template <typename PrivateDetailTypeErasedT>
-    context& operator=(PrivateDetailTypeErasedT value)
+    find_concur& operator=(PrivateDetailTypeErasedT value)
     {
         if(private_detail_te_handle_mem_var.unique())
             *private_detail_te_handle_mem_var = std::forward<PrivateDetailTypeErasedT>(value);
@@ -100,37 +101,17 @@ struct context
             return private_detail_te_get_handle().type();
     }
 
-    void finish()
+    void get_concur(program* p,
+                    int num_of_stream,
+                    std::unordered_map<const instruction*,
+                                       std::vector<std::vector<const instruction*>>>& concur_instrs,
+                    std::unordered_map<const instruction*, int>& input) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().finish();
+        (*this).private_detail_te_get_handle().get_concur(p, num_of_stream, concur_instrs, input);
     }
 
-    void set_stream(int input)
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().set_stream(input);
-    }
-
-    void create_events(int input)
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().create_events(input);
-    }
-
-    void record_event(int input)
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().record_event(input);
-    }
-
-    void wait_event(int input)
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().wait_event(input);
-    }
-
-    friend bool is_shared(const context& private_detail_x, const context& private_detail_y)
+    friend bool is_shared(const find_concur& private_detail_x, const find_concur& private_detail_y)
     {
         return private_detail_x.private_detail_te_handle_mem_var ==
                private_detail_y.private_detail_te_handle_mem_var;
@@ -143,11 +124,12 @@ struct context
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual void finish()                 = 0;
-        virtual void set_stream(int input)    = 0;
-        virtual void create_events(int input) = 0;
-        virtual void record_event(int input)  = 0;
-        virtual void wait_event(int input)    = 0;
+        virtual void
+        get_concur(program* p,
+                   int num_of_stream,
+                   std::unordered_map<const instruction*,
+                                      std::vector<std::vector<const instruction*>>>& concur_instrs,
+                   std::unordered_map<const instruction*, int>& input) const = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -178,15 +160,16 @@ struct context
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
-        void finish() override { private_detail_te_value.finish(); }
+        void
+        get_concur(program* p,
+                   int num_of_stream,
+                   std::unordered_map<const instruction*,
+                                      std::vector<std::vector<const instruction*>>>& concur_instrs,
+                   std::unordered_map<const instruction*, int>& input) const override
+        {
 
-        void set_stream(int input) override { private_detail_te_value.set_stream(input); }
-
-        void create_events(int input) override { private_detail_te_value.create_events(input); }
-
-        void record_event(int input) override { private_detail_te_value.record_event(input); }
-
-        void wait_event(int input) override { private_detail_te_value.wait_event(input); }
+            private_detail_te_value.get_concur(p, num_of_stream, concur_instrs, input);
+        }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -224,19 +207,19 @@ struct context
 };
 
 template <typename ValueType>
-inline const ValueType* any_cast(const context* x)
+inline const ValueType* any_cast(const find_concur* x)
 {
     return x->any_cast<ValueType>();
 }
 
 template <typename ValueType>
-inline ValueType* any_cast(context* x)
+inline ValueType* any_cast(find_concur* x)
 {
     return x->any_cast<ValueType>();
 }
 
 template <typename ValueType>
-inline ValueType& any_cast(context& x)
+inline ValueType& any_cast(find_concur& x)
 {
     auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
     if(y == nullptr)
@@ -245,7 +228,7 @@ inline ValueType& any_cast(context& x)
 }
 
 template <typename ValueType>
-inline const ValueType& any_cast(const context& x)
+inline const ValueType& any_cast(const find_concur& x)
 {
     const auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
     if(y == nullptr)
@@ -254,6 +237,7 @@ inline const ValueType& any_cast(const context& x)
 }
 
 #endif
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

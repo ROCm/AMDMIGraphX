@@ -11,6 +11,8 @@ void memory_coloring_impl::run()
     if(num_of_lives != 0)
     {
         MIGRAPHX_DEBUG(dump_intervals());
+        if(num_of_streams > 0)
+            add_stream_conflicts();
         // Coloring
         while(!alloc_queue.empty())
         {
@@ -152,7 +154,8 @@ void memory_coloring_impl::build()
                 interval->segment.end = cur_points;
                 interval->segment.vn  = ++max_value_number;
                 interval->add_use(cur_points);
-                instr2_live[p_arg] = interval;
+                instr2_live[p_arg]   = interval;
+                instr2_live[&(*arg)] = interval;
                 add_conflicts(live_set, max_value_number);
                 live_set.insert(max_value_number);
                 live_ranges[max_value_number] = &(interval->segment);
@@ -165,6 +168,7 @@ void memory_coloring_impl::build()
                 interval_ptr interval = instr2_live[p_arg];
                 interval->add_use(cur_points);
                 assert(live_set.find(interval->id) != live_set.end());
+                instr2_live[&(*arg)] = interval;
             }
         }
         if(is_dead)
@@ -259,6 +263,57 @@ void memory_coloring_impl::verify()
     }
 }
 
+// Add conflicts of concurrent instructions into conflict table.
+//
+void memory_coloring_impl::add_stream_conflicts(std::vector<const instruction*>& i1,
+                                                std::vector<const instruction*>& i2)
+{
+    for(auto& ins1 : i1)
+    {
+        if(instr2_live.find(ins1) == instr2_live.end())
+            continue;
+        interval_ptr interval1 = instr2_live[ins1];
+        int id1                = interval1->id;
+        for(auto& ins2 : i2)
+        {
+            if(instr2_live.find(ins2) == instr2_live.end())
+                continue;
+            interval_ptr interval2 = instr2_live[ins2];
+            int id2                = interval2->id;
+            conflict_table[id1].insert(id2);
+            conflict_table[id2].insert(id1);
+#ifdef MIGRAPHX_DEBUG_OPT
+            std::cout << "@" << instr2_points[ins1] << " id:" << id1 << " => "
+                      << "@" << instr2_points[ins2] << " id:" << id2 << std::endl;
+#endif
+        }
+    }
+}
+
+// Identify concurrent instructions in different streams and add conflicts to
+// conflict table.
+//
+void memory_coloring_impl::add_stream_conflicts()
+{
+    std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>
+        concur_instrs;
+    f_concur.get_concur(p_program, num_of_streams, concur_instrs, instr2_points);
+    MIGRAPHX_DEBUG(dump_concur_instrs(concur_instrs));
+
+    for(auto& iter : concur_instrs)
+    {
+        for(auto s1 = 0; s1 < num_of_streams; ++s1)
+        {
+            std::vector<const instruction*>& i1 = iter.second[s1];
+            for(auto s2 = s1 + 1; s2 < num_of_streams; ++s2)
+            {
+                std::vector<const instruction*>& i2 = iter.second[s2];
+                add_stream_conflicts(i1, i2);
+            }
+        }
+    }
+}
+
 #ifdef MIGRAPHX_DEBUG_OPT
 
 void memory_coloring_impl::dump(const std::string& str) { std::cout << str << std::endl; }
@@ -287,6 +342,29 @@ void memory_coloring_impl::dump_intervals()
             }
         }
         std::cout << std::endl;
+    }
+}
+
+void memory_coloring_impl::dump_concur_instrs(
+    std::unordered_map<const instruction*, std::vector<std::vector<const instruction*>>>&
+        concur_instrs)
+{
+    for(auto iter = concur_instrs.begin(), end = concur_instrs.end(); iter != end; ++iter)
+    {
+        std::cout << "concurrent instructions for split @" << instr2_points[iter->first]
+                  << std::endl;
+        for(auto s1 = 0; s1 < num_of_streams; ++s1)
+        {
+            std::vector<const instruction*>& instrs = iter->second[s1];
+            if(instrs.empty())
+                continue;
+            std::cout << "stream:" << s1 << std::endl;
+            for(auto ins = instrs.begin(), ins_end = instrs.end(); ins != ins_end; ++ins)
+            {
+                std::cout << " @" << instr2_points[*ins];
+            }
+            std::cout << std::endl;
+        }
     }
 }
 
@@ -332,6 +410,5 @@ void live_interval::dump()
 }
 
 #endif
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_CONTEXT_HPP
-#define MIGRAPHX_GUARD_CONTEXT_HPP
+#ifndef MIGRAPHX_GUARD_INSERT_INSTRUCTION_HPP
+#define MIGRAPHX_GUARD_INSERT_INSTRUCTION_HPP
 
 #include <cassert>
 #include <string>
@@ -7,24 +7,25 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
-#include <migraphx/config.hpp>
+
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct program;
+
 #ifdef DOXYGEN
 
-/// A context is used to store internal data for a `target`. A context is
-/// constructed by a target during compilation and passed to the operations
-/// during `eval`.
-struct context
+/// An interface for target-dependent instruction insertion.
+/// for multi-stream execution.
+struct insert_instruction
 {
-    /// Wait for any tasks in the context to complete
-    void finish();
-    void set_stream(int ndx);
-    void create_events(int num_of_events);
-    void record_event(int event);
-    void wait_event(int event);
+    void insert_create_events(program* p, instruction_ref ins, int num_of_events);
+    void insert_record_event(program* p, instruction_ref ins, int event);
+    void insert_wait_event(program* p, instruction_ref ins, int event);
+
+    void insert_stream(program* p, instruction_ref ins, int stream);
 };
 
 #else
@@ -32,24 +33,23 @@ struct context
 /*
  * Type-erased interface for:
  *
- * struct context
+ * struct insert_instruction
  * {
- *      void finish() ;
- *      void set_stream(int input) ;
- *      void create_events(int input) ;
- *      void record_event(int input) ;
- *      void wait_event(int input) ;
+ *      void insert_create_events(program* p,instruction_ref ins,int input) ;
+ *      void insert_record_event(program* p,instruction_ref ins,int input) ;
+ *      void insert_wait_event(program* p,instruction_ref ins,int input) ;
+ *      void insert_stream(program* p,instruction_ref ins,int input) ;
  * };
  *
  */
 
-struct context
+struct insert_instruction
 {
     // Constructors
-    context() = default;
+    insert_instruction() = default;
 
     template <typename PrivateDetailTypeErasedT>
-    context(PrivateDetailTypeErasedT value)
+    insert_instruction(PrivateDetailTypeErasedT value)
         : private_detail_te_handle_mem_var(
               std::make_shared<private_detail_te_handle_type<
                   typename std::remove_reference<PrivateDetailTypeErasedT>::type>>(
@@ -59,7 +59,7 @@ struct context
 
     // Assignment
     template <typename PrivateDetailTypeErasedT>
-    context& operator=(PrivateDetailTypeErasedT value)
+    insert_instruction& operator=(PrivateDetailTypeErasedT value)
     {
         if(private_detail_te_handle_mem_var.unique())
             *private_detail_te_handle_mem_var = std::forward<PrivateDetailTypeErasedT>(value);
@@ -100,37 +100,32 @@ struct context
             return private_detail_te_get_handle().type();
     }
 
-    void finish()
+    void insert_create_events(program* p, instruction_ref ins, int input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().finish();
+        (*this).private_detail_te_get_handle().insert_create_events(p, ins, input);
     }
 
-    void set_stream(int input)
+    void insert_record_event(program* p, instruction_ref ins, int input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().set_stream(input);
+        (*this).private_detail_te_get_handle().insert_record_event(p, ins, input);
     }
 
-    void create_events(int input)
+    void insert_wait_event(program* p, instruction_ref ins, int input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().create_events(input);
+        (*this).private_detail_te_get_handle().insert_wait_event(p, ins, input);
     }
 
-    void record_event(int input)
+    void insert_stream(program* p, instruction_ref ins, int input)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().record_event(input);
+        (*this).private_detail_te_get_handle().insert_stream(p, ins, input);
     }
 
-    void wait_event(int input)
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().wait_event(input);
-    }
-
-    friend bool is_shared(const context& private_detail_x, const context& private_detail_y)
+    friend bool is_shared(const insert_instruction& private_detail_x,
+                          const insert_instruction& private_detail_y)
     {
         return private_detail_x.private_detail_te_handle_mem_var ==
                private_detail_y.private_detail_te_handle_mem_var;
@@ -143,11 +138,10 @@ struct context
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual void finish()                 = 0;
-        virtual void set_stream(int input)    = 0;
-        virtual void create_events(int input) = 0;
-        virtual void record_event(int input)  = 0;
-        virtual void wait_event(int input)    = 0;
+        virtual void insert_create_events(program* p, instruction_ref ins, int input) = 0;
+        virtual void insert_record_event(program* p, instruction_ref ins, int input)  = 0;
+        virtual void insert_wait_event(program* p, instruction_ref ins, int input)    = 0;
+        virtual void insert_stream(program* p, instruction_ref ins, int input)        = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -178,15 +172,29 @@ struct context
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
-        void finish() override { private_detail_te_value.finish(); }
+        void insert_create_events(program* p, instruction_ref ins, int input) override
+        {
 
-        void set_stream(int input) override { private_detail_te_value.set_stream(input); }
+            private_detail_te_value.insert_create_events(p, ins, input);
+        }
 
-        void create_events(int input) override { private_detail_te_value.create_events(input); }
+        void insert_record_event(program* p, instruction_ref ins, int input) override
+        {
 
-        void record_event(int input) override { private_detail_te_value.record_event(input); }
+            private_detail_te_value.insert_record_event(p, ins, input);
+        }
 
-        void wait_event(int input) override { private_detail_te_value.wait_event(input); }
+        void insert_wait_event(program* p, instruction_ref ins, int input) override
+        {
+
+            private_detail_te_value.insert_wait_event(p, ins, input);
+        }
+
+        void insert_stream(program* p, instruction_ref ins, int input) override
+        {
+
+            private_detail_te_value.insert_stream(p, ins, input);
+        }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -224,19 +232,19 @@ struct context
 };
 
 template <typename ValueType>
-inline const ValueType* any_cast(const context* x)
+inline const ValueType* any_cast(const insert_instruction* x)
 {
     return x->any_cast<ValueType>();
 }
 
 template <typename ValueType>
-inline ValueType* any_cast(context* x)
+inline ValueType* any_cast(insert_instruction* x)
 {
     return x->any_cast<ValueType>();
 }
 
 template <typename ValueType>
-inline ValueType& any_cast(context& x)
+inline ValueType& any_cast(insert_instruction& x)
 {
     auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
     if(y == nullptr)
@@ -245,7 +253,7 @@ inline ValueType& any_cast(context& x)
 }
 
 template <typename ValueType>
-inline const ValueType& any_cast(const context& x)
+inline const ValueType& any_cast(const insert_instruction& x)
 {
     const auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
     if(y == nullptr)

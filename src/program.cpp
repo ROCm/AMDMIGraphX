@@ -6,6 +6,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/pass_config.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -52,7 +53,12 @@ static void print_instruction(std::ostream& os,
         }
         os << ")";
     }
-
+    if(ins->get_stream() >= 0)
+        os << "(stream=" << ins->get_stream() << ")";
+    if(ins->has_mask(wait_event))
+        os << " wait ";
+    if(ins->has_mask(record_event))
+        os << " record=" << ins->get_event();
     os << " -> " << ins->get_shape();
 }
 
@@ -323,11 +329,17 @@ void program::compile(const target& t, tracer trace)
 
 void program::finalize()
 {
+    int max_event = -1;
     for(auto ins : iterator_for(*this))
     {
         ins->finalize(this->impl->ctx);
+        max_event = std::max(max_event, ins->get_event());
     }
+    if(max_event >= 0)
+        this->impl->ctx.create_events(max_event + 1);
 }
+
+void program::finish() { this->impl->ctx.finish(); }
 
 template <class F>
 argument generic_eval(const program& p,
@@ -340,8 +352,12 @@ argument generic_eval(const program& p,
     results.reserve(p.size() * 2);
     std::vector<argument> values;
     values.reserve(16);
+    bool enable_event_as_instr = enabled(MIGRAPHX_ENABLE_EVENT_AS_INSTRUCTION{});
+
     for(auto ins : iterator_for(p))
     {
+        int stream = ins->get_stream();
+        // ctx.set_stream(stream);
         if(ins->name() == "@literal")
         {
             results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
@@ -368,9 +384,26 @@ argument generic_eval(const program& p,
                     assert(results.find(i) != results.end());
                     return results[i];
                 });
+
+            if(!enable_event_as_instr && ins->has_mask(wait_event))
+            {
+                for(auto&& arg : ins->inputs())
+                {
+                    int arg_s = arg->get_stream();
+                    if((arg_s < 0) || (arg_s == stream))
+                        continue;
+                    int event = arg->get_event();
+                    assert(event >= 0);
+                    ctx.wait_event(event);
+                }
+            }
+
             results.emplace(ins, trace(ins, [&] {
                                 return ins->get_operator().compute(ctx, ins->get_shape(), values);
                             }));
+
+            if(!enable_event_as_instr && ins->has_mask(record_event))
+                ctx.record_event(ins->get_event());
         }
         assert(results.find(ins) != results.end());
     }
@@ -534,6 +567,5 @@ std::ostream& operator<<(std::ostream& os, const program& p)
     print_program(os, p, [](auto&&...) {});
     return os;
 }
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

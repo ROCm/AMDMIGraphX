@@ -87,6 +87,11 @@ const literal& instruction::get_literal() const
     return lit;
 }
 
+int instruction::get_stream() const { return stream; }
+void instruction::set_stream(int s) { stream = s; }
+int instruction::get_event() const { return event; }
+void instruction::set_event(int e) { event = e; }
+
 const operation& instruction::get_operator() const { return op; }
 
 std::string instruction::name() const { return op.name(); }
@@ -211,6 +216,5 @@ shape compute_shape(const operation& op, const std::vector<instruction_ref>& arg
 {
     return op.compute_shape(to_shapes(args));
 }
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

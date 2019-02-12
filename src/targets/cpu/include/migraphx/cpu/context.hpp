@@ -9,9 +9,12 @@ namespace cpu {
 
 struct context
 {
-    void finish() const {}
+    void finish() {}
+    void set_stream(int) {}
+    void create_events(int) {}
+    void record_event(int) {}
+    void wait_event(int) {}
 };
-
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

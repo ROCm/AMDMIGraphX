@@ -16,12 +16,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 shape compute_shape(const operation& op, const std::vector<instruction_ref>& args);
 std::vector<shape> to_shapes(const std::vector<instruction_ref>& args);
 
-enum instruction_mask : unsigned int
-{
-    record_event = 0,
-    wait_event   = 1
-};
-
 struct instruction
 {
     instruction() {}
@@ -49,15 +43,6 @@ struct instruction
 
     int get_stream() const;
     void set_stream(int);
-    int get_event() const;
-    void set_event(int);
-    void add_mask(instruction_mask m)
-    {
-        if((mask & (1u << m)) == 0)
-            mask += (1u << m);
-    }
-    bool has_mask(instruction_mask m) const { return ((mask & (1u << m)) != 0); }
-
     std::string name() const;
 
     const std::vector<instruction_ref>& inputs() const;
@@ -111,9 +96,7 @@ struct instruction
     std::vector<instruction_ref> output;
     std::vector<instruction_ref> arguments;
     literal lit;
-    int stream        = -1;
-    unsigned int mask = 0;
-    int event         = -1;
+    int stream = -1;
 };
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

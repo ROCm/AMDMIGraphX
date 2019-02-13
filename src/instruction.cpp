@@ -89,8 +89,6 @@ const literal& instruction::get_literal() const
 
 int instruction::get_stream() const { return stream; }
 void instruction::set_stream(int s) { stream = s; }
-int instruction::get_event() const { return event; }
-void instruction::set_event(int e) { event = e; }
 
 const operation& instruction::get_operator() const { return op; }
 

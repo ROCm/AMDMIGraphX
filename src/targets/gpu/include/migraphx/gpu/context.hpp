@@ -115,6 +115,7 @@ struct hip_device
     }
     void record_event(int event)
     {
+        create_events(event + 1);
         hipEventRecord(events.at(event).get(), streams.at(current_stream).get());
     }
 

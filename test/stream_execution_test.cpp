@@ -101,12 +101,6 @@ TEST_CASE(test1)
               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "set_stream"; }) == 3);
     CHECK(std::count_if(p.begin(), p.end(), [](auto&& ins) { return ins.get_stream() == 0; }) == 2);
     CHECK(std::count_if(p.begin(), p.end(), [](auto&& ins) { return ins.get_stream() == 1; }) == 1);
-    CHECK(std::count_if(p.begin(), p.end(), [](auto&& ins) {
-              return ins.has_mask(migraphx::record_event);
-          }) == 1);
-    CHECK(std::count_if(p.begin(), p.end(), [](auto&& ins) {
-              return ins.has_mask(migraphx::wait_event);
-          }) == 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -79,6 +79,12 @@ struct stream_info
     int max_cycle;
 };
 
+enum instruction_mask : unsigned int
+{
+    record_event = 0,
+    wait_event   = 1
+};
+
 struct pre_scheduling_impl
 {
     pre_scheduling_impl(program* p,

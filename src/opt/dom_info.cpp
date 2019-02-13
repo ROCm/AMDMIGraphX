@@ -149,18 +149,15 @@ void dom_info::compute_dom(bool reversed)
 
 bool dom_info::is_split_point(instruction_ref ins)
 {
-    if(ins->has_mask(record_event))
+    std::set<int> stream_set;
+    for(auto&& arg : ins->outputs())
     {
-        std::set<int> stream_set;
-        for(auto&& arg : ins->outputs())
-        {
-            int arg_stream = arg->get_stream();
-            if(arg_stream >= 0)
-                stream_set.insert(arg_stream);
-        }
-        if(stream_set.size() > 1)
-            return true;
+        int arg_stream = arg->get_stream();
+        if(arg_stream >= 0)
+            stream_set.insert(arg_stream);
     }
+    if(stream_set.size() > 1)
+        return true;
     return false;
 }
 
@@ -168,18 +165,15 @@ bool dom_info::is_split_point(instruction_ref ins)
 // inputs that are executed in different streams.
 bool dom_info::is_merge_point(instruction_ref ins)
 {
-    if(ins->has_mask(wait_event))
+    std::set<int> stream_set;
+    for(auto&& arg : ins->inputs())
     {
-        std::set<int> stream_set;
-        for(auto&& arg : ins->inputs())
-        {
-            int arg_stream = arg->get_stream();
-            if(arg_stream >= 0)
-                stream_set.insert(arg_stream);
-        }
-        if(stream_set.size() > 1)
-            return true;
+        int arg_stream = arg->get_stream();
+        if(arg_stream >= 0)
+            stream_set.insert(arg_stream);
     }
+    if(stream_set.size() > 1)
+        return true;
     return false;
 }
 

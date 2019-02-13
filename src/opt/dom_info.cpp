@@ -156,9 +156,7 @@ bool dom_info::is_split_point(instruction_ref ins)
         if(arg_stream >= 0)
             stream_set.insert(arg_stream);
     }
-    if(stream_set.size() > 1)
-        return true;
-    return false;
+    return (stream_set.size() > 1) ? true : false;
 }
 
 // Identify merge points.  A merge point has more than one
@@ -172,9 +170,7 @@ bool dom_info::is_merge_point(instruction_ref ins)
         if(arg_stream >= 0)
             stream_set.insert(arg_stream);
     }
-    if(stream_set.size() > 1)
-        return true;
-    return false;
+    return (stream_set.size() > 1) ? true : false;
 }
 
 //  Propagate split points through the graph and identify concurrent instructions.

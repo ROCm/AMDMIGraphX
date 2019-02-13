@@ -4,6 +4,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/operators.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <utility>
 
 namespace migraphx {

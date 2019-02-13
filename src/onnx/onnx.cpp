@@ -1133,7 +1133,10 @@ struct onnx_parser
         case onnx::TensorProto::BOOL:
             return literal{{shape::int32_type, dims}, t.int32_data().begin(), t.int32_data().end()};
         case onnx::TensorProto::FLOAT16:
-            return literal{{shape::half_type, dims}, t.float_data().begin(), t.float_data().end()};
+            {
+            std::vector<uint16_t> data_uint16(t.int32_data().begin(), t.int32_data().end());
+            return literal{{shape::half_type, dims}, data_uint16.begin(), data_uint16.end()};
+            }
         case onnx::TensorProto::DOUBLE:
             return literal{
                 {shape::double_type, dims}, t.double_data().begin(), t.double_data().end()};

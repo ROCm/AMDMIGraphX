@@ -21,10 +21,6 @@ struct context
 {
     /// Wait for any tasks in the context to complete
     void finish();
-    void set_stream(int ndx);
-    void create_events(int num_of_events);
-    void record_event(int event);
-    void wait_event(int event);
 };
 
 #else
@@ -35,10 +31,6 @@ struct context
  * struct context
  * {
  *      void finish() ;
- *      void set_stream(int input) ;
- *      void create_events(int input) ;
- *      void record_event(int input) ;
- *      void wait_event(int input) ;
  * };
  *
  */
@@ -106,30 +98,6 @@ struct context
         (*this).private_detail_te_get_handle().finish();
     }
 
-    void set_stream(int input)
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().set_stream(input);
-    }
-
-    void create_events(int input)
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().create_events(input);
-    }
-
-    void record_event(int input)
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().record_event(input);
-    }
-
-    void wait_event(int input)
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().wait_event(input);
-    }
-
     friend bool is_shared(const context& private_detail_x, const context& private_detail_y)
     {
         return private_detail_x.private_detail_te_handle_mem_var ==
@@ -143,11 +111,7 @@ struct context
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual void finish()                 = 0;
-        virtual void set_stream(int input)    = 0;
-        virtual void create_events(int input) = 0;
-        virtual void record_event(int input)  = 0;
-        virtual void wait_event(int input)    = 0;
+        virtual void finish() = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -179,14 +143,6 @@ struct context
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
         void finish() override { private_detail_te_value.finish(); }
-
-        void set_stream(int input) override { private_detail_te_value.set_stream(input); }
-
-        void create_events(int input) override { private_detail_te_value.create_events(input); }
-
-        void record_event(int input) override { private_detail_te_value.record_event(input); }
-
-        void wait_event(int input) override { private_detail_te_value.wait_event(input); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };

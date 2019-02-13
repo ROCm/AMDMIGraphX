@@ -21,10 +21,6 @@ struct context
 {
     /// Wait for any tasks in the context to complete
     void finish();
-    void set_stream(int ndx);
-    void create_events(int num_of_events);
-    void record_event(int event);
-    void wait_event(int event);
 };
 
 #else
@@ -32,10 +28,6 @@ struct context
 <%
 interface('context',
     virtual('finish', returns='void'),
-    virtual('set_stream', returns='void', input = 'int'),
-    virtual('create_events', returns='void', input = 'int'),
-    virtual('record_event', returns='void', input = 'int'),
-    virtual('wait_event', returns='void', input = 'int'),
 )
 %>
 

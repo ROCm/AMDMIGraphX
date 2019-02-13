@@ -8,7 +8,7 @@
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/verify_args.hpp>
 
-migraphx::program create_program(bool is_cpu)
+migraphx::program create_program()
 {
     migraphx::program p;
     auto in1 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {32, 64, 1, 1}});
@@ -16,23 +16,14 @@ migraphx::program create_program(bool is_cpu)
     auto p1  = p.add_instruction(migraphx::op::convolution{}, in1, in2);
     auto in3 = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {64, 64, 1, 1}});
     auto p2  = p.add_instruction(migraphx::op::convolution{}, in1, in3);
-    if(is_cpu)
-    {
-        p2->set_event(0);
-        p2->add_mask(migraphx::record_event);
-    }
-    auto p3 = p.add_instruction(migraphx::op::concat{1}, p1, p2);
-    if(is_cpu)
-    {
-        p3->add_mask(migraphx::wait_event);
-    }
+    p.add_instruction(migraphx::op::concat{1}, p1, p2);
     return p;
 }
 
 migraphx::argument run_gpu()
 {
     setenv("MIGRAPHX_DISABLE_NULL_STREAM", "1", 1);
-    migraphx::program p = create_program(false);
+    migraphx::program p = create_program();
     p.compile(migraphx::gpu::target{});
     migraphx::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
@@ -46,7 +37,7 @@ migraphx::argument run_gpu()
 
 migraphx::argument run_cpu()
 {
-    migraphx::program p = create_program(true);
+    migraphx::program p = create_program();
     p.compile(migraphx::cpu::target{});
     migraphx::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())

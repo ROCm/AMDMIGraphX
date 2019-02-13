@@ -47,10 +47,6 @@ struct non_computable_cf
 struct test_context
 {
     void finish() const {}
-    void set_stream(int) {}
-    void create_events(int) {}
-    void record_event(int) {}
-    void wait_event(int) {}
 };
 
 TEST_CASE(literal_test)

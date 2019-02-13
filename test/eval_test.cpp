@@ -11,10 +11,6 @@ struct id_target
     struct context
     {
         void finish() const {}
-        void set_stream(int) {}
-        void create_events(int) {}
-        void record_event(int) {}
-        void wait_event(int) {}
     };
     migraphx::context ctx = context{};
     std::string name() const { return "id"; }

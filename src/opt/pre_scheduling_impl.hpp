@@ -104,7 +104,7 @@ struct pre_scheduling_impl
     }
     void schedule(std::list<dag_node*>&);
     void compute_weights();
-    int get_stream(stream_info&, dag_node*);
+    int get_stream(stream_info&, dag_node*) const;
     void record(stream_info&, dag_node*);
     void reorder();
     void run();

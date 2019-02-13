@@ -122,7 +122,7 @@ void pre_scheduling_impl::reorder()
 
 // Assign stream to nodes according to load balance.
 //
-int pre_scheduling_impl::get_stream(stream_info& info, dag_node* node)
+int pre_scheduling_impl::get_stream(stream_info& info, dag_node* node) const
 {
     int max_cycle = info.max_cycle;
     if(max_cycle == 0)

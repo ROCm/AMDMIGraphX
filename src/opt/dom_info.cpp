@@ -12,7 +12,7 @@ struct program_visitor
     instruction_ref end() { return reversed ? p_program->begin() : std::prev(p_program->end()); }
 
     instruction_ref next(instruction_ref ins) { return reversed ? std::prev(ins) : std::next(ins); }
-    const std::vector<instruction_ref>& get_inputs(instruction_ref ins)
+    const std::vector<instruction_ref>& get_inputs(instruction_ref ins) const
     {
         return reversed ? ins->outputs() : ins->inputs();
     }

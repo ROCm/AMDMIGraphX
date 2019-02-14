@@ -177,7 +177,7 @@ struct tf_parser
     parse_biasadd(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         uint64_t axis = 1; // assume output of previous layer is in NCHW (broadcast on channel)
-        auto l0 = args[0];
+        auto l0       = args[0];
         // otherwise, if the input is a parameter to the graph, then first insert transpose
         if(l0->name() == "@param")
         {

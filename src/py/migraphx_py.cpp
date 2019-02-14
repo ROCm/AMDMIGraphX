@@ -47,7 +47,7 @@ struct skip_half
     }
 
     void operator()(migraphx::shape::as<migraphx::half>) const {}
-    
+
     void operator()(migraphx::tensor_view<migraphx::half>) const {}
 };
 
@@ -137,13 +137,12 @@ PYBIND11_MODULE(migraphx, m)
                  new(&x) migraphx::argument(to_shape(info), info.ptr);
              })
         .def("get_shape", &migraphx::argument::get_shape)
-        .def("tolist", [](migraphx::argument& x) {
-            py::list l{x.get_shape().elements()};
-            visit(x, [&](auto data) {
-                l = py::cast(data.to_vector());
-            });
-            return l;
-        })
+        .def("tolist",
+             [](migraphx::argument& x) {
+                 py::list l{x.get_shape().elements()};
+                 visit(x, [&](auto data) { l = py::cast(data.to_vector()); });
+                 return l;
+             })
         .def("__eq__", std::equal_to<migraphx::argument>{})
         .def("__ne__", std::not_equal_to<migraphx::argument>{})
         .def("__repr__", [](const migraphx::argument& x) { return migraphx::to_string(x); });

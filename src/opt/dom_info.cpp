@@ -149,28 +149,34 @@ void dom_info::compute_dom(bool reversed)
 
 bool dom_info::is_split_point(instruction_ref ins)
 {
-    std::set<int> stream_set;
+    int stream = -1;
     for(auto&& arg : ins->outputs())
     {
         int arg_stream = arg->get_stream();
-        if(arg_stream >= 0)
-            stream_set.insert(arg_stream);
+        if(arg_stream < 0)
+            continue;
+        if((stream >= 0) && (arg_stream != stream))
+            return true;
+        stream = arg_stream;
     }
-    return (stream_set.size() > 1);
+    return false;
 }
 
 // Identify merge points.  A merge point has more than one
 // inputs that are executed in different streams.
 bool dom_info::is_merge_point(instruction_ref ins)
 {
-    std::set<int> stream_set;
+    int stream = -1;
     for(auto&& arg : ins->inputs())
     {
         int arg_stream = arg->get_stream();
-        if(arg_stream >= 0)
-            stream_set.insert(arg_stream);
+        if(arg_stream < 0)
+            continue;
+        if((stream >= 0) && (arg_stream != stream))
+            return true;
+        stream = arg_stream;
     }
-    return (stream_set.size() > 1);
+    return false;
 }
 
 //  Propagate split points through the graph and identify concurrent instructions.

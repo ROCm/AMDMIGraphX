@@ -148,7 +148,7 @@ struct context
 {
     context(std::size_t n = 0) : current_device(std::make_shared<hip_device>(n)) {}
 
-    hip_device& get_current_device()
+    hip_device& get_current_device() const
     {
         assert(current_device != nullptr);
         return *current_device;
@@ -165,7 +165,7 @@ struct context
     void wait_event(int event) { get_current_device().wait_event(event); }
 
     std::vector<argument> literals{};
-    void finish()
+    void finish() const
     {
         get_current_device().stream_sync();
         gpu_sync();

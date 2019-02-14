@@ -20,14 +20,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct context
 {
     /// Wait for any tasks in the context to complete
-    void finish();
+    void finish() const;
 };
 
 #else
 
 <%
 interface('context',
-    virtual('finish', returns='void'),
+          virtual('finish', returns='void', const=True),
 )
 %>
 

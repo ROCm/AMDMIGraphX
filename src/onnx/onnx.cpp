@@ -984,22 +984,32 @@ struct onnx_parser
             // provided. This may need change later
             switch(vec_names.size())
             {
-            case 1: vec_names.insert(vec_names.end(), 5, vec_names.back()); break;
+            case 1:
+                vec_names = {vec_names.at(0), vec_names.at(0), vec_names.at(0), 
+                             vec_names.at(0), vec_names.at(0), vec_names.at(0)};
+                break;
 
             case 2:
                 // repeat the 2nd actv func once, then repeat all three another time
-                vec_names.push_back(vec_names.back());
-                vec_names.insert(vec_names.end(), vec_names.begin(), vec_names.end());
+                vec_names = {vec_names.at(0), vec_names.at(1), vec_names.at(1), 
+                             vec_names.at(0), vec_names.at(1), vec_names.at(1)};
                 break;
 
             case 3:
                 // repeat all three actv funcs once
-                vec_names.insert(vec_names.end(), vec_names.begin(), vec_names.end());
+                vec_names = {vec_names.at(0), vec_names.at(1), vec_names.at(2), 
+                             vec_names.at(0), vec_names.at(1), vec_names.at(2)};
                 break;
 
-            case 4: vec_names.insert(vec_names.end(), 2, vec_names.back()); break;
+            case 4: 
+                vec_names = {vec_names.at(0), vec_names.at(1), vec_names.at(2), 
+                             vec_names.at(3), vec_names.at(3), vec_names.at(3)};
+                break;
 
-            case 5: vec_names.push_back(vec_names.back()); break;
+            case 5: 
+                vec_names = {vec_names.at(0), vec_names.at(1), vec_names.at(2), 
+                             vec_names.at(3), vec_names.at(4), vec_names.at(4)};
+                break;
 
             default: break;
             }
@@ -1008,11 +1018,13 @@ struct onnx_parser
         {
             switch(vec_names.size())
             {
-            case 1: vec_names.insert(vec_names.end(), 2, vec_names.back()); break;
+            case 1:
+                vec_names = {vec_names.at(0), vec_names.at(0), vec_names.at(0)}; 
+                break;
 
             case 2:
                 // repeat the 2nd actv func once, so we have 3 actv funcs
-                vec_names.push_back(vec_names.back());
+                vec_names = {vec_names.at(0), vec_names.at(1), vec_names.at(1)}; 
                 break;
 
             default: break;

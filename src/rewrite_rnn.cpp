@@ -980,7 +980,7 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
         bo_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, bo);
 
         auto bxf = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, sbias);
-        auto bhf = prog.insert_instruction(ins, op::slice{{0}, {5 * hs}, {6 * hs}}, sbias);
+        auto bhf = prog.insert_instruction(ins, op::slice{{0}, {6 * hs}, {7 * hs}}, sbias);
         auto bf  = prog.insert_instruction(ins, op::add{}, bxf, bhf);
         bf_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, bf);
 

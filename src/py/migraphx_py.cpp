@@ -60,6 +60,10 @@ template <class T>
 py::buffer_info to_buffer_info(T& x)
 {
     migraphx::shape s = x.get_shape();
+    auto strides = s.strides();
+    std::transform(strides.begin(), strides.end(), strides.begin(), [&](auto i) {
+        return i * s.type_size();
+    });
     py::buffer_info b;
     visit_type(s, [&](auto as) {
         b = py::buffer_info(x.data(),
@@ -67,7 +71,7 @@ py::buffer_info to_buffer_info(T& x)
                             py::format_descriptor<decltype(as())>::format(),
                             s.lens().size(),
                             s.lens(),
-                            s.strides());
+                            strides);
     });
     return b;
 }
@@ -75,11 +79,22 @@ py::buffer_info to_buffer_info(T& x)
 migraphx::shape to_shape(const py::buffer_info& info)
 {
     migraphx::shape::type_t t;
+    std::size_t n = 0;
     visit_types([&](auto as) {
-        if(info.format == py::format_descriptor<decltype(as())>::format())
+        if(info.format == py::format_descriptor<decltype(as())>::format()) {
             t = as.type_enum();
+            n = sizeof(as());
+        }
+
     });
-    return migraphx::shape{t, info.shape, info.strides};
+    auto strides = info.strides;
+    std::transform(strides.begin(), strides.end(), strides.begin(), [&](auto i) -> std::size_t {
+        if (n > 0)
+            return n * i;
+        else
+            return 0;
+    });
+    return migraphx::shape{t, info.shape, strides};
 }
 
 PYBIND11_MODULE(migraphx, m)

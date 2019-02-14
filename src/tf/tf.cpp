@@ -176,9 +176,16 @@ struct tf_parser
     instruction_ref
     parse_biasadd(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
-        uint64_t axis = 1;
-        auto l0       = prog.add_instruction(op::broadcast{axis, args[0]->get_shape()}, args[1]);
-        return prog.add_instruction(op::add{}, args[0], l0);
+        uint64_t axis = 1; // assume output of previous layer is in NCHW (broadcast on channel)
+        auto l0 = args[0];
+        // otherwise, if the input is a parameter to the graph, then first insert transpose
+        if(l0->name() == "@param")
+        {
+            if(is_nhwc)
+                l0 = prog.add_instruction(op::transpose{{0, 3, 1, 2}}, l0);
+        };
+        auto l1 = prog.add_instruction(op::broadcast{axis, l0->get_shape()}, args[1]);
+        return prog.add_instruction(op::add{}, l0, l1);
     }
 
     instruction_ref

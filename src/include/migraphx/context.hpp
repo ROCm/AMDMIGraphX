@@ -20,7 +20,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct context
 {
     /// Wait for any tasks in the context to complete
-    void finish();
+    void finish() const;
 };
 
 #else
@@ -30,7 +30,7 @@ struct context
  *
  * struct context
  * {
- *      void finish() ;
+ *      void finish() const;
  * };
  *
  */
@@ -92,7 +92,7 @@ struct context
             return private_detail_te_get_handle().type();
     }
 
-    void finish()
+    void finish() const
     {
         assert((*this).private_detail_te_handle_mem_var);
         (*this).private_detail_te_get_handle().finish();
@@ -111,7 +111,7 @@ struct context
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual void finish() = 0;
+        virtual void finish() const = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -142,7 +142,7 @@ struct context
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
-        void finish() override { private_detail_te_value.finish(); }
+        void finish() const override { private_detail_te_value.finish(); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };

@@ -9,7 +9,7 @@ namespace cpu {
 
 struct context
 {
-    void finish() {}
+    void finish() const {}
 };
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS

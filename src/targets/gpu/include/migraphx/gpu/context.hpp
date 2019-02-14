@@ -155,14 +155,17 @@ struct context
     }
 
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
-    void set_stream(int n)
+    void set_stream(int n) const
     {
         if(n >= 0)
             get_current_device().set_stream(n);
     }
-    void create_events(int num_of_events) { get_current_device().create_events(num_of_events); }
-    void record_event(int event) { get_current_device().record_event(event); }
-    void wait_event(int event) { get_current_device().wait_event(event); }
+    void create_events(int num_of_events) const
+    {
+        get_current_device().create_events(num_of_events);
+    }
+    void record_event(int event) const { get_current_device().record_event(event); }
+    void wait_event(int event) const { get_current_device().wait_event(event); }
 
     std::vector<argument> literals{};
     void finish() const

@@ -4,6 +4,7 @@ find_package(PythonInterp)
 function(add_py_test NAME SCRIPT)
     set (ENV_COMMAND ${CMAKE_COMMAND} -E env 
         "PYTHONPATH=$<TARGET_FILE_DIR:migraphx_py>"
+        "MALLOC_CHECK_=3"
     )
     add_test(
         NAME test_py_${NAME} 

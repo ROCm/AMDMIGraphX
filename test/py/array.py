@@ -15,10 +15,10 @@ def get_strides(m):
 def read_float(b, index):
     return struct.unpack_from('f', b, index*4)[0]
 
-def check_list(a, b):
+def check_list(a):
     l = a.tolist()
     for i in range(len(l)):
-        assert_eq(l[i], read_float(b, i))
+        assert_eq(l[i], read_float(a, i))
 
 def run(p):
     params = {}
@@ -36,7 +36,8 @@ r2 = run(p)
 assert_eq(r1, r2)
 assert_eq(r1.tolist(), r2.tolist())
 
-assert_eq(r1.tolist()[0], read_float(r1, 0))
+check_list(r1)
+check_list(r2)
 
 m1 = memoryview(r1)
 m2 = memoryview(r2)
@@ -45,5 +46,3 @@ assert_eq(r1.get_shape().elements(), reduce(lambda x,y: x*y,get_lens(m1), 1))
 assert_eq(r1.get_shape().lens(), get_lens(m1))
 assert_eq(r1.get_shape().strides(), get_strides(m1))
 
-check_list(r1, m1.tobytes())
-check_list(r2, m2.tobytes())

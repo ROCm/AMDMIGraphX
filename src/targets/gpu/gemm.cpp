@@ -1,11 +1,11 @@
-#include <migraph/gpu/gemm.hpp>
-#include <migraph/operators.hpp>
-#include <migraph/manage_ptr.hpp>
-#include <migraph/gpu/miopen.hpp>
+#include <migraphx/gpu/gemm.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/manage_ptr.hpp>
+#include <migraphx/gpu/miopen.hpp>
 #include <utility>
 
-namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 template <class... Ts>
@@ -29,7 +29,7 @@ void generic_rocblas_gemm(shape::as<half>, Ts&&... xs)
 template <class T, class... Ts>
 void generic_rocblas_gemm(shape::as<T>, Ts&&...)
 {
-    MIGRAPH_THROW("Type unsupported by rocblas");
+    MIGRAPHX_THROW("Type unsupported by rocblas");
 }
 
 template <class T>
@@ -107,9 +107,10 @@ argument miopen_gemm::compute(context& ctx,
                              ldc);
 
     });
+
     return args[2];
 }
 
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

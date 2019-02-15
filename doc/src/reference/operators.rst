@@ -4,7 +4,7 @@ Operators
 operation
 ---------
 
-.. doxygenstruct:: migraph::operation
+.. doxygenstruct:: migraphx::operation
 
 operators
 ---------

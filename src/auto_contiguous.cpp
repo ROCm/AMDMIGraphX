@@ -1,18 +1,18 @@
-#include <migraph/auto_contiguous.hpp>
-#include <migraph/program.hpp>
-#include <migraph/instruction.hpp>
-#include <migraph/operators.hpp>
-#include <migraph/iterator_for.hpp>
+#include <migraphx/auto_contiguous.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/iterator_for.hpp>
 
-namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
 void auto_contiguous::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
     {
         shape s = ins->get_shape();
-        if(not s.standard())
+        if(not s.standard() and s.elements() != 0)
         {
             auto c = p.insert_instruction(std::next(ins), op::contiguous{}, ins);
             p.replace_instruction(ins, c);
@@ -20,5 +20,5 @@ void auto_contiguous::apply(program& p) const
     }
 }
 
-} // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

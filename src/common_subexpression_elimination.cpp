@@ -1,14 +1,14 @@
-#include <migraph/common_subexpression_elimination.hpp>
-#include <migraph/program.hpp>
-#include <migraph/instruction.hpp>
-#include <migraph/iterator_for.hpp>
-#include <migraph/ranges.hpp>
-#include <migraph/functional.hpp>
+#include <migraphx/common_subexpression_elimination.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/functional.hpp>
 
 #include <unordered_set>
 
-namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
 template <class Range>
 void cse_range(program& p, Range&& r)
@@ -35,5 +35,5 @@ void cse_range(program& p, Range&& r)
 
 void common_subexpression_elimination::apply(program& p) const { cse_range(p, iterator_for(p)); }
 
-} // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

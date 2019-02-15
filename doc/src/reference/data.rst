@@ -4,27 +4,27 @@ Data types
 shape
 -----
 
-.. doxygenstruct:: migraph::shape
+.. doxygenstruct:: migraphx::shape
 
 literal
 -------
 
-.. doxygenstruct:: migraph::literal
+.. doxygenstruct:: migraphx::literal
 
 argument
 --------
 
-.. doxygenstruct:: migraph::argument
+.. doxygenstruct:: migraphx::argument
 
 raw_data
 --------
 
-.. doxygenstruct:: migraph::raw_data
+.. doxygenstruct:: migraphx::raw_data
 
-.. doxygenfunction:: migraph::MIGRAPH_INLINE_NS::visit_all
+.. doxygenfunction:: migraphx::MIGRAPHX_INLINE_NS::visit_all
 
 
 tensor_view
 -----------
 
-.. doxygenstruct:: migraph::tensor_view
+.. doxygenstruct:: migraphx::tensor_view

@@ -1,8 +1,8 @@
-#include <migraph/gpu/device/mul.hpp>
-#include <migraph/gpu/device/nary.hpp>
+#include <migraphx/gpu/device/mul.hpp>
+#include <migraphx/gpu/device/nary.hpp>
 
-namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
@@ -22,5 +22,5 @@ void mul(hipStream_t stream,
 
 } // namespace device
 } // namespace gpu
-} // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

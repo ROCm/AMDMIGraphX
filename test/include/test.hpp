@@ -7,8 +7,8 @@
 #include <unordered_map>
 #include <vector>
 
-#ifndef MIGRAPH_GUARD_TEST_TEST_HPP
-#define MIGRAPH_GUARD_TEST_TEST_HPP
+#ifndef MIGRAPHX_GUARD_TEST_TEST_HPP
+#define MIGRAPHX_GUARD_TEST_TEST_HPP
 
 namespace test {
 // NOLINTNEXTLINE
@@ -111,7 +111,7 @@ struct lhs_expression
 struct capture
 {
     template <class T>
-    auto operator->*(const T& x)
+    auto operator->*(const T& x) const
     {
         return make_lhs_expression(x);
     }
@@ -189,7 +189,7 @@ inline auto& get_test_cases()
 
 inline void add_test_case(std::string name, std::function<void()> f)
 {
-    get_test_cases().emplace_back(name, f);
+    get_test_cases().emplace_back(std::move(name), std::move(f));
 }
 
 struct auto_register
@@ -224,7 +224,13 @@ inline void run(int argc, const char* argv[])
         std::unordered_map<std::string, std::function<void()>> m(get_test_cases().begin(),
                                                                  get_test_cases().end());
         for(auto&& name : cases)
-            run_test_case(name, m[name]);
+        {
+            auto f = m.find(name);
+            if(f == m.end())
+                std::cout << "[  ERROR   ] Test case '" << name << "' not found." << std::endl;
+            else
+                run_test_case(name, f->second);
+        }
     }
 }
 
@@ -248,6 +254,7 @@ inline void run(int argc, const char* argv[])
 
 // NOLINTNEXTLINE
 #define TEST_CAT(x, ...) TEST_PRIMITIVE_CAT(x, __VA_ARGS__)
+// NOLINTNEXTLINE
 #define TEST_PRIMITIVE_CAT(x, ...) x##__VA_ARGS__
 
 // NOLINTNEXTLINE

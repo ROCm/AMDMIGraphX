@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_TARGET_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_TARGET_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_TARGET_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_TARGET_HPP
 
 #include <cassert>
 #include <string>
@@ -8,10 +8,12 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include <migraph/context.hpp>
-#include <migraph/pass.hpp>
+#include <migraphx/context.hpp>
+#include <migraphx/pass.hpp>
+#include <migraphx/config.hpp>
 
-namespace migraph {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
 #ifdef DOXYGEN
 
@@ -48,6 +50,7 @@ interface('target',
 
 #endif
 
-} // namespace migraph
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 
 #endif

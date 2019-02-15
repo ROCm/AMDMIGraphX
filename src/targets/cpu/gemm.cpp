@@ -1,10 +1,10 @@
-#include <migraph/cpu/gemm.hpp>
-#include <migraph/dfor.hpp>
-#include <migraph/requires.hpp>
+#include <migraphx/cpu/gemm.hpp>
+#include <migraphx/dfor.hpp>
+#include <migraphx/requires.hpp>
 #include <blaze/math/CustomMatrix.h>
 
-namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
 
 template <class T>
@@ -94,5 +94,5 @@ void migemm(
 }
 
 } // namespace cpu
-} // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

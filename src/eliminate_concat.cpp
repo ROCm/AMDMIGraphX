@@ -1,13 +1,13 @@
 #include <iterator>
-#include <migraph/eliminate_concat.hpp>
-#include <migraph/program.hpp>
-#include <migraph/instruction.hpp>
-#include <migraph/operators.hpp>
-#include <migraph/iterator_for.hpp>
-#include <migraph/dfor.hpp>
+#include <migraphx/eliminate_concat.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/dfor.hpp>
 
-namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 void eliminate_concat::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
@@ -36,14 +36,17 @@ void eliminate_concat::apply(program& p) const
             // Where are the allocations for the tensors to be concatenated?
             std::vector<instruction_ref> allocations;
 
-            for(auto ins2 = ins->inputs().begin(); ins2 != ins->inputs().end() - 1; ins2++)
-            {
-                auto last2 = (*ins2)->inputs().back();
-                if(last2->name() == concat_opt.allocate())
-                {
-                    allocations.push_back(last2);
-                }
-            }
+            std::transform(
+                ins->inputs().begin(),
+                std::prev(ins->inputs().end()),
+                std::back_inserter(allocations),
+                [&](instruction_ref x) { return instruction::get_output_alias(x, true); });
+
+            if(std::any_of(allocations.begin(), allocations.end(), [&](auto x) {
+                   return x->name() != concat_opt.allocate();
+               }))
+                continue;
+
             // Need to sort the allocations, so that we know where to
             // insert the "super"-allocation
             std::sort(
@@ -51,21 +54,21 @@ void eliminate_concat::apply(program& p) const
                     return std::distance(p.begin(), x) < std::distance(p.begin(), y);
                 });
             // Move "super" allocation to the front
-            auto first         = allocations.front();
-            auto super         = p.move_instruction(last, first);
+            auto first = allocations.front();
+            auto super = p.move_instruction(last, first);
+            // Replace each allocation with a load
             std::size_t offset = 0;
-            for(auto x : allocations)
+            for(auto alloc : allocations)
             {
-                migraph::op::load op{x->get_shape(), offset};
-                // migraph::op::load op{x->get_shape(), 0};
-                p.replace_instruction(x, op, {super});
-                offset += x->get_shape().bytes();
+                op::load op{alloc->get_shape(), offset};
+                p.replace_instruction(alloc, op, {super});
+                offset += alloc->get_shape().bytes();
             }
             std::vector<instruction_ref> args = {super};
             std::copy(ins->inputs().begin(), ins->inputs().end() - 1, std::back_inserter(args));
-            p.replace_instruction(ins, migraph::op::identity{}, args);
+            p.replace_instruction(ins, migraphx::op::identity{}, args);
         }
     }
 }
-} // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_CONCAT_OPT_HPP
-#define MIGRAPH_GUARD_CONCAT_OPT_HPP
+#ifndef MIGRAPHX_GUARD_CONCAT_OPT_HPP
+#define MIGRAPHX_GUARD_CONCAT_OPT_HPP
 
 #include <cassert>
 #include <string>
@@ -8,10 +8,12 @@
 #include <type_traits>
 #include <utility>
 
-#include <migraph/operation.hpp>
-#include <migraph/operators.hpp>
+#include <migraphx/operation.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/config.hpp>
 
-namespace migraph {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
 
@@ -40,6 +42,7 @@ interface('concat_optimization',
 
 #endif
 
-} // namespace migraph
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 
 #endif

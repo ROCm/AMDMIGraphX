@@ -1,10 +1,10 @@
-#include <migraph/constant_propagate.hpp>
-#include <migraph/program.hpp>
-#include <migraph/matcher.hpp>
-#include <migraph/literal.hpp>
+#include <migraphx/constant_propagate.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/matcher.hpp>
+#include <migraphx/literal.hpp>
 
-namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
 struct match_const_add
 {
@@ -13,7 +13,7 @@ struct match_const_add
         return match::name("add")(match::args(match::name("@literal"), match::name("@literal")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(program& p, const match::matcher_result& r) const
     {
         auto ins  = r.result;
         auto arg1 = ins->inputs().at(0)->get_literal();
@@ -26,5 +26,5 @@ struct match_const_add
 
 void constant_propagate::apply(program& p) const { match::find_matches(p, match_const_add{}); }
 
-} // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

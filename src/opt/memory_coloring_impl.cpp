@@ -1,16 +1,16 @@
 #include "memory_coloring_impl.hpp"
 
-namespace migraph {
-inline namespace MIGRAPH_INLINE_NS {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
 void memory_coloring_impl::run()
 {
-    MIGRAPH_DEBUG(dump("---Before memory coloring---"));
-    MIGRAPH_DEBUG(dump_program());
+    MIGRAPHX_DEBUG(dump("---Before memory coloring---"));
+    MIGRAPHX_DEBUG(dump_program());
     build();
     if(num_of_lives != 0)
     {
-        MIGRAPH_DEBUG(dump_intervals());
+        MIGRAPHX_DEBUG(dump_intervals());
         // Coloring
         while(!alloc_queue.empty())
         {
@@ -85,7 +85,7 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
         conflict_queue.pop();
     }
     segment.offset = offset;
-    MIGRAPH_DEBUG(segment.dump());
+    MIGRAPHX_DEBUG(segment.dump());
     required_bytes = std::max(required_bytes, offset + segment.size);
     return true;
 }
@@ -118,11 +118,11 @@ void memory_coloring_impl::build()
                 live_range& range        = def_interval->segment;
                 def_interval->result     = iter->get_shape();
                 def_interval->is_literal = is_lit;
+                range.begin              = cur_points;
+                def_interval->def_point  = cur_points;
+                range.size               = (iter->get_shape()).bytes();
                 if(!is_lit || unify_literals)
                     alloc_queue.push(def_interval);
-                range.begin             = cur_points;
-                def_interval->def_point = cur_points;
-                range.size              = (iter->get_shape()).bytes();
                 live_set.erase(range.vn);
             }
         }
@@ -217,8 +217,8 @@ void memory_coloring_impl::rewrite()
             }
         }
     }
-    MIGRAPH_DEBUG(dump("---After rewrite---"));
-    MIGRAPH_DEBUG(dump_program());
+    MIGRAPHX_DEBUG(dump("---After rewrite---"));
+    MIGRAPHX_DEBUG(dump_program());
 }
 
 void memory_coloring_impl::verify()
@@ -232,9 +232,8 @@ void memory_coloring_impl::verify()
 
             if(segment.begin == invalid_offset)
             {
-                // TODO: This check breaks on the tests
-                // if(!interval.is_live_on_entry)
-                // MIGRAPH_THROW("interval is not live on entry");
+                if(!interval.is_live_on_entry)
+                    MIGRAPHX_THROW("interval is not live on entry");
                 continue;
             }
 
@@ -252,14 +251,14 @@ void memory_coloring_impl::verify()
                     if(range->offset == invalid_offset)
                         continue;
                     if(!is_disjoin(*range, segment))
-                        MIGRAPH_THROW("range and segment is not disjoined");
+                        MIGRAPHX_THROW("range and segment is not disjoined");
                 }
             }
         }
     }
 }
 
-#ifdef MIGRAPH_DEBUG_OPT
+#ifdef MIGRAPHX_DEBUG_OPT
 
 void memory_coloring_impl::dump(const std::string& str) { std::cout << str << std::endl; }
 
@@ -333,5 +332,5 @@ void live_interval::dump()
 
 #endif
 
-} // namespace MIGRAPH_INLINE_NS
-} // namespace migraph
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

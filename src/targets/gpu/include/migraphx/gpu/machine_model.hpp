@@ -29,6 +29,9 @@ struct op_info
         weight_map["hip::load_literal"]   = std::make_pair(1, 1);
         weight_map["hip::allocate"]       = std::make_pair(0, 1);
         weight_map["@outline"]            = std::make_pair(0, 1);
+        weight_map["slice"]               = std::make_pair(1, 1);
+        weight_map["squeeze"]             = std::make_pair(1, 1);
+        weight_map["unsqueeze"]           = std::make_pair(1, 1);
         weight_map["gpu::convolution"]    = std::make_pair(4, 0);
         weight_map["gpu::conv_bias_relu"] = std::make_pair(4, 0);
         weight_map["gpu::pooling"]        = std::make_pair(2, 0);
@@ -45,7 +48,7 @@ struct op_info
         }
         else
         {
-            return std::make_pair(1, 0);
+            return std::make_pair(1, is_context_free(op) ? 1 : 0);
         }
     }
     std::unordered_map<std::string, std::pair<int, int>> weight_map;

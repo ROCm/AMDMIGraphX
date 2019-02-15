@@ -21,7 +21,7 @@ struct allocate
     std::string name() const { return "allocate"; }
     migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
     {
-        migraph::check_shapes{inputs, *this}.has(0);
+        migraphx::check_shapes{inputs, *this}.has(0);
         return s;
     }
     migraphx::argument compute(migraphx::context&,

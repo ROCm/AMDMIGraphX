@@ -872,7 +872,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
     while(last_output_it != ins->outputs().end())
     {
         last_output_it = std::find_if(last_output_it, ins->outputs().end(), [](auto i) {
-            return i->name() == "lstm_last_output";
+            return i->name() == "rnn_last_output";
         });
 
         if(last_output_it != ins->outputs().end())

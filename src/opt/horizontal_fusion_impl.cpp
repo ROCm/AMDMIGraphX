@@ -4,8 +4,37 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+// Operation encoding.
+void horizontal_fusion_impl::register_opcode()
+{
+    opcode_table["gpu::convolution"] = 1;
+    opcode_table["gpu::conv_bias_relu"] = 2;
+}
+
+// Get operation encoding.
+unsigned short horizontal_fusion_impl::get_opcode(instruction_ref ins)
+{
+    return (opcode_table.find(ins->name()) == opcode_table.end()) ? 0 : opcode_table[ins->name()];
+}
+
+unsigned long long EncodeConvBiasRelu(instruction_ref ins)
+{
+    return 0;
+}
+           
+void horizontal_fusion_impl::register_encoder()
+{
+    op_registry["gpu::conv_bias_relu"] = EncodeConvBiasRelu;
+}
+
+               
 hash_value_ptr horizontal_fusion_impl::hash(instruction_ref ins)
 {
+    if (op_registry.find(ins->name()) == op_registry.end())
+        return nullptr;
+    Encoder encode = op_registry.at(ins->name());
+    unsigned long long val = encode(ins);
+    unsigned short opcode = get_opcode(ins);
     return nullptr;
 }
 void horizontal_fusion_impl::process(instruction_ref ins)
@@ -27,6 +56,7 @@ void horizontal_fusion_impl::process(instruction_ref ins)
     } else {
         std::unordered_map<std::string, int> op2_cnt;
         bool hash_child = false;
+        // Do hash if at least two outputs have same operations.
         for (auto output : ins->outputs())
         {
             const std::string& str = output->name();
@@ -35,6 +65,7 @@ void horizontal_fusion_impl::process(instruction_ref ins)
             else {
                 op2_cnt[str] += 1;
                 hash_child = true;
+                break;
             }
         }
         if (hash_child)

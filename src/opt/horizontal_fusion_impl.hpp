@@ -6,6 +6,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+using Encoder = std::function<unsigned long long(instruction_ref)>;
+           
 struct hash_value
 {
     hash_value()
@@ -28,6 +30,8 @@ struct horizontal_fusion_impl
     {
         instr2_hash.clear();
         instr2_value.clear();
+        register_opcode();
+        register_encoder();
     }
     void run();
     void process(instruction_ref ins);
@@ -41,6 +45,10 @@ struct horizontal_fusion_impl
     {
         root_values.push_back(ptr);
     }
+    void register_opcode();
+    unsigned short get_opcode(instruction_ref ins);
+    void register_encoder();
+
 #ifdef MIGRAPHX_DEBUG_OPT
     void dump_program();
 #endif
@@ -48,10 +56,14 @@ struct horizontal_fusion_impl
     program* p_program;
     std::unordered_map<instruction_ref, bool> instr2_hash;
     std::unordered_map<instruction_ref, hash_value_ptr> instr2_value;
+    std::unordered_map<std::string, unsigned short> opcode_table;
+    std::unordered_map<std::string, Encoder> op_registry;
     std::vector<hash_value> values;
     std::vector<hash_value_ptr> root_values;
 };
 
+unsigned long long EncodeConvBiasRelu(instruction_ref in);
+           
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif

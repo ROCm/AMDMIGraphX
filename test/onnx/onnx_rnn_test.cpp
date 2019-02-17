@@ -24,12 +24,12 @@ TEST_CASE(rnn_test_bidirectional)
 
     migraphx::program p;
 
-    auto seq = p.add_parameter("seq", seq_shape);
-    auto w = p.add_parameter("w", w_shape);
-    auto r = p.add_parameter("r", r_shape);
-    auto bias = p.add_parameter("bias", bias_shape);
+    auto seq     = p.add_parameter("seq", seq_shape);
+    auto w       = p.add_parameter("w", w_shape);
+    auto r       = p.add_parameter("r", r_shape);
+    auto bias    = p.add_parameter("bias", bias_shape);
     auto seq_len = p.add_parameter("seq_len", sl_shape);
-    auto ih = p.add_parameter("h0", ih_shape);
+    auto ih      = p.add_parameter("h0", ih_shape);
 
     auto out_hs =
         p.add_instruction(migraphx::op::rnn{hs,
@@ -66,12 +66,12 @@ TEST_CASE(rnn_test_one)
     // forward
     {
         migraphx::program p;
-        auto seq = p.add_parameter("seq", seq_shape);
-        auto w = p.add_parameter("w", w_shape);
-        auto r = p.add_parameter("r", r_shape);
-        auto bias = p.add_parameter("bias", bias_shape);
+        auto seq     = p.add_parameter("seq", seq_shape);
+        auto w       = p.add_parameter("w", w_shape);
+        auto r       = p.add_parameter("r", r_shape);
+        auto bias    = p.add_parameter("bias", bias_shape);
         auto seq_len = p.add_parameter("seq_len", sl_shape);
-        auto ih = p.add_parameter("h0", ih_shape);
+        auto ih      = p.add_parameter("h0", ih_shape);
 
         auto out_hs =
             p.add_instruction(migraphx::op::rnn{hs,
@@ -93,12 +93,12 @@ TEST_CASE(rnn_test_one)
     // reverse
     {
         migraphx::program p;
-        auto seq = p.add_parameter("seq", seq_shape);
-        auto w = p.add_parameter("w", w_shape);
-        auto r = p.add_parameter("r", r_shape);
-        auto bias = p.add_parameter("bias", bias_shape);
+        auto seq     = p.add_parameter("seq", seq_shape);
+        auto w       = p.add_parameter("w", w_shape);
+        auto r       = p.add_parameter("r", r_shape);
+        auto bias    = p.add_parameter("bias", bias_shape);
         auto seq_len = p.add_parameter("seq_len", sl_shape);
-        auto ih = p.add_parameter("h0", ih_shape);
+        auto ih      = p.add_parameter("h0", ih_shape);
         auto out_hs =
             p.add_instruction(migraphx::op::rnn{hs,
                                                 {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
@@ -120,8 +120,8 @@ TEST_CASE(rnn_test_one)
     {
         migraphx::program p;
         auto seq = p.add_parameter("seq", seq_shape);
-        auto w = p.add_parameter("w", w_shape);
-        auto r = p.add_parameter("r", r_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
         auto und = p.add_instruction(migraphx::op::undefined{});
         auto out_hs =
             p.add_instruction(migraphx::op::rnn{hs,
@@ -144,12 +144,12 @@ TEST_CASE(rnn_test_one)
     {
         migraphx::program p;
 
-        auto seq = p.add_parameter("seq", seq_shape);
-        auto w = p.add_parameter("w", w_shape);
-        auto r = p.add_parameter("r", r_shape);
-        auto bias = p.add_parameter("bias", bias_shape);
+        auto seq     = p.add_parameter("seq", seq_shape);
+        auto w       = p.add_parameter("w", w_shape);
+        auto r       = p.add_parameter("r", r_shape);
+        auto bias    = p.add_parameter("bias", bias_shape);
         auto seq_len = p.add_parameter("seq_len", sl_shape);
-        auto und = p.add_instruction(migraphx::op::undefined{});
+        auto und     = p.add_instruction(migraphx::op::undefined{});
 
         auto out_hs =
             p.add_instruction(migraphx::op::rnn{hs,
@@ -594,44 +594,46 @@ TEST_CASE(gru_test_actv_funcs)
 
 TEST_CASE(lstm_forward)
 {
-    std::size_t sl = 5;  // sequence len
-    std::size_t bs = 3;  // batch size
-    std::size_t hs = 20; // hidden size
-    std::size_t is = 10; // input size
-    std::size_t nd = 1;  // num directions
-    float clip     = 0.0f;
+    std::size_t sl   = 5;  // sequence len
+    std::size_t bs   = 3;  // batch size
+    std::size_t hs   = 20; // hidden size
+    std::size_t is   = 10; // input size
+    std::size_t nd   = 1;  // num directions
+    float clip       = 0.0f;
     int input_forget = 1;
     migraphx::shape seq_shape{migraphx::shape::float_type, {sl, bs, is}};
-    migraphx::shape w_shape{migraphx::shape::float_type, {nd, 4*hs, is}};
-    migraphx::shape r_shape{migraphx::shape::float_type, {nd, 4*hs, hs}};
+    migraphx::shape w_shape{migraphx::shape::float_type, {nd, 4 * hs, is}};
+    migraphx::shape r_shape{migraphx::shape::float_type, {nd, 4 * hs, hs}};
     migraphx::shape bias_shape{migraphx::shape::float_type, {nd, 8 * hs}};
     migraphx::shape sl_shape{migraphx::shape::int32_type, {bs}};
     migraphx::shape ih_shape{migraphx::shape::float_type, {nd, bs, hs}};
-    migraphx::shape pph_shape{migraphx::shape::float_type, {nd, 3*hs}};
+    migraphx::shape pph_shape{migraphx::shape::float_type, {nd, 3 * hs}};
     {
         migraphx::program p;
-        auto seq = p.add_parameter("seq", seq_shape);
-        auto w = p.add_parameter("w", w_shape);
-        auto r = p.add_parameter("r", r_shape);
-        auto bias = p.add_parameter("bias", bias_shape);
+        auto seq     = p.add_parameter("seq", seq_shape);
+        auto w       = p.add_parameter("w", w_shape);
+        auto r       = p.add_parameter("r", r_shape);
+        auto bias    = p.add_parameter("bias", bias_shape);
         auto seq_len = p.add_parameter("seq_len", sl_shape);
-        auto ih = p.add_parameter("h0", ih_shape);
-        auto ic = p.add_parameter("c0", ih_shape);
-        auto pph = p.add_parameter("pph", pph_shape);
+        auto ih      = p.add_parameter("h0", ih_shape);
+        auto ic      = p.add_parameter("c0", ih_shape);
+        auto pph     = p.add_parameter("pph", pph_shape);
 
-        auto out_hs =
-            p.add_instruction(migraphx::op::lstm{hs,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::forward,
-                                                clip, input_forget},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              seq_len,
-                              ih,
-                              ic,
-                              pph);
+        auto out_hs = p.add_instruction(
+            migraphx::op::lstm{
+                hs,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::forward,
+                clip,
+                input_forget},
+            seq,
+            w,
+            r,
+            bias,
+            seq_len,
+            ih,
+            ic,
+            pph);
         p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
         p.add_instruction(migraphx::op::lstm_last_cell_output{}, out_hs);
         auto prog = migraphx::parse_onnx("onnx_lstm_forward.onnx");
@@ -642,44 +644,46 @@ TEST_CASE(lstm_forward)
 
 TEST_CASE(lstm_reverse)
 {
-    std::size_t sl = 5;  // sequence len
-    std::size_t bs = 3;  // batch size
-    std::size_t hs = 20; // hidden size
-    std::size_t is = 10; // input size
-    std::size_t nd = 1;  // num directions
-    float clip     = 0.0f;
+    std::size_t sl   = 5;  // sequence len
+    std::size_t bs   = 3;  // batch size
+    std::size_t hs   = 20; // hidden size
+    std::size_t is   = 10; // input size
+    std::size_t nd   = 1;  // num directions
+    float clip       = 0.0f;
     int input_forget = 1;
     migraphx::shape seq_shape{migraphx::shape::float_type, {sl, bs, is}};
-    migraphx::shape w_shape{migraphx::shape::float_type, {nd, 4*hs, is}};
-    migraphx::shape r_shape{migraphx::shape::float_type, {nd, 4*hs, hs}};
+    migraphx::shape w_shape{migraphx::shape::float_type, {nd, 4 * hs, is}};
+    migraphx::shape r_shape{migraphx::shape::float_type, {nd, 4 * hs, hs}};
     migraphx::shape bias_shape{migraphx::shape::float_type, {nd, 8 * hs}};
     migraphx::shape sl_shape{migraphx::shape::int32_type, {bs}};
     migraphx::shape ih_shape{migraphx::shape::float_type, {nd, bs, hs}};
-    migraphx::shape pph_shape{migraphx::shape::float_type, {nd, 3*hs}};
+    migraphx::shape pph_shape{migraphx::shape::float_type, {nd, 3 * hs}};
     {
         migraphx::program p;
-        auto seq = p.add_parameter("seq", seq_shape);
-        auto w = p.add_parameter("w", w_shape);
-        auto r = p.add_parameter("r", r_shape);
-        auto bias = p.add_parameter("bias", bias_shape);
+        auto seq     = p.add_parameter("seq", seq_shape);
+        auto w       = p.add_parameter("w", w_shape);
+        auto r       = p.add_parameter("r", r_shape);
+        auto bias    = p.add_parameter("bias", bias_shape);
         auto seq_len = p.add_parameter("seq_len", sl_shape);
-        auto ih = p.add_parameter("h0", ih_shape);
-        auto ic = p.add_parameter("c0", ih_shape);
-        auto pph = p.add_parameter("pph", pph_shape);
+        auto ih      = p.add_parameter("h0", ih_shape);
+        auto ic      = p.add_parameter("c0", ih_shape);
+        auto pph     = p.add_parameter("pph", pph_shape);
 
-        auto out_hs =
-            p.add_instruction(migraphx::op::lstm{hs,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::reverse,
-                                                clip, input_forget},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              seq_len,
-                              ih,
-                              ic,
-                              pph);
+        auto out_hs = p.add_instruction(
+            migraphx::op::lstm{
+                hs,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::reverse,
+                clip,
+                input_forget},
+            seq,
+            w,
+            r,
+            bias,
+            seq_len,
+            ih,
+            ic,
+            pph);
         p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
         p.add_instruction(migraphx::op::lstm_last_cell_output{}, out_hs);
         auto prog = migraphx::parse_onnx("onnx_lstm_reverse.onnx");
@@ -690,44 +694,46 @@ TEST_CASE(lstm_reverse)
 
 TEST_CASE(lstm_bidirectional)
 {
-    std::size_t sl = 5;  // sequence len
-    std::size_t bs = 3;  // batch size
-    std::size_t hs = 20; // hidden size
-    std::size_t is = 10; // input size
-    std::size_t nd = 2;  // num directions
-    float clip     = 0.0f;
+    std::size_t sl   = 5;  // sequence len
+    std::size_t bs   = 3;  // batch size
+    std::size_t hs   = 20; // hidden size
+    std::size_t is   = 10; // input size
+    std::size_t nd   = 2;  // num directions
+    float clip       = 0.0f;
     int input_forget = 1;
     migraphx::shape seq_shape{migraphx::shape::float_type, {sl, bs, is}};
-    migraphx::shape w_shape{migraphx::shape::float_type, {nd, 4*hs, is}};
-    migraphx::shape r_shape{migraphx::shape::float_type, {nd, 4*hs, hs}};
+    migraphx::shape w_shape{migraphx::shape::float_type, {nd, 4 * hs, is}};
+    migraphx::shape r_shape{migraphx::shape::float_type, {nd, 4 * hs, hs}};
     migraphx::shape bias_shape{migraphx::shape::float_type, {nd, 8 * hs}};
     migraphx::shape sl_shape{migraphx::shape::int32_type, {bs}};
     migraphx::shape ih_shape{migraphx::shape::float_type, {nd, bs, hs}};
-    migraphx::shape pph_shape{migraphx::shape::float_type, {nd, 3*hs}};
+    migraphx::shape pph_shape{migraphx::shape::float_type, {nd, 3 * hs}};
     {
         migraphx::program p;
-        auto seq = p.add_parameter("seq", seq_shape);
-        auto w = p.add_parameter("w", w_shape);
-        auto r = p.add_parameter("r", r_shape);
-        auto bias = p.add_parameter("bias", bias_shape);
+        auto seq     = p.add_parameter("seq", seq_shape);
+        auto w       = p.add_parameter("w", w_shape);
+        auto r       = p.add_parameter("r", r_shape);
+        auto bias    = p.add_parameter("bias", bias_shape);
         auto seq_len = p.add_parameter("seq_len", sl_shape);
-        auto ih = p.add_parameter("h0", ih_shape);
-        auto ic = p.add_parameter("c0", ih_shape);
-        auto pph = p.add_parameter("pph", pph_shape);
+        auto ih      = p.add_parameter("h0", ih_shape);
+        auto ic      = p.add_parameter("c0", ih_shape);
+        auto pph     = p.add_parameter("pph", pph_shape);
 
-        auto out_hs =
-            p.add_instruction(migraphx::op::lstm{hs,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::bidirectional,
-                                                clip, input_forget},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              seq_len,
-                              ih,
-                              ic,
-                              pph);
+        auto out_hs = p.add_instruction(
+            migraphx::op::lstm{
+                hs,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::bidirectional,
+                clip,
+                input_forget},
+            seq,
+            w,
+            r,
+            bias,
+            seq_len,
+            ih,
+            ic,
+            pph);
         p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
         p.add_instruction(migraphx::op::lstm_last_cell_output{}, out_hs);
         auto prog = migraphx::parse_onnx("onnx_lstm_bi.onnx");

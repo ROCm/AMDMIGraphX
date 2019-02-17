@@ -663,9 +663,9 @@ TEST_CASE(lstm)
         expect_shape(migraphx::shape{migraphx::shape::float_type,
                                      {seq_len, num_dirct, batch_size, hidden_size}},
                      migraphx::op::lstm{hidden_size,
-                                       {migraphx::op::tanh{}},
-                                       migraphx::op::rnn_direction::bidirectional,
-                                       clip},
+                                        {migraphx::op::tanh{}},
+                                        migraphx::op::rnn_direction::bidirectional,
+                                        clip},
                      in_shape,
                      w_shape,
                      r_shape,
@@ -690,9 +690,9 @@ TEST_CASE(lstm)
         migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
 
         throws_shape(migraphx::op::lstm{hidden_size + 1,
-                                       {migraphx::op::tanh{}},
-                                       migraphx::op::rnn_direction::forward,
-                                       clip},
+                                        {migraphx::op::tanh{}},
+                                        migraphx::op::rnn_direction::forward,
+                                        clip},
                      in_shape,
                      w_shape,
                      r_shape,
@@ -717,9 +717,9 @@ TEST_CASE(lstm)
         migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
 
         throws_shape(migraphx::op::lstm{hidden_size,
-                                       {migraphx::op::tanh{}},
-                                       migraphx::op::rnn_direction::bidirectional,
-                                       clip},
+                                        {migraphx::op::tanh{}},
+                                        migraphx::op::rnn_direction::bidirectional,
+                                        clip},
                      in_shape,
                      w_shape,
                      r_shape,
@@ -753,6 +753,5 @@ TEST_CASE(lstm)
             ih_shape);
     }
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -951,6 +951,63 @@ TEST_CASE(lstm_reverse)
 
         EXPECT(p == prog);
     }
+
+    // 5 args
+    {
+        migraphx::program p;
+        auto seq     = p.add_parameter("seq", seq_shape);
+        auto w       = p.add_parameter("w", w_shape);
+        auto r       = p.add_parameter("r", r_shape);
+        auto bias    = p.add_parameter("bias", bias_shape);
+        auto seq_len = p.add_parameter("seq_len", sl_shape);
+        auto und     = p.add_instruction(migraphx::op::undefined{});
+
+        auto out_hs = p.add_instruction(
+            migraphx::op::lstm{
+                hs,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::reverse,
+                clip,
+                input_forget},
+            seq,
+            w,
+            r,
+            bias,
+            seq_len,
+            und,
+            und,
+            und);
+        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
+        p.add_instruction(migraphx::op::lstm_last_cell_output{}, out_hs);
+        auto prog = migraphx::parse_onnx("onnx_lstm_r5args.onnx");
+
+        EXPECT(p == prog);
+    }
+
+    // no activation function specified
+    {
+        migraphx::program p;
+        auto seq = p.add_parameter("seq", seq_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
+        auto und = p.add_instruction(migraphx::op::undefined{});
+
+        auto out_hs = p.add_instruction(
+            migraphx::op::lstm{hs, {}, migraphx::op::rnn_direction::forward, clip, input_forget},
+            seq,
+            w,
+            r,
+            und,
+            und,
+            und,
+            und,
+            und);
+        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
+        p.add_instruction(migraphx::op::lstm_last_cell_output{}, out_hs);
+        auto prog = migraphx::parse_onnx("onnx_lstm_r0af.onnx");
+
+        EXPECT(p == prog);
+    }
 }
 
 TEST_CASE(lstm_bidirectional)

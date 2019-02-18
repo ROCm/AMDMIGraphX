@@ -169,6 +169,13 @@ struct tf_parser
             epsilon = attributes.at("epsilon").f();
         }
 
+        auto l0 = args[0];
+        if(l0->name() == "@param")
+        {
+            if(is_nhwc)
+                l0 = prog.add_instruction(op::transpose{{0, 3, 1, 2}}, l0);
+        };
+        args[0] = l0;
         op::batch_norm_inference op{epsilon, momentum, bn_mode};
         return prog.add_instruction(op, std::move(args));
     }
@@ -283,7 +290,9 @@ struct tf_parser
             if(is_nhwc)
                 l0 = prog.add_instruction(op::transpose{{0, 3, 1, 2}}, l0);
         }
-        auto l1 = prog.add_instruction(op::transpose{{3, 2, 0, 1}}, args[1]);
+        auto l1 = args[1];
+        if (is_nhwc)
+            l1 = prog.add_instruction(op::transpose{{3, 2, 0, 1}}, args[1]);
         return prog.add_instruction(op, {l0, l1});
     }
 
@@ -395,7 +404,21 @@ struct tf_parser
         auto l0 = args[0];
         if(is_nhwc)
         {
-            l0 = prog.add_instruction(op::transpose{{0, 2, 3, 1}}, args[0]);
+            if(l0->name() != "@param")
+            // squeeze dims are represented for nhwc, 
+            // but intermediate shapes are in nchw
+                l0 = prog.add_instruction(op::transpose{{0, 2, 3, 1}}, args[0]);
+        }
+        auto l0_dims = l0->get_shape().lens();
+        if(op.axes.empty()) // no squeeze_dims provided, remove any dim that equals 1
+        {
+            for (size_t i = 0; i < l0_dims.size(); i++)
+            {
+                if (l0_dims.at(i) == 1)
+                {
+                    op.axes.push_back(i);
+                }
+            }
         }
         return prog.add_instruction(op, l0);
     }
@@ -565,7 +588,7 @@ struct tf_parser
         {
             dims = {1};
         }
-
+        size_t shape_size = std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<size_t>());
         if(!t.tensor_content().empty()) // has raw data
         {
             const std::string& s = t.tensor_content();
@@ -635,26 +658,30 @@ struct tf_parser
         {
         case tensorflow::DataType::DT_INVALID: throw std::runtime_error("");
         case tensorflow::DataType::DT_FLOAT:
-            return literal{{shape::float_type, dims}, t.float_val().begin(), t.float_val().end()};
+            return literal{{shape::float_type, dims}, get_data_vals(t.float_val(), shape_size)};
         case tensorflow::DataType::DT_UINT8: throw std::runtime_error("");
         case tensorflow::DataType::DT_INT8:
-            return literal{{shape::int32_type, dims}, t.int_val().begin(), t.int_val().end()};
+            return literal{{shape::int32_type, dims}, get_data_vals(t.int_val(), shape_size)};
         case tensorflow::DataType::DT_UINT16:
-            return literal{{shape::int32_type, dims}, t.int_val().begin(), t.int_val().end()};
+            return literal{{shape::int32_type, dims}, get_data_vals(t.int_val(), shape_size)};
         case tensorflow::DataType::DT_INT16:
-            return literal{{shape::int32_type, dims}, t.int_val().begin(), t.int_val().end()};
+            return literal{{shape::int32_type, dims}, get_data_vals(t.int_val(), shape_size)};
         case tensorflow::DataType::DT_INT32:
-            return literal{{shape::int32_type, dims}, t.int_val().begin(), t.int_val().end()};
+            return literal{{shape::int32_type, dims}, get_data_vals(t.int_val(), shape_size)};
         case tensorflow::DataType::DT_INT64:
-            return literal{{shape::int64_type, dims}, t.int64_val().begin(), t.int64_val().end()};
+            return literal{{shape::int64_type, dims}, get_data_vals(t.int64_val(), shape_size)};
         case tensorflow::DataType::DT_STRING: throw std::runtime_error("");
         case tensorflow::DataType::DT_BOOL:
-            return literal{{shape::int32_type, dims}, t.bool_val().begin(), t.bool_val().end()};
+            return literal{{shape::int32_type, dims}, get_data_vals(t.bool_val(), shape_size)};
         case tensorflow::DataType::DT_HALF:
-            return literal{{shape::half_type, dims}, t.half_val().begin(), t.half_val().end()};
+            {
+            std::vector<int> data_int32 = get_data_vals(t.half_val(), shape_size);
+            std::vector<uint16_t> data_uint16(data_int32.begin(), data_int32.end());
+            return literal{{shape::half_type, dims}, data_uint16};
+            }
         case tensorflow::DataType::DT_DOUBLE:
             return literal{
-                {shape::double_type, dims}, t.double_val().begin(), t.double_val().end()};
+                {shape::double_type, dims}, get_data_vals(t.double_val(), shape_size)};
         case tensorflow::DataType::DT_UINT32: throw std::runtime_error("");
         case tensorflow::DataType::DT_UINT64: throw std::runtime_error("");
         case tensorflow::DataType::DT_COMPLEX64: throw std::runtime_error("");
@@ -696,6 +723,20 @@ struct tf_parser
             throw std::runtime_error("");
         }
         MIGRAPHX_THROW("Invalid tensor type");
+    }
+
+    template <class T>
+    static std::vector<T> get_data_vals(const google::protobuf::RepeatedField<T>& data, const std::size_t& shape_size)
+    {
+        std::vector<T> data_vals(shape_size);
+        // check if shape has enough data values given existing fields
+        if(data.size() == 1)
+        {
+            std::fill(data_vals.begin(), data_vals.end(), data[0]);
+        }
+        else
+            copy(data.begin(), data.end(), std::back_inserter(data_vals));
+        return data_vals;
     }
 
     static std::vector<size_t> parse_dims(const tensorflow::TensorShapeProto& s)

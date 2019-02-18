@@ -291,7 +291,7 @@ struct tf_parser
                 l0 = prog.add_instruction(op::transpose{{0, 3, 1, 2}}, l0);
         }
         auto l1 = args[1];
-        if (is_nhwc)
+        if(is_nhwc)
             l1 = prog.add_instruction(op::transpose{{3, 2, 0, 1}}, args[1]);
         return prog.add_instruction(op, {l0, l1});
     }
@@ -405,16 +405,16 @@ struct tf_parser
         if(is_nhwc)
         {
             if(l0->name() != "@param")
-            // squeeze dims are represented for nhwc, 
-            // but intermediate shapes are in nchw
+                // squeeze dims are represented for nhwc,
+                // but intermediate shapes are in nchw
                 l0 = prog.add_instruction(op::transpose{{0, 2, 3, 1}}, args[0]);
         }
         auto l0_dims = l0->get_shape().lens();
         if(op.axes.empty()) // no squeeze_dims provided, remove any dim that equals 1
         {
-            for (size_t i = 0; i < l0_dims.size(); i++)
+            for(size_t i = 0; i < l0_dims.size(); i++)
             {
-                if (l0_dims.at(i) == 1)
+                if(l0_dims.at(i) == 1)
                 {
                     op.axes.push_back(i);
                 }
@@ -674,14 +674,13 @@ struct tf_parser
         case tensorflow::DataType::DT_BOOL:
             return literal{{shape::int32_type, dims}, get_data_vals(t.bool_val(), shape_size)};
         case tensorflow::DataType::DT_HALF:
-            {
+        {
             std::vector<int> data_int32 = get_data_vals(t.half_val(), shape_size);
             std::vector<uint16_t> data_uint16(data_int32.begin(), data_int32.end());
             return literal{{shape::half_type, dims}, data_uint16};
-            }
+        }
         case tensorflow::DataType::DT_DOUBLE:
-            return literal{
-                {shape::double_type, dims}, get_data_vals(t.double_val(), shape_size)};
+            return literal{{shape::double_type, dims}, get_data_vals(t.double_val(), shape_size)};
         case tensorflow::DataType::DT_UINT32: throw std::runtime_error("");
         case tensorflow::DataType::DT_UINT64: throw std::runtime_error("");
         case tensorflow::DataType::DT_COMPLEX64: throw std::runtime_error("");
@@ -726,7 +725,8 @@ struct tf_parser
     }
 
     template <class T>
-    static std::vector<T> get_data_vals(const google::protobuf::RepeatedField<T>& data, const std::size_t& shape_size)
+    static std::vector<T> get_data_vals(const google::protobuf::RepeatedField<T>& data,
+                                        const std::size_t& shape_size)
     {
         std::vector<T> data_vals(shape_size);
         // check if shape has enough data values given existing fields

@@ -29,7 +29,7 @@ void eliminate_contiguous::apply(program& p) const
     {
         // skip the reshape operator for now, since there is a bug
         // for the transpose followed by a reshape
-        if (ins->name() == "reshape")
+        if(ins->name() == "reshape")
         {
             continue;
         }

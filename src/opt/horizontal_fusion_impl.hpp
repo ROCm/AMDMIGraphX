@@ -6,15 +6,16 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-using Encoder = std::function<unsigned long long(instruction_ref)>;
+using Encoder = std::function<unsigned long long(instruction_ref, unsigned short)>;
            
 struct hash_value
 {
-    hash_value()
+    hash_value(unsigned i) : id (i)
     {
     };
     std::vector<instruction_ref> instrs;
     std::vector<struct hash_value*> outputs;
+    unsigned id;
     void add_instr(instruction_ref ins)
     {
         instrs.push_back(ins);
@@ -30,24 +31,27 @@ struct horizontal_fusion_impl
     {
         instr2_hash.clear();
         instr2_value.clear();
-        register_opcode();
-        register_encoder();
+        register_all();
     }
     void run();
     void process(instruction_ref ins);
     hash_value_ptr hash(instruction_ref ins);
-    hash_value& create_value()
+    hash_value& create_value(instruction_ref ins)
     {
-        values.push_back(hash_value{});
-        return values[values.size() - 1];
+        unsigned id = static_cast<unsigned>(values.size());
+        values.push_back(hash_value{id});
+        hash_value& val = values[id];
+        val.add_instr(ins);
+        instr2_value[ins] = &val;
+        return val;
     }
     void add_root(hash_value_ptr ptr)
     {
         root_values.push_back(ptr);
     }
-    void register_opcode();
+    void register_all();
+    void register_op(std::string, unsigned short, Encoder);
     unsigned short get_opcode(instruction_ref ins);
-    void register_encoder();
 
 #ifdef MIGRAPHX_DEBUG_OPT
     void dump_program();
@@ -62,7 +66,7 @@ struct horizontal_fusion_impl
     std::vector<hash_value_ptr> root_values;
 };
 
-unsigned long long EncodeConvBiasRelu(instruction_ref in);
+unsigned long long EncodeConvBiasRelu(instruction_ref in, unsigned short opcode);
            
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

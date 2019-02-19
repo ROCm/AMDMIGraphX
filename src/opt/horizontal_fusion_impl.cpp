@@ -4,11 +4,19 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-// Operation encoding.
-void horizontal_fusion_impl::register_opcode()
+// Register a single operation.
+// 1st arg: operation name. 2nd arg: opcode.   3rd arg: encoding function.
+void horizontal_fusion_impl::register_op(std::string name, unsigned short opcode, Encoder func)
 {
-    opcode_table["gpu::convolution"] = 1;
-    opcode_table["gpu::conv_bias_relu"] = 2;
+    assert(opcode < 256);
+    opcode_table[name] = opcode;
+    op_registry[name] = func;
+}
+           
+// Register operations.
+void horizontal_fusion_impl::register_all()
+{
+    register_op("gpu::conv_bias_relu", 2, EncodeConvBiasRelu);
 }
 
 // Get operation encoding.
@@ -17,24 +25,24 @@ unsigned short horizontal_fusion_impl::get_opcode(instruction_ref ins)
     return (opcode_table.find(ins->name()) == opcode_table.end()) ? 0 : opcode_table[ins->name()];
 }
 
-unsigned long long EncodeConvBiasRelu(instruction_ref ins)
+// Encode "conv_bias_relu":
+//           
+// |----- 16 bits -----|----- 16 bits -----|----- 8 bits -----|----- 8 bits-----|----- 16 bits -----|
+// |     opcode        | 1st operand value |   filter size    |  kernel size    |     0x0000        |
+unsigned long long EncodeConvBiasRelu(instruction_ref ins, unsigned short opcode)
 {
+    unsigned long long encode = (opcode << 48);
+    
     return 0;
 }
            
-void horizontal_fusion_impl::register_encoder()
-{
-    op_registry["gpu::conv_bias_relu"] = EncodeConvBiasRelu;
-}
-
                
 hash_value_ptr horizontal_fusion_impl::hash(instruction_ref ins)
 {
     if (op_registry.find(ins->name()) == op_registry.end())
         return nullptr;
     Encoder encode = op_registry.at(ins->name());
-    unsigned long long val = encode(ins);
-    unsigned short opcode = get_opcode(ins);
+    unsigned long long val = encode(ins, get_opcode(ins));
     return nullptr;
 }
 void horizontal_fusion_impl::process(instruction_ref ins)
@@ -71,8 +79,7 @@ void horizontal_fusion_impl::process(instruction_ref ins)
         if (hash_child)
         {            
             // Create a value for this instruction.
-            hash_value& value = create_value();
-            value.add_instr(ins);
+            hash_value& value = create_value(ins);
             add_root(&value);
             // Flag children to be hashed.
             for (auto output : ins->outputs())

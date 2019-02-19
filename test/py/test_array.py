@@ -19,11 +19,11 @@ def write_float(b, index):
 def nelements(lens):
     return reduce(lambda x,y: x*y,lens, 1)
 
-def create_buffer(t, data):
+def create_buffer(t, data, shape):
     a = array.array(t, data)
     if sys.version_info >= (3, 0):
         m = memoryview(a.tobytes())
-        return m.cast(t)
+        return m.cast(t, shape)
     else:
         m = memoryview(a.tostring())
         return m
@@ -48,14 +48,20 @@ def run(p):
 
     return migraphx.from_gpu(p.run(params))
 
+def test_shape(shape):
+    data = list(range(nelements(shape)))
+    m = create_buffer('f', data, shape)
+    a = migraphx.argument(m)
+    check_shapes(a, m)
+    assert_eq(a.tolist(), data)
+
 def test_input():
-    data = list(range(4))
-    m = create_buffer('f', data)
     if sys.version_info >= (3, 0):
-        a = migraphx.argument(m)
-        check_shapes(a, m)
-        assert_eq(a.tolist(), data)
+        test_shape([4])
+        # test_shape([2, 3])
     else:
+        data = list(range(4))
+        m = create_buffer('f', data, [4])
         a1 = migraphx.argument(m)
         a2 = migraphx.argument(bytearray(a1))
         check_shapes(a2, m)

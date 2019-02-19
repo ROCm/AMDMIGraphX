@@ -102,10 +102,7 @@ migraphx::shape to_shape(const py::buffer_info& info)
     });
     auto strides = info.strides;
     std::transform(strides.begin(), strides.end(), strides.begin(), [&](auto i) -> std::size_t {
-        if(n > 0)
-            return n / i;
-        else
-            return 0;
+        return n > 0 ? i / n : 0;
     });
     return migraphx::shape{t, info.shape, strides};
 }

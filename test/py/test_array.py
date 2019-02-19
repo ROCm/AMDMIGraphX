@@ -35,7 +35,7 @@ def check_argument(a):
 
 def check_shapes(r, m):
     lens = list(m.shape)
-    strides = [s/m.itemsize for s in m.strides]
+    strides = [int(s/m.itemsize) for s in m.strides]
     elements = nelements(lens)
     assert_eq(r.get_shape().elements(), elements)
     assert_eq(r.get_shape().lens(), lens)
@@ -58,7 +58,7 @@ def test_shape(shape):
 def test_input():
     if sys.version_info >= (3, 0):
         test_shape([4])
-        # test_shape([2, 3])
+        test_shape([2, 3])
     else:
         data = list(range(4))
         m = create_buffer('f', data, [4])

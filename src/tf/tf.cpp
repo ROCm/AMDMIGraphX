@@ -300,16 +300,22 @@ struct tf_parser
             op.dilation[0] = dilation[2];
             op.dilation[1] = dilation[3];
         }
-        auto l0 = args[1];
+        auto weights = args[1];
         // check if weights are from a constant
-        if(l0->inputs().at(0)->name() == "@literal" and is_nhwc)
-        {
-            l0 = prog.add_instruction(op::transpose{{1, 3, 0, 2}}, args[1]);
-        }
-        else if(l0->name() != "@param")
-            MIGRAPHX_THROW("cannot infer data format for weights");
 
-        return prog.add_instruction(op, {args[0], l0});
+        if(weights->name() != "@param")
+        {
+            if(is_nhwc)
+            {
+                weights = prog.add_instruction(op::transpose{{1, 3, 0, 2}}, args[1]);
+            }
+            else
+            {
+                weights = prog.add_instruction(op::transpose{{3, 2, 0, 1}}, args[1]);
+            }
+        }
+        
+        return prog.add_instruction(op, {args[0], weights});
     }
 
     instruction_ref parse_pooling(const std::string& name,

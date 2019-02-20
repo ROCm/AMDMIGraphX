@@ -145,6 +145,7 @@ rocm_create_package(
     DESCRIPTION "AMD's graph optimizer"
     MAINTAINER "Paul Fultz II <paul.fultz@amd.com>"
     LDCONFIG
+    PTH
     DEPENDS miopen-hip rocblas hip_hcc half
 )
 

@@ -314,7 +314,7 @@ struct tf_parser
                 weights = prog.add_instruction(op::transpose{{3, 2, 0, 1}}, args[1]);
             }
         }
-        
+
         return prog.add_instruction(op, {args[0], weights});
     }
 

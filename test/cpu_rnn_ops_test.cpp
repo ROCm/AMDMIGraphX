@@ -3084,7 +3084,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
     migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
     migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, 4 * hidden_size, input_size}};
     migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, 4 * hidden_size, hidden_size}};
-    // 3 args, 0 actv func 
+    // 3 args, 0 actv func
     {
         migraphx::program p;
         auto seq = p.add_literal(migraphx::literal{in_shape, input_data});
@@ -3092,11 +3092,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
         auto r   = p.add_literal(migraphx::literal{r_shape, r_data});
         p.add_instruction(
             migraphx::op::lstm{
-                hidden_size,
-                {},
-                migraphx::op::rnn_direction::bidirectional,
-                clip,
-                0},
+                hidden_size, {}, migraphx::op::rnn_direction::bidirectional, clip, 0},
             seq,
             w,
             r);
@@ -3122,51 +3118,37 @@ TEST_CASE(lstm_bidirectional_actv_func)
         EXPECT(migraphx::verify_range(output_data, output_data_gold));
     }
 
-    // 3 args, 1 actv func 
+    // 3 args, 1 actv func
     {
         migraphx::program p;
         auto seq = p.add_literal(migraphx::literal{in_shape, input_data});
         auto w   = p.add_literal(migraphx::literal{w_shape, w_data});
         auto r   = p.add_literal(migraphx::literal{r_shape, r_data});
-        p.add_instruction(
-            migraphx::op::lstm{
-                hidden_size,
-                {migraphx::op::sigmoid{}},
-                migraphx::op::rnn_direction::bidirectional,
-                clip,
-                0},
-            seq,
-            w,
-            r);
+        p.add_instruction(migraphx::op::lstm{hidden_size,
+                                             {migraphx::op::sigmoid{}},
+                                             migraphx::op::rnn_direction::bidirectional,
+                                             clip,
+                                             0},
+                          seq,
+                          w,
+                          r);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{
-			0.227861,    0.328562,    0.277867,    0.272945,
-			0.204389,    0.296123,    0.223834,    0.311113,
-			0.424666,    0.173974,     0.40628,    0.286631,
-			0.246078,    0.199709,    0.303753,    0.301178,
-			0.264634,    0.304661,    0.349371,    0.288934,
-			0.405483,    0.445586,    0.515814,    0.473186,
-			0.339438,     0.29655,    0.331832,    0.242338,
-			0.409384,    0.236272,    0.306045,     0.26269,
-			0.261246,    0.334357,     0.23622,    0.245288,
-			0.301937,    0.264893,    0.254353,    0.269231,
-			0.359258,    0.400097,    0.288884,    0.247329,
-			0.276519,    0.264249,      0.1769,     0.23213,
-			0.374123,    0.283167,    0.377129,    0.245726,
-			0.444712,    0.203168,    0.411446,    0.269965,
-			0.172792,    0.296224,     0.17319,    0.352547,
-			0.310306,    0.262902,    0.276964,    0.295002,
-			0.373802,    0.366785,    0.419791,    0.393216,
-			0.262827,    0.371441,    0.369022,    0.298262,
-			0.450186,    0.263538,    0.402895,    0.216177,
-			0.267257,    0.342535,    0.257797,    0.268563,
-			0.193043,    0.275645,    0.167678,    0.350889,
-			0.334143,    0.309444,    0.174822,    0.251634,
-			0.244564,    0.214386,    0.185994,    0.226699,
-			 0.28445,    0.376092,    0.338326,    0.259502};
+            0.227861, 0.328562, 0.277867, 0.272945, 0.204389, 0.296123, 0.223834, 0.311113,
+            0.424666, 0.173974, 0.40628,  0.286631, 0.246078, 0.199709, 0.303753, 0.301178,
+            0.264634, 0.304661, 0.349371, 0.288934, 0.405483, 0.445586, 0.515814, 0.473186,
+            0.339438, 0.29655,  0.331832, 0.242338, 0.409384, 0.236272, 0.306045, 0.26269,
+            0.261246, 0.334357, 0.23622,  0.245288, 0.301937, 0.264893, 0.254353, 0.269231,
+            0.359258, 0.400097, 0.288884, 0.247329, 0.276519, 0.264249, 0.1769,   0.23213,
+            0.374123, 0.283167, 0.377129, 0.245726, 0.444712, 0.203168, 0.411446, 0.269965,
+            0.172792, 0.296224, 0.17319,  0.352547, 0.310306, 0.262902, 0.276964, 0.295002,
+            0.373802, 0.366785, 0.419791, 0.393216, 0.262827, 0.371441, 0.369022, 0.298262,
+            0.450186, 0.263538, 0.402895, 0.216177, 0.267257, 0.342535, 0.257797, 0.268563,
+            0.193043, 0.275645, 0.167678, 0.350889, 0.334143, 0.309444, 0.174822, 0.251634,
+            0.244564, 0.214386, 0.185994, 0.226699, 0.28445,  0.376092, 0.338326, 0.259502};
         EXPECT(migraphx::verify_range(output_data, output_data_gold));
     }
 }

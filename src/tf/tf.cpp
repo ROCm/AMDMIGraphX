@@ -41,7 +41,7 @@ struct tf_parser
         auto attrs = attributes.at(s).list().i();
         std::vector<size_t> axes;
         copy(attrs.begin(), attrs.end(), std::back_inserter(axes));
-        if (is_nhwc)
+        if(is_nhwc)
         {
             for(size_t i = 0; i < axes.size(); ++i)
             {
@@ -78,7 +78,6 @@ struct tf_parser
             default: break;
             }
         }
-        
     }
 
     tf_parser()
@@ -209,7 +208,7 @@ struct tf_parser
     parse_biasadd(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         uint64_t axis = 1; // assume output of previous layer is in NCHW (broadcast on channel)
-        auto l0 = prog.add_instruction(op::broadcast{axis, args[0]->get_shape()}, args[1]);
+        auto l0       = prog.add_instruction(op::broadcast{axis, args[0]->get_shape()}, args[1]);
         return prog.add_instruction(op::add{}, args[0], l0);
     }
 
@@ -286,13 +285,13 @@ struct tf_parser
             op.dilation[1] = dilation[3];
         }
         auto l0 = args[1];
-        if (l0->get_operator().name() == "transpose" and is_nhwc)
+        if(l0->get_operator().name() == "transpose" and is_nhwc)
         {
             l0 = prog.add_instruction(op::transpose{{1, 3, 0, 2}}, args[1]);
         }
         else
             l0 = prog.add_instruction(op::transpose{{3, 2, 0, 1}}, args[1]);
-        
+
         return prog.add_instruction(op, {args[0], l0});
     }
 
@@ -334,7 +333,7 @@ struct tf_parser
             if(ksize.size() != 4)
             {
                 MIGRAPHX_THROW("ksize should have 4 values");
-            }   
+            }
             op.lengths[0] = ksize[2];
             op.lengths[1] = ksize[3];
         }

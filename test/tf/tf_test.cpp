@@ -101,9 +101,10 @@ TEST_CASE(conv_test)
     migraphx::program p;
 
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    std::vector<float> weight_data(3*3*3*32);
+    std::vector<float> weight_data(3 * 3 * 3 * 32);
     std::fill(weight_data.begin(), weight_data.end(), 1.0f);
-    auto l1 = p.add_literal(migraphx::shape{migraphx::shape::float_type, {3, 3, 3, 32}}, weight_data);
+    auto l1 =
+        p.add_literal(migraphx::shape{migraphx::shape::float_type, {3, 3, 3, 32}}, weight_data);
 
     migraphx::op::convolution op;
     op.padding_mode = migraphx::op::padding_mode_t::same;

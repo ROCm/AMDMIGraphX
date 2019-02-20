@@ -43,7 +43,7 @@ struct tf_parser
         copy(attrs.begin(), attrs.end(), std::back_inserter(axes));
         if(is_nhwc)
         {
-            for(size_t& axis: axes)
+            for(size_t& axis : axes)
             {
                 parse_axis(axis);
             }
@@ -236,15 +236,15 @@ struct tf_parser
                                    attribute_map attributes,
                                    const std::vector<instruction_ref>&)
     {
-        literal v = parse_tensor(attributes.at("value").tensor());
-        auto l0 = prog.add_literal(v);
+        literal v       = parse_tensor(attributes.at("value").tensor());
+        auto l0         = prog.add_literal(v);
         size_t num_axes = l0->get_shape().lens().size();
         if(num_axes >= 4)
         {
             std::vector<int64_t> transpose_axes = get_axes(num_axes);
             reorder_data(transpose_axes);
             l0 = prog.add_instruction(op::transpose{transpose_axes}, l0);
-        } 
+        }
         return l0;
     }
 
@@ -306,7 +306,7 @@ struct tf_parser
         {
             l0 = prog.add_instruction(op::transpose{{1, 3, 0, 2}}, args[1]);
         }
-        else if (l0->name() != "@param")
+        else if(l0->name() != "@param")
             MIGRAPHX_THROW("cannot infer data format for weights");
 
         return prog.add_instruction(op, {args[0], l0});
@@ -424,8 +424,8 @@ struct tf_parser
             {
                 reorder_data(dims);
             }
-            shape s                   = shape{shape_type, dims};
-            instructions[name]        = prog.add_parameter(name, s);
+            shape s            = shape{shape_type, dims};
+            instructions[name] = prog.add_parameter(name, s);
         }
         for(auto&& p : nodes)
         {

@@ -110,8 +110,9 @@ TEST_CASE(conv_test)
     op.stride       = {1, 1};
     op.dilation     = {1, 1};
     auto l2         = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l0);
-    auto l3         = p.add_instruction(migraphx::op::transpose{{3, 2, 0, 1}}, l1);
-    p.add_instruction(op, l2, l3);
+    auto l3         = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l1);
+    auto l4         = p.add_instruction(migraphx::op::transpose{{1, 3, 0, 2}}, l3);
+    p.add_instruction(op, l2, l4);
     auto prog = migraphx::parse_tf("conv_test.pb", true);
 
     EXPECT(p == prog);
@@ -141,8 +142,7 @@ TEST_CASE(pooling_test)
     max_pool_op.lengths      = {2, 2};
     auto l1                  = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l0);
     p.add_instruction(max_pool_op, l1);
-    auto l2 = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l0);
-    p.add_instruction(avg_pool_op, l2);
+    p.add_instruction(avg_pool_op, l1);
     auto prog = migraphx::parse_tf("pooling_test.pb", true);
 
     EXPECT(p == prog);

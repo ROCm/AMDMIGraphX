@@ -42,8 +42,7 @@ TEST_CASE(batchnorm_test)
     migraphx::op::batch_norm_inference op{
         epsilon, momentum, migraphx::op::batch_norm_inference::spatial};
     migraphx::shape s0{migraphx::shape::float_type, {32}};
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 16, 16, 32}});
-    l0      = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l0);
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 32, 16, 16}});
     std::vector<float> const_vals(32);
     std::fill(const_vals.begin(), const_vals.end(), 1.0f);
 
@@ -60,13 +59,12 @@ TEST_CASE(batchnorm_test)
 TEST_CASE(biasadd_test)
 {
     migraphx::program p;
-    migraphx::shape s0{migraphx::shape::float_type, {1, 1, 1, 500}};
+    migraphx::shape s0{migraphx::shape::float_type, {1, 500, 1, 1}};
     uint64_t axis = 1;
     auto l0       = p.add_parameter("0", s0);
-    auto l1       = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l0);
-    auto l2       = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {500}});
-    auto l3       = p.add_instruction(migraphx::op::broadcast{axis, l1->get_shape()}, l2);
-    p.add_instruction(migraphx::op::add{}, l1, l3);
+    auto l1       = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {500}});
+    auto l2       = p.add_instruction(migraphx::op::broadcast{axis, l0->get_shape()}, l1);
+    p.add_instruction(migraphx::op::add{}, l0, l2);
     auto prog = migraphx::parse_tf("biasadd_test.pb", true);
 
     EXPECT(p == prog);
@@ -102,17 +100,18 @@ TEST_CASE(conv_test)
 {
     migraphx::program p;
 
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 16, 16, 3}});
-    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 3, 3, 32}});
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    std::vector<float> weight_data(3*3*3*32);
+    std::fill(weight_data.begin(), weight_data.end(), 1.0f);
+    auto l1 = p.add_literal(migraphx::shape{migraphx::shape::float_type, {3, 3, 3, 32}}, weight_data);
 
     migraphx::op::convolution op;
     op.padding_mode = migraphx::op::padding_mode_t::same;
     op.stride       = {1, 1};
     op.dilation     = {1, 1};
-    auto l2         = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l0);
-    auto l3         = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l1);
-    auto l4         = p.add_instruction(migraphx::op::transpose{{1, 3, 0, 2}}, l3);
-    p.add_instruction(op, l2, l4);
+    auto l2         = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l1);
+    auto l3         = p.add_instruction(migraphx::op::transpose{{1, 3, 0, 2}}, l2);
+    p.add_instruction(op, l0, l3);
     auto prog = migraphx::parse_tf("conv_test.pb", true);
 
     EXPECT(p == prog);
@@ -131,7 +130,7 @@ TEST_CASE(identity_test)
 TEST_CASE(pooling_test)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 16, 16, 3}});
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
     migraphx::op::pooling avg_pool_op{"average"};
     migraphx::op::pooling max_pool_op{"max"};
     avg_pool_op.padding_mode = migraphx::op::padding_mode_t::valid;
@@ -140,9 +139,8 @@ TEST_CASE(pooling_test)
     max_pool_op.stride       = {2, 2};
     avg_pool_op.lengths      = {2, 2};
     max_pool_op.lengths      = {2, 2};
-    auto l1                  = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l0);
-    p.add_instruction(max_pool_op, l1);
-    p.add_instruction(avg_pool_op, l1);
+    p.add_instruction(max_pool_op, l0);
+    p.add_instruction(avg_pool_op, l0);
     auto prog = migraphx::parse_tf("pooling_test.pb", true);
 
     EXPECT(p == prog);

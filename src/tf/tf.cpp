@@ -36,26 +36,26 @@ struct tf_parser
 
     std::unordered_map<std::string, op_func> ops;
 
-    std::vector<size_t> parse_axes(attribute_map& attributes, const std::string& s)
+    std::vector<size_t> parse_axes(attribute_map& attributes, const std::string& s) const
     {
         auto attrs = attributes.at(s).list().i();
         std::vector<size_t> axes;
         copy(attrs.begin(), attrs.end(), std::back_inserter(axes));
         if(is_nhwc)
         {
-            for(size_t i = 0; i < axes.size(); ++i)
+            for(size_t& axis: axes)
             {
-                parse_axis(axes.at(i));
+                parse_axis(axis);
             }
         }
         return axes;
     }
 
     template <class T>
-    void reorder_data(std::vector<T>& prev_data)
+    void reorder_data(std::vector<T>& prev_data) const
     {
         std::vector<T> new_data(prev_data.size());
-        for(auto i = 0; i < new_data.size(); i++)
+        for(size_t i = 0; i < new_data.size(); i++)
         {
             auto new_idx = i;
             parse_axis(new_idx);
@@ -65,7 +65,7 @@ struct tf_parser
     }
 
     template <class T>
-    void parse_axis(T& dim)
+    void parse_axis(T& dim) const
     {
         if(is_nhwc)
         {
@@ -78,6 +78,13 @@ struct tf_parser
             default: break;
             }
         }
+    }
+
+    std::vector<int64_t> get_axes(size_t num_axes) const
+    {
+        std::vector<int64_t> axes(num_axes);
+        std::iota(axes.begin(), axes.end(), 0);
+        return axes;
     }
 
     tf_parser()
@@ -230,7 +237,15 @@ struct tf_parser
                                    const std::vector<instruction_ref>&)
     {
         literal v = parse_tensor(attributes.at("value").tensor());
-        return prog.add_literal(v);
+        auto l0 = prog.add_literal(v);
+        size_t num_axes = l0->get_shape().lens().size();
+        if(num_axes >= 4)
+        {
+            std::vector<int64_t> transpose_axes = get_axes(num_axes);
+            reorder_data(transpose_axes);
+            l0 = prog.add_instruction(op::transpose{transpose_axes}, l0);
+        } 
+        return l0;
     }
 
     instruction_ref
@@ -248,6 +263,7 @@ struct tf_parser
             {
                 std::vector<size_t> padding;
                 copy(attributes.at("explicit_paddings").list().i(), std::back_inserter(padding));
+                reorder_data(padding);
                 if(padding.size() != 4)
                 {
                     MIGRAPHX_THROW("padding should have 4 values");
@@ -285,12 +301,13 @@ struct tf_parser
             op.dilation[1] = dilation[3];
         }
         auto l0 = args[1];
-        if(l0->get_operator().name() == "transpose" and is_nhwc)
+        // check if weights are from a constant
+        if(l0->inputs().at(0)->name() == "@literal" and is_nhwc)
         {
             l0 = prog.add_instruction(op::transpose{{1, 3, 0, 2}}, args[1]);
         }
-        else
-            l0 = prog.add_instruction(op::transpose{{3, 2, 0, 1}}, args[1]);
+        else if (l0->name() != "@param")
+            MIGRAPHX_THROW("cannot infer data format for weights");
 
         return prog.add_instruction(op, {args[0], l0});
     }
@@ -378,13 +395,12 @@ struct tf_parser
     parse_squeeze(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         op::squeeze op;
-        auto temp = args[0]->get_shape().lens();
         auto axes = parse_axes(attributes, "squeeze_dims");
         copy(axes, std::back_inserter(op.axes));
         auto args0_dims = args[0]->get_shape().lens();
         if(op.axes.empty()) // no squeeze_dims provided, remove any dim that equals 1
         {
-            for(auto i = 0; i < args0_dims.size(); i++)
+            for(size_t i = 0; i < args0_dims.size(); i++)
             {
                 if(args0_dims.at(i) == 1)
                 {
@@ -404,16 +420,12 @@ struct tf_parser
             attribute_map input_attrs = get_attributes(input);
             shape::type_t shape_type  = parse_type(input_attrs.at("dtype").type());
             std::vector<size_t> dims  = parse_dims(input_attrs.at("shape").shape());
-            shape s                   = shape{shape_type, dims};
-            auto in_param             = prog.add_parameter(name, s);
-            if(is_nhwc and dims.size() >= 4) // only transpose for NHWC tensors and larger
+            if(is_nhwc and dims.size() >= 4)
             {
-                std::vector<int64_t> axes(dims.size());
-                std::iota(axes.begin(), axes.end(), 0);
-                reorder_data(axes);
-                in_param = prog.add_instruction(op::transpose{axes}, in_param);
+                reorder_data(dims);
             }
-            instructions[name] = in_param;
+            shape s                   = shape{shape_type, dims};
+            instructions[name]        = prog.add_parameter(name, s);
         }
         for(auto&& p : nodes)
         {
@@ -427,7 +439,6 @@ struct tf_parser
         {
             auto&& node = nodes.at(name);
             std::vector<instruction_ref> args;
-            // std::cout << name << std::endl;
 
             for(auto&& input : node.input())
             {

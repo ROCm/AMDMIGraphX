@@ -751,7 +751,6 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
             prog,
             ins,
             {args[0], w_forward, r_forward, bias_forward, ih_forward, ic_forward, pph_forward},
-            lstm_op.input_forget,
             actv_funcs.at(0),
             actv_funcs.at(1),
             actv_funcs.at(2));
@@ -761,7 +760,6 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
             prog,
             ins,
             {args[0], w_reverse, r_reverse, bias_reverse, ih_reverse, ic_reverse, pph_reverse},
-            lstm_op.input_forget,
             actv_funcs.at(3),
             actv_funcs.at(4),
             actv_funcs.at(5));
@@ -835,7 +833,6 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
                              prog,
                              ins,
                              {args[0], w, r, bias, ih, ic, pph},
-                             lstm_op.input_forget,
                              actv_funcs.at(0),
                              actv_funcs.at(1),
                              actv_funcs.at(2));
@@ -892,7 +889,6 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
                                                     program& prog,
                                                     instruction_ref ins,
                                                     std::vector<instruction_ref> inputs,
-                                                    int input_forget,
                                                     const operation& actv_func1,
                                                     const operation& actv_func2,
                                                     const operation& actv_func3) const

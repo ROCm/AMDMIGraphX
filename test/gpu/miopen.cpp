@@ -2114,7 +2114,6 @@ struct test_gru_bidirct_default_actv1
     }
 };
 
-
 struct test_lstm_forward_last
 {
     migraphx::program create_program() const
@@ -2146,19 +2145,19 @@ struct test_lstm_forward_last
         auto pph  = p.add_parameter("pph", pph_shape);
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
-        auto output =
-            p.add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::forward,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih,
-                              ic,
-                              pph);
+        auto output = p.add_instruction(
+            migraphx::op::gru{hidden_size,
+                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::forward,
+                              clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih,
+            ic,
+            pph);
         p.add_instruction(migraphx::op::rnn_last_output{}, output);
 
         return p;
@@ -2196,18 +2195,20 @@ struct test_lstm_forward_hs
         auto pph  = p.add_parameter("pph", pph_shape);
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
-        p.add_instruction(migraphx::op::lstm{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::forward,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          und,
-                          ih,
-                          ic,
-                          pph);
+        p.add_instruction(
+            migraphx::op::lstm{
+                hidden_size,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::forward,
+                clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih,
+            ic,
+            pph);
 
         return p;
     }
@@ -2234,18 +2235,20 @@ struct test_lstm_forward_3args_und
         auto w   = p.add_parameter("w", w_shape);
         auto r   = p.add_parameter("r", r_shape);
         auto und = p.add_instruction(migraphx::op::undefined{});
-        p.add_instruction(migraphx::op::lstm{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::forward,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          und,
-                          und,
-                          und,
-                          und,
-                          und);
+        p.add_instruction(
+            migraphx::op::lstm{
+                hidden_size,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::forward,
+                clip},
+            seq,
+            w,
+            r,
+            und,
+            und,
+            und,
+            und,
+            und);
 
         return p;
     }
@@ -2271,13 +2274,15 @@ struct test_lstm_forward_3args
         auto seq = p.add_parameter("seq", in_shape);
         auto w   = p.add_parameter("w", w_shape);
         auto r   = p.add_parameter("r", r_shape);
-        p.add_instruction(migraphx::op::lstm{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::forward,
-                                            clip},
-                          seq,
-                          w,
-                          r);
+        p.add_instruction(
+            migraphx::op::lstm{
+                hidden_size,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::forward,
+                clip},
+            seq,
+            w,
+            r);
 
         return p;
     }
@@ -2303,13 +2308,15 @@ struct test_lstm_forward_seq1
         auto seq = p.add_parameter("seq", in_shape);
         auto w   = p.add_parameter("w", w_shape);
         auto r   = p.add_parameter("r", r_shape);
-        p.add_instruction(migraphx::op::lstm{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::forward,
-                                            clip},
-                          seq,
-                          w,
-                          r);
+        p.add_instruction(
+            migraphx::op::lstm{
+                hidden_size,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::forward,
+                clip},
+            seq,
+            w,
+            r);
 
         return p;
     }
@@ -2417,19 +2424,20 @@ struct test_lstm_reverse_last
         auto pph  = p.add_parameter("pph", pph_shape);
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
-        auto output =
-            p.add_instruction(migraphx::op::lstm{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::reverse,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih,
-                              ic,
-                              pph);
+        auto output = p.add_instruction(
+            migraphx::op::lstm{
+                hidden_size,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::reverse,
+                clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih,
+            ic,
+            pph);
         p.add_instruction(migraphx::op::rnn_last_output{}, output);
 
         return p;
@@ -2456,13 +2464,15 @@ struct test_lstm_reverse_3args
         auto seq = p.add_parameter("seq", in_shape);
         auto w   = p.add_parameter("w", w_shape);
         auto r   = p.add_parameter("r", r_shape);
-        p.add_instruction(migraphx::op::lstm{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::reverse,
-                                            clip},
-                          seq,
-                          w,
-                          r);
+        p.add_instruction(
+            migraphx::op::lstm{
+                hidden_size,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::reverse,
+                clip},
+            seq,
+            w,
+            r);
 
         return p;
     }
@@ -2488,13 +2498,15 @@ struct test_lstm_reverse_3args_cell_output
         auto seq = p.add_parameter("seq", in_shape);
         auto w   = p.add_parameter("w", w_shape);
         auto r   = p.add_parameter("r", r_shape);
-        auto hs = p.add_instruction(migraphx::op::lstm{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::reverse,
-                                            clip},
-                          seq,
-                          w,
-                          r);
+        auto hs  = p.add_instruction(
+            migraphx::op::lstm{
+                hidden_size,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::reverse,
+                clip},
+            seq,
+            w,
+            r);
         p.add_instruction(migraphx::op::lstm_last_cell_output{}, hs);
 
         return p;
@@ -2529,22 +2541,23 @@ struct test_lstm_bidirct_last
         auto bias = p.add_parameter("bias", b_shape);
         auto ih   = p.add_parameter("ih", ih_shape);
         auto ic   = p.add_parameter("ic", ic_shape);
-        auto pph   = p.add_parameter("pph", pph_shape);
+        auto pph  = p.add_parameter("pph", pph_shape);
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
-        auto output =
-            p.add_instruction(migraphx::op::lstm{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::bidirectional,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih,
-                              ic,
-                              pph);
+        auto output = p.add_instruction(
+            migraphx::op::lstm{
+                hidden_size,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::bidirectional,
+                clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih,
+            ic,
+            pph);
         p.add_instruction(migraphx::op::rnn_last_output{}, output);
 
         return p;
@@ -2579,9 +2592,9 @@ struct test_lstm_bidirct_hs
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
         p.add_instruction(migraphx::op::lstm{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::bidirectional,
-                                            clip},
+                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                             migraphx::op::rnn_direction::bidirectional,
+                                             clip},
                           seq,
                           w,
                           r,
@@ -2614,18 +2627,19 @@ struct test_lstm_bidirct_3args_und
         auto w   = p.add_parameter("w", w_shape);
         auto r   = p.add_parameter("r", r_shape);
         auto und = p.add_instruction(migraphx::op::undefined{});
-        p.add_instruction(migraphx::op::gru{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::bidirectional,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          und,
-                          und,
-                          und,
-                          und,
-                          und);
+        p.add_instruction(
+            migraphx::op::gru{hidden_size,
+                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::bidirectional,
+                              clip},
+            seq,
+            w,
+            r,
+            und,
+            und,
+            und,
+            und,
+            und);
 
         return p;
     }
@@ -2652,9 +2666,9 @@ struct test_lstm_bidirct_3args
         auto w   = p.add_parameter("w", w_shape);
         auto r   = p.add_parameter("r", r_shape);
         p.add_instruction(migraphx::op::lstm{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::bidirectional,
-                                            clip},
+                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                             migraphx::op::rnn_direction::bidirectional,
+                                             clip},
                           seq,
                           w,
                           r);
@@ -2684,9 +2698,9 @@ struct test_lstm_bidirct_seq1
         auto w   = p.add_parameter("w", w_shape);
         auto r   = p.add_parameter("r", r_shape);
         p.add_instruction(migraphx::op::lstm{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::bidirectional,
-                                            clip},
+                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                             migraphx::op::rnn_direction::bidirectional,
+                                             clip},
                           seq,
                           w,
                           r);
@@ -2753,9 +2767,9 @@ struct test_lstm_bidirct_default_actv1
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
         p.add_instruction(migraphx::op::lstm{hidden_size,
-                                            {migraphx::op::sigmoid{}},
-                                            migraphx::op::rnn_direction::bidirectional,
-                                            clip},
+                                             {migraphx::op::sigmoid{}},
+                                             migraphx::op::rnn_direction::bidirectional,
+                                             clip},
                           seq,
                           w,
                           r,
@@ -2795,9 +2809,9 @@ struct test_lstm_bidirct_default_actv2
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
         p.add_instruction(migraphx::op::lstm{hidden_size,
-                                            {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
-                                            migraphx::op::rnn_direction::bidirectional,
-                                            clip},
+                                             {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
+                                             migraphx::op::rnn_direction::bidirectional,
+                                             clip},
                           seq,
                           w,
                           r,

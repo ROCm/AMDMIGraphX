@@ -177,8 +177,8 @@ TEST_CASE(param_shape_error_test)
     p.add_instruction(sum_op{}, x, y);
     EXPECT(test::throws<migraphx::exception>(
         [&] {
-           p.eval(
-        {{"x", migraphx::literal{1}.get_argument()}, {"y", migraphx::literal{2}.get_argument()}});
+            p.eval({{"x", migraphx::literal{1}.get_argument()},
+                    {"y", migraphx::literal{2}.get_argument()}});
         },
         "Incorrect shape"));
 }

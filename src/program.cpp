@@ -2,6 +2,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/operators.hpp>
+#include <migraphx/target.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>

@@ -23,12 +23,13 @@ void copy_to_gpu(const argument& src, const argument& dst);
 
 struct hip_allocate
 {
+    shape s;
     std::string tag{};
     std::string name() const { return "hip::allocate"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs}.has(1);
-        return inputs.front();
+        check_shapes{inputs}.has(0);
+        return s;
     }
     argument compute(context&, const shape& output_shape, const std::vector<argument>&) const
     {

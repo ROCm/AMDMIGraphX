@@ -11,7 +11,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_NULL_STREAM)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NULL_STREAM)
 
 struct hip_device
 {
@@ -40,7 +40,7 @@ struct hip_device
 
         hipStream_t get()
         {
-            if(enabled(MIGRAPHX_DISABLE_NULL_STREAM{}))
+            if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM{}))
             {
                 setup();
                 if(s == nullptr)
@@ -53,7 +53,7 @@ struct hip_device
 
         auto create_miopen_handle()
         {
-            if(enabled(MIGRAPHX_DISABLE_NULL_STREAM{}))
+            if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM{}))
                 return make_obj<miopen_handle>(&miopenCreateWithStream, get());
             else
                 return make_obj<miopen_handle>(&miopenCreate);

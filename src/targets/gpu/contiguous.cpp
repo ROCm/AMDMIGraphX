@@ -1,8 +1,6 @@
 #include <migraphx/gpu/contiguous.hpp>
-#include <migraphx/operators.hpp>
-#include <migraphx/manage_ptr.hpp>
-#include <migraphx/gpu/miopen.hpp>
-#include <utility>
+#include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/device/contiguous.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -1139,7 +1139,7 @@ struct onnx_parser
             std::transform(data_uint16.begin(),
                            data_uint16.end(),
                            std::back_inserter(data_half),
-                           [&](uint16_t raw_val) { return *reinterpret_cast<half*>(&raw_val); });
+                           [](uint16_t raw_val) { return *reinterpret_cast<half*>(&raw_val); });
             return literal{{shape::half_type, dims}, data_half.begin(), data_half.end()};
         }
         case onnx::TensorProto::DOUBLE:

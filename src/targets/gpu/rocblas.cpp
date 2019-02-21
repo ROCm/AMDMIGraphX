@@ -1,5 +1,6 @@
 #include <migraphx/gpu/rocblas.hpp>
 
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {

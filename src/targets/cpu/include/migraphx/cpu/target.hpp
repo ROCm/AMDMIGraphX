@@ -7,7 +7,9 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+struct pass;
 namespace cpu {
+
 
 struct target
 {

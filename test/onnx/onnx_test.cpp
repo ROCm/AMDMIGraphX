@@ -1218,9 +1218,11 @@ TEST_CASE(lrn_test)
 
 TEST_CASE(add_fp16_test)
 {
-    migraphx::program p ;
-    auto l0 = p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type, {1}}, {1.5}});
-    auto l1 = p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type, {1}}, {2.5}});
+    migraphx::program p;
+    auto l0 =
+        p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type, {1}}, {1.5}});
+    auto l1 =
+        p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type, {1}}, {2.5}});
     p.add_instruction(migraphx::op::add{}, l0, l1);
     auto prog = migraphx::parse_onnx("add_fp16_test.onnx");
 

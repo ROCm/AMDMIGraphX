@@ -1136,9 +1136,10 @@ struct onnx_parser
         {
             std::vector<uint16_t> data_uint16(t.int32_data().begin(), t.int32_data().end());
             std::vector<half> data_half;
-            std::transform(data_uint16.begin(), data_uint16.end(), std::back_inserter(data_half), [&](uint16_t raw_val){
-                return *reinterpret_cast<half*>(&raw_val);
-            });
+            std::transform(data_uint16.begin(),
+                           data_uint16.end(),
+                           std::back_inserter(data_half),
+                           [&](uint16_t raw_val) { return *reinterpret_cast<half*>(&raw_val); });
             return literal{{shape::half_type, dims}, data_half.begin(), data_half.end()};
         }
         case onnx::TensorProto::DOUBLE:

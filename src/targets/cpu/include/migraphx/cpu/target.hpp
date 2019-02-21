@@ -10,7 +10,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct pass;
 namespace cpu {
 
-
 struct target
 {
     std::string name() const;

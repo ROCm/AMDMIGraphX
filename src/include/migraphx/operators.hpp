@@ -757,16 +757,16 @@ struct gather
         // negative axis means counting dimensions from back
         int axis_index = (axis < 0) ? (n_dim + axis) : axis;
 
-        auto type        = inputs[0].type();
+        auto type = inputs[0].type();
         lens.erase(lens.begin() + axis_index);
-        if (!inputs[1].scalar())
+        if(!inputs[1].scalar())
         {
             auto ind_lens = inputs[1].lens();
             lens.insert(lens.begin() + axis_index, ind_lens.begin(), ind_lens.end());
         }
 
         // for scalar output
-        if (lens.size() == 0)
+        if(lens.size() == 0)
         {
             return {type, {1}, {0}};
         }
@@ -797,22 +797,24 @@ struct gather
         int axis_index = (axis < 0) ? (output_shape.lens().size() + axis) : axis;
 
         // max dimension in axis
-        //std::size_t max_dim = args[0].get_shape().lens()[axis_index];
-        //std::vector<std::size_t> vec_indices;
-        //args[1].visit([&](auto indices) { vec_indices.assign(indices.begin(), indices.end()); });
+        // std::size_t max_dim = args[0].get_shape().lens()[axis_index];
+        // std::vector<std::size_t> vec_indices;
+        // args[1].visit([&](auto indices) { vec_indices.assign(indices.begin(), indices.end()); });
         visit_all(result, args[0])([&](auto output, auto data) {
-            args[1].visit([&] (auto indices) {
-                if (indices.get_shape().scalar())
+            args[1].visit([&](auto indices) {
+                if(indices.get_shape().scalar())
                 {
-                    if (output_shape.scalar())
+                    if(output_shape.scalar())
                     {
                         output[0] = data[indices.front()];
                     }
-                    else {
+                    else
+                    {
                         shape_for_each(output.get_shape(), [&](const auto& out_idx) {
                             auto data_idx = out_idx;
                             data_idx.insert(data_idx.begin() + axis_index, indices.front());
-                            output(out_idx.begin(), out_idx.end()) = data(data_idx.begin(), data_idx.end());
+                            output(out_idx.begin(), out_idx.end()) =
+                                data(data_idx.begin(), data_idx.end());
                         });
                     }
                 }
@@ -822,12 +824,13 @@ struct gather
                     shape_for_each(output.get_shape(), [&](const auto& out_idx) {
                         auto data_idx = out_idx;
                         auto start_it = data_idx.begin() + axis_index;
-                        auto end_it = data_idx.begin() + axis_index + ind_lens.size();
+                        auto end_it   = data_idx.begin() + axis_index + ind_lens.size();
                         std::vector<std::size_t> ind_idx(start_it, end_it);
                         data_idx.erase(start_it, end_it);
                         data_idx.insert(start_it, indices(ind_idx.begin(), ind_idx.end()));
-                        output(out_idx.begin(), out_idx.end()) = data(data_idx.begin(), data_idx.end());
-                    });                    
+                        output(out_idx.begin(), out_idx.end()) =
+                            data(data_idx.begin(), data_idx.end());
+                    });
                 }
             });
         });

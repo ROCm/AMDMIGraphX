@@ -433,10 +433,10 @@ struct onnx_parser
                                    attribute_map attributes,
                                    const std::vector<instruction_ref>&)
     {
-        literal v = parse_value(attributes.at("value"));
+        literal v               = parse_value(attributes.at("value"));
         migraphx::shape v_shape = v.get_shape();
         // for constant containing 1 element, consider it as a scalar
-        if (v_shape.elements() == 1)
+        if(v_shape.elements() == 1)
         {
             migraphx::shape scalar_shape{v_shape.type(), {1}, {0}};
             return prog.add_literal(migraphx::literal{scalar_shape, v.data()});
@@ -472,7 +472,7 @@ struct onnx_parser
         // beginning or end of both args have dimension 1, need to squeeze
         // before calling gemm, then doing unsqueeze after getting results
         std::size_t num_squeeze = args[0]->get_shape().lens().size();
-        if (num_squeeze > 2)
+        if(num_squeeze > 2)
         {
             std::vector<int64_t> vec_axises(num_squeeze - 2);
             std::iota(vec_axises.begin(), vec_axises.end(), 0);
@@ -488,7 +488,7 @@ struct onnx_parser
             if(beta != 0.f)
             {
                 auto l3 = prog.add_instruction(op::dot{alpha}, l1, l2);
-                if (num_squeeze > 2) 
+                if(num_squeeze > 2)
                 {
                     std::vector<int64_t> vec_axises(num_squeeze - 2);
                     std::iota(vec_axises.begin(), vec_axises.end(), 0);
@@ -509,7 +509,7 @@ struct onnx_parser
         }
 
         auto dot_res = prog.add_instruction(op::dot{alpha, beta}, l1, l2);
-        if (num_squeeze > 2) 
+        if(num_squeeze > 2)
         {
             std::vector<int64_t> vec_axises(num_squeeze - 2);
             std::iota(vec_axises.begin(), vec_axises.end(), 0);

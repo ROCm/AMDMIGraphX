@@ -23,58 +23,58 @@ argument gather(hipStream_t stream,
             const auto* indices_ptr = device_cast(indices.data());
             auto* outptr            = device_cast(output.data());
             const auto* inptr       = device_cast(input.data());
-            if (output_shape.scalar())
+            if(output_shape.scalar())
             {
-                gs_launch(stream, 1)([=](auto i) {
-                    outptr[i]        = inptr[indices_ptr[0]];
-                });
+                gs_launch(stream, 1)([=](auto i) { outptr[i] = inptr[indices_ptr[0]]; });
             }
-            else {
+            else
+            {
                 visit_tensor_size(output_shape.lens().size(), [&](auto n_out_dim) {
                     visit_tensor_size(args[0].get_shape().lens().size(), [&](auto n_in_dim) {
                         hip_tensor_descriptor<n_in_dim> desc_input(input.get_shape());
                         hip_tensor_descriptor<n_out_dim> desc_output(output.get_shape());
-                        if (args[1].get_shape().scalar()) 
+                        if(args[1].get_shape().scalar())
                         {
                             gs_launch(stream, nelements)([=](auto ii) {
-                                auto out_idx        = desc_output.multi(ii);
-                                auto in_idx = desc_input.multi(0);
-                                for (int i = 0; i < axis_index; ++i)
+                                auto out_idx = desc_output.multi(ii);
+                                auto in_idx  = desc_input.multi(0);
+                                for(int i = 0; i < axis_index; ++i)
                                 {
                                     in_idx[i] = out_idx[i];
                                 }
                                 in_idx[axis_index] = indices_ptr[0];
-                                for (int i = axis_index + 1; i < n_in_dim; ++i)
+                                for(int i = axis_index + 1; i < n_in_dim; ++i)
                                 {
                                     in_idx[i] = out_idx[i - 1];
                                 }
-                                outptr[ii]        = inptr[desc_input.linear(in_idx)];
+                                outptr[ii] = inptr[desc_input.linear(in_idx)];
                             });
                         }
-                        else 
+                        else
                         {
-                            visit_tensor_size(args[1].get_shape().lens().size(), [&](auto n_ind_dim) {
-                                hip_tensor_descriptor<n_ind_dim> desc_ind(args[1].get_shape());
-                                gs_launch(stream, nelements)([=](auto ii) {
-                                    auto out_idx        = desc_output.multi(ii);
-                                    auto in_idx = desc_input.multi(0);
-                                    for (int i = 0; i < axis_index; ++i)
-                                    {
-                                        in_idx[i] = out_idx[i];
-                                    }
-                                    auto ind_idx = desc_ind.multi(0);
-                                    for (int i = 0; i < n_ind_dim; ++i)
-                                    {
-                                        ind_idx[i] = out_idx[i + axis_index];
-                                    }
-                                    in_idx[axis_index] = indices_ptr[desc_ind.linear(ind_idx)];
-                                    for (int i = axis_index + 1; i < n_in_dim; ++i)
-                                    {
-                                        in_idx[i] = out_idx[i + n_ind_dim - 1];
-                                    }
-                                    outptr[ii]        = inptr[desc_input.linear(in_idx)];
+                            visit_tensor_size(
+                                args[1].get_shape().lens().size(), [&](auto n_ind_dim) {
+                                    hip_tensor_descriptor<n_ind_dim> desc_ind(args[1].get_shape());
+                                    gs_launch(stream, nelements)([=](auto ii) {
+                                        auto out_idx = desc_output.multi(ii);
+                                        auto in_idx  = desc_input.multi(0);
+                                        for(int i = 0; i < axis_index; ++i)
+                                        {
+                                            in_idx[i] = out_idx[i];
+                                        }
+                                        auto ind_idx = desc_ind.multi(0);
+                                        for(int i = 0; i < n_ind_dim; ++i)
+                                        {
+                                            ind_idx[i] = out_idx[i + axis_index];
+                                        }
+                                        in_idx[axis_index] = indices_ptr[desc_ind.linear(ind_idx)];
+                                        for(int i = axis_index + 1; i < n_in_dim; ++i)
+                                        {
+                                            in_idx[i] = out_idx[i + n_ind_dim - 1];
+                                        }
+                                        outptr[ii] = inptr[desc_input.linear(in_idx)];
+                                    });
                                 });
-                            });
                         }
                     });
                 });

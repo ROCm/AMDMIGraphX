@@ -433,7 +433,7 @@ struct onnx_parser
                                    attribute_map attributes,
                                    const std::vector<instruction_ref>&)
     {
-        literal v               = parse_value(attributes.at("value"));
+        literal v     = parse_value(attributes.at("value"));
         auto dim_size = attributes.at("value").t().dims_size();
         // if dim_size is 0, it is a scalar
         if(dim_size == 0)

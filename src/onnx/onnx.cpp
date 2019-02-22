@@ -434,6 +434,14 @@ struct onnx_parser
                                    const std::vector<instruction_ref>&)
     {
         literal v = parse_value(attributes.at("value"));
+        migraphx::shape v_shape = v.get_shape();
+        // for constant containing 1 element, consider it as a scalar
+        if (v_shape.elements() == 1)
+        {
+            migraphx::shape scalar_shape{v_shape.type(), {1}, {0}};
+            return prog.add_literal(migraphx::literal{scalar_shape, v.data()});
+        }
+
         return prog.add_literal(v);
     }
 
@@ -460,6 +468,18 @@ struct onnx_parser
         {
             transb = parse_value(attributes.at("transB")).at<bool>();
         }
+
+        // beginning or end of both args have dimension 1, need to squeeze
+        // before calling gemm, then doing unsqueeze after getting results
+        std::size_t num_squeeze = args[0]->get_shape().lens().size();
+        if (num_squeeze > 2)
+        {
+            std::vector<int64_t> vec_axises(num_squeeze - 2);
+            std::iota(vec_axises.begin(), vec_axises.end(), 0);
+            args[0] = prog.add_instruction(op::squeeze{vec_axises}, args[0]);
+            args[1] = prog.add_instruction(op::squeeze{vec_axises}, args[1]);
+        }
+
         std::vector<int64_t> perm = {1, 0};
         auto l1 = (transa) ? prog.add_instruction(op::transpose{perm}, args[0]) : args[0];
         auto l2 = (transb) ? prog.add_instruction(op::transpose{perm}, args[1]) : args[1];
@@ -468,6 +488,13 @@ struct onnx_parser
             if(beta != 0.f)
             {
                 auto l3 = prog.add_instruction(op::dot{alpha}, l1, l2);
+                if (num_squeeze > 2) 
+                {
+                    std::vector<int64_t> vec_axises(num_squeeze - 2);
+                    std::iota(vec_axises.begin(), vec_axises.end(), 0);
+                    l3 = prog.add_instruction(op::unsqueeze{vec_axises}, l3);
+                }
+
                 auto l4 = args[2];
                 if(l4->get_shape().scalar()) // ignore args[2] (no C value added to alpha*A*B)
                     return l3;
@@ -480,7 +507,16 @@ struct onnx_parser
                 return add_broadcastable_binary_op(l3, l4, op::add{});
             }
         }
-        return prog.add_instruction(op::dot{alpha, beta}, l1, l2);
+
+        auto dot_res = prog.add_instruction(op::dot{alpha, beta}, l1, l2);
+        if (num_squeeze > 2) 
+        {
+            std::vector<int64_t> vec_axises(num_squeeze - 2);
+            std::iota(vec_axises.begin(), vec_axises.end(), 0);
+            dot_res = prog.add_instruction(op::unsqueeze{vec_axises}, dot_res);
+        }
+
+        return dot_res;
     }
 
     instruction_ref

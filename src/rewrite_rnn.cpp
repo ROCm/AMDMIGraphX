@@ -738,17 +738,12 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
         }
 
         // process weight of the peephole
-        instruction_ref pph_forward{};
-        instruction_ref pph_reverse{};
+        instruction_ref pph_forward = prog.end();
+        instruction_ref pph_reverse = prog.end();
         if(args.size() == 8 && args[7]->name() != "undefined")
         {
             pph_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[7]);
             pph_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[7]);
-        }
-        else
-        {
-            pph_forward = prog.add_literal(migraphx::literal{pph_shape, pph_data});
-            pph_reverse = prog.add_literal(migraphx::literal{pph_shape, pph_data});
         }
 
         auto ret_forward = lstm_cell(
@@ -756,7 +751,6 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
             prog,
             ins,
             {args[0], w_forward, r_forward, bias_forward, ih_forward, ic_forward, pph_forward},
-            lstm_op.input_forget,
             actv_funcs.at(0),
             actv_funcs.at(1),
             actv_funcs.at(2));
@@ -766,7 +760,6 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
             prog,
             ins,
             {args[0], w_reverse, r_reverse, bias_reverse, ih_reverse, ic_reverse, pph_reverse},
-            lstm_op.input_forget,
             actv_funcs.at(3),
             actv_funcs.at(4),
             actv_funcs.at(5));
@@ -830,21 +823,16 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
         }
 
         // process weight of the peephole
-        instruction_ref pph{};
+        instruction_ref pph = prog.end();
         if(args.size() == 8 && args[7]->name() != "undefined")
         {
             pph = args[7];
-        }
-        else
-        {
-            pph = prog.add_literal(migraphx::literal{pph_shape, pph_data});
         }
 
         auto ret = lstm_cell(is_forward,
                              prog,
                              ins,
                              {args[0], w, r, bias, ih, ic, pph},
-                             lstm_op.input_forget,
                              actv_funcs.at(0),
                              actv_funcs.at(1),
                              actv_funcs.at(2));
@@ -901,7 +889,6 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
                                                     program& prog,
                                                     instruction_ref ins,
                                                     std::vector<instruction_ref> inputs,
-                                                    int input_forget,
                                                     const operation& actv_func1,
                                                     const operation& actv_func2,
                                                     const operation& actv_func3) const
@@ -991,18 +978,25 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     }
 
     // peep hole
-    auto spph       = prog.insert_instruction(ins, op::squeeze{{0}}, pph);
-    auto pphi       = prog.insert_instruction(ins, op::slice{{0}, {0}, {hs}}, spph);
-    auto pphi_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, pphi);
-    pphi_brcst      = prog.insert_instruction(ins, op::contiguous{}, pphi_brcst);
+    instruction_ref pphi_brcst{};
+    instruction_ref ppho_brcst{};
+    instruction_ref pphf_brcst{};
 
-    auto ppho       = prog.insert_instruction(ins, op::slice{{0}, {hs}, {2 * hs}}, spph);
-    auto ppho_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, ppho);
-    ppho_brcst      = prog.insert_instruction(ins, op::contiguous{}, ppho_brcst);
+    if(pph != prog.end())
+    {
+        auto spph  = prog.insert_instruction(ins, op::squeeze{{0}}, pph);
+        auto pphi  = prog.insert_instruction(ins, op::slice{{0}, {0}, {hs}}, spph);
+        pphi_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, pphi);
+        pphi_brcst = prog.insert_instruction(ins, op::contiguous{}, pphi_brcst);
 
-    auto pphf       = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, spph);
-    auto pphf_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, pphf);
-    pphf_brcst      = prog.insert_instruction(ins, op::contiguous{}, pphf_brcst);
+        auto ppho  = prog.insert_instruction(ins, op::slice{{0}, {hs}, {2 * hs}}, spph);
+        ppho_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, ppho);
+        ppho_brcst = prog.insert_instruction(ins, op::contiguous{}, ppho_brcst);
+
+        auto pphf  = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, spph);
+        pphf_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, pphf);
+        pphf_brcst = prog.insert_instruction(ins, op::contiguous{}, pphf_brcst);
+    }
 
     for(long i = 0; i < seq_len; ++i)
     {
@@ -1013,9 +1007,12 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
         // equation it = f(Xt*(Wi^T) + Ht-1*(Ri^T) + Pi (.) Ct-1 + Wbi + Rbi)
         auto xt_wi          = prog.insert_instruction(ins, op::dot{}, xt, tran_wi);
         auto ht_ri          = prog.insert_instruction(ins, op::dot{}, sih, tran_ri);
-        auto pphi_ct        = prog.insert_instruction(ins, op::mul{}, pphi_brcst, sic);
         auto it_before_actv = prog.insert_instruction(ins, op::add{}, xt_wi, ht_ri);
-        it_before_actv      = prog.insert_instruction(ins, op::add{}, it_before_actv, pphi_ct);
+        if(pph != prog.end())
+        {
+            auto pphi_ct   = prog.insert_instruction(ins, op::mul{}, pphi_brcst, sic);
+            it_before_actv = prog.insert_instruction(ins, op::add{}, it_before_actv, pphi_ct);
+        }
         if(bias != prog.end())
         {
             it_before_actv = prog.insert_instruction(ins, op::add{}, it_before_actv, bi_brcst);
@@ -1025,9 +1022,12 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
         // equation ft = f(Xt*(Wf^T) + Ht-1*(Rf^T) + Pf (.) Ct-1 + Wbf + Rbf)
         auto xt_wf          = prog.insert_instruction(ins, op::dot{}, xt, tran_wf);
         auto ht_rf          = prog.insert_instruction(ins, op::dot{}, sih, tran_rf);
-        auto pphf_ct        = prog.insert_instruction(ins, op::mul{}, pphf_brcst, sic);
         auto ft_before_actv = prog.insert_instruction(ins, op::add{}, xt_wf, ht_rf);
-        ft_before_actv      = prog.insert_instruction(ins, op::add{}, ft_before_actv, pphf_ct);
+        if(pph != prog.end())
+        {
+            auto pphf_ct   = prog.insert_instruction(ins, op::mul{}, pphf_brcst, sic);
+            ft_before_actv = prog.insert_instruction(ins, op::add{}, ft_before_actv, pphf_ct);
+        }
         if(bias != prog.end())
         {
             ft_before_actv = prog.insert_instruction(ins, op::add{}, ft_before_actv, bf_brcst);
@@ -1053,9 +1053,12 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
         // ot = f(Xt*(Wo^T) + Ht-1*(Ro^T) + Po (.) Ct + Wbo + Rbo)
         auto xt_wo          = prog.insert_instruction(ins, op::dot{}, xt, tran_wo);
         auto ht_ro          = prog.insert_instruction(ins, op::dot{}, sih, tran_ro);
-        auto ppho_cellt     = prog.insert_instruction(ins, op::mul{}, ppho_brcst, cellt);
         auto ot_before_actv = prog.insert_instruction(ins, op::add{}, xt_wo, ht_ro);
-        ot_before_actv      = prog.insert_instruction(ins, op::add{}, ot_before_actv, ppho_cellt);
+        if(pph != prog.end())
+        {
+            auto ppho_cellt = prog.insert_instruction(ins, op::mul{}, ppho_brcst, cellt);
+            ot_before_actv  = prog.insert_instruction(ins, op::add{}, ot_before_actv, ppho_cellt);
+        }
         if(bias != prog.end())
         {
             ot_before_actv = prog.insert_instruction(ins, op::add{}, ot_before_actv, bo_brcst);

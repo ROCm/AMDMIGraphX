@@ -1186,7 +1186,9 @@ TEST_CASE(group_conv_test)
     migraphx::op::convolution op;
     op.group = 4;
     p.add_instruction(op, l0, l1);
-    migraphx::parse_onnx("group_conv_test.onnx");
+    auto prog = migraphx::parse_onnx("group_conv_test.onnx");
+
+    EXPECT(p == prog);
 }
 
 TEST_CASE(pad_test)
@@ -1194,13 +1196,14 @@ TEST_CASE(pad_test)
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 2}});
     p.add_instruction(migraphx::op::pad{{1, 1, 1, 1}}, l0);
-    migraphx::parse_onnx("pad_test.onnx");
+    auto prog = migraphx::parse_onnx("pad_test.onnx");
+
+    EXPECT(p == prog);
 }
 
 TEST_CASE(lrn_test)
 {
     migraphx::program p;
-
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 28, 24, 24}});
     migraphx::op::lrn op;
     op.size  = 5;
@@ -1208,7 +1211,22 @@ TEST_CASE(lrn_test)
     op.beta  = 0.75;
     op.bias  = 1.0;
     p.add_instruction(op, l0);
-    migraphx::parse_onnx("lrn_test.onnx");
+    auto prog = migraphx::parse_onnx("lrn_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(add_fp16_test)
+{
+    migraphx::program p;
+    auto l0 =
+        p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type, {1}}, {1.5}});
+    auto l1 =
+        p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type, {1}}, {2.5}});
+    p.add_instruction(migraphx::op::add{}, l0, l1);
+    auto prog = migraphx::parse_onnx("add_fp16_test.onnx");
+
+    EXPECT(p == prog);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

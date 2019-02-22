@@ -755,11 +755,11 @@ struct onnx_parser
                 names.begin(), names.end(), vec_names.begin(), [](auto& str) { return str; });
         }
 
-        if (std::any_of(vec_names.begin(), vec_names.end(), [&](auto& name) {
-            return (map_actv_funcs.count(name) == 0);
-        }))
+        if(std::any_of(vec_names.begin(), vec_names.end(), [&](auto& name) {
+               return (map_actv_funcs.count(name) == 0);
+           }))
         {
-            auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&] (auto &name) {
+            auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
                 return (map_actv_funcs.count(name) == 0);
             });
             MIGRAPHX_THROW("RNN: activation function " + std::string(*name_it) + " not supported");
@@ -884,11 +884,11 @@ struct onnx_parser
             }
         }
 
-        if (std::any_of(vec_names.begin(), vec_names.end(), [&](auto& name) {
-            return (map_actv_funcs.count(name) == 0);
-        }))
+        if(std::any_of(vec_names.begin(), vec_names.end(), [&](auto& name) {
+               return (map_actv_funcs.count(name) == 0);
+           }))
         {
-            auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&] (auto &name) {
+            auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
                 return (map_actv_funcs.count(name) == 0);
             });
             MIGRAPHX_THROW("GRU: activation function " + std::string(*name_it) + " not supported");
@@ -1057,11 +1057,11 @@ struct onnx_parser
             }
         }
 
-        if (std::any_of(vec_names.begin(), vec_names.end(), [&](auto& name) {
-            return (map_actv_funcs.count(name) == 0);
-        }))
+        if(std::any_of(vec_names.begin(), vec_names.end(), [&](auto& name) {
+               return (map_actv_funcs.count(name) == 0);
+           }))
         {
-            auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&] (auto &name) {
+            auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
                 return (map_actv_funcs.count(name) == 0);
             });
             MIGRAPHX_THROW("LSTM: activation function " + std::string(*name_it) + " not supported");

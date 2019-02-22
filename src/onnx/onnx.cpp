@@ -434,11 +434,11 @@ struct onnx_parser
                                    const std::vector<instruction_ref>&)
     {
         literal v               = parse_value(attributes.at("value"));
-        migraphx::shape v_shape = v.get_shape();
-        // for constant containing 1 element, consider it as a scalar
-        if(v_shape.elements() == 1)
+        auto dim_size = attributes.at("value").t().dims_size();
+        // if dim_size is 0, it is a scalar
+        if(dim_size == 0)
         {
-            migraphx::shape scalar_shape{v_shape.type(), {1}, {0}};
+            migraphx::shape scalar_shape{v.get_shape().type(), {1}, {0}};
             return prog.add_literal(migraphx::literal{scalar_shape, v.data()});
         }
 

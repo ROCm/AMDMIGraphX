@@ -794,7 +794,7 @@ struct gather
     {
         argument result{output_shape};
         // negative axis means counting dimensions from back
-        int axis_index = (axis < 0) ? (output_shape.lens().size() + axis) : axis;
+        int axis_index = (axis < 0) ? (args[0].get_shape().lens().size() + axis) : axis;
 
         // max dimension in axis
         // std::size_t max_dim = args[0].get_shape().lens()[axis_index];

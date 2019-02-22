@@ -28,6 +28,11 @@ struct throw_half
     {
         throw std::runtime_error("Half not supported in python yet.");
     }
+
+    void operator()(migraphx::tensor_view<migraphx::half>) const
+    {
+        throw std::runtime_error("Half not supported in python yet.");
+    }
 };
 
 template <class F>
@@ -42,12 +47,20 @@ struct skip_half
     }
 
     void operator()(migraphx::shape::as<migraphx::half>) const {}
+
+    void operator()(migraphx::tensor_view<migraphx::half>) const {}
 };
 
 template <class F>
 void visit_type(const migraphx::shape& s, F f)
 {
     s.visit_type(throw_half<F>{f});
+}
+
+template <class T, class F>
+void visit(const migraphx::raw_data<T>& x, F f)
+{
+    x.visit(throw_half<F>{f});
 }
 
 template <class F>
@@ -60,6 +73,9 @@ template <class T>
 py::buffer_info to_buffer_info(T& x)
 {
     migraphx::shape s = x.get_shape();
+    auto strides      = s.strides();
+    std::transform(
+        strides.begin(), strides.end(), strides.begin(), [&](auto i) { return i * s.type_size(); });
     py::buffer_info b;
     visit_type(s, [&](auto as) {
         b = py::buffer_info(x.data(),
@@ -67,7 +83,7 @@ py::buffer_info to_buffer_info(T& x)
                             py::format_descriptor<decltype(as())>::format(),
                             s.lens().size(),
                             s.lens(),
-                            s.strides());
+                            strides);
     });
     return b;
 }
@@ -75,11 +91,20 @@ py::buffer_info to_buffer_info(T& x)
 migraphx::shape to_shape(const py::buffer_info& info)
 {
     migraphx::shape::type_t t;
+    std::size_t n = 0;
     visit_types([&](auto as) {
         if(info.format == py::format_descriptor<decltype(as())>::format())
+        {
             t = as.type_enum();
+            n = sizeof(as());
+        }
+
     });
-    return migraphx::shape{t, info.shape, info.strides};
+    auto strides = info.strides;
+    std::transform(strides.begin(), strides.end(), strides.begin(), [&](auto i) -> std::size_t {
+        return n > 0 ? i / n : 0;
+    });
+    return migraphx::shape{t, info.shape, strides};
 }
 
 PYBIND11_MODULE(migraphx, m)
@@ -107,6 +132,13 @@ PYBIND11_MODULE(migraphx, m)
              [](migraphx::argument& x, py::buffer b) {
                  py::buffer_info info = b.request();
                  new(&x) migraphx::argument(to_shape(info), info.ptr);
+             })
+        .def("get_shape", &migraphx::argument::get_shape)
+        .def("tolist",
+             [](migraphx::argument& x) {
+                 py::list l{x.get_shape().elements()};
+                 visit(x, [&](auto data) { l = py::cast(data.to_vector()); });
+                 return l;
              })
         .def("__eq__", std::equal_to<migraphx::argument>{})
         .def("__ne__", std::not_equal_to<migraphx::argument>{})

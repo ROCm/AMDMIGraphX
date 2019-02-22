@@ -25,7 +25,8 @@ argument gather(hipStream_t stream,
             const auto* inptr       = device_cast(input.data());
             if(output_shape.scalar())
             {
-                gs_launch(stream, 1)([=](auto i) { outptr[i] = inptr[static_cast<int>(indices_ptr[0])]; });
+                gs_launch(stream,
+                          1)([=](auto i) { outptr[i] = inptr[static_cast<int>(indices_ptr[0])]; });
             }
             else
             {

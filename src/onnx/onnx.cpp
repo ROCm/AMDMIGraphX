@@ -355,7 +355,7 @@ struct onnx_parser
         if(args.size() == 2)
         {
             literal s = args[1]->eval();
-            if (s.empty())
+            if(s.empty())
                 MIGRAPHX_THROW("Dynamic shape is not supported.");
             s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
         }

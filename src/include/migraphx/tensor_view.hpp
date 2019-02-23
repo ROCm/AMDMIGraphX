@@ -124,6 +124,8 @@ struct tensor_view
             return m_data + this->size();
     }
 
+    std::vector<T> to_vector() const { return std::vector<T>(this->begin(), this->end()); }
+
     friend std::ostream& operator<<(std::ostream& os, const tensor_view<T>& x)
     {
         if(!x.empty())

@@ -57,7 +57,7 @@ struct tf_parser
         std::vector<T> new_data(prev_data.size());
         for(size_t i = 0; i < new_data.size(); i++)
         {
-            auto new_idx = parse_axis(i);
+            auto new_idx         = parse_axis(i);
             new_data.at(new_idx) = prev_data.at(i);
         }
         prev_data = new_data;

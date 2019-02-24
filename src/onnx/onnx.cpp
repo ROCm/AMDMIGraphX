@@ -757,7 +757,7 @@ struct onnx_parser
         auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
             return (map_actv_funcs.count(name) == 0);
         });
-        if (name_it != vec_names.end())
+        if(name_it != vec_names.end())
         {
             MIGRAPHX_THROW("RNN: activation function " + std::string(*name_it) + " not supported");
         }
@@ -883,8 +883,8 @@ struct onnx_parser
         auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
             return (map_actv_funcs.count(name) == 0);
         });
-        if (name_it != vec_names.end())
-        {   
+        if(name_it != vec_names.end())
+        {
             MIGRAPHX_THROW("GRU: activation function " + std::string(*name_it) + " not supported");
         }
 
@@ -1053,7 +1053,7 @@ struct onnx_parser
         auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
             return (map_actv_funcs.count(name) == 0);
         });
-        if (name_it !=  vec_names.end()) 
+        if(name_it != vec_names.end())
         {
             MIGRAPHX_THROW("LSTM: activation function " + std::string(*name_it) + " not supported");
         }

@@ -751,17 +751,14 @@ struct onnx_parser
             auto names = attributes.at("activations").strings();
             vec_names.clear();
             vec_names.resize(names.size());
-            std::transform(
-                names.begin(), names.end(), vec_names.begin(), [](auto& str) { return str; });
+            std::copy(names.begin(), names.end(), vec_names.begin());
         }
 
-        if(std::any_of(vec_names.begin(), vec_names.end(), [&](auto& name) {
-               return (map_actv_funcs.count(name) == 0);
-           }))
+        auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
+            return (map_actv_funcs.count(name) == 0);
+        });
+        if (name_it != vec_names.end())
         {
-            auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
-                return (map_actv_funcs.count(name) == 0);
-            });
             MIGRAPHX_THROW("RNN: activation function " + std::string(*name_it) + " not supported");
         }
 
@@ -845,8 +842,7 @@ struct onnx_parser
             auto names = attributes.at("activations").strings();
             vec_names.clear();
             vec_names.resize(names.size());
-            std::transform(
-                names.begin(), names.end(), vec_names.begin(), [](auto& str) { return str; });
+            std::copy(names.begin(), names.end(), vec_names.begin());
         }
 
         // need 4 activation functions
@@ -884,13 +880,11 @@ struct onnx_parser
             }
         }
 
-        if(std::any_of(vec_names.begin(), vec_names.end(), [&](auto& name) {
-               return (map_actv_funcs.count(name) == 0);
-           }))
-        {
-            auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
-                return (map_actv_funcs.count(name) == 0);
-            });
+        auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
+            return (map_actv_funcs.count(name) == 0);
+        });
+        if (name_it != vec_names.end())
+        {   
             MIGRAPHX_THROW("GRU: activation function " + std::string(*name_it) + " not supported");
         }
 
@@ -975,8 +969,7 @@ struct onnx_parser
             auto names = attributes.at("activations").strings();
             vec_names.clear();
             vec_names.resize(names.size());
-            std::transform(
-                names.begin(), names.end(), vec_names.begin(), [](auto& str) { return str; });
+            std::copy(names.begin(), names.end(), vec_names.begin());
         }
 
         // need 6 activation functions for bidirectional directions
@@ -1057,13 +1050,11 @@ struct onnx_parser
             }
         }
 
-        if(std::any_of(vec_names.begin(), vec_names.end(), [&](auto& name) {
-               return (map_actv_funcs.count(name) == 0);
-           }))
+        auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
+            return (map_actv_funcs.count(name) == 0);
+        });
+        if (name_it !=  vec_names.end()) 
         {
-            auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
-                return (map_actv_funcs.count(name) == 0);
-            });
             MIGRAPHX_THROW("LSTM: activation function " + std::string(*name_it) + " not supported");
         }
 

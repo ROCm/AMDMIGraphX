@@ -229,8 +229,9 @@ struct onnx_parser
         return prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1])}}, s);
     }
 
-    instruction_ref
-    parse_logsoftmax(const std::string&, const attribute_map& attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_logsoftmax(const std::string&,
+                                     const attribute_map& attributes,
+                                     std::vector<instruction_ref> args)
     {
         int axis = 1;
         if(contains(attributes, "axis"))

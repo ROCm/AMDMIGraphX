@@ -48,6 +48,7 @@ add_library(migraphx_gpu
     pooling.cpp
     convolution.cpp
     softmax.cpp
+    logsoftmax.cpp
     contiguous.cpp
     concat.cpp
     relu.cpp

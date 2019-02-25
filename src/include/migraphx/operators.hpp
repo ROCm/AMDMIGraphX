@@ -775,7 +775,9 @@ struct gather
     }
 
     template <typename V>
-    std::vector<std::size_t> compute_data_index(const V& indices, const int axis_index, const std::vector<std::size_t>& out_idx) const
+    std::vector<std::size_t> compute_data_index(const V& indices,
+                                                const int axis_index,
+                                                const std::vector<std::size_t>& out_idx) const
     {
         auto data_idx = out_idx;
         std::size_t index{};

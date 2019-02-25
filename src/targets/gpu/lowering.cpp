@@ -21,6 +21,7 @@
 #include <migraphx/gpu/leaky_relu.hpp>
 #include <migraphx/gpu/elu.hpp>
 #include <migraphx/gpu/softmax.hpp>
+#include <migraphx/gpu/logsoftmax.hpp>
 #include <migraphx/gpu/add.hpp>
 #include <migraphx/gpu/sub.hpp>
 #include <migraphx/gpu/exp.hpp>
@@ -97,6 +98,7 @@ struct miopen_apply
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
         add_extend_op<miopen_softmax, op::softmax>("softmax");
+        add_extend_op<miopen_logsoftmax, op::logsoftmax>("logsoftmax");
         add_extend_op<hip_gather, op::gather>("gather");
         add_extend_op<hip_pad, op::pad>("pad");
 

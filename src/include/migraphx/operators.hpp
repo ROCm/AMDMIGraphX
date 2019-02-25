@@ -779,25 +779,27 @@ struct gather
         argument result{output_shape};
         // negative axis means counting dimensions from back
         auto data_shape = args[0].get_shape();
-        int axis_index = (axis < 0) ? (data_shape.lens().size() + axis) : axis;
+        int axis_index  = (axis < 0) ? (data_shape.lens().size() + axis) : axis;
 
         // max dimension in axis
         visit_all(result, args[0])([&](auto output, auto data) {
             std::vector<std::size_t> vec_indices;
-            args[1].visit([&](auto indices) { vec_indices.assign(indices.begin(), indices.end()); });
-            if (output_shape.scalar())
+            args[1].visit(
+                [&](auto indices) { vec_indices.assign(indices.begin(), indices.end()); });
+            if(output_shape.scalar())
             {
                 output[0] = data[vec_indices.front()];
             }
-            else 
+            else
             {
-                auto out_lens = data_shape.lens();
+                auto out_lens        = data_shape.lens();
                 out_lens[axis_index] = vec_indices.size();
                 migraphx::shape out_comp_shape{output_shape.type(), out_lens};
                 shape_for_each(out_comp_shape, [&](const auto& out_idx) {
-                    auto data_idx = out_idx;
+                    auto data_idx        = out_idx;
                     data_idx[axis_index] = vec_indices[data_idx[axis_index]];
-                    //output(out_idx.begin(), out_idx.end()) = data(data_idx.begin(), data_idx.end());
+                    // output(out_idx.begin(), out_idx.end()) = data(data_idx.begin(),
+                    // data_idx.end());
                     output[out_comp_shape.index(out_idx)] = data(data_idx.begin(), data_idx.end());
                 });
             }

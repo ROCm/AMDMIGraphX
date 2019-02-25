@@ -632,8 +632,6 @@ struct cpu_logsoftmax
         auto lens = output_shape.lens();
         std::vector<std::size_t> batch_lens(lens.begin(), lens.begin() + op.axis);
         shape batch_shape{migraphx::shape::uint32_type, batch_lens};
-        // use float for now, need to change later
-
         visit_all(result, args[0])([&](auto output, auto input) {
             using value_type = typename decltype(input)::value_type;
             std::vector<value_type> batch_max(batch_shape.elements(),

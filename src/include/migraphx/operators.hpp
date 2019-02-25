@@ -766,7 +766,7 @@ struct gather
         }
 
         // for scalar output
-        if(lens.size() == 0)
+        if(lens.empty())
         {
             return {type, {1}, {0}};
         }
@@ -774,21 +774,27 @@ struct gather
         return {type, lens};
     }
 
-    // template <class T>
-    // void compute_index(const T& out_idx,
-    //                    const int axis_index,
-    //                    const std::vector<std::size_t>& vec_indices,
-    //                    const std::size_t max_dim,
-    //                    T& in_idx) const
-    // {
-    //     in_idx          = out_idx;
-    //     std::size_t idx = vec_indices.at(out_idx[axis_index]);
-    //     if(idx >= max_dim)
-    //     {
-    //         MIGRAPHX_THROW("Gather: indices are out of range in input tensor");
-    //     }
-    //     in_idx[axis_index] = idx;
-    // }
+    template <typename V, typename T>
+    T compute_data_index(const V& indices, const int axis_index, const T& out_idx) const
+    {
+        auto data_idx = out_idx;
+        std::size_t index{};
+        if(!indices.get_shape().scalar())
+        {
+            auto start_it = data_idx.begin() + axis_index;
+            auto end_it   = data_idx.begin() + axis_index + indices.get_shape().lens().size();
+            std::vector<std::size_t> ind_idx(start_it, end_it);
+            data_idx.erase(start_it, end_it);
+            index = indices(ind_idx.begin(), ind_idx.end());
+        }
+        else
+        {
+            index = indices.front();
+        }
+        data_idx.insert(data_idx.begin() + axis_index, index);
+
+        return data_idx;
+    }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
@@ -797,37 +803,16 @@ struct gather
         int axis_index = (axis < 0) ? (args[0].get_shape().lens().size() + axis) : axis;
 
         // max dimension in axis
-        // std::size_t max_dim = args[0].get_shape().lens()[axis_index];
-        // std::vector<std::size_t> vec_indices;
-        // args[1].visit([&](auto indices) { vec_indices.assign(indices.begin(), indices.end()); });
         visit_all(result, args[0])([&](auto output, auto data) {
             args[1].visit([&](auto indices) {
-                if(indices.get_shape().scalar())
+                if(output_shape.scalar())
                 {
-                    if(output_shape.scalar())
-                    {
-                        output[0] = data[indices.front()];
-                    }
-                    else
-                    {
-                        shape_for_each(output.get_shape(), [&](const auto& out_idx) {
-                            auto data_idx = out_idx;
-                            data_idx.insert(data_idx.begin() + axis_index, indices.front());
-                            output(out_idx.begin(), out_idx.end()) =
-                                data(data_idx.begin(), data_idx.end());
-                        });
-                    }
+                    output[0] = data[indices.front()];
                 }
                 else
                 {
-                    auto ind_lens = indices.get_shape().lens();
                     shape_for_each(output.get_shape(), [&](const auto& out_idx) {
-                        auto data_idx = out_idx;
-                        auto start_it = data_idx.begin() + axis_index;
-                        auto end_it   = data_idx.begin() + axis_index + ind_lens.size();
-                        std::vector<std::size_t> ind_idx(start_it, end_it);
-                        data_idx.erase(start_it, end_it);
-                        data_idx.insert(start_it, indices(ind_idx.begin(), ind_idx.end()));
+                        auto data_idx = compute_data_index(indices, axis_index, out_idx);
                         output(out_idx.begin(), out_idx.end()) =
                             data(data_idx.begin(), data_idx.end());
                     });

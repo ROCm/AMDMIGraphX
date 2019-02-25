@@ -783,24 +783,25 @@ struct gather
         // max dimension in axis
         visit_all(result, args[0])([&](auto output, auto data) {
             args[1].visit([&](auto indices) {
-                if (output_shape.scalar())
+                if(output_shape.scalar())
                 {
                     output[0] = data[indices.front()];
                 }
-                else 
+                else
                 {
                     shape_for_each(output.get_shape(), [&](const auto& out_idx) {
                         auto data_idx = out_idx;
                         std::size_t index{};
-                        if (!indices.get_shape().scalar())
+                        if(!indices.get_shape().scalar())
                         {
                             auto start_it = data_idx.begin() + axis_index;
-                            auto end_it   = data_idx.begin() + axis_index + indices.get_shape().lens().size();
+                            auto end_it =
+                                data_idx.begin() + axis_index + indices.get_shape().lens().size();
                             std::vector<std::size_t> ind_idx(start_it, end_it);
                             data_idx.erase(start_it, end_it);
                             index = indices(ind_idx.begin(), ind_idx.end());
                         }
-                        else 
+                        else
                         {
                             index = indices.front();
                         }

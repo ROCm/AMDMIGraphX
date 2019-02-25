@@ -7,8 +7,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-
-
 /// Create a program from an onnx file
 program parse_onnx(const std::string& name);
 

@@ -65,18 +65,19 @@ struct tf_parser
     template <class T>
     T parse_axis(const T& dim) const
     {
+        T new_dim = dim;
         if(is_nhwc)
         {
             switch(dim)
             {
-            case 0: return 0;
-            case 1: return 2;
-            case 2: return 3;
-            case 3: return 1;
-            default: return T{dim};
+            case 0: new_dim = 0; break;
+            case 1: new_dim = 2; break;
+            case 2: new_dim = 3; break;
+            case 3: new_dim = 1; break;
+            default: break;
             }
         }
-        return T{dim};
+        return new_dim;
     }
 
     std::vector<int64_t> get_axes(size_t num_axes) const

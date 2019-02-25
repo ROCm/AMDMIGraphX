@@ -43,7 +43,9 @@ struct tf_parser
         copy(attrs.begin(), attrs.end(), std::back_inserter(axes));
         if(is_nhwc)
         {
-            std::transform(axes.begin(), axes.end(), axes.begin(), [&](size_t axis) { return parse_axis(axis); });
+            std::transform(axes.begin(), axes.end(), axes.begin(), [&](size_t axis) {
+                return parse_axis(axis);
+            });
         }
         return axes;
     }
@@ -392,8 +394,9 @@ struct tf_parser
         return prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1])}}, s);
     }
 
-    instruction_ref
-    parse_squeeze(const std::string&, const attribute_map& attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_squeeze(const std::string&,
+                                  const attribute_map& attributes,
+                                  std::vector<instruction_ref> args)
     {
         op::squeeze op;
         auto axes = parse_axes(attributes, "squeeze_dims");

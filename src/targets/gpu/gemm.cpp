@@ -76,19 +76,19 @@ argument miopen_gemm::compute(context& ctx,
                               const shape& output_shape,
                               const std::vector<argument>& args) const
 {
-    float alpha     = 1.0f;
-    float beta      = 0.0f;
-    bool transa     = args[0].get_shape().transposed();
-    bool transb     = args[1].get_shape().transposed();
+    float alpha        = 1.0f;
+    float beta         = 0.0f;
+    bool transa        = args[0].get_shape().transposed();
+    bool transb        = args[1].get_shape().transposed();
     std::size_t n_dims = args[0].get_shape().lens().size();
-    std::size_t dim_0 = n_dims - 2;
-    std::size_t dim_1 = n_dims - 1;
-    rocblas_int lda = args[0].get_shape().strides()[transa ? dim_1 : dim_0];
-    rocblas_int ldb = args[1].get_shape().strides()[transb ? dim_1 : dim_0];
-    rocblas_int ldc = args[2].get_shape().strides()[dim_0];
-    rocblas_int m   = output_shape.lens()[dim_0];
-    rocblas_int n   = output_shape.lens()[dim_1];
-    rocblas_int k   = args[0].get_shape().lens()[dim_1];
+    std::size_t dim_0  = n_dims - 2;
+    std::size_t dim_1  = n_dims - 1;
+    rocblas_int lda    = args[0].get_shape().strides()[transa ? dim_1 : dim_0];
+    rocblas_int ldb    = args[1].get_shape().strides()[transb ? dim_1 : dim_0];
+    rocblas_int ldc    = args[2].get_shape().strides()[dim_0];
+    rocblas_int m      = output_shape.lens()[dim_0];
+    rocblas_int n      = output_shape.lens()[dim_1];
+    rocblas_int k      = args[0].get_shape().lens()[dim_1];
     output_shape.visit_type([&](auto as) {
         auto alpha_r    = to_rocblas_type(as(alpha));
         auto beta_r     = to_rocblas_type(as(beta));

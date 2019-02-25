@@ -844,19 +844,15 @@ struct dot
         auto t         = a.type();
 
         // change to support cases like {1, 1, 3, 5} X {1, 1, 5, 6},
-        // which can be handled by numpy. as long as all previous 
+        // which can be handled by numpy. as long as all previous
         // dims are 1 except the last two dims, the two matrices
         // are multipliable
-        if (std::any_of(a.lens().rbegin() + 2, a.lens().rend(), [](auto i) {
-            return (i != 1);
-        }))
+        if(std::any_of(a.lens().rbegin() + 2, a.lens().rend(), [](auto i) { return (i != 1); }))
         {
             MIGRAPHX_THROW("DOT: first matrix, dimensions before matrix dims must be 1");
         }
 
-        if (std::any_of(b.lens().rbegin() + 2, b.lens().rend(), [](auto i) {
-            return (i != 1);
-        }))
+        if(std::any_of(b.lens().rbegin() + 2, b.lens().rend(), [](auto i) { return (i != 1); }))
         {
             MIGRAPHX_THROW("DOT: second matrix, dimensions before matrix dims must be 1");
         }
@@ -865,7 +861,7 @@ struct dot
         if(a.lens()[n_dims - 1] != b.lens()[n_dims - 2])
             MIGRAPHX_THROW("Inner dimensions do not match: {" + to_string_range(a.lens()) +
                            "} x {" + to_string_range(b.lens()) + "}");
-        auto out_lens = a.lens();
+        auto out_lens        = a.lens();
         out_lens[n_dims - 1] = b.lens()[n_dims - 1];
         return {t, out_lens};
     }

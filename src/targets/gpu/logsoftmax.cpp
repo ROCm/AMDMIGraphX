@@ -16,19 +16,18 @@ shape miopen_logsoftmax::compute_shape(const std::vector<shape>& inputs) const
 }
 
 argument miopen_logsoftmax::compute(context& ctx,
-                                 const shape& output_shape,
-                                 const std::vector<argument>& args) const
+                                    const shape& output_shape,
+                                    const std::vector<argument>& args) const
 {
     float alpha = 1;
     float beta  = 0;
     // temporarily reshape the input to a(0)...a(axis-1)
     // and a(axis)....a(n)
-    auto lens = output_shape.lens();
+    auto lens              = output_shape.lens();
     std::size_t batch_size = std::accumulate(
-                            lens.begin(), lens.begin() + op.axis, 
-                            std::size_t{1}, std::multiplies<std::size_t>());
-    std::size_t n_dims = std::accumulate(lens.begin() + op.axis,
-                            lens.end(), std::size_t{1}, std::multiplies<std::size_t>());
+        lens.begin(), lens.begin() + op.axis, std::size_t{1}, std::multiplies<std::size_t>());
+    std::size_t n_dims = std::accumulate(
+        lens.begin() + op.axis, lens.end(), std::size_t{1}, std::multiplies<std::size_t>());
     migraphx::shape comp_shape{output_shape.type(), {batch_size, n_dims, 1, 1}};
     auto x_desc = make_tensor(args[0].get_shape());
     auto y_desc = make_tensor(output_shape);

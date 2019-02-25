@@ -14,10 +14,13 @@ template <class T>
 static auto make_mat(tensor_view<T> x)
 {
     const auto& s = x.get_shape();
-    assert(s.lens().size() == 2);
+    //assert(s.lens().size() == 2);
+    std::size_t n_dims = s.lens().size();
+    std::size_t dim_0 = n_dims - 2;
+    std::size_t dim_1 = n_dims - 1;
     if(s.transposed())
-        return matrix<T>{x.data(), s.lens()[1], s.lens()[0], s.strides()[1]};
-    return matrix<T>{x.data(), s.lens()[0], s.lens()[1], s.strides()[0]};
+        return matrix<T>{x.data(), s.lens()[dim_1], s.lens()[dim_0], s.strides()[dim_1]};
+    return matrix<T>{x.data(), s.lens()[dim_0], s.lens()[dim_1], s.strides()[dim_0]};
 }
 
 template <class T, class F>
@@ -64,13 +67,16 @@ void migemm_impl(tensor_view<T> cmat,
                  float beta,
                  std::false_type)
 {
-    auto m = cmat.get_shape().lens()[0];
-    auto n = cmat.get_shape().lens()[1];
-    auto k = amat.get_shape().lens()[1];
+    std::size_t n_dims = cmat.get_shape().lens().size();
+    std::size_t dim_0 = n_dims - 2;
+    std::size_t dim_1 = n_dims - 1;
+    auto m = cmat.get_shape().lens()[dim_0];
+    auto n = cmat.get_shape().lens()[dim_1];
+    auto k = amat.get_shape().lens()[dim_1];
 
-    assert(amat.get_shape().lens()[1] == bmat.get_shape().lens()[0]);
-    assert(m == amat.get_shape().lens()[0]);
-    assert(n == bmat.get_shape().lens()[1]);
+    assert(amat.get_shape().lens()[dim_1] == bmat.get_shape().lens()[dim_0]);
+    assert(m == amat.get_shape().lens()[dim_0]);
+    assert(n == bmat.get_shape().lens()[dim_1]);
 
     dfor(m, n)([&](auto ii, auto jj) {
         double s = cmat(ii, jj) * beta;

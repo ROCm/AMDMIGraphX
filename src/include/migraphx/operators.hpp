@@ -1271,6 +1271,25 @@ struct undefined
     argument compute(const shape&, const std::vector<argument>&) const { return {{}, nullptr}; }
 };
 
+struct unknown
+{
+    std::string op;
+    std::string name() const { return "unknown:" + op; }
+    shape compute_shape(std::vector<shape> input) const
+    {
+        if(input.empty())
+            return {};
+        else
+            return input.front();
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const unknown& x)
+    {
+        os << x.name();
+        return os;
+    }
+};
+
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

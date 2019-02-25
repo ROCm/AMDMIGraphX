@@ -461,7 +461,7 @@ struct tf_parser
             }
             if(ops.count(node.op()) == 0)
             {
-                instructions[name] = prog.add_instruction(unknown{node.op()}, args);
+                instructions[name] = prog.add_instruction(op::unknown{node.op()}, args);
             }
             else
             {

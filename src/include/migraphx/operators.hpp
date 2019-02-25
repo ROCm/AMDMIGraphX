@@ -766,12 +766,35 @@ struct gather
         }
 
         // for scalar output
-        if(lens.size() == 0)
+        if(lens.empty())
         {
             return {type, {1}, {0}};
         }
 
         return {type, lens};
+    }
+
+    template<typename V, typename T>
+    T compute_data_index(const V &indices, const int axis_index, const T& out_idx) const
+    {
+        auto data_idx = out_idx;
+        std::size_t index{};
+        if(!indices.get_shape().scalar())
+        {
+            auto start_it = data_idx.begin() + axis_index;
+            auto end_it =
+                data_idx.begin() + axis_index + indices.get_shape().lens().size();
+            std::vector<std::size_t> ind_idx(start_it, end_it);
+            data_idx.erase(start_it, end_it);
+            index = indices(ind_idx.begin(), ind_idx.end());
+        }
+        else
+        {
+            index = indices.front();
+        }
+        data_idx.insert(data_idx.begin() + axis_index, index);
+
+        return data_idx;
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
@@ -790,22 +813,7 @@ struct gather
                 else
                 {
                     shape_for_each(output.get_shape(), [&](const auto& out_idx) {
-                        auto data_idx = out_idx;
-                        std::size_t index{};
-                        if(!indices.get_shape().scalar())
-                        {
-                            auto start_it = data_idx.begin() + axis_index;
-                            auto end_it =
-                                data_idx.begin() + axis_index + indices.get_shape().lens().size();
-                            std::vector<std::size_t> ind_idx(start_it, end_it);
-                            data_idx.erase(start_it, end_it);
-                            index = indices(ind_idx.begin(), ind_idx.end());
-                        }
-                        else
-                        {
-                            index = indices.front();
-                        }
-                        data_idx.insert(data_idx.begin() + axis_index, index);
+                        auto data_idx = compute_data_index(indices, axis_index, out_idx);
                         output(out_idx.begin(), out_idx.end()) =
                             data(data_idx.begin(), data_idx.end());
                     });

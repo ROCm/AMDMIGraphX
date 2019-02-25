@@ -774,8 +774,10 @@ struct gather
         return {type, lens};
     }
 
-    template <typename V, typename T>
-    T compute_data_index(const V& indices, const int axis_index, const T& out_idx) const
+    template <typename V>
+    std::vector<std::size_t> compute_data_index(const V& indices,
+                                                const int axis_index,
+                                                const std::vector<std::size_t>& out_idx) const
     {
         auto data_idx = out_idx;
         std::size_t index{};

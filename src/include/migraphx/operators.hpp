@@ -774,8 +774,8 @@ struct gather
         return {type, lens};
     }
 
-    template <typename V>
-    std::vector<std::size_t> compute_data_index(const V& indices,
+    template <typename T>
+    std::vector<std::size_t> compute_data_index(const tensor_view<T>& indices,
                                                 const int axis_index,
                                                 const std::vector<std::size_t>& out_idx) const
     {
@@ -785,13 +785,13 @@ struct gather
         {
             auto start_it = data_idx.begin() + axis_index;
             auto end_it   = data_idx.begin() + axis_index + indices.get_shape().lens().size();
-            std::vector<std::size_t> ind_idx(start_it, end_it);
+            std::vector<T> ind_idx(start_it, end_it);
             data_idx.erase(start_it, end_it);
-            index = indices(ind_idx.begin(), ind_idx.end());
+            index = static_cast<std::size_t>(indices(ind_idx.begin(), ind_idx.end()));
         }
         else
         {
-            index = indices.front();
+            index = static_cast<std::size_t>(indices.front());
         }
         data_idx.insert(data_idx.begin() + axis_index, index);
 

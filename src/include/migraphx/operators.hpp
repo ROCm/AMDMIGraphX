@@ -793,8 +793,8 @@ struct gather
             else
             {
                 shape_for_each(output_shape, [&](const auto& out_idx) {
-                    auto data_idx        = out_idx;
-                    if (args[1].get_shape().scalar())
+                    auto data_idx = out_idx;
+                    if(args[1].get_shape().scalar())
                     {
                         data_idx.insert(data_idx.begin() + axis_index, vec_indices.front());
                     }
@@ -802,7 +802,8 @@ struct gather
                     {
                         args[1].visit([&](auto ind) {
                             auto start_it = data_idx.begin() + axis_index;
-                            auto end_it = data_idx.end() + axis_index + args[1].get_shape().lens().size();
+                            auto end_it =
+                                data_idx.end() + axis_index + args[1].get_shape().lens().size();
                             std::vector<std::size_t> ind_idx(start_it, end_it);
                             auto ind_it = data_idx.erase(start_it, end_it);
                             data_idx.insert(ind_it, ind(ind_idx.begin(), ind_idx.end()));

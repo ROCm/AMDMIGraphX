@@ -23,9 +23,9 @@ argument gather(hipStream_t stream,
             const auto* indices_ptr = device_cast(indices.data());
             auto* out_ptr           = device_cast(output.data());
             const auto* in_ptr      = device_cast(input.data());
-            auto& input_shape = args[0].get_shape();
-            auto lens         = input_shape.lens();
-            lens[axis_index]  = args[1].get_shape().elements();
+            auto& input_shape       = args[0].get_shape();
+            auto lens               = input_shape.lens();
+            lens[axis_index]        = args[1].get_shape().elements();
             migraphx::shape out_comp_shape{output_shape.type(), lens};
             visit_tensor_size(out_comp_shape.lens().size(), [&](auto n_out_dim) {
                 hip_tensor_descriptor<n_out_dim> desc_input(input_shape);

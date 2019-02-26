@@ -35,14 +35,15 @@ encode_info EncodeConvBiasRelu(instruction_ref ins, unsigned short opcode, Ins2V
     instruction_ref op1 = ins->inputs().front();
     assert(instr2_value.find(op1) != instr2_value.end());
     hash_value_ptr op1_val = instr2_value[op1];
-    encode |= (static_cast<unsigned long long>(op1_val->get_id()) << 32);
+    encode |= (static_cast<unsigned long long>(op1_val->id) << 32);
     instruction_ref op2 = ins->inputs().at(1);
     auto lens = op2->get_shape().lens();
     auto filter = lens[lens.size() - 2];
     auto kernel = lens[lens.size() - 1];
+
     encode |= (filter << 24);
     encode |= (kernel << 16);
-    encode_info info = encode_info{encode};
+    encode_info info(encode);
     info.add_input(op1_val);
     return info;
 }
@@ -54,13 +55,14 @@ hash_value_ptr horizontal_fusion_impl::hash(instruction_ref ins)
         return nullptr;
 
     Encoder encode_func = op_registry.at(ins->name());
+    
     encode_info encode_val = encode_func(ins, get_opcode(ins), instr2_value);
     unsigned long long encoding = encode_val.get_encoding();
     hash_value_ptr hash_val = nullptr;
 
     if (encode2_value.find(encoding) != encode2_value.end()) {
         hash_val = encode2_value[encoding];
-        hash_val->add_instr(ins);
+        add_instr(hash_val->id);
         instr2_value[ins] = hash_val;
     } else {
         hash_val = &(create_value(ins));
@@ -68,8 +70,8 @@ hash_value_ptr horizontal_fusion_impl::hash(instruction_ref ins)
     }
     for (auto&& input : encode_val.get_inputs())
     {
-        hash_val->add_input(input);
-        input->add_output(hash_val);
+        add_input(hash_val->id, input);
+        add_output(input->id, hash_val);
     }
     return hash_val;
 }
@@ -86,53 +88,93 @@ void horizontal_fusion_impl::process(instruction_ref ins)
             for (auto&& output : ins->outputs())
             {
                 instr2_hash[output] = true;
-            } 
+            }
+            return;
         }
-
-    } else {
-        std::unordered_map<std::string, int> op2_cnt;
-        bool hash_child = false;
-        // Do hash if at least two outputs have same operations.
+    }
+    std::unordered_map<std::string, int> op2_cnt;
+    bool hash_child = false;
+    // Do hash if at least two outputs have same operations.
+    for (auto&& output : ins->outputs())
+    {
+        const std::string& str = output->name();
+        if (op2_cnt.find(str) == op2_cnt.end())
+            op2_cnt[str] = 1;
+        else {
+            op2_cnt[str] += 1;
+            hash_child = true;
+            break;
+        }
+    }
+    if (hash_child)
+    {            
+        // Create a value for this instruction.
+        hash_value& value = create_value(ins);
+        add_root(&value);
+        // Flag children to be hashed.
         for (auto&& output : ins->outputs())
         {
-            const std::string& str = output->name();
-            if (op2_cnt.find(str) == op2_cnt.end())
-                op2_cnt[str] = 1;
-            else {
-                op2_cnt[str] += 1;
-                hash_child = true;
-                break;
-            }
-        }
-        if (hash_child)
-        {            
-            // Create a value for this instruction.
-            hash_value& value = create_value(ins);
-            add_root(&value);
-            // Flag children to be hashed.
-            for (auto&& output : ins->outputs())
-            {
-                if (op2_cnt[output->name()] > 1)
-                    instr2_hash[output] = true;
-            }
+            if (op2_cnt[output->name()] > 1)
+                instr2_hash[output] = true;
         }
     }
 }
            
 void horizontal_fusion_impl::run()
 {
+
     MIGRAPHX_DEBUG(dump("---Before horizontal fusion---"));
     MIGRAPHX_DEBUG(dump_program());
     std::cout << *p_program << std::endl;
     for (auto ins : iterator_for(*p_program))
     {
         process(ins);
+        point2_instr[cur_point] = ins;
+        cur_point++;
     }
+    dump_hash_tree();
 }
 
-#ifdef MIGRAPHX_DEBUG_OPT
+#ifdef MIGRAPHX_DEBUG_H_FUSION
 
 void horizontal_fusion_impl::dump_program() { std::cout << *p_program << std::endl; }
+
+void horizontal_fusion_impl::dump_hash_value(hash_value& val)
+{
+    unsigned id = val.id;
+    std::cout << "id: " << id << " @" << val.cur_point;
+    if (hash_inputs.find(id) != hash_inputs.end())
+    {
+        std::cout << " input: ";
+        for (auto && input : hash_inputs[id])
+            std::cout << " " << input->id;
+    }
+
+    if (hash_outputs.find(id) != hash_outputs.end())
+    {
+        std::cout << " output: ";
+        for (auto && output : hash_outputs[id])
+            std::cout << " " << output->id;
+    }
+    if (hash_instrs.find(id) != hash_instrs.end())
+    {
+        std::cout << " instrs: ";
+        for (auto && point : hash_instrs[id])
+        {
+            std::cout << " @" << point;
+        }
+    }
+    std::cout << std::endl;
+}
+
+void horizontal_fusion_impl::dump_hash_tree()
+{
+    for (auto && val : values)
+    {
+        dump_hash_value(val);
+     }
+
+}
 #endif
 
 } // namespace MIGRAPHX_INLINE_NS

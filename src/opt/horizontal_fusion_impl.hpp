@@ -3,34 +3,18 @@
 #include "common_header.hpp"
 #include <migraphx/config.hpp>
 
+#include <set>
+
+#define MIGRAPHX_DEBUG_H_FUSION
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 // Nodes representing hashed instructions.
 struct hash_value
 {
-    hash_value(unsigned i) : id (i)
-    {
-    };
-
-    void add_instr(instruction_ref ins)
-    {
-        instrs.push_back(ins);
-    }
-
-    void add_input(struct hash_value* i) { inputs.push_back(i); }
-    void add_output(struct hash_value* o) { outputs.push_back(o); }
-
-    unsigned get_id() { return id; }
-    const std::vector<struct hash_value*>& get_inputs() const { return inputs; }
-    const std::vector<struct hash_value*>& get_outputs() const { return outputs; }
-    const std::vector<instruction_ref>& get_instrs() const { return instrs; }
-    
-private:
-    unsigned id;
-    std::vector<struct hash_value*> inputs;
-    std::vector<struct hash_value*> outputs;
-    std::vector<instruction_ref> instrs;
+    unsigned id = 0;
+    unsigned cur_point = 0;
 };
 
 using hash_value_ptr = hash_value*;
@@ -38,14 +22,17 @@ using hash_value_ptr = hash_value*;
 //  Instruction encoding information, used to hash instructions.
 struct encode_info
 {
+    unsigned long long encoding = 0;
+
     encode_info(unsigned long long e) : encoding (e)
     {
-    };
+    }
+
     void add_input(hash_value_ptr p) { inputs.push_back(p); }
     unsigned long long get_encoding() const { return encoding; }
     const std::vector<hash_value_ptr>& get_inputs() const { return inputs; }
+
     private:
-    unsigned long long encoding;
     std::vector<hash_value_ptr> inputs;
 };
 
@@ -60,7 +47,13 @@ struct horizontal_fusion_impl
     {
         instr2_hash.clear();
         instr2_value.clear();
+        point2_instr.clear();
         encode2_value.clear();
+        cur_point = 0;
+        hash_inputs.clear();
+        hash_outputs.clear();
+        hash_instrs.clear();
+        values.reserve(p_program->size());
         register_all();
     }
     void run();
@@ -77,18 +70,55 @@ struct horizontal_fusion_impl
     hash_value& create_value(instruction_ref ins)
     {
         unsigned id = static_cast<unsigned>(values.size());
-        values.push_back(hash_value{id});
+        values.push_back(hash_value{id, cur_point});
         hash_value& val = get_value(id);
-        val.add_instr(ins);
+        add_instr(id);
         instr2_value[ins] = &val;
         return val;
     }
 
+    void add_instr(unsigned id)
+    {
+        if (hash_instrs.find(id) == hash_instrs.end())
+        {
+            std::set<unsigned> vals;
+            vals.insert(cur_point);
+            hash_instrs[id] = vals;
+        }
+        else {
+            hash_instrs[id].insert(cur_point);
+        }
+    }
+
+    void add_input(unsigned id, hash_value_ptr ptr)
+    {
+        if (hash_inputs.find(id) == hash_inputs.end())
+        {
+            std::set<hash_value_ptr> vals;
+            vals.insert(ptr);
+            hash_inputs[id] = vals;
+        } else if (hash_inputs[id].find(ptr) == hash_inputs[id].end())
+            hash_inputs[id].insert(ptr);
+    }
+
+    void add_output(unsigned id, hash_value_ptr ptr)
+    {
+        if (hash_outputs.find(id) == hash_outputs.end())
+        {
+            std::set<hash_value_ptr> vals;
+            vals.insert(ptr);
+            hash_outputs[id] = vals;
+        } else if (hash_outputs[id].find(ptr) == hash_outputs[id].end())
+            hash_outputs[id].insert(ptr);
+    }
+    
     void register_op(std::string, unsigned short, Encoder);
     void register_all();
     
-#ifdef MIGRAPHX_DEBUG_OPT
+#ifdef MIGRAPHX_DEBUG_H_FUSION
     void dump_program();
+    void dump_hash_value(hash_value&);
+    void dump_hash_tree();
 #endif
    private:
     program* p_program;
@@ -96,16 +126,25 @@ struct horizontal_fusion_impl
     std::unordered_map<instruction_ref, bool> instr2_hash;
     // Map an instruction to a hash value pointer.
     Ins2Val instr2_value;
+    std::unordered_map<unsigned, instruction_ref> point2_instr;
     // Map an encoding to a hash value pointer.
     std::unordered_map<unsigned long long, hash_value_ptr> encode2_value;
     // Map an operation name to its encoding.
     std::unordered_map<std::string, unsigned short> opcode_table;
-    // Map an operation name to its encoder fucntion.
+    // Map an operation name to its encoder function.
     std::unordered_map<std::string, Encoder> op_registry;
     // Universe of hash values.
     std::vector<hash_value> values;
     // A collection of root nodes in the hash_value tree.
     std::vector<hash_value_ptr> root_values;
+    // Map of hash value id to hash-value inputs.
+    std::unordered_map<unsigned, std::set<hash_value_ptr>> hash_inputs;
+    // Map of hash value id to hash-value outputs.
+    std::unordered_map<unsigned, std::set<hash_value_ptr>> hash_outputs;
+    // Map of hash value id to instructions having the same hash value.
+    std::unordered_map<unsigned, std::set<unsigned>> hash_instrs;
+    // Current program point.
+    unsigned cur_point;
 };
 
 // Encoding functions.

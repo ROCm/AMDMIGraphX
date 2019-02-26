@@ -22,7 +22,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-struct miopen_logsoftmax
+struct hip_logsoftmax
 {
     op::logsoftmax op;
     std::string name() const { return "gpu::logsoftmax"; }

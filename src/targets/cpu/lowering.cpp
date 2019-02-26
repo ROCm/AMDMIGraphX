@@ -622,14 +622,14 @@ struct cpu_logsoftmax
     template <typename T>
     std::size_t compute_batch_index(const T& idx, shape& batch_shape, int axis) const
     {
-        if (axis == 0) 
+        if(axis == 0)
         {
             return 0;
         }
         else
         {
             std::vector<std::size_t> batch_idx(idx.begin(), idx.begin() + axis);
-            return batch_shape.index(batch_idx.begin(), batch_idx.end());            
+            return batch_shape.index(batch_idx.begin(), batch_idx.end());
         }
     }
 
@@ -638,11 +638,11 @@ struct cpu_logsoftmax
         argument result{output_shape};
         auto lens = output_shape.lens();
         std::vector<std::size_t> batch_lens{};
-        if (op.axis == 0)
+        if(op.axis == 0)
         {
             batch_lens.push_back(1);
         }
-        else 
+        else
         {
             batch_lens.insert(batch_lens.begin(), lens.begin(), lens.begin() + op.axis);
         }

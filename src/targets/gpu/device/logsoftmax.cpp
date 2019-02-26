@@ -12,9 +12,9 @@ namespace gpu {
 namespace device {
 
 argument logsoftmax(hipStream_t stream,
-                const migraphx::shape& output_shape,
-                std::vector<migraphx::argument> args,
-                int axis)
+                    const migraphx::shape& output_shape,
+                    std::vector<migraphx::argument> args,
+                    int axis)
 {
 
     auto lens              = output_shape.lens();
@@ -25,28 +25,28 @@ argument logsoftmax(hipStream_t stream,
     migraphx::shape comp_shape{output_shape.type(), {batch_size, n_dims}};
 
     visit_all(args.back(), args.front())([&](auto output, auto input) {
-        const auto *input_ptr = device_cast(input.data());
-        auto *output_ptr = device_cast(output.data());
+        const auto* input_ptr = device_cast(input.data());
+        auto* output_ptr      = device_cast(output.data());
 
         // each thread is for one item in the batch
         gs_launch(stream, batch_size)([=](auto i) {
             std::size_t row_start = i * n_dims;
             // get max
             auto batch_max = input_ptr[row_start];
-            for (std::size_t j = 1; j < n_dims; ++j)
+            for(std::size_t j = 1; j < n_dims; ++j)
             {
-                auto ind = row_start + j;
+                auto ind  = row_start + j;
                 batch_max = std::max(to_hip_type(batch_max), to_hip_type(input_ptr[ind]));
             }
 
-            for (std::size_t j = 0; j < n_dims; ++j)
+            for(std::size_t j = 0; j < n_dims; ++j)
             {
-                auto ind = row_start + j;
+                auto ind        = row_start + j;
                 output_ptr[ind] = input_ptr[ind] - batch_max;
             }
 
             auto batch_sum = output_ptr[row_start];
-            for (std::size_t j = 1; j < n_dims; ++j)
+            for(std::size_t j = 1; j < n_dims; ++j)
             {
                 auto ind = row_start + j;
                 batch_sum += ::exp(to_hip_type(output_ptr[ind]));
@@ -54,7 +54,7 @@ argument logsoftmax(hipStream_t stream,
 
             batch_sum = ::log(to_hip_type(batch_sum));
 
-            for (std::size_t j = 0; j < n_dims; ++j)
+            for(std::size_t j = 0; j < n_dims; ++j)
             {
                 auto ind = row_start + j;
                 output_ptr[ind] -= batch_sum;

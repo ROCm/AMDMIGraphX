@@ -774,35 +774,12 @@ struct gather
         return {type, lens};
     }
 
-    template <typename T>
-    std::vector<std::size_t> compute_data_index(const tensor_view<T>& indices,
-                                                const int axis_index,
-                                                const std::vector<std::size_t>& out_idx) const
-    {
-        auto data_idx = out_idx;
-        std::size_t index{};
-        if(!indices.get_shape().scalar())
-        {
-            auto start_it = data_idx.begin() + axis_index;
-            auto end_it   = data_idx.begin() + axis_index + indices.get_shape().lens().size();
-            std::vector<std::size_t> ind_idx(start_it, end_it);
-            data_idx.erase(start_it, end_it);
-            index = static_cast<std::size_t>(indices(ind_idx.begin(), ind_idx.end()));
-        }
-        else
-        {
-            index = static_cast<std::size_t>(indices.front());
-        }
-        data_idx.insert(data_idx.begin() + axis_index, index);
-
-        return data_idx;
-    }
-
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         // negative axis means counting dimensions from back
-        int axis_index = (axis < 0) ? (args[0].get_shape().lens().size() + axis) : axis;
+        int axis_index =
+            (axis < 0) ? static_cast<int>(args[0].get_shape().lens().size() + axis) : axis;
 
         // max dimension in axis
         visit_all(result, args[0])([&](auto output, auto data) {
@@ -813,9 +790,13 @@ struct gather
                 }
                 else
                 {
-                    shape_for_each(output.get_shape(), [&](const auto& out_idx) {
-                        auto data_idx = compute_data_index(indices, axis_index, out_idx);
-                        output(out_idx.begin(), out_idx.end()) =
+                    auto out_lens        = data.get_shape().lens();
+                    out_lens[axis_index] = indices.get_shape().elements();
+                    migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
+                    shape_for_each(out_comp_shape, [&](const auto& out_idx) {
+                        auto data_idx        = out_idx;
+                        data_idx[axis_index] = indices[data_idx[axis_index]];
+                        output[out_comp_shape.index(out_idx.begin(), out_idx.end())] =
                             data(data_idx.begin(), data_idx.end());
                     });
                 }

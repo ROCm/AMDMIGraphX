@@ -45,13 +45,12 @@ argument logsoftmax(hipStream_t stream,
                 output_ptr[ind] = input_ptr[ind] - batch_max;
             }
 
-            auto batch_sum = output_ptr[row_start];
+            auto batch_sum = ::exp(to_hip_type(output_ptr[row_start]));
             for(std::size_t j = 1; j < n_dims; ++j)
             {
                 auto ind = row_start + j;
                 batch_sum += ::exp(to_hip_type(output_ptr[ind]));
             }
-
             batch_sum = ::log(to_hip_type(batch_sum));
 
             for(std::size_t j = 0; j < n_dims; ++j)

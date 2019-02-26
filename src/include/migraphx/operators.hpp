@@ -785,7 +785,7 @@ struct gather
         {
             auto start_it = data_idx.begin() + axis_index;
             auto end_it   = data_idx.begin() + axis_index + indices.get_shape().lens().size();
-            std::vector<T> ind_idx(start_it, end_it);
+            std::vector<std::size_t> ind_idx(start_it, end_it);
             data_idx.erase(start_it, end_it);
             index = static_cast<std::size_t>(indices(ind_idx.begin(), ind_idx.end()));
         }

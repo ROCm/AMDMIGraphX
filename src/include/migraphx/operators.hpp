@@ -778,7 +778,8 @@ struct gather
     {
         argument result{output_shape};
         // negative axis means counting dimensions from back
-        int axis_index = (axis < 0) ? static_cast<int>(args[0].get_shape().lens().size() + axis) : axis;
+        int axis_index =
+            (axis < 0) ? static_cast<int>(args[0].get_shape().lens().size() + axis) : axis;
 
         // max dimension in axis
         visit_all(result, args[0])([&](auto output, auto data) {
@@ -789,13 +790,13 @@ struct gather
                 }
                 else
                 {
-                    auto out_lens = data.get_shape().lens();
+                    auto out_lens        = data.get_shape().lens();
                     out_lens[axis_index] = indices.get_shape().elements();
                     migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
                     shape_for_each(out_comp_shape, [&](const auto& out_idx) {
-                        auto data_idx = out_idx;
+                        auto data_idx        = out_idx;
                         data_idx[axis_index] = indices[data_idx[axis_index]];
-                        output[out_comp_shape.index(out_idx.begin(), out_idx.end())] = 
+                        output[out_comp_shape.index(out_idx.begin(), out_idx.end())] =
                             data(data_idx.begin(), data_idx.end());
                     });
                 }

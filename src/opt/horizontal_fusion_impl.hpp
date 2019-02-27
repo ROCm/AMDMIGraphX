@@ -8,6 +8,7 @@
 #define MIGRAPHX_DEBUG_H_FUSION
 
 namespace migraphx {
+
 inline namespace MIGRAPHX_INLINE_NS {
 
 // Nodes representing hashed instructions.
@@ -18,19 +19,22 @@ struct hash_value
 };
 
 using hash_value_ptr = hash_value*;
+using key_type = unsigned long long;
 
 //  Instruction encoding information, used to hash instructions.
 struct encode_info
 {
-    unsigned long long encoding = 0;
-
-    encode_info(unsigned long long e) : encoding (e)
+    key_type key;
+    bool valid;
+    encode_info(key_type k, bool v) : key(k), valid(v)
     {
     }
 
     void add_input(hash_value_ptr p) { inputs.push_back(p); }
-    unsigned long long get_encoding() const { return encoding; }
+    key_type get_key() const { return key; }
+    void set_key(key_type k) { key = k; }
     const std::vector<hash_value_ptr>& get_inputs() const { return inputs; }
+    bool is_valid() const { return valid; }
 
     private:
     std::vector<hash_value_ptr> inputs;
@@ -38,7 +42,9 @@ struct encode_info
 
 
 using Ins2Val = std::unordered_map<instruction_ref, hash_value_ptr>;
-using Encoder = std::function<encode_info(instruction_ref, unsigned short, Ins2Val&)>;
+using String2Val = std::unordered_map<std::string, unsigned>;
+           
+using Encoder = std::function<encode_info(instruction_ref, unsigned short, Ins2Val&, unsigned)>;
 
 struct horizontal_fusion_impl
 {
@@ -50,10 +56,12 @@ struct horizontal_fusion_impl
         point2_instr.clear();
         encode2_value.clear();
         cur_point = 0;
+        string_val = 0;
         hash_inputs.clear();
         hash_outputs.clear();
         hash_instrs.clear();
         values.reserve(p_program->size());
+        string_table.clear();
         register_all();
     }
     void run();
@@ -67,15 +75,7 @@ struct horizontal_fusion_impl
     unsigned short get_opcode(instruction_ref ins);
     hash_value& get_value(unsigned id) { return values[id]; }
 
-    hash_value& create_value(instruction_ref ins)
-    {
-        unsigned id = static_cast<unsigned>(values.size());
-        values.push_back(hash_value{id, cur_point});
-        hash_value& val = get_value(id);
-        add_instr(id);
-        instr2_value[ins] = &val;
-        return val;
-    }
+    hash_value& create_value(instruction_ref ins);
 
     void add_instr(unsigned id)
     {
@@ -111,6 +111,20 @@ struct horizontal_fusion_impl
         } else if (hash_outputs[id].find(ptr) == hash_outputs[id].end())
             hash_outputs[id].insert(ptr);
     }
+    unsigned hash_reflect(instruction_ref ins)
+    {
+        if (ins->name() == "gpu::convolution")
+        {                                                          
+            std::ostringstream stream;
+            stream << ins->get_operator();
+            std::string str = stream.str();
+            if (string_table.find(str) == string_table.end())
+                string_table[str] = string_val++;
+            return string_table[str];
+        }
+        else 
+            return 0;
+    }
     
     void register_op(std::string, unsigned short, Encoder);
     void register_all();
@@ -128,11 +142,13 @@ struct horizontal_fusion_impl
     Ins2Val instr2_value;
     std::unordered_map<unsigned, instruction_ref> point2_instr;
     // Map an encoding to a hash value pointer.
-    std::unordered_map<unsigned long long, hash_value_ptr> encode2_value;
+    std::unordered_map<key_type, hash_value_ptr> encode2_value;
     // Map an operation name to its encoding.
     std::unordered_map<std::string, unsigned short> opcode_table;
     // Map an operation name to its encoder function.
     std::unordered_map<std::string, Encoder> op_registry;
+    // Map an string to a value.
+    String2Val string_table;
     // Universe of hash values.
     std::vector<hash_value> values;
     // A collection of root nodes in the hash_value tree.
@@ -145,10 +161,14 @@ struct horizontal_fusion_impl
     std::unordered_map<unsigned, std::set<unsigned>> hash_instrs;
     // Current program point.
     unsigned cur_point;
+    unsigned string_val;
 };
 
+           
 // Encoding functions.
-encode_info EncodeConvBiasRelu(instruction_ref in, unsigned short opcode, Ins2Val instr2_value);
+encode_info EncodeConvBiasRelu(instruction_ref in, unsigned short opcode, Ins2Val& instr2_value, unsigned);
+encode_info EncodeConvolution(instruction_ref in, unsigned short opcode, Ins2Val& instr2_value, unsigned);
+encode_info EncodeConvCommon(instruction_ref in, unsigned short opcode, Ins2Val&instr2_value, unsigned);
            
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

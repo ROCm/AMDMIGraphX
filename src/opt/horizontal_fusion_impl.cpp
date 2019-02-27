@@ -4,11 +4,17 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+static unsigned opcode_bits = 8;
+static unsigned hash_id_bits = 16;
+static unsigned filter_bits = 8;
+static unsigned kernel_bits = 8;
+static unsigned reflect_bits = 8;           
+
 // Register a single operation.
 // 1st arg: operation name. 2nd arg: opcode.   3rd arg: encoding function.
 void horizontal_fusion_impl::register_op(std::string name, unsigned short opcode, Encoder func)
 {
-    assert(opcode < 256);
+    assert(opcode < ( 1 << opcode_bits));
     opcode_table[name] = opcode;
     op_registry[name] = func;
 }
@@ -16,6 +22,7 @@ void horizontal_fusion_impl::register_op(std::string name, unsigned short opcode
 // Register operations.
 void horizontal_fusion_impl::register_all()
 {
+    register_op("gpu::convolution", 1, EncodeConvolution);
     register_op("gpu::conv_bias_relu", 2, EncodeConvBiasRelu);
 }
 
@@ -25,27 +32,86 @@ unsigned short horizontal_fusion_impl::get_opcode(instruction_ref ins)
     return (opcode_table.find(ins->name()) == opcode_table.end()) ? 0 : opcode_table[ins->name()];
 }
 
-// Encode "conv_bias_relu":
-//           
-// |----- 16 bits -----|----- 16 bits -------|----- 8 bits -----|----- 8 bits-----|----- 16 bits -----|
-// |     opcode        | 1st operand hash id |   filter size    |  kernel size    |     0x0000        |
-encode_info EncodeConvBiasRelu(instruction_ref ins, unsigned short opcode, Ins2Val instr2_value)
+static unsigned opcode_shift_count()
 {
-    unsigned long long encode = (static_cast<unsigned long long>(opcode) << 48);
+    return ((sizeof(key_type) * 8) - opcode_bits);
+}
+
+static unsigned hash_id_shift_count()
+{
+    return (opcode_shift_count() - hash_id_bits);
+}
+
+static unsigned filter_shift_count()
+{
+    return (hash_id_shift_count() - filter_bits);
+}
+
+static unsigned kernel_shift_count()
+{
+    return (filter_shift_count() - kernel_bits);
+}
+
+// Encode common fields in convolution:
+//
+// |----- 8 bits -----|----- 16 bits -------|----- 8 bits -----|----- 8 bits-----|----- 16 bits -----|
+// |     opcode        | 1st operand hash id |   filter size    |  kernel size    |     0x0000        |
+
+encode_info EncodeConvCommon(instruction_ref ins, unsigned short opcode, Ins2Val& instr2_value, unsigned)
+{
+    key_type encode = (static_cast<key_type>(opcode) << opcode_shift_count());
     instruction_ref op1 = ins->inputs().front();
     assert(instr2_value.find(op1) != instr2_value.end());
     hash_value_ptr op1_val = instr2_value[op1];
-    encode |= (static_cast<unsigned long long>(op1_val->id) << 32);
+
+    if (op1_val->id >= ( 1 << hash_id_bits))
+        return encode_info(0, false);
+
+    encode |= (static_cast<key_type>(op1_val->id) << hash_id_shift_count());
     instruction_ref op2 = ins->inputs().at(1);
     auto lens = op2->get_shape().lens();
     auto filter = lens[lens.size() - 2];
     auto kernel = lens[lens.size() - 1];
+    if ((filter < ( 1 << filter_bits)) && (kernel < ( 1 << kernel_bits)))
+    {
+        encode |= (filter << filter_shift_count());
+        encode |= (kernel << kernel_shift_count());
+        encode_info info(encode, true);
+        info.add_input(op1_val);
+        return info;
+    } else {
+        return encode_info(0, false);
+    }
 
-    encode |= (filter << 24);
-    encode |= (kernel << 16);
-    encode_info info(encode);
-    info.add_input(op1_val);
-    return info;
+}
+
+// Encode "conv_bias_relu":
+//           
+// |----- 8 bits -----|----- 16 bits -------|----- 8 bits -----|----- 8 bits-----|----- 16 bits -----|
+// |     opcode        | 1st operand hash id |   filter size    |  kernel size    |     0x0000        |
+encode_info EncodeConvBiasRelu(instruction_ref ins, unsigned short opcode, Ins2Val& instr2_value, unsigned reflect)
+{
+    return EncodeConvCommon(ins, opcode, instr2_value, reflect);
+}
+
+// Encode "convolution":
+//
+// |----- 8 bits -----|----- 16 bits -------|----- 8 bits -----|----- 8 bits-----|-----24 bits -----|
+// |     opcode        | 1st operand hash id |   filter size    |  kernel size    |     reflect  | 
+           
+encode_info EncodeConvolution(instruction_ref ins, unsigned short opcode, Ins2Val& instr2_value, unsigned reflect)
+{
+    encode_info info = EncodeConvCommon(ins, opcode, instr2_value, reflect);
+    if (info.is_valid())
+    {
+        if (reflect >= ( 1 << reflect_bits))
+            return encode_info(0, false);
+        key_type encode = info.get_key();
+        encode |= reflect;
+        info.set_key(encode);
+        return info;
+    } else
+        return encode_info(0, false);
 }
 
 // Hash the instruction.           
@@ -55,18 +121,24 @@ hash_value_ptr horizontal_fusion_impl::hash(instruction_ref ins)
         return nullptr;
 
     Encoder encode_func = op_registry.at(ins->name());
-    
-    encode_info encode_val = encode_func(ins, get_opcode(ins), instr2_value);
-    unsigned long long encoding = encode_val.get_encoding();
+    unsigned reflect = hash_reflect(ins);
+
+    encode_info encode_val = encode_func(ins, get_opcode(ins), instr2_value, reflect);
+    if (!encode_val.is_valid())
+    {
+        std::cout << "warning: value hash fails" << std::endl;
+        return nullptr;
+    }
+    key_type key = encode_val.get_key();
     hash_value_ptr hash_val = nullptr;
 
-    if (encode2_value.find(encoding) != encode2_value.end()) {
-        hash_val = encode2_value[encoding];
+    if (encode2_value.find(key) != encode2_value.end()) {
+        hash_val = encode2_value[key];
         add_instr(hash_val->id);
         instr2_value[ins] = hash_val;
     } else {
         hash_val = &(create_value(ins));
-        encode2_value[encoding] = hash_val;
+        encode2_value[key] = hash_val;
     }
     for (auto&& input : encode_val.get_inputs())
     {
@@ -75,6 +147,17 @@ hash_value_ptr horizontal_fusion_impl::hash(instruction_ref ins)
     }
     return hash_val;
 }
+
+hash_value& horizontal_fusion_impl::create_value(instruction_ref ins)
+{
+    unsigned id = static_cast<unsigned>(values.size());
+    values.push_back(hash_value{id, cur_point});
+    hash_value& val = get_value(id);
+    add_instr(id);
+    instr2_value[ins] = &val;
+    return val;
+}
+           
 void horizontal_fusion_impl::process(instruction_ref ins)
 {
     // Do not hash literals.

@@ -840,12 +840,13 @@ struct dot
             MIGRAPHX_THROW("DOT: second matrix, dimensions before matrix dims must be 1");
         }
 
-        std::size_t n_dims = a.lens().size();
-        if(a.lens()[n_dims - 1] != b.lens()[n_dims - 2])
+        std::size_t dim_0 = a.lens().size() - 2;
+        std::size_t dim_1 = a.lens().size() - 1;
+        if(a.lens()[dim_1] != b.lens()[dim_0])
             MIGRAPHX_THROW("Inner dimensions do not match: {" + to_string_range(a.lens()) +
                            "} x {" + to_string_range(b.lens()) + "}");
         auto out_lens        = a.lens();
-        out_lens[n_dims - 1] = b.lens()[n_dims - 1];
+        out_lens[dim_1] = b.lens()[dim_1];
         return {t, out_lens};
     }
 };

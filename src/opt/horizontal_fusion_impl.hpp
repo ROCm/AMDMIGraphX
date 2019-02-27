@@ -32,6 +32,7 @@ struct encode_info
 
     void add_input(hash_value_ptr p) { inputs.push_back(p); }
     key_type get_key() const { return key; }
+    void set_key(key_type k) { key = k; }
     const std::vector<hash_value_ptr>& get_inputs() const { return inputs; }
     bool is_valid() const { return valid; }
 
@@ -158,8 +159,7 @@ struct horizontal_fusion_impl
 
            
 // Encoding functions.
-encode_info EncodeConvBiasRelu(instruction_ref in, Ins2Val& instr2_value, unsigned);
-encode_info EncodeConvolution(instruction_ref in, Ins2Val& instr2_value, unsigned);
+encode_info EncodeCommon(instruction_ref in, Ins2Val&instr2_value, unsigned);
 encode_info EncodeConvCommon(instruction_ref in, Ins2Val&instr2_value, unsigned);
            
 } // namespace MIGRAPHX_INLINE_NS

@@ -19,8 +19,9 @@ void horizontal_fusion_impl::register_op(std::string name, Encoder func)
 // Register operations.
 void horizontal_fusion_impl::register_all()
 {
-    register_op("gpu::convolution", EncodeConvolution);
-    register_op("gpu::conv_bias_relu", EncodeConvBiasRelu);
+    register_op("gpu::convolution", EncodeConvCommon);
+    register_op("gpu::conv_bias_relu", EncodeConvCommon);
+    register_op("hip::add_relu", EncodeCommon);
 }
 
 static unsigned opcode_shift_count()
@@ -43,12 +44,11 @@ static unsigned kernel_shift_count()
     return (filter_shift_count() - kernel_bits);
 }
 
-// Encode common fields in convolution:
+// Encode common fields.
 //
-// |----- 16 bits -----|----- 16 bits -------|----- 8 bits -----|----- 8 bits-----|----- 16 bits -----|
-// |     opcode        | 1st operand hash id |   filter size    |  kernel size    |     0x0000        |
-
-encode_info EncodeConvCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned opcode)
+// |----- 16 bits -----|----- 16 bits -------|----- 32 bits -----|
+// |      opcode       | 1st operand hash id |
+encode_info EncodeCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned opcode)
 {
     if (opcode >= ( 1 << opcode_bits))
         return encode_info(0, false);
@@ -56,11 +56,25 @@ encode_info EncodeConvCommon(instruction_ref ins, Ins2Val& instr2_value, unsigne
     instruction_ref op1 = ins->inputs().front();
     assert(instr2_value.find(op1) != instr2_value.end());
     hash_value_ptr op1_val = instr2_value[op1];
-
     if (op1_val->id >= ( 1 << hash_id_bits))
         return encode_info(0, false);
-
     encode |= (static_cast<key_type>(op1_val->id) << hash_id_shift_count());
+    encode_info info(encode, true);
+    info.add_input(op1_val);
+    return info;
+}
+
+// Encode common fields in convolution:
+//
+// |----- 16 bits -----|----- 16 bits -------|----- 8 bits -----|----- 8 bits-----|----- 16 bits -----|
+// |     opcode        | 1st operand hash id |   filter size    |  kernel size    |     0x0000        |
+
+encode_info EncodeConvCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned opcode)
+{
+    encode_info info = EncodeCommon(ins, instr2_value, opcode);
+    if (!info.is_valid())
+        return info;
+    key_type encode = info.get_key();
     instruction_ref op2 = ins->inputs().at(1);
     auto lens = op2->get_shape().lens();
     auto filter = lens[lens.size() - 2];
@@ -69,25 +83,11 @@ encode_info EncodeConvCommon(instruction_ref ins, Ins2Val& instr2_value, unsigne
     {
         encode |= (filter << filter_shift_count());
         encode |= (kernel << kernel_shift_count());
-        encode_info info(encode, true);
-        info.add_input(op1_val);
+        info.set_key(encode);
         return info;
     } else {
         return encode_info(0, false);
     }
-
-}
-
-// Encode "gpu::conv_bias_relu":
-encode_info EncodeConvBiasRelu(instruction_ref ins, Ins2Val& instr2_value, unsigned opcode)
-{
-    return EncodeConvCommon(ins, instr2_value, opcode);
-}
-
-// Encode "gpu::convolution":
-encode_info EncodeConvolution(instruction_ref ins, Ins2Val& instr2_value, unsigned opcode)
-{
-    return EncodeConvCommon(ins, instr2_value, opcode);
 }
 
 // Hash given instruction.           

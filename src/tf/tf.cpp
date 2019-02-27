@@ -50,6 +50,9 @@ struct tf_parser
         return axes;
     }
 
+    // tf stores certain attributes such as strides, dilations, as a 4D input.
+    // The first and last dims are equal to 1, and the relevant data is in dims 2 and 3.
+    // This helper function reorders the data to store for the respective operator member variables.
     template <class T>
     void reorder_data(std::vector<T>& prev_data) const
     {

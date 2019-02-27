@@ -469,7 +469,12 @@ struct onnx_parser
         {
             transb = parse_value(attributes.at("transB")).at<bool>();
         }
-        std::vector<int64_t> perm = {1, 0};
+
+        std::vector<int64_t> perm(args[0]->get_shape().lens().size());
+        std::iota(perm.begin(), perm.end(), int64_t{0});
+        // swap the last two elements
+        std::swap(*perm.rbegin(), *(perm.rbegin() + 1));
+
         auto l1 = (transa) ? prog.add_instruction(op::transpose{perm}, args[0]) : args[0];
         auto l2 = (transb) ? prog.add_instruction(op::transpose{perm}, args[1]) : args[1];
         if(args.size() == 3)

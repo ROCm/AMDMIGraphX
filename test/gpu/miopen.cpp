@@ -836,7 +836,6 @@ struct test_gemm_transposea_ex
     }
 };
 
-
 struct test_gemm_transposeab
 {
     migraphx::program create_program() const

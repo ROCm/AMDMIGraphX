@@ -321,10 +321,8 @@ TEST_CASE(dot)
     {
         migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
         migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {4, 8}},
-                     migraphx::op::dot{},
-                     s_m1,
-                     s_m2);
+        expect_shape(
+            migraphx::shape{migraphx::shape::float_type, {4, 8}}, migraphx::op::dot{}, s_m1, s_m2);
     }
 
     {
@@ -336,10 +334,8 @@ TEST_CASE(dot)
     {
         migraphx::shape s_m1{migraphx::shape::float_type, {1, 1}};
         migraphx::shape s_m2{migraphx::shape::float_type, {1, 1}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1}},
-                     migraphx::op::dot{},
-                     s_m1,
-                     s_m2);
+        expect_shape(
+            migraphx::shape{migraphx::shape::float_type, {1, 1}}, migraphx::op::dot{}, s_m1, s_m2);
     }
 
     {
@@ -393,7 +389,6 @@ TEST_CASE(dot)
         throws_shape(migraphx::op::dot{}, s_m1, s_m2);
     }
 }
-
 
 TEST_CASE(rnn)
 {

@@ -78,13 +78,12 @@ void migemm_impl(tensor_view<T> cmat,
     assert(cmat.get_shape().lens()[dim_1] == bmat.get_shape().lens()[dim_1]);
 
     shape_for_each(cmat.get_shape(), [&](const auto& c_idx) {
-        double s = cmat(c_idx.begin(), c_idx.end()) * beta;
+        double s   = cmat(c_idx.begin(), c_idx.end()) * beta;
         auto a_idx = c_idx;
         auto b_idx = c_idx;
         dfor(k)([&](auto kk) {
             a_idx[dim_1] = b_idx[dim_0] = kk;
-            s += amat(a_idx.begin(), a_idx.end()) * 
-                bmat(b_idx.begin(), b_idx.end());
+            s += amat(a_idx.begin(), a_idx.end()) * bmat(b_idx.begin(), b_idx.end());
         });
         cmat(c_idx.begin(), c_idx.end()) = alpha * s;
     });

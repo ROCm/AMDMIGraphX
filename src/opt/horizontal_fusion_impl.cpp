@@ -4,32 +4,23 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-static unsigned opcode_bits = 8;
+static unsigned opcode_bits = 16;
 static unsigned hash_id_bits = 16;
 static unsigned filter_bits = 8;
 static unsigned kernel_bits = 8;
-static unsigned reflect_bits = 8;           
 
 // Register a single operation.
-// 1st arg: operation name. 2nd arg: opcode.   3rd arg: encoding function.
-void horizontal_fusion_impl::register_op(std::string name, unsigned short opcode, Encoder func)
+// 1st arg: operation name. 2nd arg: encoding function.
+void horizontal_fusion_impl::register_op(std::string name, Encoder func)
 {
-    assert(opcode < ( 1 << opcode_bits));
-    opcode_table[name] = opcode;
     op_registry[name] = func;
 }
            
 // Register operations.
 void horizontal_fusion_impl::register_all()
 {
-    register_op("gpu::convolution", 1, EncodeConvolution);
-    register_op("gpu::conv_bias_relu", 2, EncodeConvBiasRelu);
-}
-
-// Get operation encoding.
-unsigned short horizontal_fusion_impl::get_opcode(instruction_ref ins)
-{
-    return (opcode_table.find(ins->name()) == opcode_table.end()) ? 0 : opcode_table[ins->name()];
+    register_op("gpu::convolution", EncodeConvolution);
+    register_op("gpu::conv_bias_relu", EncodeConvBiasRelu);
 }
 
 static unsigned opcode_shift_count()
@@ -54,11 +45,13 @@ static unsigned kernel_shift_count()
 
 // Encode common fields in convolution:
 //
-// |----- 8 bits -----|----- 16 bits -------|----- 8 bits -----|----- 8 bits-----|----- 16 bits -----|
+// |----- 16 bits -----|----- 16 bits -------|----- 8 bits -----|----- 8 bits-----|----- 16 bits -----|
 // |     opcode        | 1st operand hash id |   filter size    |  kernel size    |     0x0000        |
 
-encode_info EncodeConvCommon(instruction_ref ins, unsigned short opcode, Ins2Val& instr2_value, unsigned)
+encode_info EncodeConvCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned opcode)
 {
+    if (opcode >= ( 1 << opcode_bits))
+        return encode_info(0, false);
     key_type encode = (static_cast<key_type>(opcode) << opcode_shift_count());
     instruction_ref op1 = ins->inputs().front();
     assert(instr2_value.find(op1) != instr2_value.end());
@@ -85,45 +78,27 @@ encode_info EncodeConvCommon(instruction_ref ins, unsigned short opcode, Ins2Val
 
 }
 
-// Encode "conv_bias_relu":
-//           
-// |----- 8 bits -----|----- 16 bits -------|----- 8 bits -----|----- 8 bits-----|----- 16 bits -----|
-// |     opcode        | 1st operand hash id |   filter size    |  kernel size    |     0x0000        |
-encode_info EncodeConvBiasRelu(instruction_ref ins, unsigned short opcode, Ins2Val& instr2_value, unsigned reflect)
+// Encode "gpu::conv_bias_relu":
+encode_info EncodeConvBiasRelu(instruction_ref ins, Ins2Val& instr2_value, unsigned opcode)
 {
-    return EncodeConvCommon(ins, opcode, instr2_value, reflect);
+    return EncodeConvCommon(ins, instr2_value, opcode);
 }
 
-// Encode "convolution":
-//
-// |----- 8 bits -----|----- 16 bits -------|----- 8 bits -----|----- 8 bits-----|-----24 bits -----|
-// |     opcode        | 1st operand hash id |   filter size    |  kernel size    |     reflect  | 
-           
-encode_info EncodeConvolution(instruction_ref ins, unsigned short opcode, Ins2Val& instr2_value, unsigned reflect)
+// Encode "gpu::convolution":
+encode_info EncodeConvolution(instruction_ref ins, Ins2Val& instr2_value, unsigned opcode)
 {
-    encode_info info = EncodeConvCommon(ins, opcode, instr2_value, reflect);
-    if (info.is_valid())
-    {
-        if (reflect >= ( 1 << reflect_bits))
-            return encode_info(0, false);
-        key_type encode = info.get_key();
-        encode |= reflect;
-        info.set_key(encode);
-        return info;
-    } else
-        return encode_info(0, false);
+    return EncodeConvCommon(ins, instr2_value, opcode);
 }
 
-// Hash the instruction.           
+// Hash given instruction.           
 hash_value_ptr horizontal_fusion_impl::hash(instruction_ref ins)
 {
     if (op_registry.find(ins->name()) == op_registry.end())
         return nullptr;
 
     Encoder encode_func = op_registry.at(ins->name());
-    unsigned reflect = hash_reflect(ins);
-
-    encode_info encode_val = encode_func(ins, get_opcode(ins), instr2_value, reflect);
+    unsigned opcode = hash_opcode(ins);
+    encode_info encode_val = encode_func(ins, instr2_value, opcode);
     if (!encode_val.is_valid())
     {
         std::cout << "warning: value hash fails" << std::endl;

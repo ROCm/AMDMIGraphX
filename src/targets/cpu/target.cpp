@@ -1,6 +1,7 @@
 
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/cpu/lowering.hpp>
+#include <migraphx/pass.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/dead_code_elimination.hpp>

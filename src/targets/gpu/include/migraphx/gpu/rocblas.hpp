@@ -2,7 +2,6 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_ROCBLAS_HPP
 
 #include <migraphx/manage_ptr.hpp>
-#include <migraphx/operators.hpp>
 #include <migraphx/config.hpp>
 #include <rocblas.h>
 

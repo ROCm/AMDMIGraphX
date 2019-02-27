@@ -845,7 +845,7 @@ struct dot
         if(a.lens()[dim_1] != b.lens()[dim_0])
             MIGRAPHX_THROW("Inner dimensions do not match: {" + to_string_range(a.lens()) +
                            "} x {" + to_string_range(b.lens()) + "}");
-        auto out_lens        = a.lens();
+        auto out_lens   = a.lens();
         out_lens[dim_1] = b.lens()[dim_1];
         return {t, out_lens};
     }

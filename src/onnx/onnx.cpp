@@ -436,7 +436,15 @@ struct onnx_parser
                                    attribute_map attributes,
                                    const std::vector<instruction_ref>&)
     {
-        literal v = parse_value(attributes.at("value"));
+        literal v     = parse_value(attributes.at("value"));
+        auto dim_size = attributes.at("value").t().dims_size();
+        // if dim_size is 0, it is a scalar
+        if(dim_size == 0)
+        {
+            migraphx::shape scalar_shape{v.get_shape().type()};
+            return prog.add_literal(migraphx::literal{scalar_shape, v.data()});
+        }
+
         return prog.add_literal(v);
     }
 
@@ -463,6 +471,7 @@ struct onnx_parser
         {
             transb = parse_value(attributes.at("transB")).at<bool>();
         }
+
         std::vector<int64_t> perm = {1, 0};
         auto l1 = (transa) ? prog.add_instruction(op::transpose{perm}, args[0]) : args[0];
         auto l2 = (transb) ? prog.add_instruction(op::transpose{perm}, args[1]) : args[1];
@@ -483,7 +492,10 @@ struct onnx_parser
                 return add_broadcastable_binary_op(l3, l4, op::add{});
             }
         }
-        return prog.add_instruction(op::dot{alpha, beta}, l1, l2);
+
+        auto dot_res = prog.add_instruction(op::dot{alpha, beta}, l1, l2);
+
+        return dot_res;
     }
 
     instruction_ref

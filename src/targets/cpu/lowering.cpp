@@ -652,18 +652,18 @@ struct cpu_logsoftmax
             std::vector<value_type> batch_max(batch_shape.elements(),
                                               std::numeric_limits<value_type>::lowest());
             shape_for_each(output_shape, [&](auto idx) {
-                auto index       = compute_batch_index(idx, batch_shape, op.axis);
+                auto index       = this->compute_batch_index(idx, batch_shape, op.axis);
                 batch_max[index] = std::max(batch_max[index], input(idx.begin(), idx.end()));
             });
 
             shape_for_each(output_shape, [&](auto idx) {
-                auto index                     = compute_batch_index(idx, batch_shape, op.axis);
+                auto index = this->compute_batch_index(idx, batch_shape, op.axis);
                 output(idx.begin(), idx.end()) = input(idx.begin(), idx.end()) - batch_max[index];
             });
 
             std::vector<value_type> batch_sum(batch_shape.elements(), value_type(0));
             shape_for_each(output_shape, [&](auto idx) {
-                auto index = compute_batch_index(idx, batch_shape, op.axis);
+                auto index = this->compute_batch_index(idx, batch_shape, op.axis);
                 batch_sum[index] += std::exp(output(idx.begin(), idx.end()));
             });
 
@@ -673,7 +673,7 @@ struct cpu_logsoftmax
             }
 
             shape_for_each(output_shape, [&](auto idx) {
-                auto index = compute_batch_index(idx, batch_shape, op.axis);
+                auto index = this->compute_batch_index(idx, batch_shape, op.axis);
                 output(idx.begin(), idx.end()) -= batch_sum[index];
             });
         });

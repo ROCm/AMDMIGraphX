@@ -957,7 +957,7 @@ struct logsoftmax
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs}.has(1);
-        if(axis < 0 || axis >= inputs[0].lens().size())
+        if(axis < 0 || axis > inputs[0].lens().size())
         {
             MIGRAPHX_THROW("LogSoftMax: input axis value " + std::to_string(axis) +
                            " is out of range");

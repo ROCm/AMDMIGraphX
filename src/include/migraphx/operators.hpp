@@ -826,18 +826,12 @@ struct dot
         const shape& b = inputs.at(1);
         auto t         = a.type();
 
-        // change to support cases like {1, 1, 3, 5} X {1, 1, 5, 6},
-        // which can be handled by numpy. as long as all previous
-        // dims are 1 except the last two dims, the two matrices
-        // are multipliable
-        if(std::any_of(a.lens().rbegin() + 2, a.lens().rend(), [](auto i) { return (i != 1); }))
+        // according to the specification of the numpy.matmul()
+        // inputs with the shape dims more than 2 are acceptable
+        // as long as dim values are the same in the two inputs
+        if(!std::equal(a.lens().rbegin() + 2, a.lens().rend(), b.lens().rbegin() + 2))
         {
-            MIGRAPHX_THROW("DOT: first matrix, dimensions before matrix dims must be 1");
-        }
-
-        if(std::any_of(b.lens().rbegin() + 2, b.lens().rend(), [](auto i) { return (i != 1); }))
-        {
-            MIGRAPHX_THROW("DOT: second matrix, dimensions before matrix dims must be 1");
+            MIGRAPHX_THROW("DOT: dim values mismatch");
         }
 
         std::size_t dim_0 = a.lens().size() - 2;

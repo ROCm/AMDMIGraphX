@@ -173,7 +173,7 @@ TEST_CASE(gather_test)
         migraphx::shape s{migraphx::shape::float_type, {3, 3}};
         auto a0 = p.add_literal(migraphx::literal{s, data});
         // scalar index
-        migraphx::shape s_indices{migraphx::shape::int32_type, {1}, {0}};
+        migraphx::shape s_indices{migraphx::shape::int32_type};
         std::vector<int> indices{0};
         auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
         int axis = -1;
@@ -194,7 +194,7 @@ TEST_CASE(gather_test)
         migraphx::shape s{migraphx::shape::float_type, {3}};
         auto a0 = p.add_literal(migraphx::literal{s, data});
         // scalar index
-        migraphx::shape s_indices{migraphx::shape::int32_type, {1}, {0}};
+        migraphx::shape s_indices{migraphx::shape::int32_type};
         std::vector<int> indices{0};
         auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
         int axis = -1;

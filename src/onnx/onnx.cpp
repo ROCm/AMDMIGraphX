@@ -453,7 +453,7 @@ struct onnx_parser
         // if dim_size is 0, it is a scalar
         if(dim_size == 0)
         {
-            migraphx::shape scalar_shape{v.get_shape().type(), {1}, {0}};
+            migraphx::shape scalar_shape{v.get_shape().type()};
             return prog.add_literal(migraphx::literal{scalar_shape, v.data()});
         }
 

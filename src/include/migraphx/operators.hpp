@@ -768,7 +768,7 @@ struct gather
         // for scalar output
         if(lens.empty())
         {
-            return {type, {1}, {0}};
+            return {type};
         }
 
         return {type, lens};
@@ -826,26 +826,21 @@ struct dot
         const shape& b = inputs.at(1);
         auto t         = a.type();
 
-        // change to support cases like {1, 1, 3, 5} X {1, 1, 5, 6},
-        // which can be handled by numpy. as long as all previous
-        // dims are 1 except the last two dims, the two matrices
-        // are multipliable
-        if(std::any_of(a.lens().rbegin() + 2, a.lens().rend(), [](auto i) { return (i != 1); }))
+        // according to the specification of the numpy.matmul()
+        // inputs with the shape dims more than 2 are acceptable
+        // as long as dim values are the same in the two inputs
+        if(!std::equal(a.lens().rbegin() + 2, a.lens().rend(), b.lens().rbegin() + 2))
         {
-            MIGRAPHX_THROW("DOT: first matrix, dimensions before matrix dims must be 1");
+            MIGRAPHX_THROW("DOT: dim values mismatch");
         }
 
-        if(std::any_of(b.lens().rbegin() + 2, b.lens().rend(), [](auto i) { return (i != 1); }))
-        {
-            MIGRAPHX_THROW("DOT: second matrix, dimensions before matrix dims must be 1");
-        }
-
-        std::size_t n_dims = a.lens().size();
-        if(a.lens()[n_dims - 1] != b.lens()[n_dims - 2])
+        std::size_t dim_0 = a.lens().size() - 2;
+        std::size_t dim_1 = a.lens().size() - 1;
+        if(a.lens()[dim_1] != b.lens()[dim_0])
             MIGRAPHX_THROW("Inner dimensions do not match: {" + to_string_range(a.lens()) +
                            "} x {" + to_string_range(b.lens()) + "}");
-        auto out_lens        = a.lens();
-        out_lens[n_dims - 1] = b.lens()[n_dims - 1];
+        auto out_lens   = a.lens();
+        out_lens[dim_1] = b.lens()[dim_1];
         return {t, out_lens};
     }
 };

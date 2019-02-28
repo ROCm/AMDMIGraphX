@@ -3,6 +3,7 @@
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/device/add_relu.hpp>
+#include <migraphx/gpu/device/add.hpp>
 #include <migraphx/instruction.hpp>
 
 namespace migraphx {

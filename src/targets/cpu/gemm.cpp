@@ -1,6 +1,7 @@
 #include <migraphx/cpu/gemm.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/requires.hpp>
+#include <migraphx/shape_for_each.hpp>
 #include <blaze/math/CustomMatrix.h>
 
 namespace migraphx {
@@ -70,18 +71,21 @@ void migemm_impl(tensor_view<T> cmat,
     std::size_t n_dims = cmat.get_shape().lens().size();
     std::size_t dim_0  = n_dims - 2;
     std::size_t dim_1  = n_dims - 1;
-    auto m             = cmat.get_shape().lens()[dim_0];
-    auto n             = cmat.get_shape().lens()[dim_1];
     auto k             = amat.get_shape().lens()[dim_1];
 
     assert(amat.get_shape().lens()[dim_1] == bmat.get_shape().lens()[dim_0]);
-    assert(m == amat.get_shape().lens()[dim_0]);
-    assert(n == bmat.get_shape().lens()[dim_1]);
+    assert(cmat.get_shape().lens()[dim_0] == amat.get_shape().lens()[dim_0]);
+    assert(cmat.get_shape().lens()[dim_1] == bmat.get_shape().lens()[dim_1]);
 
-    dfor(m, n)([&](auto ii, auto jj) {
-        double s = cmat(ii, jj) * beta;
-        dfor(k)([&](auto kk) { s += amat(ii, kk) * bmat(kk, jj); });
-        cmat(ii, jj) = alpha * s;
+    shape_for_each(cmat.get_shape(), [&](const auto& c_idx) {
+        double s   = cmat(c_idx.begin(), c_idx.end()) * beta;
+        auto a_idx = c_idx;
+        auto b_idx = c_idx;
+        dfor(k)([&](auto kk) {
+            a_idx[dim_1] = b_idx[dim_0] = kk;
+            s += amat(a_idx.begin(), a_idx.end()) * bmat(b_idx.begin(), b_idx.end());
+        });
+        cmat(c_idx.begin(), c_idx.end()) = alpha * s;
     });
 }
 
@@ -89,7 +93,18 @@ template <class T>
 void migemm_impl(
     tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, float alpha, float beta)
 {
-    migemm_impl(cmat, amat, bmat, alpha, beta, is_fast_gemm_type<T>{});
+    auto lens = amat.get_shape().lens();
+    bool batch_mul =
+        std::accumulate(lens.begin(), lens.end(), std::size_t{1}, std::multiplies<std::size_t>()) ==
+        (*lens.rbegin()) * (*(lens.rbegin() + 1));
+    if(batch_mul)
+    {
+        migemm_impl(cmat, amat, bmat, alpha, beta, is_fast_gemm_type<T>{});
+    }
+    else
+    {
+        migemm_impl(cmat, amat, bmat, alpha, beta, std::false_type{});
+    }
 }
 
 void migemm(

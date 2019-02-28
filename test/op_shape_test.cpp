@@ -316,7 +316,6 @@ TEST_CASE(gather)
     }
 }
 
-<<<<<<< HEAD
 TEST_CASE(dot)
 {
     {

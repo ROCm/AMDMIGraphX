@@ -2,6 +2,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/operators.hpp>
+#include <migraphx/target.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>
@@ -353,13 +354,17 @@ argument generic_eval(const program& p,
         }
         else if(ins->name() == "@param")
         {
-            results.emplace(ins, trace(ins, [&] {
-                                auto param_name =
-                                    any_cast<builtin::param>(ins->get_operator()).parameter;
-                                if(not contains(params, param_name))
-                                    MIGRAPHX_THROW("Parameter not found: " + param_name);
-                                return params.at(param_name);
-                            }));
+            results.emplace(
+                ins, trace(ins, [&] {
+                    auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
+                    if(not contains(params, param_name))
+                        MIGRAPHX_THROW("Parameter not found: " + param_name);
+                    auto param = params.at(param_name);
+                    if(param.get_shape() != ins->get_shape())
+                        MIGRAPHX_THROW("Incorrect shape {" + to_string(param.get_shape()) +
+                                       "} for parameter: " + param_name);
+                    return param;
+                }));
         }
         else if(ins->name() == "@outline")
         {

@@ -12,6 +12,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NULL_STREAM)
+
 struct hip_device
 {
     using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
@@ -42,7 +44,7 @@ struct hip_device
 
         hipStream_t get()
         {
-            if(enabled(MIGRAPHX_DISABLE_NULL_STREAM{}))
+            if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM{}))
             {
                 setup();
                 if(s == nullptr)
@@ -55,7 +57,7 @@ struct hip_device
 
         auto create_miopen_handle()
         {
-            if(enabled(MIGRAPHX_DISABLE_NULL_STREAM{}))
+            if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM{}))
                 return make_obj<miopen_handle>(&miopenCreateWithStream, get());
             else
                 return make_obj<miopen_handle>(&miopenCreate);
@@ -97,10 +99,8 @@ struct hip_device
 
     void add_streams()
     {
-        int num_of_streams = 1;
+        int num_of_streams = stream_info().num_of_streams();
         assert(streams.empty());
-        if(enabled(MIGRAPHX_DISABLE_NULL_STREAM{}))
-            num_of_streams = stream_info().num_of_streams();
         for(int i = 0; i < num_of_streams; ++i)
             streams.emplace_back(device_id);
     }
@@ -126,15 +126,8 @@ struct hip_device
 
     void stream_sync()
     {
-        if(enabled(MIGRAPHX_DISABLE_NULL_STREAM{}))
-        {
-            int num_of_streams = streams.size();
-            if(num_of_streams > 0)
-            {
-                for(int i = 0; i < num_of_streams; i++)
-                    hipStreamSynchronize(streams.at(i).get());
-            }
-        }
+        for(auto&& stream:streams)
+            hipStreamSynchronize(stream.get());
     }
 
     private:

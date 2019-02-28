@@ -107,6 +107,10 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Release') {
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release")
     }
+
+    stage('Clang Release Python 3') {
+        cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release -DPYTHON_EXECUTABLE=/usr/local/bin/python3")
+    }
 }, gcc5: rocmnode('rocmtest') { cmake_build ->
     stage('GCC 5 Debug') {
         cmake_build("g++-5", "-DCMAKE_BUILD_TYPE=debug")

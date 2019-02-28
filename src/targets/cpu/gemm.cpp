@@ -94,9 +94,10 @@ void migemm_impl(
     tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, float alpha, float beta)
 {
     auto lens = amat.get_shape().lens();
-    bool batch_mul = std::accumulate(lens.begin(), lens.end(), std::size_t{1}, std::multiplies<std::size_t>()) ==
+    bool batch_mul =
+        std::accumulate(lens.begin(), lens.end(), std::size_t{1}, std::multiplies<std::size_t>()) ==
         (*lens.rbegin()) * (*(lens.rbegin() + 1));
-    if (batch_mul)
+    if(batch_mul)
     {
         migemm_impl(cmat, amat, bmat, alpha, beta, is_fast_gemm_type<T>{});
     }

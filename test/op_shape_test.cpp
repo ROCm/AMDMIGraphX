@@ -316,6 +316,7 @@ TEST_CASE(gather)
     }
 }
 
+<<<<<<< HEAD
 TEST_CASE(dot)
 {
     {
@@ -387,6 +388,61 @@ TEST_CASE(dot)
         migraphx::shape s_m1{migraphx::shape::float_type, {1, 2, 4, 5}};
         migraphx::shape s_m2{migraphx::shape::float_type, {2, 1, 5, 7}};
         throws_shape(migraphx::op::dot{}, s_m1, s_m2);
+    }
+}
+
+TEST_CASE(logsoftmax)
+{
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        int axis = 0;
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
+                     migraphx::op::logsoftmax{axis},
+                     input);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        int axis = 1;
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
+                     migraphx::op::logsoftmax{axis},
+                     input);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        int axis = 2;
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
+                     migraphx::op::logsoftmax{axis},
+                     input);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        int axis = 3;
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
+                     migraphx::op::logsoftmax{axis},
+                     input);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        int axis = 4;
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
+                     migraphx::op::logsoftmax{axis},
+                     input);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        int axis = 5;
+        throws_shape(migraphx::op::logsoftmax{axis}, input);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        int axis = -1;
+        throws_shape(migraphx::op::logsoftmax{axis}, input);
     }
 }
 

@@ -672,4 +672,15 @@ TEST_CASE(add_fp16_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(logsoftmax)
+{
+    migraphx::program p;
+    auto l0  = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    int axis = 1;
+    p.add_instruction(migraphx::op::logsoftmax{axis}, l0);
+    auto prog = migraphx::parse_onnx("logsoftmax_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

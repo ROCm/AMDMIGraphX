@@ -2887,7 +2887,7 @@ struct test_lstm_bidirct_default_actv2
     }
 };
 
-template <int axis>
+template <int Axis>
 struct test_logsoftmax
 {
     migraphx::program create_program() const
@@ -2895,13 +2895,13 @@ struct test_logsoftmax
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {3, 4, 5, 6}};
         auto param = p.add_parameter("0", s);
-        p.add_instruction(migraphx::op::logsoftmax{axis}, param);
+        p.add_instruction(migraphx::op::logsoftmax{Axis}, param);
 
         return p;
     }
 };
 
-template <int axis>
+template <int Axis>
 struct test_logsoftmax_1
 {
     migraphx::program create_program() const
@@ -2909,7 +2909,7 @@ struct test_logsoftmax_1
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {3}};
         auto param = p.add_parameter("0", s);
-        p.add_instruction(migraphx::op::logsoftmax{axis}, param);
+        p.add_instruction(migraphx::op::logsoftmax{Axis}, param);
 
         return p;
     }

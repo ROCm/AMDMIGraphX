@@ -657,7 +657,7 @@ struct cpu_logsoftmax
             });
 
             shape_for_each(output_shape, [&](auto idx) {
-                auto index                     = this->compute_batch_index(idx, batch_shape, op.axis);
+                auto index = this->compute_batch_index(idx, batch_shape, op.axis);
                 output(idx.begin(), idx.end()) = input(idx.begin(), idx.end()) - batch_max[index];
             });
 

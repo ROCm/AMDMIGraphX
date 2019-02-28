@@ -35,7 +35,7 @@ struct hip_device
         {
             hipStream_t result = nullptr;
             // auto status        = hipStreamCreateWithFlags(&result, hipStreamNonBlocking);
-            auto status        = hipStreamCreate(&result);
+            auto status = hipStreamCreate(&result);
 
             if(status != hipSuccess)
                 MIGRAPHX_THROW("Failed to allocate stream");
@@ -104,10 +104,7 @@ struct hip_device
             streams.emplace_back(device_id);
     }
 
-    std::size_t nstreams() const
-    {
-        return streams.size();
-    }
+    std::size_t nstreams() const { return streams.size(); }
 
     stream& get_stream() { return streams.at(current_stream); }
 
@@ -143,7 +140,10 @@ struct hip_device
 
 struct context
 {
-    context(std::size_t device_id = 0, std::size_t n = 4) : current_device(std::make_shared<hip_device>(device_id, n)) {}
+    context(std::size_t device_id = 0, std::size_t n = 4)
+        : current_device(std::make_shared<hip_device>(device_id, n))
+    {
+    }
 
     hip_device& get_current_device() const
     {

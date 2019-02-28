@@ -521,6 +521,15 @@ TEST_CASE(constant_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(constant_test_scalar)
+{
+    migraphx::program p;
+    p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {1}});
+    auto prog = migraphx::parse_onnx("constant_scalar.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(constant_fill_test)
 {
     {

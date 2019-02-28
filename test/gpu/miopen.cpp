@@ -746,6 +746,18 @@ struct test_gemm
     }
 };
 
+struct test_gemm_ex
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto a = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 1, 4, 5}});
+        auto b = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 3}});
+        p.add_instruction(migraphx::op::dot{}, a, b);
+        return p;
+    }
+};
+
 struct test_gemm_half
 {
     migraphx::program create_program() const
@@ -785,6 +797,19 @@ struct test_gemm_transposeb
     }
 };
 
+struct test_gemm_transposeb_ex
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto a  = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 4, 5}});
+        auto b  = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 3, 5}});
+        auto bt = p.add_instruction(migraphx::op::transpose{{0, 2, 1}}, b);
+        p.add_instruction(migraphx::op::dot{}, a, bt);
+        return p;
+    }
+};
+
 struct test_gemm_transposea
 {
     migraphx::program create_program() const
@@ -793,6 +818,19 @@ struct test_gemm_transposea
         auto a  = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {5, 4}});
         auto b  = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {5, 3}});
         auto at = p.add_instruction(migraphx::op::transpose{{1, 0}}, a);
+        p.add_instruction(migraphx::op::dot{}, at, b);
+        return p;
+    }
+};
+
+struct test_gemm_transposea_ex
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto a  = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
+        auto b  = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 3}});
+        auto at = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, a);
         p.add_instruction(migraphx::op::dot{}, at, b);
         return p;
     }
@@ -1074,7 +1112,7 @@ struct test_gather_scalar_output
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {3}};
-        migraphx::shape s_indices{migraphx::shape::int32_type, {1}, {0}};
+        migraphx::shape s_indices{migraphx::shape::int32_type};
         std::vector<int> indices{1};
         auto a0  = p.add_parameter("data", s);
         auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
@@ -1090,7 +1128,7 @@ struct test_gather_scalar_index
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-        migraphx::shape s_indices{migraphx::shape::int32_type, {1}, {0}};
+        migraphx::shape s_indices{migraphx::shape::int32_type};
         std::vector<int> indices{1};
         auto a0  = p.add_parameter("data", s);
         auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
@@ -2936,10 +2974,13 @@ int main()
     verify_program<test_global_avg_pooling>();
     verify_program<test_global_max_pooling>();
     verify_program<test_gemm>();
+    verify_program<test_gemm_ex>();
     verify_program<test_gemm_half>();
     // verify_program<test_gemm_ld>();
     verify_program<test_gemm_transposeb>();
+    verify_program<test_gemm_transposeb_ex>();
     verify_program<test_gemm_transposea>();
+    verify_program<test_gemm_transposea_ex>();
     verify_program<test_gemm_transposeab>();
     verify_program<test_contiguous>();
     verify_program<test_eliminate_contiguous>();

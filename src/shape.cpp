@@ -19,7 +19,7 @@ struct shape_impl
 
     shape_impl() : m_type(shape::float_type), m_standard(false) {}
 
-    shape_impl(shape::type_t t) : m_type(t), m_lens({1}), m_strides({1}), m_standard(true) {}
+    shape_impl(shape::type_t t) : m_type(t), m_lens({1}), m_strides({0}), m_standard(true) {}
     shape_impl(shape::type_t t, std::vector<std::size_t> l)
         : m_type(t), m_lens(std::move(l)), m_standard(true)
     {

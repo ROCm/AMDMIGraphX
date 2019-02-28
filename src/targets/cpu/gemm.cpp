@@ -80,7 +80,7 @@ void migemm_impl(tensor_view<T> cmat,
     shape_for_each(cmat.get_shape(), [&](const auto& c_idx) {
         auto a_idx = c_idx;
         auto b_idx = c_idx;
-        double s = 0.0;
+        double s   = 0.0;
         dfor(k)([&](auto kk) {
             a_idx[dim_1] = b_idx[dim_0] = kk;
             s += amat(a_idx.begin(), a_idx.end()) * bmat(b_idx.begin(), b_idx.end());

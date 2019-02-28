@@ -768,7 +768,7 @@ struct gather
         // for scalar output
         if(lens.empty())
         {
-            return {type, {1}, {0}};
+            return {type};
         }
 
         return {type, lens};

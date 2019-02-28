@@ -126,7 +126,7 @@ struct hip_device
 
     void stream_sync()
     {
-        for(auto&& stream:streams)
+        for(auto&& stream : streams)
             hipStreamSynchronize(stream.get());
     }
 

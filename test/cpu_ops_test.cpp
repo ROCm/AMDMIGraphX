@@ -7,6 +7,7 @@
 #include <migraphx/verify.hpp>
 #include <migraphx/onnx.hpp>
 #include "test.hpp"
+#include <migraphx/half.hpp>
 
 float sigmoid(float x) { return 1 / (1 + expf(-x)); }
 
@@ -160,6 +161,48 @@ TEST_CASE(gather_test)
         auto result = p.eval({});
         std::vector<float> res_data(4 * 5);
         std::vector<float> golden = {0.5f, 2.5f, 3.5f, 5.5f, 6.5f, 8.5f};
+        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(res_data, golden));
+    }
+
+    {
+        migraphx::program p;
+
+        std::vector<float> data(3 * 3);
+        std::iota(data.begin(), data.end(), 0.5);
+        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
+        auto a0 = p.add_literal(migraphx::literal{s, data});
+        // scalar index
+        migraphx::shape s_indices{migraphx::shape::int32_type};
+        std::vector<int> indices{0};
+        auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
+        int axis = -1;
+        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
+        p.compile(migraphx::cpu::target{});
+        auto result = p.eval({});
+        std::vector<float> res_data{};
+        std::vector<float> golden = {0.5f, 3.5f, 6.5f};
+        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(res_data, golden));
+    }
+
+    {
+        migraphx::program p;
+
+        std::vector<float> data(3);
+        std::iota(data.begin(), data.end(), 0.5);
+        migraphx::shape s{migraphx::shape::float_type, {3}};
+        auto a0 = p.add_literal(migraphx::literal{s, data});
+        // scalar index
+        migraphx::shape s_indices{migraphx::shape::int32_type};
+        std::vector<int> indices{0};
+        auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
+        int axis = -1;
+        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
+        p.compile(migraphx::cpu::target{});
+        auto result = p.eval({});
+        std::vector<float> res_data{};
+        std::vector<float> golden = {0.5f};
         result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(res_data, golden));
     }
@@ -1372,6 +1415,24 @@ TEST_CASE(pad_test)
     std::vector<float> results_vector(16);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0, 0, 0, 0, 0, 1, 2, 0, 0, 3, 4, 0, 0, 0, 0, 0};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(fp16_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::half_type, {1}};
+    migraphx::half a{1.5};
+    migraphx::half b{2.5};
+    migraphx::half c{4.0};
+    auto l0 = p.add_literal(migraphx::literal{s, {a}});
+    auto l1 = p.add_literal(migraphx::literal{s, {b}});
+    p.add_instruction(migraphx::op::add{}, l0, l1);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<migraphx::half> results_vector(1);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<migraphx::half> gold{c};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 

@@ -2887,7 +2887,7 @@ struct test_lstm_bidirct_default_actv2
     }
 };
 
-template<int axis>
+template <int axis>
 struct test_logsoftmax
 {
     migraphx::program create_program() const
@@ -2901,7 +2901,7 @@ struct test_logsoftmax
     }
 };
 
-template<int axis>
+template <int axis>
 struct test_logsoftmax_1
 {
     migraphx::program create_program() const
@@ -3035,4 +3035,3 @@ int main()
     verify_program<test_logsoftmax_1<0>>();
     verify_program<test_logsoftmax_1<1>>();
 }
-

@@ -4,7 +4,6 @@
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/hip.hpp>
-#include <migraphx/gpu/machine_model.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
 
@@ -18,9 +17,9 @@ struct hip_device
 {
     using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
 
-    hip_device() { add_streams(); }
+    hip_device() {}
 
-    hip_device(std::size_t id) : device_id(id) { add_streams(); }
+    hip_device(std::size_t id, std::size_t n) : device_id(id) { add_streams(n); }
 
     struct stream
     {
@@ -35,7 +34,8 @@ struct hip_device
         static hip_stream_ptr create_stream()
         {
             hipStream_t result = nullptr;
-            auto status        = hipStreamCreateWithFlags(&result, hipStreamNonBlocking);
+            // auto status        = hipStreamCreateWithFlags(&result, hipStreamNonBlocking);
+            auto status        = hipStreamCreate(&result);
 
             if(status != hipSuccess)
                 MIGRAPHX_THROW("Failed to allocate stream");
@@ -97,12 +97,16 @@ struct hip_device
         return hip_event_ptr{event};
     }
 
-    void add_streams()
+    void add_streams(std::size_t num_of_streams)
     {
-        int num_of_streams = stream_info().num_of_streams();
         assert(streams.empty());
         for(int i = 0; i < num_of_streams; ++i)
             streams.emplace_back(device_id);
+    }
+
+    std::size_t nstreams() const
+    {
+        return streams.size();
     }
 
     stream& get_stream() { return streams.at(current_stream); }
@@ -139,7 +143,7 @@ struct hip_device
 
 struct context
 {
-    context(std::size_t n = 0) : current_device(std::make_shared<hip_device>(n)) {}
+    context(std::size_t device_id = 0, std::size_t n = 4) : current_device(std::make_shared<hip_device>(device_id, n)) {}
 
     hip_device& get_current_device() const
     {

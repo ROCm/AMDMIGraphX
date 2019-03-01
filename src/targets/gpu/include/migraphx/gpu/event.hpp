@@ -45,6 +45,12 @@ struct record_event
         ctx.record_event(event);
         return {};
     }
+
+    void finalize(context& ctx, const shape&, std::vector<shape>)
+    {
+        assert(event >= 0);
+        ctx.create_events(event);
+    }
 };
 
 struct wait_event
@@ -62,6 +68,12 @@ struct wait_event
     {
         ctx.wait_event(event);
         return {};
+    }
+
+    void finalize(context& ctx, const shape&, std::vector<shape>)
+    {
+        assert(event >= 0);
+        ctx.check_events(event);
     }
 };
 

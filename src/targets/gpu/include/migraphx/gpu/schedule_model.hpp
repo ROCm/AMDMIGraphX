@@ -18,7 +18,10 @@ struct schedule_model
     std::size_t n = 4;
     std::size_t concurrency() const;
     void schedule_instruction(program& p, instruction_ref ins, std::size_t n) const;
-    void wait(program& p, instruction_ref ins, std::size_t wait_on, const std::vector<std::size_t>& wait_for) const;
+    void wait(program& p,
+              instruction_ref ins,
+              std::size_t wait_on,
+              const std::vector<std::size_t>& wait_for) const;
     std::size_t weight(const operation& op) const;
 };
 

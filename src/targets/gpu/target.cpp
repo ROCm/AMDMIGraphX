@@ -53,7 +53,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         fuse_ops{&ctx},
         dead_code_elimination{},
         write_literals{&ctx},
-        schedule{gpu::schedule_model{}},
+        schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}},
         memory_coloring{"hip::allocate"},
         eliminate_workspace{},
         eliminate_allocation{"hip::allocate"},

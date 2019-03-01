@@ -1149,7 +1149,7 @@ struct onnx_parser
                 instructions[name] = prog.add_parameter(name, s);
             }
         }
-        for(auto&& output:graph.output())
+        for(auto&& output : graph.output())
         {
             this->parse_node(output.name());
         }

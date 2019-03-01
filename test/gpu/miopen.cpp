@@ -882,6 +882,26 @@ struct gemm_mutli_dim_2_3
     }
 };
 
+struct gemm_mutli_3args
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape m1_shape{migraphx::shape::float_type, {2, 3, 2, 3}};
+        migraphx::shape m2_shape{migraphx::shape::float_type, {2, 3, 3, 2}};
+        migraphx::shape m3_shape{migraphx::shape::float_type, {2, 3, 2, 2}};
+
+        auto l1        = p.add_parameter("1", m1_shape);
+        auto l2        = p.add_parameter("2", m2_shape);
+        auto l3        = p.add_parameter("3", m3_shape);
+        float alpha    = 0.35;
+        float beta     = 0.41;
+        p.add_instruction(migraphx::op::dot{alpha, beta}, l1, l2, l3);
+
+        return p;
+    }
+};
+
 struct test_contiguous
 {
     migraphx::program create_program() const
@@ -3016,6 +3036,7 @@ int main()
     verify_program<test_gemm_transposeab>();
     verify_program<gemm_mutli_dim_2>();
     verify_program<gemm_mutli_dim_2_3>();
+    verify_program<gemm_mutli_3args>();
     verify_program<test_contiguous>();
     verify_program<test_eliminate_contiguous>();
     verify_program<test_transpose>();

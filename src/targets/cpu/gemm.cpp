@@ -55,7 +55,15 @@ void migemm_impl(tensor_view<T> cmat,
     visit_mat(amat, [&](const auto& a) {
         visit_mat(bmat, [&](const auto& b) {
             auto c = make_mat(cmat);
-            c      = (a * b) * alpha + beta * c;
+            if (beta != 0.0)
+            {
+                c = beta * c;
+            }
+
+            if (alpha != 0.0)
+            {
+                c = c + alpha * a * b;
+            }
         });
     });
 }

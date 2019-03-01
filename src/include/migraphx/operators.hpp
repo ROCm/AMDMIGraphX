@@ -810,7 +810,7 @@ struct gather
 struct dot
 {
     float alpha = 1.0;
-    float beta  = 0.0;
+    float beta  = 1.0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -821,7 +821,7 @@ struct dot
     std::string name() const { return "dot"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_type();
+        check_shapes{{inputs[0], inputs[1]}, *this}.has(2).same_type();
         const shape& a = inputs.at(0);
         const shape& b = inputs.at(1);
         auto t         = a.type();
@@ -831,14 +831,40 @@ struct dot
         // as long as dim values are the same in the two inputs
         if(!std::equal(a.lens().rbegin() + 2, a.lens().rend(), b.lens().rbegin() + 2))
         {
-            MIGRAPHX_THROW("DOT: dim values mismatch");
+            MIGRAPHX_THROW("DOT: number of matrices in stack are different in A and B");
+        }
+
+        if (inputs.size() == 3)
+        {
+            check_shapes{{inputs[0], inputs[2]}, *this}.has(2).same_type();
+            const shape& c = inputs.at(2);
+            if(!std::equal(a.lens().rbegin() + 2, a.lens().rend(), c.lens().rbegin() + 2))
+            {
+                MIGRAPHX_THROW("DOT: number of matrices in stack are different in A and C");
+            }
         }
 
         std::size_t dim_0 = a.lens().size() - 2;
         std::size_t dim_1 = a.lens().size() - 1;
         if(a.lens()[dim_1] != b.lens()[dim_0])
-            MIGRAPHX_THROW("Inner dimensions do not match: {" + to_string_range(a.lens()) +
+            MIGRAPHX_THROW("DOT : inner dimensions do not match: {" + to_string_range(a.lens()) +
                            "} x {" + to_string_range(b.lens()) + "}");
+        if (inputs.size() == 3)
+        {
+            const shape& c = inputs.at(2);
+            if (a.lens()[dim_0] != c.lens()[dim_0])
+            {
+                MIGRAPHX_THROW("DOT : matrix size does not match: A: {" + to_string_range(a.lens()) +
+                            "}, C: {" + to_string_range(c.lens()) + "}");
+            }
+
+            if (b.lens()[dim_1] != c.lens()[dim_1])
+            {
+                MIGRAPHX_THROW("DOT : matrix size does not match: B: {" + to_string_range(b.lens()) +
+                            "}, C: {" + to_string_range(c.lens()) + "}");
+            }
+        }
+
         auto out_lens   = a.lens();
         out_lens[dim_1] = b.lens()[dim_1];
         return {t, out_lens};

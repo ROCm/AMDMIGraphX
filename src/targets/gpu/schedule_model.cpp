@@ -33,16 +33,13 @@ struct wait_event
     argument compute(context& ctx, const shape&, const std::vector<argument>&) const
     {
         assert(event != nullptr);
-        for(auto n:wait_for)
+        for(auto n : wait_for)
             ctx.get_stream(n).record(event.get());
         ctx.get_stream().wait(event.get());
         return {};
     }
 
-    void finalize(context& ctx, const shape&, std::vector<shape>)
-    {
-        event = create_event();
-    }
+    void finalize(context& ctx, const shape&, std::vector<shape>) { event = create_event(); }
 };
 
 struct set_stream
@@ -66,7 +63,7 @@ struct set_stream
 };
 
 std::size_t schedule_model::concurrency() const { return n; }
-void schedule_model::schedule_instruction(program& p, instruction_ref ins, std::size_t n) const 
+void schedule_model::schedule_instruction(program& p, instruction_ref ins, std::size_t n) const
 {
     p.insert_instruction(ins, set_stream{n});
 }
@@ -78,7 +75,6 @@ void schedule_model::wait(program& p,
     p.insert_instruction(ins, set_stream{wait_on});
     p.insert_instruction(ins, wait_event{wait_for});
 }
-
 
 static std::unordered_map<std::string, std::size_t> create_weight_map()
 {
@@ -100,12 +96,11 @@ static const std::unordered_map<std::string, std::size_t>& weight_map()
     return m;
 }
 
-
-std::size_t schedule_model::weight(const operation& op) const 
+std::size_t schedule_model::weight(const operation& op) const
 {
-    if (weight_map().count(op.name()) == 0)
-        return 0; 
-    return weight_map().at(op.name()); 
+    if(weight_map().count(op.name()) == 0)
+        return 0;
+    return weight_map().at(op.name());
 }
 
 } // namespace gpu

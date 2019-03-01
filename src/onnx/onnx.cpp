@@ -481,22 +481,20 @@ struct onnx_parser
         auto l2 = (transb) ? prog.add_instruction(op::transpose{perm}, args[1]) : args[1];
         if(args.size() == 3)
         {
-            if(beta != 0.f)
+            if(beta != 0.f && args[2]->get_shape().elements() > 0)
             {
-                auto l3 = prog.add_instruction(op::dot{alpha}, l1, l2);
-                auto l4 = args[2];
-                if(l4->get_shape().scalar()) // ignore args[2] (no C value added to alpha*A*B)
-                    return l3;
-                if(beta != 1.f)
+                auto out_lens = l1->get_shape().lens();
+                out_lens.back() = l2->get_shape().lens().back();
+                auto l3 = args[2];
+                if (!std::equal(out_lens.begin(), out_lens.end(), args[2]->get_shape().lens().begin()))
                 {
-                    auto beta_val = prog.add_literal(beta);
-                    auto l5 = prog.add_instruction(op::scalar{args[2]->get_shape()}, beta_val);
-                    l4      = prog.add_instruction(op::mul{}, args[2], l5);
+                    l3 = prog.add_instruction(op::multibroadcast{out_lens}, args[2]);
                 }
-                return add_broadcastable_binary_op(l3, l4, op::add{});
+
+                return prog.add_instruction(op::dot{alpha, beta}, l1, l2, l3);
             }
         }
-        return prog.add_instruction(op::dot{alpha, beta}, l1, l2);
+        return prog.add_instruction(op::dot{alpha}, l1, l2);
     }
 
     instruction_ref

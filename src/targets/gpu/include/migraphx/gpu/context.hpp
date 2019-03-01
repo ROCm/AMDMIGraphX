@@ -133,7 +133,7 @@ struct hip_device
     void set_stream(std::size_t n) { current_stream = n; }
     void create_events(std::size_t num_of_events)
     {
-        for(int i = events.size(); i < num_of_events+1; ++i)
+        for(int i = events.size(); i < num_of_events + 1; ++i)
             events.emplace_back(create_event());
     }
     void record_event(std::size_t event)
@@ -141,14 +141,11 @@ struct hip_device
         streams.at(current_stream).record(events.at(event).get());
     }
 
-    void wait_event(std::size_t event)
-    {
-        streams.at(current_stream).wait(events.at(event).get());
-    }
+    void wait_event(std::size_t event) { streams.at(current_stream).wait(events.at(event).get()); }
 
     void check_events(std::size_t n) const
     {
-        if (n > events.size())
+        if(n > events.size())
             MIGRAPHX_THROW("The number of waits exceed the number of records.");
     }
 
@@ -185,11 +182,11 @@ struct context
     }
 
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
-    void set_stream(std::size_t n)
+    void set_stream(std::size_t n) { get_current_device().set_stream(n); }
+    void create_events(std::size_t num_of_events)
     {
-        get_current_device().set_stream(n);
+        get_current_device().create_events(num_of_events);
     }
-    void create_events(std::size_t num_of_events) { get_current_device().create_events(num_of_events); }
     void check_events(std::size_t n) const { get_current_device().check_events(n); }
 
     void record_event(std::size_t event) { get_current_device().record_event(event); }

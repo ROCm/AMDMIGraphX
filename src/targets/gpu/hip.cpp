@@ -10,6 +10,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+void gpu_sync() { hipDeviceSynchronize(); }
+
 using hip_ptr = MIGRAPHX_MANAGE_PTR(void, hipFree);
 
 std::string hip_error(int error) { return hipGetErrorString(static_cast<hipError_t>(error)); }
@@ -43,6 +45,7 @@ hip_ptr allocate_gpu(std::size_t sz, bool host = false)
 template <class T>
 std::vector<T> read_from_gpu(const void* x, std::size_t sz)
 {
+    gpu_sync();
     std::vector<T> result(sz);
     auto status = hipMemcpy(result.data(), x, sz * sizeof(T), hipMemcpyDeviceToHost);
     if(status != hipSuccess)
@@ -52,6 +55,7 @@ std::vector<T> read_from_gpu(const void* x, std::size_t sz)
 
 hip_ptr write_to_gpu(const void* x, std::size_t sz, bool host = false)
 {
+    gpu_sync();
     auto result = allocate_gpu(sz, host);
     auto status = hipMemcpy(result.get(), x, sz, hipMemcpyHostToDevice);
     if(status != hipSuccess)
@@ -96,8 +100,6 @@ void set_device(std::size_t id)
     if(status != hipSuccess)
         MIGRAPHX_THROW("Error setting device");
 }
-
-void gpu_sync() { hipDeviceSynchronize(); }
 
 void copy_to_gpu(const argument& src, const argument& dst)
 {

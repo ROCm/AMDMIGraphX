@@ -34,7 +34,7 @@ struct hip_device
         static hip_stream_ptr create_stream()
         {
             hipStream_t result = nullptr;
-            auto status = hipStreamCreate(&result);
+            auto status        = hipStreamCreate(&result);
             // auto status        = hipStreamCreateWithFlags(&result, hipStreamNonBlocking);
 
             if(status != hipSuccess)
@@ -83,7 +83,7 @@ struct hip_device
 
         void sync() const
         {
-            if (s != nullptr)
+            if(s != nullptr)
                 hipStreamSynchronize(s.get());
         }
 
@@ -169,10 +169,7 @@ struct context
         if(n >= 0)
             get_current_device().set_stream(n);
     }
-    void create_events(int num_of_events)
-    {
-        get_current_device().create_events(num_of_events);
-    }
+    void create_events(int num_of_events) { get_current_device().create_events(num_of_events); }
     void record_event(int event) { get_current_device().record_event(event); }
     void wait_event(int event) { get_current_device().wait_event(event); }
 

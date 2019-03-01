@@ -1138,11 +1138,11 @@ TEST_CASE(gemm_mutli_3args)
                              0.49759611,  0.10021662,  0.00592602,  0.90862000};
     migraphx::shape m3_shape{migraphx::shape::float_type, {2, 3, 2, 2}};
 
-    auto l1        = p.add_literal(migraphx::literal{m1_shape, m1});
-    auto l2        = p.add_literal(migraphx::literal{m2_shape, m2});
-    auto l3        = p.add_literal(migraphx::literal{m3_shape, m3});
-    float alpha    = 0.35;
-    float beta     = 0.41;
+    auto l1     = p.add_literal(migraphx::literal{m1_shape, m1});
+    auto l2     = p.add_literal(migraphx::literal{m2_shape, m2});
+    auto l3     = p.add_literal(migraphx::literal{m3_shape, m3});
+    float alpha = 0.35;
+    float beta  = 0.41;
     p.add_instruction(migraphx::op::dot{alpha, beta}, l1, l2, l3);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
@@ -1157,7 +1157,6 @@ TEST_CASE(gemm_mutli_3args)
 
     EXPECT(migraphx::verify_range(m, m_res));
 }
-
 
 TEST_CASE(maxpool_test)
 {

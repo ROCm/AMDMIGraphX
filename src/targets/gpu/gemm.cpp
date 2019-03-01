@@ -90,15 +90,12 @@ rocblas_half to_rocblas_type(half x) { return reinterpret_cast<const rocblas_hal
 
 shape miopen_gemm::compute_shape(const std::vector<shape>& inputs) const
 {
-    check_shapes{inputs, *this}.has(3);
-    return op.compute_shape({inputs.at(0), inputs.at(1)});
+    return op.compute_shape(inputs);
 }
 argument miopen_gemm::compute(context& ctx,
                               const shape& output_shape,
                               const std::vector<argument>& args) const
 {
-    float alpha        = 1.0f;
-    float beta         = 0.0f;
     bool transa        = args[0].get_shape().transposed();
     bool transb        = args[1].get_shape().transposed();
     std::size_t n_dims = args[0].get_shape().lens().size();
@@ -113,9 +110,19 @@ argument miopen_gemm::compute(context& ctx,
     rocblas_int k      = args[0].get_shape().lens()[dim_1];
     auto batch_num     = std::accumulate(
         out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
+
+    bool is_3inputs = (args.size() == 4);
     output_shape.visit_type([&](auto as) {
-        auto alpha_r    = to_rocblas_type(as(alpha));
-        auto beta_r     = to_rocblas_type(as(beta));
+        auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
+        if (is_3inputs)
+            hipMemcpy(to_pointer(args[3]), to_pointer(args[2]), output_shape.bytes(), hipMemcpyDeviceToDevice);
+        else
+            hipMemset(to_pointer(args[2]), 0, output_shape.bytes());
+    });
+
+    output_shape.visit_type([&](auto as) {
+        auto alpha_r    = to_rocblas_type(as(op.alpha));
+        auto beta_r     = to_rocblas_type(as(op.beta));
         auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
         generic_rocblas_batched_gemm(as,
                                      ctx.get_stream().get_rocblas(),
@@ -132,14 +139,14 @@ argument miopen_gemm::compute(context& ctx,
                                      lda,
                                      m * k,
                                      &beta_r,
-                                     to_pointer(args[2]),
+                                     is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
                                      ldc,
                                      m * n,
                                      batch_num);
 
     });
 
-    return args[2];
+    return (is_3inputs ? args[3] : args[2]);
 }
 
 } // namespace gpu

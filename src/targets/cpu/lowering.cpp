@@ -374,6 +374,22 @@ struct cpu_gemm
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
+        // if there is a C input
+        if (args.size() == 3)
+        {
+            result.visit([&](auto output) {
+                args[2].visit([&](auto input) {
+                    std::copy(input.begin(), input.end(), output.begin());
+                });
+            });
+        }
+        else
+        {
+            result.visit([&](auto output) {
+                std::fill(output.begin(), output.end(), 0);
+            });
+        }
+        
         migemm(result, args[0], args[1], op.alpha, op.beta);
         return result;
     }

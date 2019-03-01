@@ -130,7 +130,7 @@ migraphx::argument run_gpu(migraphx::program& p)
     EXPECT(is_shared(ctx, p.get_context()));
     p.dry_run(m);
     EXPECT(is_shared(ctx, p.get_context()));
-    auto eval = p.eval(m);
+    auto eval    = p.eval(m);
     auto ret_val = migraphx::gpu::from_gpu(eval);
     return ret_val;
 }

@@ -8,8 +8,6 @@
 namespace migraphx {
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_NULL_STREAM)
-
 struct op_info
 {
     op_info()
@@ -52,17 +50,6 @@ struct op_info
         }
     }
     std::unordered_map<std::string, std::pair<int, int>> weight_map;
-};
-
-struct stream_info
-{
-    int num_of_streams()
-    {
-        if(!enabled(MIGRAPHX_DISABLE_NULL_STREAM{}))
-            return 0;
-        else
-            return 4;
-    }
 };
 } // namespace gpu
 } // namespace migraphx

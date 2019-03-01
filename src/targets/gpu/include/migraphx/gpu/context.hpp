@@ -34,8 +34,8 @@ struct hip_device
         static hip_stream_ptr create_stream()
         {
             hipStream_t result = nullptr;
-            // auto status        = hipStreamCreateWithFlags(&result, hipStreamNonBlocking);
             auto status = hipStreamCreate(&result);
+            // auto status        = hipStreamCreateWithFlags(&result, hipStreamNonBlocking);
 
             if(status != hipSuccess)
                 MIGRAPHX_THROW("Failed to allocate stream");
@@ -79,6 +79,12 @@ struct hip_device
                 rbhandle = create_rocblas_handle_ptr(get());
             assert(rbhandle.get() != nullptr);
             return rbhandle.get();
+        }
+
+        void sync() const
+        {
+            if (s != nullptr)
+                hipStreamSynchronize(s.get());
         }
 
         private:
@@ -125,10 +131,10 @@ struct hip_device
         hipStreamWaitEvent(streams.at(current_stream).get(), events.at(event).get(), 0);
     }
 
-    void stream_sync()
+    void sync() const
     {
         for(auto&& stream : streams)
-            hipStreamSynchronize(stream.get());
+            stream.sync();
     }
 
     private:
@@ -145,29 +151,35 @@ struct context
     {
     }
 
-    hip_device& get_current_device() const
+    const hip_device& get_current_device() const
+    {
+        assert(current_device != nullptr);
+        return *current_device;
+    }
+
+    hip_device& get_current_device()
     {
         assert(current_device != nullptr);
         return *current_device;
     }
 
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
-    void set_stream(int n) const
+    void set_stream(int n)
     {
         if(n >= 0)
             get_current_device().set_stream(n);
     }
-    void create_events(int num_of_events) const
+    void create_events(int num_of_events)
     {
         get_current_device().create_events(num_of_events);
     }
-    void record_event(int event) const { get_current_device().record_event(event); }
-    void wait_event(int event) const { get_current_device().wait_event(event); }
+    void record_event(int event) { get_current_device().record_event(event); }
+    void wait_event(int event) { get_current_device().wait_event(event); }
 
     std::vector<argument> literals{};
     void finish() const
     {
-        get_current_device().stream_sync();
+        get_current_device().sync();
         gpu_sync();
     }
 

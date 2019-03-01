@@ -10,7 +10,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-void gpu_sync() { hipDeviceSynchronize(); }
+void gpu_sync() 
+{ 
+    hipDeviceSynchronize();
+    hipCtxSynchronize();
+}
 
 using hip_ptr = MIGRAPHX_MANAGE_PTR(void, hipFree);
 

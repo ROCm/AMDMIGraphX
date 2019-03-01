@@ -10,8 +10,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-void gpu_sync() 
-{ 
+void gpu_sync()
+{
     hipDeviceSynchronize();
     hipCtxSynchronize();
 }

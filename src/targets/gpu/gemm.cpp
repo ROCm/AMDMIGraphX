@@ -114,8 +114,11 @@ argument miopen_gemm::compute(context& ctx,
     bool is_3inputs = (args.size() == 4);
     output_shape.visit_type([&](auto as) {
         auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
-        if (is_3inputs)
-            hipMemcpy(to_pointer(args[3]), to_pointer(args[2]), output_shape.bytes(), hipMemcpyDeviceToDevice);
+        if(is_3inputs)
+            hipMemcpy(to_pointer(args[3]),
+                      to_pointer(args[2]),
+                      output_shape.bytes(),
+                      hipMemcpyDeviceToDevice);
         else
             hipMemset(to_pointer(args[2]), 0, output_shape.bytes());
     });

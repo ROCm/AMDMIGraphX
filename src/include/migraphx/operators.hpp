@@ -834,7 +834,7 @@ struct dot
             MIGRAPHX_THROW("DOT: number of matrices in stack are different in A and B");
         }
 
-        if (inputs.size() == 3)
+        if(inputs.size() == 3)
         {
             check_shapes{{inputs[0], inputs[2]}, *this}.has(2).same_type();
             const shape& c = inputs.at(2);
@@ -849,19 +849,21 @@ struct dot
         if(a.lens()[dim_1] != b.lens()[dim_0])
             MIGRAPHX_THROW("DOT : inner dimensions do not match: {" + to_string_range(a.lens()) +
                            "} x {" + to_string_range(b.lens()) + "}");
-        if (inputs.size() == 3)
+        if(inputs.size() == 3)
         {
             const shape& c = inputs.at(2);
-            if (a.lens()[dim_0] != c.lens()[dim_0])
+            if(a.lens()[dim_0] != c.lens()[dim_0])
             {
-                MIGRAPHX_THROW("DOT : matrix size does not match: A: {" + to_string_range(a.lens()) +
-                            "}, C: {" + to_string_range(c.lens()) + "}");
+                MIGRAPHX_THROW("DOT : matrix size does not match: A: {" +
+                               to_string_range(a.lens()) + "}, C: {" + to_string_range(c.lens()) +
+                               "}");
             }
 
-            if (b.lens()[dim_1] != c.lens()[dim_1])
+            if(b.lens()[dim_1] != c.lens()[dim_1])
             {
-                MIGRAPHX_THROW("DOT : matrix size does not match: B: {" + to_string_range(b.lens()) +
-                            "}, C: {" + to_string_range(c.lens()) + "}");
+                MIGRAPHX_THROW("DOT : matrix size does not match: B: {" +
+                               to_string_range(b.lens()) + "}, C: {" + to_string_range(c.lens()) +
+                               "}");
             }
         }
 

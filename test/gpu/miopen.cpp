@@ -891,11 +891,11 @@ struct gemm_mutli_3args
         migraphx::shape m2_shape{migraphx::shape::float_type, {2, 3, 3, 2}};
         migraphx::shape m3_shape{migraphx::shape::float_type, {2, 3, 2, 2}};
 
-        auto l1        = p.add_parameter("1", m1_shape);
-        auto l2        = p.add_parameter("2", m2_shape);
-        auto l3        = p.add_parameter("3", m3_shape);
-        float alpha    = 0.35;
-        float beta     = 0.41;
+        auto l1     = p.add_parameter("1", m1_shape);
+        auto l2     = p.add_parameter("2", m2_shape);
+        auto l3     = p.add_parameter("3", m3_shape);
+        float alpha = 0.35;
+        float beta  = 0.41;
         p.add_instruction(migraphx::op::dot{alpha, beta}, l1, l2, l3);
 
         return p;

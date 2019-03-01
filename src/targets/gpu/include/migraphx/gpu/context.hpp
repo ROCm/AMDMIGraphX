@@ -17,7 +17,12 @@ struct hip_device
 {
     hip_device() { add_stream(); }
 
-    hip_device(std::size_t id) : device_id(id) { add_stream(); }
+    hip_device(std::size_t id, std::size_t n) 
+    : device_id(id) 
+    {
+        for(std::size_t i = 0;i< n;i++)
+            add_stream(); 
+    }
 
     struct stream
     {
@@ -77,6 +82,22 @@ struct hip_device
             return rbhandle.get();
         }
 
+        void wait(hipEvent_t event)
+        {
+            setup();
+            auto status = hipStreamWaitEvent(get(), event, 0);
+            if(status != hipSuccess)
+                MIGRAPHX_THROW("Failed to wait.");
+        }
+
+        void record(hipEvent_t event)
+        {
+            setup();
+            auto status = hipEventRecord(event, get());
+            if(status != hipSuccess)
+                MIGRAPHX_THROW("Failed to record.");
+        }
+
         private:
         std::size_t id                      = 0;
         shared<hip_stream_ptr> s            = nullptr;
@@ -87,8 +108,12 @@ struct hip_device
     void add_stream() { streams.emplace_back(device_id); }
 
     stream& get_stream() { return streams.at(current_stream); }
+    
+    stream& get_stream(std::size_t n) { return streams.at(n); }
 
     void set_stream(std::size_t n) { current_stream = n; }
+
+    std::size_t nstreams() const { return streams.size(); }
 
     private:
     std::size_t device_id      = 0;
@@ -98,7 +123,7 @@ struct hip_device
 
 struct context
 {
-    context(std::size_t n = 0) : current_device(std::make_shared<hip_device>(n)) {}
+    context(std::size_t device_id = 0, std::size_t n = 4) : current_device(std::make_shared<hip_device>(device_id, n)) {}
 
     hip_device& get_current_device()
     {
@@ -107,6 +132,9 @@ struct context
     }
 
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
+    hip_device::stream& get_stream(std::size_t n) { return get_current_device().get_stream(n); }
+
+    void set_stream(std::size_t n) { get_current_device().set_stream(n); }
 
     std::vector<argument> literals{};
     void finish() const { gpu_sync(); }

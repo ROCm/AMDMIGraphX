@@ -109,7 +109,7 @@ struct stream_info
 
 void schedule::apply(program& p) const
 {
-    
+
     stream_info si;
     auto last = std::prev(p.end());
     si.accumulate_weights(last, model);

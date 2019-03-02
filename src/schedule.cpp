@@ -42,7 +42,7 @@ struct stream_info
         {
             fix([&](auto self, auto ins) {
                 // If weight is zero then stop
-                if (weights[ins] == 0)
+                if(weights[ins] == 0)
                     return;
                 // Only assign streams if not already assigned
                 if(not has_stream(ins))
@@ -73,7 +73,7 @@ struct stream_info
         {
             if(has_stream(ins))
                 continue;
-            if (weights[ins] == 0)
+            if(weights[ins] == 0)
                 continue;
             set_stream(ins, streams - 1);
         }
@@ -89,16 +89,15 @@ struct stream_info
     {
         if(v.size() < 2)
             return false;
-        return not std::all_of(
-            v.begin(), v.end(), [&](std::size_t x) { return x == v.front(); });
+        return not std::all_of(v.begin(), v.end(), [&](std::size_t x) { return x == v.front(); });
     }
 
     std::vector<std::size_t> get_input_streams(instruction_ref ins) const
     {
         std::vector<std::size_t> result;
-        for (auto i:ins->inputs())
+        for(auto i : ins->inputs())
         {
-            if (weights.at(i) == 0)
+            if(weights.at(i) == 0)
             {
                 auto vv = get_input_streams(i);
                 result.insert(result.end(), vv.begin(), vv.end());
@@ -111,16 +110,13 @@ struct stream_info
         return result;
     }
 
-    bool is_merge_point(instruction_ref ins) const
-    { 
-        return different(get_input_streams(ins)); 
-    }
+    bool is_merge_point(instruction_ref ins) const { return different(get_input_streams(ins)); }
 
     std::vector<std::size_t> wait_for(instruction_ref ins) const
     {
         std::vector<std::size_t> result = get_input_streams(ins);
-        std::sort( result.begin(), result.end() );
-        result.erase( std::unique( result.begin(), result.end() ), result.end() );
+        std::sort(result.begin(), result.end());
+        result.erase(std::unique(result.begin(), result.end()), result.end());
         return result;
     }
 };
@@ -145,7 +141,7 @@ void schedule::apply(program& p) const
     for(auto ins : iterator_for(p))
     {
         // Only schedule instructions that have a stream
-        if (not si.has_stream(ins))
+        if(not si.has_stream(ins))
             continue;
         if(si.is_merge_point(ins))
             model.wait(p, ins, si.get_stream(ins), si.wait_for(ins));

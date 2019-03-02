@@ -41,7 +41,10 @@ struct stream_info
         for(std::size_t stream = 0; stream < streams; stream++)
         {
             fix([&](auto self, auto ins) {
-                // Only assign streams fi not already assigned
+                // If weight is zero then stop
+                if (weights[ins] == 0)
+                    return;
+                // Only assign streams if not already assigned
                 if(not has_stream(ins))
                     set_stream(ins, stream);
                 instruction_ref child = p.end();
@@ -70,6 +73,8 @@ struct stream_info
         {
             if(has_stream(ins))
                 continue;
+            if (weights[ins] == 0)
+                continue;
             set_stream(ins, streams - 1);
         }
     }
@@ -80,30 +85,43 @@ struct stream_info
 
     bool has_stream(instruction_ref ins) const { return ins2stream.count(ins) > 0; }
 
-    bool different(const std::vector<instruction_ref>& v) const
+    bool different(const std::vector<std::size_t>& v) const
     {
         if(v.size() < 2)
             return false;
-        auto stream = get_stream(v.front());
         return not std::all_of(
-            v.begin(), v.end(), [&](instruction_ref x) { return get_stream(x) == stream; });
+            v.begin(), v.end(), [&](std::size_t x) { return x == v.front(); });
     }
 
-    bool is_split_point(instruction_ref ins) const { return different(ins->outputs()); }
+    std::vector<std::size_t> get_input_streams(instruction_ref ins) const
+    {
+        std::vector<std::size_t> result;
+        for (auto i:ins->inputs())
+        {
+            if (weights.at(i) == 0)
+            {
+                auto vv = get_input_streams(i);
+                result.insert(result.end(), vv.begin(), vv.end());
+            }
+            else
+            {
+                result.emplace_back(get_stream(i));
+            }
+        }
+        return result;
+    }
 
-    bool is_merge_point(instruction_ref ins) const { return different(ins->inputs()); }
+    bool is_merge_point(instruction_ref ins) const
+    { 
+        return different(get_input_streams(ins)); 
+    }
 
     std::vector<std::size_t> wait_for(instruction_ref ins) const
     {
-        std::set<std::size_t> result;
-        auto s = get_stream(ins);
-        for(auto i : ins->inputs())
-        {
-            auto stream = get_stream(i);
-            if(stream != s)
-                result.insert(stream);
-        }
-        return {result.begin(), result.end()};
+        std::vector<std::size_t> result = get_input_streams(ins);
+        std::sort( result.begin(), result.end() );
+        result.erase( std::unique( result.begin(), result.end() ), result.end() );
+        return result;
     }
 };
 
@@ -126,16 +144,13 @@ void schedule::apply(program& p) const
     // Schedule instructions
     for(auto ins : iterator_for(p))
     {
+        // Only schedule instructions that have a stream
+        if (not si.has_stream(ins))
+            continue;
         if(si.is_merge_point(ins))
-        {
-            assert(not si.wait_for(ins).empty());
             model.wait(p, ins, si.get_stream(ins), si.wait_for(ins));
-            continue;
-        }
-        // Skip scheduling instructions with no context
-        if(is_context_free(ins->get_operator()) or ins->get_operator().name().front() == '@')
-            continue;
-        model.schedule_instruction(p, ins, si.get_stream(ins));
+        else
+            model.schedule_instruction(p, ins, si.get_stream(ins));
     }
 }
 

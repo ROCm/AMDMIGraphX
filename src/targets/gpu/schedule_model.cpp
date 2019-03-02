@@ -62,7 +62,7 @@ struct set_stream
     void finalize(context& ctx, const shape&, const std::vector<shape>&) { ctx.set_stream(stream); }
 };
 
-std::size_t schedule_model::concurrency() const { return n; }
+std::size_t schedule_model::concurrency() const { return streams; }
 void schedule_model::schedule_instruction(program& p, instruction_ref ins, std::size_t n) const
 {
     p.insert_instruction(ins, set_stream{n});
@@ -98,8 +98,12 @@ static const std::unordered_map<std::string, std::size_t>& weight_map()
 
 std::size_t schedule_model::weight(const operation& op) const
 {
-    if(weight_map().count(op.name()) == 0)
-        return 0;
+    if(weight_map().count(op.name()) == 0) 
+    {
+        if (is_context_free(op) or op.name()[0] == '@')
+            return 0;
+        return 1;
+    }
     return weight_map().at(op.name());
 }
 

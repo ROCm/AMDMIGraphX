@@ -43,6 +43,7 @@ hip_ptr allocate_gpu(std::size_t sz, bool host = false)
 template <class T>
 std::vector<T> read_from_gpu(const void* x, std::size_t sz)
 {
+    gpu_sync();
     std::vector<T> result(sz);
     auto status = hipMemcpy(result.data(), x, sz * sizeof(T), hipMemcpyDeviceToHost);
     if(status != hipSuccess)
@@ -52,6 +53,7 @@ std::vector<T> read_from_gpu(const void* x, std::size_t sz)
 
 hip_ptr write_to_gpu(const void* x, std::size_t sz, bool host = false)
 {
+    gpu_sync();
     auto result = allocate_gpu(sz, host);
     auto status = hipMemcpy(result.get(), x, sz, hipMemcpyHostToDevice);
     if(status != hipSuccess)

@@ -10,9 +10,69 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+bool stream_free(instruction_ref ins)
+{
+    return is_context_free(ins->get_operator()) or ins->get_operator().name().front() == '@';
+}
+
 struct stream_info
 {
     std::unordered_map<instruction_ref, std::size_t> ins2stream;
+    std::unordered_map<instruction_ref, std::size_t> weights;
+
+    void accumulate_weights(instruction_ref last, const schedule_model& model)
+    {
+        fix<std::size_t>([&](auto self, auto ins) -> std::size_t {
+            if(weights.count(ins) == 0)
+            {
+                weights[ins] =
+                    std::accumulate(ins->inputs().begin(),
+                                    ins->inputs().end(),
+                                    model.weight(ins->get_operator()),
+                                    [&](std::size_t w, instruction_ref i) { return w + self(i); });
+            }
+            return weights[ins];
+        })(last);
+    }
+
+    void assign_streams(program& p, std::size_t streams)
+    {
+        const std::size_t min_partition_threshold = 2;
+        for(std::size_t stream = 0; stream < streams; stream++)
+        {
+            fix([&](auto self, auto ins) {
+                // Only assign streams fi not already assigned
+                if(not has_stream(ins))
+                    set_stream(ins, stream);
+                instruction_ref child = p.end();
+                std::size_t w         = 0;
+                for(auto i : ins->inputs())
+                {
+                    const auto weight = weights[i];
+                    // Skip instruction that already have stream assignment or too low of weights
+                    if(has_stream(i) or weight <= min_partition_threshold)
+                    {
+                        self(i);
+                    }
+                    // Accumulate the max weight
+                    else if(weight > w)
+                    {
+                        child = i;
+                        w     = weight;
+                    }
+                }
+                if(child != p.end())
+                    self(child);
+            })(std::prev(p.end()));
+        }
+        // Assign remaining instructions
+        for(auto ins : iterator_for(p))
+        {
+            if(has_stream(ins))
+                continue;
+            set_stream(ins, streams - 1);
+        }
+    }
 
     void set_stream(instruction_ref ins, std::size_t n) { ins2stream[ins] = n; }
 
@@ -49,60 +109,11 @@ struct stream_info
 
 void schedule::apply(program& p) const
 {
-    const std::size_t min_partition_threshold = 2;
-
-    // Compute accumulated weights
-    std::unordered_map<instruction_ref, std::size_t> weights;
-    auto last = std::prev(p.end());
-    fix<std::size_t>([&](auto self, auto ins) -> std::size_t {
-        if(weights.count(ins) == 0)
-        {
-            weights[ins] =
-                std::accumulate(ins->inputs().begin(),
-                                ins->inputs().end(),
-                                model.weight(ins->get_operator()),
-                                [&](std::size_t w, instruction_ref i) { return w + self(i); });
-        }
-        return weights[ins];
-    })(last);
-
-    // Assign streams
-    auto streams = model.concurrency();
+    
     stream_info si;
-    for(std::size_t stream = 0; stream < streams; stream++)
-    {
-        fix([&](auto self, auto ins) {
-            // Only assign streams fi not already assigned
-            if(not si.has_stream(ins))
-                si.set_stream(ins, stream);
-            instruction_ref child = p.end();
-            std::size_t w         = 0;
-            for(auto i : ins->inputs())
-            {
-                const auto weight = weights[i];
-                // Skip instruction that already have stream assignment or too low of weights
-                if(si.has_stream(i) or weight <= min_partition_threshold)
-                {
-                    self(i);
-                }
-                // Accumulate the max weight
-                else if(weight > w)
-                {
-                    child = i;
-                    w     = weight;
-                }
-            }
-            if(child != p.end())
-                self(child);
-        })(last);
-    }
-    // Assign remaining instructions
-    for(auto ins : iterator_for(p))
-    {
-        if(si.has_stream(ins))
-            continue;
-        si.set_stream(ins, streams - 1);
-    }
+    auto last = std::prev(p.end());
+    si.accumulate_weights(last, model);
+    si.assign_streams(p, model.concurrency());
 
     // Topo sort
     fix([&](auto self, auto ins) {

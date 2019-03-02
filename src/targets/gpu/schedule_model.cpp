@@ -98,9 +98,9 @@ static const std::unordered_map<std::string, std::size_t>& weight_map()
 
 std::size_t schedule_model::weight(const operation& op) const
 {
-    if(weight_map().count(op.name()) == 0) 
+    if(weight_map().count(op.name()) == 0)
     {
-        if (is_context_free(op) or op.name()[0] == '@')
+        if(is_context_free(op) or op.name()[0] == '@')
             return 0;
         return 1;
     }

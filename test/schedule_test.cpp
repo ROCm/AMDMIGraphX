@@ -50,11 +50,9 @@ using instruction_map = std::unordered_map<migraphx::instruction_ref, std::size_
 struct schedule_model_test
 {
     instruction_map* ins2stream;
-    std::size_t concurrency() const
-    {
-        return 4;
-    }
-    void schedule_instruction(migraphx::program& p, migraphx::instruction_ref ins, std::size_t n) const
+    std::size_t concurrency() const { return 4; }
+    void
+    schedule_instruction(migraphx::program& p, migraphx::instruction_ref ins, std::size_t n) const
     {
         (*ins2stream)[ins] = n;
     }
@@ -63,11 +61,10 @@ struct schedule_model_test
               std::size_t wait_on,
               const std::vector<std::size_t>& wait_for) const
     {
-
     }
     std::size_t weight(const migraphx::operation& op) const
     {
-        if (op.name() == "binary" or op.name() == "unary")
+        if(op.name() == "binary" or op.name() == "unary")
             return 4;
         else
             return 1;
@@ -87,15 +84,15 @@ struct schedule_target
 
 bool check_conflicts(migraphx::program& p, migraphx::instruction_ref x, migraphx::instruction_ref y)
 {
-    for(auto ins:migraphx::iterator_for(p))
+    for(auto ins : migraphx::iterator_for(p))
     {
-        if (ins->name() != "identity")
+        if(ins->name() != "identity")
             continue;
-        if (ins->inputs().size() != 2)
+        if(ins->inputs().size() != 2)
             continue;
-        if (ins->inputs() == std::vector<migraphx::instruction_ref>{x, y})
+        if(ins->inputs() == std::vector<migraphx::instruction_ref>{x, y})
             return true;
-        if (ins->inputs() == std::vector<migraphx::instruction_ref>{y, x})
+        if(ins->inputs() == std::vector<migraphx::instruction_ref>{y, x})
             return true;
     }
     return false;
@@ -105,10 +102,10 @@ TEST_CASE(test1)
 {
     instruction_map ins2stream;
     migraphx::program p;
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    auto onep = p.add_instruction(unary_op{}, one);
-    auto twop = p.add_instruction(unary_op{}, two);
+    auto one    = p.add_literal(1);
+    auto two    = p.add_literal(2);
+    auto onep   = p.add_instruction(unary_op{}, one);
+    auto twop   = p.add_instruction(unary_op{}, two);
     auto binary = p.add_instruction(binary_op{}, onep, twop);
     p.compile(schedule_target{&ins2stream});
     EXPECT(ins2stream.at(onep) != ins2stream.at(twop));

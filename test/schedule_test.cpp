@@ -120,13 +120,14 @@ bool check_conflicts(migraphx::program& p, migraphx::instruction_ref x, migraphx
     return false;
 }
 
-void check_conflicts(migraphx::program& p, std::vector<std::vector<migraphx::instruction_ref>> conflicts)
+void check_conflicts(migraphx::program& p,
+                     std::vector<std::vector<migraphx::instruction_ref>> conflicts)
 {
     migraphx::dfor(conflicts.size(), conflicts.size())([&](auto i, auto j) {
-        if (i == j)
+        if(i == j)
             return;
-        for(auto ins1:conflicts[i])
-            for(auto ins2:conflicts[j])
+        for(auto ins1 : conflicts[i])
+            for(auto ins2 : conflicts[j])
                 CHECK(check_conflicts(p, ins1, ins2));
     });
 }
@@ -148,11 +149,12 @@ std::vector<std::size_t> get_wait_for(migraphx::instruction_ref ins)
     return wf;
 }
 
-template<class T>
-std::vector<migraphx::instruction_ref> chain(migraphx::program& p, std::size_t n, T x, migraphx::instruction_ref input)
+template <class T>
+std::vector<migraphx::instruction_ref>
+chain(migraphx::program& p, std::size_t n, T x, migraphx::instruction_ref input)
 {
     std::vector<migraphx::instruction_ref> result;
-    for(std::size_t i = 0;i < n;i++)
+    for(std::size_t i = 0; i < n; i++)
     {
         result.push_back(p.add_instruction(x, input));
         input = result.back();
@@ -165,8 +167,8 @@ TEST_CASE(single_entry)
     instruction_map stream;
     migraphx::program p;
     auto one    = p.add_literal(1);
-    auto onep1   = p.add_instruction(unary_op{}, one);
-    auto onep2   = p.add_instruction(unary_op{}, one);
+    auto onep1  = p.add_instruction(unary_op{}, one);
+    auto onep2  = p.add_instruction(unary_op{}, one);
     auto binary = p.add_instruction(nary_op{}, onep1, onep2);
     p.compile(schedule_target{&stream});
     EXPECT(stream.count(one) == 0);
@@ -199,13 +201,13 @@ TEST_CASE(two_weights)
     instruction_map stream;
     migraphx::program p;
     auto one    = p.add_literal(1);
-    auto c1 = chain(p, 2, unary_op{}, one);
-    auto i1   = p.add_instruction(unary_op{}, one);
+    auto c1     = chain(p, 2, unary_op{}, one);
+    auto i1     = p.add_instruction(unary_op{}, one);
     auto binary = p.add_instruction(nary_op{}, i1, c1.back());
     p.compile(schedule_target{&stream});
     EXPECT(stream.count(one) == 0);
     EXPECT(stream.at(i1) == 1);
-    for(auto ins:c1)
+    for(auto ins : c1)
         EXPECT(stream.at(ins) == 0);
     EXPECT(stream.at(binary) == 0);
     EXPECT(get_wait_for(binary) == get_wait_for(stream[binary], {stream[c1.back()], stream[i1]}));
@@ -217,19 +219,24 @@ TEST_CASE(four_weights)
     instruction_map stream;
     migraphx::program p;
     auto one    = p.add_literal(1);
-    auto c1 = chain(p, 4, unary_op{}, one);
-    auto c2 = chain(p, 3, unary_op{}, one);
-    auto c3 = chain(p, 2, unary_op{}, one);
-    auto i1   = p.add_instruction(unary_op{}, one);
+    auto c1     = chain(p, 4, unary_op{}, one);
+    auto c2     = chain(p, 3, unary_op{}, one);
+    auto c3     = chain(p, 2, unary_op{}, one);
+    auto i1     = p.add_instruction(unary_op{}, one);
     auto binary = p.add_instruction(nary_op{}, i1, c1.back(), c2.back(), c3.back());
     p.compile(schedule_target{&stream});
     EXPECT(stream.count(one) == 0);
     EXPECT(stream.at(i1) == 3);
-    for(auto ins:c1) EXPECT(stream.at(ins) == 0);
-    for(auto ins:c2) EXPECT(stream.at(ins) == 1);
-    for(auto ins:c3) EXPECT(stream.at(ins) == 2);
+    for(auto ins : c1)
+        EXPECT(stream.at(ins) == 0);
+    for(auto ins : c2)
+        EXPECT(stream.at(ins) == 1);
+    for(auto ins : c3)
+        EXPECT(stream.at(ins) == 2);
     EXPECT(stream.at(binary) == 0);
-    EXPECT(get_wait_for(binary) == get_wait_for(stream[binary], {stream[c1.back()], stream[c2.back()], stream[c3.back()], stream[i1]}));
+    EXPECT(get_wait_for(binary) ==
+           get_wait_for(stream[binary],
+                        {stream[c1.back()], stream[c2.back()], stream[c3.back()], stream[i1]}));
     check_conflicts(p, {c1, c2, c3, {i1}});
 }
 

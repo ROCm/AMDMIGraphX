@@ -531,9 +531,7 @@ void program::dry_run(std::unordered_map<std::string, argument> params) const
 
 void program::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
 {
-    print_program(os, *this, [&](auto ins, auto&&) {
-        a(ins);
-    });
+    print_program(os, *this, [&](auto ins, auto&&) { a(ins); });
 }
 
 bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }

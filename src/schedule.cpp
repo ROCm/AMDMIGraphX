@@ -229,7 +229,7 @@ void schedule::apply(program& p) const
         p.annotate(std::cout, [&](auto ins) {
             std::cout << ":";
             std::cout << " weight=" << si.weights.at(ins);
-            if (si.has_stream(ins))
+            if(si.has_stream(ins))
                 std::cout << " stream=" << si.get_stream(ins);
         });
         std::cout << std::endl;

@@ -21,7 +21,7 @@ hip_event_ptr create_event()
 struct wait_event
 {
     std::vector<std::size_t> wait_for;
-    shared<hip_event_ptr> event;
+    shared<hip_event_ptr> event = nullptr;
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
@@ -33,13 +33,18 @@ struct wait_event
     argument compute(context& ctx, const shape&, const std::vector<argument>&) const
     {
         assert(event != nullptr);
+        assert(std::none_of(wait_for.begin(), wait_for.end(), [&](auto i) { return i == ctx.get_current_device().stream_id(); }));
         for(auto n : wait_for)
             ctx.get_stream(n).record(event.get());
         ctx.get_stream().wait(event.get());
         return {};
     }
 
-    void finalize(context& ctx, const shape&, std::vector<shape>) { event = create_event(); }
+    void finalize(context& ctx, const shape&, std::vector<shape>) 
+    {
+        assert(std::none_of(wait_for.begin(), wait_for.end(), [&](auto i) { return i == ctx.get_current_device().stream_id(); }));
+        event = create_event(); 
+    }
 };
 
 struct set_stream
@@ -100,8 +105,6 @@ std::size_t schedule_model::weight(const operation& op) const
 {
     if(weight_map().count(op.name()) == 0)
     {
-        if(is_context_free(op) or op.name()[0] == '@')
-            return 0;
         return 1;
     }
     return weight_map().at(op.name());

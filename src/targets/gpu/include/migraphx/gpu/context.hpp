@@ -114,6 +114,8 @@ struct hip_device
 
     std::size_t nstreams() const { return streams.size(); }
 
+    std::size_t stream_id() const { return current_stream; }
+
     private:
     std::size_t device_id      = 0;
     std::size_t current_stream = 0;

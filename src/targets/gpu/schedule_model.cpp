@@ -64,7 +64,6 @@ struct set_stream
 
     argument compute(context& ctx, const shape&, const std::vector<argument>&) const
     {
-        assert(stream >= 0);
         ctx.set_stream(stream);
         return {};
     }

@@ -136,7 +136,22 @@ std::vector<std::size_t> get_wait_for(migraphx::instruction_ref ins)
     return wf;
 }
 
-TEST_CASE(test1)
+TEST_CASE(single_entry)
+{
+    instruction_map stream;
+    migraphx::program p;
+    auto one    = p.add_literal(1);
+    auto onep1   = p.add_instruction(unary_op{}, one);
+    auto onep2   = p.add_instruction(unary_op{}, one);
+    auto binary = p.add_instruction(binary_op{}, onep1, onep2);
+    p.compile(schedule_target{&stream});
+    EXPECT(stream.at(onep1) != stream.at(onep2));
+    EXPECT(stream.at(binary) == 0);
+    EXPECT(get_wait_for(binary) == get_wait_for(stream[binary], {stream[onep1], stream[onep2]}));
+    EXPECT(check_conflicts(p, onep1, onep2));
+}
+
+TEST_CASE(double_entry)
 {
     instruction_map stream;
     migraphx::program p;

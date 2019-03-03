@@ -224,6 +224,17 @@ void schedule::apply(program& p) const
             self(i);
     })(last);
 
+    if(enabled(MIGRAPHX_TRACE_COMPILE{}))
+    {
+        p.annotate(std::cout, [&](auto ins) {
+            std::cout << ":";
+            std::cout << " weight=" << si.weights.at(ins);
+            if (si.has_stream(ins))
+                std::cout << " stream=" << si.get_stream(ins);
+        });
+        std::cout << std::endl;
+    }
+
     // Schedule instructions
     for(auto ins : iterator_for(p))
     {

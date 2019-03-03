@@ -94,7 +94,7 @@ struct stream_info
         return not std::all_of(v.begin(), v.end(), [&](std::size_t x) { return x == v.front(); });
     }
 
-    template<class Selector>
+    template <class Selector>
     std::vector<std::size_t> get_streams(instruction_ref ins, Selector select) const
     {
         std::vector<std::size_t> result;
@@ -115,20 +115,16 @@ struct stream_info
 
     std::vector<std::size_t> get_input_streams(instruction_ref ins) const
     {
-        return get_streams(ins, [](auto i) {
-            return i->inputs();
-        });
+        return get_streams(ins, [](auto i) { return i->inputs(); });
     }
 
     std::vector<std::size_t> get_output_streams(instruction_ref ins) const
     {
-        return get_streams(ins, [](auto i) {
-            return i->outputs();
-        });
+        return get_streams(ins, [](auto i) { return i->outputs(); });
     }
 
     bool is_merge_point(instruction_ref ins) const { return different(get_input_streams(ins)); }
-    
+
     bool is_split_point(instruction_ref ins) const { return different(get_output_streams(ins)); }
 
     std::vector<std::size_t> wait_for(instruction_ref ins) const
@@ -139,17 +135,17 @@ struct stream_info
         return result;
     }
 
-    template<class F>
+    template <class F>
     void find_concurrent_instructions(program& p, F f)
     {
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> split_from;
         for(auto ins : iterator_for(p))
         {
-            if (weights[ins] == 0)
+            if(weights[ins] == 0)
                 continue;
             for(auto&& arg : ins->inputs())
             {
-                if (is_split_point(arg))
+                if(is_split_point(arg))
                     split_from[ins].insert(arg);
                 split_from[ins].insert(split_from[arg].begin(), split_from[arg].end());
             }
@@ -190,9 +186,8 @@ void schedule::apply(program& p) const
             model.schedule_instruction(p, ins, si.get_stream(ins));
     }
 
-    si.find_concurrent_instructions(p, [&](auto x, auto y) {
-        p.insert_instruction(std::next(x), op::identity{}, x, y);
-    });
+    si.find_concurrent_instructions(
+        p, [&](auto x, auto y) { p.insert_instruction(std::next(x), op::identity{}, x, y); });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

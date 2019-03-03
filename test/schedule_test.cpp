@@ -56,7 +56,9 @@ struct wait_event
     std::string name() const { return "wait_event"; }
     migraphx::shape compute_shape(const std::vector<migraphx::shape>&) const { return {}; }
 
-    migraphx::argument compute(migraphx::context&, const migraphx::shape&, const std::vector<migraphx::argument>&) const
+    migraphx::argument compute(migraphx::context&,
+                               const migraphx::shape&,
+                               const std::vector<migraphx::argument>&) const
     {
         return {};
     }
@@ -127,7 +129,7 @@ std::vector<std::size_t> get_wait_for(std::size_t wait_on, std::vector<std::size
 std::vector<std::size_t> get_wait_for(migraphx::instruction_ref ins)
 {
     auto wait_ins = std::prev(ins);
-    if (wait_ins->name() != "wait_event")
+    if(wait_ins->name() != "wait_event")
         return {};
     auto wf = migraphx::any_cast<wait_event>(wait_ins->get_operator()).wait_for;
     std::sort(wf.begin(), wf.end());

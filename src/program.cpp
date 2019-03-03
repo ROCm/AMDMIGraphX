@@ -15,9 +15,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
-
 struct program_impl
 {
     // A list is used to keep references to an instruction stable
@@ -530,6 +527,13 @@ void program::dry_run(std::unordered_map<std::string, argument> params) const
 {
     auto& ctx = this->impl->ctx;
     generic_eval(*this, ctx, std::move(params), [](auto&&...) { return argument{}; });
+}
+
+void program::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
+{
+    print_program(os, *this, [&](auto ins, auto&&) {
+        a(ins);
+    });
 }
 
 bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }

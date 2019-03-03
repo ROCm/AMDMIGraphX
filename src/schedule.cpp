@@ -29,7 +29,7 @@ struct stream_info
             if(weights.count(ins) == 0)
             {
                 std::size_t weight = 0;
-                auto&& op = ins->get_operator();
+                auto&& op          = ins->get_operator();
                 if(not is_context_free(op) and op.name()[0] != '@')
                     weight = model.weight(op);
                 weights[ins] =
@@ -99,20 +99,20 @@ struct stream_info
         return not std::all_of(v.begin(), v.end(), [&](std::size_t x) { return x == v.front(); });
     }
 
-    template<class F>
+    template <class F>
     bool different(F f) const
     {
-        bool first = true;
+        bool first         = true;
         std::size_t stream = 0;
-        bool result = false;
+        bool result        = false;
         f([&](auto s) {
-            if (not first and s != stream) 
+            if(not first and s != stream)
             {
                 result = true;
                 return false;
             }
             stream = s;
-            first = false;
+            first  = false;
             return true;
         });
         return result;
@@ -127,12 +127,12 @@ struct stream_info
                 {
                     if(weights.at(i) == 0)
                     {
-                        if (not self(i))
+                        if(not self(i))
                             return false;
                     }
                     else
                     {
-                        if (not f(get_stream(i)))
+                        if(not f(get_stream(i)))
                             return false;
                     }
                 }
@@ -170,7 +170,8 @@ struct stream_info
         return result;
     }
 
-    std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> find_concurrent_instructions(program& p)
+    std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>>
+    find_concurrent_instructions(program& p)
     {
         std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> result;
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> split_from;
@@ -199,8 +200,8 @@ struct stream_info
             for(auto& split : split_from[ins])
             {
                 auto stream = get_stream(ins);
-                if (result[split].size() <= stream)
-                    result[split].resize(stream+1);
+                if(result[split].size() <= stream)
+                    result[split].resize(stream + 1);
                 result[split][stream].push_back(ins);
             }
         }
@@ -237,19 +238,19 @@ void schedule::apply(program& p) const
 
     // Add memory conflicts
     auto concur_ins = si.find_concurrent_instructions(p);
-    for(auto&& split:concur_ins)
+    for(auto&& split : concur_ins)
     {
         dfor(split.second.size(), split.second.size())([&](auto i, auto j) {
-            if (i == j)
+            if(i == j)
                 return;
-            for(auto ins1:split.second[i]) 
-            {   
+            for(auto ins1 : split.second[i])
+            {
                 auto idx1 = std::distance(split.first, ins1);
-                for(auto ins2:split.second[j])
+                for(auto ins2 : split.second[j])
                 {
-                    if (ins1 == ins2)
+                    if(ins1 == ins2)
                         continue;
-                    auto idx2 = std::distance(split.first, ins2);
+                    auto idx2  = std::distance(split.first, ins2);
                     auto point = idx1 > idx2 ? ins1 : ins2;
                     p.insert_instruction(std::next(point), op::identity{}, ins1, ins2);
                 }

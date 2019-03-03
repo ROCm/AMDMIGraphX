@@ -33,17 +33,21 @@ struct wait_event
     argument compute(context& ctx, const shape&, const std::vector<argument>&) const
     {
         assert(event != nullptr);
-        assert(std::none_of(wait_for.begin(), wait_for.end(), [&](auto i) { return i == ctx.get_current_device().stream_id(); }));
+        assert(std::none_of(wait_for.begin(), wait_for.end(), [&](auto i) {
+            return i == ctx.get_current_device().stream_id();
+        }));
         for(auto n : wait_for)
             ctx.get_stream(n).record(event.get());
         ctx.get_stream().wait(event.get());
         return {};
     }
 
-    void finalize(context& ctx, const shape&, std::vector<shape>) 
+    void finalize(context& ctx, const shape&, std::vector<shape>)
     {
-        assert(std::none_of(wait_for.begin(), wait_for.end(), [&](auto i) { return i == ctx.get_current_device().stream_id(); }));
-        event = create_event(); 
+        assert(std::none_of(wait_for.begin(), wait_for.end(), [&](auto i) {
+            return i == ctx.get_current_device().stream_id();
+        }));
+        event = create_event();
     }
 };
 

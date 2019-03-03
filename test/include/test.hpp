@@ -36,6 +36,19 @@ inline std::ostream& operator<<(std::ostream& s, std::nullptr_t)
     return s;
 }
 
+template<class T>
+inline std::ostream& operator<<(std::ostream& s, const std::vector<T>& v)
+{
+    char delim = '{';
+    for(auto&& x:v) 
+    {
+        s << delim << " " << x;
+        delim = ',';
+    }
+    s << " }";
+    return s;
+}
+
 template <class T, class U, class Operator>
 struct expression
 {

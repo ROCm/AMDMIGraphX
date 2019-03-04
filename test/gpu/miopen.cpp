@@ -149,26 +149,25 @@ void run_verify_program()
     std::set_terminate(nullptr);
 }
 
-template<class T>
+template <class T>
 int auto_register_verify_program()
 {
     test::add_test_case(migraphx::get_type_name<T>(), [] { run_verify_program<T>(); });
     return 0;
 }
 
-template<class T>
+template <class T>
 struct verify_program
 {
     static int static_register;
     // This typedef ensures that the static member will be instantiated if
     // the class itself is instantiated
-    using static_register_type = std::integral_constant<decltype(&static_register), &static_register>;
+    using static_register_type =
+        std::integral_constant<decltype(&static_register), &static_register>;
 };
 
-template<class T>
+template <class T>
 int verify_program<T>::static_register = auto_register_verify_program<T>();
-
-
 
 struct test_literals : verify_program<test_literals>
 {

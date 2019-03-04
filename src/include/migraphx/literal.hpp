@@ -22,8 +22,8 @@ struct literal : raw_data<literal>
 {
     literal() {}
 
-    template <class U, class T = deduce<U>>
-    literal(U x) : buffer(make_shared_array<char>(sizeof(T))), m_shape(shape::get_type<T>{})
+    template <class U, class T = deduce<U>, shape::type_t ShapeType = shape::get_type<T>{}>
+    literal(U x) : buffer(make_shared_array<char>(sizeof(T))), m_shape(ShapeType)
     {
         static_assert(std::is_trivially_copyable<T>{}, "Literals can only be trivial types");
         *(reinterpret_cast<T*>(buffer.get())) = x;

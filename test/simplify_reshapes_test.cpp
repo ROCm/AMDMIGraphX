@@ -27,9 +27,9 @@ TEST_CASE(double_contig)
     p.compile(simplify_reshapes_target{});
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
-    EXPECT(std::distance(p.begin(), p.end()) == 2);
+    EXPECT(std::distance(p.begin(), p.end()) == 4);
     auto result = p.eval({});
-    EXPECT(result == get_2x2());
+    EXPECT(result != get_2x2());
 }
 
 TEST_CASE(double_transpose)
@@ -95,7 +95,6 @@ TEST_CASE(double_transpose_sin_pass)
     p.compile(simplify_reshapes_target{});
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
-    // std::cout << p << std::endl;
     // TODO: Fix this
     // EXPECT(std::distance(p.begin(), p.end()) == 1);
     auto result = p.eval({});
@@ -115,6 +114,55 @@ TEST_CASE(single_transpose_sin_pass)
     EXPECT(std::distance(p.begin(), p.end()) == 2);
     auto result = p.eval({});
     EXPECT(result != get_2x2());
+}
+
+TEST_CASE(reshape_transpose)
+{
+    migraphx::program p;
+    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 112, 56, 56}};
+    auto x  = p.add_parameter("x", s);
+    auto r1 = p.add_instruction(migraphx::op::reshape{{1, 4, 28, 56, 56}}, x);
+    auto t  = p.add_instruction(migraphx::op::transpose{{0, 2, 1, 3, 4}}, r1);
+    auto ct = p.add_instruction(migraphx::op::contiguous{}, t);
+    auto r2 = p.add_instruction(migraphx::op::reshape{{1, 112, 56, 56}}, ct);
+    p.add_instruction(pass_op{}, r2);
+    EXPECT(p.get_shape() == s);
+    auto n = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape() == s);
+    EXPECT(std::distance(p.begin(), p.end()) == n);
+}
+
+TEST_CASE(transpose_contiguous)
+{
+    migraphx::program p;
+    auto s  = migraphx::shape{migraphx::shape::float_type, {4, 4}};
+    auto x  = p.add_parameter("x", s);
+    auto t  = p.add_instruction(migraphx::op::transpose{{1, 0}}, x);
+    auto c1 = p.add_instruction(migraphx::op::contiguous{}, t);
+    p.add_instruction(pass_op{}, c1);
+    auto out_shape = p.get_shape();
+    auto n         = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape() == out_shape);
+    EXPECT(std::distance(p.begin(), p.end()) == n);
+}
+
+TEST_CASE(transpose_double_contiguous)
+{
+    migraphx::program p;
+    auto s  = migraphx::shape{migraphx::shape::float_type, {4, 4}};
+    auto x  = p.add_parameter("x", s);
+    auto t  = p.add_instruction(migraphx::op::transpose{{1, 0}}, x);
+    auto c1 = p.add_instruction(migraphx::op::contiguous{}, t);
+    auto c2 = p.add_instruction(migraphx::op::contiguous{}, c1);
+    p.add_instruction(pass_op{}, c2);
+    auto out_shape = p.get_shape();
+    auto n         = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape() == out_shape);
+    EXPECT(std::distance(p.begin(), p.end()) == n - 1);
+    EXPECT(p.has_instruction(t));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

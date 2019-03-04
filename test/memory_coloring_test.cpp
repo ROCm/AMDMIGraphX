@@ -21,8 +21,8 @@ struct allocate
     std::string name() const { return "allocate"; }
     migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
     {
-        migraphx::check_shapes{inputs, *this}.has(1);
-        return inputs.front();
+        migraphx::check_shapes{inputs, *this}.has(0);
+        return s;
     }
     migraphx::argument compute(migraphx::context&,
                                const migraphx::shape& output_shape,
@@ -34,8 +34,7 @@ struct allocate
 
 migraphx::instruction_ref add_alloc(migraphx::program& p, const migraphx::shape& s)
 {
-    auto a0 = p.add_outline(s);
-    return p.add_instruction(allocate{}, a0);
+    return p.add_instruction(allocate{s});
 }
 
 bool no_allocate(const migraphx::program& p)
@@ -78,7 +77,7 @@ TEST_CASE(test3)
     auto p3 = add_alloc(p, {migraphx::shape::float_type, {40}});
     p.add_instruction(pass_op{}, p3, p1);
     p.compile(memory_coloring_target{});
-    CHECK(p.get_parameter_shape("scratch").bytes() == 704); // The optimal solution is actually 672
+    CHECK(p.get_parameter_shape("scratch").bytes() == 672);
     CHECK(no_allocate(p));
 }
 
@@ -487,7 +486,7 @@ TEST_CASE(test33)
     auto a5 = add_alloc(p, {migraphx::shape::float_type, {40}});
     p.add_instruction(pass_op{}, a5, p1);
     p.compile(memory_coloring_target{});
-    CHECK(p.get_parameter_shape("scratch").bytes() == 224);
+    CHECK(p.get_parameter_shape("scratch").bytes() == 192);
     CHECK(no_allocate(p));
 }
 
@@ -594,7 +593,7 @@ TEST_CASE(test38)
     auto p83    = p.add_instruction(pass_op{}, p78, p77);
     p.add_instruction(pass_op{}, output, p83, p63);
     p.compile(memory_coloring_target{});
-    CHECK(p.get_parameter_shape("scratch").bytes() == 6422528);
+    CHECK(p.get_parameter_shape("scratch").bytes() == 7225344); // Optimal solution is 6422528
     CHECK(no_allocate(p));
 }
 

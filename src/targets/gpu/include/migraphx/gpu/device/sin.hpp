@@ -1,6 +1,5 @@
-
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_ADD_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_ADD_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_SIN_HPP
+#define MIGRAPHX_GUARD_RTGLIB_DEVICE_SIN_HPP
 
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>

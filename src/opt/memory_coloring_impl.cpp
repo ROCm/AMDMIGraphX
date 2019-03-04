@@ -118,11 +118,11 @@ void memory_coloring_impl::build()
                 live_range& range        = def_interval->segment;
                 def_interval->result     = iter->get_shape();
                 def_interval->is_literal = is_lit;
+                range.begin              = cur_points;
+                def_interval->def_point  = cur_points;
+                range.size               = (iter->get_shape()).bytes();
                 if(!is_lit || unify_literals)
                     alloc_queue.push(def_interval);
-                range.begin             = cur_points;
-                def_interval->def_point = cur_points;
-                range.size              = (iter->get_shape()).bytes();
                 live_set.erase(range.vn);
             }
         }
@@ -203,9 +203,8 @@ void memory_coloring_impl::rewrite()
 
             if(is_allocate(ins))
             {
-                assert(!ins->inputs().empty());
                 p_program->replace_instruction(
-                    ins, op::load{ins->inputs().at(0)->get_shape(), offset}, scratch_param);
+                    ins, op::load{ins->get_shape(), offset}, scratch_param);
             }
             else if(is_literal(ins))
             {
@@ -233,9 +232,8 @@ void memory_coloring_impl::verify()
 
             if(segment.begin == invalid_offset)
             {
-                // TODO: This check breaks on the tests
-                // if(!interval.is_live_on_entry)
-                // MIGRAPHX_THROW("interval is not live on entry");
+                if(!interval.is_live_on_entry)
+                    MIGRAPHX_THROW("interval is not live on entry");
                 continue;
             }
 

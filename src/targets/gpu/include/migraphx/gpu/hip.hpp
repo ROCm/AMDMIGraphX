@@ -9,26 +9,27 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-migraphx::argument allocate_gpu(const migraphx::shape& s, bool host = false);
+argument allocate_gpu(const shape& s, bool host = false);
 
-migraphx::argument to_gpu(migraphx::argument arg, bool host = false);
+argument to_gpu(const argument& arg, bool host = false);
 
-migraphx::argument from_gpu(migraphx::argument arg);
+argument from_gpu(const argument& arg);
 
 void set_device(std::size_t id);
 
 void gpu_sync();
 
-void copy_to_gpu(argument src, argument dst);
+void copy_to_gpu(const argument& src, const argument& dst);
 
 struct hip_allocate
 {
+    shape s;
     std::string tag{};
     std::string name() const { return "hip::allocate"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs}.has(1);
-        return inputs.front();
+        check_shapes{inputs}.has(0);
+        return s;
     }
     argument compute(context&, const shape& output_shape, const std::vector<argument>&) const
     {

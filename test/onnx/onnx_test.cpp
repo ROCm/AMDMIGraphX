@@ -572,6 +572,27 @@ TEST_CASE(gemm_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(gemm_ex)
+{
+    migraphx::program p;
+    auto l0     = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 6}});
+    auto l1     = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 7}});
+    auto l2     = p.add_parameter("3", migraphx::shape{migraphx::shape::float_type, {1, 1, 6, 7}});
+    auto t0     = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, l0);
+    auto alpha  = 0.5f;
+    auto res_ab = p.add_instruction(migraphx::op::dot{alpha}, t0, l1);
+
+    auto beta       = 0.8f;
+    auto l_beta     = p.add_literal(beta);
+    auto brcst_beta = p.add_instruction(migraphx::op::scalar{l2->get_shape()}, l_beta);
+    auto res_c      = p.add_instruction(migraphx::op::mul{}, l2, brcst_beta);
+    p.add_instruction(migraphx::op::add{}, res_ab, res_c);
+
+    auto prog = migraphx::parse_onnx("gemm_test_ex.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(add_scalar_test)
 {
     migraphx::program p;

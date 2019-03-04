@@ -256,15 +256,13 @@ void schedule::apply(program& p) const
                 return;
             for(auto ins1 : split.second[i])
             {
-                auto idx1 = std::distance(split.first, ins1);
-                for(auto ins2 : split.second[j])
-                {
-                    if(ins1 == ins2)
-                        continue;
-                    auto idx2  = std::distance(split.first, ins2);
-                    auto point = idx1 > idx2 ? ins1 : ins2;
-                    p.insert_instruction(std::next(point), op::identity{}, ins1, ins2);
-                }
+                auto args = split.second[j];
+                args.push_back(ins1);
+
+                auto point = std::max_element(args.begin(), args.end(), [&](auto x, auto y) {
+                    return std::distance(split.first, x) < std::distance(split.first, y);
+                });
+                p.insert_instruction(std::next(*point), op::identity{}, args);
             }
         });
     }

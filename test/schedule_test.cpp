@@ -3,6 +3,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/dfor.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
@@ -110,12 +111,11 @@ bool check_conflicts(migraphx::program& p, migraphx::instruction_ref x, migraphx
     {
         if(ins->name() != "identity")
             continue;
-        if(ins->inputs().size() != 2)
+        if (not migraphx::contains(ins->inputs(), x))
             continue;
-        if(ins->inputs() == std::vector<migraphx::instruction_ref>{x, y})
-            return true;
-        if(ins->inputs() == std::vector<migraphx::instruction_ref>{y, x})
-            return true;
+        if (not migraphx::contains(ins->inputs(), y))
+            continue;
+        return true;
     }
     return false;
 }

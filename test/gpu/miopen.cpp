@@ -174,7 +174,7 @@ struct verify_program
 };
 
 template <class T>
-int verify_program<T>::static_register = auto_register_verify_program<T>();
+int verify_program<T>::static_register = auto_register_verify_program<T>(); // NOLINT
 
 struct test_literals : verify_program<test_literals>
 {

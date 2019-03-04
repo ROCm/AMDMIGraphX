@@ -385,7 +385,10 @@ struct match_find_sum
     migraphx::instruction_ref ins;
     auto matcher() const { return match::name("sum"); }
 
-    void apply(migraphx::program&, match::matcher_result r) const { EXPECT(bool{r.result == ins}); }
+    void apply(migraphx::program&, const match::matcher_result& r) const
+    {
+        EXPECT(bool{r.result == ins});
+    }
 };
 
 struct match_find_literal
@@ -393,7 +396,7 @@ struct match_find_literal
     migraphx::instruction_ref ins;
     auto matcher() const { return match::name("@literal"); }
 
-    void apply(migraphx::program&, match::matcher_result r) const
+    void apply(migraphx::program&, const match::matcher_result& r) const
     {
         EXPECT(bool{r.result != ins});
         EXPECT(r.result->name() == "@literal");

@@ -14,7 +14,10 @@
 
 auto reverse_int(unsigned int i)
 {
-    unsigned char c1, c2, c3, c4;
+    unsigned char c1;
+    unsigned char c2;
+    unsigned char c3;
+    unsigned char c4;
     c1 = i & 255u;
     c2 = (i >> 8u) & 255u;
     c3 = (i >> 16u) & 255u;
@@ -32,7 +35,9 @@ read_mnist_images(const std::string& full_path, int& number_of_images, int& imag
 
     if(file.is_open())
     {
-        int magic_number = 0, n_rows = 0, n_cols = 0;
+        int magic_number = 0;
+        int n_rows       = 0;
+        int n_cols       = 0;
 
         file.read(reinterpret_cast<char*>(&magic_number), sizeof(magic_number));
         magic_number = reverse_int(magic_number);

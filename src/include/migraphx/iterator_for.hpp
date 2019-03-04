@@ -17,9 +17,9 @@ struct iterator_for_range
     struct iterator
     {
         base_iterator i;
-        base_iterator operator*() { return i; }
+        base_iterator operator*() const { return i; }
         base_iterator operator++() { return ++i; }
-        bool operator!=(const iterator& rhs) { return i != rhs.i; }
+        bool operator!=(const iterator& rhs) const { return i != rhs.i; }
     };
 
     iterator begin()

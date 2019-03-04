@@ -1,5 +1,5 @@
-#ifndef MIGRAPH_GUARD_MIGRAPHLIB_TARGET_HPP
-#define MIGRAPH_GUARD_MIGRAPHLIB_TARGET_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_TARGET_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_TARGET_HPP
 
 #include <cassert>
 #include <string>
@@ -10,8 +10,10 @@
 #include <vector>
 #include <migraphx/context.hpp>
 #include <migraphx/pass.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
 #ifdef DOXYGEN
 
@@ -20,10 +22,8 @@ struct target
 {
     /// A unique name used to identify the target
     std::string name() const;
-    /// The transformation passes to be run
     /**
      * @brief The transformation pass to be run during compilation.
-     * @details [long description]
      *
      * @param ctx This is the target-dependent context that is created by `get_context`
      * @return The passes to be ran
@@ -48,6 +48,7 @@ interface('target',
 
 #endif
 
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

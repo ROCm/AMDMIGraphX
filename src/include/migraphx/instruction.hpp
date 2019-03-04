@@ -14,6 +14,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 shape compute_shape(const operation& op, const std::vector<instruction_ref>& args);
+std::vector<shape> to_shapes(const std::vector<instruction_ref>& args);
 
 struct instruction
 {
@@ -71,7 +72,11 @@ struct instruction
     static void
     replace(instruction_ref ins, operation o, const shape& r, std::vector<instruction_ref> args);
 
-    static instruction_ref get_output_alias(instruction_ref ins);
+    argument eval() const;
+
+    void finalize(context& ctx);
+
+    static instruction_ref get_output_alias(instruction_ref ins, bool shallow = false);
 
     private:
     // internal

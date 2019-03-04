@@ -91,15 +91,21 @@ struct program
 
     shape get_shape() const;
 
+    context& get_context() const;
+
     instruction_ref validate() const;
 
     void compile(const target& t, tracer trace = tracer{});
+
+    void finalize();
 
     void perf_report(std::ostream& os, std::size_t n, parameter_map params) const;
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
     void debug_print(const std::vector<instruction_ref>& inss) const;
+
+    void dry_run(parameter_map params) const;
 
     friend std::ostream& operator<<(std::ostream& os, const program& p);
     friend bool operator==(const program& x, const program& y);

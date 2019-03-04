@@ -1,8 +1,5 @@
 #include <migraphx/gpu/batchnorm.hpp>
-#include <migraphx/operators.hpp>
-#include <migraphx/manage_ptr.hpp>
-#include <migraphx/gpu/miopen.hpp>
-#include <utility>
+#include <migraphx/gpu/context.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -22,7 +19,8 @@ argument miopen_batch_norm_inference::compute(context& ctx,
     auto y_desc  = make_tensor(output_shape);
     auto bn_desc = make_tensor(args[3].get_shape());
 
-    float alpha = 1.0, beta = 0.0f;
+    float alpha = 1.0;
+    float beta  = 0.0f;
 
     miopenBatchNormalizationForwardInference(ctx.get_stream().get_miopen(),
                                              miopenBatchNormMode_t(op.bn_mode),

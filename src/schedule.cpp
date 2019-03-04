@@ -257,7 +257,7 @@ void schedule::apply(program& p) const
             for(auto ins1 : split.second[i])
             {
                 auto args = split.second[j];
-                args.push_back(ins1);
+                args.insert(args.begin(), ins1);
 
                 auto point = std::max_element(args.begin(), args.end(), [&](auto x, auto y) {
                     return std::distance(split.first, x) < std::distance(split.first, y);

@@ -192,10 +192,10 @@ inline void add_test_case(std::string name, std::function<void()> f)
     get_test_cases().emplace_back(name, f);
 }
 
-struct auto_register
+struct auto_register_test_case
 {
     template <class F>
-    auto_register(const char* name, F f) noexcept
+    auto_register_test_case(const char* name, F f) noexcept
     {
         add_test_case(name, f);
     }
@@ -252,8 +252,8 @@ inline void run(int argc, const char* argv[])
 
 // NOLINTNEXTLINE
 #define TEST_CASE_REGISTER(...)                                          \
-    static test::auto_register TEST_CAT(register_test_case_, __LINE__) = \
-        test::auto_register(#__VA_ARGS__, &__VA_ARGS__);
+    static test::auto_register_test_case TEST_CAT(register_test_case_, __LINE__) = \
+        test::auto_register_test_case(#__VA_ARGS__, &__VA_ARGS__);
 
 // NOLINTNEXTLINE
 #define TEST_CASE(...)              \

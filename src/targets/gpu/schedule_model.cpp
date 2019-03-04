@@ -75,14 +75,14 @@ struct set_stream
 std::size_t schedule_model::concurrency() const { return streams; }
 void schedule_model::schedule_instruction(program& p, instruction_ref ins, std::size_t n) const
 {
-    auto last_stream = std::find_if(std::make_reverse_iterator(ins), std::make_reverse_iterator(p.begin()), [&](auto&& i) {
-        return i.name() == "gpu::set_stream";
-    });
-    if (last_stream != std::make_reverse_iterator(p.begin()))
+    auto last_stream = std::find_if(std::make_reverse_iterator(ins),
+                                    std::make_reverse_iterator(p.begin()),
+                                    [&](auto&& i) { return i.name() == "gpu::set_stream"; });
+    if(last_stream != std::make_reverse_iterator(p.begin()))
     {
         auto&& op = any_cast<set_stream>(last_stream->get_operator());
         // If the same stream was set earlier then skip
-        if (op.stream == n)
+        if(op.stream == n)
             return;
     }
     p.insert_instruction(ins, set_stream{n});

@@ -121,7 +121,8 @@ bool check_conflicts(migraphx::program& p, migraphx::instruction_ref x, migraphx
 }
 
 void check_conflicts(migraphx::program& p,
-                     std::vector<std::vector<migraphx::instruction_ref>> conflicts, bool result = true)
+                     std::vector<std::vector<migraphx::instruction_ref>> conflicts,
+                     bool result = true)
 {
     migraphx::dfor(conflicts.size(), conflicts.size())([&](auto i, auto j) {
         if(i == j)
@@ -274,13 +275,13 @@ TEST_CASE(seq_merge)
 {
     instruction_map stream;
     migraphx::program p;
-    auto one    = p.add_literal(1);
-    auto c1     = chain(p, 2, unary_op{}, one);
-    auto i1     = p.add_instruction(unary_op{}, one);
+    auto one     = p.add_literal(1);
+    auto c1      = chain(p, 2, unary_op{}, one);
+    auto i1      = p.add_instruction(unary_op{}, one);
     auto binary1 = p.add_instruction(nary_op{}, i1, c1.back());
 
-    auto c2     = chain(p, 2, unary_op{}, binary1);
-    auto i2     = p.add_instruction(unary_op{}, binary1);
+    auto c2      = chain(p, 2, unary_op{}, binary1);
+    auto i2      = p.add_instruction(unary_op{}, binary1);
     auto binary2 = p.add_instruction(nary_op{}, i2, c2.back());
 
     p.compile(schedule_target{&stream});
@@ -305,15 +306,15 @@ TEST_CASE(par_merge)
 {
     instruction_map stream;
     migraphx::program p;
-    auto one    = p.add_literal(1);
-    auto start1 = p.add_instruction(unary_op{}, one);
-    auto c1     = chain(p, 3, unary_op{}, start1);
-    auto i1     = p.add_instruction(unary_op{}, start1);
+    auto one     = p.add_literal(1);
+    auto start1  = p.add_instruction(unary_op{}, one);
+    auto c1      = chain(p, 3, unary_op{}, start1);
+    auto i1      = p.add_instruction(unary_op{}, start1);
     auto binary1 = p.add_instruction(nary_op{}, i1, c1.back());
 
-    auto start2 = p.add_instruction(unary_op{}, one);
-    auto c2     = chain(p, 2, unary_op{}, start2);
-    auto i2     = p.add_instruction(unary_op{}, start2);
+    auto start2  = p.add_instruction(unary_op{}, one);
+    auto c2      = chain(p, 2, unary_op{}, start2);
+    auto i2      = p.add_instruction(unary_op{}, start2);
     auto binary2 = p.add_instruction(nary_op{}, i2, c2.back());
 
     auto binary3 = p.add_instruction(nary_op{}, binary1, binary2);

@@ -111,9 +111,9 @@ bool check_conflicts(migraphx::program& p, migraphx::instruction_ref x, migraphx
     {
         if(ins->name() != "identity")
             continue;
-        if (not migraphx::contains(ins->inputs(), x))
+        if(not migraphx::contains(ins->inputs(), x))
             continue;
-        if (not migraphx::contains(ins->inputs(), y))
+        if(not migraphx::contains(ins->inputs(), y))
             continue;
         return true;
     }

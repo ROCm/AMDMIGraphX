@@ -1,6 +1,7 @@
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/operation.hpp>
 
 namespace migraphx {
@@ -47,6 +48,7 @@ struct wait_event
         assert(std::none_of(wait_for.begin(), wait_for.end(), [&](auto i) {
             return i == ctx.get_current_device().stream_id();
         }));
+        (void)ctx;
         event = create_event();
     }
 };
@@ -73,6 +75,16 @@ struct set_stream
 std::size_t schedule_model::concurrency() const { return streams; }
 void schedule_model::schedule_instruction(program& p, instruction_ref ins, std::size_t n) const
 {
+    auto last_stream = std::find_if(std::make_reverse_iterator(ins), std::make_reverse_iterator(p.begin()), [&](auto&& i) {
+        return i.name() == "gpu::set_stream";
+    });
+    if (last_stream != std::make_reverse_iterator(p.begin()))
+    {
+        auto&& op = any_cast<set_stream>(last_stream->get_operator());
+        // If the same stream was set earlier then skip
+        if (op.stream == n)
+            return;
+    }
     p.insert_instruction(ins, set_stream{n});
 }
 void schedule_model::wait(program& p,
@@ -80,7 +92,7 @@ void schedule_model::wait(program& p,
                           std::size_t wait_on,
                           const std::vector<std::size_t>& wait_for) const
 {
-    p.insert_instruction(ins, set_stream{wait_on});
+    this->schedule_instruction(p, ins, wait_on);
     p.insert_instruction(ins, wait_event{wait_for});
 }
 

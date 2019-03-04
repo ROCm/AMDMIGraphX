@@ -230,7 +230,7 @@ struct test_mul : verify_program<test_mul>
     }
 };
 
-struct test_exp
+struct test_exp : verify_program<test_exp>
 {
     migraphx::program create_program() const
     {
@@ -243,7 +243,7 @@ struct test_exp
     }
 };
 
-struct test_log
+struct test_log : verify_program<test_log>
 {
     migraphx::program create_program() const
     {
@@ -256,7 +256,7 @@ struct test_log
     }
 };
 
-struct test_sin
+struct test_sin : verify_program<test_sin>
 {
     migraphx::program create_program() const
     {
@@ -268,7 +268,7 @@ struct test_sin
     }
 };
 
-struct test_cos
+struct test_cos : verify_program<test_cos>
 {
     migraphx::program create_program() const
     {
@@ -280,7 +280,7 @@ struct test_cos
     }
 };
 
-struct test_tan
+struct test_tan : verify_program<test_tan>
 {
     migraphx::program create_program() const
     {
@@ -292,7 +292,7 @@ struct test_tan
     }
 };
 
-struct test_sinh
+struct test_sinh : verify_program<test_sinh>
 {
     migraphx::program create_program() const
     {
@@ -304,7 +304,7 @@ struct test_sinh
     }
 };
 
-struct test_cosh
+struct test_cosh : verify_program<test_cosh>
 {
     migraphx::program create_program() const
     {
@@ -316,7 +316,7 @@ struct test_cosh
     }
 };
 
-struct test_tanh
+struct test_tanh : verify_program<test_tanh>
 {
     migraphx::program create_program() const
     {
@@ -327,7 +327,7 @@ struct test_tanh
     }
 };
 
-struct test_asin
+struct test_asin : verify_program<test_asin>
 {
     migraphx::program create_program() const
     {
@@ -339,7 +339,7 @@ struct test_asin
     }
 };
 
-struct test_acos
+struct test_acos : verify_program<test_acos>
 {
     migraphx::program create_program() const
     {
@@ -351,7 +351,7 @@ struct test_acos
     }
 };
 
-struct test_atan
+struct test_atan : verify_program<test_atan>
 {
     migraphx::program create_program() const
     {
@@ -363,7 +363,7 @@ struct test_atan
     }
 };
 
-struct test_scale
+struct test_scale : verify_program<test_scale>
 {
     migraphx::program create_program() const
     {
@@ -510,7 +510,7 @@ struct test_triadd_broadcast : verify_program<test_triadd_broadcast>
     }
 };
 
-struct test_sub
+struct test_sub : verify_program<test_sub>
 {
     migraphx::program create_program() const
     {
@@ -525,7 +525,7 @@ struct test_sub
     }
 };
 
-struct test_sub2
+struct test_sub2 : verify_program<test_sub2>
 {
     migraphx::program create_program() const
     {
@@ -542,7 +542,7 @@ struct test_sub2
     }
 };
 
-struct test_softmax
+struct test_softmax : verify_program<test_softmax>
 {
     migraphx::program create_program() const
     {
@@ -593,7 +593,7 @@ struct test_conv2 : verify_program<test_conv2>
     }
 };
 
-struct test_group_conv
+struct test_group_conv : verify_program<test_group_conv>
 {
     migraphx::program create_program() const
     {
@@ -609,7 +609,7 @@ struct test_group_conv
     }
 };
 
-struct test_conv_relu
+struct test_conv_relu : verify_program<test_conv_relu>
 {
     migraphx::program create_program() const
     {
@@ -652,7 +652,7 @@ struct test_add_relu : verify_program<test_add_relu>
     }
 };
 
-struct test_sigmoid
+struct test_sigmoid : verify_program<test_sigmoid>
 {
     migraphx::program create_program() const
     {
@@ -663,7 +663,7 @@ struct test_sigmoid
     }
 };
 
-struct test_abs
+struct test_abs : verify_program<test_abs>
 {
     migraphx::program create_program() const
     {
@@ -674,7 +674,7 @@ struct test_abs
     }
 };
 
-struct test_leaky_relu
+struct test_leaky_relu : verify_program<test_leaky_relu>
 {
     migraphx::program create_program() const
     {
@@ -685,7 +685,7 @@ struct test_leaky_relu
     }
 };
 
-struct test_elu
+struct test_elu : verify_program<test_elu>
 {
     migraphx::program create_program() const
     {
@@ -696,7 +696,7 @@ struct test_elu
     }
 };
 
-struct test_relu_lrn
+struct test_relu_lrn : verify_program<test_relu_lrn>
 {
     migraphx::program create_program() const
     {
@@ -708,7 +708,7 @@ struct test_relu_lrn
     }
 };
 
-struct test_conv_pooling
+struct test_conv_pooling : verify_program<test_conv_pooling>
 {
     migraphx::program create_program() const
     {
@@ -778,7 +778,7 @@ struct test_gemm_half : verify_program<test_gemm_half>
     }
 };
 
-struct test_gemm_ld // : verify_program<test_gemm_ld>
+struct test_gemm_ld //: verify_program<test_gemm_ld>
 {
     migraphx::program create_program() const
     {
@@ -845,7 +845,7 @@ struct test_contiguous : verify_program<test_contiguous>
     }
 };
 
-struct test_eliminate_contiguous
+struct test_eliminate_contiguous : verify_program<test_eliminate_contiguous>
 {
     migraphx::program create_program() const
     {
@@ -861,7 +861,7 @@ struct test_eliminate_contiguous
     }
 };
 
-struct test_transpose
+struct test_transpose : verify_program<test_transpose>
 {
     migraphx::program create_program() const
     {
@@ -1021,7 +1021,7 @@ struct test_concat_relu : verify_program<test_concat_relu>
     }
 };
 
-struct test_pad
+struct test_pad : verify_program<test_pad>
 {
     migraphx::program create_program() const
     {
@@ -1040,7 +1040,7 @@ struct test_pad
     }
 };
 
-struct test_pooling_autopad
+struct test_pooling_autopad : verify_program<test_pooling_autopad>
 {
     migraphx::program create_program() const
     {
@@ -1056,7 +1056,7 @@ struct test_pooling_autopad
     }
 };
 
-struct test_gather
+struct test_gather : verify_program<test_gather>
 {
     migraphx::program create_program() const
     {
@@ -1072,7 +1072,7 @@ struct test_gather
     }
 };
 
-struct test_gather_neg_axis
+struct test_gather_neg_axis : verify_program<test_gather_neg_axis>
 {
     migraphx::program create_program() const
     {
@@ -1088,7 +1088,7 @@ struct test_gather_neg_axis
     }
 };
 
-struct test_gather_scalar_output
+struct test_gather_scalar_output : verify_program<test_gather_scalar_output>
 {
     migraphx::program create_program() const
     {
@@ -1104,7 +1104,7 @@ struct test_gather_scalar_output
     }
 };
 
-struct test_gather_scalar_index
+struct test_gather_scalar_index : verify_program<test_gather_scalar_index>
 {
     migraphx::program create_program() const
     {
@@ -1120,7 +1120,7 @@ struct test_gather_scalar_index
     }
 };
 
-struct test_gather_1d_index
+struct test_gather_1d_index : verify_program<test_gather_1d_index>
 {
     migraphx::program create_program() const
     {
@@ -1219,7 +1219,7 @@ struct test_conv_bn_relu_pooling2 : verify_program<test_conv_bn_relu_pooling2>
     }
 };
 
-struct test_rnn_forward
+struct test_rnn_forward : verify_program<test_rnn_forward>
 {
     migraphx::program create_program() const
     {
@@ -1261,7 +1261,7 @@ struct test_rnn_forward
     }
 };
 
-struct test_rnn_forward10
+struct test_rnn_forward10 : verify_program<test_rnn_forward10>
 {
     migraphx::program create_program() const
     {
@@ -1303,7 +1303,7 @@ struct test_rnn_forward10
     }
 };
 
-struct test_rnn_reverse
+struct test_rnn_reverse : verify_program<test_rnn_reverse>
 {
     migraphx::program create_program() const
     {
@@ -1343,7 +1343,7 @@ struct test_rnn_reverse
     }
 };
 
-struct test_rnn_reverse2
+struct test_rnn_reverse2 : verify_program<test_rnn_reverse2>
 {
     migraphx::program create_program() const
     {
@@ -1383,7 +1383,7 @@ struct test_rnn_reverse2
     }
 };
 
-struct test_rnn_3args
+struct test_rnn_3args : verify_program<test_rnn_3args>
 {
     migraphx::program create_program() const
     {
@@ -1415,7 +1415,7 @@ struct test_rnn_3args
     }
 };
 
-struct test_rnn_4args
+struct test_rnn_4args : verify_program<test_rnn_4args>
 {
     migraphx::program create_program() const
     {
@@ -1450,7 +1450,7 @@ struct test_rnn_4args
     }
 };
 
-struct test_rnn_5args
+struct test_rnn_5args : verify_program<test_rnn_5args>
 {
     migraphx::program create_program() const
     {
@@ -1489,7 +1489,7 @@ struct test_rnn_5args
     }
 };
 
-struct test_rnn_bidirectional
+struct test_rnn_bidirectional : verify_program<test_rnn_bidirectional>
 {
     migraphx::program create_program() const
     {
@@ -1531,7 +1531,7 @@ struct test_rnn_bidirectional
     }
 };
 
-struct test_rnn_bidirectional10
+struct test_rnn_bidirectional10 : verify_program<test_rnn_bidirectional10>
 {
     migraphx::program create_program() const
     {
@@ -1572,7 +1572,7 @@ struct test_rnn_bidirectional10
     }
 };
 
-struct test_rnn_bi_3args
+struct test_rnn_bi_3args : verify_program<test_rnn_bi_3args>
 {
     migraphx::program create_program() const
     {
@@ -1607,7 +1607,7 @@ struct test_rnn_bi_3args
     }
 };
 
-struct test_gru_forward_last
+struct test_gru_forward_last : verify_program<test_gru_forward_last>
 {
     migraphx::program create_program() const
     {
@@ -1651,7 +1651,7 @@ struct test_gru_forward_last
     }
 };
 
-struct test_gru_forward_hs
+struct test_gru_forward_hs : verify_program<test_gru_forward_hs>
 {
     migraphx::program create_program() const
     {
@@ -1693,7 +1693,7 @@ struct test_gru_forward_hs
     }
 };
 
-struct test_gru_forward_3args_und
+struct test_gru_forward_3args_und : verify_program<test_gru_forward_3args_und>
 {
     migraphx::program create_program() const
     {
@@ -1729,7 +1729,7 @@ struct test_gru_forward_3args_und
     }
 };
 
-struct test_gru_forward_3args
+struct test_gru_forward_3args : verify_program<test_gru_forward_3args>
 {
     migraphx::program create_program() const
     {
@@ -1761,7 +1761,7 @@ struct test_gru_forward_3args
     }
 };
 
-struct test_gru_forward_seq1
+struct test_gru_forward_seq1 : verify_program<test_gru_forward_seq1>
 {
     migraphx::program create_program() const
     {
@@ -1793,7 +1793,7 @@ struct test_gru_forward_seq1
     }
 };
 
-struct test_gru_forward_default_actv
+struct test_gru_forward_default_actv : verify_program<test_gru_forward_default_actv>
 {
     migraphx::program create_program() const
     {
@@ -1823,7 +1823,7 @@ struct test_gru_forward_default_actv
     }
 };
 
-struct test_gru_forward_default_actv1
+struct test_gru_forward_default_actv1 : verify_program<test_gru_forward_default_actv1>
 {
     migraphx::program create_program() const
     {
@@ -1864,7 +1864,7 @@ struct test_gru_forward_default_actv1
     }
 };
 
-struct test_gru_reverse_last
+struct test_gru_reverse_last : verify_program<test_gru_reverse_last>
 {
     migraphx::program create_program() const
     {
@@ -1908,7 +1908,7 @@ struct test_gru_reverse_last
     }
 };
 
-struct test_gru_reverse_3args
+struct test_gru_reverse_3args : verify_program<test_gru_reverse_3args>
 {
     migraphx::program create_program() const
     {
@@ -1940,7 +1940,7 @@ struct test_gru_reverse_3args
     }
 };
 
-struct test_gru_bidirct_last
+struct test_gru_bidirct_last : verify_program<test_gru_bidirct_last>
 {
     migraphx::program create_program() const
     {
@@ -1984,7 +1984,7 @@ struct test_gru_bidirct_last
     }
 };
 
-struct test_gru_bidirct_hs
+struct test_gru_bidirct_hs : verify_program<test_gru_bidirct_hs>
 {
     migraphx::program create_program() const
     {
@@ -2026,7 +2026,7 @@ struct test_gru_bidirct_hs
     }
 };
 
-struct test_gru_bidirct_3args_und
+struct test_gru_bidirct_3args_und : verify_program<test_gru_bidirct_3args_und>
 {
     migraphx::program create_program() const
     {
@@ -2062,7 +2062,7 @@ struct test_gru_bidirct_3args_und
     }
 };
 
-struct test_gru_bidirct_3args
+struct test_gru_bidirct_3args : verify_program<test_gru_bidirct_3args>
 {
     migraphx::program create_program() const
     {
@@ -2094,7 +2094,7 @@ struct test_gru_bidirct_3args
     }
 };
 
-struct test_gru_bidirct_seq1
+struct test_gru_bidirct_seq1 : verify_program<test_gru_bidirct_seq1>
 {
     migraphx::program create_program() const
     {
@@ -2126,7 +2126,7 @@ struct test_gru_bidirct_seq1
     }
 };
 
-struct test_gru_bidirct_default_actv
+struct test_gru_bidirct_default_actv : verify_program<test_gru_bidirct_default_actv>
 {
     migraphx::program create_program() const
     {
@@ -2156,7 +2156,7 @@ struct test_gru_bidirct_default_actv
     }
 };
 
-struct test_gru_bidirct_default_actv1
+struct test_gru_bidirct_default_actv1 : verify_program<test_gru_bidirct_default_actv1>
 {
     migraphx::program create_program() const
     {
@@ -2198,7 +2198,7 @@ struct test_gru_bidirct_default_actv1
     }
 };
 
-struct test_lstm_forward_last
+struct test_lstm_forward_last : verify_program<test_lstm_forward_last>
 {
     migraphx::program create_program() const
     {
@@ -2248,7 +2248,7 @@ struct test_lstm_forward_last
     }
 };
 
-struct test_lstm_forward_hs
+struct test_lstm_forward_hs : verify_program<test_lstm_forward_hs>
 {
     migraphx::program create_program() const
     {
@@ -2298,7 +2298,7 @@ struct test_lstm_forward_hs
     }
 };
 
-struct test_lstm_forward_3args_und
+struct test_lstm_forward_3args_und : verify_program<test_lstm_forward_3args_und>
 {
     migraphx::program create_program() const
     {
@@ -2338,7 +2338,7 @@ struct test_lstm_forward_3args_und
     }
 };
 
-struct test_lstm_forward_3args
+struct test_lstm_forward_3args : verify_program<test_lstm_forward_3args>
 {
     migraphx::program create_program() const
     {
@@ -2372,7 +2372,7 @@ struct test_lstm_forward_3args
     }
 };
 
-struct test_lstm_forward_seq1
+struct test_lstm_forward_seq1 : verify_program<test_lstm_forward_seq1>
 {
     migraphx::program create_program() const
     {
@@ -2406,7 +2406,7 @@ struct test_lstm_forward_seq1
     }
 };
 
-struct test_lstm_forward_default_actv
+struct test_lstm_forward_default_actv : verify_program<test_lstm_forward_default_actv>
 {
     migraphx::program create_program() const
     {
@@ -2436,7 +2436,7 @@ struct test_lstm_forward_default_actv
     }
 };
 
-struct test_lstm_forward_default_actv1
+struct test_lstm_forward_default_actv1 : verify_program<test_lstm_forward_default_actv1>
 {
     migraphx::program create_program() const
     {
@@ -2477,7 +2477,7 @@ struct test_lstm_forward_default_actv1
     }
 };
 
-struct test_lstm_reverse_last
+struct test_lstm_reverse_last : verify_program<test_lstm_reverse_last>
 {
     migraphx::program create_program() const
     {
@@ -2528,7 +2528,7 @@ struct test_lstm_reverse_last
     }
 };
 
-struct test_lstm_reverse_3args
+struct test_lstm_reverse_3args : verify_program<test_lstm_reverse_3args>
 {
     migraphx::program create_program() const
     {
@@ -2562,7 +2562,7 @@ struct test_lstm_reverse_3args
     }
 };
 
-struct test_lstm_reverse_3args_cell_output
+struct test_lstm_reverse_3args_cell_output : verify_program<test_lstm_reverse_3args_cell_output>
 {
     migraphx::program create_program() const
     {
@@ -2597,7 +2597,7 @@ struct test_lstm_reverse_3args_cell_output
     }
 };
 
-struct test_lstm_bidirct_last
+struct test_lstm_bidirct_last : verify_program<test_lstm_bidirct_last>
 {
     migraphx::program create_program() const
     {
@@ -2648,7 +2648,7 @@ struct test_lstm_bidirct_last
     }
 };
 
-struct test_lstm_bidirct_hs
+struct test_lstm_bidirct_hs : verify_program<test_lstm_bidirct_hs>
 {
     migraphx::program create_program() const
     {
@@ -2690,7 +2690,7 @@ struct test_lstm_bidirct_hs
     }
 };
 
-struct test_lstm_bidirct_3args_und
+struct test_lstm_bidirct_3args_und : verify_program<test_lstm_bidirct_3args_und>
 {
     migraphx::program create_program() const
     {
@@ -2729,7 +2729,7 @@ struct test_lstm_bidirct_3args_und
     }
 };
 
-struct test_lstm_bidirct_3args
+struct test_lstm_bidirct_3args : verify_program<test_lstm_bidirct_3args>
 {
     migraphx::program create_program() const
     {
@@ -2761,7 +2761,7 @@ struct test_lstm_bidirct_3args
     }
 };
 
-struct test_lstm_bidirct_seq1
+struct test_lstm_bidirct_seq1 : verify_program<test_lstm_bidirct_seq1>
 {
     migraphx::program create_program() const
     {
@@ -2793,7 +2793,7 @@ struct test_lstm_bidirct_seq1
     }
 };
 
-struct test_lstm_bidirct_default_actv
+struct test_lstm_bidirct_default_actv : verify_program<test_lstm_bidirct_default_actv>
 {
     migraphx::program create_program() const
     {
@@ -2823,7 +2823,7 @@ struct test_lstm_bidirct_default_actv
     }
 };
 
-struct test_lstm_bidirct_default_actv1
+struct test_lstm_bidirct_default_actv1 : verify_program<test_lstm_bidirct_default_actv1>
 {
     migraphx::program create_program() const
     {
@@ -2865,7 +2865,7 @@ struct test_lstm_bidirct_default_actv1
     }
 };
 
-struct test_lstm_bidirct_default_actv2
+struct test_lstm_bidirct_default_actv2 : verify_program<test_lstm_bidirct_default_actv2>
 {
     migraphx::program create_program() const
     {

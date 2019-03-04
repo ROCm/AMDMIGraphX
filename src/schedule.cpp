@@ -49,18 +49,18 @@ struct stream_info
         {
             fix([&](auto self, auto ins) {
                 // If weight is zero then stop
-                if(weights[ins] == 0)
+                if(this->weights[ins] == 0)
                     return;
                 // Only assign streams if not already assigned
-                if(not has_stream(ins))
-                    set_stream(ins, stream);
+                if(not this->has_stream(ins))
+                    this->set_stream(ins, stream);
                 instruction_ref child = p.end();
                 std::size_t w         = 0;
                 for(auto i : ins->inputs())
                 {
-                    const auto weight = weights[i];
+                    const auto weight = this->weights[i];
                     // Skip instruction that already have stream assignment or too low of weights
-                    if(has_stream(i) or weight <= min_partition_threshold)
+                    if(this->has_stream(i) or weight <= min_partition_threshold)
                     {
                         self(i);
                     }

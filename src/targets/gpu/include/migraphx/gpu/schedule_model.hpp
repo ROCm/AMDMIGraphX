@@ -20,7 +20,7 @@ struct schedule_model
     void schedule_instruction(program& p, instruction_ref ins, std::size_t n) const;
     void wait(program& p,
               instruction_ref ins,
-              std::size_t wait_on,
+              std::size_t,
               const std::vector<std::size_t>& wait_for) const;
     std::size_t weight(const operation& op) const;
 };

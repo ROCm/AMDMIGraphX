@@ -62,6 +62,7 @@ struct wait_event
                                const migraphx::shape&,
                                const std::vector<migraphx::argument>&) const
     {
+        assert(not wait_for.empty());
         return {};
     }
 };
@@ -79,10 +80,9 @@ struct schedule_model_test
     }
     void wait(migraphx::program& p,
               migraphx::instruction_ref ins,
-              std::size_t wait_on,
+              std::size_t,
               const std::vector<std::size_t>& wait_for) const
     {
-        (*ins2stream)[ins] = wait_on;
         p.insert_instruction(ins, wait_event{wait_for});
     }
     std::size_t weight(const migraphx::operation& op) const

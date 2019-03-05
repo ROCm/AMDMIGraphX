@@ -159,11 +159,17 @@ struct stream_info
         };
     }
 
-    template<class... Ts>
-    bool is_merge_point(instruction_ref ins, Ts... xs) const { return different(get_streams(ins, get_inputs()), xs...); }
+    template <class... Ts>
+    bool is_merge_point(instruction_ref ins, Ts... xs) const
+    {
+        return different(get_streams(ins, get_inputs()), xs...);
+    }
 
-    template<class... Ts>
-    bool is_split_point(instruction_ref ins, Ts... xs) const { return different(get_streams(ins, get_outputs()), xs...); }
+    template <class... Ts>
+    bool is_split_point(instruction_ref ins, Ts... xs) const
+    {
+        return different(get_streams(ins, get_outputs()), xs...);
+    }
 
     std::vector<std::size_t> wait_for(instruction_ref ins) const
     {
@@ -177,7 +183,7 @@ struct stream_info
         result.erase(std::unique(result.begin(), result.end()), result.end());
         // Remove the merged stream
         auto it = std::find(result.begin(), result.end(), get_stream(ins));
-        if (it != result.end())
+        if(it != result.end())
             result.erase(it);
         return result;
     }

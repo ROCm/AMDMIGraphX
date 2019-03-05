@@ -57,7 +57,7 @@ struct stream_info
     void assign_streams(program& p, std::size_t streams)
     {
         const std::size_t min_partition_threshold = 2;
-        for(std::size_t stream = 0; stream < streams-1; stream++)
+        for(std::size_t stream = 0; stream < streams - 1; stream++)
         {
             fix([&](auto self, auto ins) {
                 // If weight is zero then stop
@@ -98,10 +98,10 @@ struct stream_info
         }
     }
 
-    void set_stream(instruction_ref ins, std::size_t n) 
+    void set_stream(instruction_ref ins, std::size_t n)
     {
-        assert(iweights[ins] > 0); 
-        ins2stream[ins] = n; 
+        assert(iweights[ins] > 0);
+        ins2stream[ins] = n;
     }
 
     std::size_t get_stream(instruction_ref ins) const { return ins2stream.at(ins); }
@@ -244,7 +244,8 @@ void schedule::apply(program& p) const
     fix([&](auto self, auto ins) {
         auto args = ins->inputs();
         std::sort(args.begin(), args.end(), [&](auto x, auto y) {
-            return std::make_tuple(si.weights[x], x->inputs().size()) < std::make_tuple(si.weights[y], y->inputs().size());
+            return std::make_tuple(si.weights[x], x->inputs().size()) <
+                   std::make_tuple(si.weights[y], y->inputs().size());
         });
         for(auto i : args)
         {

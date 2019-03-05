@@ -36,7 +36,7 @@ struct hip_device
         static hip_stream_ptr create_stream()
         {
             hipStream_t result = nullptr;
-            auto status        = hipStreamCreate(&result);
+            auto status        = hipStreamCreateWithFlags(&result, hipStreamNonBlocking);
             if(status != hipSuccess)
                 MIGRAPHX_THROW("Failed to allocate stream");
             return hip_stream_ptr{result};

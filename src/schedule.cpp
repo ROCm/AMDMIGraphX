@@ -218,9 +218,13 @@ void schedule::apply(program& p) const
 
     // Topo sort
     fix([&](auto self, auto ins) {
-        for(auto i : ins->inputs())
+        auto args = ins->inputs();
+        std::sort(args.begin(), args.end(), [&](auto x, auto y) {
+            return si.weights[x] < si.weights[y];
+        });
+        for(auto i : args)
             p.move_instruction(i, p.begin());
-        for(auto i : ins->inputs())
+        for(auto i : args)
             self(i);
     })(last);
 

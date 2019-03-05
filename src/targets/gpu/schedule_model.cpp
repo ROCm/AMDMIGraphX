@@ -51,6 +51,7 @@ struct wait_event
             return i == ctx.get_current_device().stream_id();
         }));
         (void)ctx;
+        assert(not wait_for.empty());
         event = create_event();
     }
 };
@@ -91,10 +92,9 @@ void schedule_model::schedule_instruction(program& p, instruction_ref ins, std::
 }
 void schedule_model::wait(program& p,
                           instruction_ref ins,
-                          std::size_t wait_on,
+                          std::size_t,
                           const std::vector<std::size_t>& wait_for) const
 {
-    this->schedule_instruction(p, ins, wait_on);
     p.insert_instruction(ins, wait_event{wait_for});
 }
 

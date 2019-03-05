@@ -264,10 +264,9 @@ void schedule::apply(program& p) const
         if(not si.has_stream(ins))
             continue;
         auto stream = si.get_stream(ins);
+        model.schedule_instruction(p, ins, stream);
         if(si.is_merge_point(ins, stream))
             model.wait(p, ins, stream, si.wait_for(ins));
-        else
-            model.schedule_instruction(p, ins, stream);
     }
 
     // Add memory conflicts

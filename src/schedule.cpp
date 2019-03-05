@@ -258,15 +258,33 @@ void schedule::apply(program& p) const
     }
 
     // Schedule instructions
+    std::set<std::size_t> waited_for;
+    std::size_t waited_on = model.concurrency();
     for(auto ins : iterator_for(p))
     {
         // Only schedule instructions that have a stream
         if(not si.has_stream(ins))
             continue;
+        // Schedule instruction on the stream
         auto stream = si.get_stream(ins);
+        assert(stream < model.concurrency());
         model.schedule_instruction(p, ins, stream);
+        // Clear waits when switching streams
+        if (stream != waited_on)
+            waited_for.clear();
+        // Schedule wait instruction
         if(si.is_merge_point(ins, stream))
-            model.wait(p, ins, stream, si.wait_for(ins));
+        {
+            auto wait_for = si.wait_for(ins);
+            // Dont wait for streams that have already been waited for
+            wait_for.erase(std::remove_if(wait_for.begin(), wait_for.end(), [&](auto x) {
+                return waited_for.count(x) > 0;
+            }), wait_for.end());
+            if (not wait_for.empty())
+                model.wait(p, ins, stream, wait_for);
+            waited_for.insert(wait_for.begin(), wait_for.end());
+            waited_on = stream;
+        }
     }
 
     // Add memory conflicts

@@ -14,7 +14,8 @@ hip_event_ptr create_event()
 {
     hipEvent_t event;
     // Default is hipEventReleaseToDevice
-    auto status = hipEventCreateWithFlags(&event, hipEventDisableTiming | hipEventReleaseToSystem | hipEventBlockingSync);
+    auto status = hipEventCreateWithFlags(
+        &event, hipEventDisableTiming | hipEventReleaseToSystem | hipEventBlockingSync);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Failed to create event");
     return hip_event_ptr{event};

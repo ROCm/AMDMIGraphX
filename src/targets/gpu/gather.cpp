@@ -1,9 +1,6 @@
 #include <migraphx/gpu/gather.hpp>
-#include <migraphx/operators.hpp>
-#include <migraphx/manage_ptr.hpp>
-#include <migraphx/gpu/miopen.hpp>
-#include <migraphx/gpu/device/concat.hpp>
-#include <utility>
+#include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/device/gather.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -510,6 +510,7 @@ struct onnx_parser
                 return add_broadcastable_binary_op(l3, l4, op::add{});
             }
         }
+
         return prog.add_instruction(op::dot{alpha, beta}, l1, l2);
     }
 

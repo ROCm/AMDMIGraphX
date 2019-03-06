@@ -39,13 +39,12 @@ inline std::ostream& operator<<(std::ostream& s, std::nullptr_t)
 template <class T>
 inline std::ostream& operator<<(std::ostream& s, const std::vector<T>& v)
 {
-    char delim = '{';
+    s << "{ ";
     for(auto&& x : v)
     {
-        s << delim << " " << x;
-        delim = ',';
+        s << x << ", ";
     }
-    s << " }";
+    s << "}";
     return s;
 }
 

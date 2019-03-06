@@ -133,6 +133,27 @@ void check_conflicts(migraphx::program& p,
     });
 }
 
+template<class T>
+std::vector<T> sorted(std::vector<T> x)
+{
+    std::sort(x.begin(), x.end());
+    return x;
+}
+
+template<class T>
+std::vector<T> unique(std::vector<T> x)
+{
+    std::sort(x.begin(), x.end());
+    x.erase(std::unique(x.begin(), x.end()), x.end());
+    return x;
+}
+
+std::vector<std::size_t> get_wait_for(std::vector<std::size_t> wait_for)
+{
+    std::sort(wait_for.begin(), wait_for.end());
+    return wait_for;
+}
+
 std::vector<std::size_t> get_wait_for(std::size_t wait_on, std::vector<std::size_t> wait_for)
 {
     wait_for.erase(std::find(wait_for.begin(), wait_for.end(), wait_on));
@@ -176,6 +197,42 @@ TEST_CASE(single_entry)
     EXPECT(stream.at(onep1) != stream.at(onep2));
     EXPECT(stream.at(binary) == 0);
     EXPECT(get_wait_for(binary) == get_wait_for(stream[binary], {stream[onep1], stream[onep2]}));
+    EXPECT(check_conflicts(p, onep1, onep2));
+}
+
+TEST_CASE(zero_merge1)
+{
+    instruction_map stream;
+    migraphx::program p;
+    auto one    = p.add_literal(1);
+    auto onep1  = p.add_instruction(unary_op{}, one);
+    auto onep2  = p.add_instruction(unary_op{}, one);
+    auto binary = p.add_instruction(migraphx::op::identity{}, onep1, onep2);
+    p.compile(schedule_target{&stream});
+    EXPECT(stream.count(one) == 0);
+    EXPECT(stream.at(onep1) != stream.at(onep2));
+    // No stream assignment
+    EXPECT(stream.count(binary) == 0);
+    // There is no wait
+    EXPECT(get_wait_for(binary).empty());
+    EXPECT(check_conflicts(p, onep1, onep2));
+}
+
+TEST_CASE(zero_merge2)
+{
+    instruction_map stream;
+    migraphx::program p;
+    auto one    = p.add_literal(1);
+    auto onep1  = p.add_instruction(unary_op{}, one);
+    auto onep2  = p.add_instruction(unary_op{}, one);
+    auto binary = p.add_instruction(migraphx::op::identity{}, p.add_instruction(migraphx::op::identity{}, onep1), p.add_instruction(migraphx::op::identity{}, onep2));
+    p.compile(schedule_target{&stream});
+    EXPECT(stream.count(one) == 0);
+    EXPECT(stream.at(onep1) != stream.at(onep2));
+    // No stream assignment
+    EXPECT(stream.count(binary) == 0);
+    // There is no wait
+    EXPECT(get_wait_for(binary).empty());
     EXPECT(check_conflicts(p, onep1, onep2));
 }
 
@@ -269,6 +326,24 @@ TEST_CASE(five_branches)
                         {stream[c1.back()], stream[c2.back()], stream[c3.back()], stream[i1]}));
     check_conflicts(p, {c1, c2, c3, c4});
     check_conflicts(p, {c1, c2, c3, {i1}});
+}
+
+TEST_CASE(four_branches_eq)
+{
+    instruction_map stream;
+    migraphx::program p;
+    auto one    = p.add_literal(1);
+    auto onep1  = p.add_instruction(unary_op{}, one);
+    auto onep2  = p.add_instruction(unary_op{}, one);
+    auto onep3  = p.add_instruction(unary_op{}, one);
+    auto onep4  = p.add_instruction(unary_op{}, one);
+    auto binary = p.add_instruction(nary_op{}, onep1, onep2, onep3, onep4);
+    p.compile(schedule_target{&stream});
+    EXPECT(stream.count(one) == 0);
+    EXPECT(sorted<std::size_t>({stream.at(onep1), stream.at(onep2), stream.at(onep3), stream.at(onep4)}) == unique<std::size_t>({stream.at(onep1), stream.at(onep2), stream.at(onep3), stream.at(onep4)}));
+    EXPECT(stream.at(binary) == 0);
+    EXPECT(get_wait_for(binary) == get_wait_for(stream[binary], {stream[onep1], stream[onep2], stream[onep3], stream[onep4]}));
+    check_conflicts(p, {{onep1}, {onep2}, {onep3}, {onep4}});
 }
 
 TEST_CASE(seq_merge)

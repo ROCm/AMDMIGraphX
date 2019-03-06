@@ -259,6 +259,12 @@ void schedule::apply(program& p) const
         p.annotate(std::cout, [&](auto ins) {
             std::cout << ":";
             std::cout << " weight=" << si.weights.at(ins);
+            std::cout << " input={";
+            si.get_streams(ins, get_inputs())([&](auto s) {
+                std::cout << s << ",";
+                return true;
+            });
+            std::cout << "}";
             if(si.has_stream(ins))
                 std::cout << " stream=" << si.get_stream(ins);
         });

@@ -913,9 +913,9 @@ struct gemm_mutli_3args_beta0
         auto l1 = p.add_parameter("1", m1_shape);
         auto l2 = p.add_parameter("2", m2_shape);
         auto l3 = p.add_parameter("3", m3_shape);
-        
+
         float alpha = 1.0f;
-        float beta = 0.0f;
+        float beta  = 0.0f;
         p.add_instruction(migraphx::op::dot{alpha, beta}, l1, l2, l3);
 
         return p;
@@ -933,9 +933,9 @@ struct gemm_mutli_3args_alpha0
         auto l1 = p.add_parameter("1", m1_shape);
         auto l2 = p.add_parameter("2", m2_shape);
         auto l3 = p.add_parameter("3", m3_shape);
-        
+
         float alpha = 0.0f;
-        float beta = 1.0f;
+        float beta  = 1.0f;
         p.add_instruction(migraphx::op::dot{alpha, beta}, l1, l2, l3);
 
         return p;

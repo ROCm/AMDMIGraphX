@@ -470,8 +470,8 @@ TEST_CASE(flatten_test)
 {
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
-    p.add_instruction(migraphx::op::flatten{1}, l0);
     p.add_instruction(migraphx::op::flatten{2}, l0);
+    p.add_instruction(migraphx::op::flatten{1}, l0);
     auto prog = migraphx::parse_onnx("flatten_test.onnx");
 
     EXPECT(p == prog);
@@ -524,7 +524,7 @@ TEST_CASE(constant_test)
 TEST_CASE(constant_test_scalar)
 {
     migraphx::program p;
-    p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {1}});
+    p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {1}}, {1}});
     auto prog = migraphx::parse_onnx("constant_scalar.onnx");
 
     EXPECT(p == prog);
@@ -662,6 +662,17 @@ TEST_CASE(add_fp16_test)
         p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type, {1}}, {2.5}});
     p.add_instruction(migraphx::op::add{}, l0, l1);
     auto prog = migraphx::parse_onnx("add_fp16_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(logsoftmax)
+{
+    migraphx::program p;
+    auto l0  = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    int axis = 1;
+    p.add_instruction(migraphx::op::logsoftmax{axis}, l0);
+    auto prog = migraphx::parse_onnx("logsoftmax_test.onnx");
 
     EXPECT(p == prog);
 }

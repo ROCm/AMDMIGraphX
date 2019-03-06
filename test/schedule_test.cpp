@@ -133,14 +133,14 @@ void check_conflicts(migraphx::program& p,
     });
 }
 
-template<class T>
+template <class T>
 std::vector<T> sorted(std::vector<T> x)
 {
     std::sort(x.begin(), x.end());
     return x;
 }
 
-template<class T>
+template <class T>
 std::vector<T> unique(std::vector<T> x)
 {
     std::sort(x.begin(), x.end());
@@ -225,7 +225,9 @@ TEST_CASE(zero_merge2)
     auto one    = p.add_literal(1);
     auto onep1  = p.add_instruction(unary_op{}, one);
     auto onep2  = p.add_instruction(unary_op{}, one);
-    auto binary = p.add_instruction(migraphx::op::identity{}, p.add_instruction(migraphx::op::identity{}, onep1), p.add_instruction(migraphx::op::identity{}, onep2));
+    auto binary = p.add_instruction(migraphx::op::identity{},
+                                    p.add_instruction(migraphx::op::identity{}, onep1),
+                                    p.add_instruction(migraphx::op::identity{}, onep2));
     p.compile(schedule_target{&stream});
     EXPECT(stream.count(one) == 0);
     EXPECT(stream.at(onep1) != stream.at(onep2));
@@ -340,9 +342,14 @@ TEST_CASE(four_branches_eq)
     auto binary = p.add_instruction(nary_op{}, onep1, onep2, onep3, onep4);
     p.compile(schedule_target{&stream});
     EXPECT(stream.count(one) == 0);
-    EXPECT(sorted<std::size_t>({stream.at(onep1), stream.at(onep2), stream.at(onep3), stream.at(onep4)}) == unique<std::size_t>({stream.at(onep1), stream.at(onep2), stream.at(onep3), stream.at(onep4)}));
+    EXPECT(sorted<std::size_t>(
+               {stream.at(onep1), stream.at(onep2), stream.at(onep3), stream.at(onep4)}) ==
+           unique<std::size_t>(
+               {stream.at(onep1), stream.at(onep2), stream.at(onep3), stream.at(onep4)}));
     EXPECT(stream.at(binary) == 0);
-    EXPECT(get_wait_for(binary) == get_wait_for(stream[binary], {stream[onep1], stream[onep2], stream[onep3], stream[onep4]}));
+    EXPECT(
+        get_wait_for(binary) ==
+        get_wait_for(stream[binary], {stream[onep1], stream[onep2], stream[onep3], stream[onep4]}));
     check_conflicts(p, {{onep1}, {onep2}, {onep3}, {onep4}});
 }
 

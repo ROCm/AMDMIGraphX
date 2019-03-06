@@ -746,6 +746,18 @@ struct test_gemm
     }
 };
 
+struct test_gemm_ex
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto a = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 1, 4, 5}});
+        auto b = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 3}});
+        p.add_instruction(migraphx::op::dot{}, a, b);
+        return p;
+    }
+};
+
 struct test_gemm_half
 {
     migraphx::program create_program() const
@@ -785,6 +797,19 @@ struct test_gemm_transposeb
     }
 };
 
+struct test_gemm_transposeb_ex
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto a  = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 4, 5}});
+        auto b  = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 3, 5}});
+        auto bt = p.add_instruction(migraphx::op::transpose{{0, 2, 1}}, b);
+        p.add_instruction(migraphx::op::dot{}, a, bt);
+        return p;
+    }
+};
+
 struct test_gemm_transposea
 {
     migraphx::program create_program() const
@@ -793,6 +818,19 @@ struct test_gemm_transposea
         auto a  = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {5, 4}});
         auto b  = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {5, 3}});
         auto at = p.add_instruction(migraphx::op::transpose{{1, 0}}, a);
+        p.add_instruction(migraphx::op::dot{}, at, b);
+        return p;
+    }
+};
+
+struct test_gemm_transposea_ex
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto a  = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
+        auto b  = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 3}});
+        auto at = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, a);
         p.add_instruction(migraphx::op::dot{}, at, b);
         return p;
     }
@@ -812,6 +850,38 @@ struct test_gemm_transposeab
     }
 };
 
+struct gemm_mutli_dim_2
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape m1_shape{migraphx::shape::float_type, {2, 2, 3}};
+        migraphx::shape m2_shape{migraphx::shape::float_type, {2, 3, 4}};
+        auto l1 = p.add_parameter("1", m1_shape);
+        auto l2 = p.add_parameter("2", m2_shape);
+
+        p.add_instruction(migraphx::op::dot{}, l1, l2);
+
+        return p;
+    }
+};
+
+struct gemm_mutli_dim_2_3
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape m1_shape{migraphx::shape::float_type, {2, 3, 2, 3}};
+        migraphx::shape m2_shape{migraphx::shape::float_type, {2, 3, 3, 2}};
+        auto l1 = p.add_parameter("1", m1_shape);
+        auto l2 = p.add_parameter("2", m2_shape);
+
+        p.add_instruction(migraphx::op::dot{}, l1, l2);
+
+        return p;
+    }
+};
+
 struct test_contiguous
 {
     migraphx::program create_program() const
@@ -821,6 +891,22 @@ struct test_contiguous
         auto x = p.add_parameter("x", s);
         p.add_instruction(migraphx::op::contiguous{}, x);
         EXPECT(p.get_shape().standard());
+        return p;
+    }
+};
+
+struct test_eliminate_contiguous
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
+        auto seq = p.add_parameter("seq", s);
+        std::vector<int64_t> perm{0, 2, 1, 3};
+        auto tran_seq = p.add_instruction(migraphx::op::transpose{perm}, seq);
+        std::vector<int64_t> out_shape{0, 0, -1};
+        p.add_instruction(migraphx::op::reshape{out_shape}, tran_seq);
+
         return p;
     }
 };
@@ -1044,6 +1130,54 @@ struct test_gather_neg_axis
         migraphx::shape s{migraphx::shape::float_type, {3, 3}};
         migraphx::shape s_indices{migraphx::shape::int32_type, {2, 2}};
         std::vector<int> indices{1, 2, 2, 1};
+        auto a0  = p.add_parameter("data", s);
+        auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
+        int axis = -1;
+        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
+        return p;
+    }
+};
+
+struct test_gather_scalar_output
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3}};
+        migraphx::shape s_indices{migraphx::shape::int32_type};
+        std::vector<int> indices{1};
+        auto a0  = p.add_parameter("data", s);
+        auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
+        int axis = 0;
+        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
+        return p;
+    }
+};
+
+struct test_gather_scalar_index
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
+        migraphx::shape s_indices{migraphx::shape::int32_type};
+        std::vector<int> indices{1};
+        auto a0  = p.add_parameter("data", s);
+        auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
+        int axis = -1;
+        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
+        return p;
+    }
+};
+
+struct test_gather_1d_index
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
+        migraphx::shape s_indices{migraphx::shape::int32_type, {1}};
+        std::vector<int> indices{1};
         auto a0  = p.add_parameter("data", s);
         auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
         int axis = -1;
@@ -2114,6 +2248,743 @@ struct test_gru_bidirct_default_actv1
     }
 };
 
+struct test_lstm_forward_last
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 3;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 1;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 8 * hidden_size}};
+        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape ic_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape pph_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size}};
+
+        auto seq  = p.add_parameter("seq", in_shape);
+        auto w    = p.add_parameter("w", w_shape);
+        auto r    = p.add_parameter("r", r_shape);
+        auto bias = p.add_parameter("bias", b_shape);
+        auto ih   = p.add_parameter("ih", ih_shape);
+        auto ic   = p.add_parameter("ic", ic_shape);
+        auto pph  = p.add_parameter("pph", pph_shape);
+        auto und  = p.add_instruction(migraphx::op::undefined{});
+
+        auto output = p.add_instruction(
+            migraphx::op::gru{hidden_size,
+                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::forward,
+                              clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih,
+            ic,
+            pph);
+        p.add_instruction(migraphx::op::rnn_last_output{}, output);
+
+        return p;
+    }
+};
+
+struct test_lstm_forward_hs
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 3;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 1;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 8 * hidden_size}};
+        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape ic_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape pph_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size}};
+
+        auto seq  = p.add_parameter("seq", in_shape);
+        auto w    = p.add_parameter("w", w_shape);
+        auto r    = p.add_parameter("r", r_shape);
+        auto bias = p.add_parameter("bias", b_shape);
+        auto ih   = p.add_parameter("ih", ih_shape);
+        auto ic   = p.add_parameter("ic", ic_shape);
+        auto pph  = p.add_parameter("pph", pph_shape);
+        auto und  = p.add_instruction(migraphx::op::undefined{});
+
+        p.add_instruction(
+            migraphx::op::lstm{
+                hidden_size,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::forward,
+                clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih,
+            ic,
+            pph);
+
+        return p;
+    }
+};
+
+struct test_lstm_forward_3args_und
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 3;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 1;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
+        auto und = p.add_instruction(migraphx::op::undefined{});
+        p.add_instruction(
+            migraphx::op::lstm{
+                hidden_size,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::forward,
+                clip},
+            seq,
+            w,
+            r,
+            und,
+            und,
+            und,
+            und,
+            und);
+
+        return p;
+    }
+};
+
+struct test_lstm_forward_3args
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 3;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 1;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
+        p.add_instruction(
+            migraphx::op::lstm{
+                hidden_size,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::forward,
+                clip},
+            seq,
+            w,
+            r);
+
+        return p;
+    }
+};
+
+struct test_lstm_forward_seq1
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 1;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 1;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
+        p.add_instruction(
+            migraphx::op::lstm{
+                hidden_size,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::forward,
+                clip},
+            seq,
+            w,
+            r);
+
+        return p;
+    }
+};
+
+struct test_lstm_forward_default_actv
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 1;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 1;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
+        p.add_instruction(
+            migraphx::op::lstm{hidden_size, {}, migraphx::op::rnn_direction::forward, clip},
+            seq,
+            w,
+            r);
+
+        return p;
+    }
+};
+
+struct test_lstm_forward_default_actv1
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 3;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 1;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 8 * hidden_size}};
+        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+
+        auto seq  = p.add_parameter("seq", in_shape);
+        auto w    = p.add_parameter("w", w_shape);
+        auto r    = p.add_parameter("r", r_shape);
+        auto bias = p.add_parameter("bias", b_shape);
+        auto ih   = p.add_parameter("ih", ih_shape);
+        auto und  = p.add_instruction(migraphx::op::undefined{});
+
+        p.add_instruction(
+            migraphx::op::lstm{
+                hidden_size, {migraphx::op::sigmoid{}}, migraphx::op::rnn_direction::forward, clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih);
+
+        return p;
+    }
+};
+
+struct test_lstm_reverse_last
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 3;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 1;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 8 * hidden_size}};
+        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape ic_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape pph_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size}};
+
+        auto seq  = p.add_parameter("seq", in_shape);
+        auto w    = p.add_parameter("w", w_shape);
+        auto r    = p.add_parameter("r", r_shape);
+        auto bias = p.add_parameter("bias", b_shape);
+        auto ih   = p.add_parameter("ih", ih_shape);
+        auto ic   = p.add_parameter("ic", ic_shape);
+        auto pph  = p.add_parameter("pph", pph_shape);
+        auto und  = p.add_instruction(migraphx::op::undefined{});
+
+        auto output = p.add_instruction(
+            migraphx::op::lstm{
+                hidden_size,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::reverse,
+                clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih,
+            ic,
+            pph);
+        p.add_instruction(migraphx::op::rnn_last_output{}, output);
+
+        return p;
+    }
+};
+
+struct test_lstm_reverse_3args
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 3;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 1;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
+        p.add_instruction(
+            migraphx::op::lstm{
+                hidden_size,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::reverse,
+                clip},
+            seq,
+            w,
+            r);
+
+        return p;
+    }
+};
+
+struct test_lstm_reverse_3args_cell_output
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 3;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 1;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
+        auto hs  = p.add_instruction(
+            migraphx::op::lstm{
+                hidden_size,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::reverse,
+                clip},
+            seq,
+            w,
+            r);
+        p.add_instruction(migraphx::op::lstm_last_cell_output{}, hs);
+
+        return p;
+    }
+};
+
+struct test_lstm_bidirct_last
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 3;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 2;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 8 * hidden_size}};
+        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape ic_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape pph_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size}};
+
+        auto seq  = p.add_parameter("seq", in_shape);
+        auto w    = p.add_parameter("w", w_shape);
+        auto r    = p.add_parameter("r", r_shape);
+        auto bias = p.add_parameter("bias", b_shape);
+        auto ih   = p.add_parameter("ih", ih_shape);
+        auto ic   = p.add_parameter("ic", ic_shape);
+        auto pph  = p.add_parameter("pph", pph_shape);
+        auto und  = p.add_instruction(migraphx::op::undefined{});
+
+        auto output = p.add_instruction(
+            migraphx::op::lstm{
+                hidden_size,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::bidirectional,
+                clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih,
+            ic,
+            pph);
+        p.add_instruction(migraphx::op::rnn_last_output{}, output);
+
+        return p;
+    }
+};
+
+struct test_lstm_bidirct_hs
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 3;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 2;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 8 * hidden_size}};
+        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+
+        auto seq  = p.add_parameter("seq", in_shape);
+        auto w    = p.add_parameter("w", w_shape);
+        auto r    = p.add_parameter("r", r_shape);
+        auto bias = p.add_parameter("bias", b_shape);
+        auto ih   = p.add_parameter("ih", ih_shape);
+        auto und  = p.add_instruction(migraphx::op::undefined{});
+
+        p.add_instruction(migraphx::op::lstm{hidden_size,
+                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                             migraphx::op::rnn_direction::bidirectional,
+                                             clip},
+                          seq,
+                          w,
+                          r,
+                          bias,
+                          und,
+                          ih);
+
+        return p;
+    }
+};
+
+struct test_lstm_bidirct_3args_und
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 3;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 2;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
+        auto und = p.add_instruction(migraphx::op::undefined{});
+        p.add_instruction(
+            migraphx::op::gru{hidden_size,
+                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::bidirectional,
+                              clip},
+            seq,
+            w,
+            r,
+            und,
+            und,
+            und,
+            und,
+            und);
+
+        return p;
+    }
+};
+
+struct test_lstm_bidirct_3args
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 3;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 2;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
+        p.add_instruction(migraphx::op::lstm{hidden_size,
+                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                             migraphx::op::rnn_direction::bidirectional,
+                                             clip},
+                          seq,
+                          w,
+                          r);
+
+        return p;
+    }
+};
+
+struct test_lstm_bidirct_seq1
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 1;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 2;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
+        p.add_instruction(migraphx::op::lstm{hidden_size,
+                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                             migraphx::op::rnn_direction::bidirectional,
+                                             clip},
+                          seq,
+                          w,
+                          r);
+
+        return p;
+    }
+};
+
+struct test_lstm_bidirct_default_actv
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 1;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 2;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        auto seq = p.add_parameter("seq", in_shape);
+        auto w   = p.add_parameter("w", w_shape);
+        auto r   = p.add_parameter("r", r_shape);
+        p.add_instruction(
+            migraphx::op::lstm{hidden_size, {}, migraphx::op::rnn_direction::bidirectional, clip},
+            seq,
+            w,
+            r);
+
+        return p;
+    }
+};
+
+struct test_lstm_bidirct_default_actv1
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 3;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 2;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 8 * hidden_size}};
+        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+
+        auto seq  = p.add_parameter("seq", in_shape);
+        auto w    = p.add_parameter("w", w_shape);
+        auto r    = p.add_parameter("r", r_shape);
+        auto bias = p.add_parameter("bias", b_shape);
+        auto ih   = p.add_parameter("ih", ih_shape);
+        auto und  = p.add_instruction(migraphx::op::undefined{});
+
+        p.add_instruction(migraphx::op::lstm{hidden_size,
+                                             {migraphx::op::sigmoid{}},
+                                             migraphx::op::rnn_direction::bidirectional,
+                                             clip},
+                          seq,
+                          w,
+                          r,
+                          bias,
+                          und,
+                          ih);
+
+        return p;
+    }
+};
+
+struct test_lstm_bidirct_default_actv2
+{
+    migraphx::program create_program() const
+    {
+        std::size_t batch_size  = 2;
+        std::size_t seq_len     = 3;
+        std::size_t hidden_size = 5;
+        std::size_t input_size  = 8;
+        std::size_t num_dirct   = 2;
+        float clip              = 0.0f;
+
+        migraphx::program p;
+        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, input_size}};
+        migraphx::shape r_shape{migraphx::shape::float_type,
+                                {num_dirct, 4 * hidden_size, hidden_size}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 8 * hidden_size}};
+        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+
+        auto seq  = p.add_parameter("seq", in_shape);
+        auto w    = p.add_parameter("w", w_shape);
+        auto r    = p.add_parameter("r", r_shape);
+        auto bias = p.add_parameter("bias", b_shape);
+        auto ih   = p.add_parameter("ih", ih_shape);
+        auto und  = p.add_instruction(migraphx::op::undefined{});
+
+        p.add_instruction(migraphx::op::lstm{hidden_size,
+                                             {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
+                                             migraphx::op::rnn_direction::bidirectional,
+                                             clip},
+                          seq,
+                          w,
+                          r,
+                          bias,
+                          und,
+                          ih);
+
+        return p;
+    }
+};
+
+template <int Axis>
+struct test_logsoftmax
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3, 4, 5, 6}};
+        auto param = p.add_parameter("0", s);
+        p.add_instruction(migraphx::op::logsoftmax{Axis}, param);
+
+        return p;
+    }
+};
+
+template <int Axis>
+struct test_logsoftmax_1
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3}};
+        auto param = p.add_parameter("0", s);
+        p.add_instruction(migraphx::op::logsoftmax{Axis}, param);
+
+        return p;
+    }
+};
+
 int main()
 {
     verify_program<test_relu_lrn>();
@@ -2163,12 +3034,18 @@ int main()
     verify_program<test_global_avg_pooling>();
     verify_program<test_global_max_pooling>();
     verify_program<test_gemm>();
+    verify_program<test_gemm_ex>();
     verify_program<test_gemm_half>();
     // verify_program<test_gemm_ld>();
     verify_program<test_gemm_transposeb>();
+    verify_program<test_gemm_transposeb_ex>();
     verify_program<test_gemm_transposea>();
+    verify_program<test_gemm_transposea_ex>();
     verify_program<test_gemm_transposeab>();
+    verify_program<gemm_mutli_dim_2>();
+    verify_program<gemm_mutli_dim_2_3>();
     verify_program<test_contiguous>();
+    verify_program<test_eliminate_contiguous>();
     verify_program<test_transpose>();
     verify_program<test_batchnorm_inference>();
     verify_program<test_batchnorm_inference_2>();
@@ -2178,6 +3055,9 @@ int main()
     verify_program<test_slice>();
     verify_program<test_gather>();
     verify_program<test_gather_neg_axis>();
+    verify_program<test_gather_scalar_output>();
+    verify_program<test_gather_scalar_index>();
+    verify_program<test_gather_1d_index>();
     verify_program<test_rnn_forward>();
     verify_program<test_rnn_forward10>();
     verify_program<test_rnn_reverse>();
@@ -2204,4 +3084,29 @@ int main()
     verify_program<test_gru_bidirct_seq1>();
     verify_program<test_gru_bidirct_default_actv>();
     verify_program<test_gru_bidirct_default_actv1>();
+    verify_program<test_lstm_forward_last>();
+    verify_program<test_lstm_forward_hs>();
+    verify_program<test_lstm_forward_3args_und>();
+    verify_program<test_lstm_forward_3args>();
+    verify_program<test_lstm_forward_seq1>();
+    verify_program<test_lstm_forward_default_actv>();
+    verify_program<test_lstm_forward_default_actv1>();
+    verify_program<test_lstm_reverse_last>();
+    verify_program<test_lstm_reverse_3args>();
+    verify_program<test_lstm_reverse_3args_cell_output>();
+    verify_program<test_lstm_bidirct_last>();
+    verify_program<test_lstm_bidirct_hs>();
+    verify_program<test_lstm_bidirct_3args_und>();
+    verify_program<test_lstm_bidirct_3args>();
+    verify_program<test_lstm_bidirct_seq1>();
+    verify_program<test_lstm_bidirct_default_actv>();
+    verify_program<test_lstm_bidirct_default_actv1>();
+    verify_program<test_lstm_bidirct_default_actv2>();
+    verify_program<test_logsoftmax<0>>();
+    verify_program<test_logsoftmax<1>>();
+    verify_program<test_logsoftmax<2>>();
+    verify_program<test_logsoftmax<3>>();
+    verify_program<test_logsoftmax<4>>();
+    verify_program<test_logsoftmax_1<0>>();
+    verify_program<test_logsoftmax_1<1>>();
 }

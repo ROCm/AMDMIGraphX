@@ -2977,6 +2977,34 @@ struct test_lstm_bidirct_default_actv2
     }
 };
 
+template <int Axis>
+struct test_logsoftmax
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3, 4, 5, 6}};
+        auto param = p.add_parameter("0", s);
+        p.add_instruction(migraphx::op::logsoftmax{Axis}, param);
+
+        return p;
+    }
+};
+
+template <int Axis>
+struct test_logsoftmax_1
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3}};
+        auto param = p.add_parameter("0", s);
+        p.add_instruction(migraphx::op::logsoftmax{Axis}, param);
+
+        return p;
+    }
+};
+
 int main()
 {
     verify_program<test_relu_lrn>();
@@ -3095,4 +3123,11 @@ int main()
     verify_program<test_lstm_bidirct_default_actv>();
     verify_program<test_lstm_bidirct_default_actv1>();
     verify_program<test_lstm_bidirct_default_actv2>();
+    verify_program<test_logsoftmax<0>>();
+    verify_program<test_logsoftmax<1>>();
+    verify_program<test_logsoftmax<2>>();
+    verify_program<test_logsoftmax<3>>();
+    verify_program<test_logsoftmax<4>>();
+    verify_program<test_logsoftmax_1<0>>();
+    verify_program<test_logsoftmax_1<1>>();
 }

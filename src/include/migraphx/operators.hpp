@@ -1333,10 +1333,10 @@ struct split
     std::size_t axis = 0;
     std::vector<uint64_t> slice_dims;
     std::string name() const { return "split"; }
-    
+
     shape compute_shape(std::vector<shape> inputs) const
     {
-        auto input_shape        = inputs[0];
+        auto input_shape = inputs[0];
         std::vector<std::size_t> out_dims;
         out_dims.push_back(input_shape.elements());
         return {input_shape.type(), out_dims};
@@ -1346,34 +1346,34 @@ struct split
     {
         std::vector<uint64_t> index_map;
         uint64_t unit_slice = 1;
-        int axis_id = 0;
-        if (axis >= s.lens().size())
+        int axis_id         = 0;
+        if(axis >= s.lens().size())
             MIGRAPHX_THROW("invalid split axis");
-        
-        for (auto&& len : s.lens())
+
+        for(auto&& len : s.lens())
         {
-            if (axis_id++ > axis)
+            if(axis_id++ > axis)
                 unit_slice *= len;
         }
         uint64_t total_slice_dim = 0;
-        for (auto&& dim : slice_dims)
+        for(auto&& dim : slice_dims)
         {
-            if (dim == 0)
+            if(dim == 0)
                 MIGRAPHX_THROW("invalid split dimension");
             total_slice_dim += dim;
         }
-        if ((total_slice_dim == 0) || (total_slice_dim != s.lens()[axis]))
+        if((total_slice_dim == 0) || (total_slice_dim != s.lens()[axis]))
             MIGRAPHX_THROW("invalid split dimension");
-        
-        uint64_t stride = unit_slice * total_slice_dim;
+
+        uint64_t stride       = unit_slice * total_slice_dim;
         std::size_t nelements = s.elements();
         std::vector<uint64_t> segment_size;
         std::vector<uint64_t> begin_index;
-        uint64_t num_of_segments = nelements/stride;
-        uint64_t index = 0;
-        
+        uint64_t num_of_segments = nelements / stride;
+        uint64_t index           = 0;
+
         // For each slice, compute segment size and begin index in the output.
-        for (auto&& dim : slice_dims)
+        for(auto&& dim : slice_dims)
         {
             uint64_t size = unit_slice * dim;
             segment_size.push_back(size);
@@ -1382,25 +1382,27 @@ struct split
         }
 
         // Map input index to output index.
-        for (std::size_t i = 0; i < nelements; i++)
-            {
-            std::size_t t_id = i % stride;
-            std::size_t slice_id = 0;
+        for(std::size_t i = 0; i < nelements; i++)
+        {
+            std::size_t t_id          = i % stride;
+            std::size_t slice_id      = 0;
             std::size_t element_index = 0;
-            std::size_t segment_id = i / stride;
-            auto a_segment_size = 0;
-            std::size_t id = 0;
-            for (auto && seg : segment_size)
+            std::size_t segment_id    = i / stride;
+            auto a_segment_size       = 0;
+            std::size_t id            = 0;
+            for(auto&& seg : segment_size)
             {
-               if (t_id < a_segment_size + seg) {
-                   slice_id= id;
-                   element_index = t_id - a_segment_size;
-                   break;
-               }
-               a_segment_size += seg;
-               id++;
+                if(t_id < a_segment_size + seg)
+                {
+                    slice_id      = id;
+                    element_index = t_id - a_segment_size;
+                    break;
+                }
+                a_segment_size += seg;
+                id++;
             }
-            uint64_t map_index = begin_index[slice_id] + segment_id * segment_size[slice_id] + element_index;
+            uint64_t map_index =
+                begin_index[slice_id] + segment_id * segment_size[slice_id] + element_index;
             index_map.push_back(map_index);
         }
         return index_map;
@@ -1408,20 +1410,20 @@ struct split
 
     argument compute(shape output_shape, std::vector<argument> args) const
     {
-        auto arg0 = args[0];
+        auto arg0                       = args[0];
         std::vector<uint64_t> index_map = compute_index_map(arg0.get_shape());
         argument result{output_shape};
         std::size_t nelements = arg0.get_shape().elements();
         visit_all(result, arg0)([&](auto output, auto input) {
             auto slice = make_view(output_shape, output.data());
-            for (std::size_t i = 0; i < nelements; i++)
+            for(std::size_t i = 0; i < nelements; i++)
             {
                 slice[index_map[i]] = input[i];
             }
-            });
+        });
         return result;
     }
-    
+
     int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
 };
 

@@ -79,6 +79,7 @@ struct onnx_parser
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
         add_mem_op("BatchNormalization", &onnx_parser::parse_batchnorm);
         add_mem_op("Softmax", &onnx_parser::parse_softmax);
+        add_mem_op("LogSoftmax", &onnx_parser::parse_logsoftmax);
         add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
         add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
         add_mem_op("Slice", &onnx_parser::parse_slice);
@@ -226,6 +227,19 @@ struct onnx_parser
             prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1]), 1, 1}}, args.front());
         auto s = prog.add_instruction(op::softmax{}, r);
         return prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1])}}, s);
+    }
+
+    instruction_ref parse_logsoftmax(const std::string&,
+                                     const attribute_map& attributes,
+                                     std::vector<instruction_ref> args)
+    {
+        int axis = 1;
+        if(contains(attributes, "axis"))
+        {
+            axis = parse_value(attributes.at("axis")).at<int>();
+        }
+
+        return prog.add_instruction(op::logsoftmax{axis}, std::move(args));
     }
 
     instruction_ref
@@ -472,7 +486,11 @@ struct onnx_parser
             transb = parse_value(attributes.at("transB")).at<bool>();
         }
 
-        std::vector<int64_t> perm = {1, 0};
+        std::vector<int64_t> perm(args[0]->get_shape().lens().size());
+        std::iota(perm.begin(), perm.end(), int64_t{0});
+        // swap the last two elements
+        std::swap(*perm.rbegin(), *(perm.rbegin() + 1));
+
         auto l1 = (transa) ? prog.add_instruction(op::transpose{perm}, args[0]) : args[0];
         auto l2 = (transb) ? prog.add_instruction(op::transpose{perm}, args[1]) : args[1];
         if(args.size() == 3)
@@ -493,9 +511,7 @@ struct onnx_parser
             }
         }
 
-        auto dot_res = prog.add_instruction(op::dot{alpha, beta}, l1, l2);
-
-        return dot_res;
+        return prog.add_instruction(op::dot{alpha, beta}, l1, l2);
     }
 
     instruction_ref
@@ -1149,9 +1165,9 @@ struct onnx_parser
                 instructions[name] = prog.add_parameter(name, s);
             }
         }
-        for(auto&& p : nodes)
+        for(auto&& output : graph.output())
         {
-            this->parse_node(p.first);
+            this->parse_node(output.name());
         }
     }
 

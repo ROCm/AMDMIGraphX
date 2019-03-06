@@ -137,20 +137,16 @@ auto fold(F f)
     return [=](auto&&... xs) { return fold_impl(f, std::forward<decltype(xs)>(xs)...); };
 }
 
-template<class F, class Proj>
+template <class F, class Proj>
 auto by(F f, Proj proj)
 {
-    return [=](auto&&... xs) {
-        return f(proj(std::forward<decltype(xs)>(xs))...);
-    };
+    return [=](auto&&... xs) { return f(proj(std::forward<decltype(xs)>(xs))...); };
 }
 
-template<class T>
+template <class T>
 auto index_of(T& x)
 {
-    return [&](auto&& y) {
-        return x[y];
-    };
+    return [&](auto&& y) { return x[y]; };
 }
 
 } // namespace MIGRAPHX_INLINE_NS

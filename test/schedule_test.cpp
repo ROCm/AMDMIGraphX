@@ -369,14 +369,14 @@ TEST_CASE(seq_merge)
     p.compile(schedule_target{&stream});
     EXPECT(stream.count(one) == 0);
 
-    EXPECT(stream.at(i1) == 1);
+    EXPECT(stream.at(i1) == 2);
     for(auto ins : c1)
-        EXPECT(stream.at(ins) == 0);
-    EXPECT(stream.at(binary1) == 0);
+        EXPECT(stream.at(ins) == 3);
+    EXPECT(stream.at(binary1) == 3);
     EXPECT(get_wait_for(binary1) == get_wait_for(stream[binary1], {stream[c1.back()], stream[i1]}));
     check_conflicts(p, {c1, {i1}});
 
-    EXPECT(stream.at(i2) == 1);
+    EXPECT(stream.at(i2) == 3);
     for(auto ins : c2)
         EXPECT(stream.at(ins) == 0);
     EXPECT(stream.at(binary2) == 0);
@@ -414,8 +414,8 @@ TEST_CASE(par_merge)
 
     EXPECT(stream.at(i2) == 2);
     for(auto ins : c2)
-        EXPECT(stream.at(ins) == 1);
-    EXPECT(stream.at(binary2) == 1);
+        EXPECT(stream.at(ins) == 3);
+    EXPECT(stream.at(binary2) == 3);
     EXPECT(get_wait_for(binary2) == get_wait_for(stream[binary2], {stream[c2.back()], stream[i2]}));
     check_conflicts(p, {c2, {i2}});
 

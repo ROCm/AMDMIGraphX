@@ -26,6 +26,7 @@ add_library(migraphx_device
     device/atan.cpp
     device/add_relu.cpp
     device/contiguous.cpp
+    device/logsoftmax.cpp
     device/mul.cpp
     device/concat.cpp
     device/pad.cpp
@@ -48,6 +49,7 @@ add_library(migraphx_gpu
     pooling.cpp
     convolution.cpp
     softmax.cpp
+    logsoftmax.cpp
     contiguous.cpp
     concat.cpp
     relu.cpp

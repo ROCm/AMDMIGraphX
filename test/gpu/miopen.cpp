@@ -766,6 +766,18 @@ struct test_gemm : verify_program<test_gemm>
     }
 };
 
+struct test_gemm_ex : verify_program<test_gemm_ex>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto a = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 1, 4, 5}});
+        auto b = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 3}});
+        p.add_instruction(migraphx::op::dot{}, a, b);
+        return p;
+    }
+};
+
 struct test_gemm_half : verify_program<test_gemm_half>
 {
     migraphx::program create_program() const
@@ -805,6 +817,19 @@ struct test_gemm_transposeb : verify_program<test_gemm_transposeb>
     }
 };
 
+struct test_gemm_transposeb_ex : verify_program<test_gemm_transposeb_ex>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto a  = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 4, 5}});
+        auto b  = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 3, 5}});
+        auto bt = p.add_instruction(migraphx::op::transpose{{0, 2, 1}}, b);
+        p.add_instruction(migraphx::op::dot{}, a, bt);
+        return p;
+    }
+};
+
 struct test_gemm_transposea : verify_program<test_gemm_transposea>
 {
     migraphx::program create_program() const
@@ -813,6 +838,19 @@ struct test_gemm_transposea : verify_program<test_gemm_transposea>
         auto a  = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {5, 4}});
         auto b  = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {5, 3}});
         auto at = p.add_instruction(migraphx::op::transpose{{1, 0}}, a);
+        p.add_instruction(migraphx::op::dot{}, at, b);
+        return p;
+    }
+};
+
+struct test_gemm_transposea_ex : verify_program<test_gemm_transposea_ex>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto a  = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
+        auto b  = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 3}});
+        auto at = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, a);
         p.add_instruction(migraphx::op::dot{}, at, b);
         return p;
     }
@@ -828,6 +866,38 @@ struct test_gemm_transposeab : verify_program<test_gemm_transposeab>
         auto at = p.add_instruction(migraphx::op::transpose{{1, 0}}, a);
         auto bt = p.add_instruction(migraphx::op::transpose{{1, 0}}, b);
         p.add_instruction(migraphx::op::dot{}, at, bt);
+        return p;
+    }
+};
+
+struct gemm_mutli_dim_2
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape m1_shape{migraphx::shape::float_type, {2, 2, 3}};
+        migraphx::shape m2_shape{migraphx::shape::float_type, {2, 3, 4}};
+        auto l1 = p.add_parameter("1", m1_shape);
+        auto l2 = p.add_parameter("2", m2_shape);
+
+        p.add_instruction(migraphx::op::dot{}, l1, l2);
+
+        return p;
+    }
+};
+
+struct gemm_mutli_dim_2_3
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape m1_shape{migraphx::shape::float_type, {2, 3, 2, 3}};
+        migraphx::shape m2_shape{migraphx::shape::float_type, {2, 3, 3, 2}};
+        auto l1 = p.add_parameter("1", m1_shape);
+        auto l2 = p.add_parameter("2", m2_shape);
+
+        p.add_instruction(migraphx::op::dot{}, l1, l2);
+
         return p;
     }
 };
@@ -2906,5 +2976,42 @@ struct test_lstm_bidirct_default_actv2 : verify_program<test_lstm_bidirct_defaul
         return p;
     }
 };
+
+template <int Axis>
+struct test_logsoftmax : verify_program<test_logsoftmax<Axis>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3, 4, 5, 6}};
+        auto param = p.add_parameter("0", s);
+        p.add_instruction(migraphx::op::logsoftmax{Axis}, param);
+
+        return p;
+    }
+};
+
+template struct test_logsoftmax<0>;
+template struct test_logsoftmax<1>;
+template struct test_logsoftmax<2>;
+template struct test_logsoftmax<3>;
+template struct test_logsoftmax<4>;
+
+template <int Axis>
+struct test_logsoftmax_1 : verify_program<test_logsoftmax_1<Axis>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3}};
+        auto param = p.add_parameter("0", s);
+        p.add_instruction(migraphx::op::logsoftmax{Axis}, param);
+
+        return p;
+    }
+};
+
+template struct test_logsoftmax_1<0>;
+template struct test_logsoftmax_1<1>;
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -766,7 +766,19 @@ struct test_gemm : verify_program<test_gemm>
     }
 };
 
-struct test_gemm_half : verify_program<test_gemm_half>
+struct test_gemm_ex
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto a = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 1, 4, 5}});
+        auto b = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 3}});
+        p.add_instruction(migraphx::op::dot{}, a, b);
+        return p;
+    }
+};
+
+struct test_gemm_half
 {
     migraphx::program create_program() const
     {
@@ -805,7 +817,20 @@ struct test_gemm_transposeb : verify_program<test_gemm_transposeb>
     }
 };
 
-struct test_gemm_transposea : verify_program<test_gemm_transposea>
+struct test_gemm_transposeb_ex
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto a  = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 4, 5}});
+        auto b  = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 3, 5}});
+        auto bt = p.add_instruction(migraphx::op::transpose{{0, 2, 1}}, b);
+        p.add_instruction(migraphx::op::dot{}, a, bt);
+        return p;
+    }
+};
+
+struct test_gemm_transposea
 {
     migraphx::program create_program() const
     {
@@ -818,7 +843,20 @@ struct test_gemm_transposea : verify_program<test_gemm_transposea>
     }
 };
 
-struct test_gemm_transposeab : verify_program<test_gemm_transposeab>
+struct test_gemm_transposea_ex
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto a  = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
+        auto b  = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 3}});
+        auto at = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, a);
+        p.add_instruction(migraphx::op::dot{}, at, b);
+        return p;
+    }
+};
+
+struct test_gemm_transposeab
 {
     migraphx::program create_program() const
     {
@@ -832,7 +870,39 @@ struct test_gemm_transposeab : verify_program<test_gemm_transposeab>
     }
 };
 
-struct test_contiguous : verify_program<test_contiguous>
+struct gemm_mutli_dim_2
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape m1_shape{migraphx::shape::float_type, {2, 2, 3}};
+        migraphx::shape m2_shape{migraphx::shape::float_type, {2, 3, 4}};
+        auto l1 = p.add_parameter("1", m1_shape);
+        auto l2 = p.add_parameter("2", m2_shape);
+
+        p.add_instruction(migraphx::op::dot{}, l1, l2);
+
+        return p;
+    }
+};
+
+struct gemm_mutli_dim_2_3
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape m1_shape{migraphx::shape::float_type, {2, 3, 2, 3}};
+        migraphx::shape m2_shape{migraphx::shape::float_type, {2, 3, 3, 2}};
+        auto l1 = p.add_parameter("1", m1_shape);
+        auto l2 = p.add_parameter("2", m2_shape);
+
+        p.add_instruction(migraphx::op::dot{}, l1, l2);
+
+        return p;
+    }
+};
+
+struct test_contiguous
 {
     migraphx::program create_program() const
     {
@@ -2907,4 +2977,156 @@ struct test_lstm_bidirct_default_actv2 : verify_program<test_lstm_bidirct_defaul
     }
 };
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+template <int Axis>
+struct test_logsoftmax
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3, 4, 5, 6}};
+        auto param = p.add_parameter("0", s);
+        p.add_instruction(migraphx::op::logsoftmax{Axis}, param);
+
+        return p;
+    }
+};
+
+template <int Axis>
+struct test_logsoftmax_1
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3}};
+        auto param = p.add_parameter("0", s);
+        p.add_instruction(migraphx::op::logsoftmax{Axis}, param);
+
+        return p;
+    }
+};
+
+int main()
+{
+    verify_program<test_relu_lrn>();
+    verify_program<test_pooling_autopad>();
+    verify_program<test_abs>();
+    verify_program<test_concat>();
+    verify_program<test_concat2>();
+    verify_program<test_concat_relu>();
+    verify_program<test_pad>();
+    verify_program<test_add>();
+    verify_program<test_add_half>();
+    verify_program<test_mul>();
+    verify_program<test_exp>();
+    verify_program<test_log>();
+    verify_program<test_sin>();
+    verify_program<test_cos>();
+    verify_program<test_tan>();
+    verify_program<test_sinh>();
+    verify_program<test_cosh>();
+    verify_program<test_tanh>();
+    verify_program<test_asin>();
+    verify_program<test_acos>();
+    verify_program<test_atan>();
+    verify_program<test_scale>();
+    verify_program<test_triadd>();
+    verify_program<test_triadd2>();
+    verify_program<test_add_broadcast>();
+    verify_program<test_add_broadcast2>();
+    verify_program<test_add_broadcast3>();
+    verify_program<test_add_broadcast4>();
+    verify_program<test_add_broadcast5>();
+    verify_program<test_triadd_broadcast>();
+    verify_program<test_sub>();
+    verify_program<test_sub2>();
+    verify_program<test_softmax>();
+    verify_program<test_softmax2>();
+    verify_program<test_conv>();
+    verify_program<test_conv2>();
+    verify_program<test_group_conv>();
+    verify_program<test_conv_relu>();
+    verify_program<test_conv_relu_half>();
+    verify_program<test_add_relu>();
+    verify_program<test_leaky_relu>();
+    verify_program<test_sigmoid>();
+    verify_program<test_elu>();
+    verify_program<test_conv_pooling>();
+    verify_program<test_global_avg_pooling>();
+    verify_program<test_global_max_pooling>();
+    verify_program<test_gemm>();
+    verify_program<test_gemm_ex>();
+    verify_program<test_gemm_half>();
+    // verify_program<test_gemm_ld>();
+    verify_program<test_gemm_transposeb>();
+    verify_program<test_gemm_transposeb_ex>();
+    verify_program<test_gemm_transposea>();
+    verify_program<test_gemm_transposea_ex>();
+    verify_program<test_gemm_transposeab>();
+    verify_program<gemm_mutli_dim_2>();
+    verify_program<gemm_mutli_dim_2_3>();
+    verify_program<test_contiguous>();
+    verify_program<test_eliminate_contiguous>();
+    verify_program<test_transpose>();
+    verify_program<test_batchnorm_inference>();
+    verify_program<test_batchnorm_inference_2>();
+    verify_program<test_conv_bn>();
+    verify_program<test_conv_bn_relu_pooling>();
+    verify_program<test_conv_bn_relu_pooling2>();
+    verify_program<test_slice>();
+    verify_program<test_gather>();
+    verify_program<test_gather_neg_axis>();
+    verify_program<test_gather_scalar_output>();
+    verify_program<test_gather_scalar_index>();
+    verify_program<test_gather_1d_index>();
+    verify_program<test_rnn_forward>();
+    verify_program<test_rnn_forward10>();
+    verify_program<test_rnn_reverse>();
+    verify_program<test_rnn_reverse2>();
+    verify_program<test_rnn_3args>();
+    verify_program<test_rnn_4args>();
+    verify_program<test_rnn_5args>();
+    verify_program<test_rnn_bidirectional>();
+    verify_program<test_rnn_bidirectional10>();
+    verify_program<test_rnn_bi_3args>();
+    verify_program<test_gru_forward_last>();
+    verify_program<test_gru_forward_hs>();
+    verify_program<test_gru_forward_3args_und>();
+    verify_program<test_gru_forward_3args>();
+    verify_program<test_gru_forward_seq1>();
+    verify_program<test_gru_forward_default_actv>();
+    verify_program<test_gru_forward_default_actv1>();
+    verify_program<test_gru_reverse_last>();
+    verify_program<test_gru_reverse_3args>();
+    verify_program<test_gru_bidirct_last>();
+    verify_program<test_gru_bidirct_hs>();
+    verify_program<test_gru_bidirct_3args_und>();
+    verify_program<test_gru_bidirct_3args>();
+    verify_program<test_gru_bidirct_seq1>();
+    verify_program<test_gru_bidirct_default_actv>();
+    verify_program<test_gru_bidirct_default_actv1>();
+    verify_program<test_lstm_forward_last>();
+    verify_program<test_lstm_forward_hs>();
+    verify_program<test_lstm_forward_3args_und>();
+    verify_program<test_lstm_forward_3args>();
+    verify_program<test_lstm_forward_seq1>();
+    verify_program<test_lstm_forward_default_actv>();
+    verify_program<test_lstm_forward_default_actv1>();
+    verify_program<test_lstm_reverse_last>();
+    verify_program<test_lstm_reverse_3args>();
+    verify_program<test_lstm_reverse_3args_cell_output>();
+    verify_program<test_lstm_bidirct_last>();
+    verify_program<test_lstm_bidirct_hs>();
+    verify_program<test_lstm_bidirct_3args_und>();
+    verify_program<test_lstm_bidirct_3args>();
+    verify_program<test_lstm_bidirct_seq1>();
+    verify_program<test_lstm_bidirct_default_actv>();
+    verify_program<test_lstm_bidirct_default_actv1>();
+    verify_program<test_lstm_bidirct_default_actv2>();
+    verify_program<test_logsoftmax<0>>();
+    verify_program<test_logsoftmax<1>>();
+    verify_program<test_logsoftmax<2>>();
+    verify_program<test_logsoftmax<3>>();
+    verify_program<test_logsoftmax<4>>();
+    verify_program<test_logsoftmax_1<0>>();
+    verify_program<test_logsoftmax_1<1>>();
+}

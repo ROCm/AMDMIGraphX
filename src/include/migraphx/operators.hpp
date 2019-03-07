@@ -826,10 +826,22 @@ struct dot
         const shape& b = inputs.at(1);
         auto t         = a.type();
 
-        if(a.lens()[1] != b.lens()[0])
+        // according to the specification of the numpy.matmul()
+        // inputs with the shape dims more than 2 are acceptable
+        // as long as dim values are the same in the two inputs
+        if(!std::equal(a.lens().rbegin() + 2, a.lens().rend(), b.lens().rbegin() + 2))
+        {
+            MIGRAPHX_THROW("DOT: dim values mismatch");
+        }
+
+        std::size_t dim_0 = a.lens().size() - 2;
+        std::size_t dim_1 = a.lens().size() - 1;
+        if(a.lens()[dim_1] != b.lens()[dim_0])
             MIGRAPHX_THROW("Inner dimensions do not match: {" + to_string_range(a.lens()) +
                            "} x {" + to_string_range(b.lens()) + "}");
-        return {t, {a.lens()[0], b.lens()[1]}};
+        auto out_lens   = a.lens();
+        out_lens[dim_1] = b.lens()[dim_1];
+        return {t, out_lens};
     }
 };
 
@@ -934,6 +946,22 @@ struct softmax
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs}.has(1).only_dims(4);
+        return inputs.at(0);
+    }
+};
+
+struct logsoftmax
+{
+    int axis = 1;
+    std::string name() const { return "logsoftmax"; }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs}.has(1);
+        if(axis < 0 || axis > inputs[0].lens().size())
+        {
+            MIGRAPHX_THROW("LogSoftMax: input axis value " + std::to_string(axis) +
+                           " is out of range");
+        }
         return inputs.at(0);
     }
 };

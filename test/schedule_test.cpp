@@ -217,6 +217,25 @@ TEST_CASE(single_entry)
     EXPECT(check_conflicts(p, onep1, onep2));
 }
 
+TEST_CASE(zero_record)
+{
+    schedule_target t{};
+    migraphx::program p;
+    auto one    = p.add_literal(1);
+    auto onep1  = p.add_instruction(unary_op{}, one);
+    auto onep2  = p.add_instruction(unary_op{}, one);
+    auto binary = p.add_instruction(nary_op{},
+                                    p.add_instruction(migraphx::op::identity{}, onep1),
+                                    p.add_instruction(migraphx::op::identity{}, onep2));
+    p.compile(t);
+    EXPECT(not t.has_stream(one));
+    EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
+    EXPECT(t.has_stream(binary));
+    EXPECT(get_wait_for(binary) ==
+           get_wait_for(t.get_stream(binary), {t.get_stream(onep1), t.get_stream(onep2)}));
+    EXPECT(check_conflicts(p, onep1, onep2));
+}
+
 TEST_CASE(zero_merge1)
 {
     schedule_target t{};

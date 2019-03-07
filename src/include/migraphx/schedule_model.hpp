@@ -26,12 +26,11 @@ struct schedule_model
     /// Get the number of concurrent instruction allowed
     std::size_t concurrency() const;
     /// Schedule a concurrent instruction
-    void schedule_instruction(program& p, instruction_ref ins, std::size_t n) const;
+    void sched(program& p, instruction_ref ins, std::size_t n) const;
     // Insert necessary waits before an instruction
-    void wait(program& p,
-              instruction_ref ins,
-              std::size_t wait_on,
-              const std::vector<std::size_t>& wait_for) const;
+    void wait(program& p, instruction_ref ins, std::size_t wait_id) const;
+    // Insert necessary records after an instruction
+    void record(program& p, instruction_ref ins, std::size_t wait_id) const;
     /// Compute weights for an operation
     std::size_t weight(const operation& op) const;
 };
@@ -44,9 +43,10 @@ struct schedule_model
  * struct schedule_model
  * {
  *      std::size_t concurrency() const;
- *      void schedule_instruction(program& p,instruction_ref ins,std::size_t n) const;
- *      void wait(program& p,instruction_ref ins,std::size_t wait_on,const std::vector<std::size_t>&
- * wait_for) const; std::size_t weight(const operation& op) const;
+ *      void sched(program& p,instruction_ref ins,std::size_t n) const;
+ *      void wait(program& p,instruction_ref ins,std::size_t wait_id) const;
+ *      void record(program& p,instruction_ref ins,std::size_t wait_id) const;
+ *      std::size_t weight(const operation& op) const;
  * };
  *
  */
@@ -114,21 +114,22 @@ struct schedule_model
         return (*this).private_detail_te_get_handle().concurrency();
     }
 
-    void schedule_instruction(program& p, instruction_ref ins, std::size_t n) const
+    void sched(program& p, instruction_ref ins, std::size_t n) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().schedule_instruction(
-            p, std::move(ins), std::move(n));
+        (*this).private_detail_te_get_handle().sched(p, std::move(ins), std::move(n));
     }
 
-    void wait(program& p,
-              instruction_ref ins,
-              std::size_t wait_on,
-              const std::vector<std::size_t>& wait_for) const
+    void wait(program& p, instruction_ref ins, std::size_t wait_id) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().wait(
-            p, std::move(ins), std::move(wait_on), wait_for);
+        (*this).private_detail_te_get_handle().wait(p, std::move(ins), std::move(wait_id));
+    }
+
+    void record(program& p, instruction_ref ins, std::size_t wait_id) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().record(p, std::move(ins), std::move(wait_id));
     }
 
     std::size_t weight(const operation& op) const
@@ -151,13 +152,11 @@ struct schedule_model
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::size_t concurrency() const                                                 = 0;
-        virtual void schedule_instruction(program& p, instruction_ref ins, std::size_t n) const = 0;
-        virtual void wait(program& p,
-                          instruction_ref ins,
-                          std::size_t wait_on,
-                          const std::vector<std::size_t>& wait_for) const                       = 0;
-        virtual std::size_t weight(const operation& op) const                                   = 0;
+        virtual std::size_t concurrency() const                                         = 0;
+        virtual void sched(program& p, instruction_ref ins, std::size_t n) const        = 0;
+        virtual void wait(program& p, instruction_ref ins, std::size_t wait_id) const   = 0;
+        virtual void record(program& p, instruction_ref ins, std::size_t wait_id) const = 0;
+        virtual std::size_t weight(const operation& op) const                           = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -190,19 +189,22 @@ struct schedule_model
 
         std::size_t concurrency() const override { return private_detail_te_value.concurrency(); }
 
-        void schedule_instruction(program& p, instruction_ref ins, std::size_t n) const override
+        void sched(program& p, instruction_ref ins, std::size_t n) const override
         {
 
-            private_detail_te_value.schedule_instruction(p, std::move(ins), std::move(n));
+            private_detail_te_value.sched(p, std::move(ins), std::move(n));
         }
 
-        void wait(program& p,
-                  instruction_ref ins,
-                  std::size_t wait_on,
-                  const std::vector<std::size_t>& wait_for) const override
+        void wait(program& p, instruction_ref ins, std::size_t wait_id) const override
         {
 
-            private_detail_te_value.wait(p, std::move(ins), std::move(wait_on), wait_for);
+            private_detail_te_value.wait(p, std::move(ins), std::move(wait_id));
+        }
+
+        void record(program& p, instruction_ref ins, std::size_t wait_id) const override
+        {
+
+            private_detail_te_value.record(p, std::move(ins), std::move(wait_id));
         }
 
         std::size_t weight(const operation& op) const override

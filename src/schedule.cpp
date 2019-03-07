@@ -196,6 +196,29 @@ struct stream_info
         return different(get_streams(ins, get_outputs()), xs...);
     }
 
+    std::vector<instruction_ref> get_recorded_instructions(instruction_ref start)
+    {
+        std::vector<instruction_ref> result;
+        std::unordered_map<std::size_t, instruction_ref> m;
+        fix([&](auto self, auto ins) {
+            for(auto i : ins->inputs())
+            {
+                if(iweights.at(i) == 0)
+                {
+                    self(i);
+                    continue;
+                }
+                auto stream = get_stream(i);
+                if (m.count(stream) == 0)
+                    m[stream] = i;
+                else
+                    m[stream] = std::min(m[stream], i, by(std::less<>{}, [&](auto x) { return std::distance(x, start); }));
+            }
+        })(start);
+        std::transform(m.begin(), m.end(), std::back_inserter(result), [](auto&& p) { return p.second; });
+        return result;
+    }
+
     std::vector<std::size_t> wait_for(instruction_ref ins) const
     {
         std::vector<std::size_t> result;
@@ -290,8 +313,8 @@ void schedule::apply(program& p) const
     }
 
     // Schedule instructions
-    std::set<std::size_t> waited_for;
-    std::size_t waited_on = model.concurrency();
+    std::unordered_map<instruction_ref, std::size_t> ins2wait;
+    std::size_t wait_id = 0;
     for(auto ins : iterator_for(p))
     {
         // Only schedule instructions that have a stream
@@ -301,23 +324,25 @@ void schedule::apply(program& p) const
         // Schedule instruction on the stream
         auto stream = si.get_stream(ins);
         assert(stream < model.concurrency());
-        model.schedule_instruction(p, ins, stream);
-        // Clear waits when switching streams
-        if(stream != waited_on)
-            waited_for.clear();
-        // Schedule wait instruction
+        model.sched(p, ins, stream);
+        // Insert wait instructions
         if(si.is_merge_point(ins, stream))
         {
-            auto wait_for = si.wait_for(ins);
-            // Dont wait for streams that have already been waited for
-            wait_for.erase(std::remove_if(wait_for.begin(),
-                                          wait_for.end(),
-                                          [&](auto x) { return waited_for.count(x) > 0; }),
-                           wait_for.end());
-            if(not wait_for.empty())
-                model.wait(p, ins, stream, wait_for);
-            waited_for.insert(wait_for.begin(), wait_for.end());
-            waited_on = stream;
+            for(auto i:si.get_recorded_instructions(ins))
+            {
+                if (not si.has_stream(i))
+                    continue;
+                if (stream == si.get_stream(i))
+                    continue;
+                // Create a new event if it hasn't been recorded
+                if(ins2wait.count(i) == 0)
+                {
+                    ins2wait[i] = wait_id;
+                    model.record(p, i, wait_id);
+                    wait_id++;
+                }
+                model.wait(p, ins, ins2wait.at(i));
+            }
         }
     }
 

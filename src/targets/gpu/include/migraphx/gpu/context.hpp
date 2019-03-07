@@ -13,6 +13,8 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NULL_STREAM)
 
+using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
+
 struct hip_device
 {
     hip_device() { add_stream(); }
@@ -140,12 +142,33 @@ struct context
 
     void set_stream(std::size_t n) { get_current_device().set_stream(n); }
 
+    void create_events(std::size_t num_of_events)
+    {
+        for(int i = events.size(); i < num_of_events + 1; ++i)
+            events.emplace_back(create_event());
+    }
+
+    hipEvent_t get_event(std::size_t i) const
+    {
+        return events.at(i).get();
+    }
+
     std::vector<argument> literals{};
     void finish() const { gpu_sync(); }
+
+    static hip_event_ptr create_event()
+    {
+        hipEvent_t event;
+        auto status = hipEventCreateWithFlags(&event, hipEventDisableTiming);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Failed to create event");
+        return hip_event_ptr{event};
+    }
 
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
+    std::vector<shared<hip_event_ptr>> events;
 };
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -987,15 +987,12 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
         auto spph  = prog.insert_instruction(ins, op::squeeze{{0}}, pph);
         auto pphi  = prog.insert_instruction(ins, op::slice{{0}, {0}, {hs}}, spph);
         pphi_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, pphi);
-        pphi_brcst = prog.insert_instruction(ins, op::contiguous{}, pphi_brcst);
 
         auto ppho  = prog.insert_instruction(ins, op::slice{{0}, {hs}, {2 * hs}}, spph);
         ppho_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, ppho);
-        ppho_brcst = prog.insert_instruction(ins, op::contiguous{}, ppho_brcst);
 
         auto pphf  = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, spph);
         pphf_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, pphf);
-        pphf_brcst = prog.insert_instruction(ins, op::contiguous{}, pphf_brcst);
     }
 
     for(long i = 0; i < seq_len; ++i)

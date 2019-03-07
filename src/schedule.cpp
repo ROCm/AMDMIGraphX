@@ -209,13 +209,16 @@ struct stream_info
                     continue;
                 }
                 auto stream = get_stream(i);
-                if (m.count(stream) == 0)
+                if(m.count(stream) == 0)
                     m[stream] = i;
                 else
-                    m[stream] = std::min(m[stream], i, by(std::less<>{}, [&](auto x) { return std::distance(x, start); }));
+                    m[stream] = std::min(m[stream], i, by(std::less<>{}, [&](auto x) {
+                                             return std::distance(x, start);
+                                         }));
             }
         })(start);
-        std::transform(m.begin(), m.end(), std::back_inserter(result), [](auto&& p) { return p.second; });
+        std::transform(
+            m.begin(), m.end(), std::back_inserter(result), [](auto&& p) { return p.second; });
         return result;
     }
 
@@ -328,11 +331,11 @@ void schedule::apply(program& p) const
         // Insert wait instructions
         if(si.is_merge_point(ins, stream))
         {
-            for(auto i:si.get_recorded_instructions(ins))
+            for(auto i : si.get_recorded_instructions(ins))
             {
-                if (not si.has_stream(i))
+                if(not si.has_stream(i))
                     continue;
-                if (stream == si.get_stream(i))
+                if(stream == si.get_stream(i))
                     continue;
                 // Create a new event if it hasn't been recorded
                 if(ins2wait.count(i) == 0)

@@ -28,9 +28,9 @@ struct schedule_model
     /// Schedule a concurrent instruction
     void sched(program& p, instruction_ref ins, std::size_t n) const;
     // Insert necessary waits before an instruction
-    void wait(program& p,instruction_ref ins, std::size_t wait_id) const;
+    void wait(program& p, instruction_ref ins, std::size_t wait_id) const;
     // Insert necessary records after an instruction
-    void record(program& p,instruction_ref ins, std::size_t wait_id) const;
+    void record(program& p, instruction_ref ins, std::size_t wait_id) const;
     /// Compute weights for an operation
     std::size_t weight(const operation& op) const;
 };

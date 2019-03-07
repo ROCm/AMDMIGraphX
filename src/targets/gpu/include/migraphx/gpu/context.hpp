@@ -148,10 +148,7 @@ struct context
             events.emplace_back(create_event());
     }
 
-    hipEvent_t get_event(std::size_t i) const
-    {
-        return events.at(i).get();
-    }
+    hipEvent_t get_event(std::size_t i) const { return events.at(i).get(); }
 
     std::vector<argument> literals{};
     void finish() const { gpu_sync(); }

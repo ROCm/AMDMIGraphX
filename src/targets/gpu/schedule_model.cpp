@@ -8,52 +8,44 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
-
-hip_event_ptr create_event()
+struct record_event
 {
-    hipEvent_t event;
-    // Default is hipEventReleaseToDevice
-    // auto status = hipEventCreateWithFlags(
-    //     &event, hipEventDisableTiming | hipEventReleaseToSystem | hipEventBlockingSync);
-    auto status = hipEventCreateWithFlags(&event, hipEventDisableTiming);
-    if(status != hipSuccess)
-        MIGRAPHX_THROW("Failed to create event");
-    return hip_event_ptr{event};
-}
-
-struct wait_event
-{
-    std::vector<std::size_t> wait_for;
-    shared<hip_event_ptr> event = nullptr;
+    std::size_t event = 0;
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.wait_for, "wait_for"));
+        return pack(f(self.event, "event"));
+    }
+    std::string name() const { return "gpu::record_event"; }
+    shape compute_shape(const std::vector<shape>&) const { return {}; }
+
+    argument compute(context& ctx, const shape&, const std::vector<argument>&) const
+    {
+        ctx.get_stream().record(ctx.get_event(event));
+        return {};
+    }
+
+    void finalize(context& ctx, const shape&, std::vector<shape>)
+    {
+        ctx.create_events(event);
+    }
+};
+
+struct wait_event
+{
+    std::size_t event = 0;
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.event, "event"));
     }
     std::string name() const { return "gpu::wait_event"; }
     shape compute_shape(const std::vector<shape>&) const { return {}; }
 
     argument compute(context& ctx, const shape&, const std::vector<argument>&) const
     {
-        assert(event != nullptr);
-        assert(std::none_of(wait_for.begin(), wait_for.end(), [&](auto i) {
-            return i == ctx.get_current_device().stream_id();
-        }));
-        for(auto n : wait_for)
-            ctx.get_stream(n).record(event.get());
-        ctx.get_stream().wait(event.get());
+        ctx.get_stream().wait(ctx.get_event(event));
         return {};
-    }
-
-    void finalize(context& ctx, const shape&, std::vector<shape>)
-    {
-        assert(std::none_of(wait_for.begin(), wait_for.end(), [&](auto i) {
-            return i == ctx.get_current_device().stream_id();
-        }));
-        (void)ctx;
-        assert(not wait_for.empty());
-        event = create_event();
     }
 };
 
@@ -77,7 +69,7 @@ struct set_stream
 };
 
 std::size_t schedule_model::concurrency() const { return streams; }
-void schedule_model::schedule_instruction(program& p, instruction_ref ins, std::size_t n) const
+void schedule_model::sched(program& p, instruction_ref ins, std::size_t n) const
 {
     auto last_stream = std::find_if(std::make_reverse_iterator(ins),
                                     std::make_reverse_iterator(p.begin()),
@@ -91,12 +83,14 @@ void schedule_model::schedule_instruction(program& p, instruction_ref ins, std::
     }
     p.insert_instruction(ins, set_stream{n});
 }
-void schedule_model::wait(program& p,
-                          instruction_ref ins,
-                          std::size_t,
-                          const std::vector<std::size_t>& wait_for) const
+
+void schedule_model::wait(program& p, instruction_ref ins, std::size_t wait_id) const
 {
-    p.insert_instruction(ins, wait_event{wait_for});
+    p.insert_instruction(ins, wait_event{wait_id});
+}
+void schedule_model::record(program& p, instruction_ref ins, std::size_t wait_id) const
+{
+    p.insert_instruction(std::next(ins), record_event{wait_id});
 }
 
 static std::unordered_map<std::string, std::size_t> create_weight_map()

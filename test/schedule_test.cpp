@@ -278,10 +278,10 @@ TEST_CASE(zero_merge3)
 {
     schedule_target t{};
     migraphx::program p;
-    auto one    = p.add_literal(1);
-    auto onep1  = p.add_instruction(unary_op{}, one);
-    auto onep2  = p.add_instruction(unary_op{}, one);
-    auto id = p.add_instruction(migraphx::op::identity{}, onep1, onep2);
+    auto one   = p.add_literal(1);
+    auto onep1 = p.add_instruction(unary_op{}, one);
+    auto onep2 = p.add_instruction(unary_op{}, one);
+    auto id    = p.add_instruction(migraphx::op::identity{}, onep1, onep2);
     auto final = p.add_instruction(unary_op{}, id);
     p.compile(t);
     EXPECT(not t.has_stream(one));
@@ -292,7 +292,8 @@ TEST_CASE(zero_merge3)
     EXPECT(get_wait_for(id).empty());
     // Stream assignment for final op
     EXPECT(t.get_stream(final) == 0);
-    EXPECT(get_wait_for(final) == get_wait_for(t.get_stream(final), {t.get_stream(onep1), t.get_stream(onep2)}));
+    EXPECT(get_wait_for(final) ==
+           get_wait_for(t.get_stream(final), {t.get_stream(onep1), t.get_stream(onep2)}));
     EXPECT(check_conflicts(p, onep1, onep2));
 }
 
@@ -300,12 +301,12 @@ TEST_CASE(zero_merge4)
 {
     schedule_target t{};
     migraphx::program p;
-    auto one    = p.add_literal(1);
-    auto onep1  = p.add_instruction(unary_op{}, one);
-    auto onep2  = p.add_instruction(unary_op{}, one);
-    auto id = p.add_instruction(migraphx::op::identity{},
-                                    p.add_instruction(migraphx::op::identity{}, onep1),
-                                    p.add_instruction(migraphx::op::identity{}, onep2));
+    auto one   = p.add_literal(1);
+    auto onep1 = p.add_instruction(unary_op{}, one);
+    auto onep2 = p.add_instruction(unary_op{}, one);
+    auto id    = p.add_instruction(migraphx::op::identity{},
+                                p.add_instruction(migraphx::op::identity{}, onep1),
+                                p.add_instruction(migraphx::op::identity{}, onep2));
     auto final = p.add_instruction(unary_op{}, id);
     p.compile(t);
     EXPECT(not t.has_stream(one));
@@ -316,7 +317,8 @@ TEST_CASE(zero_merge4)
     EXPECT(get_wait_for(id).empty());
     // Stream assignment for final op
     EXPECT(t.get_stream(final) == 0);
-    EXPECT(get_wait_for(final) == get_wait_for(t.get_stream(final), {t.get_stream(onep1), t.get_stream(onep2)}));
+    EXPECT(get_wait_for(final) ==
+           get_wait_for(t.get_stream(final), {t.get_stream(onep1), t.get_stream(onep2)}));
     EXPECT(check_conflicts(p, onep1, onep2));
 }
 

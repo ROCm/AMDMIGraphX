@@ -1364,6 +1364,7 @@ struct batch_contiguous
 
     shape compute_shape(std::vector<shape> inputs) const
     {
+        check_shapes{inputs, *this}.has(1);
         auto input_shape = inputs[0];
         std::vector<std::size_t> out_dims;
         out_dims.push_back(input_shape.elements());
@@ -1390,7 +1391,7 @@ struct batch_contiguous
                 MIGRAPHX_THROW("batch_contiguous: invalid split dimension");
             total_slice_dim += dim;
         }
-        if((total_slice_dim == 0) || (total_slice_dim != s.lens()[axis]))
+        if(total_slice_dim != s.lens()[axis])
             MIGRAPHX_THROW("batch_contiguous: invalid split dimension");
 
         uint64_t stride       = unit_slice * total_slice_dim;

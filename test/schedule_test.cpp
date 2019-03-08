@@ -520,5 +520,49 @@ TEST_CASE(par_merge)
     check_conflicts(p, {c2, {i2}});
 
     EXPECT(check_conflicts(p, binary1, binary2));
+    check_conflicts(p, {c1, {i1}, c2, {i2}});
+}
+
+TEST_CASE(par_merge_multi_entry)
+{
+    schedule_target t{};
+    migraphx::program p;
+    auto one     = p.add_literal(1);
+    auto start1  = p.add_instruction(unary_op{}, one);
+    auto c1      = chain(p, 3, unary_op{}, start1);
+    auto i1      = p.add_instruction(unary_op{}, start1);
+    auto binary1 = p.add_instruction(nary_op{}, i1, c1.back());
+
+    auto two     = p.add_literal(1);
+    auto start2  = p.add_instruction(unary_op{}, two);
+    auto c2      = chain(p, 2, unary_op{}, start2);
+    auto i2      = p.add_instruction(unary_op{}, start2);
+    auto binary2 = p.add_instruction(nary_op{}, i2, c2.back());
+
+    auto binary3 = p.add_instruction(nary_op{}, binary1, binary2);
+
+    p.compile(t);
+    EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(two));
+    EXPECT(t.get_stream(binary3) == 0);
+
+    EXPECT(t.get_stream(i1) == 2);
+    for(auto ins : c1)
+        EXPECT(t.get_stream(ins) == 0);
+    EXPECT(t.get_stream(binary1) == 0);
+    EXPECT(get_wait_for(binary1) ==
+           get_wait_for(t.get_stream(binary1), {t.get_stream(c1.back()), t.get_stream(i1)}));
+    check_conflicts(p, {c1, {i1}});
+
+    EXPECT(t.get_stream(i2) == 1);
+    for(auto ins : c2)
+        EXPECT(t.get_stream(ins) == 3);
+    EXPECT(t.get_stream(binary2) == 3);
+    EXPECT(get_wait_for(binary2) ==
+           get_wait_for(t.get_stream(binary2), {t.get_stream(c2.back()), t.get_stream(i2)}));
+    check_conflicts(p, {c2, {i2}});
+
+    EXPECT(check_conflicts(p, binary1, binary2));
+    check_conflicts(p, {c1, {i1}, c2, {i2}});
 }
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -807,17 +807,17 @@ struct gather
     }
 };
 
-// The dot operation is combination of the onnx GEMM and MatMul operators. 
-// For GEMM, it support the C matrix in the formula alpha * AB + beta * C, 
+// The dot operation is combination of the onnx GEMM and MatMul operators.
+// For GEMM, it support the C matrix in the formula alpha * AB + beta * C,
 // in which C is broadcastable to the shape of AB. For the transpose of A
-// and B, we add a tranpose operator if the onnx file needs. 
+// and B, we add a tranpose operator if the onnx file needs.
 // For MatMul, it has the same definition as the numpy.matmul, which means
 // A, B could be 1 to N-dims. For 1-dim input of A, it is a vector * matrix,
 // for 1-dim of B, it is a matrix * vector. Note that there is not support
-// of batch of 1-dim vector. In another word, if A or B is 1-dim, it is a 
+// of batch of 1-dim vector. In another word, if A or B is 1-dim, it is a
 // vector input; if A or B is 2-dim, it is a matrix (no case of a batch of
 // vectors as input). If A or B is 3 or more dims, it is considered as a
-// stack(batch) of matrices. 
+// stack(batch) of matrices.
 struct dot
 {
     float alpha = 1.0;

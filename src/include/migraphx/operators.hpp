@@ -1356,11 +1356,11 @@ struct undefined
     argument compute(const shape&, const std::vector<argument>&) const { return {{}, nullptr}; }
 };
 
-struct split
+struct batch_contiguous
 {
-    std::size_t axis = 0;
-    std::vector<uint64_t> slice_dims;
-    std::string name() const { return "split"; }
+    int axis = 0;
+    std::vector<int> slice_dims;
+    std::string name() const { return "batch_contiguous"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -1375,7 +1375,7 @@ struct split
         std::vector<uint64_t> index_map;
         uint64_t unit_slice = 1;
         int axis_id         = 0;
-        if(axis >= s.lens().size())
+        if((axis < 0) || (axis >= s.lens().size()))
             MIGRAPHX_THROW("invalid split axis");
 
         for(auto&& len : s.lens())
@@ -1383,7 +1383,7 @@ struct split
             if(axis_id++ > axis)
                 unit_slice *= len;
         }
-        uint64_t total_slice_dim = 0;
+        int total_slice_dim = 0;
         for(auto&& dim : slice_dims)
         {
             if(dim == 0)
@@ -1438,7 +1438,10 @@ struct split
 
     argument compute(shape output_shape, std::vector<argument> args) const
     {
-        auto arg0                       = args[0];
+        auto arg0 = args[0];
+        if(axis == 0)
+            return {std::move(output_shape), std::move(arg0.data)};
+
         std::vector<uint64_t> index_map = compute_index_map(arg0.get_shape());
         argument result{output_shape};
         std::size_t nelements = arg0.get_shape().elements();

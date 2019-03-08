@@ -127,26 +127,25 @@ argument miopen_gemm::compute(context& ctx,
         auto alpha_r    = to_rocblas_type(as(op.alpha));
         auto beta_r     = to_rocblas_type(as(op.beta));
         auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
-        generic_rocblas_batched_gemm(
-            as,
-            ctx.get_stream().get_rocblas(),
-            transb ? rocblas_operation_transpose : rocblas_operation_none,
-            transa ? rocblas_operation_transpose : rocblas_operation_none,
-            n,
-            m,
-            k,
-            &alpha_r,
-            to_pointer(args[1]),
-            ldb,
-            k * n,
-            to_pointer(args[0]),
-            lda,
-            m * k,
-            &beta_r,
-            to_pointer(args[2]),
-            ldc,
-            m * n,
-            batch_num);
+        generic_rocblas_batched_gemm(as,
+                                     ctx.get_stream().get_rocblas(),
+                                     transb ? rocblas_operation_transpose : rocblas_operation_none,
+                                     transa ? rocblas_operation_transpose : rocblas_operation_none,
+                                     n,
+                                     m,
+                                     k,
+                                     &alpha_r,
+                                     to_pointer(args[1]),
+                                     ldb,
+                                     k * n,
+                                     to_pointer(args[0]),
+                                     lda,
+                                     m * k,
+                                     &beta_r,
+                                     to_pointer(args[2]),
+                                     ldc,
+                                     m * n,
+                                     batch_num);
     });
 
     return (is_3inputs ? args[3] : args[2]);

@@ -318,6 +318,8 @@ void schedule::apply(program& p) const
     // Schedule instructions
     std::unordered_map<instruction_ref, std::size_t> ins2wait;
     std::size_t wait_id = 0;
+    std::unordered_map<std::size_t, std::unordered_set<std::size_t>> waited_for;
+    std::unordered_map<instruction_ref, std::unordered_set<std::size_t>> ins2waited;
     for(auto ins : iterator_for(p))
     {
         // Only schedule instructions that have a stream
@@ -335,7 +337,8 @@ void schedule::apply(program& p) const
             {
                 if(not si.has_stream(i))
                     continue;
-                if(stream == si.get_stream(i))
+                auto istream = si.get_stream(i);
+                if(stream == istream)
                     continue;
                 // Create a new event if it hasn't been recorded
                 if(ins2wait.count(i) == 0)
@@ -344,8 +347,21 @@ void schedule::apply(program& p) const
                     model.record(p, i, wait_id);
                     wait_id++;
                 }
-                model.wait(p, ins, ins2wait.at(i));
+                auto w = ins2wait.at(i);
+                // If we already waited for the event on this stream then dont
+                // insert another wait event
+                if (waited_for[stream].count(w) == 0)
+                    model.wait(p, ins, w);
+                // Store the event as waited
+                waited_for[stream].insert(w);
+                // Store all wait events that have been waited on prior to the recorded instruction
+                waited_for[stream].insert(ins2waited[i].begin(), ins2waited[i].end());
             }
+        }
+        // Store wait events that have already been waited on
+        if(si.is_split_point(ins, stream))
+        {
+            ins2waited[ins] = waited_for[stream];
         }
     }
 

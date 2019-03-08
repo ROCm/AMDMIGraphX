@@ -1376,7 +1376,7 @@ struct batch_contiguous
         uint64_t unit_slice = 1;
         int axis_id         = 0;
         if((axis < 0) || (axis >= s.lens().size()))
-            MIGRAPHX_THROW("invalid split axis");
+            MIGRAPHX_THROW("batch_contiguous: invalid split axis");
 
         for(auto&& len : s.lens())
         {
@@ -1387,11 +1387,11 @@ struct batch_contiguous
         for(auto&& dim : slice_dims)
         {
             if(dim == 0)
-                MIGRAPHX_THROW("invalid split dimension");
+                MIGRAPHX_THROW("batch_contiguous: invalid split dimension");
             total_slice_dim += dim;
         }
         if((total_slice_dim == 0) || (total_slice_dim != s.lens()[axis]))
-            MIGRAPHX_THROW("invalid split dimension");
+            MIGRAPHX_THROW("batch_contiguous: invalid split dimension");
 
         uint64_t stride       = unit_slice * total_slice_dim;
         std::size_t nelements = s.elements();

@@ -162,7 +162,7 @@ struct stream_info
     }
 
     template <class Selector>
-    auto get_streams(instruction_ref start, Selector select) const
+    auto get_streams_from(instruction_ref start, Selector select) const
     {
         return [=](auto f) {
             return fix<bool>([&](auto self, auto ins) {
@@ -184,16 +184,28 @@ struct stream_info
         };
     }
 
+    std::unordered_set<std::size_t> get_streams(instruction_ref ins)
+    {
+        if (has_stream(ins))
+            return {get_stream(ins)};
+        std::unordered_set<std::size_t> result;
+        get_streams_from(ins, get_inputs())([&](auto s) {
+            result.insert(s);
+            return true;
+        });
+        return result;
+    }
+
     template <class... Ts>
     bool is_merge_point(instruction_ref ins, Ts... xs) const
     {
-        return different(get_streams(ins, get_inputs()), xs...);
+        return different(get_streams_from(ins, get_inputs()), xs...);
     }
 
     template <class... Ts>
     bool is_split_point(instruction_ref ins, Ts... xs) const
     {
-        return different(get_streams(ins, get_outputs()), xs...);
+        return different(get_streams_from(ins, get_outputs()), xs...);
     }
 
     std::vector<instruction_ref> get_recorded_instructions(instruction_ref start)
@@ -225,7 +237,7 @@ struct stream_info
     std::vector<std::size_t> wait_for(instruction_ref ins) const
     {
         std::vector<std::size_t> result;
-        get_streams(ins, get_inputs())([&](auto s) {
+        get_streams_from(ins, get_inputs())([&](auto s) {
             result.push_back(s);
             return true;
         });
@@ -243,35 +255,27 @@ struct stream_info
     find_concurrent_instructions(program& p)
     {
         std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> result;
-        std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> split_from;
-        for(auto ins : iterator_for(p))
+        std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> merge_from;
+        for(auto ins : reverse_iterator_for(p))
         {
-            if(iweights[ins] == 0)
-                continue;
-            for(auto&& arg : ins->inputs())
+            for(auto&& arg : ins->outputs())
             {
-                if(is_split_point(arg))
-                    split_from[ins].insert(arg);
-                split_from[ins].insert(split_from[arg].begin(), split_from[arg].end());
+                if(is_merge_point(arg))
+                    merge_from[ins].insert(arg);
+                merge_from[ins].insert(merge_from[arg].begin(), merge_from[arg].end());
             }
 
-            auto stream = get_stream(ins);
-            // if (is_merge_point(ins))
-            // {
-            //     // post-dominator kills split point.
-            //     for(auto& split : split_from[ins])
-            //     {
-            //         if(strictly_post_dominates(ins, split))
-            //             split_from[ins].erase(split);
-            //     }
-            // }
+            auto streams = get_streams(ins);
 
-            // Collect concur instructions for each split point.
-            for(auto& split : split_from[ins])
+            // Collect concur instructions for each merge point.
+            for(auto& merge : merge_from[ins])
             {
-                if(result[split].size() <= stream)
-                    result[split].resize(stream + 1);
-                result[split][stream].push_back(ins);
+                for(auto stream:streams)
+                {
+                    if(result[merge].size() <= stream)
+                        result[merge].resize(stream + 1);
+                    result[merge][stream].push_back(ins);
+                }
             }
         }
         return result;
@@ -304,7 +308,7 @@ void schedule::apply(program& p) const
             std::cout << ":";
             std::cout << " weight=" << si.weights.at(ins);
             std::cout << " input={";
-            si.get_streams(ins, get_inputs())([&](auto s) {
+            si.get_streams_from(ins, get_inputs())([&](auto s) {
                 std::cout << s << ",";
                 return true;
             });
@@ -367,20 +371,16 @@ void schedule::apply(program& p) const
 
     // Add memory conflicts
     auto concur_ins = si.find_concurrent_instructions(p);
-    for(auto&& split : concur_ins)
+    for(auto&& merge : concur_ins)
     {
-        dfor(split.second.size(), split.second.size())([&](auto i, auto j) {
+        dfor(merge.second.size(), merge.second.size())([&](auto i, auto j) {
             if(i == j)
                 return;
-            for(auto ins1 : split.second[i])
+            for(auto ins1 : merge.second[i])
             {
-                auto args = split.second[j];
+                auto args = merge.second[j];
                 args.insert(args.begin(), ins1);
-
-                auto point = std::max_element(args.begin(), args.end(), [&](auto x, auto y) {
-                    return std::distance(split.first, x) < std::distance(split.first, y);
-                });
-                p.insert_instruction(std::next(*point), op::identity{}, args);
+                p.insert_instruction(merge.first, op::identity{}, args);
             }
         });
     }

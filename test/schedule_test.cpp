@@ -94,7 +94,7 @@ struct schedule_model_test
         }
         (*ins2wait_for)[ins]->push_back(wait2stream->at(wait_id));
     }
-    void record(migraphx::program& p, migraphx::instruction_ref ins, std::size_t wait_id) const
+    void record(migraphx::program&, migraphx::instruction_ref ins, std::size_t wait_id) const
     {
         (*wait2stream)[wait_id] = ins2stream->at(ins);
     }
@@ -181,6 +181,9 @@ std::vector<std::size_t> get_wait_for(std::size_t wait_on, std::vector<std::size
 std::vector<std::size_t> get_wait_for(migraphx::instruction_ref ins)
 {
     auto wait_ins = std::prev(ins);
+    // Skip identity operators
+    while(wait_ins->name() == "identity")
+        wait_ins = std::prev(wait_ins);
     if(wait_ins->name() != "wait_event")
         return {};
     auto wf = *migraphx::any_cast<wait_event>(wait_ins->get_operator()).wait_for;
@@ -338,7 +341,7 @@ TEST_CASE(double_entry)
     EXPECT(t.get_stream(binary) == 0);
     EXPECT(get_wait_for(binary) ==
            get_wait_for(t.get_stream(binary), {t.get_stream(onep), t.get_stream(twop)}));
-    // EXPECT(check_conflicts(p, onep, twop));
+    EXPECT(check_conflicts(p, onep, twop));
 }
 
 TEST_CASE(two_branches)

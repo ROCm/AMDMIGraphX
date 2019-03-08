@@ -186,7 +186,7 @@ struct stream_info
 
     std::unordered_set<std::size_t> get_streams(instruction_ref ins)
     {
-        if (has_stream(ins))
+        if(has_stream(ins))
             return {get_stream(ins)};
         std::unordered_set<std::size_t> result;
         get_streams_from(ins, get_inputs())([&](auto s) {
@@ -270,7 +270,7 @@ struct stream_info
             // Collect concur instructions for each merge point.
             for(auto& merge : merge_from[ins])
             {
-                for(auto stream:streams)
+                for(auto stream : streams)
                 {
                     if(result[merge].size() <= stream)
                         result[merge].resize(stream + 1);

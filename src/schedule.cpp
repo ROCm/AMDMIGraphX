@@ -350,7 +350,7 @@ void schedule::apply(program& p) const
                 auto w = ins2wait.at(i);
                 // If we already waited for the event on this stream then dont
                 // insert another wait event
-                if (waited_for[stream].count(w) == 0)
+                if(waited_for[stream].count(w) == 0)
                     model.wait(p, ins, w);
                 // Store the event as waited
                 waited_for[stream].insert(w);

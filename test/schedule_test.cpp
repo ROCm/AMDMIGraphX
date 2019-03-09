@@ -636,8 +636,8 @@ TEST_CASE(inner_split1)
     auto one    = p.add_literal(1);
     auto c1     = chain(p, 2, unary_op{}, one);
     auto i1     = p.add_instruction(unary_op{}, one);
-    auto s1 = p.add_instruction(unary_op{}, c1);
-    auto s2 = p.add_instruction(unary_op{}, c1);
+    auto s1     = p.add_instruction(unary_op{}, c1);
+    auto s2     = p.add_instruction(unary_op{}, c1);
     auto output = p.add_instruction(nary_op{}, i1, s1, s2);
     p.compile(t);
     EXPECT(not t.has_stream(one));
@@ -648,7 +648,9 @@ TEST_CASE(inner_split1)
 
     EXPECT(t.get_stream(output) == 0);
     EXPECT(get_wait_for(output) ==
-           get_wait_for(t.get_stream(output), {t.get_stream(c1.back()), t.get_stream(i1), t.get_stream(s1), t.get_stream(s2)}));
+           get_wait_for(
+               t.get_stream(output),
+               {t.get_stream(c1.back()), t.get_stream(i1), t.get_stream(s1), t.get_stream(s2)}));
     check_conflicts(p, {c1, {i1}, {s1}, {s2}});
 }
 
@@ -659,8 +661,8 @@ TEST_CASE(inner_split2)
     auto one    = p.add_literal(1);
     auto c1     = chain(p, 2, unary_op{}, one);
     auto i1     = p.add_instruction(unary_op{}, one);
-    auto s1 = chain(p, 3, unary_op{}, c1.back());
-    auto s2 = chain(p, 4, unary_op{}, c1.back());
+    auto s1     = chain(p, 3, unary_op{}, c1.back());
+    auto s2     = chain(p, 4, unary_op{}, c1.back());
     auto output = p.add_instruction(nary_op{}, i1, s1.back(), s2.back());
     p.compile(t);
     EXPECT(not t.has_stream(one));
@@ -670,8 +672,11 @@ TEST_CASE(inner_split2)
     EXPECT(t.get_stream(s1.back()) != t.get_stream(s2.back()));
 
     EXPECT(t.get_stream(output) == 0);
-    EXPECT(get_wait_for(output) ==
-           get_wait_for(t.get_stream(output), {t.get_stream(c1.back()), t.get_stream(i1), t.get_stream(s1.back()), t.get_stream(s2.back())}));
+    EXPECT(get_wait_for(output) == get_wait_for(t.get_stream(output),
+                                                {t.get_stream(c1.back()),
+                                                 t.get_stream(i1),
+                                                 t.get_stream(s1.back()),
+                                                 t.get_stream(s2.back())}));
     check_conflicts(p, {c1, {i1}, s1, s2});
 }
 
@@ -680,7 +685,7 @@ TEST_CASE(inception_resnet)
     schedule_target t{};
     migraphx::program p;
     auto one    = p.add_literal(1);
-    auto input = p.add_instruction(unary_op{}, one);
+    auto input  = p.add_instruction(unary_op{}, one);
     auto c1     = chain(p, 2, unary_op{}, input);
     auto i1     = p.add_instruction(unary_op{}, input);
     auto binary = p.add_instruction(nary_op{}, i1, c1.back());

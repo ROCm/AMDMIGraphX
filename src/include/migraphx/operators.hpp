@@ -1174,7 +1174,7 @@ struct load
     }
     argument compute(const shape&, const std::vector<argument>& args) const
     {
-        if ((offset + s.bytes()) > args[0].get_shape().bytes())
+        if((offset + s.bytes()) > args[0].get_shape().bytes())
             MIGRAPHX_THROW("Load access is out of bounds");
         return {s, args[0].data() + offset};
     }

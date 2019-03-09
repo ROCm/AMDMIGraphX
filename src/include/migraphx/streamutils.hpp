@@ -36,10 +36,7 @@ inline stream_range_container<Range> stream_range(const Range& r)
 
 namespace detail {
 
-inline void stream_write_value_impl(rank<2>, std::ostream& os, const std::string& x)
-{
-    os << x;
-}
+inline void stream_write_value_impl(rank<2>, std::ostream& os, const std::string& x) { os << x; }
 
 template <class Range>
 auto stream_write_value_impl(rank<1>, std::ostream& os, const Range& r)

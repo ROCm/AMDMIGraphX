@@ -561,7 +561,11 @@ TEST_CASE(inner_par_merge)
     p.compile(t);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(output) == 0);
-    EXPECT(get_wait_for(output) == get_wait_for(t.get_stream(output), {t.get_stream(binary1), t.get_stream(binary2), t.get_stream(outer1), t.get_stream(outer2)}));
+    EXPECT(get_wait_for(output) == get_wait_for(t.get_stream(output),
+                                                {t.get_stream(binary1),
+                                                 t.get_stream(binary2),
+                                                 t.get_stream(outer1),
+                                                 t.get_stream(outer2)}));
 
     EXPECT(t.get_stream(outer1) == 1);
     EXPECT(t.get_stream(outer2) == 2);

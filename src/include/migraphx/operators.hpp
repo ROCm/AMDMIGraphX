@@ -830,16 +830,36 @@ struct dot
         return pack(f(self.alpha, "alpha"), f(self.beta, "beta"));
     }
 
+    // if not a multi_broadcast, b should be broadcastable to a
     std::vector<std::size_t> shape_broadcast(std::vector<std::size_t>& a,
-                                             std::vector<std::size_t>& b) const
+                                             std::vector<std::size_t>& b,
+                                             bool is_mutli_broadcast = true) const
     {
-        if(a.empty())
-            return b;
-        else if(b.empty())
+        if(b.empty())
             return a;
+
+        if (a.empty())
+        {
+            if (is_mutli_broadcast)
+            {
+                return b;
+            }
+            else
+            {
+                MIGRAPHX_THROW("DOT: C is not broadcastable to A * B (scalar)");
+            }
+        }
 
         auto a_size = a.size();
         auto b_size = b.size();
+
+        if (is_mutli_broadcast && b_size > a_size)
+        {
+            MIGRAPHX_THROW("DOT: C {" + to_string_range(b) +
+            "} is not broadcastable to A * b {" + to_string_range(a) + 
+            "}");
+        }
+
         auto n_dim  = std::min(a_size, b_size);
         std::vector<std::size_t> out_lens(std::max(a_size, b_size));
         for(std::size_t i = 0; i < n_dim; ++i)
@@ -848,19 +868,31 @@ struct dot
             {
                 out_lens[i] = a[a_size - 1 - i];
             }
-            else if(a[a_size - 1 - i] == 1)
-            {
-                out_lens[i] = b[b_size - 1 - i];
-            }
             else if(b[b_size - 1 - i] == 1)
             {
                 out_lens[i] = a[a_size - 1 - i];
             }
-            else
-            {
-                MIGRAPHX_THROW("DOT : dimension mismatch, matrix A: {" + to_string_range(a) +
-                               "}, and matrix B: {" + to_string_range(b) +
-                               "} are not broadcastable");
+            else 
+            { 
+                if(a[a_size - 1 - i] == 1 && is_mutli_broadcast)
+                {
+                    out_lens[i] = b[b_size - 1 - i];
+                }
+                else
+                {
+                    if (is_mutli_broadcast)
+                    {
+                        MIGRAPHX_THROW("DOT : dimension mismatch, matrix A: {" + to_string_range(a) +
+                                    "}, and matrix B: {" + to_string_range(b) +
+                                    "} are not broadcastable");
+                    }
+                    else
+                    {
+                        MIGRAPHX_THROW("DOT: C {" + to_string_range(b) +
+                        "} is not broadcastable to A * b {" + to_string_range(a) + 
+                        "}");                        
+                    }
+                }
             }
         }
 
@@ -894,120 +926,79 @@ struct dot
 
         auto a_lens = a.lens();
         auto b_lens = b.lens();
-        std::vector<std::size_t> out_lens;
-        if(a_lens.size() == 1)
-        {
-            // inner product, output is a scalar, following numpy.matmul()
-            if(b_lens.size() == 1)
-            {
-                if(a_lens.front() != b_lens.front())
-                {
-                    MIGRAPHX_THROW("DOT : dimension mismatch, vector A: {" +
-                                   to_string_range(a_lens) + "}, cannot multiply vector B: {" +
-                                   to_string_range(b_lens) + "}");
-                }
-            }
-            else
-            {
-                std::size_t dim_0 = b_lens.size() - 2;
-                if(a_lens.front() != b_lens[dim_0])
-                {
-                    MIGRAPHX_THROW("DOT : dimension mismatch, vector A: {" +
-                                   to_string_range(a_lens) + "}, cannot multiply matrix B: {" +
-                                   to_string_range(b_lens) + "}");
-                }
+        bool is_a_appended = false;
+        bool is_b_appended = false;
 
-                out_lens = b_lens;
-                out_lens.erase(out_lens.begin() + dim_0);
+        if (a_lens.size() == 1)
+        {
+            a_lens.insert(a_lens.begin(), 1);
+            is_a_appended = true;
+        }
+
+        if (b_lens.size() == 1)
+        {
+            b_lens.push_back(1);
+            is_b_appended = true;
+        }
+
+        std::size_t dim_0 = a_lens.size() - 1;
+        std::size_t dim_1 = b_lens.size() - 2;
+        if (a_lens[dim_0] != b_lens[dim_1])
+        {
+            MIGRAPHX_THROW("DOT : dimension mismatch, operand A: {" +
+                            to_string_range(a.lens()) + "}, cannot multiply operand B: {" +
+                            to_string_range(b.lens()) + "}");
+        }
+
+        // remove the matrix dims, do multi_broadcast of the shape of the batch
+        a_lens.pop_back();
+        std::size_t out_m = a_lens.back();
+        a_lens.pop_back();
+
+        std::size_t out_n = b_lens.back();
+        b_lens.pop_back();
+        b_lens.pop_back();
+
+        auto out_lens = shape_broadcast(a_lens, b_lens);
+        out_lens.push_back(out_m);
+        out_lens.push_back(out_n);
+
+        // remove the prepended 1, if a is a vector
+        if (is_a_appended)
+        {
+            out_lens.erase(out_lens.begin() + out_lens.size() - 2);
+        }
+
+        // remove the appended 1, if b is a vector
+        if (is_b_appended)
+        {
+            out_lens.pop_back();
+        }
+
+        
+        // c is unibroadcastable to A * B
+        if(inputs.size() == 3)
+        {
+            // same type as A and B
+            check_shapes{{inputs[0], inputs[2]}, *this}.has(2).same_type();
+            if (out_lens.empty() && (!inputs[2].scalar()))
+            {
+                MIGRAPHX_THROW("DOT: C is not broadcastable to A*B (scalar)");
             }
+
+            //check c is broadcastable to A * B
+            auto c_lens = inputs[2].lens();
+            shape_broadcast(out_lens, c_lens, false);
+        }
+
+        if (out_lens.empty())
+        {
+            return {t};
         }
         else
         {
-            std::size_t dim_0 = a_lens.size() - 1;
-            if(b_lens.size() == 1)
-            {
-                if(a_lens.back() != b_lens.back())
-                {
-                    MIGRAPHX_THROW("DOT : dimension mismatch, matrix A: {" +
-                                   to_string_range(a_lens) + "}, cannot multiply vector B: {" +
-                                   to_string_range(b_lens) + "}");
-                }
-
-                out_lens = a_lens;
-                out_lens.pop_back();
-            }
-            else
-            {
-                std::size_t dim_0 = a_lens.size() - 1;
-                std::size_t dim_1 = b_lens.size() - 2;
-                if(a_lens[dim_0] != b_lens[dim_1])
-                {
-                    MIGRAPHX_THROW("DOT : dimension mismatch, matrix A: {" +
-                                   to_string_range(a_lens) + "}, cannot multiply matrix B: {" +
-                                   to_string_range(b_lens) + "}");
-                }
-
-                a_lens.pop_back();
-                std::size_t out_m = a_lens.back();
-                a_lens.pop_back();
-
-                std::size_t out_n = b_lens.back();
-                b_lens.pop_back();
-                b_lens.pop_back();
-
-                out_lens = shape_broadcast(a_lens, b_lens);
-                out_lens.push_back(out_m);
-                out_lens.push_back(out_n);
-            }
+            return {t, out_lens};
         }
-
-        // c is broadcast
-        if(inputs.size() == 3)
-
-            // according to the specification of the numpy.matmul()
-            // inputs with the shape dims more than 2 are acceptable
-            // as long as dim values are the same in the two inputs
-            if(!std::equal(a.lens().rbegin() + 2, a.lens().rend(), b.lens().rbegin() + 2))
-            {
-                MIGRAPHX_THROW("DOT: number of matrices in stack are different in A and B");
-            }
-
-        if(inputs.size() == 3)
-        {
-            check_shapes{{inputs[0], inputs[2]}, *this}.has(2).same_type();
-            const shape& c = inputs.at(2);
-            if(!std::equal(a.lens().rbegin() + 2, a.lens().rend(), c.lens().rbegin() + 2))
-            {
-                MIGRAPHX_THROW("DOT: number of matrices in stack are different in A and C");
-            }
-        }
-
-        std::size_t dim_0 = a.lens().size() - 2;
-        std::size_t dim_1 = a.lens().size() - 1;
-        if(a.lens()[dim_1] != b.lens()[dim_0])
-            MIGRAPHX_THROW("DOT : inner dimensions do not match: {" + to_string_range(a.lens()) +
-                           "} x {" + to_string_range(b.lens()) + "}");
-        if(inputs.size() == 3)
-        {
-            const shape& c = inputs.at(2);
-            if(a.lens()[dim_0] != c.lens()[dim_0])
-            {
-                MIGRAPHX_THROW("DOT : matrix size does not match: A: {" +
-                               to_string_range(a.lens()) + "}, C: {" + to_string_range(c.lens()) +
-                               "}");
-            }
-
-            if(b.lens()[dim_1] != c.lens()[dim_1])
-            {
-                MIGRAPHX_THROW("DOT : matrix size does not match: B: {" +
-                               to_string_range(b.lens()) + "}, C: {" + to_string_range(c.lens()) +
-                               "}");
-            }
-        }
-
-        auto out_lens   = a.lens();
-        out_lens[dim_1] = b.lens()[dim_1];
-        return {t, out_lens};
     }
 };
 

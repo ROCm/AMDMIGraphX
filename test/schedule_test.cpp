@@ -631,6 +631,29 @@ TEST_CASE(par_merge_multi_entry)
     check_conflicts(p, {c1, {i1}, c2, {i2}});
 }
 
+TEST_CASE(inception_resnet)
+{
+    schedule_target t{};
+    migraphx::program p;
+    auto one    = p.add_literal(1);
+    auto input = p.add_instruction(unary_op{}, one);
+    auto c1     = chain(p, 2, unary_op{}, input);
+    auto i1     = p.add_instruction(unary_op{}, input);
+    auto binary = p.add_instruction(nary_op{}, i1, c1.back());
+    auto output = p.add_instruction(nary_op{}, binary, input);
+    p.compile(t);
+    EXPECT(not t.has_stream(one));
+    EXPECT(t.get_stream(i1) == 2);
+    for(auto ins : c1)
+        EXPECT(t.get_stream(ins) == 0);
+    EXPECT(t.get_stream(binary) == 0);
+    EXPECT(get_wait_for(binary) ==
+           get_wait_for(t.get_stream(binary), {t.get_stream(c1.back()), t.get_stream(i1)}));
+    EXPECT(t.get_stream(output) == 0);
+    EXPECT(get_wait_for(output).empty());
+    check_conflicts(p, {c1, {i1}});
+}
+
 TEST_CASE(inception1)
 {
     schedule_target t{};

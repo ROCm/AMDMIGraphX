@@ -33,7 +33,7 @@ struct stream_info
     void accumulate_weights(instruction_ref last, const schedule_model& model)
     {
         fix<std::size_t>([&](auto self, auto ins) -> std::size_t {
-            if(weights.count(ins) == 0)
+            if(not contains(weights, ins))
             {
                 std::size_t weight = 0;
                 auto&& op          = ins->get_operator();
@@ -125,7 +125,7 @@ struct stream_info
 
     std::size_t get_stream(instruction_ref ins) const { return ins2stream.at(ins); }
 
-    bool has_stream(instruction_ref ins) const { return ins2stream.count(ins) > 0; }
+    bool has_stream(instruction_ref ins) const { return contains(ins2stream, ins); }
 
     bool different(const std::vector<std::size_t>& v) const
     {
@@ -221,7 +221,7 @@ struct stream_info
                     continue;
                 }
                 auto stream = get_stream(i);
-                if(m.count(stream) == 0)
+                if(not contains(m, stream))
                     m[stream] = i;
                 else
                     m[stream] = std::min(m[stream], i, by(std::less<>{}, [&](auto x) {
@@ -345,7 +345,7 @@ void schedule::apply(program& p) const
                 if(stream == istream)
                     continue;
                 // Create a new event if it hasn't been recorded
-                if(ins2wait.count(i) == 0)
+                if(not contains(ins2wait, i))
                 {
                     ins2wait[i] = wait_id;
                     model.record(p, i, wait_id);
@@ -354,7 +354,7 @@ void schedule::apply(program& p) const
                 auto w = ins2wait.at(i);
                 // If we already waited for the event on this stream then dont
                 // insert another wait event
-                if(waited_for[stream].count(w) == 0)
+                if(not contains(waited_for[stream], w))
                     model.wait(p, ins, w);
                 // Store the event as waited
                 waited_for[stream].insert(w);

@@ -274,7 +274,13 @@ struct stream_info
                 {
                     if(result[merge].size() <= stream)
                         result[merge].resize(stream + 1);
-                    result[merge][stream].push_back(ins);
+                    auto&& r = result[merge][stream];
+                    r.push_back(ins);
+                    // Copy inputs if they dont have a stream(and are not a builtin and context free)
+                    // Inputs without a stream can have a implicit dependency
+                    std::copy_if(ins->inputs().begin(), ins->inputs().end(), std::back_inserter(r), [&](auto x) {
+                        return not this->has_stream(x) and not is_context_free(x->get_operator()) and x->name().front() != '@';
+                    });
                 }
             }
         }
@@ -380,9 +386,6 @@ void schedule::apply(program& p) const
             {
                 auto args = merge.second[j];
                 args.insert(args.begin(), ins1);
-                // Add input arguments as a conflict
-                for(auto arg : merge.second[j])
-                    args.insert(args.end(), arg->inputs().begin(), arg->inputs().end());
                 p.insert_instruction(merge.first, op::identity{}, args);
             }
         });

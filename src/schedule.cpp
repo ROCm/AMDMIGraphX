@@ -380,6 +380,9 @@ void schedule::apply(program& p) const
             {
                 auto args = merge.second[j];
                 args.insert(args.begin(), ins1);
+                // Add input arguments as a conflict
+                for(auto arg:merge.second[j])
+                    args.insert(args.end(), arg->inputs().begin(), arg->inputs().end());
                 p.insert_instruction(merge.first, op::identity{}, args);
             }
         });

@@ -276,11 +276,16 @@ struct stream_info
                         result[merge].resize(stream + 1);
                     auto&& r = result[merge][stream];
                     r.push_back(ins);
-                    // Copy inputs if they dont have a stream(and are not a builtin and context free)
-                    // Inputs without a stream can have a implicit dependency
-                    std::copy_if(ins->inputs().begin(), ins->inputs().end(), std::back_inserter(r), [&](auto x) {
-                        return not this->has_stream(x) and not is_context_free(x->get_operator()) and x->name().front() != '@';
-                    });
+                    // Copy inputs if they dont have a stream(and are not a builtin and context
+                    // free) Inputs without a stream can have a implicit dependency
+                    std::copy_if(ins->inputs().begin(),
+                                 ins->inputs().end(),
+                                 std::back_inserter(r),
+                                 [&](auto x) {
+                                     return not this->has_stream(x) and
+                                            not is_context_free(x->get_operator()) and
+                                            x->name().front() != '@';
+                                 });
                 }
             }
         }

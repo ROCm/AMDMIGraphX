@@ -240,9 +240,9 @@ TEST_CASE(zero_record)
     auto one    = p.add_literal(1);
     auto onep1  = p.add_instruction(unary_op{}, one);
     auto onep2  = p.add_instruction(unary_op{}, one);
-    auto binary = p.add_instruction(nary_op{},
-                                    p.add_instruction(migraphx::op::identity{}, onep1),
-                                    p.add_instruction(migraphx::op::identity{}, onep2));
+    auto onei1 = p.add_instruction(migraphx::op::identity{}, onep1);
+    auto onei2 = p.add_instruction(migraphx::op::identity{}, onep2);
+    auto binary = p.add_instruction(nary_op{}, onei1, onei2);
     p.compile(t);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
@@ -250,6 +250,7 @@ TEST_CASE(zero_record)
     EXPECT(get_wait_for(binary) ==
            get_wait_for(t.get_stream(binary), {t.get_stream(onep1), t.get_stream(onep2)}));
     EXPECT(check_conflicts(p, onep1, onep2));
+    check_conflicts(p, {{onep1, onei1}, {onep2, onei2}});
 }
 
 TEST_CASE(zero_merge1)
@@ -342,8 +343,8 @@ TEST_CASE(double_entry)
 {
     schedule_target t{};
     migraphx::program p;
-    auto one    = p.add_literal(1);
-    auto two    = p.add_literal(2);
+    auto one    = p.add_instruction(migraphx::op::identity{}, p.add_literal(1));
+    auto two    = p.add_instruction(migraphx::op::identity{}, p.add_literal(2));
     auto onep   = p.add_instruction(unary_op{}, one);
     auto twop   = p.add_instruction(unary_op{}, two);
     auto binary = p.add_instruction(nary_op{}, onep, twop);
@@ -354,7 +355,7 @@ TEST_CASE(double_entry)
     EXPECT(t.get_stream(binary) == 0);
     EXPECT(get_wait_for(binary) ==
            get_wait_for(t.get_stream(binary), {t.get_stream(onep), t.get_stream(twop)}));
-    EXPECT(check_conflicts(p, onep, twop));
+    check_conflicts(p, {{onep, one}, {twop, two}});
 }
 
 TEST_CASE(two_branches)

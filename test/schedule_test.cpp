@@ -702,7 +702,7 @@ TEST_CASE(inception1)
         get_wait_for(t.get_stream(output),
                      {t.get_stream(i94), t.get_stream(i75), t.get_stream(i61), t.get_stream(i86)}));
 
-    check_conflicts(p, {{i80, i86}, {i69, i75}, {i48, i54, i61, output}, {i94}});
+    check_conflicts(p, {{i80, i86}, {i69, i75}, {i48, i54, i61}, {i94}});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -127,13 +127,6 @@ struct stream_info
 
     bool has_stream(instruction_ref ins) const { return contains(ins2stream, ins); }
 
-    bool different(const std::vector<std::size_t>& v) const
-    {
-        if(v.size() < 2)
-            return false;
-        return not std::all_of(v.begin(), v.end(), [&](std::size_t x) { return x == v.front(); });
-    }
-
     template <class F>
     bool different(F f, std::size_t stream) const
     {
@@ -232,23 +225,6 @@ struct stream_info
         })(start);
         std::transform(
             m.begin(), m.end(), std::back_inserter(result), [](auto&& p) { return p.second; });
-        return result;
-    }
-
-    std::vector<std::size_t> wait_for(instruction_ref ins) const
-    {
-        std::vector<std::size_t> result;
-        get_streams_from(ins, get_inputs())([&](auto s) {
-            result.push_back(s);
-            return true;
-        });
-        // Remove duplicates
-        std::sort(result.begin(), result.end());
-        result.erase(std::unique(result.begin(), result.end()), result.end());
-        // Remove the merged stream
-        auto it = std::find(result.begin(), result.end(), get_stream(ins));
-        if(it != result.end())
-            result.erase(it);
         return result;
     }
 

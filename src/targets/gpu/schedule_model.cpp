@@ -25,7 +25,10 @@ struct record_event
         return {};
     }
 
-    void finalize(context& ctx, const shape&, const std::vector<shape>&) { ctx.create_events(event); }
+    void finalize(context& ctx, const shape&, const std::vector<shape>&)
+    {
+        ctx.create_events(event);
+    }
 };
 
 struct wait_event

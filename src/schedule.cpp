@@ -144,6 +144,7 @@ struct stream_info
                 result = true;
                 return false;
             }
+            // cppcheck-suppress uselessAssignmentArg
             stream = s;
             return true;
         });
@@ -184,7 +185,7 @@ struct stream_info
         };
     }
 
-    std::unordered_set<std::size_t> get_streams(instruction_ref ins)
+    std::unordered_set<std::size_t> get_streams(instruction_ref ins) const
     {
         if(has_stream(ins))
             return {get_stream(ins)};

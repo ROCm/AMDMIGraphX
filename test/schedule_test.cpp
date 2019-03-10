@@ -53,6 +53,31 @@ struct nary_op
     }
 };
 
+struct stream_free_op
+{
+    std::string comment = "";
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::pack(f(self.comment, "comment"));
+    }
+    std::string name() const { return "stream_free"; }
+    migraphx::argument
+    compute(migraphx::context&, const migraphx::shape&, std::vector<migraphx::argument> args) const
+    {
+        if(args.empty())
+            return {};
+        return args.front();
+    }
+
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        if(inputs.empty())
+            return {};
+        return inputs.front();
+    }
+};
+
 struct wait_event
 {
     std::shared_ptr<std::vector<std::size_t>> wait_for =
@@ -106,7 +131,9 @@ struct schedule_model_test
     }
     std::size_t weight(const migraphx::operation& op) const
     {
-        if(op.name() == "binary" or op.name() == "unary")
+        if (op.name() == "stream_free")
+            return 0;
+        else if(op.name() == "binary" or op.name() == "unary")
             return 4;
         else
             return 1;
@@ -233,6 +260,21 @@ TEST_CASE(single_entry)
     EXPECT(check_conflicts(p, onep1, onep2));
 }
 
+TEST_CASE(stream_free)
+{
+    schedule_target t{};
+    migraphx::program p;
+    auto one    = p.add_literal(1);
+    auto onep1  = p.add_instruction(stream_free_op{}, one);
+    auto onep2  = p.add_instruction(stream_free_op{}, one);
+    auto binary = p.add_instruction(nary_op{}, onep1, onep2);
+    p.compile(t);
+    EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(onep1));
+    EXPECT(not t.has_stream(onep2));
+    EXPECT(t.get_stream(binary) == 0);
+}
+
 TEST_CASE(zero_record)
 {
     schedule_target t{};
@@ -240,8 +282,8 @@ TEST_CASE(zero_record)
     auto one    = p.add_literal(1);
     auto onep1  = p.add_instruction(unary_op{}, one);
     auto onep2  = p.add_instruction(unary_op{}, one);
-    auto onei1  = p.add_instruction(migraphx::op::identity{}, onep1);
-    auto onei2  = p.add_instruction(migraphx::op::identity{}, onep2);
+    auto onei1 = p.add_instruction(migraphx::op::identity{}, onep1);
+    auto onei2 = p.add_instruction(migraphx::op::identity{}, onep2);
     auto binary = p.add_instruction(nary_op{}, onei1, onei2);
     p.compile(t);
     EXPECT(not t.has_stream(one));
@@ -343,8 +385,8 @@ TEST_CASE(double_entry)
 {
     schedule_target t{};
     migraphx::program p;
-    auto one    = p.add_instruction(migraphx::op::identity{}, p.add_literal(1));
-    auto two    = p.add_instruction(migraphx::op::identity{}, p.add_literal(2));
+    auto one    = p.add_instruction(stream_free_op{}, p.add_literal(1));
+    auto two    = p.add_instruction(stream_free_op{}, p.add_literal(2));
     auto onep   = p.add_instruction(unary_op{}, one);
     auto twop   = p.add_instruction(unary_op{}, two);
     auto binary = p.add_instruction(nary_op{}, onep, twop);

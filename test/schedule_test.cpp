@@ -209,7 +209,7 @@ std::vector<T> unique(std::vector<T> x)
 
 std::vector<std::size_t> get_wait_for(std::vector<std::size_t> wait_for)
 {
-    return unique(wait_for);
+    return unique(std::move(wait_for));
 }
 
 std::vector<std::size_t> get_wait_for(std::size_t wait_on, std::vector<std::size_t> wait_for)

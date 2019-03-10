@@ -117,19 +117,19 @@ struct schedule_model
     void sched(program& p, instruction_ref ins, std::size_t n) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().sched(p, std::move(ins), std::move(n));
+        (*this).private_detail_te_get_handle().sched(p, ins, n);
     }
 
     void wait(program& p, instruction_ref ins, std::size_t wait_id) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().wait(p, std::move(ins), std::move(wait_id));
+        (*this).private_detail_te_get_handle().wait(p, ins, wait_id);
     }
 
     void record(program& p, instruction_ref ins, std::size_t wait_id) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().record(p, std::move(ins), std::move(wait_id));
+        (*this).private_detail_te_get_handle().record(p, ins, wait_id);
     }
 
     std::size_t weight(const operation& op) const
@@ -192,19 +192,19 @@ struct schedule_model
         void sched(program& p, instruction_ref ins, std::size_t n) const override
         {
 
-            private_detail_te_value.sched(p, std::move(ins), std::move(n));
+            private_detail_te_value.sched(p, ins, n);
         }
 
         void wait(program& p, instruction_ref ins, std::size_t wait_id) const override
         {
 
-            private_detail_te_value.wait(p, std::move(ins), std::move(wait_id));
+            private_detail_te_value.wait(p, ins, wait_id);
         }
 
         void record(program& p, instruction_ref ins, std::size_t wait_id) const override
         {
 
-            private_detail_te_value.record(p, std::move(ins), std::move(wait_id));
+            private_detail_te_value.record(p, ins, wait_id);
         }
 
         std::size_t weight(const operation& op) const override

@@ -131,7 +131,7 @@ struct schedule_model_test
     }
     std::size_t weight(const migraphx::operation& op) const
     {
-        if (op.name() == "stream_free")
+        if(op.name() == "stream_free")
             return 0;
         else if(op.name() == "binary" or op.name() == "unary")
             return 4;
@@ -282,8 +282,8 @@ TEST_CASE(zero_record)
     auto one    = p.add_literal(1);
     auto onep1  = p.add_instruction(unary_op{}, one);
     auto onep2  = p.add_instruction(unary_op{}, one);
-    auto onei1 = p.add_instruction(migraphx::op::identity{}, onep1);
-    auto onei2 = p.add_instruction(migraphx::op::identity{}, onep2);
+    auto onei1  = p.add_instruction(migraphx::op::identity{}, onep1);
+    auto onei2  = p.add_instruction(migraphx::op::identity{}, onep2);
     auto binary = p.add_instruction(nary_op{}, onei1, onei2);
     p.compile(t);
     EXPECT(not t.has_stream(one));

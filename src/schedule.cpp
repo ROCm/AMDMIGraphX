@@ -53,34 +53,36 @@ struct stream_info
     std::vector<instruction_ref>::iterator sort_args(std::vector<instruction_ref>& args)
     {
         const std::size_t min_partition_threshold = 2;
-        auto compare = by(std::less<>{}, [&](auto x) {
-                      return std::make_tuple(this->weights[x], x->inputs().size());
-                  });
-        if (args.size() < 2)
+        auto compare                              = by(std::less<>{}, [&](auto x) {
+            return std::make_tuple(this->weights[x], x->inputs().size());
+        });
+        if(args.size() < 2)
         {
             return args.end();
         }
-        else if (args.size() == 2)
+        else if(args.size() == 2)
         {
             auto w1 = this->weights[args[0]];
             auto w2 = this->weights[args[1]];
-            if (std::make_tuple(w1, args[0]->inputs().size()) > std::make_tuple(w2, args[1]->inputs().size()))
+            if(std::make_tuple(w1, args[0]->inputs().size()) >
+               std::make_tuple(w2, args[1]->inputs().size()))
             {
                 std::swap(args[0], args[1]);
                 std::swap(w1, w2);
             }
-            if (w1 > min_partition_threshold)
+            if(w1 > min_partition_threshold)
                 return args.begin();
-            if (w2 > min_partition_threshold)
-                return args.begin()+1;
+            if(w2 > min_partition_threshold)
+                return args.begin() + 1;
             return args.end();
         }
 
         std::sort(args.begin(), args.end(), compare);
 
-        return std::upper_bound(args.begin(), args.end(), min_partition_threshold, [&](std::size_t w, auto i) {
-            return w < this->weights[i];
-        });
+        return std::upper_bound(args.begin(),
+                                args.end(),
+                                min_partition_threshold,
+                                [&](std::size_t w, auto i) { return w < this->weights[i]; });
     }
 
     struct partition
@@ -101,20 +103,20 @@ struct stream_info
         std::unordered_map<instruction_ref, std::deque<partition>> partitions;
         partitions.reserve(weights.size());
         fix([&](auto self, auto ins, auto& part) {
-            if (contains(partitions, ins))
+            if(contains(partitions, ins))
                 return;
             partitions[ins];
             part.add(ins, this->iweights[ins]);
 
-            auto args = ins->inputs();
+            auto args         = ins->inputs();
             auto threshold_it = sort_args(args);
-            for(auto i:range(args.begin(), threshold_it))
+            for(auto i : range(args.begin(), threshold_it))
             {
                 self(i, part);
             }
-            for(auto i:range(threshold_it, args.end()))
+            for(auto i : range(threshold_it, args.end()))
             {
-                if (i == args.back())
+                if(i == args.back())
                 {
                     self(i, part);
                 }
@@ -392,9 +394,9 @@ void schedule::apply(program& p) const
         dfor(merge.second.size(), merge.second.size())([&](auto i, auto j) {
             if(i == j)
                 return;
-            if (merge.second[i].empty())
+            if(merge.second[i].empty())
                 return;
-            if (merge.second[j].empty())
+            if(merge.second[j].empty())
                 return;
             for(auto ins1 : merge.second[i])
             {

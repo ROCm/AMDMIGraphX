@@ -521,17 +521,19 @@ TEST_CASE(seq_merge)
     p.compile(t);
     EXPECT(not t.has_stream(one));
 
-    EXPECT(t.get_stream(i1) == 2);
+    EXPECT(t.get_stream(i1) != t.get_stream(i2));
+    EXPECT(t.get_stream(i1) != t.get_stream(c1.back()));
     for(auto ins : c1)
-        EXPECT(t.get_stream(ins) == 3);
-    EXPECT(t.get_stream(binary1) == 3);
+        EXPECT(t.get_stream(ins) == t.get_stream(c1.back()));
+    EXPECT(t.get_stream(binary1) == t.get_stream(c1.back()));
     EXPECT(get_wait_for(binary1) ==
            get_wait_for(t.get_stream(binary1), {t.get_stream(c1.back()), t.get_stream(i1)}));
     check_conflicts(p, {c1, {i1}});
 
-    EXPECT(t.get_stream(i2) == 3);
+    EXPECT(t.get_stream(i2) != t.get_stream(c2.back()));
     for(auto ins : c2)
-        EXPECT(t.get_stream(ins) == 0);
+        EXPECT(t.get_stream(ins) == t.get_stream(c2.back()));
+    EXPECT(t.get_stream(c1.back()) != t.get_stream(c2.back()));
     EXPECT(t.get_stream(binary2) == 0);
     EXPECT(get_wait_for(binary2) ==
            get_wait_for(t.get_stream(binary2), {t.get_stream(c2.back()), t.get_stream(i2)}));
@@ -559,7 +561,7 @@ TEST_CASE(par_merge)
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(binary3) == 0);
 
-    EXPECT(t.get_stream(i1) == 2);
+    EXPECT(t.get_stream(i1) != t.get_stream(i2));
     for(auto ins : c1)
         EXPECT(t.get_stream(ins) == 0);
     EXPECT(t.get_stream(binary1) == 0);
@@ -567,7 +569,6 @@ TEST_CASE(par_merge)
            get_wait_for(t.get_stream(binary1), {t.get_stream(c1.back()), t.get_stream(i1)}));
     check_conflicts(p, {c1, {i1}});
 
-    EXPECT(t.get_stream(i2) == 1);
     for(auto ins : c2)
         EXPECT(t.get_stream(ins) == 3);
     EXPECT(t.get_stream(binary2) == 3);
@@ -684,7 +685,8 @@ TEST_CASE(inner_split1)
     auto output = p.add_instruction(nary_op{}, i1, s1, s2);
     p.compile(t);
     EXPECT(not t.has_stream(one));
-    EXPECT(t.get_stream(i1) == 3);
+    EXPECT(t.get_stream(i1) != t.get_stream(s1));
+    EXPECT(t.get_stream(i1) != t.get_stream(s2));
     for(auto ins : c1)
         EXPECT(t.get_stream(ins) != t.get_stream(i1));
     EXPECT(t.get_stream(s1) != t.get_stream(s2));
@@ -709,7 +711,8 @@ TEST_CASE(inner_split2)
     auto output = p.add_instruction(nary_op{}, i1, s1.back(), s2.back());
     p.compile(t);
     EXPECT(not t.has_stream(one));
-    EXPECT(t.get_stream(i1) == 2);
+    EXPECT(t.get_stream(i1) != t.get_stream(s1.back()));
+    EXPECT(t.get_stream(i1) != t.get_stream(s2.back()));
     for(auto ins : c1)
         EXPECT(t.get_stream(ins) != t.get_stream(i1));
     EXPECT(t.get_stream(s1.back()) != t.get_stream(s2.back()));
@@ -735,7 +738,7 @@ TEST_CASE(inception_resnet)
     auto output = p.add_instruction(nary_op{}, binary, input);
     p.compile(t);
     EXPECT(not t.has_stream(one));
-    EXPECT(t.get_stream(i1) == 2);
+    EXPECT(t.get_stream(i1) != 0);
     for(auto ins : c1)
         EXPECT(t.get_stream(ins) == 0);
     EXPECT(t.get_stream(binary) == 0);

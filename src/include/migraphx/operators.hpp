@@ -819,6 +819,10 @@ struct gather
 // vector input; if A or B is 2-dim, it is a matrix (no case of a batch of
 // vectors as input). If A or B is 3 or more dims, it is considered as a
 // stack(batch) of matrices.
+// Note that, we optimze the scenario of either the Matmul or Gemm operators,
+// But for extensional scenarios like GEMM with three inputs, and each arg
+// is a batch is matrices, the implementation may need further optimization
+// later.
 struct dot
 {
     float alpha = 1.0;

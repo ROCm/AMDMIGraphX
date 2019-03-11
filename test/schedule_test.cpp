@@ -690,10 +690,9 @@ TEST_CASE(inner_split1)
     EXPECT(t.get_stream(s1) != t.get_stream(s2));
 
     EXPECT(t.get_stream(output) == 0);
-    EXPECT(get_wait_for(output) ==
-           get_wait_for(
-               t.get_stream(output),
-               {t.get_stream(i1), t.get_stream(s1), t.get_stream(s2)}));
+    EXPECT(
+        get_wait_for(output) ==
+        get_wait_for(t.get_stream(output), {t.get_stream(i1), t.get_stream(s1), t.get_stream(s2)}));
     EXPECT(get_wait_for(s1).empty());
     // TODO: Remove the extra wait here
     // EXPECT(get_wait_for(s2).empty());
@@ -719,10 +718,9 @@ TEST_CASE(inner_split2)
     EXPECT(t.get_stream(s1.back()) != t.get_stream(s2.back()));
 
     EXPECT(t.get_stream(output) == 0);
-    EXPECT(get_wait_for(output) == get_wait_for(t.get_stream(output),
-                                                {t.get_stream(i1),
-                                                 t.get_stream(s1.back()),
-                                                 t.get_stream(s2.back())}));
+    EXPECT(get_wait_for(output) ==
+           get_wait_for(t.get_stream(output),
+                        {t.get_stream(i1), t.get_stream(s1.back()), t.get_stream(s2.back())}));
     EXPECT(get_wait_for(s1.front()) == get_wait_for({t.get_stream(c1.back())}));
     check_conflicts(p, {c1, {i1}, s1, s2});
 }

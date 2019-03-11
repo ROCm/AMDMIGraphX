@@ -64,11 +64,12 @@ struct stream_info
         std::sort(args.begin(), args.end(), compare);
 
         auto it = std::lower_bound(std::next(args.begin()),
-                                args.end(),
-                                min_partition_threshold,
-                                [&](auto i, std::size_t w) { return this->weights[i] > w; });
+                                   args.end(),
+                                   min_partition_threshold,
+                                   [&](auto i, std::size_t w) { return this->weights[i] > w; });
         assert(it == args.end() or this->weights[*it] <= min_partition_threshold);
-        assert(it == args.end() or std::prev(it) == args.begin() or this->weights[*std::prev(it)] > min_partition_threshold);
+        assert(it == args.end() or std::prev(it) == args.begin() or
+               this->weights[*std::prev(it)] > min_partition_threshold);
         return it;
     }
 
@@ -101,7 +102,7 @@ struct stream_info
             auto args         = ins->inputs();
             auto threshold_it = sort_args(args);
 
-            if (not args.empty())
+            if(not args.empty())
             {
                 assert(threshold_it != args.begin());
                 self(args.front(), part);
@@ -114,7 +115,6 @@ struct stream_info
                 {
                     self(i, part);
                 }
-                
             }
             // Sort instructions
             p.move_instruction(ins, p.end());

@@ -92,14 +92,18 @@ void migemm_impl(tensor_view<T> cmat,
     std::vector<std::size_t> b_idx(b_lens.size());
 
     shape_for_each(cmat.get_shape(), [&](const auto& c_idx) {
-        std::transform(c_lens.begin() + a_len_diff, c_lens.end(), a_lens.begin(), a_idx.begin(), [&](auto i, auto j) {
-            return (j == 1) ? 0 : i;
-        });
-        std::transform(c_lens.begin() + b_len_diff, c_lens.end(), b_lens.begin(), b_idx.begin(), [&](auto i, auto j) {
-            return (j == 1) ? 0 : i;
-        });
+        std::transform(c_lens.begin() + a_len_diff,
+                       c_lens.end(),
+                       a_lens.begin(),
+                       a_idx.begin(),
+                       [&](auto i, auto j) { return (j == 1) ? 0 : i; });
+        std::transform(c_lens.begin() + b_len_diff,
+                       c_lens.end(),
+                       b_lens.begin(),
+                       b_idx.begin(),
+                       [&](auto i, auto j) { return (j == 1) ? 0 : i; });
 
-        double s   = 0.0;
+        double s = 0.0;
         dfor(k)([&](auto kk) {
             a_idx[dim_1] = b_idx[dim_0] = kk;
             s += amat(a_idx.begin(), a_idx.end()) * bmat(b_idx.begin(), b_idx.end());
@@ -112,9 +116,9 @@ template <class T>
 void migemm_impl(
     tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, float alpha, float beta)
 {
-    auto lens = cmat.get_shape().lens();
-    std::size_t num_matrices =
-        std::accumulate(lens.rbegin() + 2, lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
+    auto lens                = cmat.get_shape().lens();
+    std::size_t num_matrices = std::accumulate(
+        lens.rbegin() + 2, lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
     if(num_matrices == 1)
     {
         migemm_impl(cmat, amat, bmat, alpha, beta, is_fast_gemm_type<T>{});

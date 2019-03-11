@@ -505,12 +505,12 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 void program::debug_print() const { std::cout << *this << std::endl; }
 void program::debug_print(instruction_ref ins) const
 {
-    if (ins == this->end())
+    if(ins == this->end())
     {
         std::cout << "End instruction" << std::endl;
         return;
     }
-    if (not has_instruction(ins))
+    if(not has_instruction(ins))
     {
         std::cout << "Instruction not part of program" << std::endl;
         return;

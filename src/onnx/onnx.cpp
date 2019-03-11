@@ -639,7 +639,7 @@ struct onnx_parser
             pads            = std::vector<int64_t>(pad_vals.begin(), pad_vals.end());
         }
         // check if padding is actually being done (at least one value is nonzero)
-        if(std::all_of(pads.begin(),pads.end(), [](const int& i){ return i == 0;}))
+        if(std::all_of(pads.begin(), pads.end(), [](const int& i) { return i == 0; }))
         {
             return prog.add_instruction(migraphx::op::identity{}, args.front());
         }

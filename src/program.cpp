@@ -104,11 +104,9 @@ instruction_ref program::insert_instruction(instruction_ref ins,
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
            "Argument is not an exisiting instruction");
     assert(not starts_with(op.name(), "@"));
-    // TODO: Use move
     shape r     = compute_shape(op, args);
     auto result = impl->instructions.insert(ins, {op, r, std::move(args)});
     instruction::backreference(result);
-    // assert(result->inputs() == args);
     assert(result->valid(begin()));
     return result;
 }

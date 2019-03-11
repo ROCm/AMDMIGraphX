@@ -521,7 +521,6 @@ TEST_CASE(seq_merge)
     p.compile(t);
     EXPECT(not t.has_stream(one));
 
-    EXPECT(t.get_stream(i1) != t.get_stream(i2));
     EXPECT(t.get_stream(i1) != t.get_stream(c1.back()));
     for(auto ins : c1)
         EXPECT(t.get_stream(ins) == t.get_stream(c1.back()));
@@ -533,7 +532,6 @@ TEST_CASE(seq_merge)
     EXPECT(t.get_stream(i2) != t.get_stream(c2.back()));
     for(auto ins : c2)
         EXPECT(t.get_stream(ins) == t.get_stream(c2.back()));
-    EXPECT(t.get_stream(c1.back()) != t.get_stream(c2.back()));
     EXPECT(t.get_stream(binary2) == 0);
     EXPECT(get_wait_for(binary2) ==
            get_wait_for(t.get_stream(binary2), {t.get_stream(c2.back()), t.get_stream(i2)}));
@@ -695,7 +693,10 @@ TEST_CASE(inner_split1)
     EXPECT(get_wait_for(output) ==
            get_wait_for(
                t.get_stream(output),
-               {t.get_stream(c1.back()), t.get_stream(i1), t.get_stream(s1), t.get_stream(s2)}));
+               {t.get_stream(i1), t.get_stream(s1), t.get_stream(s2)}));
+    EXPECT(get_wait_for(s1).empty());
+    // TODO: Remove the extra wait here
+    // EXPECT(get_wait_for(s2).empty());
     check_conflicts(p, {c1, {i1}, {s1}, {s2}});
 }
 
@@ -719,10 +720,10 @@ TEST_CASE(inner_split2)
 
     EXPECT(t.get_stream(output) == 0);
     EXPECT(get_wait_for(output) == get_wait_for(t.get_stream(output),
-                                                {t.get_stream(c1.back()),
-                                                 t.get_stream(i1),
+                                                {t.get_stream(i1),
                                                  t.get_stream(s1.back()),
                                                  t.get_stream(s2.back())}));
+    EXPECT(get_wait_for(s1.front()) == get_wait_for({t.get_stream(c1.back())}));
     check_conflicts(p, {c1, {i1}, s1, s2});
 }
 
@@ -846,8 +847,8 @@ TEST_CASE(inception1)
 
     p.compile(t);
 
-    EXPECT(t.get_streams({i7, i11, i17, i23, i25, i31, i37, i39, i94}) ==
-           t.get_streams({i7, i7, i7, i7, i7, i7, i7, i7, i7}));
+    EXPECT(t.get_streams({i7, i11, i17, i23, i25, i31, i37, i39}) ==
+           t.get_streams({i7, i7, i7, i7, i7, i7, i7, i7}));
     EXPECT(t.get_streams({i48, i54, i61, output}) ==
            t.get_streams({output, output, output, output}));
     EXPECT(t.get_streams({i80, i86}) == t.get_streams({i80, i80}));
@@ -856,15 +857,12 @@ TEST_CASE(inception1)
     EXPECT(t.get_stream(i7) != t.get_stream(i80));
     EXPECT(t.get_stream(i69) != t.get_stream(i80));
     EXPECT(t.get_stream(i69) != t.get_stream(i7));
-    EXPECT(t.get_stream(output) != t.get_stream(i7));
     EXPECT(t.get_stream(output) != t.get_stream(i69));
     EXPECT(t.get_stream(output) != t.get_stream(i80));
 
-    EXPECT(get_wait_for(i48) == get_wait_for({t.get_stream(i39)}));
     EXPECT(get_wait_for(i80) == get_wait_for({t.get_stream(i39)}));
     EXPECT(get_wait_for(i69) == get_wait_for({t.get_stream(i39)}));
-    // We dont wait twice
-    EXPECT(get_wait_for(i94).empty());
+    EXPECT(get_wait_for(i94) == get_wait_for({t.get_stream(i39)}));
     EXPECT(
         get_wait_for(output) ==
         get_wait_for(t.get_stream(output),

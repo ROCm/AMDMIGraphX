@@ -52,37 +52,24 @@ struct stream_info
 
     std::vector<instruction_ref>::iterator sort_args(std::vector<instruction_ref>& args)
     {
-        const std::size_t min_partition_threshold = 2;
-        auto compare                              = by(std::less<>{}, [&](auto x) {
-            return std::make_tuple(this->weights[x], x->inputs().size());
-        });
         if(args.size() < 2)
         {
             return args.end();
         }
-        else if(args.size() == 2)
-        {
-            auto w1 = this->weights[args[0]];
-            auto w2 = this->weights[args[1]];
-            if(std::make_tuple(w1, args[0]->inputs().size()) >
-               std::make_tuple(w2, args[1]->inputs().size()))
-            {
-                std::swap(args[0], args[1]);
-                std::swap(w1, w2);
-            }
-            if(w1 > min_partition_threshold)
-                return args.begin();
-            if(w2 > min_partition_threshold)
-                return args.begin() + 1;
-            return args.end();
-        }
 
+        const std::size_t min_partition_threshold = 2;
+        auto compare                              = by(std::greater<>{}, [&](auto x) {
+            return std::make_tuple(this->weights[x], x->inputs().size());
+        });
         std::sort(args.begin(), args.end(), compare);
 
-        return std::upper_bound(args.begin(),
+        auto it = std::lower_bound(std::next(args.begin()),
                                 args.end(),
                                 min_partition_threshold,
-                                [&](std::size_t w, auto i) { return w < this->weights[i]; });
+                                [&](auto i, std::size_t w) { return this->weights[i] > w; });
+        assert(it == args.end() or this->weights[*it] <= min_partition_threshold);
+        assert(it == args.end() or std::prev(it) == args.begin() or this->weights[*std::prev(it)] > min_partition_threshold);
+        return it;
     }
 
     struct partition
@@ -103,28 +90,31 @@ struct stream_info
         std::unordered_map<instruction_ref, std::deque<partition>> partitions;
         partitions.reserve(weights.size());
         fix([&](auto self, auto ins, auto& part) {
+            assert(ins != p.end());
             if(contains(partitions, ins))
                 return;
+            assert(p.has_instruction(ins));
+            // Add an entry so we know the instruction was visited
             partitions[ins];
             part.add(ins, this->iweights[ins]);
 
             auto args         = ins->inputs();
             auto threshold_it = sort_args(args);
-            for(auto i : range(args.begin(), threshold_it))
+
+            if (not args.empty())
             {
-                self(i, part);
-            }
-            for(auto i : range(threshold_it, args.end()))
-            {
-                if(i == args.back())
-                {
-                    self(i, part);
-                }
-                else
+                assert(threshold_it != args.begin());
+                self(args.front(), part);
+                for(auto i : range(std::next(args.begin()), threshold_it))
                 {
                     partitions[ins].emplace_back();
                     self(i, partitions[ins].back());
                 }
+                for(auto i : range(threshold_it, args.end()))
+                {
+                    self(i, part);
+                }
+                
             }
             // Sort instructions
             p.move_instruction(ins, p.end());

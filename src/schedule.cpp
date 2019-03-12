@@ -100,7 +100,7 @@ struct stream_info
             part.add(ins, this->iweights[ins]);
 
             auto args         = ins->inputs();
-            auto threshold_it = sort_args(args);
+            auto threshold_it = this->sort_args(args);
 
             if(not args.empty())
             {
@@ -198,7 +198,7 @@ struct stream_info
                     }
                     else
                     {
-                        if(not f(get_stream(i)))
+                        if(not f(this->get_stream(i)))
                             return false;
                     }
                 }
@@ -243,7 +243,7 @@ struct stream_info
                     self(i);
                     continue;
                 }
-                auto stream = get_stream(i);
+                auto stream = this->get_stream(i);
                 if(not contains(m, stream))
                     m[stream] = i;
                 else
@@ -273,7 +273,7 @@ struct stream_info
                 merge_from[ins].insert(merge_from[arg].begin(), merge_from[arg].end());
             }
 
-            auto streams = get_streams(ins);
+            auto streams = this->get_streams(ins);
 
             // Collect concur instructions for each merge point.
             for(auto& merge : merge_from[ins])

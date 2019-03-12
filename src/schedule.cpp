@@ -390,11 +390,11 @@ void schedule::apply(program& p) const
                 auto p1 = std::distance(ins1, merge.first);
                 for(auto ins2 : merge.second[j])
                 {
-                    if (ins1 == ins2)
+                    if(ins1 == ins2)
                         continue;
                     auto p2 = std::distance(ins2, merge.first);
                     // The smaller distance means the instruction occurs later
-                    if (p1 > p2)
+                    if(p1 > p2)
                         conflict_table[ins2].insert(ins1);
                     else
                         conflict_table[ins1].insert(ins2);
@@ -403,16 +403,16 @@ void schedule::apply(program& p) const
         });
     }
     // Remove duplicates
-    for(auto&& ip:conflict_table)
+    for(auto&& ip : conflict_table)
     {
         auto ins1 = ip.first;
-        for(auto ins2:ip.second)
-            if (contains(conflict_table[ins2], ins1))
+        for(auto ins2 : ip.second)
+            if(contains(conflict_table[ins2], ins1))
                 conflict_table[ins2].erase(ins1);
     }
-    for(auto&& ip:conflict_table)
+    for(auto&& ip : conflict_table)
     {
-        if (ip.second.empty())
+        if(ip.second.empty())
             continue;
         std::vector<instruction_ref> args;
         args.push_back(ip.first);

@@ -299,6 +299,43 @@ struct stream_info
         }
         return result;
     }
+
+    std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> get_conflicts(program& p)
+    {
+        std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> conflict_table;
+        auto concur_ins = this->find_concurrent_instructions(p);
+        for(auto&& merge : concur_ins)
+        {
+            dfor(merge.second.size(), merge.second.size())([&](auto i, auto j) {
+                if(i == j)
+                    return;
+                for(auto ins1 : merge.second[i])
+                {
+                    auto p1 = std::distance(ins1, merge.first);
+                    for(auto ins2 : merge.second[j])
+                    {
+                        if(ins1 == ins2)
+                            continue;
+                        auto p2 = std::distance(ins2, merge.first);
+                        // The smaller distance means the instruction occurs later
+                        if(p1 > p2)
+                            conflict_table[ins2].insert(ins1);
+                        else
+                            conflict_table[ins1].insert(ins2);
+                    }
+                }
+            });
+        }
+        // Remove duplicates
+        for(auto&& ip : conflict_table)
+        {
+            auto ins1 = ip.first;
+            for(auto ins2 : ip.second)
+                if(contains(conflict_table[ins2], ins1))
+                    conflict_table[ins2].erase(ins1);
+        }
+        return conflict_table;
+    }
 };
 
 void schedule::apply(program& p) const
@@ -378,38 +415,7 @@ void schedule::apply(program& p) const
     }
 
     // Add memory conflicts
-    auto concur_ins = si.find_concurrent_instructions(p);
-    std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> conflict_table;
-    for(auto&& merge : concur_ins)
-    {
-        dfor(merge.second.size(), merge.second.size())([&](auto i, auto j) {
-            if(i == j)
-                return;
-            for(auto ins1 : merge.second[i])
-            {
-                auto p1 = std::distance(ins1, merge.first);
-                for(auto ins2 : merge.second[j])
-                {
-                    if(ins1 == ins2)
-                        continue;
-                    auto p2 = std::distance(ins2, merge.first);
-                    // The smaller distance means the instruction occurs later
-                    if(p1 > p2)
-                        conflict_table[ins2].insert(ins1);
-                    else
-                        conflict_table[ins1].insert(ins2);
-                }
-            }
-        });
-    }
-    // Remove duplicates
-    for(auto&& ip : conflict_table)
-    {
-        auto ins1 = ip.first;
-        for(auto ins2 : ip.second)
-            if(contains(conflict_table[ins2], ins1))
-                conflict_table[ins2].erase(ins1);
-    }
+    auto conflict_table = si.get_conflicts(p);
     for(auto&& ip : conflict_table)
     {
         if(ip.second.empty())

@@ -101,14 +101,14 @@ struct wait_event
 };
 
 using instruction_map = std::unordered_map<migraphx::instruction_ref, std::size_t>;
+using int_map = std::unordered_map<std::size_t, std::size_t>;
 using wait_map =
     std::unordered_map<migraphx::instruction_ref, std::shared_ptr<std::vector<std::size_t>>>;
 
 struct schedule_model_test
 {
     std::shared_ptr<instruction_map> ins2stream = std::make_shared<instruction_map>();
-    std::shared_ptr<std::unordered_map<std::size_t, std::size_t>> wait2stream =
-        std::make_shared<std::unordered_map<std::size_t, std::size_t>>();
+    std::shared_ptr<int_map> wait2stream = std::make_shared<int_map>();
     std::shared_ptr<wait_map> ins2wait_for = std::make_shared<wait_map>();
     std::size_t concurrency() const { return 4; }
     void sched(migraphx::program&, migraphx::instruction_ref ins, std::size_t n) const
@@ -190,8 +190,8 @@ struct schedule_target
                 for(auto ins2 : conflicts[j])
                 {
                     // If both instructions are on the same stream then dont check for a conflict
-                    if(has_stream(ins1) and has_stream(ins2) and
-                       get_stream(ins1) == get_stream(ins2))
+                    if(this->has_stream(ins1) and this->has_stream(ins2) and
+                       this->get_stream(ins1) == this->get_stream(ins2))
                         continue;
                     CHECK(::check_conflicts(p, ins1, ins2) == result);
                 }

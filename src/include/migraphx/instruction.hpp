@@ -41,8 +41,6 @@ struct instruction
 
     const operation& get_operator() const;
 
-    int get_stream() const;
-    void set_stream(int);
     std::string name() const;
 
     const std::vector<instruction_ref>& inputs() const;
@@ -96,7 +94,6 @@ struct instruction
     std::vector<instruction_ref> output;
     std::vector<instruction_ref> arguments;
     literal lit;
-    int stream = -1;
 };
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
@@ -112,6 +109,7 @@ struct hash<migraphx::instruction_ref>
         return std::hash<migraphx::instruction*>{}(&*x);
     }
 };
+
 } // namespace std
 
 #endif

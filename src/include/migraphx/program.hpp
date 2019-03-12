@@ -9,12 +9,16 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/tracer.hpp>
+#include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
 #include <algorithm>
 #include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
 
 struct program_impl;
 
@@ -98,7 +102,7 @@ struct program
     void compile(const target& t, tracer trace = tracer{});
 
     void finalize();
-    void finish();
+
     void perf_report(std::ostream& os, std::size_t n, parameter_map params) const;
 
     void debug_print() const;
@@ -107,6 +111,8 @@ struct program
 
     void dry_run(parameter_map params) const;
 
+    void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
+
     friend std::ostream& operator<<(std::ostream& os, const program& p);
     friend bool operator==(const program& x, const program& y);
     friend bool operator!=(const program& x, const program& y) { return !(x == y); }
@@ -114,6 +120,7 @@ struct program
     private:
     std::unique_ptr<program_impl> impl;
 };
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

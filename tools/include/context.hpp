@@ -27,11 +27,12 @@ struct context
 
 <%
 interface('context',
-          virtual('finish', returns='void', const=True),
+    virtual('finish', returns='void', const=True)
 )
 %>
 
 #endif
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

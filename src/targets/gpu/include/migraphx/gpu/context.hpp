@@ -13,13 +13,17 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NULL_STREAM)
 
+using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
+
 struct hip_device
 {
-    using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
+    hip_device() { add_stream(); }
 
-    hip_device() {}
-
-    hip_device(std::size_t id, std::size_t n) : device_id(id) { add_streams(n); }
+    hip_device(std::size_t id, std::size_t n) : device_id(id)
+    {
+        for(std::size_t i = 0; i < n; i++)
+            add_stream();
+    }
 
     struct stream
     {
@@ -35,7 +39,6 @@ struct hip_device
         {
             hipStream_t result = nullptr;
             auto status        = hipStreamCreateWithFlags(&result, hipStreamNonBlocking);
-
             if(status != hipSuccess)
                 MIGRAPHX_THROW("Failed to allocate stream");
             return hip_stream_ptr{result};
@@ -80,12 +83,6 @@ struct hip_device
             return rbhandle.get();
         }
 
-        void sync() const
-        {
-            if(s != nullptr)
-                hipStreamSynchronize(s.get());
-        }
-
         void wait(hipEvent_t event)
         {
             setup();
@@ -109,56 +106,22 @@ struct hip_device
         shared<rocblas_handle_ptr> rbhandle = nullptr;
     };
 
-    static hip_event_ptr create_event()
-    {
-        hipEvent_t event;
-        auto status = hipEventCreateWithFlags(&event, hipEventDisableTiming);
-        if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to creat event");
-        return hip_event_ptr{event};
-    }
-
-    void add_streams(std::size_t num_of_streams)
-    {
-        assert(streams.empty());
-        for(int i = 0; i < num_of_streams; ++i)
-            streams.emplace_back(device_id);
-    }
-
-    std::size_t nstreams() const { return streams.size(); }
+    void add_stream() { streams.emplace_back(device_id); }
 
     stream& get_stream() { return streams.at(current_stream); }
 
+    stream& get_stream(std::size_t n) { return streams.at(n); }
+
     void set_stream(std::size_t n) { current_stream = n; }
-    void create_events(std::size_t num_of_events)
-    {
-        for(int i = events.size(); i < num_of_events + 1; ++i)
-            events.emplace_back(create_event());
-    }
-    void record_event(std::size_t event)
-    {
-        streams.at(current_stream).record(events.at(event).get());
-    }
 
-    void wait_event(std::size_t event) { streams.at(current_stream).wait(events.at(event).get()); }
+    std::size_t nstreams() const { return streams.size(); }
 
-    void check_events(std::size_t n) const
-    {
-        if(n > events.size())
-            MIGRAPHX_THROW("The number of waits exceed the number of records.");
-    }
-
-    void sync() const
-    {
-        for(auto&& stream : streams)
-            stream.sync();
-    }
+    std::size_t stream_id() const { return current_stream; }
 
     private:
     std::size_t device_id      = 0;
     std::size_t current_stream = 0;
     std::vector<stream> streams;
-    std::vector<shared<hip_event_ptr>> events;
 };
 
 struct context
@@ -168,12 +131,6 @@ struct context
     {
     }
 
-    const hip_device& get_current_device() const
-    {
-        assert(current_device != nullptr);
-        return *current_device;
-    }
-
     hip_device& get_current_device()
     {
         assert(current_device != nullptr);
@@ -181,26 +138,34 @@ struct context
     }
 
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
+    hip_device::stream& get_stream(std::size_t n) { return get_current_device().get_stream(n); }
+
     void set_stream(std::size_t n) { get_current_device().set_stream(n); }
+
     void create_events(std::size_t num_of_events)
     {
-        get_current_device().create_events(num_of_events);
+        for(std::size_t i = events.size(); i < num_of_events + 1; ++i)
+            events.emplace_back(create_event());
     }
-    void check_events(std::size_t n) const { get_current_device().check_events(n); }
 
-    void record_event(std::size_t event) { get_current_device().record_event(event); }
-    void wait_event(std::size_t event) { get_current_device().wait_event(event); }
+    hipEvent_t get_event(std::size_t i) const { return events.at(i).get(); }
 
     std::vector<argument> literals{};
-    void finish() const
+    void finish() const { gpu_sync(); }
+
+    static hip_event_ptr create_event()
     {
-        get_current_device().sync();
-        gpu_sync();
+        hipEvent_t event;
+        auto status = hipEventCreateWithFlags(&event, hipEventDisableTiming);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Failed to create event");
+        return hip_event_ptr{event};
     }
 
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
+    std::vector<shared<hip_event_ptr>> events;
 };
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

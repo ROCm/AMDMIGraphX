@@ -1,5 +1,11 @@
 import string, sys, re, os
 
+
+trivial = [
+    'std::size_t',
+    'instruction_ref'
+]
+
 headers = '''
 #include <algorithm>
 #include <cassert>
@@ -286,7 +292,7 @@ def convert_member(d, struct_name):
                     member['this'] = x
                     if 'const' in t:
                         member['member_const'] = 'const'
-                if t.endswith(('&', '*')):
+                if t.endswith(('&', '*')) or t in trivial:
                     if use_member: member_args.append(x)
                     args.append(arg_name)
                 else:

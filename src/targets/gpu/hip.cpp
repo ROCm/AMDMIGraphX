@@ -10,12 +10,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-void gpu_sync()
-{
-    hipDeviceSynchronize();
-    hipCtxSynchronize();
-}
-
 using hip_ptr = MIGRAPHX_MANAGE_PTR(void, hipFree);
 
 std::string hip_error(int error) { return hipGetErrorString(static_cast<hipError_t>(error)); }
@@ -104,6 +98,8 @@ void set_device(std::size_t id)
     if(status != hipSuccess)
         MIGRAPHX_THROW("Error setting device");
 }
+
+void gpu_sync() { hipDeviceSynchronize(); }
 
 void copy_to_gpu(const argument& src, const argument& dst)
 {

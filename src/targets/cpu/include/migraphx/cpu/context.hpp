@@ -11,6 +11,7 @@ struct context
 {
     void finish() const {}
 };
+
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

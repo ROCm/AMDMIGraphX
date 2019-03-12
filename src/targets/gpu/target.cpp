@@ -18,10 +18,8 @@
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
-#include <migraphx/pre_scheduling.hpp>
-#include <migraphx/gpu/machine_model.hpp>
-#include <migraphx/gpu/find_concur_gpu.hpp>
-#include <migraphx/gpu/insert_instruction_gpu.hpp>
+#include <migraphx/gpu/schedule_model.hpp>
+#include <migraphx/schedule.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -29,9 +27,7 @@ namespace gpu {
 
 std::vector<pass> target::get_passes(migraphx::context& gctx) const
 {
-    auto& ctx                                                        = any_cast<context>(gctx);
-    std::function<std::pair<int, int>(const operation&)> weight_func = op_info();
-    int num_of_streams = ctx.get_current_device().nstreams();
+    auto& ctx = any_cast<context>(gctx);
     // clang-format off
     return
     {
@@ -56,9 +52,10 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         dead_code_elimination{},
         fuse_ops{&ctx},
         dead_code_elimination{},
-        write_literals{&ctx}, 
-        pre_scheduling{weight_func, num_of_streams, insert_instruction_gpu{}},
-        memory_coloring{"hip::allocate", num_of_streams, find_concur_gpu{}},
+        write_literals{&ctx},
+        schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}},
+        memory_coloring{"hip::allocate"},
+        dead_code_elimination{},
         eliminate_workspace{},
         eliminate_allocation{"hip::allocate"},
         check_context<context>{},

@@ -167,7 +167,7 @@ struct tf_parser
     template <class T>
     instruction_ref add_broadcastable_binary_op(instruction_ref arg0, instruction_ref arg1, T x)
     {
-        if(arg0->get_shape() != arg1->get_shape())
+        if(arg0->get_shape().lens() != arg1->get_shape().lens())
         {
             // Example:
             // s0 = (3,2,4,5) and s1 = (2,1,1)

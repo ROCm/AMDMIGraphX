@@ -178,7 +178,7 @@ struct stream_info
     {
         bool result = false;
         f([&](auto s) {
-            result = different(f, s);
+            result = this->different(f, s);
             return false;
         });
         return result;

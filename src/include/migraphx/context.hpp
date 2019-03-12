@@ -210,6 +210,7 @@ inline const ValueType& any_cast(const context& x)
 }
 
 #endif
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

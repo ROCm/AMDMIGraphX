@@ -2,47 +2,15 @@
 #include <migraphx/operators.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/dom_info.hpp>
-#include <migraphx/common_header.hpp>
-#include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
-
-struct set_stream
-{
-    int stream = -1;
-    std::string name() const { return "gpu::set_stream"; }
-
-    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
-    {
-        if(inputs.empty())
-            return {};
-        else
-            return inputs.front();
-    }
-};
-
-struct find_concur
-{
-    void get_concur(
-        migraphx::program* p,
-        int num_of_streams,
-        std::unordered_map<const migraphx::instruction*,
-                           std::vector<std::vector<const migraphx::instruction*>>>& concur_instrs,
-        std::unordered_map<const migraphx::instruction*, int>& instr2_points) const
-    {
-        migraphx::dom_info info(p);
-        info.compute_dom(true);
-        info.propagate_splits(num_of_streams, concur_instrs, instr2_points);
-    }
-};
 
 struct memory_coloring_target
 {
     std::string name() const { return "memory_coloring"; }
     std::vector<migraphx::pass> get_passes(migraphx::context&) const
     {
-        return {migraphx::memory_coloring{"allocate", 4, find_concur{}, true}};
+        return {migraphx::memory_coloring{"allocate", true}};
     }
     migraphx::context get_context() const { return {}; }
 };
@@ -637,42 +605,6 @@ TEST_CASE(literal_test)
     p.compile(memory_coloring_target{});
     auto result = p.eval({});
     CHECK(lit == result);
-}
-
-TEST_CASE(concurrent_test)
-{
-    migraphx::program p;
-    auto in = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {40}});
-    auto a1 = add_alloc(p, {migraphx::shape::float_type, {40}});
-    auto p1 = p.add_instruction(pass_op{}, a1, in);
-    p.insert_instruction(p1, set_stream{0});
-    p1->set_stream(0);
-    auto a2 = add_alloc(p, {migraphx::shape::float_type, {40}});
-    auto p2 = p.add_instruction(pass_op{}, a2, p1);
-    p2->set_stream(0);
-    auto a4 = add_alloc(p, {migraphx::shape::float_type, {40}});
-    auto p4 = p.add_instruction(pass_op{}, a4, p2);
-    p4->set_stream(0);
-    auto a3 = add_alloc(p, {migraphx::shape::float_type, {40}});
-    auto p3 = p.add_instruction(pass_op{}, a3, p1);
-    p3->set_stream(1);
-    p.insert_instruction(p3, set_stream{1});
-    auto a5 = add_alloc(p, {migraphx::shape::float_type, {40}});
-    auto p5 = p.add_instruction(pass_op{}, a5, p3);
-    p5->set_stream(1);
-    auto a6 = add_alloc(p, {migraphx::shape::float_type, {40}});
-    auto p6 = p.add_instruction(pass_op{}, a6, p1);
-    p6->set_stream(2);
-    p.insert_instruction(p6, set_stream{2});
-    auto a7 = add_alloc(p, {migraphx::shape::float_type, {40}});
-    auto p7 = p.add_instruction(pass_op{}, a7, p6);
-    p7->set_stream(2);
-    auto a8 = add_alloc(p, {migraphx::shape::float_type, {40}});
-    auto p8 = p.add_instruction(migraphx::op::concat{0}, a8, p4, p5, p7);
-    p8->set_stream(0);
-    p.insert_instruction(p8, set_stream{0});
-    p.compile(memory_coloring_target{});
-    CHECK(p.get_parameter_shape("scratch").bytes() == 960);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

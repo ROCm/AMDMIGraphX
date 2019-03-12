@@ -144,7 +144,7 @@ struct context
 
     void create_events(std::size_t num_of_events)
     {
-        for(int i = events.size(); i < num_of_events + 1; ++i)
+        for(std::size_t i = events.size(); i < num_of_events + 1; ++i)
             events.emplace_back(create_event());
     }
 

@@ -177,7 +177,7 @@ struct schedule_target
     }
 
     bool has_stream(migraphx::instruction_ref ins) { return model.ins2stream->count(ins) > 0; }
-    
+
     void check_conflicts(migraphx::program& p,
                          std::vector<std::vector<migraphx::instruction_ref>> conflicts,
                          bool result = true)
@@ -190,7 +190,8 @@ struct schedule_target
                 for(auto ins2 : conflicts[j])
                 {
                     // If both instructions are on the same stream then dont check for a conflict
-                    if (has_stream(ins1) and has_stream(ins2) and get_stream(ins1) == get_stream(ins2))
+                    if(has_stream(ins1) and has_stream(ins2) and
+                       get_stream(ins1) == get_stream(ins2))
                         continue;
                     CHECK(::check_conflicts(p, ins1, ins2) == result);
                 }
@@ -198,8 +199,6 @@ struct schedule_target
         });
     }
 };
-
-
 
 template <class T>
 std::vector<T> sorted(std::vector<T> x)

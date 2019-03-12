@@ -638,6 +638,11 @@ struct onnx_parser
             auto&& pad_vals = attributes["pads"].ints();
             pads            = std::vector<int64_t>(pad_vals.begin(), pad_vals.end());
         }
+        // check if padding is actually being done (at least one value is nonzero)
+        if(std::all_of(pads.begin(), pads.end(), [](const int& i) { return i == 0; }))
+        {
+            return prog.add_instruction(migraphx::op::identity{}, args.front());
+        }
         if(contains(attributes, "value"))
         {
             value = parse_value(attributes.at("value")).at<float>();

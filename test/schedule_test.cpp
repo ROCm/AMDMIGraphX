@@ -101,15 +101,15 @@ struct wait_event
 };
 
 using instruction_map = std::unordered_map<migraphx::instruction_ref, std::size_t>;
-using int_map = std::unordered_map<std::size_t, std::size_t>;
+using int_map         = std::unordered_map<std::size_t, std::size_t>;
 using wait_map =
     std::unordered_map<migraphx::instruction_ref, std::shared_ptr<std::vector<std::size_t>>>;
 
 struct schedule_model_test
 {
     std::shared_ptr<instruction_map> ins2stream = std::make_shared<instruction_map>();
-    std::shared_ptr<int_map> wait2stream = std::make_shared<int_map>();
-    std::shared_ptr<wait_map> ins2wait_for = std::make_shared<wait_map>();
+    std::shared_ptr<int_map> wait2stream        = std::make_shared<int_map>();
+    std::shared_ptr<wait_map> ins2wait_for      = std::make_shared<wait_map>();
     std::size_t concurrency() const { return 4; }
     void sched(migraphx::program&, migraphx::instruction_ref ins, std::size_t n) const
     {

@@ -300,7 +300,8 @@ struct stream_info
         return result;
     }
 
-    std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> get_conflicts(program& p)
+    std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>
+    get_conflicts(program& p)
     {
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> conflict_table;
         auto concur_ins = this->find_concurrent_instructions(p);

@@ -80,7 +80,7 @@ void migemm_impl(tensor_view<T> cmat,
     std::size_t nc_dims = c_lens.size();
     std::size_t na_dims = a_lens.size();
     std::size_t nb_dims = b_lens.size();
-    auto k             = a_lens[na_dims - 1];
+    auto k              = a_lens[na_dims - 1];
 
     assert(a_lens[na_dims - 1] == b_lens[nb_dims - 1]);
     assert(c_lens[nc_dims - 2] == a_lens[na_dims - 2]);

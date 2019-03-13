@@ -371,14 +371,82 @@ struct cpu_gemm
     std::string name() const { return "cpu::dot"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
+    void fill_result(argument& result, argument& c) const
+    {
+        auto out_lens = result.get_shape().lens();
+        auto c_lens = c.get_shape().lens();
+
+        if (out_lens == c_lens)
+        {
+            visit_all(result, c)([&](auto output, auto input) {
+                std::memcpy(output.data(), input.data(), c_shape.bytes());
+            });
+        }
+        // need broadcast
+        else if (c.single())
+        {
+            visit_all(result, c)([&](auto output, auto input) {
+                std::fill(output.begin(), output.end(), input.front());
+            });
+        }
+        // must be c_lens[0] == output_lens[1]
+        else if (c_lens.size() == 1 || 
+                (c_lens.size() == 2 && (c_lens[1] == out_lens[1])))
+        {
+            std::size_t m = out_lens[0];
+            std::size_t n = out_lens[1];
+            visit_all(result, c)([&](auto output, auto input) {
+                for (std::size_t i = 0; i < m; i++)
+                {
+                    std::memcpy((output.data() + i * n), input.data(), c_shape.bytes());
+                }
+            });
+        }
+        // c_lens.size() == 2 and c_lens[0] == out_lens[0]
+        else
+        {
+            std::size_t m = out_lens[0];
+            std::size_t n = out_lens[1];
+            visit_all(result, c)([&](auto output, auto input) {
+                for (std::size_t i = 0; i < m; i++)
+                {
+                    std::fill(output.begin() + i * n, 
+                        (i + 1 == m) ? output.end() : output.begin() + ((i + 1) * n), input[i]);
+                }
+            });            
+        }
+    }
+
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
+        // 3 inputs, it is alpha * A * B + beta * C, then
+        // A and B are matrics, and C is broadcastable to A * B
+        if (args.size() == 3)
+        {
+            // no need to consider the value of args[2]
+            if (op.beta == 0.0f)
+            {
+                result.visit([&](auto output) {
+                    std::memset(output.data(), 0, output_shape.bytes());
+                });
+            }
+            else
+            {
+                fill_result(result, args[2]);                
+            }
+
+            migemm(result, args[0], args[1], op.alpha, op.beta);
+
+            return result;
+        }
+
+        // 2 input cases
         // all args are scalar
         if(output_shape.scalar())
         {
-            visit_all(result, args[0], args[1], args[2])([&](auto ret, auto a, auto b, auto c) {
-                ret[0] = op.alpha * a[0] * b[0] + op.beta * c[0];
+            visit_all(result, args[0], args[1])([&](auto res, auto a, auto b) {
+                res[0] = op.alpha * a[0] * b[0];
             });
 
             return result;
@@ -406,55 +474,11 @@ struct cpu_gemm
             out_lens.push_back(1);
         }
 
-        // if there is a C input
-        if(args.size() == 2)
-        {
-            result.visit([&](auto output) { std::fill(output.begin(), output.end(), 0); });
-            migemm({{t, out_lens}, result.data()},
-                   {{t, a_lens}, args[0].data()},
-                   {{t, b_lens}, args[1].data()},
-                   op.alpha,
-                   op.beta);
-            return result;
-        }
-
-        // 3 input arguments
-        auto c_shape = args[2].get_shape();
-        // In GEMM, C is broadcastable to A * B, so we should consider C
-        // is not the same shape as A * B. If the same shape, copy C to
-        // the memory of the output
-        if(c_shape == output_shape)
-        {
-            // memory copy is more efficient than doing element by element
-            result.visit([&](auto output) {
-                args[2].visit(
-                    [&](auto input) { std::memcpy(output.data(), input.data(), c_shape.bytes()); });
-            });
-        }
-        else
-        {
-            auto out_len         = output_shape.lens();
-            auto c_lens          = c_shape.lens();
-            std::size_t len_diff = out_len.size() - c_lens.size();
-            visit_all(result, args[2])([&](auto output, auto c) {
-                shape_for_each(output_shape, [&](auto out_idx) {
-                    // compute the input index
-                    std::vector<std::size_t> in_idx(c_lens.size());
-                    std::transform(c_lens.begin(),
-                                   c_lens.end(),
-                                   out_len.begin() + len_diff,
-                                   in_idx.begin(),
-                                   [&](auto i, auto j) { return (i == 1) ? 0 : j; });
-                    output(out_idx.begin(), out_idx.end()) = c(in_idx.begin(), in_idx.end());
-                });
-            });
-        }
-
         migemm({{t, out_lens}, result.data()},
-               {{t, a_lens}, args[0].data()},
-               {{t, b_lens}, args[1].data()},
-               op.alpha,
-               op.beta);
+                {{t, a_lens}, args[0].data()},
+                {{t, b_lens}, args[1].data()},
+                op.alpha,
+                0.0f);
 
         return result;
     }

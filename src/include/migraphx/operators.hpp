@@ -819,10 +819,11 @@ struct gather
 // vector input; if A or B is 2-dim, it is a matrix (no case of a batch of
 // vectors as input). If A or B is 3 or more dims, it is considered as a
 // stack(batch) of matrices.
-// Note that, we optimze the scenario of either the Matmul or Gemm operators,
-// But for extensional scenarios like GEMM with three inputs, and each arg
-// is a batch is matrices, the implementation may need further optimization
-// later.
+// Note that we only support the scenario of either the Matmul or Gemm 
+// operators. That is, if there are 3 inputs, we consider it is a Gemm, then
+// A and B must be matrix inputs, and C is broadcastable to A * B. If there
+// is only two inputs, A and B can be 1-dim to N-dim, in this case, there
+// is no C input.
 struct dot
 {
     float alpha = 1.0;
@@ -844,24 +845,11 @@ struct dot
 
         if(a.empty())
         {
-            if(is_mutli_broadcast)
-            {
-                return b;
-            }
-            else
-            {
-                MIGRAPHX_THROW("DOT: C is not broadcastable to A * B (scalar)");
-            }
+            return b;
         }
 
         auto a_size = a.size();
         auto b_size = b.size();
-
-        if(is_mutli_broadcast && b_size > a_size)
-        {
-            MIGRAPHX_THROW("DOT: C {" + to_string_range(b) + "} is not broadcastable to A * b {" +
-                           to_string_range(a) + "}");
-        }
 
         auto n_dim = std::min(a_size, b_size);
         std::vector<std::size_t> out_lens(std::max(a_size, b_size));
@@ -875,27 +863,15 @@ struct dot
             {
                 out_lens[i] = a[a_size - 1 - i];
             }
+            else if(a[a_size - 1 - i] == 1 && is_mutli_broadcast)
+            {
+                out_lens[i] = b[b_size - 1 - i];
+            }
             else
             {
-                if(a[a_size - 1 - i] == 1 && is_mutli_broadcast)
-                {
-                    out_lens[i] = b[b_size - 1 - i];
-                }
-                else
-                {
-                    if(is_mutli_broadcast)
-                    {
-                        MIGRAPHX_THROW("DOT : dimension mismatch, matrix A: {" +
-                                       to_string_range(a) + "}, and matrix B: {" +
-                                       to_string_range(b) + "} are not broadcastable");
-                    }
-                    else
-                    {
-                        MIGRAPHX_THROW("DOT: C {" + to_string_range(b) +
-                                       "} is not broadcastable to A * b {" + to_string_range(a) +
-                                       "}");
-                    }
-                }
+                MIGRAPHX_THROW("DOT : dimension mismatch, matrix A: {" +
+                                to_string_range(a) + "}, and matrix B: {" +
+                                to_string_range(b) + "} are not broadcastable");
             }
         }
 
@@ -917,7 +893,42 @@ struct dot
     std::string name() const { return "dot"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{{inputs[0], inputs[1]}, *this}.has(2).same_type();
+        // If there are 3 inputs, then A and B must be matrices and
+        // C is broadcastable to A * B
+        if (inputs.size() == 3)
+        {
+            check_shapes{inputs, *this}.has(3).same_type();
+            check_shapes{{inputs[0]}, *this}.only_dims(2);
+            check_shapes{{inputs[1]}, *this}.only_dims(2);
+
+            auto a_lens = inputs[0].lens();
+            auto b_lens = inputs[1].lens();
+            auto t         = inputs[0].type();
+            if (a_lens[1] != b_lens[0])
+            {
+                MIGRAPHX_THROW("DOT : dimension mismatch, operand A: {" + to_string_range(a_lens) +
+                            "}, cannot multiply operand B: {" + to_string_range(b_lens) + "}");
+            }
+
+            auto out_lens = a_lens;
+            out_lens[0] = b_lens[0];
+
+            // check whether C is broadcastable to A * B
+            auto c_lens = inputs[2].lens();
+            if (c_lens.size() > 2 ||
+                (c_lens.size() >= 1 && (c_lens[0] != 1 && c_lens[0] != b_lens[0])) ||
+                (c_lens.size() == 2 && (c_lens[1] != 1 && c_lens[1] != a_lens[1])))
+            {
+                MIGRAPHX_THROW("DOT: C {" + to_string_range(c_lens) +
+                                "} is not broadcastable to A * B {" + to_string_range(out_lens) +
+                                "}");
+            }
+
+            return {t, out_lens};
+        }
+
+        // For the case of two inputs, it is the numpy.matmul
+        check_shapes{inputs, *this}.has(2).same_type();
         const shape& a = inputs.at(0);
         const shape& b = inputs.at(1);
         auto t         = a.type();
@@ -975,21 +986,6 @@ struct dot
         if(is_b_appended)
         {
             out_lens.pop_back();
-        }
-
-        // c is unibroadcastable to A * B
-        if(inputs.size() == 3)
-        {
-            // same type as A and B
-            check_shapes{{inputs[0], inputs[2]}, *this}.has(2).same_type();
-            if(out_lens.empty() && (!inputs[2].scalar()))
-            {
-                MIGRAPHX_THROW("DOT: C is not broadcastable to A*B (scalar)");
-            }
-
-            // check c is broadcastable to A * B
-            auto c_lens = inputs[2].lens();
-            shape_broadcast(out_lens, c_lens, false);
         }
 
         if(out_lens.empty())

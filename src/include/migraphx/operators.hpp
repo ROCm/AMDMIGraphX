@@ -819,7 +819,7 @@ struct gather
 // vector input; if A or B is 2-dim, it is a matrix (no case of a batch of
 // vectors as input). If A or B is 3 or more dims, it is considered as a
 // stack(batch) of matrices.
-// Note that we only support the scenario of either the Matmul or Gemm 
+// Note that we only support the scenario of either the Matmul or Gemm
 // operators. That is, if there are 3 inputs, we consider it is a Gemm, then
 // A and B must be matrix inputs, and C is broadcastable to A * B. If there
 // is only two inputs, A and B can be 1-dim to N-dim, in this case, there
@@ -869,9 +869,9 @@ struct dot
             }
             else
             {
-                MIGRAPHX_THROW("DOT : dimension mismatch, matrix A: {" +
-                                to_string_range(a) + "}, and matrix B: {" +
-                                to_string_range(b) + "} are not broadcastable");
+                MIGRAPHX_THROW("DOT : dimension mismatch, matrix A: {" + to_string_range(a) +
+                               "}, and matrix B: {" + to_string_range(b) +
+                               "} are not broadcastable");
             }
         }
 
@@ -895,7 +895,7 @@ struct dot
     {
         // If there are 3 inputs, then A and B must be matrices and
         // C is broadcastable to A * B
-        if (inputs.size() == 3)
+        if(inputs.size() == 3)
         {
             check_shapes{inputs, *this}.has(3).same_type();
             check_shapes{{inputs[0]}, *this}.only_dims(2);
@@ -903,25 +903,25 @@ struct dot
 
             auto a_lens = inputs[0].lens();
             auto b_lens = inputs[1].lens();
-            auto t         = inputs[0].type();
-            if (a_lens[1] != b_lens[0])
+            auto t      = inputs[0].type();
+            if(a_lens[1] != b_lens[0])
             {
                 MIGRAPHX_THROW("DOT : dimension mismatch, operand A: {" + to_string_range(a_lens) +
-                            "}, cannot multiply operand B: {" + to_string_range(b_lens) + "}");
+                               "}, cannot multiply operand B: {" + to_string_range(b_lens) + "}");
             }
 
             auto out_lens = a_lens;
-            out_lens[0] = b_lens[0];
+            out_lens[0]   = b_lens[0];
 
             // check whether C is broadcastable to A * B
             auto c_lens = inputs[2].lens();
-            if (c_lens.size() > 2 ||
-                (c_lens.size() >= 1 && (c_lens[0] != 1 && c_lens[0] != b_lens[0])) ||
-                (c_lens.size() == 2 && (c_lens[1] != 1 && c_lens[1] != a_lens[1])))
+            if(c_lens.size() > 2 ||
+               (c_lens.size() >= 1 && (c_lens[0] != 1 && c_lens[0] != b_lens[0])) ||
+               (c_lens.size() == 2 && (c_lens[1] != 1 && c_lens[1] != a_lens[1])))
             {
                 MIGRAPHX_THROW("DOT: C {" + to_string_range(c_lens) +
-                                "} is not broadcastable to A * B {" + to_string_range(out_lens) +
-                                "}");
+                               "} is not broadcastable to A * B {" + to_string_range(out_lens) +
+                               "}");
             }
 
             return {t, out_lens};

@@ -576,8 +576,9 @@ TEST_CASE(par_merge)
     t.check_conflicts(p, {c1, {i1}});
 
     for(auto ins : c2)
-        EXPECT(t.get_stream(ins) == 3);
-    EXPECT(t.get_stream(binary2) == 3);
+        EXPECT(t.get_stream(ins) == t.get_stream(binary2));
+    EXPECT(t.get_stream(binary2) != t.get_stream(i1));
+    EXPECT(t.get_stream(binary2) != t.get_stream(i2));
     EXPECT(get_wait_for(binary2) ==
            get_wait_for(t.get_stream(binary2), {t.get_stream(c2.back()), t.get_stream(i2)}));
     t.check_conflicts(p, {c2, {i2}});
@@ -627,8 +628,9 @@ TEST_CASE(inner_par_merge)
     t.check_conflicts(p, {c1, {i1}});
 
     for(auto ins : c2)
-        EXPECT(t.get_stream(ins) == 3);
-    EXPECT(t.get_stream(binary2) == 3);
+        EXPECT(t.get_stream(ins) == t.get_stream(binary2));
+    EXPECT(t.get_stream(binary2) != t.get_stream(i1));
+    EXPECT(t.get_stream(binary2) != t.get_stream(i2));
     EXPECT(get_wait_for(binary2) ==
            get_wait_for(t.get_stream(binary2), {t.get_stream(c2.back()), t.get_stream(i2)}));
     t.check_conflicts(p, {c2, {i2}});
@@ -669,8 +671,9 @@ TEST_CASE(par_merge_multi_entry)
     t.check_conflicts(p, {c1, {i1}});
 
     for(auto ins : c2)
-        EXPECT(t.get_stream(ins) == 3);
-    EXPECT(t.get_stream(binary2) == 3);
+        EXPECT(t.get_stream(ins) == t.get_stream(binary2));
+    EXPECT(t.get_stream(binary2) != t.get_stream(i1));
+    EXPECT(t.get_stream(binary2) != t.get_stream(i2));
     EXPECT(get_wait_for(binary2) ==
            get_wait_for(t.get_stream(binary2), {t.get_stream(c2.back()), t.get_stream(i2)}));
     t.check_conflicts(p, {c2, {i2}});

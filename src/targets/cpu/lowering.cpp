@@ -379,7 +379,7 @@ struct cpu_gemm
         if(out_lens == c_lens)
         {
             visit_all(result, c)([&](auto output, auto input) {
-                std::memcpy(output.data(), input.data(), c_shape.bytes());
+                std::memcpy(output.data(), input.data(), c.get_shape().bytes());
             });
         }
         // need broadcast
@@ -397,7 +397,7 @@ struct cpu_gemm
             visit_all(result, c)([&](auto output, auto input) {
                 for(std::size_t i = 0; i < m; i++)
                 {
-                    std::memcpy((output.data() + i * n), input.data(), c_shape.bytes());
+                    std::memcpy((output.data() + i * n), input.data(), c.get_shape().bytes());
                 }
             });
         }

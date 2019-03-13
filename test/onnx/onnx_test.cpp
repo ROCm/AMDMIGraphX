@@ -677,4 +677,14 @@ TEST_CASE(logsoftmax)
     EXPECT(p == prog);
 }
 
+TEST_CASE(no_pad_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 2}});
+    p.add_instruction(migraphx::op::identity{}, l0);
+    auto prog = migraphx::parse_onnx("no_pad_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

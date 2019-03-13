@@ -36,6 +36,18 @@ inline std::ostream& operator<<(std::ostream& s, std::nullptr_t)
     return s;
 }
 
+template <class T>
+inline std::ostream& operator<<(std::ostream& s, const std::vector<T>& v)
+{
+    s << "{ ";
+    for(auto&& x : v)
+    {
+        s << x << ", ";
+    }
+    s << "}";
+    return s;
+}
+
 template <class T, class U, class Operator>
 struct expression
 {

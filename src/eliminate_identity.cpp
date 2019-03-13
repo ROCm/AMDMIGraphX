@@ -10,7 +10,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-
 void eliminate_identity::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
@@ -22,7 +21,7 @@ void eliminate_identity::apply(program& p) const
                 instruction_ref identity_input{ins->inputs().at(0)};
                 auto next_ins = std::next(ins);
                 std::vector<instruction_ref> next_ins_inputs{next_ins->inputs()};
-                for (auto& input : next_ins_inputs)
+                for(auto& input : next_ins_inputs)
                 {
                     if(input == ins)
                     {

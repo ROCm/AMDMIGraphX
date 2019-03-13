@@ -10,6 +10,7 @@ add_library(migraphx
     eliminate_allocation.cpp
     eliminate_contiguous.cpp
     eliminate_concat.cpp
+    eliminate_identity.cpp
     fwd_conv_batchnorm_rewrite.cpp
     rewrite_rnn.cpp
     env.cpp

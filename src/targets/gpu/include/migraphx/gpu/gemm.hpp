@@ -20,9 +20,7 @@ struct miopen_gemm
     int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
 
     private:
-    std::size_t compute_offset(std::vector<std::size_t>& out_lens,
-                               std::size_t index,
-                               std::vector<std::size_t>& data_lens) const;
+    void fill_result(context& ctx, const shape& output_shape, const argument& result, const argument& c) const;
 };
 
 } // namespace gpu

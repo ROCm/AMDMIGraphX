@@ -77,19 +77,19 @@ void migemm_impl(tensor_view<T> cmat,
     auto b_lens = bmat.get_shape().lens();
     auto c_lens = cmat.get_shape().lens();
 
-    std::size_t n_dims = c_lens.size();
-    std::size_t dim_0  = n_dims - 2;
-    std::size_t dim_1  = n_dims - 1;
-    auto k             = a_lens[dim_1];
+    std::size_t nc_dims = c_lens.size();
+    std::size_t na_dims = a_lens.size();
+    std::size_t nb_dims = b_lens.size();
+    auto k             = a_lens[na_dims - 1];
 
-    assert(a_lens[dim_1] == b_lens[dim_0]);
-    assert(c_lens[dim_0] == a_lens[dim_0]);
-    assert(c_lens[dim_1] == b_lens[dim_1]);
+    assert(a_lens[na_dims - 1] == b_lens[nb_dims - 1]);
+    assert(c_lens[nc_dims - 2] == a_lens[na_dims - 2]);
+    assert(c_lens[nc_dims - 1] == b_lens[nb_dims - 1]);
 
-    std::size_t a_len_diff = c_lens.size() - a_lens.size();
-    std::size_t b_len_diff = c_lens.size() - b_lens.size();
-    std::vector<std::size_t> a_idx(a_lens.size());
-    std::vector<std::size_t> b_idx(b_lens.size());
+    std::size_t a_len_diff = nc_dims - na_dims;
+    std::size_t b_len_diff = nc_dims - nb_dims;
+    std::vector<std::size_t> a_idx(na_dims);
+    std::vector<std::size_t> b_idx(nb_dims);
 
     shape_for_each(cmat.get_shape(), [&](const auto& c_idx) {
         std::transform(c_lens.begin() + a_len_diff,
@@ -105,7 +105,7 @@ void migemm_impl(tensor_view<T> cmat,
 
         double s = 0.0;
         dfor(k)([&](auto kk) {
-            a_idx[dim_1] = b_idx[dim_0] = kk;
+            a_idx[na_dims - 1] = b_idx[nb_dims - 2] = kk;
             s += amat(a_idx.begin(), a_idx.end()) * bmat(b_idx.begin(), b_idx.end());
         });
         cmat(c_idx.begin(), c_idx.end()) = alpha * s + cmat(c_idx.begin(), c_idx.end()) * beta;

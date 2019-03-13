@@ -441,15 +441,6 @@ struct cpu_gemm
         }
 
         // 2 input cases
-        // all args are scalar
-        if(output_shape.scalar())
-        {
-            visit_all(result, args[0], args[1])(
-                [&](auto res, auto a, auto b) { res[0] = op.alpha * a[0] * b[0]; });
-
-            return result;
-        }
-
         // first argument is 1-dim, pre-pend 1 at beginning
         auto a_lens         = args[0].get_shape().lens();
         auto b_lens         = args[1].get_shape().lens();
@@ -461,7 +452,10 @@ struct cpu_gemm
             is_a_prepended = true;
             a_lens.insert(a_lens.begin(), 1);
             out_lens.push_back(1);
-            std::swap(*out_lens.rbegin(), *(out_lens.rbegin() + 1));
+            if (out_lens.size() > 1)
+            {
+                std::swap(*out_lens.rbegin(), *(out_lens.rbegin() + 1));
+            }
         }
 
         bool is_b_appended = false;

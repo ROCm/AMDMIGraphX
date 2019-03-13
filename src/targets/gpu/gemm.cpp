@@ -454,7 +454,7 @@ argument miopen_gemm::compute(context& ctx,
                 auto to_pointer = [&](auto&& arg, std::size_t offset = 0) {
                     return to_rocblas_type(as.from(arg.data() + offset));
                 };
-                if (num_matrices > 1)
+                if(num_matrices > 1)
                 {
                     generic_rocblas_batched_gemm(
                         as,
@@ -495,9 +495,9 @@ argument miopen_gemm::compute(context& ctx,
                         lda,
                         &beta_r,
                         to_pointer(args[2], m * n * num_matrices * out_ind),
-                        ldc);                    
+                        ldc);
                 }
-                
+
             });
         });
     }

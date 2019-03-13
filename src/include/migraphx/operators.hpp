@@ -1174,9 +1174,19 @@ struct load
     }
     argument compute(const shape&, const std::vector<argument>& args) const
     {
+        if((offset + s.bytes()) > args[0].get_shape().bytes())
+            MIGRAPHX_THROW("Load access is out of bounds");
         return {s, args[0].data() + offset};
     }
     int output_alias(const std::vector<shape>&) const { return 0; }
+
+    friend std::ostream& operator<<(std::ostream& os, const load& op)
+    {
+        os << op.name() << "[";
+        os << "offset=" << op.offset << ",";
+        os << "end=" << (op.offset + op.s.bytes()) << "]";
+        return os;
+    }
 };
 
 struct outline

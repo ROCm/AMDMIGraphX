@@ -9,12 +9,16 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/tracer.hpp>
+#include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
 #include <algorithm>
 #include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
 
 struct program_impl;
 
@@ -106,6 +110,8 @@ struct program
     void debug_print(const std::vector<instruction_ref>& inss) const;
 
     void dry_run(parameter_map params) const;
+
+    void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
     friend std::ostream& operator<<(std::ostream& os, const program& p);
     friend bool operator==(const program& x, const program& y);

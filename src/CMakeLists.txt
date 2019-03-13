@@ -18,6 +18,7 @@ add_library(migraphx
     instruction.cpp
     program.cpp
     shape.cpp
+    schedule.cpp
     simplify_algebra.cpp
     simplify_reshapes.cpp
     opt/memory_coloring.cpp

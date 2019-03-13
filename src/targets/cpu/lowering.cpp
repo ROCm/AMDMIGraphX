@@ -452,7 +452,7 @@ struct cpu_gemm
             is_a_prepended = true;
             a_lens.insert(a_lens.begin(), 1);
             out_lens.push_back(1);
-            if (out_lens.size() > 1)
+            if(out_lens.size() > 1)
             {
                 std::swap(*out_lens.rbegin(), *(out_lens.rbegin() + 1));
             }

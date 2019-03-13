@@ -454,26 +454,50 @@ argument miopen_gemm::compute(context& ctx,
                 auto to_pointer = [&](auto&& arg, std::size_t offset = 0) {
                     return to_rocblas_type(as.from(arg.data() + offset));
                 };
-                generic_rocblas_batched_gemm(
-                    as,
-                    ctx.get_stream().get_rocblas(),
-                    transb ? rocblas_operation_transpose : rocblas_operation_none,
-                    transa ? rocblas_operation_transpose : rocblas_operation_none,
-                    n,
-                    m,
-                    k,
-                    &alpha_r,
-                    to_pointer(args[1], k * n * num_matrices * b_ind),
-                    ldb,
-                    k * n,
-                    to_pointer(args[0], m * k * num_matrices * a_ind),
-                    lda,
-                    m * k,
-                    &beta_r,
-                    to_pointer(args[2], m * n * num_matrices * out_ind),
-                    ldc,
-                    m * n,
-                    num_matrices);
+                if (num_matrices > 1)
+                {
+                    generic_rocblas_batched_gemm(
+                        as,
+                        ctx.get_stream().get_rocblas(),
+                        transb ? rocblas_operation_transpose : rocblas_operation_none,
+                        transa ? rocblas_operation_transpose : rocblas_operation_none,
+                        n,
+                        m,
+                        k,
+                        &alpha_r,
+                        to_pointer(args[1], k * n * num_matrices * b_ind),
+                        ldb,
+                        k * n,
+                        to_pointer(args[0], m * k * num_matrices * a_ind),
+                        lda,
+                        m * k,
+                        &beta_r,
+                        to_pointer(args[2], m * n * num_matrices * out_ind),
+                        ldc,
+                        m * n,
+                        num_matrices);
+                }
+                // num_matrices per call is 1
+                else
+                {
+                    generic_rocblas_gemm(
+                        as,
+                        ctx.get_stream().get_rocblas(),
+                        transb ? rocblas_operation_transpose : rocblas_operation_none,
+                        transa ? rocblas_operation_transpose : rocblas_operation_none,
+                        n,
+                        m,
+                        k,
+                        &alpha_r,
+                        to_pointer(args[1], k * n * num_matrices * b_ind),
+                        ldb,
+                        to_pointer(args[0], m * k * num_matrices * a_ind),
+                        lda,
+                        &beta_r,
+                        to_pointer(args[2], m * n * num_matrices * out_ind),
+                        ldc);                    
+                }
+                
             });
         });
     }

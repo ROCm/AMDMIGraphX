@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_TARGET_HPP
-#define MIGRAPHX_GUARD_MIGRAPHLIB_TARGET_HPP
+#ifndef MIGRAPHX_GUARD_SCHEDULE_MODEL_HPP
+#define MIGRAPHX_GUARD_SCHEDULE_MODEL_HPP
 
 #include <cassert>
 #include <string>
@@ -7,33 +7,32 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
-#include <vector>
-#include <migraphx/context.hpp>
-#include <migraphx/pass.hpp>
+
 #include <migraphx/config.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct program;
+struct operation;
+
 #ifdef DOXYGEN
 
-/// An interface for a compilation target
-struct target
+/// An interface for target-dependent model for the scheduler
+struct schedule_model
 {
-    /// A unique name used to identify the target
-    std::string name() const;
-    /**
-     * @brief The transformation pass to be run during compilation.
-     *
-     * @param ctx This is the target-dependent context that is created by `get_context`
-     * @return The passes to be ran
-     */
-    std::vector<pass> get_passes(context& ctx) const;
-    /**
-     * @brief Construct a context for the target.
-     * @return The context to be used during compilation and execution.
-     */
-    context get_context() const;
+    /// Get the number of concurrent instruction allowed
+    std::size_t concurrency() const;
+    /// Schedule a concurrent instruction
+    void sched(program& p, instruction_ref ins, std::size_t n) const;
+    // Insert necessary waits before an instruction
+    void wait(program& p, instruction_ref ins, std::size_t wait_id) const;
+    // Insert necessary records after an instruction
+    void record(program& p, instruction_ref ins, std::size_t wait_id) const;
+    /// Compute weights for an operation
+    std::size_t weight(const operation& op) const;
 };
 
 #else
@@ -41,22 +40,24 @@ struct target
 /*
  * Type-erased interface for:
  *
- * struct target
+ * struct schedule_model
  * {
- *      std::string name() const;
- *      std::vector<pass> get_passes(context& ctx) const;
- *      context get_context() const;
+ *      std::size_t concurrency() const;
+ *      void sched(program& p,instruction_ref ins,std::size_t n) const;
+ *      void wait(program& p,instruction_ref ins,std::size_t wait_id) const;
+ *      void record(program& p,instruction_ref ins,std::size_t wait_id) const;
+ *      std::size_t weight(const operation& op) const;
  * };
  *
  */
 
-struct target
+struct schedule_model
 {
     // Constructors
-    target() = default;
+    schedule_model() = default;
 
     template <typename PrivateDetailTypeErasedT>
-    target(PrivateDetailTypeErasedT value)
+    schedule_model(PrivateDetailTypeErasedT value)
         : private_detail_te_handle_mem_var(
               std::make_shared<private_detail_te_handle_type<
                   typename std::remove_reference<PrivateDetailTypeErasedT>::type>>(
@@ -66,7 +67,7 @@ struct target
 
     // Assignment
     template <typename PrivateDetailTypeErasedT>
-    target& operator=(PrivateDetailTypeErasedT value)
+    schedule_model& operator=(PrivateDetailTypeErasedT value)
     {
         if(private_detail_te_handle_mem_var.unique())
             *private_detail_te_handle_mem_var = std::forward<PrivateDetailTypeErasedT>(value);
@@ -107,25 +108,38 @@ struct target
             return private_detail_te_get_handle().type();
     }
 
-    std::string name() const
+    std::size_t concurrency() const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().name();
+        return (*this).private_detail_te_get_handle().concurrency();
     }
 
-    std::vector<pass> get_passes(context& ctx) const
+    void sched(program& p, instruction_ref ins, std::size_t n) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().get_passes(ctx);
+        (*this).private_detail_te_get_handle().sched(p, ins, n);
     }
 
-    context get_context() const
+    void wait(program& p, instruction_ref ins, std::size_t wait_id) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().get_context();
+        (*this).private_detail_te_get_handle().wait(p, ins, wait_id);
     }
 
-    friend bool is_shared(const target& private_detail_x, const target& private_detail_y)
+    void record(program& p, instruction_ref ins, std::size_t wait_id) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().record(p, ins, wait_id);
+    }
+
+    std::size_t weight(const operation& op) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().weight(op);
+    }
+
+    friend bool is_shared(const schedule_model& private_detail_x,
+                          const schedule_model& private_detail_y)
     {
         return private_detail_x.private_detail_te_handle_mem_var ==
                private_detail_y.private_detail_te_handle_mem_var;
@@ -138,9 +152,11 @@ struct target
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const                         = 0;
-        virtual std::vector<pass> get_passes(context& ctx) const = 0;
-        virtual context get_context() const                      = 0;
+        virtual std::size_t concurrency() const                                         = 0;
+        virtual void sched(program& p, instruction_ref ins, std::size_t n) const        = 0;
+        virtual void wait(program& p, instruction_ref ins, std::size_t wait_id) const   = 0;
+        virtual void record(program& p, instruction_ref ins, std::size_t wait_id) const = 0;
+        virtual std::size_t weight(const operation& op) const                           = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -171,15 +187,31 @@ struct target
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
-        std::string name() const override { return private_detail_te_value.name(); }
+        std::size_t concurrency() const override { return private_detail_te_value.concurrency(); }
 
-        std::vector<pass> get_passes(context& ctx) const override
+        void sched(program& p, instruction_ref ins, std::size_t n) const override
         {
 
-            return private_detail_te_value.get_passes(ctx);
+            private_detail_te_value.sched(p, ins, n);
         }
 
-        context get_context() const override { return private_detail_te_value.get_context(); }
+        void wait(program& p, instruction_ref ins, std::size_t wait_id) const override
+        {
+
+            private_detail_te_value.wait(p, ins, wait_id);
+        }
+
+        void record(program& p, instruction_ref ins, std::size_t wait_id) const override
+        {
+
+            private_detail_te_value.record(p, ins, wait_id);
+        }
+
+        std::size_t weight(const operation& op) const override
+        {
+
+            return private_detail_te_value.weight(op);
+        }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -217,19 +249,19 @@ struct target
 };
 
 template <typename ValueType>
-inline const ValueType* any_cast(const target* x)
+inline const ValueType* any_cast(const schedule_model* x)
 {
     return x->any_cast<ValueType>();
 }
 
 template <typename ValueType>
-inline ValueType* any_cast(target* x)
+inline ValueType* any_cast(schedule_model* x)
 {
     return x->any_cast<ValueType>();
 }
 
 template <typename ValueType>
-inline ValueType& any_cast(target& x)
+inline ValueType& any_cast(schedule_model& x)
 {
     auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
     if(y == nullptr)
@@ -238,7 +270,7 @@ inline ValueType& any_cast(target& x)
 }
 
 template <typename ValueType>
-inline const ValueType& any_cast(const target& x)
+inline const ValueType& any_cast(const schedule_model& x)
 {
     const auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
     if(y == nullptr)

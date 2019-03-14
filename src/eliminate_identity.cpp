@@ -14,20 +14,17 @@ void eliminate_identity::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
     {
-        if(ins->get_operator().name() == "identity")
+        std::vector<instruction_ref> new_ins_inputs = ins->inputs();
+        // check each input arg for identity ops,
+        // replace with the input of the respective identity
+        for(instruction_ref& input : new_ins_inputs)
         {
-            if(ins != p.end())
-            {
-                instruction_ref identity_input{ins->inputs().at(0)};
-                auto next_ins = std::next(ins);
-                std::vector<instruction_ref> next_ins_inputs{next_ins->inputs()};
-                std::replace_if(next_ins_inputs.begin(),
-                                next_ins_inputs.end(),
-                                [&](instruction_ref& input) { return input == ins; },
-                                identity_input);
-                p.replace_instruction(next_ins, next_ins->get_operator(), next_ins_inputs);
+            if (input->name() == "identity"){
+                input = input->inputs().at(0);
             }
         }
+        if (new_ins_inputs != ins->inputs())
+            p.replace_instruction(ins, ins->get_operator(), new_ins_inputs);
     }
 }
 

@@ -21,13 +21,7 @@ void eliminate_identity::apply(program& p) const
                 instruction_ref identity_input{ins->inputs().at(0)};
                 auto next_ins = std::next(ins);
                 std::vector<instruction_ref> next_ins_inputs{next_ins->inputs()};
-                for(auto& input : next_ins_inputs)
-                {
-                    if(input == ins)
-                    {
-                        input = identity_input;
-                    }
-                }
+                std::replace_if(next_ins_inputs.begin(), next_ins_inputs.end(), [&](instruction_ref& input) { return input == ins;}, identity_input);
                 p.replace_instruction(next_ins, next_ins->get_operator(), next_ins_inputs);
             }
         }

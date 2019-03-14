@@ -22,7 +22,8 @@ struct miopen_gemm
     private:
     void fill_result(const shape& output_shape, const argument& result, const argument& c) const;
 
-    argument batch_matmul(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
+    argument
+    batch_matmul(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
 };
 
 } // namespace gpu

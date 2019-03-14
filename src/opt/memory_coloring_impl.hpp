@@ -1,7 +1,23 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_MEMORY_COLORING_IMPL_HPP
 #define MIGRAPHX_GUARD_RTGLIB_MEMORY_COLORING_IMPL_HPP
-#include "common_header.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/pass_config.hpp>
 #include <migraphx/config.hpp>
+
+#include <set>
+#include <list>
+#include <vector>
+#include <queue>
+
+#ifdef MIGRAPHX_DEBUG_OPT
+#define MIGRAPHX_DEBUG(s) s
+#else
+#define MIGRAPHX_DEBUG(s)
+#endif // MIGRAPHX_DEBUG_OPT
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

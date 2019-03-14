@@ -894,7 +894,7 @@ struct dot
     shape compute_shape(std::vector<shape> inputs) const
     {
         // If there are 3 inputs, then A and B must be matrices and
-        // C is broadcastable to A * B
+        // C should be broadcastable to A * B
         if(inputs.size() == 3)
         {
             check_shapes{inputs, *this}.has(3).same_type();
@@ -911,13 +911,14 @@ struct dot
             }
 
             auto out_lens = a_lens;
-            out_lens[0]   = b_lens[0];
+            out_lens[1]   = b_lens[1];
 
             // check whether C is broadcastable to A * B
             auto c_lens = inputs[2].lens();
             if(c_lens.size() > 2 ||
-               (c_lens.size() >= 1 && (c_lens[0] != 1 && c_lens[0] != b_lens[0])) ||
-               (c_lens.size() == 2 && (c_lens[1] != 1 && c_lens[1] != a_lens[1])))
+               (c_lens.size() == 1 && (c_lens[0] != 1 && c_lens[0] != b_lens[1])) ||
+               (c_lens.size() == 2 && (c_lens[0] != 1 && c_lens[0] != a_lens[0])) ||
+               (c_lens.size() == 2 && (c_lens[1] != 1 && c_lens[1] != b_lens[1])))
             {
                 MIGRAPHX_THROW("DOT: C {" + to_string_range(c_lens) +
                                "} is not broadcastable to A * B {" + to_string_range(out_lens) +
@@ -955,9 +956,9 @@ struct dot
             is_b_appended = true;
         }
 
-        std::size_t dim_0 = a_lens.size() - 1;
-        std::size_t dim_1 = b_lens.size() - 2;
-        if(a_lens[dim_0] != b_lens[dim_1])
+        std::size_t dim_0 = a_lens.size() - 2;
+        std::size_t dim_1 = b_lens.size() - 1;
+        if(a_lens[dim_1] != b_lens[dim_0])
         {
             MIGRAPHX_THROW("DOT : dimension mismatch, operand A: {" + to_string_range(a.lens()) +
                            "}, cannot multiply operand B: {" + to_string_range(b.lens()) + "}");

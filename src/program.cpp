@@ -15,9 +15,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
-
 struct program_impl
 {
     // A list is used to keep references to an instruction stable
@@ -107,11 +104,9 @@ instruction_ref program::insert_instruction(instruction_ref ins,
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
            "Argument is not an exisiting instruction");
     assert(not starts_with(op.name(), "@"));
-    // TODO: Use move
     shape r     = compute_shape(op, args);
     auto result = impl->instructions.insert(ins, {op, r, std::move(args)});
     instruction::backreference(result);
-    // assert(result->inputs() == args);
     assert(result->valid(begin()));
     return result;
 }
@@ -510,6 +505,16 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 void program::debug_print() const { std::cout << *this << std::endl; }
 void program::debug_print(instruction_ref ins) const
 {
+    if(ins == this->end())
+    {
+        std::cout << "End instruction" << std::endl;
+        return;
+    }
+    if(not has_instruction(ins))
+    {
+        std::cout << "Instruction not part of program" << std::endl;
+        return;
+    }
     std::stringstream ss;
     print_program(ss, *this, [&](auto x, auto&& names) {
         if(x == ins)
@@ -530,6 +535,11 @@ void program::dry_run(std::unordered_map<std::string, argument> params) const
 {
     auto& ctx = this->impl->ctx;
     generic_eval(*this, ctx, std::move(params), [](auto&&...) { return argument{}; });
+}
+
+void program::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
+{
+    print_program(os, *this, [&](auto ins, auto&&) { a(ins); });
 }
 
 bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }

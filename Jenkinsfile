@@ -20,22 +20,22 @@ def rocmtestnode(variant, name, body) {
         }
     }
     node(name) {
-        env.HSA_ENABLE_SDMA=0
-        env.MIOPEN_DEBUG_GCN_ASM_KERNELS=0
-        stage("checkout ${variant}") {
-            checkout scm
-        }
-        stage("image ${variant}") {
-            try {
-                docker.build("${image}", '.')
-            } catch(Exception ex) {
-                docker.build("${image}", '--no-cache .')
-
+        withEnv(['HSA_ENABLE_SDMA=0', 'MIOPEN_DEBUG_GCN_ASM_KERNELS=0']) {
+            stage("checkout ${variant}") {
+                checkout scm
             }
-        }
-        withDockerContainer(image: image, args: '--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE') {
-            timeout(time: 1, unit: 'HOURS') {
-                body(cmake_build)
+            stage("image ${variant}") {
+                try {
+                    docker.build("${image}", '.')
+                } catch(Exception ex) {
+                    docker.build("${image}", '--no-cache .')
+
+                }
+            }
+            withDockerContainer(image: image, args: '--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE') {
+                timeout(time: 1, unit: 'HOURS') {
+                    body(cmake_build)
+                }
             }
         }
     }

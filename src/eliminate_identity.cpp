@@ -14,18 +14,8 @@ void eliminate_identity::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
     {
-        std::vector<instruction_ref> new_ins_inputs = ins->inputs();
-        // check each input arg for identity ops,
-        // replace with the input of the respective identity
-        for(instruction_ref& input : new_ins_inputs)
-        {
-            if(input->name() == "identity")
-            {
-                input = input->inputs().at(0);
-            }
-        }
-        if(new_ins_inputs != ins->inputs())
-            p.replace_instruction(ins, ins->get_operator(), new_ins_inputs);
+        if(ins->name() == "identity")
+            p.replace_instruction(ins, ins->inputs().front());
     }
 }
 

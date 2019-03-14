@@ -82,7 +82,7 @@ void migemm_impl(tensor_view<T> cmat,
     std::size_t nb_dims = b_lens.size();
     auto k              = a_lens[na_dims - 1];
 
-    assert(a_lens[na_dims - 1] == b_lens[nb_dims - 1]);
+    assert(a_lens[na_dims - 1] == b_lens[nb_dims - 2]);
     assert(c_lens[nc_dims - 2] == a_lens[na_dims - 2]);
     assert(c_lens[nc_dims - 1] == b_lens[nb_dims - 1]);
 
@@ -92,13 +92,13 @@ void migemm_impl(tensor_view<T> cmat,
     std::vector<std::size_t> b_idx(nb_dims);
 
     shape_for_each(cmat.get_shape(), [&](const auto& c_idx) {
-        std::transform(c_lens.begin() + a_len_diff,
-                       c_lens.end(),
+        std::transform(c_idx.begin() + a_len_diff,
+                       c_idx.end(),
                        a_lens.begin(),
                        a_idx.begin(),
                        [&](auto i, auto j) { return (j == 1) ? 0 : i; });
-        std::transform(c_lens.begin() + b_len_diff,
-                       c_lens.end(),
+        std::transform(c_idx.begin() + b_len_diff,
+                       c_idx.end(),
                        b_lens.begin(),
                        b_idx.begin(),
                        [&](auto i, auto j) { return (j == 1) ? 0 : i; });

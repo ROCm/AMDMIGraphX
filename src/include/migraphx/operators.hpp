@@ -882,7 +882,7 @@ struct dot
 
         if(b_size > n_dim)
         {
-            std::copy(b.rbegin() + n_dim, b.rend(), out_lens.rbegin() + n_dim);
+            std::copy(b.rbegin() + n_dim, b.rend(), out_lens.begin() + n_dim);
         }
 
         std::reverse(out_lens.begin(), out_lens.end());
@@ -956,8 +956,8 @@ struct dot
             is_b_appended = true;
         }
 
-        std::size_t dim_0 = a_lens.size() - 2;
-        std::size_t dim_1 = b_lens.size() - 1;
+        std::size_t dim_1 = a_lens.size() - 1;
+        std::size_t dim_0 = b_lens.size() - 2;
         if(a_lens[dim_1] != b_lens[dim_0])
         {
             MIGRAPHX_THROW("DOT : dimension mismatch, operand A: {" + to_string_range(a.lens()) +

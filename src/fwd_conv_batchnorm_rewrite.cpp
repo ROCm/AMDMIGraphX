@@ -16,10 +16,10 @@ void fwd_conv_batchnorm_rewrite::apply(program& p) const
         if(ins->name() != "batch_norm_inference")
             continue;
         // Get scale, bias, mean, variance from inputs
-        const auto& gamma    = ins->inputs()[1]->eval();
-        const auto& bias     = ins->inputs()[2]->eval();
-        const auto& mean     = ins->inputs()[3]->eval();
-        const auto& variance = ins->inputs()[4]->eval();
+        auto gamma    = ins->inputs()[1]->eval();
+        auto bias     = ins->inputs()[2]->eval();
+        auto mean     = ins->inputs()[3]->eval();
+        auto variance = ins->inputs()[4]->eval();
         if(any_of({gamma, bias, mean, variance}, [](auto arg) { return arg.empty(); }))
             continue;
 
@@ -27,7 +27,7 @@ void fwd_conv_batchnorm_rewrite::apply(program& p) const
         if(conv_ins->name() != "convolution")
             continue;
         // Get convolution weights
-        const auto& weights = conv_ins->inputs()[1]->eval();
+        auto weights = conv_ins->inputs()[1]->eval();
         if(weights.empty())
             continue;
         // Get epsilon

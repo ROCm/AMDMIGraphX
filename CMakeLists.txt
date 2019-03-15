@@ -22,7 +22,7 @@ find_package(ROCM REQUIRED)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 0.1)
+rocm_setup_version(VERSION 0.2)
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 

@@ -409,9 +409,7 @@ struct cpu_gemm
             visit_all(result, c)([&](auto output, auto input) {
                 for(std::size_t i = 0; i < m; i++)
                 {
-                    std::fill(output.begin() + i * n,
-                              (i + 1 == m) ? output.end() : output.begin() + ((i + 1) * n),
-                              input[i]);
+                    std::fill(output.begin() + i * n, output.begin() + ((i + 1) * n), input[i]);
                 }
             });
         }

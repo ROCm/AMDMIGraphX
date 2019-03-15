@@ -379,7 +379,7 @@ struct cpu_gemm
         if(out_lens == c_lens)
         {
             visit_all(result, c)([&](auto output, auto input) {
-                std::memcpy(output.data(), input.data(), c.get_shape().bytes());
+                std::copy(input.begin(), input.end(), output.begin());
             });
         }
         // need broadcast
@@ -397,7 +397,7 @@ struct cpu_gemm
             visit_all(result, c)([&](auto output, auto input) {
                 for(std::size_t i = 0; i < m; i++)
                 {
-                    std::memcpy((output.data() + i * n), input.data(), c.get_shape().bytes());
+                    std::copy(input.begin(), input.end(), output.begin() + i * n);
                 }
             });
         }
@@ -428,7 +428,7 @@ struct cpu_gemm
             if(op.beta == 0.0f)
             {
                 result.visit(
-                    [&](auto output) { std::memset(output.data(), 0, output_shape.bytes()); });
+                    [&](auto output) { std::fill(output.begin(), output.end(), 0); });
             }
             else
             {
@@ -445,11 +445,9 @@ struct cpu_gemm
         auto a_lens         = args[0].get_shape().lens();
         auto b_lens         = args[1].get_shape().lens();
         auto out_lens       = output_shape.lens();
-        bool is_a_prepended = false;
         shape::type_t t     = output_shape.type();
         if(a_lens.size() == 1)
         {
-            is_a_prepended = true;
             a_lens.insert(a_lens.begin(), 1);
             out_lens.push_back(1);
             if(out_lens.size() > 1)
@@ -458,10 +456,8 @@ struct cpu_gemm
             }
         }
 
-        bool is_b_appended = false;
         if(b_lens.size() == 1)
         {
-            is_b_appended = true;
             b_lens.push_back(1);
             out_lens.push_back(1);
         }

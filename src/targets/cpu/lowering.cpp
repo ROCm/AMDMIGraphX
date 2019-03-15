@@ -427,8 +427,7 @@ struct cpu_gemm
             // no need to consider the value of args[2]
             if(op.beta == 0.0f)
             {
-                result.visit(
-                    [&](auto output) { std::fill(output.begin(), output.end(), 0); });
+                result.visit([&](auto output) { std::fill(output.begin(), output.end(), 0); });
             }
             else
             {
@@ -442,10 +441,10 @@ struct cpu_gemm
 
         // 2 input cases
         // first argument is 1-dim, pre-pend 1 at beginning
-        auto a_lens         = args[0].get_shape().lens();
-        auto b_lens         = args[1].get_shape().lens();
-        auto out_lens       = output_shape.lens();
-        shape::type_t t     = output_shape.type();
+        auto a_lens     = args[0].get_shape().lens();
+        auto b_lens     = args[1].get_shape().lens();
+        auto out_lens   = output_shape.lens();
+        shape::type_t t = output_shape.type();
         if(a_lens.size() == 1)
         {
             a_lens.insert(a_lens.begin(), 1);

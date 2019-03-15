@@ -9,7 +9,6 @@
 #include "test.hpp"
 #include <migraphx/half.hpp>
 
-
 template <class T>
 void matmul_test()
 {

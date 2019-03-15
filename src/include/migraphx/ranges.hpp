@@ -71,6 +71,30 @@ bool all_of(const std::initializer_list<T>& c, const Predicate& p)
     return std::all_of(c.begin(), c.end(), p);
 }
 
+template <class C, class Predicate>
+bool any_of(const C& c, const Predicate& p)
+{
+    return std::any_of(c.begin(), c.end(), p);
+}
+
+template <class T, class Predicate>
+bool any_of(const std::initializer_list<T>& c, const Predicate& p)
+{
+    return std::any_of(c.begin(), c.end(), p);
+}
+
+template <class C, class Predicate>
+bool none_of(const C& c, const Predicate& p)
+{
+    return std::none_of(c.begin(), c.end(), p);
+}
+
+template <class T, class Predicate>
+bool none_of(const std::initializer_list<T>& c, const Predicate& p)
+{
+    return std::none_of(c.begin(), c.end(), p);
+}
+
 template <class Range, class Iterator>
 void copy(Range&& r, Iterator it)
 {

@@ -8,10 +8,7 @@
 #include <test.hpp>
 #include <migraphx/verify.hpp>
 
-bool is_batch_norm(migraphx::instruction& ins)
-{
-    return ins.name() == "batch_norm_inference";
-}
+bool is_batch_norm(migraphx::instruction& ins) { return ins.name() == "batch_norm_inference"; }
 
 TEST_CASE(fwd_conv_batchnorm_rewrite_test)
 {
@@ -132,9 +129,7 @@ TEST_CASE(as_literal)
 
     auto result1 = p1.eval({});
     auto result2 = p2.eval({});
-    visit_all(result1, result2)([&](auto r1, auto r2) {
-        EXPECT(migraphx::verify_range(r1, r2));
-    });
+    visit_all(result1, result2)([&](auto r1, auto r2) { EXPECT(migraphx::verify_range(r1, r2)); });
 }
 
 TEST_CASE(literal_reshape)
@@ -145,7 +140,7 @@ TEST_CASE(literal_reshape)
 
     auto create_program = [&]() {
         migraphx::program p;
-        auto reshape = [&](auto ins){
+        auto reshape = [&](auto ins) {
             return p.add_instruction(migraphx::op::reshape{{1, 4, 1, 1}}, ins);
         };
 
@@ -160,7 +155,6 @@ TEST_CASE(literal_reshape)
         return p;
     };
 
-
     migraphx::program p1 = create_program();
     migraphx::program p2 = create_program();
     migraphx::fwd_conv_batchnorm_rewrite opt;
@@ -173,9 +167,7 @@ TEST_CASE(literal_reshape)
 
     auto result1 = p1.eval({});
     auto result2 = p2.eval({});
-    visit_all(result1, result2)([&](auto r1, auto r2) {
-        EXPECT(migraphx::verify_range(r1, r2));
-    });
+    visit_all(result1, result2)([&](auto r1, auto r2) { EXPECT(migraphx::verify_range(r1, r2)); });
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

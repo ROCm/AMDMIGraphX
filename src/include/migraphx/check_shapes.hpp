@@ -18,9 +18,8 @@ struct check_shapes
     {
     }
 
-    template<class Op>
-    check_shapes(const shape* b, const shape* e, const Op& op)
-    : begin(b), end(e), name(op.name())
+    template <class Op>
+    check_shapes(const shape* b, const shape* e, const Op& op) : begin(b), end(e), name(op.name())
     {
     }
 

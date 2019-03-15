@@ -926,7 +926,7 @@ struct dot
 
                 // C should be the same shape as A * B
                 auto c_lens = inputs[2].lens();
-                if(!std::equal(c_lens.begin(), c_lens.end(), out_lens.begin()))
+                if(!std::equal(out_lens.begin(), out_lens.end(), c_lens.begin()))
                 {
                     MIGRAPHX_THROW("DOT: dimension mismatch, operand C: {" +
                                    to_string_range(c_lens) + "}, cannot add to operand A * B: {" +

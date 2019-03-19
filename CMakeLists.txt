@@ -22,7 +22,7 @@ find_package(ROCM REQUIRED)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 0.1)
+rocm_setup_version(VERSION 0.2)
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 
@@ -38,6 +38,8 @@ if(CMAKE_CXX_COMPILER MATCHES ".*hcc")
 else()
     set(MIGRAPHX_ENABLE_GPU Off CACHE BOOL "")
 endif()
+
+set(MIGRAPHX_ENABLE_TF Off CACHE BOOL "")
 
 add_compile_options(-std=c++14)
 

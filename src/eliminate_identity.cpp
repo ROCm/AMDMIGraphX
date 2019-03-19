@@ -40,7 +40,7 @@ void eliminate_identity::apply(program& p) const
         if(ins == p.begin())
             continue;
         const auto i = std::prev(ins);
-        
+
         if(i->name() == "identity")
         {
             p.replace_instruction(i, i->inputs().front());
@@ -57,7 +57,7 @@ void eliminate_identity::apply(program& p) const
                     // since this is the last instruction, removing it only
                     // requires changing "last" and calling remove below
                     last = std::prev(last);
-                }  
+                }
             }
             break;
         }

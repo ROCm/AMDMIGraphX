@@ -61,7 +61,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         eliminate_workspace{},
         eliminate_allocation{"hip::allocate"},
         check_context<context>{},
-        dead_code_elimination{}
+        dead_code_elimination{},
+        eliminate_identity{}
     };
     // clang-format on
 }

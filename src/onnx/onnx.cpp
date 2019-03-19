@@ -1206,7 +1206,7 @@ struct onnx_parser
             std::vector<instruction_ref> result;
             if(ops.count(node.op_type()) == 0)
             {
-                result.push_back(prog.add_instruction(unknown{node.op_type()}, args));
+                result.push_back(prog.add_instruction(op::unknown{node.op_type()}, args));
             }
             else
             {

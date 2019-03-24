@@ -392,8 +392,8 @@ TEST_CASE(unknown_test)
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
     auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 4}});
-    auto l2 = p.add_instruction(migraphx::unknown{"Unknown"}, l0, l1);
-    p.add_instruction(migraphx::unknown{"Unknown"}, l2);
+    auto l2 = p.add_instruction(migraphx::op::unknown{"Unknown"}, l0, l1);
+    p.add_instruction(migraphx::op::unknown{"Unknown"}, l2);
     auto prog = migraphx::parse_onnx("unknown_test.onnx");
 
     EXPECT(p == prog);

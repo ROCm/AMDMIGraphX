@@ -919,7 +919,7 @@ struct dot
                 std::size_t dim_0 = a_lens.size() - 2;
                 std::size_t dim_1 = a_lens.size() - 1;
                 if(a_lens[dim_1] != b_lens[dim_0])
-                    MIGRAPHX_THROW("Inner dimensions do not match, operand A: {" +
+                    MIGRAPHX_THROW("DOT: inner dimensions do not match, operand A: {" +
                                    to_string_range(a_lens) + "}, operand B: {" +
                                    to_string_range(b_lens) + "}");
                 out_lens[dim_1] = b_lens[dim_1];

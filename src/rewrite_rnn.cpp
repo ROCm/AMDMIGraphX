@@ -519,13 +519,13 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
     if(bias != prog.end())
     {
         auto sbias = prog.insert_instruction(ins, op::squeeze{{0}}, bias);
-        wbz   = prog.insert_instruction(ins, op::slice{{0}, {0}, {hs}}, sbias);
-        wbr   = prog.insert_instruction(ins, op::slice{{0}, {hs}, {2 * hs}}, sbias);
-        wbh   = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, sbias);
+        wbz        = prog.insert_instruction(ins, op::slice{{0}, {0}, {hs}}, sbias);
+        wbr        = prog.insert_instruction(ins, op::slice{{0}, {hs}, {2 * hs}}, sbias);
+        wbh        = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, sbias);
 
-        rbz  = prog.insert_instruction(ins, op::slice{{0}, {3 * hs}, {4 * hs}}, sbias);
-        rbr  = prog.insert_instruction(ins, op::slice{{0}, {4 * hs}, {5 * hs}}, sbias);
-        rbh  = prog.insert_instruction(ins, op::slice{{0}, {5 * hs}, {6 * hs}}, sbias);
+        rbz = prog.insert_instruction(ins, op::slice{{0}, {3 * hs}, {4 * hs}}, sbias);
+        rbr = prog.insert_instruction(ins, op::slice{{0}, {4 * hs}, {5 * hs}}, sbias);
+        rbh = prog.insert_instruction(ins, op::slice{{0}, {5 * hs}, {6 * hs}}, sbias);
     }
 
     for(long i = 0; i < seq_len; i++)
@@ -537,7 +537,7 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
         // equation f(xt*(Wz^T) + Ht-1 * (Rz^T) + Wbz + Rbz)
         instruction_ref xt_wz{};
         instruction_ref ht_rz{};
-        if (bias != prog.end())
+        if(bias != prog.end())
         {
             xt_wz = prog.insert_instruction(ins, op::dot{}, xt, tran_wz, wbz);
             ht_rz = prog.insert_instruction(ins, op::dot{}, sih, tran_rz, rbz);
@@ -548,12 +548,12 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
             ht_rz = prog.insert_instruction(ins, op::dot{}, sih, tran_rz);
         }
         auto xht_z = prog.insert_instruction(ins, op::add{}, xt_wz, ht_rz);
-        auto zt = prog.insert_instruction(ins, actv_func1, xht_z);
+        auto zt    = prog.insert_instruction(ins, actv_func1, xht_z);
 
         // equation f(Xt*(Wr^T) + Ht-1*(Rr^T) + Wbr + Rbr)
         instruction_ref xt_wr{};
         instruction_ref ht_rr{};
-        if (bias != prog.end())
+        if(bias != prog.end())
         {
             xt_wr = prog.insert_instruction(ins, op::dot{}, xt, tran_wr, wbr);
             ht_rr = prog.insert_instruction(ins, op::dot{}, sih, tran_rr, rbr);
@@ -564,7 +564,7 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
             ht_rr = prog.insert_instruction(ins, op::dot{}, sih, tran_rr);
         }
         auto xht_r = prog.insert_instruction(ins, op::add{}, xt_wr, ht_rr);
-        auto rt = prog.insert_instruction(ins, actv_func1, xht_r);
+        auto rt    = prog.insert_instruction(ins, actv_func1, xht_r);
 
         instruction_ref xht_h;
         if(linear_before_reset == 0)
@@ -573,17 +573,17 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
             instruction_ref xt_wh{};
             instruction_ref rt_rh{};
             auto rt_ht1 = prog.insert_instruction(ins, op::mul{}, rt, sih);
-            if (bias != prog.end())
+            if(bias != prog.end())
             {
-                xt_wh  = prog.insert_instruction(ins, op::dot{}, xt, tran_wh, wbh);
-                rt_rh  = prog.insert_instruction(ins, op::dot{}, rt_ht1, tran_rh, rbh);
+                xt_wh = prog.insert_instruction(ins, op::dot{}, xt, tran_wh, wbh);
+                rt_rh = prog.insert_instruction(ins, op::dot{}, rt_ht1, tran_rh, rbh);
             }
             else
             {
-                xt_wh  = prog.insert_instruction(ins, op::dot{}, xt, tran_wh);
-                rt_rh  = prog.insert_instruction(ins, op::dot{}, rt_ht1, tran_rh);                
+                xt_wh = prog.insert_instruction(ins, op::dot{}, xt, tran_wh);
+                rt_rh = prog.insert_instruction(ins, op::dot{}, rt_ht1, tran_rh);
             }
-            xht_h       = prog.insert_instruction(ins, op::add{}, xt_wh, rt_rh);
+            xht_h = prog.insert_instruction(ins, op::add{}, xt_wh, rt_rh);
         }
         else
         {
@@ -598,9 +598,9 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
             else
             {
                 xt_wh  = prog.insert_instruction(ins, op::dot{}, xt, tran_wh);
-                ht1_rh = prog.insert_instruction(ins, op::dot{}, sih, tran_rh);                
+                ht1_rh = prog.insert_instruction(ins, op::dot{}, sih, tran_rh);
             }
-            
+
             auto rt_rh = prog.insert_instruction(ins, op::mul{}, rt, ht1_rh);
             xht_h      = prog.insert_instruction(ins, op::add{}, xt_wh, rt_rh);
         }

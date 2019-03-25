@@ -536,13 +536,13 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
 
         instruction_ref zt{};
         instruction_ref ht{};
-        if (bias != prog.end())
+        if(bias != prog.end())
         {
             // equation f(xt*(Wz^T) + Ht-1 * (Rz^T) + Wbz + Rbz)
             auto xt_wz = prog.insert_instruction(ins, op::dot{}, xt, tran_wz, wbz);
             auto ht_rz = prog.insert_instruction(ins, op::dot{}, sih, tran_rz, rbz);
             auto xht_z = prog.insert_instruction(ins, op::add{}, xt_wz, ht_rz);
-            zt    = prog.insert_instruction(ins, actv_func1, xht_z);
+            zt         = prog.insert_instruction(ins, actv_func1, xht_z);
 
             // equation f(Xt*(Wr^T) + Ht-1*(Rr^T) + Wbr + Rbr)
             auto xt_wr = prog.insert_instruction(ins, op::dot{}, xt, tran_wr, wbr);
@@ -556,15 +556,15 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
             {
                 // equation g(Xt*(Wh^T) + (rt (.) Ht-1)*(Rh^T) + Rbh + Wbh)
                 auto rt_ht1 = prog.insert_instruction(ins, op::mul{}, rt, sih);
-                auto rt_rh = prog.insert_instruction(ins, op::dot{}, rt_ht1, tran_rh, rbh);
-                xht_h = prog.insert_instruction(ins, op::add{}, xt_wh, rt_rh);
+                auto rt_rh  = prog.insert_instruction(ins, op::dot{}, rt_ht1, tran_rh, rbh);
+                xht_h       = prog.insert_instruction(ins, op::add{}, xt_wh, rt_rh);
             }
             else
             {
                 // equation ht = g(Xt*(Wh^T) + (rt (.) (Ht-1*(Rh^T) + Rbh)) + Wbh)
                 auto ht1_rh = prog.insert_instruction(ins, op::dot{}, sih, tran_rh, rbh);
-                auto rt_rh = prog.insert_instruction(ins, op::mul{}, rt, ht1_rh);
-                xht_h      = prog.insert_instruction(ins, op::add{}, xt_wh, rt_rh);
+                auto rt_rh  = prog.insert_instruction(ins, op::mul{}, rt, ht1_rh);
+                xht_h       = prog.insert_instruction(ins, op::add{}, xt_wh, rt_rh);
             }
             ht = prog.insert_instruction(ins, actv_func2, xht_h);
         }
@@ -572,9 +572,9 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
         {
             // equation f(xt*(Wz^T) + Ht-1 * (Rz^T) + Wbz + Rbz)
             auto xt_wz = prog.insert_instruction(ins, op::dot{}, xt, tran_wz);
-            auto ht_rz = prog.insert_instruction(ins, op::dot{}, sih, tran_rz);            
+            auto ht_rz = prog.insert_instruction(ins, op::dot{}, sih, tran_rz);
             auto xht_z = prog.insert_instruction(ins, op::add{}, xt_wz, ht_rz);
-            zt    = prog.insert_instruction(ins, actv_func1, xht_z);
+            zt         = prog.insert_instruction(ins, actv_func1, xht_z);
 
             // equation f(Xt*(Wr^T) + Ht-1*(Rr^T) + Wbr + Rbr)
             auto xt_wr = prog.insert_instruction(ins, op::dot{}, xt, tran_wr);
@@ -588,18 +588,17 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
             {
                 // equation g(Xt*(Wh^T) + (rt (.) Ht-1)*(Rh^T) + Rbh + Wbh)
                 auto rt_ht1 = prog.insert_instruction(ins, op::mul{}, rt, sih);
-                auto rt_rh = prog.insert_instruction(ins, op::dot{}, rt_ht1, tran_rh);
-                xht_h = prog.insert_instruction(ins, op::add{}, xt_wh, rt_rh);
+                auto rt_rh  = prog.insert_instruction(ins, op::dot{}, rt_ht1, tran_rh);
+                xht_h       = prog.insert_instruction(ins, op::add{}, xt_wh, rt_rh);
             }
             else
             {
                 // equation ht = g(Xt*(Wh^T) + (rt (.) (Ht-1*(Rh^T) + Rbh)) + Wbh)
                 auto ht1_rh = prog.insert_instruction(ins, op::dot{}, sih, tran_rh);
-                auto rt_rh = prog.insert_instruction(ins, op::mul{}, rt, ht1_rh);
-                xht_h      = prog.insert_instruction(ins, op::add{}, xt_wh, rt_rh);
+                auto rt_rh  = prog.insert_instruction(ins, op::mul{}, rt, ht1_rh);
+                xht_h       = prog.insert_instruction(ins, op::add{}, xt_wh, rt_rh);
             }
             ht = prog.insert_instruction(ins, actv_func2, xht_h);
-
         }
 
         // equation Ht = (1 - zt) (.) ht + zt (.) Ht-1

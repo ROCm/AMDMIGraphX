@@ -30,7 +30,7 @@ void eliminate_identity::apply(program& p) const
         {
             if(ins->name() == "identity")
             {
-                const instruction_ref& identity_input = i->inputs().front();
+                const instruction_ref& identity_input = ins->inputs().front();
                 if(identity_input->outputs().size() == 1)
                 {
                     p.move_instruction(identity_input, i);

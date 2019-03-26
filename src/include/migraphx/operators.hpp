@@ -909,7 +909,7 @@ struct dot
             auto t        = inputs[0].type();
             if(inputs[1].lens().size() > 2)
             {
-                if(a_lens.size() != b_lens.size() || 
+                if(a_lens.size() != b_lens.size() ||
                    !std::equal(a_lens.rbegin() + 2, a_lens.rend(), b_lens.rbegin() + 2))
                 {
                     MIGRAPHX_THROW("DOT: dimension mismatch, operand A: {" +

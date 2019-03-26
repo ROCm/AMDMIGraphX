@@ -442,16 +442,6 @@ TEST_CASE(gemm_3args)
                                 0.21540723,
                                 -1.10459009,
                                 0.45580331};
-        std::vector<float> c = {-0.80473623,
-                                0.35154171,
-                                -2.73077756,
-                                -0.09093885,
-                                -1.88850472,
-                                -0.03375556,
-                                -0.41798276,
-                                2.87368099,
-                                2.11031439};
-
         migraphx::shape a_shape{migraphx::shape::float_type, {3, 4}};
         auto al = p.add_literal(migraphx::literal{a_shape, a});
         migraphx::shape b_shape{migraphx::shape::float_type, {4, 3}};

@@ -909,7 +909,8 @@ struct dot
             auto t        = inputs[0].type();
             if(inputs[1].lens().size() > 2)
             {
-                if(!std::equal(a_lens.rbegin() + 2, a_lens.rend(), b_lens.rbegin() + 2))
+                if(a_lens.size() != b_lens.size() || 
+                   !std::equal(a_lens.rbegin() + 2, a_lens.rend(), b_lens.rbegin() + 2))
                 {
                     MIGRAPHX_THROW("DOT: dimension mismatch, operand A: {" +
                                    to_string_range(a_lens) + "}, cannot multiply operand B: {" +
@@ -926,7 +927,7 @@ struct dot
 
                 // C should be the same shape as A * B
                 auto c_lens = inputs[2].lens();
-                if(!std::equal(out_lens.begin(), out_lens.end(), c_lens.begin()))
+                if(c_lens != out_lens)
                 {
                     MIGRAPHX_THROW("DOT: dimension mismatch, operand C: {" +
                                    to_string_range(c_lens) + "}, cannot add to operand A * B: {" +

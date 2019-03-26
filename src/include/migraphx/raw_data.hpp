@@ -209,13 +209,14 @@ template <class T>
 auto visit_all(const std::vector<T>& x)
 {
     auto&& s = x.front().get_shape();
-    if(!std::all_of(x.begin(), x.end(), [&](const T& y) { return y.get_shape().type() == s.type(); }))
+    if(!std::all_of(
+           x.begin(), x.end(), [&](const T& y) { return y.get_shape().type() == s.type(); }))
         MIGRAPHX_THROW("Types must be the same");
     return [&](auto v) {
         s.visit_type([&](auto as) {
             using type = typename decltype(as)::type;
             std::vector<tensor_view<type>> result;
-            for(const auto& y:x)
+            for(const auto& y : x)
                 result.push_back(make_view(y.get_shape(), as.from(y.data())));
             v(result);
         });

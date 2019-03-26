@@ -714,6 +714,17 @@ struct pad
         shape s{inputs.front().type(), rdims};
         return s;
     }
+
+    bool symmetric() const
+    {
+        std::size_t num_dims = pads.size()/2;
+        for(std::size_t i = 0; i < num_dims; i++)
+        {
+            if(pads.at(i) != pads.at(i+num_dims))
+                return false;
+        }
+        return true;
+    }
 };
 
 struct as_shape

@@ -17,6 +17,7 @@ struct program;
 struct schedule
 {
     schedule_model model{};
+    bool enable = true;
     std::string name() const { return "schedule"; }
     void apply(program& p) const;
 };

@@ -375,6 +375,24 @@ TEST_CASE(logsoftmax)
 TEST_CASE(matmul)
 {
     {
+        migraphx::shape s_m1{migraphx::shape::float_type};
+        migraphx::shape s_m2{migraphx::shape::float_type, {4}};
+        throws_shape(migraphx::op::dot{}, s_m1, s_m2);
+    }
+
+    {
+        migraphx::shape s_m1{migraphx::shape::float_type, {5}};
+        migraphx::shape s_m2{migraphx::shape::float_type};
+        throws_shape(migraphx::op::dot{}, s_m1, s_m2);
+    }
+
+    {
+        migraphx::shape s_m1{migraphx::shape::float_type};
+        migraphx::shape s_m2{migraphx::shape::float_type};
+        throws_shape(migraphx::op::dot{}, s_m1, s_m2);
+    }
+
+    {
         migraphx::shape s_m1{migraphx::shape::float_type, {5}};
         migraphx::shape s_m2{migraphx::shape::float_type, {5}};
         expect_shape(migraphx::shape{migraphx::shape::float_type}, migraphx::op::dot{}, s_m1, s_m2);
@@ -623,6 +641,13 @@ TEST_CASE(gemm)
     }
 
     {
+        migraphx::shape s_m1{migraphx::shape::float_type, {4, 6}};
+        migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
+        migraphx::shape s_m3{migraphx::shape::float_type, {4, 8}};
+        throws_shape(migraphx::op::dot{}, s_m1, s_m2, s_m3);
+    }
+
+    {
         migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
         migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
         migraphx::shape s_m3{migraphx::shape::float_type, {4}};
@@ -681,6 +706,13 @@ TEST_CASE(gemm)
                      s_m1,
                      s_m2,
                      s_m3);
+    }
+
+    {
+        migraphx::shape s_m1{migraphx::shape::float_type, {1, 4, 6}};
+        migraphx::shape s_m2{migraphx::shape::float_type, {1, 5, 8}};
+        migraphx::shape s_m3{migraphx::shape::float_type, {1, 4, 8}};
+        throws_shape(migraphx::op::dot{}, s_m1, s_m2, s_m3);
     }
 
     {

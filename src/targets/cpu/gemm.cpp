@@ -57,6 +57,8 @@ void migemm_impl(tensor_view<T> cmat,
             auto c = make_mat(cmat);
             c      = beta * c;
 
+            // This is a simple optimization to avoid
+            // compute A * B if alpha is 0.0
             if(alpha != 0.0)
             {
                 c = c + alpha * a * b;

@@ -16,18 +16,23 @@ argument concat(hipStream_t stream,
                 std::vector<std::size_t> offsets_vec)
 {
     static constexpr const std::size_t limit = 6;
-    if (offsets_vec.size() > limit)
+    if(offsets_vec.size() > limit)
         MIGRAPHX_THROW("Too many arguments to concat");
-    std::size_t nelements = std::max_element(args_vec.begin(), std::prev(args_vec.end()), by(std::less<>{}, [&](auto&& x) { return x.get_shape().elements(); }))->get_shape().elements();
+    std::size_t nelements =
+        std::max_element(args_vec.begin(),
+                         std::prev(args_vec.end()),
+                         by(std::less<>{}, [&](auto&& x) { return x.get_shape().elements(); }))
+            ->get_shape()
+            .elements();
     auto offsets = to_hip_vector<limit>(offsets_vec);
-    hip_visit_all<limit+1>(args_vec)([&](auto args) {
-        auto output = args.back();
+    hip_visit_all<limit + 1>(args_vec)([&](auto args) {
+        auto output  = args.back();
         auto ninputs = args.size() - 1;
         gs_launch(stream, nelements)([=](auto i) {
-            for(std::size_t j = 0;j < ninputs;j++)
+            for(std::size_t j = 0; j < ninputs; j++)
             {
                 auto&& arg = args[j];
-                if (i >= arg.size())
+                if(i >= arg.size())
                     continue;
                 auto idx = output.get_shape().index(arg.get_shape().multi(i));
                 output.data()[idx + offsets[j]] = arg.data()[i];

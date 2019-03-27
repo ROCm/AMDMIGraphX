@@ -124,21 +124,18 @@ hip_vector<T, N> to_hip_vector(const std::vector<T>& x)
     return result;
 }
 
-
-template<std::size_t N>
+template <std::size_t N>
 struct hip_shape
 {
-    using hip_index = hip_array<std::size_t, N>;
+    using hip_index                   = hip_array<std::size_t, N>;
     hip_array<std::size_t, N> lens    = {};
     hip_array<std::size_t, N> strides = {};
-    std::size_t elements               = 0;
-    bool standard                      = false;
+    std::size_t elements              = 0;
+    bool standard                     = false;
 
     __device__ __host__ hip_shape() = default;
 
-    hip_shape(const shape& s)
-        : elements(s.elements()),
-          standard(s.standard())
+    hip_shape(const shape& s) : elements(s.elements()), standard(s.standard())
     {
         assert(s.lens().size() == N);
         assert(s.strides().size() == N);
@@ -240,7 +237,7 @@ auto hip_visit_all(T&& x, Ts&&... xs)
 {
     return [&](auto f) {
         visit_tensor_size(x.get_shape().lens().size(), [&](auto dim) {
-            visit_all(x, xs...)([&](auto... vs) { f(make_hip_tensor_view<dim>(vs)...); }); 
+            visit_all(x, xs...)([&](auto... vs) { f(make_hip_tensor_view<dim>(vs)...); });
         });
     };
 }
@@ -250,7 +247,7 @@ auto hip_visit_all(const std::vector<T>& x)
 {
     return [&](auto f) {
         visit_tensor_size(x.front().get_shape().lens().size(), [&](auto dim) {
-            visit_all(x)([&](auto&& v) { f(make_hip_tensor_views<dim, N>(v)); }); 
+            visit_all(x)([&](auto&& v) { f(make_hip_tensor_views<dim, N>(v)); });
         });
     };
 }

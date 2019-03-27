@@ -9,13 +9,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-#if 0
+#if 1
 argument concat(hipStream_t stream,
                 const migraphx::shape&,
                 std::vector<migraphx::argument> args_vec,
                 std::vector<std::size_t> offsets_vec)
 {
-    static constexpr const std::size_t limit = 10;
+    static constexpr const std::size_t limit = 6;
     if (offsets_vec.size() > limit)
         MIGRAPHX_THROW("Too many arguments to concat");
     std::size_t nelements = std::max_element(args_vec.begin(), std::prev(args_vec.end()), by(std::less<>{}, [&](auto&& x) { return x.get_shape().elements(); }))->get_shape().elements();
@@ -23,7 +23,7 @@ argument concat(hipStream_t stream,
     hip_visit_all<limit+1>(args_vec)([&](auto args) {
         auto output = args.back();
         auto ninputs = args.size() - 1;
-        gs_launch(stream, nelements)([=](auto x) {
+        gs_launch(stream, nelements)([=](auto i) {
             for(std::size_t j = 0;j < ninputs;j++)
             {
                 auto&& arg = args[j];

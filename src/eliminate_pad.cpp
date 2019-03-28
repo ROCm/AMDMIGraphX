@@ -1,4 +1,4 @@
-#include <migraphx/pad_rewrite.hpp>
+#include <migraphx/eliminate_pad.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/operators.hpp>
@@ -8,7 +8,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void pad_rewrite::apply(program& p) const
+void eliminate_pad::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
     {
@@ -28,7 +28,7 @@ void pad_rewrite::apply(program& p) const
 }
 
 template <class T>
-void pad_rewrite::update_op(T,
+void eliminate_pad::update_op(T,
                             const instruction_ref& input,
                             const instruction_ref& ins,
                             program& p) const

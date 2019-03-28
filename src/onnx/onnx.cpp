@@ -501,8 +501,7 @@ struct onnx_parser
                 out_lens.back() = l2->get_shape().lens().back();
                 auto l3         = args[2];
                 if(!std::equal(
-                       out_lens.begin(), out_lens.end(), args[2]->get_shape().lens().begin()) &&
-                   out_lens.size() > 2)
+                       out_lens.begin(), out_lens.end(), args[2]->get_shape().lens().begin()))
                 {
                     l3 = prog.add_instruction(op::multibroadcast{out_lens}, args[2]);
                 }

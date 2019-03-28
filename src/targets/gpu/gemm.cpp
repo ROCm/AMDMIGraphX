@@ -168,76 +168,12 @@ rocblas_half to_rocblas_type(half x) { return reinterpret_cast<const rocblas_hal
 
 shape miopen_gemm::compute_shape(const std::vector<shape>& inputs) const
 {
-    std::vector<shape> orig_inputs(inputs.begin(), inputs.begin() + inputs.size() - 1);
-    return op.compute_shape(orig_inputs);
-}
-
-void miopen_gemm::fill_result(const shape& output_shape,
-                              const argument& result,
-                              const argument& c) const
-{
-    auto out_lens  = output_shape.lens();
-    auto c_lens    = c.get_shape().lens();
-    auto type_size = output_shape.type_size();
-    if(output_shape == c.get_shape())
+    std::vector<shape> input_shapes(inputs.begin(), inputs.begin() + inputs.size() - 1);
+    if (input_shapes.size() == 3)
     {
-        output_shape.visit_type([&](auto as) {
-            auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
-            hipMemcpy(
-                to_pointer(result), to_pointer(c), output_shape.bytes(), hipMemcpyDeviceToDevice);
-        });
+        check_shapes{{input_shapes.back()}}.not_broadcasted();
     }
-    else if(c.single())
-    {
-        output_shape.visit_type([&](auto as) {
-            auto to_pointer = [&](auto&& arg, std::size_t offset_byte = 0) {
-                return to_rocblas_type(as.from(arg.data() + offset_byte));
-            };
-
-            for(std::size_t i = 0; i < output_shape.elements(); ++i)
-            {
-                hipMemcpy(to_pointer(result, i * type_size),
-                          to_pointer(c),
-                          c.get_shape().bytes(),
-                          hipMemcpyDeviceToDevice);
-            }
-        });
-    }
-    else if(c_lens.size() == 1 || (c_lens.size() == 2 && c_lens[1] == out_lens[1]))
-    {
-        auto m = out_lens[0];
-        auto n = out_lens[1];
-        output_shape.visit_type([&](auto as) {
-            auto to_pointer = [&](auto&& arg, std::size_t offset = 0) {
-                return to_rocblas_type(as.from(arg.data() + offset));
-            };
-
-            for(std::size_t i = 0; i < m; ++i)
-            {
-                hipMemcpy(to_pointer(result, i * n * type_size),
-                          to_pointer(c),
-                          c.get_shape().bytes(),
-                          hipMemcpyDeviceToDevice);
-            }
-        });
-    }
-    // case of c_lens.size() == 2 && c_len[0] == out_lens[0]
-    else
-    {
-        output_shape.visit_type([&](auto as) {
-            auto to_pointer = [&](auto&& arg, std::size_t offset) {
-                return to_rocblas_type(as.from(arg.data() + offset));
-            };
-
-            for(std::size_t i = 0; i < output_shape.elements(); ++i)
-            {
-                hipMemcpy(to_pointer(result, i * type_size),
-                          to_pointer(c, i / out_lens[1] * type_size),
-                          type_size,
-                          hipMemcpyDeviceToDevice);
-            }
-        });
-    }
+    return op.compute_shape(input_shapes);
 }
 
 argument miopen_gemm::batch_matmul(context& ctx,
@@ -369,7 +305,13 @@ argument miopen_gemm::compute(context& ctx,
     bool is_3inputs = (args.size() == 4);
     if(is_3inputs)
     {
-        fill_result(output_shape, args[3], args[2]);
+        output_shape.visit_type([&](auto as) {
+            auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
+            hipMemcpy(
+                to_pointer(args[3]), to_pointer(args[2]), output_shape.bytes(), hipMemcpyDeviceToDevice);
+        });
+
+        //fill_result(output_shape, args[3], args[2]);
         output_shape.visit_type([&](auto as) {
             auto n_dim        = output_shape.lens().size();
             auto dim_1        = n_dim - 1;

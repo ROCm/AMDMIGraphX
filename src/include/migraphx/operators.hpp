@@ -907,59 +907,31 @@ struct dot
             auto b_lens   = inputs[1].lens();
             auto out_lens = a_lens;
             auto t        = inputs[0].type();
-            if(inputs[1].lens().size() > 2)
+            if(a_lens.size() != b_lens.size() ||
+                !std::equal(a_lens.rbegin() + 2, a_lens.rend(), b_lens.rbegin() + 2))
             {
-                if(a_lens.size() != b_lens.size() ||
-                   !std::equal(a_lens.rbegin() + 2, a_lens.rend(), b_lens.rbegin() + 2))
-                {
-                    MIGRAPHX_THROW("DOT: dimension mismatch, operand A: {" +
-                                   to_string_range(a_lens) + "}, cannot multiply operand B: {" +
-                                   to_string_range(b_lens) + "}");
-                }
-
-                std::size_t dim_0 = a_lens.size() - 2;
-                std::size_t dim_1 = a_lens.size() - 1;
-                if(a_lens[dim_1] != b_lens[dim_0])
-                    MIGRAPHX_THROW("DOT: inner dimensions do not match, operand A: {" +
-                                   to_string_range(a_lens) + "}, operand B: {" +
-                                   to_string_range(b_lens) + "}");
-                out_lens[dim_1] = b_lens[dim_1];
-
-                // C should be the same shape as A * B
-                auto c_lens = inputs[2].lens();
-                if(c_lens != out_lens)
-                {
-                    MIGRAPHX_THROW("DOT: dimension mismatch, operand C: {" +
-                                   to_string_range(c_lens) + "}, cannot add to operand A * B: {" +
-                                   to_string_range(out_lens) + "}");
-                }
+                MIGRAPHX_THROW("DOT: dimension mismatch, operand A: {" +
+                                to_string_range(a_lens) + "}, cannot multiply operand B: {" +
+                                to_string_range(b_lens) + "}");
             }
-            else
+
+            std::size_t dim_0 = a_lens.size() - 2;
+            std::size_t dim_1 = a_lens.size() - 1;
+            if(a_lens[dim_1] != b_lens[dim_0])
             {
-                check_shapes{inputs, *this}.has(3).same_type();
-                check_shapes{{inputs[0]}, *this}.only_dims(2);
-                check_shapes{{inputs[1]}, *this}.only_dims(2);
+                MIGRAPHX_THROW("DOT: inner dimensions do not match, operand A: {" +
+                                to_string_range(a_lens) + "}, operand B: {" +
+                                to_string_range(b_lens) + "}");
+            }
+            out_lens[dim_1] = b_lens[dim_1];
 
-                if(a_lens[1] != b_lens[0])
-                {
-                    MIGRAPHX_THROW("DOT : dimension mismatch, operand A: {" +
-                                   to_string_range(a_lens) + "}, cannot multiply operand B: {" +
-                                   to_string_range(b_lens) + "}");
-                }
-
-                out_lens[1] = b_lens[1];
-
-                // check whether C is broadcastable to A * B
-                auto c_lens = inputs[2].lens();
-                if(c_lens.size() > 2 ||
-                   (c_lens.size() == 1 && (c_lens[0] != 1 && c_lens[0] != b_lens[1])) ||
-                   (c_lens.size() == 2 && (c_lens[0] != 1 && c_lens[0] != a_lens[0])) ||
-                   (c_lens.size() == 2 && (c_lens[1] != 1 && c_lens[1] != b_lens[1])))
-                {
-                    MIGRAPHX_THROW("DOT: C {" + to_string_range(c_lens) +
-                                   "} is not broadcastable to A * B {" + to_string_range(out_lens) +
-                                   "}");
-                }
+            // C should be the same shape as A * B
+            auto c_lens = inputs[2].lens();
+            if(c_lens != out_lens)
+            {
+                MIGRAPHX_THROW("DOT: dimension mismatch, operand C: {" +
+                                to_string_range(c_lens) + "}, cannot add to operand A * B: {" +
+                                to_string_range(out_lens) + "}");
             }
 
             return {t, out_lens};

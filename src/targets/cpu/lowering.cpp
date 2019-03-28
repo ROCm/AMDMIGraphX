@@ -369,50 +369,13 @@ struct cpu_gemm
 {
     op::dot op;
     std::string name() const { return "cpu::dot"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-
-    void fill_result(argument& result, argument& c) const
-    {
-        auto out_lens = result.get_shape().lens();
-        auto c_lens   = c.get_shape().lens();
-
-        if(out_lens == c_lens)
+    shape compute_shape(const std::vector<shape>& inputs) const 
+    { 
+        if (inputs.size() == 3)
         {
-            visit_all(result, c)([&](auto output, auto input) {
-                std::copy(input.begin(), input.end(), output.begin());
-            });
+            check_shapes{{inputs.at(2)}}.not_broadcasted();
         }
-        // need broadcast
-        else if(c.single())
-        {
-            visit_all(result, c)([&](auto output, auto input) {
-                std::fill(output.begin(), output.end(), input.front());
-            });
-        }
-        // must be c_lens[0] == output_lens[1]
-        else if(c_lens.size() == 1 || (c_lens.size() == 2 && (c_lens[1] == out_lens[1])))
-        {
-            std::size_t m = out_lens[0];
-            std::size_t n = out_lens[1];
-            visit_all(result, c)([&](auto output, auto input) {
-                for(std::size_t i = 0; i < m; i++)
-                {
-                    std::copy(input.begin(), input.end(), output.begin() + i * n);
-                }
-            });
-        }
-        // c_lens.size() == 2 and c_lens[0] == out_lens[0]
-        else
-        {
-            std::size_t m = out_lens[0];
-            std::size_t n = out_lens[1];
-            visit_all(result, c)([&](auto output, auto input) {
-                for(std::size_t i = 0; i < m; i++)
-                {
-                    std::fill(output.begin() + i * n, output.begin() + ((i + 1) * n), input[i]);
-                }
-            });
-        }
+        return op.compute_shape(inputs); 
     }
 
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
@@ -429,7 +392,9 @@ struct cpu_gemm
             }
             else
             {
-                fill_result(result, args[2]);
+                visit_all(result, args[2])([&](auto output, auto input) {
+                    std::copy(input.begin(), input.end(), output.begin());
+                });
             }
 
             migemm(result, args[0], args[1], op.alpha, op.beta);

@@ -20,8 +20,6 @@ struct miopen_gemm
     int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
 
     private:
-    void fill_result(const shape& output_shape, const argument& result, const argument& c) const;
-
     argument
     batch_matmul(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
 };

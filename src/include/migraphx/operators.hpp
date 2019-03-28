@@ -908,11 +908,10 @@ struct dot
             auto out_lens = a_lens;
             auto t        = inputs[0].type();
             if(a_lens.size() != b_lens.size() ||
-                !std::equal(a_lens.rbegin() + 2, a_lens.rend(), b_lens.rbegin() + 2))
+               !std::equal(a_lens.rbegin() + 2, a_lens.rend(), b_lens.rbegin() + 2))
             {
-                MIGRAPHX_THROW("DOT: dimension mismatch, operand A: {" +
-                                to_string_range(a_lens) + "}, cannot multiply operand B: {" +
-                                to_string_range(b_lens) + "}");
+                MIGRAPHX_THROW("DOT: dimension mismatch, operand A: {" + to_string_range(a_lens) +
+                               "}, cannot multiply operand B: {" + to_string_range(b_lens) + "}");
             }
 
             std::size_t dim_0 = a_lens.size() - 2;
@@ -920,8 +919,8 @@ struct dot
             if(a_lens[dim_1] != b_lens[dim_0])
             {
                 MIGRAPHX_THROW("DOT: inner dimensions do not match, operand A: {" +
-                                to_string_range(a_lens) + "}, operand B: {" +
-                                to_string_range(b_lens) + "}");
+                               to_string_range(a_lens) + "}, operand B: {" +
+                               to_string_range(b_lens) + "}");
             }
             out_lens[dim_1] = b_lens[dim_1];
 
@@ -929,9 +928,9 @@ struct dot
             auto c_lens = inputs[2].lens();
             if(c_lens != out_lens)
             {
-                MIGRAPHX_THROW("DOT: dimension mismatch, operand C: {" +
-                                to_string_range(c_lens) + "}, cannot add to operand A * B: {" +
-                                to_string_range(out_lens) + "}");
+                MIGRAPHX_THROW("DOT: dimension mismatch, operand C: {" + to_string_range(c_lens) +
+                               "}, cannot add to operand A * B: {" + to_string_range(out_lens) +
+                               "}");
             }
 
             return {t, out_lens};

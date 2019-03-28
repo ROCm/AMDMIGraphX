@@ -251,6 +251,12 @@ struct miopen_conv_bias
     fusion::op_t conv;
     fusion::op_t bias;
 
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return op::convolution::reflect(self.op, f);
+    }
+
     miopen_conv_bias(op::convolution c, const shape& input, const shape& weights, const shape& b)
         : op(c), f(input)
     {
@@ -287,6 +293,12 @@ struct miopen_conv_bias_relu
     fusion::op_t conv;
     fusion::op_t bias;
     fusion::op_t relu;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return op::convolution::reflect(self.op, f);
+    }
 
     miopen_conv_bias_relu(op::convolution c,
                           const shape& input,

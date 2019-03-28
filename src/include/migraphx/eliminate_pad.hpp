@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_RTGLIB_PAD_REWRITE_HPP
-#define MIGRAPHX_GUARD_RTGLIB_PAD_REWRITE_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_ELIMINATE_PAD_HPP
+#define MIGRAPHX_GUARD_RTGLIB_ELIMINATE_PAD_HPP
 
 #include <string>
 #include <vector>
@@ -13,13 +13,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct program;
 
 /**
- * Remove identity instructions. Currently when used as the last pass, it will
- * preserve the semantics of previous program state, therefore dead code elimination
- * should not be used afterwards.
+ * Remove pads if they can be written as an 
+ * attribute to another op (im2col, convolution, pooling)
  */
-struct pad_rewrite
+struct eliminate_pad
 {
-    std::string name() const { return "pad_rewrite"; }
+    std::string name() const { return "eliminate_pad"; }
     void apply(program& p) const;
     template <class T>
     void update_op(T, const instruction_ref& input, const instruction_ref& ins, program& p) const;

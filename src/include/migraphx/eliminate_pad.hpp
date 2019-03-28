@@ -13,7 +13,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct program;
 
 /**
- * Remove pads if they can be written as an 
+ * Remove pads if they can be written as an
  * attribute to another op (im2col, convolution, pooling)
  */
 struct eliminate_pad

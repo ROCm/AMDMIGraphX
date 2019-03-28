@@ -29,9 +29,9 @@ void eliminate_pad::apply(program& p) const
 
 template <class T>
 void eliminate_pad::update_op(T,
-                            const instruction_ref& input,
-                            const instruction_ref& ins,
-                            program& p) const
+                              const instruction_ref& input,
+                              const instruction_ref& ins,
+                              program& p) const
 {
     auto pad_op = any_cast<op::pad>(input->get_operator());
     if(!pad_op.symmetric())

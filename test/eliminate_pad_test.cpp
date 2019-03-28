@@ -27,7 +27,10 @@ create_im2col(migraphx::instruction_ref& l_img, size_t channels, migraphx::progr
 }
 
 migraphx::instruction_ref
-create_conv(migraphx::instruction_ref& l_img, size_t channels, migraphx::program& p, migraphx::op::padding_mode_t padding_mode = migraphx::op::padding_mode_t::default_)
+create_conv(migraphx::instruction_ref& l_img,
+            size_t channels,
+            migraphx::program& p,
+            migraphx::op::padding_mode_t padding_mode = migraphx::op::padding_mode_t::default_)
 {
     migraphx::shape s_weights{migraphx::shape::int32_type, {4, channels, 3, 3}};
     std::vector<int32_t> weights(4 * channels * 3 * 3);
@@ -91,7 +94,7 @@ TEST_CASE(rewrite_test_same_padding)
     migraphx::shape s_img{migraphx::shape::int32_type, {1, channels, img_dim[0], img_dim[1]}};
     auto l_img      = p.add_literal(migraphx::literal{s_img, input});
     auto padded_img = p.add_instruction(migraphx::op::pad{{0, 0, 1, 1, 0, 0, 1, 1}}, l_img);
-    
+
     create_conv(padded_img, channels, p, migraphx::op::padding_mode_t::same);
 
     p.compile(eliminate_pad_target{});

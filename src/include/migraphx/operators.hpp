@@ -718,7 +718,8 @@ struct pad
     bool symmetric() const
     {
         std::size_t num_dims = pads.size() / 2;
-        return std::equal(pads.begin(), pads.begin() + num_dims, pads.begin() + num_dims, pads.end());
+        return std::equal(
+            pads.begin(), pads.begin() + num_dims, pads.begin() + num_dims, pads.end());
     }
 };
 

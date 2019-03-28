@@ -59,7 +59,7 @@ TEST_CASE(simple_test_end_dependency)
     p.add_instruction(sum_op{}, ans, three);
     p.add_instruction(migraphx::op::identity{}, ans);
     p.compile(eliminate_identity_target{});
-    EXPECT(!std::none_of(p.begin(), p.end(), [](const migraphx::instruction& ins) {
+    EXPECT(std::any_of(p.begin(), p.end(), [](const migraphx::instruction& ins) {
         return ins.name() == "identity";
     }));
     auto result = p.eval({});

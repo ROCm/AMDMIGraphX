@@ -809,7 +809,7 @@ struct gather
 
 // The dot operation is combination of the onnx GEMM and MatMul operators.
 // For GEMM, it support two cases: 1) in the formula alpha * AB + beta * C,
-// A and B are 2-D matrics and C is broadcastable to the shape of A*B. For
+// A and B are 2-D matrics and C is of the same shape as A*B. For
 // the transpose of A and B, we add a tranpose operator beforehand if the
 // onnx gemm operator indicates a transpose required. 2) A and B are more
 // than 2-D, then the dims except the last 2-D in A and B need to be the
@@ -892,37 +892,42 @@ struct dot
         return out_lens;
     }
 
+    void check_dims(const std::vector<std::size_t>& a_lens, const std::vector<std::size_t>& b_lens) const
+    {
+        if(!std::equal(a_lens.rbegin() + 2, a_lens.rend(), b_lens.rbegin() + 2, b_lens.rend()))
+        {
+            MIGRAPHX_THROW("DOT: dimension mismatch, operand A: {" + to_string_range(a_lens) +
+                           "}, cannot multiply operand B: {" + to_string_range(b_lens) + "}");
+        }
+
+        std::size_t dim_0 = a_lens.size() - 2;
+        std::size_t dim_1 = a_lens.size() - 1;
+        if(a_lens[dim_1] != b_lens[dim_0])
+        {
+            MIGRAPHX_THROW("DOT: inner dimensions do not match, operand A: {" +
+                           to_string_range(a_lens) + "}, operand B: {" +
+                           to_string_range(b_lens) + "}");
+        }
+    }
+
     std::string name() const { return "dot"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        // If there are 3 inputs, there are two scenarios:
-        // 1. A and B are 2-D matrices and C is broadcastable to A * B
+        // If there are 3 inputs, 
+        // 1. A and B are 2-D matrices and C is of the same shape as A * B
         // 2. A and B are stack of matrices, then shape for the batch
-        // should be the same for A and B, and C is the same shape
+        // should be the same for A and B, and C is of the same shape
         // as A * B (For now, we add this requirement to simplify the
         // implementation. we can remove this requirement later)
         if(inputs.size() == 3)
         {
             auto a_lens   = inputs[0].lens();
             auto b_lens   = inputs[1].lens();
+            check_dims(a_lens, b_lens);
+
             auto out_lens = a_lens;
             auto t        = inputs[0].type();
-            if(a_lens.size() != b_lens.size() ||
-               !std::equal(a_lens.rbegin() + 2, a_lens.rend(), b_lens.rbegin() + 2))
-            {
-                MIGRAPHX_THROW("DOT: dimension mismatch, operand A: {" + to_string_range(a_lens) +
-                               "}, cannot multiply operand B: {" + to_string_range(b_lens) + "}");
-            }
-
-            std::size_t dim_0 = a_lens.size() - 2;
-            std::size_t dim_1 = a_lens.size() - 1;
-            if(a_lens[dim_1] != b_lens[dim_0])
-            {
-                MIGRAPHX_THROW("DOT: inner dimensions do not match, operand A: {" +
-                               to_string_range(a_lens) + "}, operand B: {" +
-                               to_string_range(b_lens) + "}");
-            }
-            out_lens[dim_1] = b_lens[dim_1];
+            out_lens.back() = b_lens.back();
 
             // C should be the same shape as A * B
             auto c_lens = inputs[2].lens();

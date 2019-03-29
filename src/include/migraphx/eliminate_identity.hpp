@@ -11,7 +11,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct program;
 
 /**
- * Remove identity instructions.
+ * Remove identity instructions. Currently when used as the last pass, it will
+ * preserve the semantics of previous program state, therefore dead code elimination
+ * should not be used afterwards.
  */
 struct eliminate_identity
 {

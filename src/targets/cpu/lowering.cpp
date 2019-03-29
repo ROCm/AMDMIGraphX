@@ -373,7 +373,8 @@ struct cpu_gemm
     {
         if(inputs.size() == 3)
         {
-            check_shapes{{inputs.at(2)}}.not_broadcasted();
+            auto c_shape = inputs.at(2);
+            check_shapes{{c_shape}}.not_broadcasted();
         }
         return op.compute_shape(inputs);
     }

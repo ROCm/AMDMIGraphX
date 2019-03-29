@@ -6,127 +6,127 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 template <class... Ts>
-void generic_rocblas_scal(shape::as<float>, Ts&&... xs)
+rocblas_status generic_rocblas_scal(shape::as<float>, Ts&&... xs)
 {
-    rocblas_sscal(std::forward<Ts>(xs)...);
+    return rocblas_sscal(std::forward<Ts>(xs)...);
 }
 
 template <class... Ts>
-void generic_rocblas_scal(shape::as<double>, Ts&&... xs)
+rocblas_status generic_rocblas_scal(shape::as<double>, Ts&&... xs)
 {
-    rocblas_dscal(std::forward<Ts>(xs)...);
+    return rocblas_dscal(std::forward<Ts>(xs)...);
 }
 
 template <class T, class... Ts>
-void generic_rocblas_scal(shape::as<T>, Ts&&...)
+rocblas_status generic_rocblas_scal(shape::as<T>, Ts&&...)
 {
     MIGRAPHX_THROW("GENERIC_ROCBLAS_SCAL: type unsupported by rocblas");
 }
 
 template <class... Ts>
-void generic_rocblas_axpy(shape::as<half>, Ts&&... xs)
+rocblas_status generic_rocblas_axpy(shape::as<half>, Ts&&... xs)
 {
-    rocblas_haxpy(std::forward<Ts>(xs)...);
+    return rocblas_haxpy(std::forward<Ts>(xs)...);
 }
 
 template <class... Ts>
-void generic_rocblas_axpy(shape::as<float>, Ts&&... xs)
+rocblas_status generic_rocblas_axpy(shape::as<float>, Ts&&... xs)
 {
-    rocblas_saxpy(std::forward<Ts>(xs)...);
+    return rocblas_saxpy(std::forward<Ts>(xs)...);
 }
 
 template <class... Ts>
-void generic_rocblas_axpy(shape::as<double>, Ts&&... xs)
+rocblas_status generic_rocblas_axpy(shape::as<double>, Ts&&... xs)
 {
-    rocblas_daxpy(std::forward<Ts>(xs)...);
+    return rocblas_daxpy(std::forward<Ts>(xs)...);
 }
 
 template <class T, class... Ts>
-void generic_rocblas_axpy(shape::as<T>, Ts&&...)
+rocblas_status generic_rocblas_axpy(shape::as<T>, Ts&&...)
 {
     MIGRAPHX_THROW("GENERIC_ROCBLAS_AXPY: type unsupported by rocblas");
 }
 
 template <class... Ts>
-void generic_rocblas_dot(shape::as<float>, Ts&&... xs)
+rocblas_status generic_rocblas_dot(shape::as<float>, Ts&&... xs)
 {
-    rocblas_sdot(std::forward<Ts>(xs)...);
+    return rocblas_sdot(std::forward<Ts>(xs)...);
 }
 
 template <class... Ts>
-void generic_rocblas_dot(shape::as<double>, Ts&&... xs)
+rocblas_status generic_rocblas_dot(shape::as<double>, Ts&&... xs)
 {
-    rocblas_ddot(std::forward<Ts>(xs)...);
+    return rocblas_ddot(std::forward<Ts>(xs)...);
 }
 
 template <class T, class... Ts>
-void generic_rocblas_dot(shape::as<T>, Ts&&...)
+rocblas_status generic_rocblas_dot(shape::as<T>, Ts&&...)
 {
     MIGRAPHX_THROW("GENERIC_ROCBLAS_DOT: type unsupported by rocblas");
 }
 
 template <class... Ts>
-void generic_rocblas_gemv(shape::as<float>, Ts&&... xs)
+rocblas_status generic_rocblas_gemv(shape::as<float>, Ts&&... xs)
 {
-    rocblas_sgemv(std::forward<Ts>(xs)...);
+    return rocblas_sgemv(std::forward<Ts>(xs)...);
 }
 
 template <class... Ts>
-void generic_rocblas_gemv(shape::as<double>, Ts&&... xs)
+rocblas_status generic_rocblas_gemv(shape::as<double>, Ts&&... xs)
 {
-    rocblas_dgemv(std::forward<Ts>(xs)...);
+    return rocblas_dgemv(std::forward<Ts>(xs)...);
 }
 
 template <class T, class... Ts>
-void generic_rocblas_gemv(shape::as<T>, Ts&&...)
+rocblas_status generic_rocblas_gemv(shape::as<T>, Ts&&...)
 {
     MIGRAPHX_THROW("GENERIC_ROCBLAS_GEMMV: type unsupported by rocblas");
 }
 
 template <class... Ts>
-void generic_rocblas_batched_gemm(shape::as<float>, Ts&&... xs)
+rocblas_status generic_rocblas_batched_gemm(shape::as<float>, Ts&&... xs)
 {
-    rocblas_sgemm_strided_batched(std::forward<Ts>(xs)...);
+    return rocblas_sgemm_strided_batched(std::forward<Ts>(xs)...);
 }
 
 template <class... Ts>
-void generic_rocblas_batched_gemm(shape::as<double>, Ts&&... xs)
+rocblas_status generic_rocblas_batched_gemm(shape::as<double>, Ts&&... xs)
 {
-    rocblas_dgemm_strided_batched(std::forward<Ts>(xs)...);
+    return rocblas_dgemm_strided_batched(std::forward<Ts>(xs)...);
 }
 
 template <class... Ts>
-void generic_rocblas_batched_gemm(shape::as<half>, Ts&&... xs)
+rocblas_status generic_rocblas_batched_gemm(shape::as<half>, Ts&&... xs)
 {
-    rocblas_hgemm_strided_batched(std::forward<Ts>(xs)...);
+    return rocblas_hgemm_strided_batched(std::forward<Ts>(xs)...);
 }
 
 template <class T, class... Ts>
-void generic_rocblas_batched_gemm(shape::as<T>, Ts&&...)
+rocblas_status generic_rocblas_batched_gemm(shape::as<T>, Ts&&...)
 {
     MIGRAPHX_THROW("GENERIC_ROCBLAS_BATCHED_GEMM: type unsupported by rocblas");
 }
 
 template <class... Ts>
-void generic_rocblas_gemm(shape::as<float>, Ts&&... xs)
+rocblas_status generic_rocblas_gemm(shape::as<float>, Ts&&... xs)
 {
-    rocblas_sgemm(std::forward<Ts>(xs)...);
+    return rocblas_sgemm(std::forward<Ts>(xs)...);
 }
 
 template <class... Ts>
-void generic_rocblas_gemm(shape::as<double>, Ts&&... xs)
+rocblas_status generic_rocblas_gemm(shape::as<double>, Ts&&... xs)
 {
-    rocblas_dgemm(std::forward<Ts>(xs)...);
+    return rocblas_dgemm(std::forward<Ts>(xs)...);
 }
 
 template <class... Ts>
-void generic_rocblas_gemm(shape::as<half>, Ts&&... xs)
+rocblas_status generic_rocblas_gemm(shape::as<half>, Ts&&... xs)
 {
-    rocblas_hgemm(std::forward<Ts>(xs)...);
+    return rocblas_hgemm(std::forward<Ts>(xs)...);
 }
 
 template <class T, class... Ts>
-void generic_rocblas_gemm(shape::as<T>, Ts&&...)
+rocblas_status generic_rocblas_gemm(shape::as<T>, Ts&&...)
 {
     MIGRAPHX_THROW("GENERIC_ROCBLAS_GEMM: type unsupported by rocblas");
 }
@@ -171,7 +171,8 @@ shape miopen_gemm::compute_shape(const std::vector<shape>& inputs) const
     std::vector<shape> input_shapes(inputs.begin(), inputs.begin() + inputs.size() - 1);
     if(input_shapes.size() == 3)
     {
-        check_shapes{{input_shapes.back()}}.not_broadcasted();
+        auto c_shape = inputs[2];
+        check_shapes{{c_shape}}.not_broadcasted();
     }
     return op.compute_shape(input_shapes);
 }
@@ -365,20 +366,31 @@ argument miopen_gemm::compute(context& ctx,
     if(output_shape.elements() == 1)
     {
         assert(args[0].get_shape().elements() == args[1].get_shape().elements());
+        float beta        = 0.0f;
+        rocblas_int elem_num = static_cast<rocblas_int>(args[0].get_shape().elements());
         output_shape.visit_type([&](auto as) {
             auto alpha_r    = to_rocblas_type(as(op.alpha));
+            auto beta_r     = to_rocblas_type(as(beta));
             auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
-            generic_rocblas_dot(as,
-                                ctx.get_stream().get_rocblas(),
-                                args[1].get_shape().elements(),
-                                to_pointer(args[0]),
-                                1,
-                                to_pointer(args[1]),
-                                1,
-                                to_pointer(args[2]));
+            // the function generic_rocblas_dot is not stable, so have to 
+            // call this function instead. In the future, we may change 
+            // to call generic_rocblas_dot when it is stable.
+            generic_rocblas_gemm(as,
+                                    ctx.get_stream().get_rocblas(),
+                                    rocblas_operation_none,
+                                    rocblas_operation_none,
+                                    1,
+                                    1,
+                                    elem_num,
+                                    &alpha_r,
+                                    to_pointer(args[1]),
+                                    1,
+                                    to_pointer(args[0]),
+                                    elem_num,
+                                    &beta_r,
+                                    to_pointer(args[2]),
+                                    1);
 
-            generic_rocblas_scal(
-                as, ctx.get_stream().get_rocblas(), 1, &alpha_r, to_pointer(args[2]), 1);
         });
     }
     // matrix * vector

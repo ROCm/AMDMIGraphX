@@ -366,30 +366,30 @@ argument miopen_gemm::compute(context& ctx,
     if(output_shape.elements() == 1)
     {
         assert(args[0].get_shape().elements() == args[1].get_shape().elements());
-        float beta        = 0.0f;
+        float beta           = 0.0f;
         rocblas_int elem_num = static_cast<rocblas_int>(args[0].get_shape().elements());
         output_shape.visit_type([&](auto as) {
             auto alpha_r    = to_rocblas_type(as(op.alpha));
             auto beta_r     = to_rocblas_type(as(beta));
             auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
-            // the function generic_rocblas_dot is not stable, so have to 
-            // call this function instead. In the future, we may change 
+            // the function generic_rocblas_dot is not stable, so have to
+            // call this function instead. In the future, we may change
             // to call generic_rocblas_dot when it is stable.
             generic_rocblas_gemm(as,
-                                    ctx.get_stream().get_rocblas(),
-                                    rocblas_operation_none,
-                                    rocblas_operation_none,
-                                    1,
-                                    1,
-                                    elem_num,
-                                    &alpha_r,
-                                    to_pointer(args[1]),
-                                    1,
-                                    to_pointer(args[0]),
-                                    elem_num,
-                                    &beta_r,
-                                    to_pointer(args[2]),
-                                    1);
+                                 ctx.get_stream().get_rocblas(),
+                                 rocblas_operation_none,
+                                 rocblas_operation_none,
+                                 1,
+                                 1,
+                                 elem_num,
+                                 &alpha_r,
+                                 to_pointer(args[1]),
+                                 1,
+                                 to_pointer(args[0]),
+                                 elem_num,
+                                 &beta_r,
+                                 to_pointer(args[2]),
+                                 1);
 
         });
     }

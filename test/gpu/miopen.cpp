@@ -1021,8 +1021,8 @@ struct gemm_2args_vv : verify_program<gemm_2args_vv>
         migraphx::program p;
         migraphx::shape m1_shape{migraphx::shape::float_type, {8}};
         migraphx::shape m2_shape{migraphx::shape::float_type, {8}};
-        auto l1 = p.add_parameter("1", m1_shape);
-        auto l2 = p.add_parameter("2", m2_shape);
+        auto l1     = p.add_parameter("1", m1_shape);
+        auto l2     = p.add_parameter("2", m2_shape);
         float alpha = 0.23f;
 
         p.add_instruction(migraphx::op::dot{alpha}, l1, l2);

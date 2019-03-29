@@ -60,4 +60,3 @@
 #include <migraphx/op/unsqueeze.hpp>
 
 #endif
-

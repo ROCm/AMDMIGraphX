@@ -892,7 +892,8 @@ struct dot
         return out_lens;
     }
 
-    void check_dims(const std::vector<std::size_t>& a_lens, const std::vector<std::size_t>& b_lens) const
+    void check_dims(const std::vector<std::size_t>& a_lens,
+                    const std::vector<std::size_t>& b_lens) const
     {
         if(!std::equal(a_lens.rbegin() + 2, a_lens.rend(), b_lens.rbegin() + 2, b_lens.rend()))
         {
@@ -905,15 +906,15 @@ struct dot
         if(a_lens[dim_1] != b_lens[dim_0])
         {
             MIGRAPHX_THROW("DOT: inner dimensions do not match, operand A: {" +
-                           to_string_range(a_lens) + "}, operand B: {" +
-                           to_string_range(b_lens) + "}");
+                           to_string_range(a_lens) + "}, operand B: {" + to_string_range(b_lens) +
+                           "}");
         }
     }
 
     std::string name() const { return "dot"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        // If there are 3 inputs, 
+        // If there are 3 inputs,
         // 1. A and B are 2-D matrices and C is of the same shape as A * B
         // 2. A and B are stack of matrices, then shape for the batch
         // should be the same for A and B, and C is of the same shape
@@ -921,12 +922,12 @@ struct dot
         // implementation. we can remove this requirement later)
         if(inputs.size() == 3)
         {
-            auto a_lens   = inputs[0].lens();
-            auto b_lens   = inputs[1].lens();
+            auto a_lens = inputs[0].lens();
+            auto b_lens = inputs[1].lens();
             check_dims(a_lens, b_lens);
 
-            auto out_lens = a_lens;
-            auto t        = inputs[0].type();
+            auto out_lens   = a_lens;
+            auto t          = inputs[0].type();
             out_lens.back() = b_lens.back();
 
             // C should be the same shape as A * B

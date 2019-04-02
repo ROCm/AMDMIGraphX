@@ -354,16 +354,20 @@ struct tf_parser
         MIGRAPHX_THROW("MIGraphX does not support mean outside of GlobalAvgPool transformation");
     }
 
-    instruction_ref
-    parse_pack(const std::string&, const attribute_map& attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_pack(const std::string&,
+                               const attribute_map& attributes,
+                               std::vector<instruction_ref> args)
     {
         // reinterpret as unsqueeze with concat
         std::vector<instruction_ref> unsqueezed_args;
         int64_t axis = 0;
         if(contains(attributes, "axis"))
             axis = attributes.at("axis").i();
-        std::transform(args.begin(), args.end(), std::back_inserter(unsqueezed_args), 
-                [&](instruction_ref arg){ return prog.add_instruction(op::unsqueeze{{axis}}, arg); });
+        std::transform(
+            args.begin(),
+            args.end(),
+            std::back_inserter(unsqueezed_args),
+            [&](instruction_ref arg) { return prog.add_instruction(op::unsqueeze{{axis}}, arg); });
         return prog.add_instruction(op::concat{static_cast<size_t>(axis)}, unsqueezed_args);
     }
 

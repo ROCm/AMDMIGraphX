@@ -28,7 +28,7 @@ struct match_const_add
 void constant_propagate::apply(program& p) const 
 {
     fix([&](auto self, auto ins) {
-        if (not ins->get_shape().broadcasted())
+        if (not ins->get_shape().broadcasted() and ins->name() != "@literal")
         {
             auto r = ins->eval();
             if (not r.empty())

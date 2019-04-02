@@ -2,6 +2,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
+#include <migraphx/functional.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -24,7 +25,24 @@ struct match_const_add
     }
 };
 
-void constant_propagate::apply(program& p) const { match::find_matches(p, match_const_add{}); }
+void constant_propagate::apply(program& p) const 
+{
+    fix([&](auto self, auto ins) {
+        if (not ins->get_shape().broadcasted())
+        {
+            auto r = ins->eval();
+            if (not r.empty())
+            {
+                auto l = p.add_literal(r.get_shape(), r.data());
+                p.replace_instruction(ins, l);
+                return;
+            }
+        }
+        auto children = ins->inputs();
+        for(auto child:children)
+            self(child);
+    })(std::prev(p.end()));
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

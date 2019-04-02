@@ -25,13 +25,13 @@ struct match_const_add
     }
 };
 
-void constant_propagate::apply(program& p) const 
+void constant_propagate::apply(program& p) const
 {
     fix([&](auto self, auto ins) {
-        if (not ins->get_shape().broadcasted() and ins->name() != "@literal")
+        if(not ins->get_shape().broadcasted() and ins->name() != "@literal")
         {
             auto r = ins->eval();
-            if (not r.empty())
+            if(not r.empty())
             {
                 auto l = p.add_literal(r.get_shape(), r.data());
                 p.replace_instruction(ins, l);
@@ -39,7 +39,7 @@ void constant_propagate::apply(program& p) const
             }
         }
         auto children = ins->inputs();
-        for(auto child:children)
+        for(auto child : children)
             self(child);
     })(std::prev(p.end()));
 }

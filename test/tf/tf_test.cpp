@@ -139,8 +139,12 @@ TEST_CASE(pack_test)
     std::vector<migraphx::instruction_ref> unsqueezed_args;
     int64_t axis = 1;
 
-    std::transform(args.begin(), args.end(), std::back_inserter(unsqueezed_args), 
-            [&](migraphx::instruction_ref arg) { return p.add_instruction(migraphx::op::unsqueeze{{axis}}, arg); });
+    std::transform(args.begin(),
+                   args.end(),
+                   std::back_inserter(unsqueezed_args),
+                   [&](migraphx::instruction_ref arg) {
+                       return p.add_instruction(migraphx::op::unsqueeze{{axis}}, arg);
+                   });
     p.add_instruction(migraphx::op::concat{static_cast<size_t>(axis)}, unsqueezed_args);
     auto prog = migraphx::parse_tf("pack_test.pb", false);
 

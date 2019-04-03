@@ -61,7 +61,7 @@ void migemm_impl(tensor_view<T> cmat,
             if(alpha != 0.0)
             {
                 c = c + alpha * a * b;
-            }            
+            }
         });
     });
 }
@@ -101,7 +101,8 @@ void migemm_impl(
 {
     auto lens = amat.get_shape().lens();
     bool batch_mul =
-        std::accumulate(lens.rbegin() + 2, lens.rend(), std::size_t{1}, std::multiplies<std::size_t>()) == 1;
+        std::accumulate(
+            lens.rbegin() + 2, lens.rend(), std::size_t{1}, std::multiplies<std::size_t>()) == 1;
     if(batch_mul)
     {
         migemm_impl(cmat, amat, bmat, alpha, beta, is_fast_gemm_type<T>{});

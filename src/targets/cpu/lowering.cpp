@@ -369,14 +369,14 @@ struct cpu_gemm
 {
     op::dot op;
     std::string name() const { return "cpu::dot"; }
-    shape compute_shape(const std::vector<shape>& inputs) const 
-    { 
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
         if(inputs.size() == 3)
         {
             auto c_shape = inputs.at(2);
             check_shapes{{c_shape}}.not_broadcasted();
         }
-        return op.compute_shape(inputs); 
+        return op.compute_shape(inputs);
     }
 
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const

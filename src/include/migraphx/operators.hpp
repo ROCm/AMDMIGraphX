@@ -839,7 +839,8 @@ struct dot
         // according to the specification of the numpy.matmul()
         // inputs with the shape dims more than 2 are acceptable
         // as long as dim values are the same in the two inputs
-        if(!std::equal(a.lens().rbegin() + 2, a.lens().rend(), b.lens().rbegin() + 2, b.lens().rend()))
+        if(!std::equal(
+               a.lens().rbegin() + 2, a.lens().rend(), b.lens().rbegin() + 2, b.lens().rend()))
         {
             MIGRAPHX_THROW("DOT: dim values mismatch");
         }
@@ -854,13 +855,12 @@ struct dot
 
         auto out_lens   = a.lens();
         out_lens[dim_1] = b.lens()[dim_1];
-        if (inputs.size() == 3 && out_lens != inputs.at(2).lens())
+        if(inputs.size() == 3 && out_lens != inputs.at(2).lens())
         {
             MIGRAPHX_THROW("DOT: dimension mismatch, operand C: {" + to_string_range(c_lens) +
-                            "}, cannot add to operand A * B: {" + to_string_range(out_lens) +
-                            "}");
+                           "}, cannot add to operand A * B: {" + to_string_range(out_lens) + "}");
         }
-        
+
         return {t, out_lens};
     }
 };

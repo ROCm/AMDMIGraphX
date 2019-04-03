@@ -1,5 +1,5 @@
 #include <migraphx/schedule.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/identity.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>

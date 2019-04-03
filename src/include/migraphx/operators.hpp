@@ -857,7 +857,7 @@ struct dot
         out_lens[dim_1] = b.lens()[dim_1];
         if(inputs.size() == 3 && out_lens != inputs.at(2).lens())
         {
-            MIGRAPHX_THROW("DOT: dimension mismatch, operand C: {" + to_string_range(c_lens) +
+            MIGRAPHX_THROW("DOT: dimension mismatch, operand C: {" + to_string_range(inputs.at(2).lens()) +
                            "}, cannot add to operand A * B: {" + to_string_range(out_lens) + "}");
         }
 

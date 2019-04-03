@@ -51,7 +51,8 @@ void dead_code_elimination::apply(program& p) const
             assert(p.has_instruction(leaf));
             if(leaf->outputs().empty())
             {
-                std::unordered_set<instruction_ref> args(leaf->inputs().begin(), leaf->inputs().end());
+                std::unordered_set<instruction_ref> args(leaf->inputs().begin(),
+                                                         leaf->inputs().end());
                 leaf->clear_arguments();
                 assert(bidistance(p, last, leaf) < 0);
                 assert(leaf != ins);

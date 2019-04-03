@@ -149,8 +149,8 @@ TEST_CASE(duplicate_args2)
 {
     migraphx::program p;
 
-    auto l0 = p.add_literal(0);
-    auto l3 = p.add_literal(3);
+    auto l0   = p.add_literal(0);
+    auto l3   = p.add_literal(3);
     auto sum1 = p.add_instruction(migraphx::op::add{}, l0, l3);
     p.add_instruction(migraphx::op::add{}, sum1, l3);
     p.add_instruction(migraphx::op::identity{}, l0);
@@ -166,8 +166,8 @@ TEST_CASE(duplicate_args3)
 {
     migraphx::program p;
 
-    auto l0 = p.add_literal(0);
-    auto l3 = p.add_literal(3);
+    auto l0   = p.add_literal(0);
+    auto l3   = p.add_literal(3);
     auto sum1 = p.add_instruction(migraphx::op::add{}, l0, l3);
     auto sum2 = p.add_instruction(migraphx::op::add{}, l0, sum1);
     p.add_instruction(migraphx::op::add{}, sum2, l3);

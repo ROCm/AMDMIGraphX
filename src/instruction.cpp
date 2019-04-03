@@ -138,7 +138,7 @@ void instruction::replace_argument(instruction_ref ins,
 {
     ins->replace_argument(old, new_ins);
     backreference(ins);
-    if (recompute_shape)
+    if(recompute_shape)
         ins->recompute_shape();
 }
 

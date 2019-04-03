@@ -1,6 +1,6 @@
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/op/operators.hpp>
+#include <migraphx/operators.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 

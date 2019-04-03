@@ -1,7 +1,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/op/operators.hpp>
+#include <migraphx/operators.hpp>
 #include <sstream>
 #include "test.hpp"
 

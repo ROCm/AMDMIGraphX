@@ -68,8 +68,10 @@ struct instruction
 
     static void backreference(instruction_ref ref);
 
-    static void replace_argument(instruction_ref ins, instruction_ref old, instruction_ref new_ins, 
-            bool recompute_shape = true);
+    static void replace_argument(instruction_ref ins,
+                                 instruction_ref old,
+                                 instruction_ref new_ins,
+                                 bool recompute_shape = true);
 
     static void
     replace(instruction_ref ins, operation o, const shape& r, std::vector<instruction_ref> args);

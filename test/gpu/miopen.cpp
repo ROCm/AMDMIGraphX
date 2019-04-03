@@ -1,6 +1,6 @@
 
 #include <migraphx/program.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/operators.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/gpu/target.hpp>

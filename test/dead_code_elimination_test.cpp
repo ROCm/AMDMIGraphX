@@ -1,6 +1,6 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <basic_ops.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/abnormal.hpp>
 #include <test.hpp>
 
 struct dce_target

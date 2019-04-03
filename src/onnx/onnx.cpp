@@ -11,7 +11,7 @@
 
 #include <migraphx/fallthrough.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/op/operators.hpp>
+#include <migraphx/operators.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/config.hpp>

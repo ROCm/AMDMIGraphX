@@ -2,7 +2,7 @@
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
-#include <migraphx/op/operators.hpp>
+#include <migraphx/operators.hpp>
 #include <test.hpp>
 
 struct eliminate_pad_target

@@ -20,6 +20,7 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
+#include <migraphx/eliminate_pad.hpp>
 #include <migraphx/schedule.hpp>
 
 namespace migraphx {
@@ -36,6 +37,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
     {
         dead_code_elimination{},
         eliminate_identity{},
+        eliminate_pad{},
+        dead_code_elimination{},
         fwd_conv_batchnorm_rewrite{},
         dead_code_elimination{},
         rewrite_rnn{},

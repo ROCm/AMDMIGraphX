@@ -50,6 +50,13 @@ struct pad
         shape s{inputs.front().type(), rdims};
         return s;
     }
+
+    bool symmetric() const
+    {
+        std::size_t num_dims = pads.size() / 2;
+        return std::equal(
+            pads.begin(), pads.begin() + num_dims, pads.begin() + num_dims, pads.end());
+    }
 };
 
 } // namespace op

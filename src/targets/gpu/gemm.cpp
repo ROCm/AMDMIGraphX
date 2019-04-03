@@ -274,60 +274,58 @@ argument miopen_gemm::compute(context& ctx,
     // matrix * vector (b is a vector)
     else if(b_lens.size() == 2 && b_lens.at(1) == 1)
     {
-        bool transa       = args[0].get_shape().transposed();
-        rocblas_int m =   static_cast<rocblas_int>(a_lens[0]);
-        rocblas_int n =   static_cast<rocblas_int>(a_lens[1]);
-        rocblas_int lda   = args[0].get_shape().strides()[transa ? 1 : 0];
-        float beta        = 0.0f;
+        bool transa     = args[0].get_shape().transposed();
+        rocblas_int m   = static_cast<rocblas_int>(a_lens[0]);
+        rocblas_int n   = static_cast<rocblas_int>(a_lens[1]);
+        rocblas_int lda = args[0].get_shape().strides()[transa ? 1 : 0];
+        float beta      = 0.0f;
         assert(a_lens.back() == args[1].get_shape().elements());
 
         output_shape.visit_type([&](auto as) {
             auto alpha_r    = to_rocblas_type(as(op.alpha));
             auto beta_r     = to_rocblas_type(as(beta));
             auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
-            generic_rocblas_gemv(
-                as,
-                ctx.get_stream().get_rocblas(),
-                transa ? rocblas_operation_transpose : rocblas_operation_none,
-                m,
-                n,
-                &alpha_r,
-                to_pointer(args[0]),
-                lda,
-                to_pointer(args[1]),
-                1,
-                &beta_r,
-                to_pointer(args[2]),
-                1);
+            generic_rocblas_gemv(as,
+                                 ctx.get_stream().get_rocblas(),
+                                 transa ? rocblas_operation_transpose : rocblas_operation_none,
+                                 m,
+                                 n,
+                                 &alpha_r,
+                                 to_pointer(args[0]),
+                                 lda,
+                                 to_pointer(args[1]),
+                                 1,
+                                 &beta_r,
+                                 to_pointer(args[2]),
+                                 1);
         });
     }
     // vector * matrix (a is a vector)
     else if(a_lens.size() == 2 && a_lens.at(0) == 1)
     {
-        bool transb       = !args[1].get_shape().transposed();
-        rocblas_int ldb   = args[1].get_shape().strides()[(transb ? 1 : 0)];
-        rocblas_int m     = b_lens[0];
-        rocblas_int n     = b_lens[1];
-        float beta        = 0.0f;
+        bool transb     = !args[1].get_shape().transposed();
+        rocblas_int ldb = args[1].get_shape().strides()[(transb ? 1 : 0)];
+        rocblas_int m   = b_lens[0];
+        rocblas_int n   = b_lens[1];
+        float beta      = 0.0f;
         assert(b_lens[0] == args[0].get_shape().elements());
         output_shape.visit_type([&](auto as) {
             auto alpha_r    = to_rocblas_type(as(op.alpha));
             auto beta_r     = to_rocblas_type(as(beta));
             auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
-            generic_rocblas_gemv(
-                as,
-                ctx.get_stream().get_rocblas(),
-                transb ? rocblas_operation_transpose : rocblas_operation_none,
-                m,
-                n,
-                &alpha_r,
-                to_pointer(args[1]),
-                ldb,
-                to_pointer(args[0]),
-                1,
-                &beta_r,
-                to_pointer(args[2]),
-                1);
+            generic_rocblas_gemv(as,
+                                 ctx.get_stream().get_rocblas(),
+                                 transb ? rocblas_operation_transpose : rocblas_operation_none,
+                                 m,
+                                 n,
+                                 &alpha_r,
+                                 to_pointer(args[1]),
+                                 ldb,
+                                 to_pointer(args[0]),
+                                 1,
+                                 &beta_r,
+                                 to_pointer(args[2]),
+                                 1);
         });
     }
     // batch matrix multiplication
@@ -337,7 +335,7 @@ argument miopen_gemm::compute(context& ctx,
             auto n_dim        = output_shape.lens().size();
             auto dim_1        = n_dim - 1;
             auto dim_0        = n_dim - 2;
-            float beta = 0.0f;
+            float beta        = 0.0f;
             auto alpha_r      = to_rocblas_type(as(op.alpha));
             auto beta_r       = to_rocblas_type(as(beta));
             bool transa       = args[0].get_shape().transposed();
@@ -374,9 +372,9 @@ argument miopen_gemm::compute(context& ctx,
                 ldc,
                 m * n,
                 num_matrices);
-        });     
+        });
     }
-    
+
     return args[2];
 }
 

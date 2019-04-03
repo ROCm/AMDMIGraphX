@@ -1,7 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <migraphx/literal.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/operators.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/tf.hpp>

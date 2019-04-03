@@ -2,7 +2,7 @@
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/operators.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/gpu/miopen.hpp>

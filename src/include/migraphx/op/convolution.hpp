@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_OPERATORS_CONVOLUTION_HPP
 
 #include <array>
+#include <migraphx/op/common.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>

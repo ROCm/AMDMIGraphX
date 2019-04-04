@@ -584,14 +584,14 @@ struct squeeze
         }
 
         // squeezing a single element generates a scalar
-        if (new_lens.empty())
+        if(new_lens.empty())
         {
             return {type};
         }
         else
         {
-            return shape{type, new_lens};            
-        }        
+            return shape{type, new_lens};
+        }
     }
     argument compute(shape output_shape, std::vector<argument> args) const
     {

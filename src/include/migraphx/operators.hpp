@@ -1,7 +1,7 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_HPP
 #define MIGRAPHX_GUARD_OPERATORS_HPP
 
-#include <migraphx/op/abnormal.hpp>
+#include <migraphx/op/abnormal_ops.hpp>
 #include <migraphx/op/abs.hpp>
 #include <migraphx/op/acos.hpp>
 #include <migraphx/op/add.hpp>

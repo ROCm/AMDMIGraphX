@@ -129,4 +129,55 @@ TEST_CASE(undefined_test)
     EXPECT(result != migraphx::literal{4});
 }
 
+TEST_CASE(duplicate_args1)
+{
+    migraphx::program p;
+
+    auto l0 = p.add_literal(0);
+    auto l3 = p.add_literal(3);
+    p.add_instruction(migraphx::op::add{}, l3, l3);
+    p.add_instruction(migraphx::op::identity{}, l0);
+    auto count = std::distance(p.begin(), p.end());
+    p.compile(dce_target{});
+    EXPECT(std::distance(p.begin(), p.end()) != count);
+    EXPECT(std::distance(p.begin(), p.end()) == 2);
+    auto result = p.eval({});
+    EXPECT(result == migraphx::literal{0});
+}
+
+TEST_CASE(duplicate_args2)
+{
+    migraphx::program p;
+
+    auto l0   = p.add_literal(0);
+    auto l3   = p.add_literal(3);
+    auto sum1 = p.add_instruction(migraphx::op::add{}, l0, l3);
+    p.add_instruction(migraphx::op::add{}, sum1, l3);
+    p.add_instruction(migraphx::op::identity{}, l0);
+    auto count = std::distance(p.begin(), p.end());
+    p.compile(dce_target{});
+    EXPECT(std::distance(p.begin(), p.end()) != count);
+    EXPECT(std::distance(p.begin(), p.end()) == 2);
+    auto result = p.eval({});
+    EXPECT(result == migraphx::literal{0});
+}
+
+TEST_CASE(duplicate_args3)
+{
+    migraphx::program p;
+
+    auto l0   = p.add_literal(0);
+    auto l3   = p.add_literal(3);
+    auto sum1 = p.add_instruction(migraphx::op::add{}, l0, l3);
+    auto sum2 = p.add_instruction(migraphx::op::add{}, l0, sum1);
+    p.add_instruction(migraphx::op::add{}, sum2, l3);
+    p.add_instruction(migraphx::op::identity{}, l0);
+    auto count = std::distance(p.begin(), p.end());
+    p.compile(dce_target{});
+    EXPECT(std::distance(p.begin(), p.end()) != count);
+    EXPECT(std::distance(p.begin(), p.end()) == 2);
+    auto result = p.eval({});
+    EXPECT(result == migraphx::literal{0});
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

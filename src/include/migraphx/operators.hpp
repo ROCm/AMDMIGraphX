@@ -582,7 +582,16 @@ struct squeeze
                 }
             }
         }
-        return shape{type, new_lens};
+
+        // squeezing a single element generates a scalar
+        if (new_lens.empty())
+        {
+            return {type};
+        }
+        else
+        {
+            return shape{type, new_lens};            
+        }        
     }
     argument compute(shape output_shape, std::vector<argument> args) const
     {
@@ -831,18 +840,17 @@ struct dot
     std::string name() const { return "dot"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_type();
+        check_shapes{inputs, *this}.same_type();
         const shape& a = inputs.at(0);
         const shape& b = inputs.at(1);
         auto t         = a.type();
 
-        // according to the specification of the numpy.matmul()
-        // inputs with the shape dims more than 2 are acceptable
-        // as long as dim values are the same in the two inputs
+        // only handle the case that the batch size of a and b are the same
         if(!std::equal(
                a.lens().rbegin() + 2, a.lens().rend(), b.lens().rbegin() + 2, b.lens().rend()))
         {
-            MIGRAPHX_THROW("DOT: dim values mismatch");
+            MIGRAPHX_THROW("DOT: batch size of A and B mismatch: {" + to_string_range(a.lens()) +
+                           "} x {" + to_string_range(b.lens()) + "}");
         }
 
         std::size_t dim_0 = a.lens().size() - 2;

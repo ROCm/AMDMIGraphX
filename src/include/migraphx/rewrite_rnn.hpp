@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 #include <migraphx/instruction_ref.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/operation.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {

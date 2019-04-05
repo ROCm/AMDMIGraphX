@@ -519,7 +519,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_matmul(const std::string&, attribute_map, std::vector<instruction_ref> args)
+    parse_matmul(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         auto l0      = args[0];
         auto l1      = args[1];

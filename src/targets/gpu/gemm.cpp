@@ -231,7 +231,7 @@ argument miopen_gemm::compute(context& ctx,
                 m * n,
                 num_matrices);
         });
-        
+
         return args[3];
     }
 
@@ -255,29 +255,26 @@ argument miopen_gemm::compute(context& ctx,
         rocblas_int m     = out_lens[dim_0];
         rocblas_int n     = out_lens[dim_1];
         rocblas_int k     = args[0].get_shape().lens()[dim_1];
-        auto num_matrices = std::accumulate(out_lens.rbegin() + 2,
-                                            out_lens.rend(),
-                                            std::size_t{1},
-                                            std::multiplies<std::size_t>());
-        auto to_pointer   = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
-        if (num_matrices == 1)
+        auto num_matrices = std::accumulate(
+            out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
+        auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
+        if(num_matrices == 1)
         {
-            generic_rocblas_gemm(
-                as,
-                ctx.get_stream().get_rocblas(),
-                transb ? rocblas_operation_transpose : rocblas_operation_none,
-                transa ? rocblas_operation_transpose : rocblas_operation_none,
-                n,
-                m,
-                k,
-                &alpha_r,
-                to_pointer(args[1]),
-                ldb,
-                to_pointer(args[0]),
-                lda,
-                &beta_r,
-                to_pointer(args[2]),
-                ldc);
+            generic_rocblas_gemm(as,
+                                 ctx.get_stream().get_rocblas(),
+                                 transb ? rocblas_operation_transpose : rocblas_operation_none,
+                                 transa ? rocblas_operation_transpose : rocblas_operation_none,
+                                 n,
+                                 m,
+                                 k,
+                                 &alpha_r,
+                                 to_pointer(args[1]),
+                                 ldb,
+                                 to_pointer(args[0]),
+                                 lda,
+                                 &beta_r,
+                                 to_pointer(args[2]),
+                                 ldc);
         }
         else
         {

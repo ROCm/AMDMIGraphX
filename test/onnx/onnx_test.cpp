@@ -608,8 +608,8 @@ TEST_CASE(gemm_ex_brcst)
 TEST_CASE(matmul_vv)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {7}});
-    auto l1 = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {7}});
+    auto l0  = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {7}});
+    auto l1  = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {7}});
     auto sl0 = p.add_instruction(migraphx::op::unsqueeze{{0}}, l0);
     auto sl1 = p.add_instruction(migraphx::op::unsqueeze{{1}}, l1);
     auto res = p.add_instruction(migraphx::op::dot{1.0f, 0.0f}, sl0, sl1);
@@ -624,8 +624,8 @@ TEST_CASE(matmul_vv)
 TEST_CASE(matmul_vm)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {7}});
-    auto l1 = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {7, 8}});
+    auto l0  = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {7}});
+    auto l1  = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {7, 8}});
     auto sl0 = p.add_instruction(migraphx::op::unsqueeze{{0}}, l0);
     auto res = p.add_instruction(migraphx::op::dot{1.0f, 0.0f}, sl0, l1);
     p.add_instruction(migraphx::op::squeeze{{0}}, res);
@@ -638,9 +638,9 @@ TEST_CASE(matmul_vm)
 TEST_CASE(matmul_vbm)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {7}});
-    auto l1 = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {5, 7, 8}});
-    auto sl0 = p.add_instruction(migraphx::op::unsqueeze{{0}}, l0);
+    auto l0   = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {7}});
+    auto l1   = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {5, 7, 8}});
+    auto sl0  = p.add_instruction(migraphx::op::unsqueeze{{0}}, l0);
     auto bsl0 = p.add_instruction(migraphx::op::multibroadcast{{5, 1, 7}}, sl0);
     std::cout << "ONNX_TEST" << std::endl;
     auto res = p.add_instruction(migraphx::op::dot{1.0f, 0.0f}, bsl0, l1);
@@ -655,8 +655,8 @@ TEST_CASE(matmul_vbm)
 TEST_CASE(matmul_mv)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {6, 7}});
-    auto l1 = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {7}});
+    auto l0  = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {6, 7}});
+    auto l1  = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {7}});
     auto sl1 = p.add_instruction(migraphx::op::unsqueeze{{1}}, l1);
     auto res = p.add_instruction(migraphx::op::dot{1.0f, 0.0f}, l0, sl1);
     p.add_instruction(migraphx::op::squeeze{{1}}, res);
@@ -669,11 +669,11 @@ TEST_CASE(matmul_mv)
 TEST_CASE(matmul_bmv)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 6, 7}});
-    auto l1 = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {7}});
-    auto sl1 = p.add_instruction(migraphx::op::unsqueeze{{1}}, l1);
+    auto l0   = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 6, 7}});
+    auto l1   = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {7}});
+    auto sl1  = p.add_instruction(migraphx::op::unsqueeze{{1}}, l1);
     auto bsl1 = p.add_instruction(migraphx::op::multibroadcast{{3, 7, 1}}, sl1);
-    auto res = p.add_instruction(migraphx::op::dot{1.0f, 0.0f}, l0, bsl1);
+    auto res  = p.add_instruction(migraphx::op::dot{1.0f, 0.0f}, l0, bsl1);
     p.add_instruction(migraphx::op::squeeze{{2}}, res);
 
     auto prog = migraphx::parse_onnx("matmul_bmv.onnx");
@@ -684,8 +684,8 @@ TEST_CASE(matmul_bmv)
 TEST_CASE(matmul_bmbm)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 6, 7}});
-    auto l1 = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {5, 2, 1, 7, 8}});
+    auto l0  = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 6, 7}});
+    auto l1  = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {5, 2, 1, 7, 8}});
     auto bl0 = p.add_instruction(migraphx::op::multibroadcast{{5, 2, 3, 6, 7}}, l0);
     auto bl1 = p.add_instruction(migraphx::op::multibroadcast{{5, 2, 3, 7, 8}}, l1);
     p.add_instruction(migraphx::op::dot{1.0f, 0.0f}, bl0, bl1);

@@ -1,6 +1,6 @@
 #include <migraphx/gpu/fp_conversion.hpp>
+#include <migraphx/gpu/device/fp_conversion.hpp>
 #include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/device/gather.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

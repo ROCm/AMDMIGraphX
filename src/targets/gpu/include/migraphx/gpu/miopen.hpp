@@ -2,7 +2,9 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_MIOPEN_HPP
 
 #include <migraphx/manage_ptr.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/convolution.hpp>
+#include <migraphx/op/pooling.hpp>
+#include <migraphx/op/lrn.hpp>
 #include <miopen/miopen.h>
 #include <migraphx/config.hpp>
 

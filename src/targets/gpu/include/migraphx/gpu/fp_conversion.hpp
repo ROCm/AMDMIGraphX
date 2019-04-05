@@ -1,12 +1,14 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_FP_CONVERSION_HPP
 #define MIGRAPHX_GUARD_RTGLIB_FP_CONVERSION_HPP
 
-#include <migraphx/gpu/oper.hpp>
-#include <migraphx/gpu/device/fp_conversion.hpp>
+#include <migraphx/shape.hpp>
+#include <migraphx/op/fp_conversion.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+struct context;
 
 struct hip_fp_conversion
 {

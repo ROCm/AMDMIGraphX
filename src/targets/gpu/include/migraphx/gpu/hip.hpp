@@ -1,13 +1,16 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_HIP_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_HIP_HPP
 
-#include <migraphx/operators.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/check_shapes.hpp>
 #include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+struct context;
 
 argument allocate_gpu(const shape& s, bool host = false);
 

@@ -2,7 +2,7 @@
 #include <migraphx/quantization.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/fp_conversion.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/ranges.hpp>

@@ -552,7 +552,9 @@ struct onnx_parser
             auto l1_it = l1_lens.begin() + l1_lens.size() - 2;
             std::vector<std::size_t> l1_broadcasted_lens(l1_lens.begin(), l1_it);
             auto output_lens = compute_broadcasted_lens(l0_broadcasted_lens, l1_broadcasted_lens);
+            l0_broadcasted_lens = output_lens;
             l0_broadcasted_lens.insert(l0_broadcasted_lens.end(), l0_it, l0_lens.end());
+            l1_broadcasted_lens = output_lens;
             l1_broadcasted_lens.insert(l1_broadcasted_lens.end(), l1_it, l1_lens.end());
             if(l0_lens != l0_broadcasted_lens)
             {

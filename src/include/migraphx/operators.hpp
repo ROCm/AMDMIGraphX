@@ -845,6 +845,11 @@ struct dot
         const shape& b = inputs.at(1);
         auto t         = a.type();
 
+        if (!std::all_of(inputs.begin(), inputs.end(), [](auto s) { return s.lens().size() >= 2; }))
+        {
+            MIGRAPHX_THROW("DOT: dot only accept 2 or more dims operands");
+        }
+
         // only handle the case that the batch size of a and b are the same
         if(!std::equal(
                a.lens().rbegin() + 2, a.lens().rend(), b.lens().rbegin() + 2, b.lens().rend()))

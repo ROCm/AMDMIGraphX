@@ -498,8 +498,8 @@ TEST_CASE(matmul_vv_inner_product)
                                 -0.2342857};
         migraphx::shape a_shape{migraphx::shape::float_type, {8}};
         migraphx::shape b_shape{migraphx::shape::float_type, {8}};
-        auto al = p.add_literal(migraphx::literal{a_shape, a});
-        auto bl = p.add_literal(migraphx::literal{b_shape, b});
+        auto al  = p.add_literal(migraphx::literal{a_shape, a});
+        auto bl  = p.add_literal(migraphx::literal{b_shape, b});
         auto ual = p.add_instruction(migraphx::op::unsqueeze{{0}}, al);
         auto ubl = p.add_instruction(migraphx::op::unsqueeze{{1}}, bl);
         p.add_instruction(migraphx::op::dot{}, ual, ubl);
@@ -533,8 +533,8 @@ TEST_CASE(matmul_vv_inner_product)
         migraphx::shape b_shape{migraphx::shape::float_type, {8}};
         auto al     = p.add_literal(migraphx::literal{a_shape, a});
         auto bl     = p.add_literal(migraphx::literal{b_shape, b});
-        auto ual = p.add_instruction(migraphx::op::unsqueeze{{0}}, al);
-        auto ubl = p.add_instruction(migraphx::op::unsqueeze{{1}}, bl);
+        auto ual    = p.add_instruction(migraphx::op::unsqueeze{{0}}, al);
+        auto ubl    = p.add_instruction(migraphx::op::unsqueeze{{1}}, bl);
         float alpha = 0.32f;
         p.add_instruction(migraphx::op::dot{alpha}, ual, ubl);
         std::vector<float> gold = {-0.4590752};
@@ -567,7 +567,7 @@ TEST_CASE(matmul_vm)
                                 1.21119765,  1.23869861,  1.42169414,  0.86412382,  1.05898002,
                                 -0.31918307, 1.08546695,  1.50682711,  -0.66083538, -0.32683929};
         migraphx::shape a_shape{migraphx::shape::float_type, {8}};
-        auto al = p.add_literal(migraphx::literal{a_shape, a});
+        auto al  = p.add_literal(migraphx::literal{a_shape, a});
         auto ual = p.add_instruction(migraphx::op::unsqueeze{{0}}, al);
         migraphx::shape b_shape{migraphx::shape::float_type, {8, 5}};
         auto bl = p.add_literal(migraphx::literal{b_shape, b});
@@ -600,7 +600,7 @@ TEST_CASE(matmul_vm)
                                 1.21119765,  1.23869861,  1.42169414,  0.86412382,  1.05898002,
                                 -0.31918307, 1.08546695,  1.50682711,  -0.66083538, -0.32683929};
         migraphx::shape a_shape{migraphx::shape::float_type, {8}};
-        auto al = p.add_literal(migraphx::literal{a_shape, a});
+        auto al  = p.add_literal(migraphx::literal{a_shape, a});
         auto ual = p.add_instruction(migraphx::op::unsqueeze{{0}}, al);
         migraphx::shape b_shape{migraphx::shape::float_type, {8, 5}};
         auto bl     = p.add_literal(migraphx::literal{b_shape, b});
@@ -634,8 +634,8 @@ TEST_CASE(matmul_vm)
             -0.18205627, 0.29446203,  -1.91360924, 0.46102174,  0.44977568,  -0.48113321};
 
         migraphx::shape a_shape{migraphx::shape::float_type, {6}};
-        auto al = p.add_literal(migraphx::literal{a_shape, a});
-        auto ual = p.add_instruction(migraphx::op::unsqueeze{{0}}, al);
+        auto al   = p.add_literal(migraphx::literal{a_shape, a});
+        auto ual  = p.add_instruction(migraphx::op::unsqueeze{{0}}, al);
         auto bual = p.add_instruction(migraphx::op::multibroadcast{{3, 1, 6}}, ual);
         migraphx::shape b_shape{migraphx::shape::float_type, {3, 6, 4}};
         auto bl = p.add_literal(migraphx::literal{b_shape, b});
@@ -678,8 +678,8 @@ TEST_CASE(matmul_vm)
             -0.18205627, 0.29446203,  -1.91360924, 0.46102174,  0.44977568,  -0.48113321};
 
         migraphx::shape a_shape{migraphx::shape::float_type, {6}};
-        auto al = p.add_literal(migraphx::literal{a_shape, a});
-        auto ual = p.add_instruction(migraphx::op::unsqueeze{{0}}, al);
+        auto al   = p.add_literal(migraphx::literal{a_shape, a});
+        auto ual  = p.add_instruction(migraphx::op::unsqueeze{{0}}, al);
         auto bual = p.add_instruction(migraphx::op::multibroadcast{{3, 1, 6}}, ual);
         migraphx::shape b_shape{migraphx::shape::float_type, {3, 6, 4}};
         auto bl = p.add_literal(migraphx::literal{b_shape, b});
@@ -729,7 +729,7 @@ TEST_CASE(matmul_mv)
         migraphx::shape a_shape{migraphx::shape::float_type, {3, 5}};
         auto al = p.add_literal(migraphx::literal{a_shape, a});
         migraphx::shape b_shape{migraphx::shape::float_type, {5}};
-        auto bl = p.add_literal(migraphx::literal{b_shape, b});
+        auto bl  = p.add_literal(migraphx::literal{b_shape, b});
         auto ubl = p.add_instruction(migraphx::op::unsqueeze{{1}}, bl);
         p.add_instruction(migraphx::op::dot{}, al, ubl);
         std::vector<float> gold = {1.31982, 1.19022, -1.96062};
@@ -764,7 +764,7 @@ TEST_CASE(matmul_mv)
         auto al = p.add_literal(migraphx::literal{a_shape, a});
         migraphx::shape b_shape{migraphx::shape::float_type, {5}};
         auto bl     = p.add_literal(migraphx::literal{b_shape, b});
-        auto ubl = p.add_instruction(migraphx::op::unsqueeze{{1}}, bl);
+        auto ubl    = p.add_instruction(migraphx::op::unsqueeze{{1}}, bl);
         float alpha = 0.3f;
         p.add_instruction(migraphx::op::dot{alpha}, al, ubl);
         std::vector<float> gold = {0.395946, 0.357067, -0.588187};
@@ -793,8 +793,8 @@ TEST_CASE(matmul_mv)
         migraphx::shape a_shape{migraphx::shape::float_type, {2, 2, 3, 5}};
         auto al = p.add_literal(migraphx::literal{a_shape, a});
         migraphx::shape b_shape{migraphx::shape::float_type, {5}};
-        auto bl = p.add_literal(migraphx::literal{b_shape, b});
-        auto ubl = p.add_instruction(migraphx::op::unsqueeze{{1}}, bl);
+        auto bl   = p.add_literal(migraphx::literal{b_shape, b});
+        auto ubl  = p.add_instruction(migraphx::op::unsqueeze{{1}}, bl);
         auto bubl = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 5, 1}}, ubl);
         p.add_instruction(migraphx::op::dot{}, al, bubl);
         std::vector<float> gold = {-0.792717,
@@ -851,7 +851,7 @@ TEST_CASE(matmul_mm1)
         migraphx::shape a_shape{migraphx::shape::float_type, {2, 2, 3, 5}};
         auto al = p.add_literal(migraphx::literal{a_shape, a});
         migraphx::shape b_shape{migraphx::shape::float_type, {5, 3}};
-        auto bl = p.add_literal(migraphx::literal{b_shape, b});
+        auto bl  = p.add_literal(migraphx::literal{b_shape, b});
         auto bbl = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 5, 3}}, bl);
         p.add_instruction(migraphx::op::dot{}, al, bbl);
         std::vector<float> gold = {-0.386828, 0.187735,  -0.22822, -0.148057, 2.015,    -2.56938,
@@ -897,7 +897,7 @@ TEST_CASE(matmul_mm1)
             -0.14231862, -1.90915568, -0.06895489, 0.20160375,  0.01945916,  0.03586956};
 
         migraphx::shape a_shape{migraphx::shape::float_type, {3, 4}};
-        auto al = p.add_literal(migraphx::literal{a_shape, a});
+        auto al  = p.add_literal(migraphx::literal{a_shape, a});
         auto bal = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 3, 4}}, al);
         migraphx::shape b_shape{migraphx::shape::float_type, {2, 3, 4, 3}};
         auto bl = p.add_literal(migraphx::literal{b_shape, b});
@@ -943,7 +943,7 @@ TEST_CASE(matmul_mm2)
         auto al = p.add_literal(migraphx::literal{a_shape, a});
         migraphx::shape b_shape{migraphx::shape::float_type, {2, 1, 5, 3}};
         auto bl                 = p.add_literal(migraphx::literal{b_shape, b});
-        auto bbl = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 5, 3}}, bl);
+        auto bbl                = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 5, 3}}, bl);
         std::vector<float> gold = {
             0.70574512,  -2.80915314, -1.57644969, 1.75415381,  -3.13303087, -1.00150259,
             -0.18675123, -0.23349122, -0.12357225, 0.82911538,  1.37473744,  -1.11709934,
@@ -975,10 +975,10 @@ TEST_CASE(matmul_mm2)
                                 1.7746011,   0.24935804,  0.42830791,  -0.13593643, 0.38749427,
                                 1.39776254,  -0.42911717, -1.3537624,  -0.81999648, -0.1754485};
         migraphx::shape a_shape{migraphx::shape::float_type, {1, 2, 3, 5}};
-        auto al = p.add_literal(migraphx::literal{a_shape, a});
+        auto al  = p.add_literal(migraphx::literal{a_shape, a});
         auto bal = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 3, 5}}, al);
         migraphx::shape b_shape{migraphx::shape::float_type, {2, 1, 5, 3}};
-        auto bl = p.add_literal(migraphx::literal{b_shape, b});
+        auto bl  = p.add_literal(migraphx::literal{b_shape, b});
         auto bbl = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 5, 3}}, bl);
         p.add_instruction(migraphx::op::dot{}, bal, bbl);
         std::vector<float> gold = {
@@ -1071,7 +1071,7 @@ TEST_CASE(matmul_mm2)
         migraphx::shape a_shape{migraphx::shape::float_type, {2, 2, 3, 4}};
         auto al = p.add_literal(migraphx::literal{a_shape, a});
         migraphx::shape b_shape{migraphx::shape::float_type, {2, 4, 5}};
-        auto bl = p.add_literal(migraphx::literal{b_shape, b});
+        auto bl  = p.add_literal(migraphx::literal{b_shape, b});
         auto bbl = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 4, 5}}, bl);
         p.add_instruction(migraphx::op::dot{}, al, bbl);
         std::vector<float> gold = {

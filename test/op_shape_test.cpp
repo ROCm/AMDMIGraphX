@@ -414,15 +414,19 @@ TEST_CASE(matmul)
     {
         migraphx::shape s_m1{migraphx::shape::float_type, {6, 1, 5}};
         migraphx::shape s_m2{migraphx::shape::float_type, {6, 5, 4}};
-        expect_shape(
-            migraphx::shape{migraphx::shape::float_type, {6, 1, 4}}, migraphx::op::dot{}, s_m1, s_m2);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {6, 1, 4}},
+                     migraphx::op::dot{},
+                     s_m1,
+                     s_m2);
     }
 
     {
         migraphx::shape s_m1{migraphx::shape::float_type, {1, 6, 1, 5}};
         migraphx::shape s_m2{migraphx::shape::float_type, {1, 6, 5, 4}};
-        expect_shape(
-            migraphx::shape{migraphx::shape::float_type, {1, 6, 1, 4}}, migraphx::op::dot{}, s_m1, s_m2);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 6, 1, 4}},
+                     migraphx::op::dot{},
+                     s_m1,
+                     s_m2);
     }
 
     {

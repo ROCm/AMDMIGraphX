@@ -179,6 +179,7 @@ argument miopen_gemm::compute(context& ctx,
                               const std::vector<argument>& args) const
 {
     bool is_3inputs = (args.size() == 4);
+    float beta = 0.0f;
     if(is_3inputs)
     {
         output_shape.visit_type([&](auto as) {
@@ -189,61 +190,15 @@ argument miopen_gemm::compute(context& ctx,
                            hipMemcpyDeviceToDevice,
                            ctx.get_stream().get());
         });
-
-        output_shape.visit_type([&](auto as) {
-            auto n_dim        = output_shape.lens().size();
-            auto dim_1        = n_dim - 1;
-            auto dim_0        = n_dim - 2;
-            auto alpha_r      = to_rocblas_type(as(op.alpha));
-            auto beta_r       = to_rocblas_type(as(op.beta));
-            bool transa       = args[0].get_shape().transposed();
-            bool transb       = args[1].get_shape().transposed();
-            rocblas_int lda   = args[0].get_shape().strides()[transa ? dim_1 : dim_0];
-            rocblas_int ldb   = args[1].get_shape().strides()[transb ? dim_1 : dim_0];
-            rocblas_int ldc   = args[3].get_shape().strides()[dim_0];
-            auto out_lens     = output_shape.lens();
-            rocblas_int m     = out_lens[dim_0];
-            rocblas_int n     = out_lens[dim_1];
-            rocblas_int k     = args[0].get_shape().lens()[dim_1];
-            auto num_matrices = std::accumulate(out_lens.rbegin() + 2,
-                                                out_lens.rend(),
-                                                std::size_t{1},
-                                                std::multiplies<std::size_t>());
-            auto to_pointer   = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
-            generic_rocblas_batched_gemm(
-                as,
-                ctx.get_stream().get_rocblas(),
-                transb ? rocblas_operation_transpose : rocblas_operation_none,
-                transa ? rocblas_operation_transpose : rocblas_operation_none,
-                n,
-                m,
-                k,
-                &alpha_r,
-                to_pointer(args[1]),
-                ldb,
-                k * n,
-                to_pointer(args[0]),
-                lda,
-                m * k,
-                &beta_r,
-                to_pointer(args[3]),
-                ldc,
-                m * n,
-                num_matrices);
-        });
-
-        return args[3];
+        beta = op.beta;
     }
 
-    // 2 input argument cases
-    // vector inner product
     auto a_lens = args[0].get_shape().lens();
     auto b_lens = args[1].get_shape().lens();
     output_shape.visit_type([&](auto as) {
         auto n_dim        = output_shape.lens().size();
         auto dim_1        = n_dim - 1;
         auto dim_0        = n_dim - 2;
-        float beta        = 0.0f;
         auto alpha_r      = to_rocblas_type(as(op.alpha));
         auto beta_r       = to_rocblas_type(as(beta));
         bool transa       = args[0].get_shape().transposed();
@@ -273,7 +228,7 @@ argument miopen_gemm::compute(context& ctx,
                                  to_pointer(args[0]),
                                  lda,
                                  &beta_r,
-                                 to_pointer(args[2]),
+                                 (is_3inputs ? to_pointer(args[3]) : to_pointer(args[2])),
                                  ldc);
         }
         else
@@ -294,14 +249,14 @@ argument miopen_gemm::compute(context& ctx,
                 lda,
                 m * k,
                 &beta_r,
-                to_pointer(args[2]),
+                (is_3inputs ? to_pointer(args[3]) : to_pointer(args[2])),
                 ldc,
                 m * n,
                 num_matrices);
         }
     });
 
-    return args[2];
+    return (is_3inputs ? args[3] : args[2]);
 }
 
 } // namespace gpu

@@ -1,6 +1,7 @@
 #include <migraphx/eliminate_allocation.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/check_shapes.hpp>
+#include <migraphx/argument.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 

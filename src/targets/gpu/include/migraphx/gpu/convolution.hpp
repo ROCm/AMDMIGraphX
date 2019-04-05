@@ -2,7 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_CONVOLUTION_HPP
 
 #include <migraphx/shape.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/convolution.hpp>
 #include <migraphx/gpu/miopen.hpp>
 
 namespace migraphx {

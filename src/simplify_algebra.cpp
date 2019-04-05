@@ -1,6 +1,6 @@
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/add.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
 

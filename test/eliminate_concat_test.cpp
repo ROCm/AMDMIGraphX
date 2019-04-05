@@ -1,6 +1,8 @@
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/concat.hpp>
+#include <migraphx/op/load.hpp>
+#include <migraphx/op/identity.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 

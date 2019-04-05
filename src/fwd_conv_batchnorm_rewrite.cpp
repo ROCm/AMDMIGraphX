@@ -1,7 +1,9 @@
 #include <migraphx/fwd_conv_batchnorm_rewrite.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/batch_norm.hpp>
+#include <migraphx/op/broadcast.hpp>
+#include <migraphx/op/add.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/dfor.hpp>

@@ -1,7 +1,10 @@
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/convolution.hpp>
+#include <migraphx/op/im2col.hpp>
+#include <migraphx/op/pooling.hpp>
+#include <migraphx/op/pad.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/stringutils.hpp>
 

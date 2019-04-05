@@ -179,7 +179,7 @@ argument miopen_gemm::compute(context& ctx,
                               const std::vector<argument>& args) const
 {
     bool is_3inputs = (args.size() == 4);
-    float beta = 0.0f;
+    float beta      = 0.0f;
     if(is_3inputs)
     {
         output_shape.visit_type([&](auto as) {

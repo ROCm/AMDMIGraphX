@@ -1,6 +1,6 @@
 #include <migraphx/gpu/logsoftmax.hpp>
 #include <migraphx/gpu/device/logsoftmax.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/logsoftmax.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <utility>

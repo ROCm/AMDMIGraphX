@@ -55,7 +55,15 @@ struct squeeze
                 }
             }
         }
-        return shape{type, new_lens};
+
+        if(new_lens.empty())
+        {
+            return shape{type};
+        }
+        else
+        {
+            return shape{type, new_lens};
+        }
     }
     argument compute(shape output_shape, std::vector<argument> args) const
     {

@@ -18,7 +18,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 instruction_ref convert_fp32_fp16(program& prog, instruction_ref& ins)
 {
-    assert(ins->get_shape().type() == shape::float_type || ins->get_shape().type() == shape::double_type);
+    assert(ins->get_shape().type() == shape::float_type ||
+           ins->get_shape().type() == shape::double_type);
     assert(ins->name().front() == '@');
     instruction_ref ins_fp16{};
     if(ins->name() == "@literal")

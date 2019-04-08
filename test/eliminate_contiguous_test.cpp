@@ -1,6 +1,7 @@
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/transpose.hpp>
+#include <migraphx/op/contiguous.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 

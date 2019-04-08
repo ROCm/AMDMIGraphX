@@ -2,7 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_SOFTMAX_HPP
 
 #include <migraphx/shape.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/softmax.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

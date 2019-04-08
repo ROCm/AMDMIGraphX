@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_GATHER_HPP
 
 #include <migraphx/shape.hpp>
+#include <migraphx/op/gather.hpp>
 #include <migraphx/gpu/miopen.hpp>
 
 namespace migraphx {

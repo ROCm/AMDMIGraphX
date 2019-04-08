@@ -566,7 +566,8 @@ TEST_CASE(gemm_test)
     auto t0    = p.add_instruction(migraphx::op::transpose{{1, 0}}, l0);
     auto t1    = p.add_instruction(migraphx::op::transpose{{1, 0}}, l1);
     auto alpha = 2.f;
-    p.add_instruction(migraphx::op::dot{alpha}, t0, t1);
+    auto beta  = 2.0f;
+    p.add_instruction(migraphx::op::dot{alpha, beta}, t0, t1);
     auto prog = migraphx::parse_onnx("gemm_test.onnx");
 
     EXPECT(p == prog);
@@ -575,20 +576,121 @@ TEST_CASE(gemm_test)
 TEST_CASE(gemm_ex)
 {
     migraphx::program p;
-    auto l0     = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 6}});
-    auto l1     = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 7}});
-    auto l2     = p.add_parameter("3", migraphx::shape{migraphx::shape::float_type, {1, 1, 6, 7}});
-    auto t0     = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, l0);
-    auto alpha  = 0.5f;
-    auto res_ab = p.add_instruction(migraphx::op::dot{alpha}, t0, l1);
-
-    auto beta       = 0.8f;
-    auto l_beta     = p.add_literal(beta);
-    auto brcst_beta = p.add_instruction(migraphx::op::scalar{l2->get_shape()}, l_beta);
-    auto res_c      = p.add_instruction(migraphx::op::mul{}, l2, brcst_beta);
-    p.add_instruction(migraphx::op::add{}, res_ab, res_c);
-
+    auto l0    = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 6}});
+    auto l1    = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 7}});
+    auto l2    = p.add_parameter("3", migraphx::shape{migraphx::shape::float_type, {1, 1, 6, 7}});
+    auto t0    = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, l0);
+    auto alpha = 0.5f;
+    auto beta  = 0.8f;
+    p.add_instruction(migraphx::op::dot{alpha, beta}, t0, l1, l2);
     auto prog = migraphx::parse_onnx("gemm_test_ex.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(gemm_ex_brcst)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 6}});
+    auto l1 = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 7}});
+    auto l2 = p.add_parameter("3", migraphx::shape{migraphx::shape::float_type, {1, 1, 6, 1}});
+    auto t0 = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, l0);
+    std::vector<std::size_t> out_lens{1, 1, 6, 7};
+    auto t2    = p.add_instruction(migraphx::op::multibroadcast{out_lens}, l2);
+    auto alpha = 0.5f;
+    auto beta  = 0.8f;
+    p.add_instruction(migraphx::op::dot{alpha, beta}, t0, l1, t2);
+    auto prog = migraphx::parse_onnx("gemm_test_ex1.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(matmul_vv)
+{
+    migraphx::program p;
+    auto l0  = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {7}});
+    auto l1  = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {7}});
+    auto sl0 = p.add_instruction(migraphx::op::unsqueeze{{0}}, l0);
+    auto sl1 = p.add_instruction(migraphx::op::unsqueeze{{1}}, l1);
+    auto res = p.add_instruction(migraphx::op::dot{1.0f, 0.0f}, sl0, sl1);
+    auto sr0 = p.add_instruction(migraphx::op::squeeze{{0}}, res);
+    p.add_instruction(migraphx::op::squeeze{{0}}, sr0);
+
+    auto prog = migraphx::parse_onnx("matmul_vv.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(matmul_vm)
+{
+    migraphx::program p;
+    auto l0  = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {7}});
+    auto l1  = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {7, 8}});
+    auto sl0 = p.add_instruction(migraphx::op::unsqueeze{{0}}, l0);
+    auto res = p.add_instruction(migraphx::op::dot{1.0f, 0.0f}, sl0, l1);
+    p.add_instruction(migraphx::op::squeeze{{0}}, res);
+
+    auto prog = migraphx::parse_onnx("matmul_vm.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(matmul_vbm)
+{
+    migraphx::program p;
+    auto l0   = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {7}});
+    auto l1   = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {5, 7, 8}});
+    auto sl0  = p.add_instruction(migraphx::op::unsqueeze{{0}}, l0);
+    auto bsl0 = p.add_instruction(migraphx::op::multibroadcast{{5, 1, 7}}, sl0);
+    std::cout << "ONNX_TEST" << std::endl;
+    auto res = p.add_instruction(migraphx::op::dot{1.0f, 0.0f}, bsl0, l1);
+    std::cout << "After Dot" << std::endl;
+    p.add_instruction(migraphx::op::squeeze{{1}}, res);
+
+    auto prog = migraphx::parse_onnx("matmul_vbm.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(matmul_mv)
+{
+    migraphx::program p;
+    auto l0  = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {6, 7}});
+    auto l1  = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {7}});
+    auto sl1 = p.add_instruction(migraphx::op::unsqueeze{{1}}, l1);
+    auto res = p.add_instruction(migraphx::op::dot{1.0f, 0.0f}, l0, sl1);
+    p.add_instruction(migraphx::op::squeeze{{1}}, res);
+
+    auto prog = migraphx::parse_onnx("matmul_mv.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(matmul_bmv)
+{
+    migraphx::program p;
+    auto l0   = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 6, 7}});
+    auto l1   = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {7}});
+    auto sl1  = p.add_instruction(migraphx::op::unsqueeze{{1}}, l1);
+    auto bsl1 = p.add_instruction(migraphx::op::multibroadcast{{3, 7, 1}}, sl1);
+    auto res  = p.add_instruction(migraphx::op::dot{1.0f, 0.0f}, l0, bsl1);
+    p.add_instruction(migraphx::op::squeeze{{2}}, res);
+
+    auto prog = migraphx::parse_onnx("matmul_bmv.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(matmul_bmbm)
+{
+    migraphx::program p;
+    auto l0  = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 6, 7}});
+    auto l1  = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {5, 2, 1, 7, 8}});
+    auto bl0 = p.add_instruction(migraphx::op::multibroadcast{{5, 2, 3, 6, 7}}, l0);
+    auto bl1 = p.add_instruction(migraphx::op::multibroadcast{{5, 2, 3, 7, 8}}, l1);
+    p.add_instruction(migraphx::op::dot{1.0f, 0.0f}, bl0, bl1);
+
+    auto prog = migraphx::parse_onnx("matmul_bmbm.onnx");
 
     EXPECT(p == prog);
 }

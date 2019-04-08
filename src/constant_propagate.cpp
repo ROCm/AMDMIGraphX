@@ -9,11 +9,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 bool skip_propogate(instruction_ref ins)
 {
-    if (ins->name() == "@literal")
+    if(ins->name() == "@literal")
         return true;
-    if (ins->get_shape().broadcasted() and not ins->get_shape().scalar())
+    if(ins->get_shape().broadcasted() and not ins->get_shape().scalar())
         return true;
-    if (ins->get_shape().scalar() and ins->get_shape().elements() != 1)
+    if(ins->get_shape().scalar() and ins->get_shape().elements() != 1)
         return true;
     return false;
 }

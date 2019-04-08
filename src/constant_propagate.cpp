@@ -33,8 +33,7 @@ void constant_propagate::apply(program& p) const
                 return;
             }
         }
-        std::unordered_set<instruction_ref> children(ins->inputs().begin(),
-                                                 ins->inputs().end());
+        std::unordered_set<instruction_ref> children(ins->inputs().begin(), ins->inputs().end());
         for(auto child : children)
             self(child);
     })(std::prev(p.end()));

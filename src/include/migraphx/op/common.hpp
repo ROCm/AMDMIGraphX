@@ -31,7 +31,7 @@ enum class rnn_direction
     bidirectional,
 };
 
-std::ostream& operator << (std::ostream& os, rnn_direction v);
+std::ostream& operator<<(std::ostream& os, rnn_direction v);
 
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS

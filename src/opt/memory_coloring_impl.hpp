@@ -3,7 +3,6 @@
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/operators.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/pass_config.hpp>
 #include <migraphx/config.hpp>

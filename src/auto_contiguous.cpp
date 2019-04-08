@@ -1,7 +1,7 @@
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/contiguous.hpp>
 #include <migraphx/iterator_for.hpp>
 
 namespace migraphx {

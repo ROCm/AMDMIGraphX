@@ -2,7 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_GEMM_HPP
 
 #include <migraphx/shape.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/dot.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

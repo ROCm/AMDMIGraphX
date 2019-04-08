@@ -56,7 +56,8 @@ void migemm_impl(tensor_view<T> cmat,
         visit_mat(bmat, [&](const auto& b) {
             auto c = make_mat(cmat);
             c      = beta * c;
-
+            // This is a simple optimization to avoid
+            // compute A * B if alpha is 0.0
             if(alpha != 0.0)
             {
                 c = c + alpha * a * b;
@@ -116,10 +117,11 @@ template <class T>
 void migemm_impl(
     tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, float alpha, float beta)
 {
-    auto lens                = cmat.get_shape().lens();
-    std::size_t num_matrices = std::accumulate(
-        lens.rbegin() + 2, lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
-    if(num_matrices == 1)
+    auto lens = amat.get_shape().lens();
+    bool batch_mul =
+        std::accumulate(
+            lens.rbegin() + 2, lens.rend(), std::size_t{1}, std::multiplies<std::size_t>()) == 1;
+    if(batch_mul)
     {
         migemm_impl(cmat, amat, bmat, alpha, beta, is_fast_gemm_type<T>{});
     }

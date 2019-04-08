@@ -1,5 +1,6 @@
 #include <migraphx/auto_contiguous.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/transpose.hpp>
+#include <migraphx/op/broadcast.hpp>
 #include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>

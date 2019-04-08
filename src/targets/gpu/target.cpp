@@ -17,13 +17,17 @@
 #include <migraphx/fwd_conv_batchnorm_rewrite.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/eliminate_concat.hpp>
+#include <migraphx/eliminate_identity.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
+#include <migraphx/eliminate_pad.hpp>
 #include <migraphx/schedule.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_SCHEDULE_PASS)
 
 std::vector<pass> target::get_passes(migraphx::context& gctx) const
 {
@@ -31,6 +35,9 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
     // clang-format off
     return
     {
+        dead_code_elimination{},
+        eliminate_identity{},
+        eliminate_pad{},
         dead_code_elimination{},
         fwd_conv_batchnorm_rewrite{},
         dead_code_elimination{},
@@ -53,13 +60,14 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         fuse_ops{&ctx},
         dead_code_elimination{},
         write_literals{&ctx},
-        schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}},
+        schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, enabled(MIGRAPHX_ENABLE_SCHEDULE_PASS{})},
         memory_coloring{"hip::allocate"},
         dead_code_elimination{},
         eliminate_workspace{},
         eliminate_allocation{"hip::allocate"},
         check_context<context>{},
-        dead_code_elimination{}
+        dead_code_elimination{},
+        eliminate_identity{}
     };
     // clang-format on
 }

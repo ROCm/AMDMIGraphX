@@ -75,10 +75,10 @@ struct cpu_batch_norm_inference
 
                     par_dfor(num_batch, num_channels, image_height, image_width)(
                         [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
-                            assert((variance(c) + epsilon) > 0);
-                            result(n, c, h, w) = gamma(c) * (buffer(n, c, h, w) - mean(c)) /
-                                                     std::sqrt(variance(c) + epsilon) +
-                                                 bias(c);
+                            assert((variance[c] + epsilon) > 0);
+                            result(n, c, h, w) = gamma[c] * (buffer(n, c, h, w) - mean[c]) /
+                                                     std::sqrt(variance[c] + epsilon) +
+                                                 bias[c];
                         });
                 });
         }
@@ -369,7 +369,15 @@ struct cpu_gemm
 {
     op::dot op;
     std::string name() const { return "cpu::dot"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        if(inputs.size() == 3)
+        {
+            auto c_shape = inputs.at(2);
+            check_shapes{{c_shape}}.not_broadcasted();
+        }
+        return op.compute_shape(inputs);
+    }
 
     void fill_result(argument& result, argument& c) const
     {
@@ -429,7 +437,9 @@ struct cpu_gemm
             }
             else
             {
-                fill_result(result, args[2]);
+                visit_all(result, args[2])([&](auto output, auto input) {
+                    std::copy(input.begin(), input.end(), output.begin());
+                });
             }
 
             migemm(result, args[0], args[1], op.alpha, op.beta);
@@ -437,33 +447,8 @@ struct cpu_gemm
             return result;
         }
 
-        // 2 input cases
-        // first argument is 1-dim, pre-pend 1 at beginning
-        auto a_lens     = args[0].get_shape().lens();
-        auto b_lens     = args[1].get_shape().lens();
-        auto out_lens   = output_shape.lens();
-        shape::type_t t = output_shape.type();
-        if(a_lens.size() == 1)
-        {
-            a_lens.insert(a_lens.begin(), 1);
-            out_lens.push_back(1);
-            if(out_lens.size() > 1)
-            {
-                std::swap(*out_lens.rbegin(), *(out_lens.rbegin() + 1));
-            }
-        }
-
-        if(b_lens.size() == 1)
-        {
-            b_lens.push_back(1);
-            out_lens.push_back(1);
-        }
-
-        migemm({{t, out_lens}, result.data()},
-               {{t, a_lens}, args[0].data()},
-               {{t, b_lens}, args[1].data()},
-               op.alpha,
-               0.0f);
+        // 2 input arguments
+        migemm(result, args[0], args[1], op.alpha, 0.0f);
 
         return result;
     }

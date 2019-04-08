@@ -519,19 +519,19 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
     if(bias != prog.end())
     {
         auto sbias = prog.insert_instruction(ins, op::squeeze{{0}}, bias);
-        auto wbz        = prog.insert_instruction(ins, op::slice{{0}, {0}, {hs}}, sbias);
-        auto wbr        = prog.insert_instruction(ins, op::slice{{0}, {hs}, {2 * hs}}, sbias);
-        auto wbh        = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, sbias);
-        bwbz = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, wbz);
-        bwbr = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, wbr);
-        bwbh = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, wbh);
+        auto wbz   = prog.insert_instruction(ins, op::slice{{0}, {0}, {hs}}, sbias);
+        auto wbr   = prog.insert_instruction(ins, op::slice{{0}, {hs}, {2 * hs}}, sbias);
+        auto wbh   = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, sbias);
+        bwbz       = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, wbz);
+        bwbr       = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, wbr);
+        bwbh       = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, wbh);
 
         auto rbz = prog.insert_instruction(ins, op::slice{{0}, {3 * hs}, {4 * hs}}, sbias);
         auto rbr = prog.insert_instruction(ins, op::slice{{0}, {4 * hs}, {5 * hs}}, sbias);
         auto rbh = prog.insert_instruction(ins, op::slice{{0}, {5 * hs}, {6 * hs}}, sbias);
-        brbz = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, rbz);
-        brbr = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, rbr);
-        brbh = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, rbh);
+        brbz     = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, rbz);
+        brbr     = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, rbr);
+        brbh     = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, rbh);
     }
 
     for(long i = 0; i < seq_len; i++)

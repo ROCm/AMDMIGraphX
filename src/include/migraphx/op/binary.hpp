@@ -28,9 +28,10 @@ struct binary
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs}.has(2).same_type().same_dims();
-        auto t    = inputs.at(0).type();
-        auto lens = inputs.at(0).lens();
-        return {t, lens};
+        const auto& s = inputs.front();
+        if (s.scalar() and s.elements() == 1)
+            return {s.type()};
+        return {s.type(), s.lens()};
     }
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {

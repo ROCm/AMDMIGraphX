@@ -7,32 +7,26 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct match_const_add
+bool skip_propogate(instruction_ref ins)
 {
-    auto matcher() const
-    {
-        return match::name("add")(match::args(match::name("@literal"), match::name("@literal")));
-    }
-
-    void apply(program& p, const match::matcher_result& r) const
-    {
-        auto ins  = r.result;
-        auto arg1 = ins->inputs().at(0)->get_literal();
-        auto arg2 = ins->inputs().at(1)->get_literal();
-
-        auto sum = p.add_literal(transform(arg1, arg2, [](auto x, auto y) { return x + y; }));
-        p.replace_instruction(ins, sum);
-    }
-};
+    if (ins->name() == "@literal")
+        return true;
+    if (ins->get_shape().broadcasted() and not ins->get_shape().scalar())
+        return true;
+    if (ins->get_shape().scalar() and ins->get_shape().elements() != 1)
+        return true;
+    return false;
+}
 
 void constant_propagate::apply(program& p) const
 {
     fix([&](auto self, auto ins) {
-        if(not ins->get_shape().broadcasted() and ins->name() != "@literal")
+        if(not skip_propogate(ins))
         {
             auto r = ins->eval();
             if(not r.empty())
             {
+                assert(r.get_shape() == ins->get_shape());
                 auto l = p.add_literal(r.get_shape(), r.data());
                 p.replace_instruction(ins, l);
                 return;

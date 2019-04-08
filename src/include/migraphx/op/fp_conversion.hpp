@@ -19,29 +19,19 @@ namespace op {
 
 struct fp_conversion
 {
-    bool reduce_precision = true;
+    shape::type_t targe_type = shape::half_type;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.targe_type, "target_type"));
+    }
+
     std::string name() const { return "fp_conversion"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        if(reduce_precision)
-        {
-            if(inputs.front().type() != shape::float_type)
-            {
-                MIGRAPHX_THROW("FP_CONVERSION: input arguments must be type float");
-            }
-
-            return {shape::half_type, inputs.front().lens()};
-        }
-        else
-        {
-            if(inputs.front().type() != shape::half_type)
-            {
-                MIGRAPHX_THROW("FP_CONVERSION: input arguments must be type fp16");
-            }
-
-            return {shape::float_type, inputs.front().lens()};
-        }
+        return {targe_type, inputs.front().lens()};
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const

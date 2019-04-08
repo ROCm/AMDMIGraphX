@@ -337,11 +337,12 @@ struct tf_parser
         return prog.add_instruction(op, {args[0], weights});
     }
 
-    instruction_ref parse_matmul(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    instruction_ref
+    parse_matmul(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         bool transa = false;
         bool transb = false;
-        
+
         if(contains(attributes, "transpose_a"))
         {
             transa = attributes.at("transpose_a").b();

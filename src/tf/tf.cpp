@@ -119,6 +119,7 @@ struct tf_parser
         add_mem_op("FusedBatchNorm", &tf_parser::parse_batchnorm);
         add_mem_op("MaxPool", &tf_parser::parse_pooling);
         add_mem_op("Mean", &tf_parser::parse_mean);
+        add_mem_op("Pack", &tf_parser::parse_pack);
         add_mem_op("Pad", &tf_parser::parse_pad);
         add_mem_op("Reshape", &tf_parser::parse_reshape);
         add_mem_op("Softmax", &tf_parser::parse_softmax);
@@ -351,6 +352,23 @@ struct tf_parser
             return prog.add_instruction(op, args.front());
         }
         MIGRAPHX_THROW("MIGraphX does not support mean outside of GlobalAvgPool transformation");
+    }
+
+    instruction_ref parse_pack(const std::string&,
+                               const attribute_map& attributes,
+                               std::vector<instruction_ref> args)
+    {
+        // reinterpret as unsqueeze with concat
+        std::vector<instruction_ref> unsqueezed_args;
+        int64_t axis = 0;
+        if(contains(attributes, "axis"))
+            axis = attributes.at("axis").i();
+        std::transform(
+            args.begin(),
+            args.end(),
+            std::back_inserter(unsqueezed_args),
+            [&](instruction_ref arg) { return prog.add_instruction(op::unsqueeze{{axis}}, arg); });
+        return prog.add_instruction(op::concat{static_cast<size_t>(axis)}, unsqueezed_args);
     }
 
     instruction_ref

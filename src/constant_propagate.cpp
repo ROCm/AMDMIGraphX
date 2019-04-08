@@ -3,6 +3,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/functional.hpp>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -32,7 +33,8 @@ void constant_propagate::apply(program& p) const
                 return;
             }
         }
-        auto children = ins->inputs();
+        std::unordered_set<instruction_ref> children(ins->inputs().begin(),
+                                                 ins->inputs().end());
         for(auto child : children)
             self(child);
     })(std::prev(p.end()));

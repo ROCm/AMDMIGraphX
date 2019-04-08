@@ -2,7 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_CONCAT_HPP
 
 #include <migraphx/shape.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/concat.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

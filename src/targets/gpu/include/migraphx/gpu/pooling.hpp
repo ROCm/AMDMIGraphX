@@ -2,7 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_POOLING_HPP
 
 #include <migraphx/shape.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/pooling.hpp>
 #include <migraphx/gpu/miopen.hpp>
 
 namespace migraphx {

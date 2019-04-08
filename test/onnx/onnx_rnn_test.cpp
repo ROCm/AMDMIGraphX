@@ -154,7 +154,7 @@ TEST_CASE(rnn_test_one_direction)
         auto out_hs =
             p.add_instruction(migraphx::op::rnn{hs,
                                                 {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
-                                                migraphx::op::rnn_direction::reverse,
+                                                migraphx::op::rnn_direction::forward,
                                                 clip},
                               seq,
                               w,
@@ -339,7 +339,7 @@ TEST_CASE(gru_test_args)
 
         auto out_hs =
             p.add_instruction(migraphx::op::gru{hs,
-                                                {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
+                                                {migraphx::op::relu{}, migraphx::op::tanh{}},
                                                 migraphx::op::rnn_direction::reverse,
                                                 clip},
                               seq,
@@ -373,7 +373,8 @@ TEST_CASE(gru_test_args)
 
         auto out_hs =
             p.add_instruction(migraphx::op::gru{hs,
-                                                {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
+                                                {migraphx::op::tanh{}, migraphx::op::sigmoid{},
+                                                migraphx::op::relu{}, migraphx::op::tanh{}},
                                                 migraphx::op::rnn_direction::bidirectional,
                                                 clip},
                               seq,
@@ -415,7 +416,8 @@ TEST_CASE(gru_test_actv_funcs)
         auto ih = p.add_parameter("h0", migraphx::shape{migraphx::shape::float_type, {nd, bs, hs}});
 
         auto out_hs = p.add_instruction(
-            migraphx::op::gru{hs, {}, migraphx::op::rnn_direction::bidirectional, clip},
+            migraphx::op::gru{hs, {migraphx::op::sigmoid{}, migraphx::op::tanh{},
+            migraphx::op::sigmoid{}, migraphx::op::tanh{}}, migraphx::op::rnn_direction::bidirectional, clip},
             seq,
             w,
             r,
@@ -447,7 +449,8 @@ TEST_CASE(gru_test_actv_funcs)
 
         auto out_hs = p.add_instruction(
             migraphx::op::gru{
-                hs, {migraphx::op::tanh{}}, migraphx::op::rnn_direction::bidirectional, clip},
+                hs, {migraphx::op::sigmoid{}, migraphx::op::sigmoid{}, migraphx::op::sigmoid{}, migraphx::op::sigmoid{}}, 
+                migraphx::op::rnn_direction::bidirectional, clip},
             seq,
             w,
             r,
@@ -479,7 +482,8 @@ TEST_CASE(gru_test_actv_funcs)
 
         auto out_hs =
             p.add_instruction(migraphx::op::gru{hs,
-                                                {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
+                                                {migraphx::op::tanh{}, migraphx::op::sigmoid{},
+                                                migraphx::op::tanh{}, migraphx::op::sigmoid{}},
                                                 migraphx::op::rnn_direction::bidirectional,
                                                 clip},
                               seq,
@@ -513,7 +517,8 @@ TEST_CASE(gru_test_actv_funcs)
 
         auto out_hs = p.add_instruction(
             migraphx::op::gru{hs,
-                              {migraphx::op::tanh{}, migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                              {migraphx::op::tanh{}, migraphx::op::sigmoid{}, 
+                              migraphx::op::tanh{}, migraphx::op::tanh{}},
                               migraphx::op::rnn_direction::bidirectional,
                               clip},
             seq,
@@ -546,7 +551,8 @@ TEST_CASE(gru_test_actv_funcs)
         auto ih = p.add_parameter("h0", migraphx::shape{migraphx::shape::float_type, {nd, bs, hs}});
 
         auto out_hs =
-            p.add_instruction(migraphx::op::gru{hs, {}, migraphx::op::rnn_direction::forward, clip},
+            p.add_instruction(migraphx::op::gru{hs, {migraphx::op::sigmoid{}, migraphx::op::tanh{}}, 
+                              migraphx::op::rnn_direction::forward, clip},
                               seq,
                               w,
                               r,
@@ -578,7 +584,7 @@ TEST_CASE(gru_test_actv_funcs)
 
         auto out_hs = p.add_instruction(
             migraphx::op::gru{
-                hs, {migraphx::op::relu{}}, migraphx::op::rnn_direction::reverse, clip},
+                hs, {migraphx::op::relu{}, migraphx::op::relu{}}, migraphx::op::rnn_direction::reverse, clip},
             seq,
             w,
             r,
@@ -826,7 +832,8 @@ TEST_CASE(lstm_forward_actv_func)
         auto und = p.add_instruction(migraphx::op::undefined{});
 
         auto out_hs = p.add_instruction(
-            migraphx::op::lstm{hs, {}, migraphx::op::rnn_direction::forward, clip, input_forget},
+            migraphx::op::lstm{hs, {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}}, 
+            migraphx::op::rnn_direction::forward, clip, input_forget},
             seq,
             w,
             r,
@@ -852,7 +859,7 @@ TEST_CASE(lstm_forward_actv_func)
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
         auto out_hs = p.add_instruction(migraphx::op::lstm{hs,
-                                                           {migraphx::op::sigmoid{}},
+                                                           {migraphx::op::sigmoid{}, migraphx::op::sigmoid{}, migraphx::op::sigmoid{}},
                                                            migraphx::op::rnn_direction::forward,
                                                            clip,
                                                            input_forget},
@@ -883,7 +890,7 @@ TEST_CASE(lstm_forward_actv_func)
 
         auto out_hs =
             p.add_instruction(migraphx::op::lstm{hs,
-                                                 {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
+                                                 {migraphx::op::tanh{}, migraphx::op::sigmoid{}, migraphx::op::sigmoid{}},
                                                  migraphx::op::rnn_direction::forward,
                                                  clip,
                                                  input_forget},
@@ -993,7 +1000,8 @@ TEST_CASE(lstm_reverse)
         auto und = p.add_instruction(migraphx::op::undefined{});
 
         auto out_hs = p.add_instruction(
-            migraphx::op::lstm{hs, {}, migraphx::op::rnn_direction::forward, clip, input_forget},
+            migraphx::op::lstm{hs, {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}}, 
+            migraphx::op::rnn_direction::reverse, clip, input_forget},
             seq,
             w,
             r,
@@ -1040,7 +1048,8 @@ TEST_CASE(lstm_bidirectional)
         auto out_hs = p.add_instruction(
             migraphx::op::lstm{
                 hs,
-                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{},
+                migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
                 migraphx::op::rnn_direction::bidirectional,
                 clip,
                 input_forget},
@@ -1070,7 +1079,8 @@ TEST_CASE(lstm_bidirectional)
         auto out_hs = p.add_instruction(
             migraphx::op::lstm{
                 hs,
-                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{},
+                migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
                 migraphx::op::rnn_direction::bidirectional,
                 clip,
                 input_forget},
@@ -1101,7 +1111,8 @@ TEST_CASE(lstm_bidirectional)
         auto out_hs = p.add_instruction(
             migraphx::op::lstm{
                 hs,
-                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{},
+                migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
                 migraphx::op::rnn_direction::bidirectional,
                 clip,
                 input_forget},
@@ -1133,7 +1144,8 @@ TEST_CASE(lstm_bidirectional)
         auto out_hs = p.add_instruction(
             migraphx::op::lstm{
                 hs,
-                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{},
+                migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
                 migraphx::op::rnn_direction::bidirectional,
                 clip,
                 input_forget},
@@ -1166,7 +1178,8 @@ TEST_CASE(lstm_bidirectional)
         auto out_hs = p.add_instruction(
             migraphx::op::lstm{
                 hs,
-                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{},
+                migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
                 migraphx::op::rnn_direction::bidirectional,
                 clip,
                 input_forget},
@@ -1200,7 +1213,8 @@ TEST_CASE(lstm_bidirectional)
         auto out_hs = p.add_instruction(
             migraphx::op::lstm{
                 hs,
-                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{},
+                migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
                 migraphx::op::rnn_direction::bidirectional,
                 clip,
                 input_forget},
@@ -1246,7 +1260,9 @@ TEST_CASE(lstm_bi_actv_funcs)
 
         auto out_hs = p.add_instruction(
             migraphx::op::lstm{
-                hs, {}, migraphx::op::rnn_direction::bidirectional, clip, input_forget},
+                hs, {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{},
+                migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}}, 
+                migraphx::op::rnn_direction::bidirectional, clip, input_forget},
             seq,
             w,
             r,
@@ -1273,7 +1289,8 @@ TEST_CASE(lstm_bi_actv_funcs)
 
         auto out_hs =
             p.add_instruction(migraphx::op::lstm{hs,
-                                                 {migraphx::op::sigmoid{}},
+                                                 {migraphx::op::sigmoid{}, migraphx::op::sigmoid{}, migraphx::op::sigmoid{},
+                                                 migraphx::op::sigmoid{}, migraphx::op::sigmoid{}, migraphx::op::sigmoid{}},
                                                  migraphx::op::rnn_direction::bidirectional,
                                                  clip,
                                                  input_forget},
@@ -1304,7 +1321,8 @@ TEST_CASE(lstm_bi_actv_funcs)
 
         auto out_hs =
             p.add_instruction(migraphx::op::lstm{hs,
-                                                 {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                                 {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{},
+                                                 migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
                                                  migraphx::op::rnn_direction::bidirectional,
                                                  clip,
                                                  input_forget},
@@ -1337,6 +1355,8 @@ TEST_CASE(lstm_bi_actv_funcs)
         auto out_hs =
             p.add_instruction(migraphx::op::lstm{hs,
                                                  {migraphx::op::sigmoid{},
+                                                  migraphx::op::tanh{},
+                                                  migraphx::op::tanh{},
                                                   migraphx::op::tanh{},
                                                   migraphx::op::tanh{},
                                                   migraphx::op::tanh{}},
@@ -1376,6 +1396,7 @@ TEST_CASE(lstm_bi_actv_funcs)
                                                   migraphx::op::tanh{},
                                                   migraphx::op::tanh{},
                                                   migraphx::op::tanh{},
+                                                  migraphx::op::sigmoid{},
                                                   migraphx::op::sigmoid{}},
                                                  migraphx::op::rnn_direction::bidirectional,
                                                  clip,

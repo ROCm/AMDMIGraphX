@@ -1,6 +1,6 @@
 #include <migraphx/common_subexpression_elimination.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/add.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 

@@ -1,7 +1,12 @@
 #include <iostream>
 #include <vector>
 #include <migraphx/literal.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/rnn.hpp>
+#include <migraphx/op/gru.hpp>
+#include <migraphx/op/lstm.hpp>
+#include <migraphx/op/rnn_last_output.hpp>
+#include <migraphx/op/rnn_last_cell_output.hpp>
+#include <migraphx/op/abnormal_ops.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/verify.hpp>

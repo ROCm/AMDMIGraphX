@@ -2,6 +2,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <migraphx/program.hpp>
+#include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/stringutils.hpp>
@@ -181,6 +182,7 @@ PYBIND11_MODULE(migraphx, m)
     });
 
     m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);
+    m.def("quantize", &migraphx::quantize);
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

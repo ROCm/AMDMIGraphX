@@ -22,6 +22,7 @@
 #include <migraphx/op/elu.hpp>
 #include <migraphx/op/exp.hpp>
 #include <migraphx/op/flatten.hpp>
+#include <migraphx/op/fp_conversion.hpp>
 #include <migraphx/op/gather.hpp>
 #include <migraphx/op/gru.hpp>
 #include <migraphx/op/identity.hpp>

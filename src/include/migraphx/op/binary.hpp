@@ -29,7 +29,7 @@ struct binary
     {
         check_shapes{inputs}.has(2).same_type().same_dims();
         const auto& s = inputs.front();
-        if (s.scalar() and s.elements() == 1)
+        if(s.scalar() and s.elements() == 1)
             return {s.type()};
         return {s.type(), s.lens()};
     }

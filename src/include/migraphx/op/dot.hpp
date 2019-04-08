@@ -19,7 +19,7 @@ namespace op {
 struct dot
 {
     float alpha = 1.0;
-    float beta  = 0.0;
+    float beta  = 1.0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -30,26 +30,41 @@ struct dot
     std::string name() const { return "dot"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_type();
+        check_shapes{inputs, *this}.same_type();
         const shape& a = inputs.at(0);
         const shape& b = inputs.at(1);
         auto t         = a.type();
 
-        // according to the specification of the numpy.matmul()
-        // inputs with the shape dims more than 2 are acceptable
-        // as long as dim values are the same in the two inputs
-        if(!std::equal(a.lens().rbegin() + 2, a.lens().rend(), b.lens().rbegin() + 2))
+        if(!std::all_of(inputs.begin(), inputs.end(), [](auto s) { return s.lens().size() >= 2; }))
         {
-            MIGRAPHX_THROW("DOT: dim values mismatch");
+            MIGRAPHX_THROW("DOT: dot only accept 2 or more dims operands");
+        }
+
+        // only handle the case that the batch size of a and b are the same
+        if(!std::equal(
+               a.lens().rbegin() + 2, a.lens().rend(), b.lens().rbegin() + 2, b.lens().rend()))
+        {
+            MIGRAPHX_THROW("DOT: batch size of A and B mismatch: {" + to_string_range(a.lens()) +
+                           "} x {" + to_string_range(b.lens()) + "}");
         }
 
         std::size_t dim_0 = a.lens().size() - 2;
         std::size_t dim_1 = a.lens().size() - 1;
         if(a.lens()[dim_1] != b.lens()[dim_0])
-            MIGRAPHX_THROW("Inner dimensions do not match: {" + to_string_range(a.lens()) +
+        {
+            MIGRAPHX_THROW("DOT: inner dimensions do not match: {" + to_string_range(a.lens()) +
                            "} x {" + to_string_range(b.lens()) + "}");
+        }
+
         auto out_lens   = a.lens();
         out_lens[dim_1] = b.lens()[dim_1];
+        if(inputs.size() == 3 && out_lens != inputs.at(2).lens())
+        {
+            MIGRAPHX_THROW("DOT: dimension mismatch, operand C: {" +
+                           to_string_range(inputs.at(2).lens()) +
+                           "}, cannot add to operand A * B: {" + to_string_range(out_lens) + "}");
+        }
+
         return {t, out_lens};
     }
 };

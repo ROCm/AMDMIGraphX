@@ -19,6 +19,13 @@ namespace op {
 struct logsoftmax
 {
     int axis = 1;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axis, "axis"));
+    }
+
     std::string name() const { return "logsoftmax"; }
     shape compute_shape(std::vector<shape> inputs) const
     {

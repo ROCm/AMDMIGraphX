@@ -516,9 +516,12 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
     auto sih = prog.insert_instruction(ins, op::squeeze{{0}}, ih);
 
     // bias
-    instruction_ref bwbz{}, brbz{};
-    instruction_ref bwbr{}, brbr{};
-    instruction_ref bwbh{}, brbh{};
+    instruction_ref bwbz{};
+    instruction_ref brbz{};
+    instruction_ref bwbr{};
+    instruction_ref brbr{};
+    instruction_ref bwbh{};
+    instruction_ref brbh{};
     if(bias != prog.end())
     {
         auto sbias = prog.insert_instruction(ins, op::squeeze{{0}}, bias);
@@ -961,10 +964,14 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     auto ic_shape = sic->get_shape();
 
     // bias
-    instruction_ref wbi_brcst{}, rbi_brcst{};
-    instruction_ref wbo_brcst{}, rbo_brcst{};
-    instruction_ref wbf_brcst{}, rbf_brcst{};
-    instruction_ref wbc_brcst{}, rbc_brcst{};
+    instruction_ref wbi_brcst{};
+    instruction_ref rbi_brcst{};
+    instruction_ref wbo_brcst{};
+    instruction_ref rbo_brcst{};
+    instruction_ref wbf_brcst{};
+    instruction_ref rbf_brcst{};
+    instruction_ref wbc_brcst{};
+    instruction_ref rbc_brcst{};
     if(bias != prog.end())
     {
         auto sbias = prog.insert_instruction(ins, op::squeeze{{0}}, bias);
@@ -1033,7 +1040,8 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
         auto it = prog.insert_instruction(ins, actv_func1, it_before_actv);
 
         // equation ft = f(Xt*(Wf^T) + Ht-1*(Rf^T) + Pf (.) Ct-1 + Wbf + Rbf)
-        instruction_ref xt_wf{}, ht_rf{};
+        instruction_ref xt_wf{};
+        instruction_ref ht_rf{};
         if(bias != prog.end())
         {
             xt_wf = prog.insert_instruction(ins, op::dot{}, xt, tran_wf, wbf_brcst);
@@ -1053,7 +1061,8 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
         auto ft = prog.insert_instruction(ins, actv_func1, ft_before_actv);
 
         // equation ct = g(Xt*(Wc^T) + Ht-1*(Rc^T) + Wbc + Rbc)
-        instruction_ref xt_wc{}, ht_rc{};
+        instruction_ref xt_wc{};
+        instruction_ref ht_rc{};
         if(bias != prog.end())
         {
             xt_wc = prog.insert_instruction(ins, op::dot{}, xt, tran_wc, wbc_brcst);
@@ -1074,7 +1083,8 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
         last_cell_output = cellt;
 
         // ot = f(Xt*(Wo^T) + Ht-1*(Ro^T) + Po (.) Ct + Wbo + Rbo)
-        instruction_ref xt_wo{}, ht_ro{};
+        instruction_ref xt_wo{};
+        instruction_ref ht_ro{};
         if(bias != prog.end())
         {
             xt_wo = prog.insert_instruction(ins, op::dot{}, xt, tran_wo, wbo_brcst);

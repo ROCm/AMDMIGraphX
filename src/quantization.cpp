@@ -80,7 +80,7 @@ void quantize(program& prog)
         auto ins = std::prev(prog.end());
         if(ins->get_shape().type() == shape::half_type)
         {
-            prog.add_instruction(op::fp_conversion{false}, ins);
+            prog.add_instruction(op::fp_conversion{shape::float_type}, ins);
         }
     }
 }

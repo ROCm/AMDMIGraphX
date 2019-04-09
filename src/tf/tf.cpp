@@ -372,12 +372,11 @@ struct tf_parser
         if(input_size >= 4)
             axis = parse_axis(axis);
 
-        std::transform(args.begin(),
-                       args.end(),
-                       std::back_inserter(unsqueezed_args),
-                       [&](instruction_ref arg) {
-                           return prog.add_instruction(op::unsqueeze{{axis}}, arg);
-                       });
+        std::transform(
+            args.begin(),
+            args.end(),
+            std::back_inserter(unsqueezed_args),
+            [&](instruction_ref arg) { return prog.add_instruction(op::unsqueeze{{axis}}, arg); });
         return prog.add_instruction(op::concat{static_cast<size_t>(axis)}, unsqueezed_args);
     }
 

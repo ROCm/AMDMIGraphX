@@ -1,3 +1,4 @@
+#include <migraphx/op/load.hpp>
 #include "memory_coloring_impl.hpp"
 
 namespace migraphx {

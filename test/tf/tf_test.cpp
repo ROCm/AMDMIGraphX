@@ -134,9 +134,9 @@ TEST_CASE(matmul_test)
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {8, 4}});
     auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {4, 8}});
-    
-    auto trans_l0 = p.add_instruction(migraphx::op::transpose{{1,0}}, l0);
-    auto trans_l1 = p.add_instruction(migraphx::op::transpose{{1,0}}, l1);
+
+    auto trans_l0 = p.add_instruction(migraphx::op::transpose{{1, 0}}, l0);
+    auto trans_l1 = p.add_instruction(migraphx::op::transpose{{1, 0}}, l1);
 
     p.add_instruction(migraphx::op::dot{}, trans_l0, trans_l1);
     auto prog = migraphx::parse_tf("matmul_test.pb", false);
@@ -147,8 +147,8 @@ TEST_CASE(matmul_test)
 TEST_CASE(mul_test)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1,1,1,16}});
-    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1,1,1,16}});
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 16}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 16}});
 
     p.add_instruction(migraphx::op::mul{}, l0, l1);
     auto prog = migraphx::parse_tf("mul_test.pb", false);

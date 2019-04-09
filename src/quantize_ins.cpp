@@ -9,11 +9,10 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-instruction_ref
-insert_fp16(program& prog,
-            instruction_ref& ins,
-            shape::type_t type, 
-            std::unordered_map<instruction_ref, instruction_ref>& map_fp16)
+instruction_ref insert_fp16(program& prog,
+                            instruction_ref& ins,
+                            shape::type_t type,
+                            std::unordered_map<instruction_ref, instruction_ref>& map_fp16)
 {
     if(map_fp16.count(ins) > 0)
     {
@@ -48,8 +47,8 @@ void quantize_ins(program& prog, const std::vector<std::string>& ins_names)
         }
 
         shape::type_t orig_type = ins->get_shape().type();
-        // process all inputs, if input is a fp32 or fp64, convert it 
-        // to a fp16 by adding a fp_conversion operator. 
+        // process all inputs, if input is a fp32 or fp64, convert it
+        // to a fp16 by adding a fp_conversion operator.
         auto inputs = ins->inputs();
         for(auto input : inputs)
         {
@@ -59,7 +58,7 @@ void quantize_ins(program& prog, const std::vector<std::string>& ins_names)
                 // if the input is a fp_conversion operator, uses its input
                 // as its current input
                 instruction_ref input_fp16{};
-                if (input->name() == "fp_conversion")
+                if(input->name() == "fp_conversion")
                 {
                     input_fp16 = input->inputs().front();
                 }
@@ -78,15 +77,16 @@ void quantize_ins(program& prog, const std::vector<std::string>& ins_names)
         if(ins->get_shape().type() != orig_type)
         {
             instruction_ref ins_orig_type{};
-            if (ins == std::prev(prog.end()))
+            if(ins == std::prev(prog.end()))
             {
                 ins_orig_type = prog.add_instruction(op::fp_conversion{orig_type}, ins);
             }
             else
             {
-                ins_orig_type = prog.insert_instruction(std::next(ins), op::fp_conversion{orig_type}, ins);
+                ins_orig_type =
+                    prog.insert_instruction(std::next(ins), op::fp_conversion{orig_type}, ins);
             }
-            
+
             prog.replace_instruction(ins, ins_orig_type);
         }
     }

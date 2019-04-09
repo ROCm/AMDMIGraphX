@@ -22,13 +22,24 @@ instruction_ref insert_fp16(program& prog,
     assert(ins->get_shape().type() == shape::float_type ||
            ins->get_shape().type() == shape::double_type);
     instruction_ref ins_fp16{};
-    if(ins == std::prev(prog.end()))
+    if (ins->name() == "@literal" && ins->outputs().size() == 1)
     {
-        ins_fp16 = prog.add_instruction(op::fp_conversion{type}, ins);
+        std::vector<float> values;
+        auto l_fp32 = ins->get_literal();
+        shape s     = ins->get_shape();
+        l_fp32.visit([&](auto val) { values.assign(val.begin(), val.end()); });
+        ins_fp16 = prog.add_literal(literal({shape::half_type, s.lens()}, values));
     }
     else
     {
-        ins_fp16 = prog.insert_instruction(std::next(ins), op::fp_conversion{}, ins);
+        if(ins == std::prev(prog.end()))
+        {
+            ins_fp16 = prog.add_instruction(op::fp_conversion{type}, ins);
+        }
+        else
+        {
+            ins_fp16 = prog.insert_instruction(std::next(ins), op::fp_conversion{}, ins);
+        }
     }
     map_fp16[ins] = ins_fp16;
 
@@ -76,18 +87,17 @@ void quantize_ins(program& prog, const std::vector<std::string>& ins_names)
         // to convert it back to the original type
         if(ins->get_shape().type() != orig_type)
         {
-            instruction_ref ins_orig_type{};
             if(ins == std::prev(prog.end()))
             {
-                ins_orig_type = prog.add_instruction(op::fp_conversion{orig_type}, ins);
+                prog.add_instruction(op::fp_conversion{orig_type}, ins);
             }
             else
             {
-                ins_orig_type =
+                auto ins_orig_type =
                     prog.insert_instruction(std::next(ins), op::fp_conversion{orig_type}, ins);
+                prog.replace_instruction(ins, ins_orig_type);
             }
 
-            prog.replace_instruction(ins, ins_orig_type);
         }
     }
 }

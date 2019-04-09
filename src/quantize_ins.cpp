@@ -22,7 +22,7 @@ instruction_ref insert_fp16(program& prog,
     assert(ins->get_shape().type() == shape::float_type ||
            ins->get_shape().type() == shape::double_type);
     instruction_ref ins_fp16{};
-    if (ins->name() == "@literal" && ins->outputs().size() == 1)
+    if(ins->name() == "@literal" && ins->outputs().size() == 1)
     {
         std::vector<float> values;
         auto l_fp32 = ins->get_literal();
@@ -97,7 +97,6 @@ void quantize_ins(program& prog, const std::vector<std::string>& ins_names)
                     prog.insert_instruction(std::next(ins), op::fp_conversion{orig_type}, ins);
                 prog.replace_instruction(ins, ins_orig_type);
             }
-
         }
     }
 }

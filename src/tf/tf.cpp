@@ -363,11 +363,21 @@ struct tf_parser
         int64_t axis = 0;
         if(contains(attributes, "axis"))
             axis = attributes.at("axis").i();
-        std::transform(
-            args.begin(),
-            args.end(),
-            std::back_inserter(unsqueezed_args),
-            [&](instruction_ref arg) { return prog.add_instruction(op::unsqueeze{{axis}}, arg); });
+        size_t input_size = args.front()->get_shape().lens().size();
+        if(axis > input_size)
+        {
+            MIGRAPHX_THROW("Error in protobuf: axis must be smaller than input size");
+        }
+        // check if input arg needs axis to be converted to NCHW
+        if(input_size >= 4)
+            axis = parse_axis(axis);
+
+        std::transform(args.begin(),
+                       args.end(),
+                       std::back_inserter(unsqueezed_args),
+                       [&](instruction_ref arg) {
+                           return prog.add_instruction(op::unsqueeze{{axis}}, arg);
+                       });
         return prog.add_instruction(op::concat{static_cast<size_t>(axis)}, unsqueezed_args);
     }
 

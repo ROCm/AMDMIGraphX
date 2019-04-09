@@ -504,27 +504,35 @@ struct tf_parser
                                        std::vector<instruction_ref> args)
     {
         op::slice op;
-        auto begin = args[1]->eval().get<int64_t>().to_vector();
-        ;
-        auto end = args[2]->eval().get<int64_t>().to_vector();
-        ;
+        auto starts     = args[1]->eval().get<int32_t>().to_vector();
+        auto ends       = args[2]->eval().get<int32_t>().to_vector();
+        size_t num_axes = args[0]->get_shape().lens().size();
+        if(num_axes >= 4)
+        {
+            reorder_data(starts);
+            reorder_data(ends);
+        }
 
-        op.starts = begin;
-        op.ends   = end;
-
+        op.starts = std::vector<int64_t>(starts.begin(), starts.end());
+        op.ends   = std::vector<int64_t>(ends.begin(), ends.end());
+        op.axes   = std::vector<int64_t>(num_axes);
+        std::iota(op.axes.begin(), op.axes.end(), 0);
         int shrink_axis_mask = 0;
         std::vector<int64_t> squeeze_axes;
 
         if(contains(attributes, "shrink_axis_mask"))
             shrink_axis_mask = attributes.at("shrink_axis_mask").i();
 
-        size_t num_axes = args[0]->get_shape().lens().size();
-
         for(size_t i = 0; i < num_axes; i++)
         {
             if((shrink_axis_mask >> i) & 1)
                 squeeze_axes.push_back(i);
         }
+        if(num_axes >= 4)
+        {
+            squeeze_axes = parse_axes(squeeze_axes);
+        }
+
         auto l0 = prog.add_instruction(op, args[0]);
         return prog.add_instruction(op::squeeze{squeeze_axes}, l0);
     }

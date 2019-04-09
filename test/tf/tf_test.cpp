@@ -154,9 +154,9 @@ TEST_CASE(pack_test)
 TEST_CASE(pack_test_nhwc)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1,2,1,1}});
-    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1,2,1,1}});
-    auto l2 = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1,2,1,1}});
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
+    auto l2 = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
     std::vector<migraphx::instruction_ref> args{l0, l1, l2};
     std::vector<migraphx::instruction_ref> unsqueezed_args;
     int64_t nchw_axis = 1;

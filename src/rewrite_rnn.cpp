@@ -1019,45 +1019,39 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
         auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, seq);
         xt      = prog.insert_instruction(ins, op::squeeze{{0}}, xt);
 
-        // equation it = f(Xt*(Wi^T) + Ht-1*(Ri^T) + Pi (.) Ct-1 + Wbi + Rbi)
-        instruction_ref xt_wi{}, ht_ri{};
-        if(bias != prog.end())
-        {
-            xt_wi = prog.insert_instruction(ins, op::dot{}, xt, tran_wi, wbi_brcst);
-            ht_ri = prog.insert_instruction(ins, op::dot{}, sih, tran_ri, rbi_brcst);
-        }
-        else
-        {
-            xt_wi = prog.insert_instruction(ins, op::dot{}, xt, tran_wi);
-            ht_ri = prog.insert_instruction(ins, op::dot{}, sih, tran_ri);
-        }
-        auto it_before_actv = prog.insert_instruction(ins, op::add{}, xt_wi, ht_ri);
-        if(pph != prog.end())
-        {
-            auto pphi_ct   = prog.insert_instruction(ins, op::mul{}, pphi_brcst, sic);
-            it_before_actv = prog.insert_instruction(ins, op::add{}, it_before_actv, pphi_ct);
-        }
-        auto it = prog.insert_instruction(ins, actv_func1, it_before_actv);
-
-        // equation ft = f(Xt*(Wf^T) + Ht-1*(Rf^T) + Pf (.) Ct-1 + Wbf + Rbf)
+        instruction_ref xt_wi{};
+        instruction_ref ht_ri{};
         instruction_ref xt_wf{};
         instruction_ref ht_rf{};
         if(bias != prog.end())
         {
+            // equation it = f(Xt*(Wi^T) + Ht-1*(Ri^T) + Pi (.) Ct-1 + Wbi + Rbi)
+            xt_wi = prog.insert_instruction(ins, op::dot{}, xt, tran_wi, wbi_brcst);
+            ht_ri = prog.insert_instruction(ins, op::dot{}, sih, tran_ri, rbi_brcst);
+
+            // equation ft = f(Xt*(Wf^T) + Ht-1*(Rf^T) + Pf (.) Ct-1 + Wbf + Rbf)
             xt_wf = prog.insert_instruction(ins, op::dot{}, xt, tran_wf, wbf_brcst);
             ht_rf = prog.insert_instruction(ins, op::dot{}, sih, tran_rf, rbf_brcst);
         }
         else
         {
+            xt_wi = prog.insert_instruction(ins, op::dot{}, xt, tran_wi);
+            ht_ri = prog.insert_instruction(ins, op::dot{}, sih, tran_ri);
+
             xt_wf = prog.insert_instruction(ins, op::dot{}, xt, tran_wf);
             ht_rf = prog.insert_instruction(ins, op::dot{}, sih, tran_rf);
         }
+        auto it_before_actv = prog.insert_instruction(ins, op::add{}, xt_wi, ht_ri);
         auto ft_before_actv = prog.insert_instruction(ins, op::add{}, xt_wf, ht_rf);
         if(pph != prog.end())
         {
+            auto pphi_ct   = prog.insert_instruction(ins, op::mul{}, pphi_brcst, sic);
+            it_before_actv = prog.insert_instruction(ins, op::add{}, it_before_actv, pphi_ct);
+
             auto pphf_ct   = prog.insert_instruction(ins, op::mul{}, pphf_brcst, sic);
             ft_before_actv = prog.insert_instruction(ins, op::add{}, ft_before_actv, pphf_ct);
         }
+        auto it = prog.insert_instruction(ins, actv_func1, it_before_actv);
         auto ft = prog.insert_instruction(ins, actv_func1, ft_before_actv);
 
         // equation ct = g(Xt*(Wc^T) + Ht-1*(Rc^T) + Wbc + Rbc)

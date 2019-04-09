@@ -21,8 +21,6 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
         trace = tracer{std::cout};
 
-    trace(prog);
-    trace();
     for(auto& p : passes)
     {
         trace("Pass: ", p.name());

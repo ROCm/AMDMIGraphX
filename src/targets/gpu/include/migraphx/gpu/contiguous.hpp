@@ -2,7 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_CONTIGUOUS_HPP
 
 #include <migraphx/shape.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/contiguous.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

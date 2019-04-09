@@ -36,7 +36,6 @@ struct onnx_parser
 
     onnx_parser()
     {
-        add_generic_op("MatMul", op::dot{});
         add_generic_op("Relu", op::relu{});
         add_generic_op("Sigmoid", op::sigmoid{});
         add_generic_op("Abs", op::abs{});
@@ -77,6 +76,7 @@ struct onnx_parser
         add_mem_op("Reshape", &onnx_parser::parse_reshape);
         add_mem_op("Flatten", &onnx_parser::parse_flatten);
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
+        add_mem_op("MatMul", &onnx_parser::parse_matmul);
         add_mem_op("BatchNormalization", &onnx_parser::parse_batchnorm);
         add_mem_op("Softmax", &onnx_parser::parse_softmax);
         add_mem_op("LogSoftmax", &onnx_parser::parse_logsoftmax);
@@ -154,42 +154,48 @@ struct onnx_parser
         });
     }
 
+    std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
+                                                      std::vector<std::size_t> s1)
+    {
+        // Example:
+        // s0 = (3,2,4,5) and s1 = (2,1,1)
+        //
+        // In this case we need to broadcast (:,1,1) portion of
+        // s1 plus broadcast the 1st dimension of s1
+        // giving output_lens = (3,2,4,5)
+        //
+        // Another example:
+        // s0 = (3,2,1,5) and s1 = (2,7,5)
+        // In this case we need to broadcast the (:,:,1:,:) axis
+        // of s0 plus the 1st dimension of s1 giving
+        // output_lens = (3,2,7,5)
+        if(s0.size() > s1.size())
+        {
+            s0.swap(s1);
+        }
+
+        std::vector<std::size_t> out_lens(s1);
+        auto offset = s1.size() - s0.size();
+        std::transform(s0.begin(),
+                       s0.end(),
+                       s1.begin() + offset,
+                       out_lens.begin() + offset,
+                       [](auto a, auto b) { return std::max(a, b); });
+
+        return out_lens;
+    }
+
     template <class T>
     instruction_ref add_broadcastable_binary_op(instruction_ref arg0, instruction_ref arg1, T x)
     {
         if(arg0->get_shape().lens() != arg1->get_shape().lens())
         {
-            // Example:
-            // s0 = (3,2,4,5) and s1 = (2,1,1)
-            //
-            // In this case we need to broadcast (:,1,1) portion of
-            // s1 plus broadcast the 1st dimension of s1
-            // giving output_lens = (3,2,4,5)
-            //
-            // Another example:
-            // s0 = (3,2,1,5) and s1 = (2,7,5)
-            // In this case we need to broadcast the (:,:,1:,:) axis
-            // of s0 plus the 1st dimension of s1 giving
-            // output_lens = (3,2,7,5)
-            //
             // Get lengths for both arguments
-            const std::vector<std::size_t>* s0 = &arg0->get_shape().lens();
-            const std::vector<std::size_t>* s1 = &arg1->get_shape().lens();
-
-            // Make sure s0 is the smaller size
-            if(s0->size() > s1->size())
-                std::swap(s0, s1);
-
-            std::vector<std::size_t> output_lens(*s1);
-            auto offset = s1->size() - s0->size();
-            std::transform(s0->begin(),
-                           s0->end(),
-                           s1->begin() + offset,
-                           output_lens.begin() + offset,
-                           [](auto a, auto b) { return std::max(a, b); });
-
-            auto l0 = prog.add_instruction(op::multibroadcast{output_lens}, arg0);
-            auto l1 = prog.add_instruction(op::multibroadcast{output_lens}, arg1);
+            auto s0       = arg0->get_shape().lens();
+            auto s1       = arg1->get_shape().lens();
+            auto out_lens = compute_broadcasted_lens(s0, s1);
+            auto l0       = prog.add_instruction(op::multibroadcast{out_lens}, arg0);
+            auto l1       = prog.add_instruction(op::multibroadcast{out_lens}, arg1);
             return prog.add_instruction(x, l0, l1);
         }
         else
@@ -495,23 +501,84 @@ struct onnx_parser
         auto l2 = (transb) ? prog.add_instruction(op::transpose{perm}, args[1]) : args[1];
         if(args.size() == 3)
         {
-            if(beta != 0.f)
+            if(beta != 0.f && args[2]->get_shape().elements() > 0)
             {
-                auto l3 = prog.add_instruction(op::dot{alpha}, l1, l2);
-                auto l4 = args[2];
-                if(l4->get_shape().scalar()) // ignore args[2] (no C value added to alpha*A*B)
-                    return l3;
-                if(beta != 1.f)
+                auto out_lens   = l1->get_shape().lens();
+                out_lens.back() = l2->get_shape().lens().back();
+                auto l3         = args[2];
+                auto l3_lens    = l3->get_shape().lens();
+                if(!std::equal(out_lens.begin(), out_lens.end(), l3_lens.begin(), l3_lens.end()))
                 {
-                    auto beta_val = prog.add_literal(beta);
-                    auto l5 = prog.add_instruction(op::scalar{args[2]->get_shape()}, beta_val);
-                    l4      = prog.add_instruction(op::mul{}, args[2], l5);
+                    l3 = prog.add_instruction(op::multibroadcast{out_lens}, args[2]);
                 }
-                return add_broadcastable_binary_op(l3, l4, op::add{});
+                return prog.add_instruction(op::dot{alpha, beta}, l1, l2, l3);
             }
         }
 
         return prog.add_instruction(op::dot{alpha, beta}, l1, l2);
+    }
+
+    instruction_ref
+    parse_matmul(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    {
+        auto l0      = args[0];
+        auto l1      = args[1];
+        auto l0_lens = l0->get_shape().lens();
+        auto l1_lens = l1->get_shape().lens();
+
+        // args[0] is a vector, prepend 1 to the shape
+        bool is_a_prepended = false;
+        if(l0_lens.size() == 1)
+        {
+            is_a_prepended = true;
+            l0_lens.insert(l0_lens.begin(), 1);
+            l0 = prog.add_instruction(op::unsqueeze{{0}}, args[0]);
+        }
+
+        bool is_b_appended = false;
+        if(l1_lens.size() == 1)
+        {
+            is_b_appended = true;
+            l1_lens.push_back(1);
+            l1 = prog.add_instruction(op::unsqueeze{{1}}, args[1]);
+        }
+
+        instruction_ref bl0 = l0;
+        instruction_ref bl1 = l1;
+        if(!std::equal(l0_lens.rbegin() + 2, l0_lens.rend(), l1_lens.rbegin() + 2, l1_lens.rend()))
+        {
+            auto l0_it = l0_lens.begin() + l0_lens.size() - 2;
+            std::vector<std::size_t> l0_broadcasted_lens(l0_lens.begin(), l0_it);
+            auto l1_it = l1_lens.begin() + l1_lens.size() - 2;
+            std::vector<std::size_t> l1_broadcasted_lens(l1_lens.begin(), l1_it);
+            auto output_lens = compute_broadcasted_lens(l0_broadcasted_lens, l1_broadcasted_lens);
+            l0_broadcasted_lens = output_lens;
+            l0_broadcasted_lens.insert(l0_broadcasted_lens.end(), l0_it, l0_lens.end());
+            l1_broadcasted_lens = output_lens;
+            l1_broadcasted_lens.insert(l1_broadcasted_lens.end(), l1_it, l1_lens.end());
+            if(l0_lens != l0_broadcasted_lens)
+            {
+                bl0 = prog.add_instruction(op::multibroadcast{l0_broadcasted_lens}, l0);
+            }
+            if(l1_lens != l1_broadcasted_lens)
+            {
+                bl1 = prog.add_instruction(op::multibroadcast{l1_broadcasted_lens}, l1);
+            }
+        }
+
+        auto dot_res     = prog.add_instruction(op::dot{1.0f, 0.0f}, bl0, bl1);
+        int64_t num_axis = static_cast<int64_t>(dot_res->get_shape().lens().size());
+        if(is_a_prepended)
+        {
+            dot_res = prog.add_instruction(op::squeeze{{num_axis - 2}}, dot_res);
+            --num_axis;
+        }
+        if(is_b_appended)
+        {
+            dot_res = prog.add_instruction(op::squeeze{{num_axis - 1}}, dot_res);
+        }
+
+        return dot_res;
     }
 
     instruction_ref

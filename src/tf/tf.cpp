@@ -366,7 +366,8 @@ struct tf_parser
         size_t input_size = args.front()->get_shape().lens().size();
         if(axis > input_size)
         {
-            MIGRAPHX_THROW("TF_PARSER: axis value of " + to_string(axis) + " must be smaller than input size " + to_string(input_size));
+            MIGRAPHX_THROW("TF_PARSER: axis value of " + to_string(axis) +
+                           " must be smaller than input size " + to_string(input_size));
         }
         // check if input arg needs axis to be converted to NCHW
         if(input_size >= 4)

@@ -517,14 +517,15 @@ struct tf_parser
         op.ends   = std::vector<int64_t>(ends.begin(), ends.end());
         op.axes   = std::vector<int64_t>(num_axes);
         std::iota(op.axes.begin(), op.axes.end(), 0);
-        int shrink_axis_mask = 0;
+        uint32_t shrink_axis_mask = 0;
         std::vector<int64_t> squeeze_axes;
 
         if(contains(attributes, "shrink_axis_mask"))
-            shrink_axis_mask = attributes.at("shrink_axis_mask").i();
+            shrink_axis_mask = static_cast<uint32_t>(attributes.at("shrink_axis_mask").i());
 
         for(size_t i = 0; i < num_axes; i++)
         {
+            // the LSB corresponds to axis 0 when determining which axes to squeeze
             if((shrink_axis_mask >> i) & 1)
                 squeeze_axes.push_back(i);
         }

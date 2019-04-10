@@ -16,7 +16,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-instruction_ref convert_fp32_fp16(program& prog, instruction_ref& ins)
+instruction_ref convert_to_fp16(program& prog, instruction_ref& ins)
 {
     assert(ins->get_shape().type() == shape::float_type ||
            ins->get_shape().type() == shape::double_type);
@@ -66,7 +66,7 @@ void quantize(program& prog)
             ins->get_shape().type() == shape::double_type))
         {
             orig_type     = ins->get_shape().type();
-            auto ins_fp16 = convert_fp32_fp16(prog, ins);
+            auto ins_fp16 = convert_to_fp16(prog, ins);
             auto outputs  = ins->outputs();
             for(auto output : outputs)
             {

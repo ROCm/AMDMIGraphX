@@ -24,11 +24,18 @@ instruction_ref convert_fp32_fp16(program& prog, instruction_ref& ins)
     instruction_ref ins_fp16{};
     if(ins->name() == "@literal")
     {
-        std::vector<float> values;
-        auto l_fp32 = ins->get_literal();
         shape s     = ins->get_shape();
-        l_fp32.visit([&](auto val) { values.assign(val.begin(), val.end()); });
-        ins_fp16 = prog.add_literal(literal({shape::half_type, s.lens()}, values));
+        auto l = ins->get_literal();
+        if (s.type() == shape::float_type)
+        {
+            auto tv = l.get<const float>();
+            ins_fp16 = prog.add_literal(literal({shape::half_type, s.lens()}, tv.begin(), tv.end()));
+        }
+        else
+        {
+            auto tv = l.get<const double>();
+            ins_fp16 = prog.add_literal(literal({shape::half_type, s.lens()}, tv.begin(), tv.end()));
+        }
     }
     else if(ins->name() == "@param")
     {

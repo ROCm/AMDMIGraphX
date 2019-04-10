@@ -292,8 +292,7 @@ void program::compile(const target& t, tracer trace)
         trace = tracer{std::cout};
     trace(*this);
     trace();
-    auto vec_passes = t.get_passes(this->impl->ctx);
-    run_passes(*this, vec_passes, trace);
+    run_passes(*this, t.get_passes(this->impl->ctx), trace);
     auto invalid = this->validate();
     if(invalid != impl->instructions.end())
     {

@@ -1,30 +1,15 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_BINARY_HPP
 #define MIGRAPHX_GUARD_OPERATORS_BINARY_HPP
 
-#include <array>
-#include <migraphx/operation.hpp>
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/streamutils.hpp>
-#include <migraphx/literal.hpp>
-#include <migraphx/shape_for_each.hpp>
-#include <migraphx/type_name.hpp>
-#include <migraphx/config.hpp>
-#include <cmath>
-#include <utility>
+#include <migraphx/op/name.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 template <class Derived>
-struct binary
+struct binary : op_name<Derived>
 {
-    std::string name() const
-    {
-        static const std::string& name = get_type_name<Derived>();
-        return name.substr(name.rfind("::") + 2);
-    }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs}.has(2).same_type().same_dims();

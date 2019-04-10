@@ -18,7 +18,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 instruction_ref convert_fp32_fp16(program& prog, instruction_ref& ins)
 {
-    assert(ins->get_shape().type() == shape::float_type || ins->get_shape().type() == shape::double_type);
+    assert(ins->get_shape().type() == shape::float_type ||
+           ins->get_shape().type() == shape::double_type);
     assert(contains({"@literal", "@param"}, ins->name()));
     instruction_ref ins_fp16{};
     if(ins->name() == "@literal")
@@ -46,16 +47,16 @@ instruction_ref convert_fp32_fp16(program& prog, instruction_ref& ins)
 
 void quantize(program& prog)
 {
-    bool reduced_precision = false;
+    bool reduced_precision  = false;
     shape::type_t orig_type = shape::float_type;
     for(auto ins : iterator_for(prog))
     {
         // convert float_type to half_type
-        if(contains({"@literal", "@param"}, ins->name()) && 
-            (ins->get_shape().type() == shape::float_type ||
+        if(contains({"@literal", "@param"}, ins->name()) &&
+           (ins->get_shape().type() == shape::float_type ||
             ins->get_shape().type() == shape::double_type))
         {
-            orig_type = ins->get_shape().type();
+            orig_type     = ins->get_shape().type();
             auto ins_fp16 = convert_fp32_fp16(prog, ins);
             auto outputs  = ins->outputs();
             for(auto output : outputs)

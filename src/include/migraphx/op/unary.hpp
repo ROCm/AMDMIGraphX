@@ -29,8 +29,8 @@ struct unary : op_name<Derived>
             else
             {
                 shape_for_each(output.get_shape(), [&](const auto& idx) {
-                    output(idx.begin(), idx.end()) = static_cast<const Derived&>(*this).apply()(
-                        input(idx.begin(), idx.end()));
+                    output(idx.begin(), idx.end()) =
+                        static_cast<const Derived&>(*this).apply()(input(idx.begin(), idx.end()));
                 });
             }
         });

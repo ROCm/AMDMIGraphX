@@ -518,6 +518,7 @@ struct tf_parser
         op.axes   = std::vector<int64_t>(num_axes);
         std::iota(op.axes.begin(), op.axes.end(), 0);
         uint32_t shrink_axis_mask = 0;
+        uint32_t bitwise_compare = 1;
         std::vector<int64_t> squeeze_axes;
 
         if(contains(attributes, "shrink_axis_mask"))
@@ -526,7 +527,7 @@ struct tf_parser
         for(size_t i = 0; i < num_axes; i++)
         {
             // the LSB corresponds to axis 0 when determining which axes to squeeze
-            if((shrink_axis_mask >> i) & 1)
+            if(((shrink_axis_mask >> i) & bitwise_compare) == 1)
                 squeeze_axes.push_back(i);
         }
         if(num_axes >= 4)

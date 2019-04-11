@@ -736,7 +736,8 @@ struct tf_parser
         {
         case tensorflow::DataType::DT_INVALID: throw std::runtime_error("");
         case tensorflow::DataType::DT_FLOAT:
-            return create_literal(shape::float_type, dims, get_data_vals(t.float_val(), shape_size));
+            return create_literal(
+                shape::float_type, dims, get_data_vals(t.float_val(), shape_size));
         case tensorflow::DataType::DT_UINT8: throw std::runtime_error("");
         case tensorflow::DataType::DT_INT8:
             return create_literal(shape::int32_type, dims, get_data_vals(t.int_val(), shape_size));
@@ -747,7 +748,8 @@ struct tf_parser
         case tensorflow::DataType::DT_INT32:
             return create_literal(shape::int32_type, dims, get_data_vals(t.int_val(), shape_size));
         case tensorflow::DataType::DT_INT64:
-            return create_literal(shape::int64_type, dims, get_data_vals(t.int64_val(), shape_size));
+            return create_literal(
+                shape::int64_type, dims, get_data_vals(t.int64_val(), shape_size));
         case tensorflow::DataType::DT_STRING: throw std::runtime_error("");
         case tensorflow::DataType::DT_BOOL:
             return create_literal(shape::int32_type, dims, get_data_vals(t.bool_val(), shape_size));
@@ -834,13 +836,13 @@ struct tf_parser
     }
 
     template <class T>
-    static literal create_literal(shape::type_t shape_type, std::vector<size_t> dims, std::vector<T> data)
+    static literal
+    create_literal(shape::type_t shape_type, std::vector<size_t> dims, std::vector<T> data)
     {
         if(dims.empty() or (dims.size() == 1 and dims.front() == 1))
             return literal{{shape_type, {1}, {0}}, data};
         return literal{{shape_type, dims}, data};
     }
-
 };
 
 program parse_tf(const std::string& name, bool is_nhwc)

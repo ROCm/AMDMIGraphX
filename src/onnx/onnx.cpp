@@ -1375,14 +1375,17 @@ struct onnx_parser
             case onnx::TensorProto::FLOAT: return create_literal(shape::float_type, dims, s.data());
             case onnx::TensorProto::UINT8: throw std::runtime_error("");
             case onnx::TensorProto::INT8: return create_literal(shape::int32_type, dims, s.data());
-            case onnx::TensorProto::UINT16: return create_literal(shape::int32_type, dims, s.data());
+            case onnx::TensorProto::UINT16:
+                return create_literal(shape::int32_type, dims, s.data());
             case onnx::TensorProto::INT16: return create_literal(shape::int32_type, dims, s.data());
             case onnx::TensorProto::INT32: return create_literal(shape::int32_type, dims, s.data());
             case onnx::TensorProto::INT64: return create_literal(shape::int64_type, dims, s.data());
             case onnx::TensorProto::STRING: throw std::runtime_error("");
             case onnx::TensorProto::BOOL: return create_literal(shape::int32_type, dims, s.data());
-            case onnx::TensorProto::FLOAT16: return create_literal(shape::half_type, dims, s.data());
-            case onnx::TensorProto::DOUBLE: return create_literal(shape::double_type, dims, s.data());
+            case onnx::TensorProto::FLOAT16:
+                return create_literal(shape::half_type, dims, s.data());
+            case onnx::TensorProto::DOUBLE:
+                return create_literal(shape::double_type, dims, s.data());
             case onnx::TensorProto::UINT32: throw std::runtime_error("");
             case onnx::TensorProto::UINT64: throw std::runtime_error("");
             case onnx::TensorProto::COMPLEX64: throw std::runtime_error("");
@@ -1394,21 +1397,28 @@ struct onnx_parser
         {
         case onnx::TensorProto::UNDEFINED: throw std::runtime_error("");
         case onnx::TensorProto::FLOAT:
-            return create_literal(shape::float_type, dims, t.float_data().begin(), t.float_data().end());
+            return create_literal(
+                shape::float_type, dims, t.float_data().begin(), t.float_data().end());
         case onnx::TensorProto::UINT8: throw std::runtime_error("");
         case onnx::TensorProto::INT8:
-            return create_literal(shape::int32_type, dims, t.int32_data().begin(), t.int32_data().end());
+            return create_literal(
+                shape::int32_type, dims, t.int32_data().begin(), t.int32_data().end());
         case onnx::TensorProto::UINT16:
-            return create_literal(shape::int32_type, dims, t.int32_data().begin(), t.int32_data().end());
+            return create_literal(
+                shape::int32_type, dims, t.int32_data().begin(), t.int32_data().end());
         case onnx::TensorProto::INT16:
-            return create_literal(shape::int32_type, dims, t.int32_data().begin(), t.int32_data().end());
+            return create_literal(
+                shape::int32_type, dims, t.int32_data().begin(), t.int32_data().end());
         case onnx::TensorProto::INT32:
-            return create_literal(shape::int32_type, dims, t.int32_data().begin(), t.int32_data().end());
+            return create_literal(
+                shape::int32_type, dims, t.int32_data().begin(), t.int32_data().end());
         case onnx::TensorProto::INT64:
-            return create_literal(shape::int64_type, dims, t.int64_data().begin(), t.int64_data().end());
+            return create_literal(
+                shape::int64_type, dims, t.int64_data().begin(), t.int64_data().end());
         case onnx::TensorProto::STRING: throw std::runtime_error("");
         case onnx::TensorProto::BOOL:
-            return create_literal(shape::int32_type, dims, t.int32_data().begin(), t.int32_data().end());
+            return create_literal(
+                shape::int32_type, dims, t.int32_data().begin(), t.int32_data().end());
         case onnx::TensorProto::FLOAT16:
         {
             std::vector<uint16_t> data_uint16(t.int32_data().begin(), t.int32_data().end());
@@ -1430,7 +1440,8 @@ struct onnx_parser
         MIGRAPHX_THROW("Invalid tensor type");
     }
 
-    static literal create_literal(shape::type_t shape_type, std::vector<size_t> dims, const char* data)
+    static literal
+    create_literal(shape::type_t shape_type, std::vector<size_t> dims, const char* data)
     {
         if(dims.empty())
             return literal{{shape_type, {1}, {0}}, data};
@@ -1438,13 +1449,13 @@ struct onnx_parser
     }
 
     template <class Iterator>
-    static literal create_literal(shape::type_t shape_type, std::vector<size_t> dims, Iterator start, Iterator end)
+    static literal
+    create_literal(shape::type_t shape_type, std::vector<size_t> dims, Iterator start, Iterator end)
     {
         if(dims.empty())
             return literal{{shape_type, {1}, {0}}, start, end};
         return literal{{shape_type, dims}, start, end};
     }
-
 
     static shape parse_type(const onnx::TypeProto& t)
     {

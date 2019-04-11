@@ -662,10 +662,6 @@ struct tf_parser
     static literal parse_tensor(const tensorflow::TensorProto& t)
     {
         std::vector<size_t> dims = parse_dims(t.tensor_shape());
-        // if(dims.empty())
-        // {
-        //     dims = {1};
-        // }
         size_t shape_size = std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<size_t>());
         if(!t.tensor_content().empty()) // has raw data
         {
@@ -839,6 +835,7 @@ struct tf_parser
     static literal
     create_literal(shape::type_t shape_type, std::vector<size_t> dims, std::vector<T> data)
     {
+        // assume if explicit value is mentioned in protobuf and dim size <= 1, treat as scalar
         if(dims.empty() or (dims.size() == 1 and dims.front() == 1))
             return literal{{shape_type, {1}, {0}}, data};
         return literal{{shape_type, dims}, data};

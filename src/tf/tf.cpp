@@ -662,10 +662,10 @@ struct tf_parser
     static literal parse_tensor(const tensorflow::TensorProto& t)
     {
         std::vector<size_t> dims = parse_dims(t.tensor_shape());
-        if(dims.empty())
-        {
-            dims = {1};
-        }
+        // if(dims.empty())
+        // {
+        //     dims = {1};
+        // }
         size_t shape_size = std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<size_t>());
         if(!t.tensor_content().empty()) // has raw data
         {
@@ -736,21 +736,21 @@ struct tf_parser
         {
         case tensorflow::DataType::DT_INVALID: throw std::runtime_error("");
         case tensorflow::DataType::DT_FLOAT:
-            return literal{{shape::float_type, dims}, get_data_vals(t.float_val(), shape_size)};
+            return create_literal(shape::float_type, dims, get_data_vals(t.float_val(), shape_size));
         case tensorflow::DataType::DT_UINT8: throw std::runtime_error("");
         case tensorflow::DataType::DT_INT8:
-            return literal{{shape::int32_type, dims}, get_data_vals(t.int_val(), shape_size)};
+            return create_literal(shape::int32_type, dims, get_data_vals(t.int_val(), shape_size));
         case tensorflow::DataType::DT_UINT16:
-            return literal{{shape::int32_type, dims}, get_data_vals(t.int_val(), shape_size)};
+            return create_literal(shape::int32_type, dims, get_data_vals(t.int_val(), shape_size));
         case tensorflow::DataType::DT_INT16:
-            return literal{{shape::int32_type, dims}, get_data_vals(t.int_val(), shape_size)};
+            return create_literal(shape::int32_type, dims, get_data_vals(t.int_val(), shape_size));
         case tensorflow::DataType::DT_INT32:
-            return literal{{shape::int32_type, dims}, get_data_vals(t.int_val(), shape_size)};
+            return create_literal(shape::int32_type, dims, get_data_vals(t.int_val(), shape_size));
         case tensorflow::DataType::DT_INT64:
-            return literal{{shape::int64_type, dims}, get_data_vals(t.int64_val(), shape_size)};
+            return create_literal(shape::int64_type, dims, get_data_vals(t.int64_val(), shape_size));
         case tensorflow::DataType::DT_STRING: throw std::runtime_error("");
         case tensorflow::DataType::DT_BOOL:
-            return literal{{shape::int32_type, dims}, get_data_vals(t.bool_val(), shape_size)};
+            return create_literal(shape::int32_type, dims, get_data_vals(t.bool_val(), shape_size));
         case tensorflow::DataType::DT_HALF:
         {
             std::vector<int> data_int32 = get_data_vals(t.half_val(), shape_size);
@@ -760,7 +760,7 @@ struct tf_parser
                            data_uint16.end(),
                            std::back_inserter(data_half),
                            [](uint16_t raw_val) { return *reinterpret_cast<half*>(&raw_val); });
-            return literal{{shape::half_type, dims}, data_half};
+            return create_literal(shape::half_type, dims, data_half);
         }
         case tensorflow::DataType::DT_DOUBLE:
             return literal{{shape::double_type, dims}, get_data_vals(t.double_val(), shape_size)};
@@ -832,6 +832,15 @@ struct tf_parser
                        [](tensorflow::TensorShapeProto_Dim dim) { return dim.size(); });
         return dims;
     }
+
+    template <class T>
+    static literal create_literal(shape::type_t shape_type, std::vector<size_t> dims, std::vector<T> data)
+    {
+        if(dims.empty() or (dims.size() == 1 and dims.front() == 1))
+            return literal{{shape_type, {1}, {0}}, data};
+        return literal{{shape_type, dims}, data};
+    }
+
 };
 
 program parse_tf(const std::string& name, bool is_nhwc)

@@ -356,7 +356,7 @@ struct tf_parser
         std::vector<int64_t> perm(args[0]->get_shape().lens().size());
         std::iota(perm.begin(), perm.end(), int64_t{0});
         // swap the last two elements
-        std::swap(*perm.rbegin(), *(perm.rbegin() + 1));
+        std::iter_swap(perm.end() - 1, perm.end() - 2);
 
         auto l1 = (transa) ? prog.add_instruction(op::transpose{perm}, args[0]) : args[0];
         auto l2 = (transb) ? prog.add_instruction(op::transpose{perm}, args[1]) : args[1];

@@ -9,6 +9,7 @@ namespace gpu {
 shape hip_fp_conversion::compute_shape(std::vector<shape> inputs) const
 {
     inputs.pop_back();
+    check_shapes{inputs}.not_broadcasted().not_transposed();
     return op.compute_shape(inputs);
 }
 

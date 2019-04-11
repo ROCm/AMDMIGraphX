@@ -142,7 +142,7 @@ struct onnx_parser
                 {
                     uint64_t axis = parse_value(attributes.at("axis")).at<uint64_t>();
                     auto l =
-                        prog.add_instruction(op::broadcast{axis, args[0]->get_shape()}, args[1]);
+                        prog.add_instruction(op::broadcast{axis, args[0]->get_shape().lens()}, args[1]);
                     return prog.add_instruction(x, args[0], l);
                 }
                 return prog.add_instruction(x, args);
@@ -306,7 +306,7 @@ struct onnx_parser
         {
             uint64_t axis = 1;
             auto l1       = prog.add_instruction(op, args[0], args[1]);
-            auto l2       = prog.add_instruction(op::broadcast{axis, l1->get_shape()}, args[2]);
+            auto l2       = prog.add_instruction(op::broadcast{axis, l1->get_shape().lens()}, args[2]);
             return prog.add_instruction(op::add{}, l1, l2);
         }
         return prog.add_instruction(op, l0, args[1]);
@@ -679,7 +679,7 @@ struct onnx_parser
 
         auto scale_tensor = prog.add_instruction(migraphx::op::scalar{input_shape}, scale_val);
         auto img_scaled   = prog.add_instruction(migraphx::op::mul{}, args.front(), scale_tensor);
-        auto bias_bcast = prog.add_instruction(migraphx::op::broadcast{1, input_shape}, bias_vals);
+        auto bias_bcast = prog.add_instruction(migraphx::op::broadcast{1, input_shape.lens()}, bias_vals);
         return prog.add_instruction(migraphx::op::add{}, img_scaled, bias_bcast);
     }
 

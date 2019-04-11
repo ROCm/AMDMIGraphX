@@ -32,6 +32,10 @@ struct unsqueeze
         auto input_shape     = inputs[0];
         auto type            = input_shape.type();
         auto old_lens        = input_shape.lens();
+
+        if(input_shape.scalar())
+            return shape{type, old_lens};
+
         std::size_t new_size = old_lens.size() + axes.size();
         std::vector<std::size_t> new_lens(new_size);
         std::size_t p = 0;

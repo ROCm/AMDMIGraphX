@@ -43,9 +43,8 @@ struct broadcast
 
         std::vector<size_t> bcast_strides(broadcast_lens.size(), 0);
 
-        if(std::all_of(broadcast_lens.cbegin(), broadcast_lens.cend(), [&](auto x) {
-               return x == 1;
-           }))
+        if(std::all_of(
+               broadcast_lens.cbegin(), broadcast_lens.cend(), [&](auto x) { return x == 1; }))
         {
             if(axis != 0)
                 MIGRAPHX_THROW("when broadcasting tensor of size 1, axis should be 0");
@@ -54,8 +53,7 @@ struct broadcast
         else
         {
             assert(broadcast_lens.size() - axis >= input.lens().size());
-            if(!std::equal(
-                   input.lens().begin(), input.lens().end(), broadcast_lens.begin() + axis))
+            if(!std::equal(input.lens().begin(), input.lens().end(), broadcast_lens.begin() + axis))
                 MIGRAPHX_THROW("when broadcasting success sizes must match");
             std::copy(input.strides().begin(), input.strides().end(), bcast_strides.begin() + axis);
             return {t, broadcast_lens, std::move(bcast_strides)};

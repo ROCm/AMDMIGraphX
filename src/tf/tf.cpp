@@ -235,7 +235,7 @@ struct tf_parser
     parse_biasadd(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         uint64_t axis = 1; // assume output of previous layer is in NCHW (broadcast on channel)
-        auto l0       = prog.add_instruction(op::broadcast{axis, args[0]->get_shape().lens()}, args[1]);
+        auto l0 = prog.add_instruction(op::broadcast{axis, args[0]->get_shape().lens()}, args[1]);
         return prog.add_instruction(op::add{}, args[0], l0);
     }
 

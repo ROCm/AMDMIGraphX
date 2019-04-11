@@ -521,11 +521,11 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
     if(bias != prog.end())
     {
         auto broadcast_lens = sih->get_shape().lens();
-        auto sbias = prog.insert_instruction(ins, op::squeeze{{0}}, bias);
-        auto wbz   = prog.insert_instruction(ins, op::slice{{0}, {0}, {hs}}, sbias);
-        auto wbr   = prog.insert_instruction(ins, op::slice{{0}, {hs}, {2 * hs}}, sbias);
-        auto wbh   = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, sbias);
-        brcst_wbh  = prog.insert_instruction(ins, op::broadcast{1, broadcast_lens}, wbh);
+        auto sbias          = prog.insert_instruction(ins, op::squeeze{{0}}, bias);
+        auto wbz            = prog.insert_instruction(ins, op::slice{{0}, {0}, {hs}}, sbias);
+        auto wbr            = prog.insert_instruction(ins, op::slice{{0}, {hs}, {2 * hs}}, sbias);
+        auto wbh  = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, sbias);
+        brcst_wbh = prog.insert_instruction(ins, op::broadcast{1, broadcast_lens}, wbh);
 
         auto rbz  = prog.insert_instruction(ins, op::slice{{0}, {3 * hs}, {4 * hs}}, sbias);
         auto rbr  = prog.insert_instruction(ins, op::slice{{0}, {4 * hs}, {5 * hs}}, sbias);
@@ -946,7 +946,7 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     auto sih = prog.insert_instruction(ins, op::squeeze{{0}}, ih);
 
     // initial cell state
-    auto sic      = prog.insert_instruction(ins, op::squeeze{{0}}, ic);
+    auto sic     = prog.insert_instruction(ins, op::squeeze{{0}}, ic);
     auto ic_lens = sic->get_shape().lens();
 
     // bias

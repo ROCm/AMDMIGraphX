@@ -671,7 +671,7 @@ TEST_CASE(add_broadcast_test)
         uint64_t axis = 0;
         auto l1       = p.add_literal(migraphx::literal{a_shape, a_data});
         auto l2       = p.add_literal(migraphx::literal{b_shape, b_data});
-        auto l3       = p.add_instruction(migraphx::op::broadcast{axis, l1->get_shape().lens()}, l2);
+        auto l3 = p.add_instruction(migraphx::op::broadcast{axis, l1->get_shape().lens()}, l2);
         p.add_instruction(migraphx::op::add{}, l1, l3);
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});

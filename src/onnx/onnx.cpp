@@ -1361,11 +1361,6 @@ struct onnx_parser
     static literal parse_tensor(const onnx::TensorProto& t)
     {
         std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
-        // in case of scalar constants in onnx file, use dims=1 to fill initializer data
-        // if(dims.empty())
-        // {
-        //     dims = {1};
-        // }
         if(t.has_raw_data())
         {
             const std::string& s = t.raw_data();
@@ -1443,6 +1438,7 @@ struct onnx_parser
     static literal
     create_literal(shape::type_t shape_type, std::vector<size_t> dims, const char* data)
     {
+        // in case of scalar constants in onnx file, use dims=1 to fill initializer data
         if(dims.empty())
             return literal{{shape_type, {1}, {0}}, data};
         return literal{{shape_type, dims}, data};

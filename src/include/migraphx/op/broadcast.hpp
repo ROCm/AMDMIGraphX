@@ -27,14 +27,15 @@ namespace op {
 struct broadcast
 {
     uint64_t axis = 0;
+    std::vector<std::size_t> broadcast_lens;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"));
+        return pack(f(self.axis, "axis"), 
+                    f(self.broadcast_lens, "dims"));
     }
 
-    std::vector<std::size_t> broadcast_lens;
     std::string name() const { return "broadcast"; }
     shape compute_shape(std::vector<shape> inputs) const
     {

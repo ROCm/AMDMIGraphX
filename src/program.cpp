@@ -54,8 +54,42 @@ static void print_instruction(std::ostream& os,
     os << " -> " << ins->get_shape();
 }
 
+static std::string enclose_name(const std::string& name)
+{
+    return '"' + name + '"';
+}
+
+static void print_graph_node(std::ostream& os,
+                              instruction_ref ins,
+                              const std::unordered_map<instruction_ref, std::string>& names)
+{
+    os << "\t";
+
+    if(!ins->inputs().empty())
+    {
+        char delim = '{';
+        for(auto&& arg : ins->inputs())
+        {
+            os << delim << enclose_name(names.at(arg));
+            delim = ' ';
+        }
+        os << '}';
+        os << " -> ";
+    }
+    os << enclose_name(names.at(ins)) << ";";
+    // if(ins->name() == "@literal")
+    // {
+    //     if(ins->get_literal().get_shape().elements() > 10)
+    //         os << "{ ... }";
+    //     else
+    //         os << "{" << ins->get_literal() << "}";
+    // }
+
+}
+
 template <class F>
-static void print_program(std::ostream& os, const program& p, F annonate)
+static void print_program(std::ostream& os, const program& p, F annonate, 
+        std::function<void(std::ostream&,instruction_ref,const std::unordered_map<instruction_ref, std::string>&)>print_func=print_instruction)
 {
     std::unordered_map<instruction_ref, std::string> names;
     int count = 0;
@@ -76,7 +110,7 @@ static void print_program(std::ostream& os, const program& p, F annonate)
             (void)arg;
         }
 
-        print_instruction(os, ins, names);
+        print_func(os, ins, names);
 
         annonate(ins, names);
 
@@ -529,6 +563,14 @@ void program::debug_print(const std::vector<instruction_ref>& inss) const
     for(auto ins : inss)
         debug_print(ins);
     std::cout << std::endl;
+}
+
+void program::print_graph(std::ostream& os) const
+{
+    os << "digraph {" << std::endl;
+    os << "\trankdir=LR;" << std::endl;
+    print_program(os, *this, [](auto&&...) {}, print_graph_node);
+    os << "}" << std::endl;
 }
 
 void program::dry_run(std::unordered_map<std::string, argument> params) const

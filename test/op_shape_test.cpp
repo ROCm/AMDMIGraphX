@@ -241,8 +241,7 @@ TEST_CASE(broadcast)
     {
         std::vector<std::size_t> lens{1, 1};
         migraphx::shape input{migraphx::shape::float_type, {4, 1, 3}};
-        throws_shape(migraphx::op::broadcast{1, lens},
-                     input);
+        throws_shape(migraphx::op::broadcast{1, lens}, input);
     }
 
     {
@@ -256,8 +255,7 @@ TEST_CASE(broadcast)
     {
         std::vector<std::size_t> lens{3, 2, 4, 3};
         migraphx::shape input{migraphx::shape::float_type, {4, 4}};
-        throws_shape(migraphx::op::broadcast{2, lens},
-                     input);
+        throws_shape(migraphx::op::broadcast{2, lens}, input);
     }
 }
 

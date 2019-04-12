@@ -7,6 +7,7 @@ int main(int argc, char const* argv[])
     {
         std::string file = argv[1];
         auto prog        = migraphx::parse_onnx(file);
-        std::cout << prog << std::endl;
+        //std::cout << prog << std::endl;
+        prog.print_graph(std::cout);
     }
 }

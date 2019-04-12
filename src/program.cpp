@@ -54,14 +54,11 @@ static void print_instruction(std::ostream& os,
     os << " -> " << ins->get_shape();
 }
 
-static std::string enclose_name(const std::string& name)
-{
-    return '"' + name + '"';
-}
+static std::string enclose_name(const std::string& name) { return '"' + name + '"'; }
 
 static void print_graph_node(std::ostream& os,
-                              instruction_ref ins,
-                              const std::unordered_map<instruction_ref, std::string>& names)
+                             instruction_ref ins,
+                             const std::unordered_map<instruction_ref, std::string>& names)
 {
     os << "\t";
 
@@ -84,12 +81,16 @@ static void print_graph_node(std::ostream& os,
     //     else
     //         os << "{" << ins->get_literal() << "}";
     // }
-
 }
 
 template <class F>
-static void print_program(std::ostream& os, const program& p, F annonate, 
-        std::function<void(std::ostream&,instruction_ref,const std::unordered_map<instruction_ref, std::string>&)>print_func=print_instruction)
+static void print_program(
+    std::ostream& os,
+    const program& p,
+    F annonate,
+    std::function<void(
+        std::ostream&, instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>
+        print_func = print_instruction)
 {
     std::unordered_map<instruction_ref, std::string> names;
     int count = 0;

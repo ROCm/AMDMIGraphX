@@ -66,7 +66,7 @@ TEST_CASE(const_add4)
     migraphx::program p1;
     auto one  = p1.add_literal(1);
     auto two  = p1.add_literal(2);
-    auto mul = p1.add_instruction(migraphx::op::mul{}, two, two);
+    auto mul  = p1.add_instruction(migraphx::op::mul{}, two, two);
     auto sum1 = p1.add_instruction(migraphx::op::add{}, one, mul);
     auto sum2 = p1.add_instruction(migraphx::op::add{}, sum1, two);
     p1.add_instruction(pass_op{}, sum2);

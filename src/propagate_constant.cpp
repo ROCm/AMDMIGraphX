@@ -1,4 +1,4 @@
-#include <migraphx/constant_propagate.hpp>
+#include <migraphx/propagate_constant.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
@@ -19,7 +19,7 @@ bool skip_propogate(instruction_ref ins)
     return false;
 }
 
-void constant_propagate::apply(program& p) const
+void propagate_constant::apply(program& p) const
 {
     fix([&](auto self, auto ins) {
         if(not skip_propogate(ins))

@@ -1,4 +1,4 @@
-#include <migraphx/constant_propagate.hpp>
+#include <migraphx/propagate_constant.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/op/add.hpp>
 #include <basic_ops.hpp>
@@ -9,7 +9,7 @@ struct const_prop_target
     std::string name() const { return "const_prop"; }
     std::vector<migraphx::pass> get_passes(migraphx::context&) const
     {
-        return {migraphx::constant_propagate{}, migraphx::dead_code_elimination{}};
+        return {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}};
     }
     migraphx::context get_context() const { return {}; }
 };

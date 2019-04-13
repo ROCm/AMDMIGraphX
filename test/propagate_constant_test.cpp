@@ -1,6 +1,7 @@
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/op/add.hpp>
+#include <migraphx/op/mul.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -56,6 +57,23 @@ TEST_CASE(const_add3)
 
     migraphx::program p2;
     auto total = p2.add_literal(5);
+    p2.add_instruction(pass_op{}, total);
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(const_add4)
+{
+    migraphx::program p1;
+    auto one  = p1.add_literal(1);
+    auto two  = p1.add_literal(2);
+    auto mul = p1.add_instruction(migraphx::op::mul{}, two, two);
+    auto sum1 = p1.add_instruction(migraphx::op::add{}, one, mul);
+    auto sum2 = p1.add_instruction(migraphx::op::add{}, sum1, two);
+    p1.add_instruction(pass_op{}, sum2);
+    p1.compile(const_prop_target{});
+
+    migraphx::program p2;
+    auto total = p2.add_literal(7);
     p2.add_instruction(pass_op{}, total);
     EXPECT(p1 == p2);
 }

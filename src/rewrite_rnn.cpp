@@ -1170,7 +1170,8 @@ std::vector<operation> rewrite_rnn::lstm_actv_funcs(instruction_ref ins) const
 namespace op {
 std::ostream& operator<<(std::ostream& os, rnn_direction v)
 {
-    os << static_cast<std::underlying_type<rnn_direction>::type>(v);
+    std::vector<std::string> rnn_direction_str = {"forward", "reverse", "bidirectional"};
+    os << rnn_direction_str[static_cast<std::underlying_type<rnn_direction>::type>(v)];
     return os;
 }
 } // namespace op

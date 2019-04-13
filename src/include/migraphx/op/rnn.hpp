@@ -28,8 +28,8 @@ struct rnn
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.hidden_size, "hidden size"),
-                    f(self.actv_funcs, "activation functions"),
+        return pack(f(self.hidden_size, "hidden_size"),
+                    f(self.actv_funcs, "actv_func"),
                     f(self.direction, "direction"),
                     f(self.clip, "clip"));
     }

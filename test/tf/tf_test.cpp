@@ -151,6 +151,28 @@ TEST_CASE(pack_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(pack_test_nhwc)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
+    auto l2 = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
+    std::vector<migraphx::instruction_ref> args{l0, l1, l2};
+    std::vector<migraphx::instruction_ref> unsqueezed_args;
+    int64_t nchw_axis = 1;
+
+    std::transform(args.begin(),
+                   args.end(),
+                   std::back_inserter(unsqueezed_args),
+                   [&](migraphx::instruction_ref arg) {
+                       return p.add_instruction(migraphx::op::unsqueeze{{nchw_axis}}, arg);
+                   });
+    p.add_instruction(migraphx::op::concat{static_cast<size_t>(nchw_axis)}, unsqueezed_args);
+    auto prog = migraphx::parse_tf("pack_test_nhwc.pb", true);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(pooling_test)
 {
     migraphx::program p;

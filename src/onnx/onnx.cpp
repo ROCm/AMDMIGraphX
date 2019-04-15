@@ -671,16 +671,16 @@ struct onnx_parser
             auto&& bias_floats = attributes["bias"].floats();
             bias               = std::vector<float>(bias_floats.begin(), bias_floats.end());
         }
-        auto input_shape = args.front()->get_shape();
+        auto input_lens = args.front()->get_shape().lens();
 
         auto scale_val = prog.add_literal(scale);
         auto bias_vals = prog.add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::float_type, {bias.size()}}, bias});
 
-        auto scale_tensor = prog.add_instruction(migraphx::op::scalar{input_shape}, scale_val);
+        auto scale_tensor = prog.add_instruction(migraphx::op::scalar{input_lens}, scale_val);
         auto img_scaled   = prog.add_instruction(migraphx::op::mul{}, args.front(), scale_tensor);
         auto bias_bcast =
-            prog.add_instruction(migraphx::op::broadcast{1, input_shape.lens()}, bias_vals);
+            prog.add_instruction(migraphx::op::broadcast{1, input_lens}, bias_vals);
         return prog.add_instruction(migraphx::op::add{}, img_scaled, bias_bcast);
     }
 

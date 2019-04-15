@@ -809,7 +809,7 @@ TEST_CASE(imagescaler_test)
                                                 0.35,
                                                 0.45}});
     auto scale_val     = p.add_literal(2.f);
-    auto scaled_tensor = p.add_instruction(migraphx::op::scalar{s}, scale_val);
+    auto scaled_tensor = p.add_instruction(migraphx::op::scalar{s.lens()}, scale_val);
     auto img_scaled    = p.add_instruction(migraphx::op::mul{}, img, scaled_tensor);
     auto bias_vals     = p.add_literal(
         migraphx::literal{migraphx::shape{migraphx::shape::float_type, {3}}, {0.01, 0.02, 0.03}});

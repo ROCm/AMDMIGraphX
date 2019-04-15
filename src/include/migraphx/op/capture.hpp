@@ -18,8 +18,8 @@ namespace op {
 
 struct capture
 {
-    std::function<void(std::vector<argument>) f;
-    template<class Self, class F>
+    std::function < void(std::vector<argument>) f;
+    template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.f, "func"));
@@ -27,10 +27,7 @@ struct capture
 
     std::string name() const { return "capputure"; }
 
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        return inputs.front();
-    }
+    shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {

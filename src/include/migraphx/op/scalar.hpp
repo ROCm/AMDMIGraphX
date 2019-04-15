@@ -26,7 +26,6 @@ struct scalar
         return pack(f(self.scalar_bcast_lens, "scalar_bcst_dims"));
     }
 
-
     std::string name() const { return "scalar"; }
 
     shape compute_shape(std::vector<shape> inputs) const

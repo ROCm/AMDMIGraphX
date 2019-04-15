@@ -108,7 +108,7 @@ TEST_CASE(imagescaler_test)
     auto scale_val = p.add_literal(0.5f);
     auto bias_vals = p.add_literal(
         migraphx::literal{migraphx::shape{migraphx::shape::float_type, {3}}, {0.01, 0.02, 0.03}});
-    auto scaled_tensor = p.add_instruction(migraphx::op::scalar{s}, scale_val);
+    auto scaled_tensor = p.add_instruction(migraphx::op::scalar{s.lens()}, scale_val);
     auto img_scaled    = p.add_instruction(migraphx::op::mul{}, l0, scaled_tensor);
     auto bias_bcast    = p.add_instruction(migraphx::op::broadcast{1, s.lens()}, bias_vals);
     p.add_instruction(migraphx::op::add{}, img_scaled, bias_bcast);

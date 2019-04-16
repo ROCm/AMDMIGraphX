@@ -18,7 +18,6 @@ add_library(migraphx
     generate.cpp
     instruction.cpp
     program.cpp
-    quantization.cpp
     quantize_ins.cpp
     shape.cpp
     schedule.cpp

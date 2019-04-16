@@ -61,6 +61,7 @@ void quantize_ins(program& prog, const std::vector<std::string>& ins_names)
         // process all inputs, if input is a fp32 or fp64, convert it
         // to a fp16 by adding a fp_conversion operator.
         auto inputs = ins->inputs();
+        std::vector<instruction_ref> converted_inputs;
         for(auto input : inputs)
         {
             auto s = input->get_shape();
@@ -77,16 +78,24 @@ void quantize_ins(program& prog, const std::vector<std::string>& ins_names)
                 {
                     input_fp16 = insert_fp16(prog, input, shape::half_type, map_fp16);
                 }
-                instruction::replace_argument(ins, input, input_fp16, false);
+                //instruction::replace_argument(ins, input, input_fp16, false);
+                converted_inputs.push_back(input_fp16);
+            }
+            else
+            {
+                converted_inputs.push_back(input);
             }
         }
-        // recompute the output shape
-        ins->recompute_ins_shape();
 
-        // If output is not the original type, add another instruction
-        // to convert it back to the original type
-        if(ins->get_shape().type() != orig_type)
+        if (inputs != converted_inputs)
         {
+            auto op = ins->get_operator();
+            instruction::replace(ins, op, compute_shape(op, converted_inputs), converted_inputs);
+        }
+
+        if (ins->get_shape().type() != orig_type)
+        {
+            // insert another fp_conversion instruction to convert it back
             if(ins == std::prev(prog.end()))
             {
                 prog.add_instruction(op::fp_conversion{orig_type}, ins);

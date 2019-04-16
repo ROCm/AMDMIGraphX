@@ -31,7 +31,7 @@ struct fp_conversion
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        return {targe_type, inputs.front().lens()};
+        return {targe_type, inputs.front().lens(), inputs.front().strides()};
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const

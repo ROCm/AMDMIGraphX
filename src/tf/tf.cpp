@@ -110,6 +110,7 @@ struct tf_parser
         add_generic_op("Relu", op::relu{});
 
         add_binary_op("Add", op::add{});
+        add_binary_op("Mul", op::mul{});
 
         add_mem_op("AvgPool", &tf_parser::parse_pooling);
         add_mem_op("BiasAdd", &tf_parser::parse_biasadd);
@@ -117,6 +118,7 @@ struct tf_parser
         add_mem_op("Const", &tf_parser::parse_constant);
         add_mem_op("Conv2D", &tf_parser::parse_conv);
         add_mem_op("FusedBatchNorm", &tf_parser::parse_batchnorm);
+        add_mem_op("MatMul", &tf_parser::parse_matmul);
         add_mem_op("MaxPool", &tf_parser::parse_pooling);
         add_mem_op("Mean", &tf_parser::parse_mean);
         add_mem_op("Pack", &tf_parser::parse_pack);
@@ -335,6 +337,32 @@ struct tf_parser
         }
 
         return prog.add_instruction(op, {args[0], weights});
+    }
+
+    instruction_ref
+    parse_matmul(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        bool transa = false;
+        bool transb = false;
+
+        if(contains(attributes, "transpose_a"))
+        {
+            transa = attributes.at("transpose_a").b();
+        }
+        if(contains(attributes, "transpose_b"))
+        {
+            transb = attributes.at("transpose_a").b();
+        }
+
+        std::vector<int64_t> perm(args[0]->get_shape().lens().size());
+        std::iota(perm.begin(), perm.end(), int64_t{0});
+        // swap the last two elements
+        std::iter_swap(perm.end() - 1, perm.end() - 2);
+
+        auto l1 = (transa) ? prog.add_instruction(op::transpose{perm}, args[0]) : args[0];
+        auto l2 = (transb) ? prog.add_instruction(op::transpose{perm}, args[1]) : args[1];
+
+        return prog.add_instruction(op::dot{}, l1, l2);
     }
 
     instruction_ref

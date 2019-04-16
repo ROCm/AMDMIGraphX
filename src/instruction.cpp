@@ -30,13 +30,6 @@ void instruction::replace(const shape& r)
 
 void instruction::recompute_shape() { replace(compute_shape(op, arguments)); }
 
-void instruction::recompute_ins_shape()
-{
-    auto r = compute_shape(op, arguments);
-    if(r != result)
-        result = r;
-}
-
 void instruction::clear_arguments()
 {
     for(auto&& arg : arguments)
@@ -133,13 +126,11 @@ void instruction::backreference(instruction_ref ref)
 
 void instruction::replace_argument(instruction_ref ins,
                                    instruction_ref old,
-                                   instruction_ref new_ins,
-                                   bool recompute_shape)
+                                   instruction_ref new_ins)
 {
     ins->replace_argument(old, new_ins);
     backreference(ins);
-    if(recompute_shape)
-        ins->recompute_shape();
+    ins->recompute_shape();
 }
 
 void instruction::replace(instruction_ref ins,

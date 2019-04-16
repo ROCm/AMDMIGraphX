@@ -90,22 +90,23 @@ void quantize_ins(program& prog, const std::vector<std::string>& ins_names)
         if(inputs != converted_inputs)
         {
             auto op = ins->get_operator();
-            instruction::replace(ins, op, compute_shape(op, converted_inputs), converted_inputs);
-        }
+            auto ins_shape = compute_shape(op, converted_inputs);
+            if (ins_shape.type() != orig_type)
+            {
+                // insert another fp_conversion instruction to convert it back
+                if(ins == std::prev(prog.end()))
+                {
+                    prog.add_instruction(op::fp_conversion{orig_type}, ins);
+                }
+                else
+                {
+                    auto ins_orig_type =
+                        prog.insert_instruction(std::next(ins), op::fp_conversion{orig_type}, ins);
+                    prog.replace_instruction(ins, ins_orig_type);
+                }
+            }
 
-        if(ins->get_shape().type() != orig_type)
-        {
-            // insert another fp_conversion instruction to convert it back
-            if(ins == std::prev(prog.end()))
-            {
-                prog.add_instruction(op::fp_conversion{orig_type}, ins);
-            }
-            else
-            {
-                auto ins_orig_type =
-                    prog.insert_instruction(std::next(ins), op::fp_conversion{orig_type}, ins);
-                prog.replace_instruction(ins, ins_orig_type);
-            }
+            instruction::replace(ins, op, compute_shape(op, converted_inputs), converted_inputs);
         }
     }
 }

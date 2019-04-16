@@ -89,9 +89,9 @@ void quantize_ins(program& prog, const std::vector<std::string>& ins_names)
 
         if(inputs != converted_inputs)
         {
-            auto op = ins->get_operator();
+            auto op        = ins->get_operator();
             auto ins_shape = compute_shape(op, converted_inputs);
-            if (ins_shape.type() != orig_type)
+            if(ins_shape.type() != orig_type)
             {
                 // insert another fp_conversion instruction to convert it back
                 if(ins == std::prev(prog.end()))

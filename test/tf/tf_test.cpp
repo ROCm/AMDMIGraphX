@@ -63,7 +63,7 @@ TEST_CASE(biasadd_test)
     uint64_t axis = 1;
     auto l0       = p.add_parameter("0", s0);
     auto l1       = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {500}});
-    auto l2       = p.add_instruction(migraphx::op::broadcast{axis, l0->get_shape()}, l1);
+    auto l2       = p.add_instruction(migraphx::op::broadcast{axis, l0->get_shape().lens()}, l1);
     p.add_instruction(migraphx::op::add{}, l0, l2);
     auto prog = migraphx::parse_tf("biasadd_test.pb", true);
 

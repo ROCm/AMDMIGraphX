@@ -12,9 +12,10 @@ bool skip_propogate(instruction_ref ins)
 {
     if(ins->name() == "@literal")
         return true;
-    if(ins->get_shape().broadcasted() and not ins->get_shape().scalar())
+    auto&& s = ins->get_shape();
+    if(s.broadcasted() and not s.scalar())
         return true;
-    if(ins->get_shape().scalar() and ins->get_shape().elements() != 1)
+    if(s.scalar() and s.elements() != 1)
         return true;
     return false;
 }

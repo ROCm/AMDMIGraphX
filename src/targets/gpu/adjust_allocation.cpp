@@ -12,11 +12,11 @@ void adjust_allocation::apply(program& p) const
     for(auto ins : iterator_for(p))
     {
         auto alias_ins = instruction::get_output_alias(ins, true);
-        if (alias_ins->name() == "hip::allocate")
+        if(alias_ins->name() == "hip::allocate")
         {
             // shape allocated is different from actual shape
             // of the instruction, reallocate and replace the previous one
-            if (alias_ins->get_shape() != ins->get_shape())
+            if(alias_ins->get_shape() != ins->get_shape())
             {
                 auto alloc_ins = p.insert_instruction(ins, hip_allocate{ins->get_shape()});
                 p.replace_instruction(alias_ins, alloc_ins);

@@ -55,10 +55,7 @@ static void print_instruction(std::ostream& os,
 }
 
 template <class F>
-static void print_program(
-    const program& p,
-    F print_func
-    )
+static void print_program(const program& p, F print_func)
 {
     std::unordered_map<instruction_ref, std::string> names;
     int count = 0;
@@ -475,7 +472,7 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
 
     print_program(*this, [&](auto ins, const auto& names) {
-        print_instruction(std::cout,ins, names);
+        print_instruction(std::cout, ins, names);
         double avg     = common_average(ins_vec[ins]);
         double percent = std::ceil(100.0 * avg / total_instruction_time);
         os << ": " << avg << "ms, " << percent << "%";
@@ -532,10 +529,10 @@ void program::debug_print(const std::vector<instruction_ref>& inss) const
     std::cout << std::endl;
 }
 
-static std::string enclose_name(const std::string& name) 
+static std::string enclose_name(const std::string& name)
 {
-    std::string new_name = name; 
-    return '"' + replace_string(new_name, "\"", "\\\"") + '"'; 
+    std::string new_name = name;
+    return '"' + replace_string(new_name, "\"", "\\\"") + '"';
 }
 
 void program::print_graph(std::ostream& os) const
@@ -543,7 +540,8 @@ void program::print_graph(std::ostream& os) const
     os << "digraph {" << std::endl;
     os << "\trankdir=LR;" << std::endl;
     print_program(*this, [&](auto ins, const auto& names) {
-        os << "\t" << enclose_name(names.at(ins)) << "[label=" << enclose_name(to_string(ins->get_operator())) << "];";
+        os << "\t" << enclose_name(names.at(ins))
+           << "[label=" << enclose_name(to_string(ins->get_operator())) << "];";
         os << std::endl;
         if(!ins->inputs().empty())
         {

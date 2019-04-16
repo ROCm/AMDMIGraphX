@@ -78,7 +78,7 @@ void quantize_ins(program& prog, const std::vector<std::string>& ins_names)
                 {
                     input_fp16 = insert_fp16(prog, input, shape::half_type, map_fp16);
                 }
-                //instruction::replace_argument(ins, input, input_fp16, false);
+                // instruction::replace_argument(ins, input, input_fp16, false);
                 converted_inputs.push_back(input_fp16);
             }
             else
@@ -87,13 +87,13 @@ void quantize_ins(program& prog, const std::vector<std::string>& ins_names)
             }
         }
 
-        if (inputs != converted_inputs)
+        if(inputs != converted_inputs)
         {
             auto op = ins->get_operator();
             instruction::replace(ins, op, compute_shape(op, converted_inputs), converted_inputs);
         }
 
-        if (ins->get_shape().type() != orig_type)
+        if(ins->get_shape().type() != orig_type)
         {
             // insert another fp_conversion instruction to convert it back
             if(ins == std::prev(prog.end()))

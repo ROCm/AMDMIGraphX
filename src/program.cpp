@@ -54,43 +54,11 @@ static void print_instruction(std::ostream& os,
     os << " -> " << ins->get_shape();
 }
 
-static std::string enclose_name(const std::string& name) { return '"' + name + '"'; }
-
-static void print_graph_node(std::ostream& os,
-                             instruction_ref ins,
-                             const std::unordered_map<instruction_ref, std::string>& names)
-{
-    os << "\t";
-
-    if(!ins->inputs().empty())
-    {
-        char delim = '{';
-        for(auto&& arg : ins->inputs())
-        {
-            os << delim << enclose_name(names.at(arg));
-            delim = ' ';
-        }
-        os << '}';
-        os << " -> ";
-    }
-    os << enclose_name(names.at(ins)) << ";";
-    // if(ins->name() == "@literal")
-    // {
-    //     if(ins->get_literal().get_shape().elements() > 10)
-    //         os << "{ ... }";
-    //     else
-    //         os << "{" << ins->get_literal() << "}";
-    // }
-}
-
 template <class F>
 static void print_program(
-    std::ostream& os,
     const program& p,
-    F annonate,
-    std::function<void(
-        std::ostream&, instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>
-        print_func = print_instruction)
+    F print_func
+    )
 {
     std::unordered_map<instruction_ref, std::string> names;
     int count = 0;
@@ -111,11 +79,7 @@ static void print_program(
             (void)arg;
         }
 
-        print_func(os, ins, names);
-
-        annonate(ins, names);
-
-        os << std::endl;
+        print_func(ins, names);
 
         count++;
     }
@@ -510,10 +474,12 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     double calculate_overhead_time    = total_time - total_instruction_time;
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
 
-    print_program(os, *this, [&](auto ins, auto&&) {
+    print_program(*this, [&](auto ins, const auto& names) {
+        print_instruction(std::cout,ins, names);
         double avg     = common_average(ins_vec[ins]);
         double percent = std::ceil(100.0 * avg / total_instruction_time);
         os << ": " << avg << "ms, " << percent << "%";
+        os << std::endl;
     });
 
     os << std::endl;
@@ -551,7 +517,7 @@ void program::debug_print(instruction_ref ins) const
         return;
     }
     std::stringstream ss;
-    print_program(ss, *this, [&](auto x, auto&& names) {
+    print_program(*this, [&](auto x, const auto& names) {
         if(x == ins)
         {
             print_instruction(std::cout, x, names);
@@ -566,11 +532,29 @@ void program::debug_print(const std::vector<instruction_ref>& inss) const
     std::cout << std::endl;
 }
 
+static std::string enclose_name(const std::string& name) 
+{
+    std::string new_name = name; 
+    return '"' + replace_string(new_name, "\"", "\\\"") + '"'; 
+}
+
 void program::print_graph(std::ostream& os) const
 {
     os << "digraph {" << std::endl;
     os << "\trankdir=LR;" << std::endl;
-    print_program(os, *this, [](auto&&...) {}, print_graph_node);
+    print_program(*this, [&](auto ins, const auto& names) {
+        os << "\t" << enclose_name(names.at(ins)) << "[label=" << enclose_name(to_string(ins->get_operator())) << "];";
+        os << std::endl;
+        if(!ins->inputs().empty())
+        {
+            for(auto&& arg : ins->inputs())
+            {
+                os << "\t" << enclose_name(names.at(arg)) << " -> " << enclose_name(names.at(ins));
+                os << "[label=" << enclose_name(to_string(ins->get_shape())) << "];";
+                os << std::endl;
+            }
+        }
+    });
     os << "}" << std::endl;
 }
 
@@ -582,14 +566,21 @@ void program::dry_run(std::unordered_map<std::string, argument> params) const
 
 void program::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
 {
-    print_program(os, *this, [&](auto ins, auto&&) { a(ins); });
+    print_program(*this, [&](auto ins, const auto& names) {
+        print_instruction(os, ins, names);
+        a(ins);
+        os << std::endl;
+    });
 }
 
 bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {
-    print_program(os, p, [](auto&&...) {});
+    print_program(p, [&](auto ins, const auto& names) {
+        print_instruction(os, ins, names);
+        os << std::endl;
+    });
     return os;
 }
 

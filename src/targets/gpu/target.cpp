@@ -50,7 +50,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         constant_propagate{},
         dead_code_elimination{},
         auto_contiguous{},
-        //simplify_reshapes{},
+        simplify_reshapes{},
         dead_code_elimination{},
         lowering{ctx},
         eliminate_concat{concat_gpu_optimization{}},

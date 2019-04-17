@@ -14,7 +14,9 @@ bool is_reshaper(instruction_ref ins)
     // clang-format off
     static const std::unordered_set<std::string> names = {
         "reshape",
-        "contiguous"
+        "contiguous",
+        "squeeze",
+        "unsqueeze"
     };
     // clang-format on
     return contains(names, ins->name());
@@ -93,13 +95,6 @@ void simplify_reshapes::apply(program& p) const
                 continue;
             p.replace_instruction(ins, t->inputs().front());
         }
-    }
-    // Replace all reshapes with as_shape
-    for(auto ins : iterator_for(p))
-    {
-        if(ins->name() != "reshape")
-            continue;
-        p.replace_instruction(ins, op::as_shape{ins->get_shape()}, ins->inputs());
     }
 }
 

@@ -15,8 +15,10 @@ void adjust_allocation::apply(program& p) const
         if(alias_ins->name() == "hip::allocate")
         {
             std::cout << "====================" << std::endl;
-            std::cout << "ins_name = " << ins->name() << ", shape = " << ins->get_shape() << std::endl;
-            std::cout << "alias_ins_name = " << alias_ins->name() << ", shape = " << alias_ins->get_shape() << std::endl;
+            std::cout << "ins_name = " << ins->name() << ", shape = " << ins->get_shape()
+                      << std::endl;
+            std::cout << "alias_ins_name = " << alias_ins->name()
+                      << ", shape = " << alias_ins->get_shape() << std::endl;
             // shape allocated is different from actual shape
             // of the instruction, reallocate and replace the previous one
             if(alias_ins->get_shape() != ins->get_shape())

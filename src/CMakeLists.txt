@@ -21,6 +21,7 @@ add_library(migraphx
     quantize_ins.cpp
     shape.cpp
     schedule.cpp
+    pass_manager.cpp
     simplify_algebra.cpp
     simplify_reshapes.cpp
     opt/memory_coloring.cpp

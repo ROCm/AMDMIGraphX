@@ -651,7 +651,7 @@ TEST_CASE(broadcast_test)
     uint64_t axis = 0;
     auto l1       = p.add_literal(migraphx::literal{a_shape, a_data});
     auto l2       = p.add_literal(migraphx::literal{b_shape, b_data});
-    p.add_instruction(migraphx::op::broadcast{axis, l1->get_shape()}, l2);
+    p.add_instruction(migraphx::op::broadcast{axis, l1->get_shape().lens()}, l2);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
     auto output = result.get<int32_t>();
@@ -671,7 +671,7 @@ TEST_CASE(add_broadcast_test)
         uint64_t axis = 0;
         auto l1       = p.add_literal(migraphx::literal{a_shape, a_data});
         auto l2       = p.add_literal(migraphx::literal{b_shape, b_data});
-        auto l3       = p.add_instruction(migraphx::op::broadcast{axis, l1->get_shape()}, l2);
+        auto l3 = p.add_instruction(migraphx::op::broadcast{axis, l1->get_shape().lens()}, l2);
         p.add_instruction(migraphx::op::add{}, l1, l3);
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
@@ -809,11 +809,11 @@ TEST_CASE(imagescaler_test)
                                                 0.35,
                                                 0.45}});
     auto scale_val     = p.add_literal(2.f);
-    auto scaled_tensor = p.add_instruction(migraphx::op::scalar{s}, scale_val);
+    auto scaled_tensor = p.add_instruction(migraphx::op::scalar{s.lens()}, scale_val);
     auto img_scaled    = p.add_instruction(migraphx::op::mul{}, img, scaled_tensor);
     auto bias_vals     = p.add_literal(
         migraphx::literal{migraphx::shape{migraphx::shape::float_type, {3}}, {0.01, 0.02, 0.03}});
-    auto bias_bcast = p.add_instruction(migraphx::op::broadcast{1, s}, bias_vals);
+    auto bias_bcast = p.add_instruction(migraphx::op::broadcast{1, s.lens()}, bias_vals);
     p.add_instruction(migraphx::op::add{}, img_scaled, bias_bcast);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});

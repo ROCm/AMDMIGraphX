@@ -4,6 +4,7 @@
 #include <migraphx/operators.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/dfor.hpp>
+#include <migraphx/op/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -213,7 +214,7 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
         auto wb    = prog.insert_instruction(ins, op::slice{{0}, {0}, {hs}}, sbias);
         auto rb    = prog.insert_instruction(ins, op::slice{{0}, {hs}, {2 * hs}}, sbias);
         auto b     = prog.insert_instruction(ins, op::add{}, wb, rb);
-        bias       = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, b);
+        bias       = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape().lens()}, b);
     }
 
     instruction_ref hidden_out = prog.end();
@@ -520,25 +521,26 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
     instruction_ref brcst_bh{};
     if(bias != prog.end())
     {
-        auto sbias = prog.insert_instruction(ins, op::squeeze{{0}}, bias);
-        auto wbz   = prog.insert_instruction(ins, op::slice{{0}, {0}, {hs}}, sbias);
-        auto wbr   = prog.insert_instruction(ins, op::slice{{0}, {hs}, {2 * hs}}, sbias);
-        auto wbh   = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, sbias);
-        brcst_wbh  = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, wbh);
+        auto broadcast_lens = sih->get_shape().lens();
+        auto sbias          = prog.insert_instruction(ins, op::squeeze{{0}}, bias);
+        auto wbz            = prog.insert_instruction(ins, op::slice{{0}, {0}, {hs}}, sbias);
+        auto wbr            = prog.insert_instruction(ins, op::slice{{0}, {hs}, {2 * hs}}, sbias);
+        auto wbh  = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, sbias);
+        brcst_wbh = prog.insert_instruction(ins, op::broadcast{1, broadcast_lens}, wbh);
 
         auto rbz  = prog.insert_instruction(ins, op::slice{{0}, {3 * hs}, {4 * hs}}, sbias);
         auto rbr  = prog.insert_instruction(ins, op::slice{{0}, {4 * hs}, {5 * hs}}, sbias);
         auto rbh  = prog.insert_instruction(ins, op::slice{{0}, {5 * hs}, {6 * hs}}, sbias);
-        brcst_rbh = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, rbh);
+        brcst_rbh = prog.insert_instruction(ins, op::broadcast{1, broadcast_lens}, rbh);
 
         auto bz  = prog.insert_instruction(ins, op::add{}, wbz, rbz);
-        brcst_bz = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, bz);
+        brcst_bz = prog.insert_instruction(ins, op::broadcast{1, broadcast_lens}, bz);
 
         auto br  = prog.insert_instruction(ins, op::add{}, wbr, rbr);
-        brcst_br = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, br);
+        brcst_br = prog.insert_instruction(ins, op::broadcast{1, broadcast_lens}, br);
 
         auto bh  = prog.insert_instruction(ins, op::add{}, wbh, rbh);
-        brcst_bh = prog.insert_instruction(ins, op::broadcast{1, sih->get_shape()}, bh);
+        brcst_bh = prog.insert_instruction(ins, op::broadcast{1, broadcast_lens}, bh);
     }
 
     for(long i = 0; i < seq_len; i++)
@@ -945,8 +947,8 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     auto sih = prog.insert_instruction(ins, op::squeeze{{0}}, ih);
 
     // initial cell state
-    auto sic      = prog.insert_instruction(ins, op::squeeze{{0}}, ic);
-    auto ic_shape = sic->get_shape();
+    auto sic     = prog.insert_instruction(ins, op::squeeze{{0}}, ic);
+    auto ic_lens = sic->get_shape().lens();
 
     // bias
     instruction_ref bi_brcst{};
@@ -955,26 +957,27 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     instruction_ref bc_brcst{};
     if(bias != prog.end())
     {
+
         auto sbias = prog.insert_instruction(ins, op::squeeze{{0}}, bias);
         auto bxi   = prog.insert_instruction(ins, op::slice{{0}, {0}, {hs}}, sbias);
         auto bhi   = prog.insert_instruction(ins, op::slice{{0}, {4 * hs}, {5 * hs}}, sbias);
         auto bi    = prog.insert_instruction(ins, op::add{}, bxi, bhi);
-        bi_brcst   = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, bi);
+        bi_brcst   = prog.insert_instruction(ins, op::broadcast{1, ic_lens}, bi);
 
         auto bxo = prog.insert_instruction(ins, op::slice{{0}, {hs}, {2 * hs}}, sbias);
         auto bho = prog.insert_instruction(ins, op::slice{{0}, {5 * hs}, {6 * hs}}, sbias);
         auto bo  = prog.insert_instruction(ins, op::add{}, bxo, bho);
-        bo_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, bo);
+        bo_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_lens}, bo);
 
         auto bxf = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, sbias);
         auto bhf = prog.insert_instruction(ins, op::slice{{0}, {6 * hs}, {7 * hs}}, sbias);
         auto bf  = prog.insert_instruction(ins, op::add{}, bxf, bhf);
-        bf_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, bf);
+        bf_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_lens}, bf);
 
         auto bxc = prog.insert_instruction(ins, op::slice{{0}, {3 * hs}, {4 * hs}}, sbias);
         auto bhc = prog.insert_instruction(ins, op::slice{{0}, {7 * hs}, {8 * hs}}, sbias);
         auto bc  = prog.insert_instruction(ins, op::add{}, bxc, bhc);
-        bc_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, bc);
+        bc_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_lens}, bc);
     }
 
     // peep hole
@@ -986,13 +989,13 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     {
         auto spph  = prog.insert_instruction(ins, op::squeeze{{0}}, pph);
         auto pphi  = prog.insert_instruction(ins, op::slice{{0}, {0}, {hs}}, spph);
-        pphi_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, pphi);
+        pphi_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_lens}, pphi);
 
         auto ppho  = prog.insert_instruction(ins, op::slice{{0}, {hs}, {2 * hs}}, spph);
-        ppho_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, ppho);
+        ppho_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_lens}, ppho);
 
         auto pphf  = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, spph);
-        pphf_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_shape}, pphf);
+        pphf_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_lens}, pphf);
     }
 
     for(long i = 0; i < seq_len; ++i)
@@ -1165,6 +1168,15 @@ std::vector<operation> rewrite_rnn::lstm_actv_funcs(instruction_ref ins) const
         }
     }
 }
+
+namespace op {
+std::ostream& operator<<(std::ostream& os, rnn_direction v)
+{
+    std::vector<std::string> rnn_direction_str = {"forward", "reverse", "bidirectional"};
+    os << rnn_direction_str[static_cast<std::underlying_type<rnn_direction>::type>(v)];
+    return os;
+}
+} // namespace op
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

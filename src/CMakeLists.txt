@@ -20,6 +20,7 @@ add_library(migraphx
     program.cpp
     shape.cpp
     schedule.cpp
+    pass_manager.cpp
     simplify_algebra.cpp
     simplify_reshapes.cpp
     opt/memory_coloring.cpp

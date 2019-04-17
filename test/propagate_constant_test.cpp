@@ -82,9 +82,9 @@ TEST_CASE(const_add_mul)
 TEST_CASE(const_add_scalar)
 {
     migraphx::program p1;
-    auto one = p1.add_instruction(migraphx::op::scalar{{migraphx::shape::int32_type, {2, 2}}},
+    auto one = p1.add_instruction(migraphx::op::scalar{{2, 2}},
                                   p1.add_literal(1));
-    auto two = p1.add_instruction(migraphx::op::scalar{{migraphx::shape::int32_type, {2, 2}}},
+    auto two = p1.add_instruction(migraphx::op::scalar{{2, 2}},
                                   p1.add_literal(2));
     auto sum = p1.add_instruction(migraphx::op::add{}, one, two);
     p1.add_instruction(pass_op{}, sum);
@@ -101,7 +101,7 @@ TEST_CASE(const_scalar)
 {
     migraphx::program p1;
     {
-        auto one = p1.add_instruction(migraphx::op::scalar{{migraphx::shape::int32_type, {2, 2}}},
+        auto one = p1.add_instruction(migraphx::op::scalar{{2, 2}},
                                       p1.add_literal(1));
         p1.add_instruction(pass_op{}, one);
     }
@@ -109,7 +109,7 @@ TEST_CASE(const_scalar)
 
     migraphx::program p2;
     {
-        auto one = p2.add_instruction(migraphx::op::scalar{{migraphx::shape::int32_type, {2, 2}}},
+        auto one = p2.add_instruction(migraphx::op::scalar{{2, 2}},
                                       p2.add_literal(1));
         p2.add_instruction(pass_op{}, one);
     }

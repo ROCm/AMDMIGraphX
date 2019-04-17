@@ -14,7 +14,7 @@ void adjust_allocation::apply(program& p) const
     for(auto ins : iterator_for(p))
     {
         // skip instructions not in the set
-        if (std::find(ins_names.begin(), ins_names.end(), ins->name()) == ins_names.end())
+        if(std::find(ins_names.begin(), ins_names.end(), ins->name()) == ins_names.end())
         {
             continue;
         }

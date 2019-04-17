@@ -19,6 +19,13 @@ namespace op {
 struct gather
 {
     int axis = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axis, "axis"));
+    }
+
     std::string name() const { return "gather"; }
 
     shape compute_shape(std::vector<shape> inputs) const

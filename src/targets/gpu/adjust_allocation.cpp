@@ -12,6 +12,10 @@ void adjust_allocation::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
     {
+        // skip instruction with no input
+        if (ins->inputs().empty())
+            continue;
+            
         if(ins->name() == "load")
             continue;
 

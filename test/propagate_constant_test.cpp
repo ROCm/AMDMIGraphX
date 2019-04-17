@@ -82,10 +82,8 @@ TEST_CASE(const_add_mul)
 TEST_CASE(const_add_scalar)
 {
     migraphx::program p1;
-    auto one = p1.add_instruction(migraphx::op::scalar{{2, 2}},
-                                  p1.add_literal(1));
-    auto two = p1.add_instruction(migraphx::op::scalar{{2, 2}},
-                                  p1.add_literal(2));
+    auto one = p1.add_instruction(migraphx::op::scalar{{2, 2}}, p1.add_literal(1));
+    auto two = p1.add_instruction(migraphx::op::scalar{{2, 2}}, p1.add_literal(2));
     auto sum = p1.add_instruction(migraphx::op::add{}, one, two);
     p1.add_instruction(pass_op{}, sum);
     p1.compile(const_prop_target{});
@@ -101,16 +99,14 @@ TEST_CASE(const_scalar)
 {
     migraphx::program p1;
     {
-        auto one = p1.add_instruction(migraphx::op::scalar{{2, 2}},
-                                      p1.add_literal(1));
+        auto one = p1.add_instruction(migraphx::op::scalar{{2, 2}}, p1.add_literal(1));
         p1.add_instruction(pass_op{}, one);
     }
     p1.compile(const_prop_target{});
 
     migraphx::program p2;
     {
-        auto one = p2.add_instruction(migraphx::op::scalar{{2, 2}},
-                                      p2.add_literal(1));
+        auto one = p2.add_instruction(migraphx::op::scalar{{2, 2}}, p2.add_literal(1));
         p2.add_instruction(pass_op{}, one);
     }
     EXPECT(p1 == p2);

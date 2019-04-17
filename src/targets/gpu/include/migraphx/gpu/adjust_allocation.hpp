@@ -12,7 +12,6 @@ namespace gpu {
 
 struct adjust_allocation
 {
-    context* ctx = nullptr;
     std::string name() const { return "gpu::adjust_allocation"; }
     void apply(program& p) const;
 };

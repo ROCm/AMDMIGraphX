@@ -7,6 +7,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -291,23 +292,7 @@ void program::compile(const target& t, tracer trace)
         trace = tracer{std::cout};
     trace(*this);
     trace();
-    for(auto&& p : t.get_passes(this->impl->ctx))
-    {
-        trace("Pass: ", p.name());
-        p.apply(*this);
-        trace(*this);
-#ifndef NDEBUG
-        trace("Validate ...");
-        auto invalid = this->validate();
-        if(invalid != impl->instructions.end())
-        {
-            auto index = std::distance(impl->instructions.begin(), invalid);
-            MIGRAPHX_THROW(p.name() + " pass produces invalid program at instruction " +
-                           std::to_string(index) + ": " + invalid->name());
-        }
-        trace();
-#endif
-    }
+    run_passes(*this, t.get_passes(this->impl->ctx), trace);
     auto invalid = this->validate();
     if(invalid != impl->instructions.end())
     {

@@ -12,7 +12,7 @@ void adjust_allocation::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
     {
-        if (ins->name() == "load")
+        if(ins->name() == "load")
             continue;
 
         auto alias_ins = instruction::get_output_alias(ins, true);

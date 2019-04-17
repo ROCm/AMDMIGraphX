@@ -2,6 +2,10 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
+<<<<<<< HEAD
+=======
+#include <algorithm>
+>>>>>>> adjust_gpu_allocation
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -9,8 +13,15 @@ namespace gpu {
 
 void adjust_allocation::apply(program& p) const
 {
+    std::vector<std::string> ins_names = {"gpu::fp_conversion"};
     for(auto ins : iterator_for(p))
     {
+        // skip instructions not in the set
+        if(std::find(ins_names.begin(), ins_names.end(), ins->name()) == ins_names.end())
+        {
+            continue;
+        }
+
         auto alias_ins = instruction::get_output_alias(ins, true);
         if(alias_ins->name() == "hip::allocate")
         {

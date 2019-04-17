@@ -531,8 +531,7 @@ void program::debug_print(const std::vector<instruction_ref>& inss) const
 
 static std::string enclose_name(const std::string& name)
 {
-    std::string new_name = name;
-    return '"' + replace_string(new_name, "\"", "\\\"") + '"';
+    return '"' + replace_string(name, "\"", "\\\"") + '"';
 }
 
 void program::print_graph(std::ostream& os) const

@@ -53,7 +53,7 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
     for(auto ins : iterator_for(prog))
     {
         // all indicates every instruction is converted
-        if ((not contains(ins_names, "all")) and (not contains(ins_names, ins->name())))
+        if((not contains(ins_names, "all")) and (not contains(ins_names, ins->name())))
         {
             continue;
         }
@@ -108,7 +108,7 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
             }
 
             prog.replace_instruction(ins, op, converted_inputs);
-            //instruction::replace(ins, op, compute_shape(op, converted_inputs), converted_inputs);
+            // instruction::replace(ins, op, compute_shape(op, converted_inputs), converted_inputs);
         }
     }
 }

@@ -751,17 +751,17 @@ struct tf_parser
             case tensorflow::DataType::DT_FLOAT:
                 return literal{{shape::float_type, dims}, s.data()};
             case tensorflow::DataType::DT_UINT8: throw std::runtime_error("");
-            case tensorflow::DataType::DT_INT8: return literal{{shape::int32_type, dims}, s.data()};
+            case tensorflow::DataType::DT_INT8: return literal{{shape::int8_type, dims}, s.data()};
             case tensorflow::DataType::DT_UINT16:
-                return literal{{shape::int32_type, dims}, s.data()};
+                return literal{{shape::uint16_type, dims}, s.data()};
             case tensorflow::DataType::DT_INT16:
-                return literal{{shape::int32_type, dims}, s.data()};
+                return literal{{shape::int16_type, dims}, s.data()};
             case tensorflow::DataType::DT_INT32:
                 return literal{{shape::int32_type, dims}, s.data()};
             case tensorflow::DataType::DT_INT64:
                 return literal{{shape::int64_type, dims}, s.data()};
             case tensorflow::DataType::DT_STRING: throw std::runtime_error("");
-            case tensorflow::DataType::DT_BOOL: return literal{{shape::int32_type, dims}, s.data()};
+            case tensorflow::DataType::DT_BOOL: return literal{{shape::int8_type, dims}, s.data()};
             case tensorflow::DataType::DT_HALF: return literal{{shape::half_type, dims}, s.data()};
             case tensorflow::DataType::DT_DOUBLE:
                 return literal{{shape::double_type, dims}, s.data()};
@@ -815,11 +815,11 @@ struct tf_parser
                 shape::float_type, dims, get_data_vals(t.float_val(), shape_size));
         case tensorflow::DataType::DT_UINT8: throw std::runtime_error("");
         case tensorflow::DataType::DT_INT8:
-            return create_literal(shape::int32_type, dims, get_data_vals(t.int_val(), shape_size));
+            return create_literal(shape::int8_type, dims, get_data_vals(t.int_val(), shape_size));
         case tensorflow::DataType::DT_UINT16:
-            return create_literal(shape::int32_type, dims, get_data_vals(t.int_val(), shape_size));
+            return create_literal(shape::uint16_type, dims, get_data_vals(t.int_val(), shape_size));
         case tensorflow::DataType::DT_INT16:
-            return create_literal(shape::int32_type, dims, get_data_vals(t.int_val(), shape_size));
+            return create_literal(shape::int16_type, dims, get_data_vals(t.int_val(), shape_size));
         case tensorflow::DataType::DT_INT32:
             return create_literal(shape::int32_type, dims, get_data_vals(t.int_val(), shape_size));
         case tensorflow::DataType::DT_INT64:
@@ -916,7 +916,7 @@ struct tf_parser
     {
         // assume if explicit value is mentioned in protobuf and dim size <= 1, treat as scalar
         if(dims.empty() or (dims.size() == 1 and dims.front() == 1))
-            return literal{{shape_type, {1}, {0}}, data};
+            return literal{{shape_type}, data};
         return literal{{shape_type, dims}, data};
     }
 };

@@ -101,14 +101,18 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
                 }
                 else
                 {
+                    // check the dead code case to avoid assert
+                    bool output_empty = ins->outputs().empty();
                     auto ins_orig_type =
                         prog.insert_instruction(std::next(ins), op::convert{orig_type}, ins);
-                    prog.replace_instruction(ins, ins_orig_type);
+                    if (!output_empty)
+                    {
+                        prog.replace_instruction(ins, ins_orig_type);
+                    }
                 }
             }
 
             prog.replace_instruction(ins, op, converted_inputs);
-            // instruction::replace(ins, op, compute_shape(op, converted_inputs), converted_inputs);
         }
     }
 }

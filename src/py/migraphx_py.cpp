@@ -2,7 +2,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <migraphx/program.hpp>
-#include <migraphx/quantize.hpp>
+#include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/stringutils.hpp>

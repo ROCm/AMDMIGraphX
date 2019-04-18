@@ -105,7 +105,7 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
                     bool output_empty = ins->outputs().empty();
                     auto ins_orig_type =
                         prog.insert_instruction(std::next(ins), op::convert{orig_type}, ins);
-                    if (!output_empty)
+                    if(!output_empty)
                     {
                         prog.replace_instruction(ins, ins_orig_type);
                     }

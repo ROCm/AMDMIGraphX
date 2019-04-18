@@ -108,7 +108,7 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
             }
 
             prog.replace_instruction(ins, op, converted_inputs);
-            //instruction::replace(ins, op, compute_shape(op, converted_inputs), converted_inputs);
+            // instruction::replace(ins, op, compute_shape(op, converted_inputs), converted_inputs);
         }
     }
 }

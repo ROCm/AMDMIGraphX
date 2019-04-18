@@ -51,7 +51,6 @@ add_library(migraphx_gpu
     convolution.cpp
     softmax.cpp
     logsoftmax.cpp
-    convert.cpp
     contiguous.cpp
     concat.cpp
     relu.cpp

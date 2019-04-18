@@ -16,15 +16,15 @@ struct hip_convert : unary_device<hip_convert, device::convert>
 {
     op::convert op;
 
-	hip_convert(const op::convert& oper) : op(oper) { }
-	hip_convert(const op::convert&& oper) : op(std::move(oper)) { }
+    hip_convert(const op::convert& oper) : op(oper) {}
+    hip_convert(const op::convert&& oper) : op(std::move(oper)) {}
 
-	shape compute_shape(std::vector<shape> inputs) const
-	{
-		inputs.pop_back();
-		check_shapes{inputs}.packed();
-		return op.compute_shape(inputs);
-	}
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        inputs.pop_back();
+        check_shapes{inputs}.packed();
+        return op.compute_shape(inputs);
+    }
 };
 
 } // namespace gpu

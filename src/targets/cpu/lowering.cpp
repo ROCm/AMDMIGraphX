@@ -727,10 +727,10 @@ struct cpu_logsoftmax
     }
 };
 
-struct cpu_fp_conversion
+struct cpu_convert
 {
-    op::fp_conversion op;
-    std::string name() const { return "cpu_fp_conversion"; }
+    op::convert op;
+    std::string name() const { return "cpu_convert"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
@@ -853,7 +853,7 @@ struct cpu_apply
         apply_map["pad"]           = extend_op<cpu_pad, op::pad>();
         apply_map["concat"]        = extend_op<cpu_concat, op::concat>();
         apply_map["gather"]        = extend_op<cpu_gather, op::gather>();
-        apply_map["fp_conversion"] = extend_op<cpu_fp_conversion, op::fp_conversion>();
+        apply_map["convert"] = extend_op<cpu_convert, op::convert>();
         apply_map["logsoftmax"]    = extend_op<cpu_logsoftmax, op::logsoftmax>();
         apply_map["leaky_relu"]    = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
         apply_map["elu"]           = extend_op<cpu_unary<elu_op>, op::elu>();

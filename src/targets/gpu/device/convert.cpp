@@ -1,4 +1,4 @@
-#include <migraphx/gpu/device/fp_conversion.hpp>
+#include <migraphx/gpu/device/convert.hpp>
 #include <migraphx/gpu/device/nary.hpp>
 
 namespace migraphx {
@@ -7,18 +7,18 @@ namespace gpu {
 namespace device {
 
 argument
-fp_conversion(hipStream_t stream, const shape& output_shape, const std::vector<argument>& args)
+convert(hipStream_t stream, const argument& result, const argument& arg)
 {
-    args.back().visit([&](auto output) {
-        args.front().visit([&](auto input) {
+    result.visit([&](auto output) {
+        arg.visit([&](auto input) {
             const auto* input_ptr = device_cast(input.data());
             auto* output_ptr      = device_cast(output.data());
             gs_launch(stream,
-                      output_shape.elements())([=](auto i) { output_ptr[i] = input_ptr[i]; });
+                      result.get_shape().elements())([=](auto i) { output_ptr[i] = input_ptr[i]; });
         });
     });
 
-    return args.back();
+    return result;
 }
 
 } // namespace device

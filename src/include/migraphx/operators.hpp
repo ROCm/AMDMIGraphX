@@ -14,6 +14,7 @@
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/contiguous.hpp>
+#include <migraphx/op/convert.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/cosh.hpp>
 #include <migraphx/op/cos.hpp>
@@ -22,7 +23,6 @@
 #include <migraphx/op/elu.hpp>
 #include <migraphx/op/exp.hpp>
 #include <migraphx/op/flatten.hpp>
-#include <migraphx/op/fp_conversion.hpp>
 #include <migraphx/op/gather.hpp>
 #include <migraphx/op/gru.hpp>
 #include <migraphx/op/identity.hpp>

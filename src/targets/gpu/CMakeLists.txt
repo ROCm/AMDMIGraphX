@@ -27,7 +27,7 @@ add_library(migraphx_device
     device/add_relu.cpp
     device/contiguous.cpp
     device/logsoftmax.cpp
-    device/fp_conversion.cpp
+    device/convert.cpp
     device/mul.cpp
     device/concat.cpp
     device/pad.cpp
@@ -51,7 +51,7 @@ add_library(migraphx_gpu
     convolution.cpp
     softmax.cpp
     logsoftmax.cpp
-    fp_conversion.cpp
+    convert.cpp
     contiguous.cpp
     concat.cpp
     relu.cpp

@@ -1,6 +1,6 @@
 
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_FP_CONVERSION_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_FP_CONVERSION_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_CONVERT_HPP
+#define MIGRAPHX_GUARD_RTGLIB_DEVICE_CONVERT_HPP
 
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
@@ -12,7 +12,7 @@ namespace gpu {
 namespace device {
 
 argument
-fp_conversion(hipStream_t stream, const shape& output_shape, const std::vector<argument>& args);
+convert(hipStream_t stream, const argument& result, const argument& arg);
 
 } // namespace device
 } // namespace gpu

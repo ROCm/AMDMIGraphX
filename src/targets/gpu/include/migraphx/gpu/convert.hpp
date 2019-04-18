@@ -15,8 +15,7 @@ struct hip_convert
     op::convert op;
     std::string name() const { return "gpu::convert"; }
     shape compute_shape(std::vector<shape> inputs) const;
-    argument
-    compute(context& ctx, const shape&, const std::vector<argument>& args) const;
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const;
     int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
 };
 

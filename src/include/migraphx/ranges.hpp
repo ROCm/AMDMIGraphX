@@ -12,7 +12,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace detail {
 
 template <class String, class T>
-auto generic_find_impl(rank<2>, String&& s, const T& x) -> decltype(s.begin() + s.find(x), s.npos)
+auto generic_find_impl(rank<2>, String&& s, const T& x) -> decltype(s.npos, s.begin() + s.find(x))
 {
     auto index = s.find(x);
     if(index == s.npos)

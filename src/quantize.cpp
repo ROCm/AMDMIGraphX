@@ -1,9 +1,10 @@
-#include <migraphx/quantize_ins.hpp>
+#include <migraphx/quantize.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/op/fp_conversion.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/ranges.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -46,13 +47,13 @@ instruction_ref insert_fp16(program& prog,
     return ins_fp16;
 }
 
-void quantize_ins(program& prog, const std::vector<std::string>& ins_names)
+void quantize(program& prog, const std::vector<std::string>& ins_names)
 {
     std::unordered_map<instruction_ref, instruction_ref> map_fp16;
     for(auto ins : iterator_for(prog))
     {
-        auto name_it = std::find(ins_names.begin(), ins_names.end(), ins->name());
-        if(name_it == ins_names.end())
+        // all indicates every instruction is converted
+        if ((not contains(ins_names, "all")) and (not contains(ins_names, ins->name())))
         {
             continue;
         }
@@ -106,7 +107,8 @@ void quantize_ins(program& prog, const std::vector<std::string>& ins_names)
                 }
             }
 
-            instruction::replace(ins, op, compute_shape(op, converted_inputs), converted_inputs);
+            prog.replace_instruction(ins, op, converted_inputs);
+            //instruction::replace(ins, op, compute_shape(op, converted_inputs), converted_inputs);
         }
     }
 }

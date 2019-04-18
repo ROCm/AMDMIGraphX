@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_OPERATORS_FP_CONVERSION_HPP
-#define MIGRAPHX_GUARD_OPERATORS_FP_CONVERSION_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_CONVERT_HPP
+#define MIGRAPHX_GUARD_OPERATORS_CONVERT_HPP
 
 #include <array>
 #include <migraphx/op/binary.hpp>
@@ -17,7 +17,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct fp_conversion
+struct convert
 {
     shape::type_t targe_type = shape::half_type;
 
@@ -27,7 +27,7 @@ struct fp_conversion
         return pack(f(self.targe_type, "target_type"));
     }
 
-    std::string name() const { return "fp_conversion"; }
+    std::string name() const { return "convert"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);

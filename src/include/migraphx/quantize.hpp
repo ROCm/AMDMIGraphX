@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZE_INS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QUANTIZE_INS_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZE_HPP
+#define MIGRAPHX_GUARD_RTGLIB_QUANTIZE_HPP
 
 #include <string>
 #include <vector>
@@ -12,7 +12,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
 
-void quantize_ins(program& prog, const std::vector<std::string>& ins_names);
+void quantize(program& prog, const std::vector<std::string>& ins_names);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

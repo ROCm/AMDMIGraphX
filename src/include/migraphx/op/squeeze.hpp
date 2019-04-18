@@ -58,7 +58,7 @@ struct squeeze
 
         if(new_lens.empty())
         {
-            return shape{type, {1}, {0}};
+            return shape{type};
         }
         else
         {

@@ -1432,7 +1432,7 @@ struct onnx_parser
     {
         // in case of scalar constants in onnx file, use dims=1 to fill initializer data
         if(dims.empty())
-            return literal{{shape_type, {1}, {0}}, data};
+            return literal{{shape_type}, data};
         return literal{{shape_type, dims}, data};
     }
 
@@ -1440,7 +1440,7 @@ struct onnx_parser
     static literal create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, T data)
     {
         if(dims.empty())
-            return literal{{shape_type, {1}, {0}}, data.begin(), data.end()};
+            return literal{{shape_type}, data.begin(), data.end()};
         return literal{{shape_type, dims}, data.begin(), data.end()};
     }
 

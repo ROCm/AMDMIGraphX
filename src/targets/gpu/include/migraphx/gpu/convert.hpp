@@ -17,7 +17,7 @@ struct hip_convert : unary_device<hip_convert, device::convert>
     op::convert op;
 
     hip_convert(const op::convert& oper) : op(oper) {}
-    hip_convert(const op::convert&& oper) : op(std::move(oper)) {}
+    hip_convert(const op::convert&& oper) : op(oper) {}
 
     shape compute_shape(std::vector<shape> inputs) const
     {

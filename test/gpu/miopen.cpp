@@ -332,7 +332,7 @@ struct test_trans_tanh : verify_program<test_trans_tanh>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto x  = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto tx = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
         auto tanhx = p.add_instruction(migraphx::op::tanh{}, tx);
         p.add_instruction(migraphx::op::add{}, tanhx, tanhx);
@@ -692,7 +692,7 @@ struct test_trans_abs : verify_program<test_trans_abs>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto x  = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto tx = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
         auto tanhx = p.add_instruction(migraphx::op::abs{}, tx);
         p.add_instruction(migraphx::op::add{}, tanhx, tanhx);

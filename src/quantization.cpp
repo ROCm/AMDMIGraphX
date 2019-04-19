@@ -89,7 +89,7 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
         }
 
         // no change for the input, return directly
-        if (inputs == converted_inputs)
+        if(inputs == converted_inputs)
         {
             return;
         }

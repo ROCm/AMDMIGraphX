@@ -88,32 +88,35 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
             }
         }
 
-        if(inputs != converted_inputs)
+        // no change for the input, return directly
+        if (inputs == converted_inputs)
         {
-            auto op        = ins->get_operator();
-            auto ins_shape = compute_shape(op, converted_inputs);
-            if(ins_shape.type() != orig_type)
+            return;
+        }
+
+        auto op        = ins->get_operator();
+        auto ins_shape = compute_shape(op, converted_inputs);
+        if(ins_shape.type() != orig_type)
+        {
+            // insert another convert instruction to convert it back
+            if(ins == std::prev(prog.end()))
             {
-                // insert another convert instruction to convert it back
-                if(ins == std::prev(prog.end()))
+                prog.add_instruction(op::convert{orig_type}, ins);
+            }
+            else
+            {
+                // check the dead code case to avoid assert
+                bool output_empty = ins->outputs().empty();
+                auto ins_orig_type =
+                    prog.insert_instruction(std::next(ins), op::convert{orig_type}, ins);
+                if(!output_empty)
                 {
-                    prog.add_instruction(op::convert{orig_type}, ins);
-                }
-                else
-                {
-                    // check the dead code case to avoid assert
-                    bool output_empty = ins->outputs().empty();
-                    auto ins_orig_type =
-                        prog.insert_instruction(std::next(ins), op::convert{orig_type}, ins);
-                    if(!output_empty)
-                    {
-                        prog.replace_instruction(ins, ins_orig_type);
-                    }
+                    prog.replace_instruction(ins, ins_orig_type);
                 }
             }
-
-            prog.replace_instruction(ins, op, converted_inputs);
         }
+
+        prog.replace_instruction(ins, op, converted_inputs);
     }
 }
 

@@ -29,7 +29,7 @@ struct logsoftmax
     std::string name() const { return "logsoftmax"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(1);
+        check_shapes{inputs}.has(1).standard();
         if(axis < 0 || axis > inputs[0].lens().size())
         {
             MIGRAPHX_THROW("LogSoftMax: input axis value " + std::to_string(axis) +

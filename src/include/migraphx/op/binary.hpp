@@ -21,9 +21,14 @@ struct binary
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs}.has(2).same_type().same_dims();
-        auto t    = inputs.at(0).type();
-        auto lens = inputs.at(0).lens();
-        return {t, lens};
+        if (inputs.at(0) == inputs.at(1) and inputs.at(0).packed() and inputs.at(1).packed())
+        {
+            return inputs.at(0);
+        }
+        else
+        {
+            return {inputs.at(0).type(), inputs.at(0).lens()};
+        }
     }
 };
 

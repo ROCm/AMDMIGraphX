@@ -7,7 +7,7 @@ namespace gpu {
 
 shape miopen_abs::compute_shape(const std::vector<shape>& inputs) const
 {
-    check_shapes{inputs, *this}.has(2).not_broadcasted();
+    check_shapes{inputs, *this}.has(2).packed();
     return inputs.at(0);
 }
 

@@ -45,7 +45,7 @@ struct unary_device : oper<Derived>
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(2);
-        if (inputs.at(0).packed())
+        if(inputs.at(0).packed())
         {
             return inputs.at(0);
         }
@@ -70,7 +70,7 @@ struct binary_device : oper<Derived>
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(3);
-        if (inputs.at(0) == inputs.at(1) and inputs.at(0).packed() and inputs.at(1).packed())
+        if(inputs.at(0) == inputs.at(1) and inputs.at(0).packed() and inputs.at(1).packed())
         {
             return inputs.at(0);
         }

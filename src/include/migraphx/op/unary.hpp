@@ -21,7 +21,7 @@ struct unary
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs}.has(1);
-        if (inputs.front().packed())
+        if(inputs.front().packed())
         {
             return inputs.at(0);
         }

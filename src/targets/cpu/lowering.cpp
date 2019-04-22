@@ -593,9 +593,9 @@ struct cpu_unary
 {
     Op op;
     std::string name() const { return op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const 
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
-        if (inputs.at(0).packed())
+        if(inputs.at(0).packed())
         {
             return inputs.at(0);
         }
@@ -793,9 +793,9 @@ struct cpu_binary
 {
     Op op;
     std::string name() const { return op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const 
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
-        if (inputs.at(0) == inputs.at(1) and inputs.at(0).packed() and inputs.at(1).packed())
+        if(inputs.at(0) == inputs.at(1) and inputs.at(0).packed() and inputs.at(1).packed())
         {
             return inputs.at(0);
         }
@@ -804,7 +804,7 @@ struct cpu_binary
             return {inputs.at(0).type(), inputs.at(0).lens()};
         }
     }
-    
+
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};

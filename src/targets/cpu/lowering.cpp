@@ -593,26 +593,13 @@ struct cpu_unary
 {
     Op op;
     std::string name() const { return op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        return {inputs.front().type(), inputs.front().lens()};
-    }
-
+    shape compute_shape(const std::vector<shape>& inputs) const { return inputs.front(); }
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         result.visit([&](auto output) {
             args[0].visit([&](auto input) {
-                if(input.get_shape().packed())
-                {
-                    std::transform(input.begin(), input.end(), output.begin(), op.fcn());
-                }
-                else
-                {
-                    shape_for_each(output.get_shape(), [&](const auto& idx) {
-                        output(idx.begin(), idx.end()) = op.fcn()(input(idx.begin(), idx.end()));
-                    });
-                }
+                std::transform(input.begin(), input.end(), output.begin(), op.fcn());
             });
         });
 
@@ -798,11 +785,7 @@ struct cpu_binary
 {
     Op op;
     std::string name() const { return op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        // operator will generate standard output shape
-        return {inputs.front().type(), inputs.front().lens()};
-    }
+    shape compute_shape(const std::vector<shape>& inputs) const { return inputs.front(); }
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};

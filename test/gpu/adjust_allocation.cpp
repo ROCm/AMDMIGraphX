@@ -35,7 +35,7 @@ TEST_CASE(tanh_shape)
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
         auto x   = p.add_parameter("x", s);
-        auto tx = p.add_instruction(migraphx::op::transpose{{1, 0}}, x);
+        auto tx  = p.add_instruction(migraphx::op::transpose{{1, 0}}, x);
         auto txh = p.add_instruction(migraphx::op::tanh{}, tx);
         p.add_instruction(migraphx::op::add{}, txh, txh);
 

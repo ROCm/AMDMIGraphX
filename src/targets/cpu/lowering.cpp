@@ -795,7 +795,7 @@ struct cpu_binary
     std::string name() const { return op.name(); }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        if(inputs.at(0) == inputs.at(1) and inputs.at(0).packed() and inputs.at(1).packed())
+        if(inputs.at(0) == inputs.at(1) and inputs.at(0).packed())
         {
             return inputs.at(0);
         }
@@ -811,7 +811,7 @@ struct cpu_binary
         visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {
             auto s1 = input1.get_shape();
             auto s2 = input2.get_shape();
-            if(s1 == s2 and s1.packed() and s2.packed())
+            if(s1 == s2 and s1.packed())
             {
                 std::transform(
                     input1.begin(), input1.end(), input2.begin(), output.begin(), op.fcn());

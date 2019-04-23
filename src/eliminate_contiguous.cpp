@@ -14,8 +14,8 @@ bool try_compute_shape(instruction_ref ins, const std::vector<shape>& inputs)
     try
     {
         shape new_shape = ins->get_operator().compute_shape(inputs);
-        // If the output shape is a standard shape, no need to try its output 
-        if (new_shape.standard())
+        // If the output shape is a standard shape, no need to try its output
+        if(new_shape.standard())
         {
             return true;
         }
@@ -23,21 +23,21 @@ bool try_compute_shape(instruction_ref ins, const std::vector<shape>& inputs)
         auto outputs = ins->outputs();
         // If the current instruction has no output, it means the last output shape
         // is non-standard, then we cannot eliminate the contiguous
-        if (outputs.empty())
+        if(outputs.empty())
         {
             return false;
         }
 
-        for (auto output : outputs)
+        for(auto output : outputs)
         {
             auto args = output->inputs();
             std::vector<shape> input_shapes;
-            for (auto arg : args)
+            for(auto arg : args)
             {
                 input_shapes.push_back((arg == ins) ? new_shape : arg->get_shape());
             }
-            
-            if (!try_compute_shape(output, input_shapes))
+
+            if(!try_compute_shape(output, input_shapes))
             {
                 return false;
             }

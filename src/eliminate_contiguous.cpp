@@ -9,7 +9,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-bool try_compute_shape(instruction_ref ins, const std::vector<shape>& inputs)
+static bool try_compute_shape(instruction_ref ins, const std::vector<shape>& inputs)
 {
     try
     {
@@ -21,8 +21,10 @@ bool try_compute_shape(instruction_ref ins, const std::vector<shape>& inputs)
         }
 
         auto outputs = ins->outputs();
-        // If the current instruction has no output, it means the last output shape
-        // is non-standard, then we cannot eliminate the contiguous
+        // If the current instruction has no output, it means it is the last
+        // instruction and generates a non-standard output. But for unary
+        // and binary operators, we can still remove it and reshape the output
+        // to be standard since these operator can handle non-standard inputs
         if(outputs.empty())
         {
             return true;
@@ -51,7 +53,7 @@ bool try_compute_shape(instruction_ref ins, const std::vector<shape>& inputs)
     return true;
 }
 
-bool try_compute_shape(instruction_ref ins, const std::vector<instruction_ref>& args)
+static bool try_compute_shape(instruction_ref ins, const std::vector<instruction_ref>& args)
 {
     auto inputs = to_shapes(args);
     return try_compute_shape(ins, inputs);

@@ -27,10 +27,12 @@ TEST_CASE(param_add)
     auto create_program_half = [] {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-        auto p1 = p.add_parameter("x", s);
-        auto hp1 = p.insert_instruction(std::next(p1), migraphx::op::convert{migraphx::shape::half_type}, p1);
-        auto p2 = p.add_parameter("y", s);
-        auto hp2 = p.insert_instruction(std::next(p2), migraphx::op::convert{migraphx::shape::half_type}, p2);
+        auto p1  = p.add_parameter("x", s);
+        auto hp1 = p.insert_instruction(
+            std::next(p1), migraphx::op::convert{migraphx::shape::half_type}, p1);
+        auto p2  = p.add_parameter("y", s);
+        auto hp2 = p.insert_instruction(
+            std::next(p2), migraphx::op::convert{migraphx::shape::half_type}, p2);
         auto hs = p.add_instruction(migraphx::op::add{}, hp1, hp2);
         p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, hs);
 
@@ -59,9 +61,9 @@ TEST_CASE(param_add_sub)
     auto create_program_float = [] {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-        auto p1 = p.add_parameter("x", s);
-        auto p2 = p.add_parameter("y", s);
-        auto sum = p.add_instruction(migraphx::op::add{}, p1, p2);
+        auto p1   = p.add_parameter("x", s);
+        auto p2   = p.add_parameter("y", s);
+        auto sum  = p.add_instruction(migraphx::op::add{}, p1, p2);
         auto diff = p.add_instruction(migraphx::op::sub{}, sum, p2);
         p.add_instruction(migraphx::op::add{}, diff, p1);
 
@@ -71,14 +73,17 @@ TEST_CASE(param_add_sub)
     auto create_program_half_add = [] {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-        auto p1 = p.add_parameter("x", s);
-        auto hp1 = p.insert_instruction(std::next(p1), migraphx::op::convert{migraphx::shape::half_type}, p1);
-        auto p2 = p.add_parameter("y", s);
-        auto hp2 = p.insert_instruction(std::next(p2), migraphx::op::convert{migraphx::shape::half_type}, p2);
-        auto hsum = p.add_instruction(migraphx::op::add{}, hp1, hp2);
-        auto sum = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, hsum);
-        auto diff = p.add_instruction(migraphx::op::sub{}, sum, p2);
-        auto hdiff = p.add_instruction(migraphx::op::convert{migraphx::op::convert{migraphx::shape::half_type}}, diff);
+        auto p1  = p.add_parameter("x", s);
+        auto hp1 = p.insert_instruction(
+            std::next(p1), migraphx::op::convert{migraphx::shape::half_type}, p1);
+        auto p2  = p.add_parameter("y", s);
+        auto hp2 = p.insert_instruction(
+            std::next(p2), migraphx::op::convert{migraphx::shape::half_type}, p2);
+        auto hsum  = p.add_instruction(migraphx::op::add{}, hp1, hp2);
+        auto sum   = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, hsum);
+        auto diff  = p.add_instruction(migraphx::op::sub{}, sum, p2);
+        auto hdiff = p.add_instruction(
+            migraphx::op::convert{migraphx::op::convert{migraphx::shape::half_type}}, diff);
         auto res = p.add_instruction(migraphx::op::add{}, hdiff, hp1);
         p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, res);
 
@@ -88,13 +93,14 @@ TEST_CASE(param_add_sub)
     auto create_program_half_sub = [] {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-        auto p1 = p.add_parameter("x", s);
-        auto p2 = p.add_parameter("y", s);
-        auto hp2 = p.insert_instruction(std::next(p2), migraphx::op::convert{migraphx::shape::half_type}, p2);
-        auto sum = p.add_instruction(migraphx::op::add{}, p1, p2);
-        auto hsum = p.add_instruction(migraphx::op::convert{migraphx::shape::half_type}, sum);
+        auto p1  = p.add_parameter("x", s);
+        auto p2  = p.add_parameter("y", s);
+        auto hp2 = p.insert_instruction(
+            std::next(p2), migraphx::op::convert{migraphx::shape::half_type}, p2);
+        auto sum   = p.add_instruction(migraphx::op::add{}, p1, p2);
+        auto hsum  = p.add_instruction(migraphx::op::convert{migraphx::shape::half_type}, sum);
         auto hdiff = p.add_instruction(migraphx::op::sub{}, hsum, hp2);
-        auto diff = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, hdiff);
+        auto diff  = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, hdiff);
         p.add_instruction(migraphx::op::add{}, diff, p1);
 
         return p;
@@ -163,6 +169,5 @@ TEST_CASE(literal_add)
         EXPECT(p1 == p2);
     }
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

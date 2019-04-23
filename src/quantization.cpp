@@ -88,10 +88,10 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
             }
         }
 
-        // no change for the input, return directly
+        // no change for the input, go to the next instruction
         if(inputs == converted_inputs)
         {
-            return;
+            continue;
         }
 
         auto op        = ins->get_operator();

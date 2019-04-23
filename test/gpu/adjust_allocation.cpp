@@ -29,13 +29,14 @@ struct lowering_target
     migraphx::gpu::context get_context() const { return migraphx::gpu::context{}; }
 };
 
-TEST_CASE(trans_tanh)
+TEST_CASE(tanh_shape)
 {
     auto create_program = [] {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
         auto x   = p.add_parameter("x", s);
-        auto txh = p.add_instruction(migraphx::op::tanh{}, x);
+        auto tx = p.add_instruction(migraphx::op::transpose{{1, 0}}, x);
+        auto txh = p.add_instruction(migraphx::op::tanh{}, tx);
         p.add_instruction(migraphx::op::add{}, txh, txh);
 
         return p;
@@ -54,7 +55,7 @@ TEST_CASE(trans_tanh)
     {
         if(ins->name() == "hip::allocate")
         {
-            migraphx::shape wrong_s{migraphx::shape::float_type, {4, 3}};
+            migraphx::shape wrong_s{migraphx::shape::float_type, {2, 2}};
             ins->replace(wrong_s);
         }
     }

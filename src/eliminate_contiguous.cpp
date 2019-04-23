@@ -25,7 +25,7 @@ bool try_compute_shape(instruction_ref ins, const std::vector<shape>& inputs)
         // is non-standard, then we cannot eliminate the contiguous
         if(outputs.empty())
         {
-            return false;
+            return true;
         }
 
         for(auto output : outputs)

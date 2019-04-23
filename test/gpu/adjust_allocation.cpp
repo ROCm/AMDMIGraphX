@@ -47,7 +47,7 @@ TEST_CASE(tanh_shape)
     EXPECT(p1 == p2);
 
     p1.compile(lowering_target{});
-    p2.compile(lowering_target{});
+    p2.compile(lowering_target());
 
     EXPECT(p1 == p2);
 
@@ -55,13 +55,13 @@ TEST_CASE(tanh_shape)
     {
         if(ins->name() == "hip::allocate")
         {
-            migraphx::shape wrong_s{migraphx::shape::float_type, {2, 2}};
+            migraphx::shape wrong_s{migraphx::shape::float_type, {3, 2}, {1, 3}};
             ins->replace(wrong_s);
         }
     }
     EXPECT(p1 != p2);
 
-    migraphx::run_passes(p1,
+    migraphx::run_passes(p2,
                          {migraphx::gpu::adjust_allocation{}, migraphx::dead_code_elimination{}});
     EXPECT(p1 == p2);
 }

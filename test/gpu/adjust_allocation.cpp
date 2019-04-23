@@ -20,8 +20,11 @@ struct lowering_target
     std::vector<migraphx::pass> get_passes(migraphx::context& gctx) const
     {
         auto& ctx = migraphx::any_cast<migraphx::gpu::context>(gctx);
-        return {migraphx::auto_contiguous{}, migraphx::gpu::lowering{ctx}, migraphx::dead_code_elimination{},
-            migraphx::eliminate_contiguous{}, migraphx::dead_code_elimination{}};
+        return {migraphx::auto_contiguous{},
+                migraphx::gpu::lowering{ctx},
+                migraphx::dead_code_elimination{},
+                migraphx::eliminate_contiguous{},
+                migraphx::dead_code_elimination{}};
     }
     migraphx::gpu::context get_context() const { return migraphx::gpu::context{}; }
 };
@@ -31,7 +34,7 @@ TEST_CASE(trans_tanh)
     auto create_program = [] {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-        auto x  = p.add_parameter("x", s);
+        auto x   = p.add_parameter("x", s);
         auto txh = p.add_instruction(migraphx::op::tanh{}, x);
         p.add_instruction(migraphx::op::add{}, txh, txh);
 
@@ -42,9 +45,6 @@ TEST_CASE(trans_tanh)
     auto p2 = create_program();
     EXPECT(p1 == p2);
 
-    std::cout << "p1 = " << p1 << std::endl;
-    std::cout << "p2 = " << p2 << std::endl;
-
     p1.compile(lowering_target{});
     p2.compile(lowering_target{});
 
@@ -52,16 +52,13 @@ TEST_CASE(trans_tanh)
 
     for(auto ins : iterator_for(p1))
     {
-       if(ins->name() == "hip::allocate")
-       {
-           migraphx::shape wrong_s{migraphx::shape::float_type, {4, 3}};
-           ins->replace(wrong_s);
-       }
+        if(ins->name() == "hip::allocate")
+        {
+            migraphx::shape wrong_s{migraphx::shape::float_type, {4, 3}};
+            ins->replace(wrong_s);
+        }
     }
     EXPECT(p1 != p2);
-
-    std::cout << "p1 = " << p1 << std::endl;
-    std::cout << "p2 = " << p2 << std::endl;
 
     migraphx::run_passes(p1,
                          {migraphx::gpu::adjust_allocation{}, migraphx::dead_code_elimination{}});

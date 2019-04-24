@@ -33,14 +33,7 @@ instruction_ref insert_fp16(program& prog,
     }
     else
     {
-        if(ins == std::prev(prog.end()))
-        {
-            ins_fp16 = prog.add_instruction(op::convert{type}, ins);
-        }
-        else
-        {
-            ins_fp16 = prog.insert_instruction(std::next(ins), op::convert{}, ins);
-        }
+        ins_fp16 = prog.insert_instruction(std::next(ins), op::convert{type}, ins);
     }
     map_fp16[ins] = ins_fp16;
 
@@ -79,7 +72,6 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
                 {
                     input_fp16 = insert_fp16(prog, input, shape::half_type, map_fp16);
                 }
-                // instruction::replace_argument(ins, input, input_fp16, false);
                 converted_inputs.push_back(input_fp16);
             }
             else

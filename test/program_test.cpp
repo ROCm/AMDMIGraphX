@@ -36,9 +36,9 @@ TEST_CASE(program_copy)
         migraphx::shape s{migraphx::shape::float_type, {3, 4, 5}};
         std::vector<float> data(3 * 4 * 5);
         std::iota(data.begin(), data.end(), 1.0f);
-        auto l2 = p.add_literal(migraphx::literal(s, data));
-        auto p1 = p.add_parameter("x", s);
-        auto po = p.add_outline(s);
+        auto l2  = p.add_literal(migraphx::literal(s, data));
+        auto p1  = p.add_parameter("x", s);
+        auto po  = p.add_outline(s);
         auto sum = p.add_instruction(migraphx::op::add{}, l2, p1);
         p.add_instruction(migraphx::op::mul{}, sum, po);
 
@@ -60,7 +60,7 @@ TEST_CASE(program_copy)
     {
         auto p1 = create_program_1();
         auto p2 = create_program();
-        p2 = p1;
+        p2      = p1;
 
         EXPECT(p1 == p2);
     }

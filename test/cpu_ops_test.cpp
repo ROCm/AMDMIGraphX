@@ -1573,7 +1573,7 @@ TEST_CASE(fp32_fp16_test)
 
     {
         std::vector<float> gold_res = {2.0, 4.0, 6.0, 8.0, 10.0, 12.0};
-        auto p = create_program();
+        auto p                      = create_program();
         migraphx::quantize(p, {"all"});
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
@@ -1584,7 +1584,7 @@ TEST_CASE(fp32_fp16_test)
 
     {
         std::vector<float> gold_res = {2.0, 4.0, 6.0, 8.0, 10.0, 12.0};
-        auto p = create_program();
+        auto p                      = create_program();
         migraphx::quantize(p, {"all"});
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});

@@ -115,9 +115,9 @@ TEST_CASE(param_add_sub)
         auto p2  = p.add_parameter("y", s);
         auto hp2 = p.insert_instruction(
             std::next(p2), migraphx::op::convert{migraphx::shape::half_type}, p2);
-        auto hsum   = p.add_instruction(migraphx::op::add{}, hp1, hp2);
+        auto hsum  = p.add_instruction(migraphx::op::add{}, hp1, hp2);
         auto hdiff = p.add_instruction(migraphx::op::sub{}, hsum, hp2);
-        auto hres = p.add_instruction(migraphx::op::add{}, hdiff, hp1);
+        auto hres  = p.add_instruction(migraphx::op::add{}, hdiff, hp1);
         p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, hres);
 
         return p;
@@ -145,7 +145,7 @@ TEST_CASE(param_add_sub)
 
         migraphx::quantize(p1, {"all"});
         migraphx::run_passes(p1, {migraphx::dead_code_elimination{}});
-        
+
         EXPECT(p1 == p2);
     }
 }

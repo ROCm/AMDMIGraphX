@@ -106,6 +106,23 @@ TEST_CASE(param_add_sub)
         return p;
     };
 
+    auto create_program_half_all = [] {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+        auto p1  = p.add_parameter("x", s);
+        auto hp1 = p.insert_instruction(
+            std::next(p1), migraphx::op::convert{migraphx::shape::half_type}, p1);
+        auto p2  = p.add_parameter("y", s);
+        auto hp2 = p.insert_instruction(
+            std::next(p2), migraphx::op::convert{migraphx::shape::half_type}, p2);
+        auto hsum   = p.add_instruction(migraphx::op::add{}, hp1, hp2);
+        auto hdiff = p.add_instruction(migraphx::op::sub{}, hsum, hp2);
+        auto hres = p.add_instruction(migraphx::op::add{}, hdiff, hp1);
+        p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, hres);
+
+        return p;
+    };
+
     {
         auto p1 = create_program_float();
         auto p2 = create_program_half_add();
@@ -119,6 +136,16 @@ TEST_CASE(param_add_sub)
         auto p2 = create_program_half_sub();
 
         migraphx::quantize(p1, {"sub"});
+        EXPECT(p1 == p2);
+    }
+
+    {
+        auto p1 = create_program_float();
+        auto p2 = create_program_half_all();
+
+        migraphx::quantize(p1, {"all"});
+        migraphx::run_passes(p1, {migraphx::dead_code_elimination{}});
+        
         EXPECT(p1 == p2);
     }
 }

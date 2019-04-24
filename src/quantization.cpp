@@ -25,11 +25,11 @@ instruction_ref insert_fp16(program& prog,
     instruction_ref ins_fp16{};
     if(ins->name() == "@literal" && ins->outputs().size() == 1)
     {
-        std::vector<float> values;
-        auto l_fp32 = ins->get_literal();
-        shape s     = ins->get_shape();
-        l_fp32.visit([&](auto val) { values.assign(val.begin(), val.end()); });
-        ins_fp16 = prog.add_literal(literal({shape::half_type, s.lens()}, values));
+        auto l = ins->get_literal();
+        auto s = ins->get_shape();
+        l.visit([&](auto val) {
+            ins_fp16 = prog.add_literal(literal({type, s.lens()}, val.begin(), val.end()));
+        });
     }
     else
     {

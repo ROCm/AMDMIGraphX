@@ -33,11 +33,10 @@ static bool try_compute_shape(instruction_ref ins, const std::vector<shape>& inp
         for(auto output : outputs)
         {
             auto args = output->inputs();
-            std::vector<shape> input_shapes;
-            for(auto arg : args)
-            {
-                input_shapes.push_back((arg == ins) ? new_shape : arg->get_shape());
-            }
+            std::vector<shape> input_shapes(args.size());
+            std::transform(args.begin(), args.end(), input_shapes.begin(), [&](auto& arg) {
+                return (arg == ins) ? new_shape : arg->get_shape();
+            });
 
             if(!try_compute_shape(output, input_shapes))
             {

@@ -30,8 +30,19 @@ const operation& get_operation(instruction_ref ins);
 struct program
 {
     program();
+
+    // move constructor
     program(program&&) noexcept;
+
+    // copy constructor
+    program(const program&) noexcept;
+
+    // move assignment operator
     program& operator=(program&&) noexcept;
+
+    // copy assignment operator
+    program& operator=(const program&) noexcept;
+
     ~program() noexcept;
 
     using parameter_map = std::unordered_map<std::string, argument>;
@@ -117,6 +128,9 @@ struct program
     friend std::ostream& operator<<(std::ostream& os, const program& p);
     friend bool operator==(const program& x, const program& y);
     friend bool operator!=(const program& x, const program& y) { return !(x == y); }
+
+    private:
+    void copy(const program& prog);
 
     private:
     std::unique_ptr<program_impl> impl;

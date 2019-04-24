@@ -3337,7 +3337,7 @@ template struct test_logsoftmax_1<1>;
 
 struct test_fp32_fp16_lall : verify_program<test_fp32_fp16_lall>
 {
-    migraphx::program create_program () const 
+    migraphx::program create_program() const
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
@@ -3353,7 +3353,7 @@ struct test_fp32_fp16_lall : verify_program<test_fp32_fp16_lall>
 
 struct test_fp32_fp16_ladd : verify_program<test_fp32_fp16_ladd>
 {
-    migraphx::program create_program () const 
+    migraphx::program create_program() const
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
@@ -3369,7 +3369,7 @@ struct test_fp32_fp16_ladd : verify_program<test_fp32_fp16_ladd>
 
 struct test_fp32_fp16_add : verify_program<test_fp32_fp16_add>
 {
-    migraphx::program create_program() 
+    migraphx::program create_program()
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
@@ -3386,7 +3386,7 @@ struct test_fp32_fp16_add : verify_program<test_fp32_fp16_add>
 
 struct test_fp32_fp16_sub : verify_program<test_fp32_fp16_sub>
 {
-    migraphx::program create_program() 
+    migraphx::program create_program()
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};

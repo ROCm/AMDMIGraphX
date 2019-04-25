@@ -65,9 +65,9 @@ TEST_CASE(program_copy)
         auto p2 = create_program();
         p2.compile(migraphx::cpu::target{});
 
-        p2      = p1;
+        p2 = p1;
         p2.compile(migraphx::cpu::target{});
-        
+
         EXPECT(p1 == p2);
     }
 }

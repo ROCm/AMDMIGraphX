@@ -129,8 +129,8 @@ void program::copy(const program& p)
         {
             auto&& name = any_cast<builtin::param>(ins->get_operator()).parameter;
             auto s      = ins->get_shape();
-            copy_ins    = impl->instructions.insert(
-                impl->instructions.end(), {builtin::param{name}, std::move(s), {}});
+            copy_ins    = impl->instructions.insert(impl->instructions.end(),
+                                                 {builtin::param{name}, std::move(s), {}});
         }
         else if(ins->name() == "@outline")
         {

@@ -1,12 +1,10 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_HORIZONTAL_FUSION_IMPL_HPP
 #define MIGRAPHX_GUARD_RTGLIB_HORIZONTAL_FUSION_IMPL_HPP
-#include "common_header.hpp"
+#include <migraphx/common_header.hpp>
 #include <migraphx/config.hpp>
 
 #include <set>
 #include <stack>
-
-//#define MIGRAPHX_DEBUG_H_FUSION
 
 namespace migraphx {
 
@@ -155,7 +153,7 @@ struct horizontal_fusion_impl
     int get_conv_output_axis() { return 0; }
     instruction_ref break_split(int, instruction_ref);
     
-#ifdef MIGRAPHX_DEBUG_H_FUSION
+#ifdef MIGRAPHX_DEBUG_OPT
     void dump_program();
     void dump_hash_value(hash_value&);
     void dump_hash_tree();

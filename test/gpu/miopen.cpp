@@ -3270,7 +3270,7 @@ struct test_lstm_bidirct_default_actv2 : verify_program<test_lstm_bidirct_defaul
         return p;
     }
 };
-
+#if 0
 template <int Axis>
 struct test_logsoftmax : verify_program<test_logsoftmax<Axis>>
 {
@@ -3307,7 +3307,7 @@ struct test_logsoftmax_1 : verify_program<test_logsoftmax_1<Axis>>
 
 template struct test_logsoftmax_1<0>;
 template struct test_logsoftmax_1<1>;
-
+#endif
 struct test_split : verify_program<test_split>
 {
     migraphx::program create_program() const

@@ -45,6 +45,7 @@
 #include <migraphx/gpu/pad.hpp>
 #include <migraphx/gpu/gather.hpp>
 #include <migraphx/gpu/lrn.hpp>
+#include <migraphx/gpu/split.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -106,6 +107,7 @@ struct miopen_apply
         add_convolution_op();
         add_pooling_op();
         add_batch_norm_inference_op();
+        add_split_op();
     }
 
     void apply()
@@ -241,6 +243,35 @@ struct miopen_apply
                                              reshapes[2],
                                              reshapes[3],
                                              output);
+        });
+    }
+
+    void add_split_op()
+    {
+        apply_map.emplace("split", [=](instruction_ref ins) {
+            auto&& op                         = any_cast<op::split>(ins->get_operator());
+            const shape& out_s = ins->get_shape();
+            std::vector<instruction_ref> refs = ins->inputs();
+            
+            if ((op.axis == 0) && (op.slice_selector.first < 0))
+            {
+                std::vector<int64_t> dims;
+                for (auto && dim : out_s.lens())
+                    dims.push_back(dim);
+                return prog->replace_instruction(ins, op::reshape{dims}, refs);
+            }
+
+            auto output                       = insert_allocation(ins, out_s);
+            
+            auto arg0 = refs[0];
+            const shape& s = arg0->get_shape();
+            std::vector<int> index_map = op.compute_index_map(s);
+            std::vector<std::size_t> lens;
+            lens.push_back(s.elements());
+            auto map = prog->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type, lens}, index_map});
+            refs.push_back(map);
+            refs.push_back(output);
+            return prog->replace_instruction(ins, hip_split{op}, refs);
         });
     }
 };

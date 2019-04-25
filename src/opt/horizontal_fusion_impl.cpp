@@ -60,7 +60,7 @@ encode_info EncodeCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned op
     instruction_ref op1 = ins->inputs().front();
     assert(instr2_value.find(op1) != instr2_value.end());
     hash_value_ptr op1_val = instr2_value[op1];
-    if (op1_val->id >= ( 1 << hash_id_bits))
+    if (!op1_val || (op1_val->id >= ( 1 << hash_id_bits)))
         return encode_info(0, false);
     encode |= (static_cast<key_type>(op1_val->id) << hash_id_shift_count());
     encode_info info(encode, true);
@@ -117,10 +117,8 @@ hash_value_ptr horizontal_fusion_impl::hash(instruction_ref ins)
     unsigned opcode = hash_opcode(ins);
     encode_info encode_val = encode_func(ins, instr2_value, opcode);
     if (!encode_val.is_valid())
-    {
-        std::cout << "warning: value hash fails" << std::endl;
         return nullptr;
-    }
+
     key_type key = encode_val.get_key();
     hash_value_ptr hash_val = nullptr;
 
@@ -167,6 +165,7 @@ void horizontal_fusion_impl::process(instruction_ref ins)
             return;
         }
     }
+
     std::unordered_map<std::string, int> op2_cnt;
     bool hash_child = false;
     // Do hash if at least two outputs have same operations.
@@ -624,7 +623,6 @@ void horizontal_fusion_impl::transform()
                 offset += orig_s.bytes();
             }
             std::unordered_map<int, instruction_ref> enum2_instr;
-
             for (auto&& output : outputs)
             {
                 assert(enum_in_cluster.find(output) != enum_in_cluster.end());
@@ -640,7 +638,13 @@ void horizontal_fusion_impl::transform()
                         add_load = (new_ins != split_ins) ? false : true;
                     }
                     if (add_load)
-                        new_ins = p_program->insert_instruction(insert_before, op::load{orig_s, offsets[enum_ndx]}, split_ins);
+                    {
+                        const operation& op = split_ins->get_operator();
+                        shape input_s = split_ins->inputs().at(0)->get_shape();
+                        unsigned offset_bias = (any_cast<op::split>(op)).compute_offset(input_s);
+                        offset_bias *= input_s.type_size();
+                        new_ins = p_program->insert_instruction(insert_before, op::load{orig_s, offsets[enum_ndx] - offset_bias}, split_ins);
+                    }
 
                     enum2_instr[enum_ndx] = new_ins;
                 }
@@ -691,18 +695,20 @@ std::vector<instruction_ref> horizontal_fusion_impl::walk(instruction_ref ins, s
 void horizontal_fusion_impl::run()
 {
     MIGRAPHX_DEBUG(dump_program());
+
     for (auto ins : iterator_for(*p_program))
     {
+        ins->id = cur_point;
         process(ins);
         point2_instr[cur_point] = ins;
-        ins->id = cur_point;
         cur_point++;
     }
     MIGRAPHX_DEBUG(dump_hash_tree());
     transform();
+    MIGRAPHX_DEBUG(dump_program());
 }
 
-#ifdef MIGRAPHX_DEBUG_H_FUSION
+#ifdef MIGRAPHX_DEBUG_OPT
 
 void horizontal_fusion_impl::dump_program() { std::cout << *p_program << std::endl; }
 

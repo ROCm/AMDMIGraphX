@@ -22,6 +22,7 @@
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/schedule.hpp>
+#include <migraphx/horizontal_fusion.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -51,6 +52,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         dead_code_elimination{},
         auto_contiguous{},
         //simplify_reshapes{},
+        dead_code_elimination{},
+        horizontal_fusion{},
         dead_code_elimination{},
         lowering{ctx},
         eliminate_concat{concat_gpu_optimization{}},

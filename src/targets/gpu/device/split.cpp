@@ -24,8 +24,7 @@ __global__ void SplitKernel(hipLaunchParm,
         int map_index     = map[global_id + offset];
         char* output_addr = output + bytes * global_id;
         char* input_addr  = input + bytes * map_index;
-        for(auto i = 0; i < bytes; i++)
-            output_addr[i] = input_addr[i];
+        std::copy(input_addr, input_addr + bytes, output_addr);
     }
 }
 

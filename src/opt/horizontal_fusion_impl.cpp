@@ -399,9 +399,7 @@ void horizontal_fusion_impl::remove_redundant_roots(std::vector<instruction_ref>
     for(int ndx = 1; ndx < base_instrs.size(); ndx++)
     {
         instruction_ref base = base_instrs.at(ndx);
-        std::vector<instruction_ref> outputs;
-        for(auto&& output : base->outputs())
-            outputs.push_back(output);
+        std::vector<instruction_ref> outputs = base->outputs();
         for(auto&& output : outputs)
             instruction::replace_argument(output, base, root_ins, false);
         p_program->remove_instruction(base);
@@ -597,8 +595,12 @@ void horizontal_fusion_impl::transform()
             assert(split_axis.find(last_ins) != split_axis.end());
             int axis = split_axis[last_ins];
             std::vector<int> slice_dims;
-            for(auto&& dims : orig_dims[last_ins])
-                slice_dims.push_back(dims.at(axis));
+            std::transform(orig_dims[last_ins].begin(),
+                           orig_dims[last_ins].end(),
+                           std::back_inserter(slice_dims),
+                           [&](auto&& d) -> int {
+                               return d.at(axis);
+                           });
 
             std::vector<instruction_ref> outputs;
             std::unordered_map<int, bool> enum2_concat;
@@ -636,7 +638,7 @@ void horizontal_fusion_impl::transform()
                     if(enum2_concat.find(enum_ndx) != enum2_concat.end())
                     {
                         new_ins  = break_split(enum_ndx, split_ins);
-                        add_load = (new_ins != split_ins) ? false : true;
+                        add_load = (new_ins == split_ins);
                     }
                     if(add_load)
                     {

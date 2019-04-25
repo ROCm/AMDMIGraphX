@@ -256,8 +256,10 @@ struct miopen_apply
             if((op.axis == 0) && (op.slice_selector.first < 0))
             {
                 std::vector<int64_t> dims;
-                for(auto&& dim : out_s.lens())
-                    dims.push_back(dim);
+                dims.resize(out_s.lens().size());
+                std::copy(out_s.lens().begin(),
+                          out_s.lens().end(),
+                          dims.begin());
                 return prog->replace_instruction(ins, op::reshape{dims}, refs);
             }
 

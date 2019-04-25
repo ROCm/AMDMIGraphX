@@ -152,7 +152,7 @@ struct horizontal_fusion_impl
     bool is_conv(instruction_ref);
     bool is_concat(instruction_ref);
     void remove_redundant_roots(std::vector<instruction_ref>&);
-    void update_hash_tree(unsigned id);
+    void update_hash_tree(unsigned hash_id);
     int get_channel_axis() { return 1; }
     int get_conv_output_axis() { return 0; }
     instruction_ref break_split(int, instruction_ref);
@@ -191,8 +191,8 @@ struct horizontal_fusion_impl
 };
 
 // Encoding functions.
-encode_info EncodeCommon(instruction_ref in, Ins2Val& instr2_value, unsigned);
-encode_info EncodeConvCommon(instruction_ref in, Ins2Val& instr2_value, unsigned);
+encode_info EncodeCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned);
+encode_info EncodeConvCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

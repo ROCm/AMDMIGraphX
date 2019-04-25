@@ -81,8 +81,8 @@ bool instruction::valid() const
 }
 
 shape instruction::get_shape() const { return result; }
-void instruction::set_shape(shape s) { result = s;}
-           
+void instruction::set_shape(shape s) { result = s; }
+
 const literal& instruction::get_literal() const
 {
     assert(op.name() == "@literal");
@@ -90,9 +90,9 @@ const literal& instruction::get_literal() const
 }
 
 const operation& instruction::get_operator() const { return op; }
-operation& instruction::get_operator_edit()  { return op; }
+operation& instruction::get_operator_edit() { return op; }
 void instruction::set_operator(operation& o) { op = o; }
-           
+
 std::string instruction::name() const { return op.name(); }
 
 const std::vector<instruction_ref>& instruction::inputs() const { return arguments; }
@@ -135,7 +135,7 @@ void instruction::replace_argument(instruction_ref ins,
 {
     ins->replace_argument(old, new_ins);
     backreference(ins);
-    if (recompute_shape)
+    if(recompute_shape)
         ins->recompute_shape();
 }
 

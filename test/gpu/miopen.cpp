@@ -3353,5 +3353,4 @@ struct test_split_selector_2 : verify_program<test_split_selector_2>
     }
 };
 
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

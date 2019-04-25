@@ -1600,8 +1600,7 @@ TEST_CASE(SPLIT_TEST)
         p.add_instruction(migraphx::op::split{1, {2, 1}, {0, 0}}, l0);
         p.compile(migraphx::cpu::target{});
         auto result           = p.eval({});
-        std::vector<int> gold = {0,  9, 18, 1,  10, 19, 3,  12, 21, 4,  13, 22, 6, 15,
-                                 24, 7, 16, 25};
+        std::vector<int> gold = {0, 9, 18, 1, 10, 19, 3, 12, 21, 4, 13, 22, 6, 15, 24, 7, 16, 25};
         std::vector<int> results_vector(3 * 2 * 3);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(results_vector, gold));
@@ -1664,7 +1663,7 @@ TEST_CASE(SPLIT_TEST)
         p.add_instruction(migraphx::op::split{0, {2, 1}, {1, 1}}, l0);
         p.compile(migraphx::cpu::target{});
         auto result           = p.eval({});
-        std::vector<int> gold = {6,  15, 24, 7,  16, 25, 8,  17, 26};
+        std::vector<int> gold = {6, 15, 24, 7, 16, 25, 8, 17, 26};
         std::vector<int> results_vector(1 * 3 * 3);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 

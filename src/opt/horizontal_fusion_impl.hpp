@@ -18,25 +18,23 @@ struct hash_value
         root = 0,
         fused
     };
-    unsigned id = 0;
+    unsigned id        = 0;
     unsigned cur_point = 0;
-    unsigned mask = 0;
-    bool is_root()  const { return (mask & (1 << root)) != 0; }
+    unsigned mask      = 0;
+    bool is_root() const { return (mask & (1 << root)) != 0; }
     bool is_fused() const { return (mask & (1 << fused)) != 0; }
     void set_root() { mask |= (1 << root); }
 };
 
 using hash_value_ptr = hash_value*;
-using key_type = unsigned long long;
+using key_type       = unsigned long long;
 
 //  Instruction encoding information, used to hash instructions.
 struct encode_info
 {
     key_type key;
     bool valid;
-    encode_info(key_type k, bool v) : key(k), valid(v)
-    {
-    }
+    encode_info(key_type k, bool v) : key(k), valid(v) {}
 
     void add_input(hash_value_ptr p) { inputs.push_back(p); }
     key_type get_key() const { return key; }
@@ -48,16 +46,14 @@ struct encode_info
     std::vector<hash_value_ptr> inputs;
 };
 
-
-using Ins2Val = std::unordered_map<instruction_ref, hash_value_ptr>;
+using Ins2Val    = std::unordered_map<instruction_ref, hash_value_ptr>;
 using String2Val = std::unordered_map<std::string, unsigned>;
-           
+
 using Encoder = std::function<encode_info(instruction_ref, Ins2Val&, unsigned)>;
 
 struct horizontal_fusion_impl
 {
-    horizontal_fusion_impl(program* p)
-        : p_program(p)
+    horizontal_fusion_impl(program* p) : p_program(p)
     {
         instr2_hash.clear();
         instr2_value.clear();
@@ -81,36 +77,39 @@ struct horizontal_fusion_impl
 
     void add_instr(unsigned id)
     {
-        if (hash_instrs.find(id) == hash_instrs.end())
+        if(hash_instrs.find(id) == hash_instrs.end())
         {
             std::set<unsigned> vals;
             vals.insert(cur_point);
             hash_instrs[id] = vals;
         }
-        else {
+        else
+        {
             hash_instrs[id].insert(cur_point);
         }
     }
 
     void add_input(unsigned id, hash_value_ptr ptr)
     {
-        if (hash_inputs.find(id) == hash_inputs.end())
+        if(hash_inputs.find(id) == hash_inputs.end())
         {
             std::set<hash_value_ptr> vals;
             vals.insert(ptr);
             hash_inputs[id] = vals;
-        } else if (hash_inputs[id].find(ptr) == hash_inputs[id].end())
+        }
+        else if(hash_inputs[id].find(ptr) == hash_inputs[id].end())
             hash_inputs[id].insert(ptr);
     }
 
     void add_output(unsigned id, hash_value_ptr ptr)
     {
-        if (hash_outputs.find(id) == hash_outputs.end())
+        if(hash_outputs.find(id) == hash_outputs.end())
         {
             std::set<hash_value_ptr> vals;
             vals.insert(ptr);
             hash_outputs[id] = vals;
-        } else if (hash_outputs[id].find(ptr) == hash_outputs[id].end())
+        }
+        else if(hash_outputs[id].find(ptr) == hash_outputs[id].end())
             hash_outputs[id].insert(ptr);
     }
     unsigned hash_opcode(instruction_ref ins)
@@ -118,11 +117,11 @@ struct horizontal_fusion_impl
         std::ostringstream stream;
         stream << ins->get_operator();
         std::string str = stream.str();
-        if (opcode_table.find(str) == opcode_table.end())
+        if(opcode_table.find(str) == opcode_table.end())
             opcode_table[str] = opcode_id++;
         return opcode_table[str];
     }
-    
+
     void register_op(std::string, Encoder, int);
     void register_all();
     void transform();
@@ -130,16 +129,21 @@ struct horizontal_fusion_impl
     {
         assert(hash_instrs.find(hash_id) != hash_instrs.end());
         std::vector<instruction_ref> instrs;
-        for ( auto && point: hash_instrs[hash_id])
-        {            
+        for(auto&& point : hash_instrs[hash_id])
+        {
             assert(point2_instr.find(point) != point2_instr.end());
             instrs.push_back(point2_instr[point]);
         }
         return instrs;
     }
-    bool compare_inputs(std::vector<instruction_ref>&, std::vector<instruction_ref>&, instruction_ref, int);
+    bool compare_inputs(std::vector<instruction_ref>&,
+                        std::vector<instruction_ref>&,
+                        instruction_ref,
+                        int);
     std::vector<instruction_ref> walk(instruction_ref, std::unordered_map<instruction_ref, bool>&);
-    void concat(std::vector<instruction_ref>&, std::unordered_map<instruction_ref, instruction_ref>&, int);
+    void concat(std::vector<instruction_ref>&,
+                std::unordered_map<instruction_ref, instruction_ref>&,
+                int);
     int find_axis(instruction_ref, std::unordered_map<instruction_ref, bool>&);
     int find_axis(instruction_ref, int dim);
     int find_axis(instruction_ref, instruction_ref, int);
@@ -152,13 +156,13 @@ struct horizontal_fusion_impl
     int get_channel_axis() { return 1; }
     int get_conv_output_axis() { return 0; }
     instruction_ref break_split(int, instruction_ref);
-    
+
 #ifdef MIGRAPHX_DEBUG_OPT
     void dump_program();
     void dump_hash_value(hash_value&);
     void dump_hash_tree();
 #endif
-   private:
+    private:
     program* p_program;
     // Flag an instruction to hash.
     std::unordered_map<instruction_ref, bool> instr2_hash;
@@ -186,11 +190,10 @@ struct horizontal_fusion_impl
     unsigned opcode_id;
 };
 
-           
 // Encoding functions.
-encode_info EncodeCommon(instruction_ref in, Ins2Val&instr2_value, unsigned);
-encode_info EncodeConvCommon(instruction_ref in, Ins2Val&instr2_value, unsigned);
-           
+encode_info EncodeCommon(instruction_ref in, Ins2Val& instr2_value, unsigned);
+encode_info EncodeConvCommon(instruction_ref in, Ins2Val& instr2_value, unsigned);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif

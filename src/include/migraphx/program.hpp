@@ -35,13 +35,13 @@ struct program
     program(program&&) noexcept;
 
     // copy constructor
-    program(const program&) noexcept;
+    program(const program&);
 
     // move assignment operator
     program& operator=(program&&) noexcept;
 
     // copy assignment operator
-    program& operator=(const program&) noexcept;
+    program& operator=(const program&);
 
     ~program() noexcept;
 
@@ -130,7 +130,7 @@ struct program
     friend bool operator!=(const program& x, const program& y) { return !(x == y); }
 
     private:
-    void copy(const program& prog);
+    void copy(const program& p);
 
     private:
     std::unique_ptr<program_impl> impl;

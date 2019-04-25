@@ -4,6 +4,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/op/add.hpp>
 #include <migraphx/op/mul.hpp>
+#include <migraphx/cpu/target.hpp>
 #include <sstream>
 #include "test.hpp"
 #include <basic_ops.hpp>
@@ -48,20 +49,25 @@ TEST_CASE(program_copy)
     {
         auto p1 = create_program_1();
         auto p2 = p1;
+        p2.compile(migraphx::cpu::target{});
         EXPECT(p1 == p2);
     }
 
     {
         auto p1 = create_program_1();
         auto p2(p1);
+        p2.compile(migraphx::cpu::target{});
         EXPECT(p1 == p2);
     }
 
     {
         auto p1 = create_program_1();
         auto p2 = create_program();
-        p2      = p1;
+        p2.compile(migraphx::cpu::target{});
 
+        p2      = p1;
+        p2.compile(migraphx::cpu::target{});
+        
         EXPECT(p1 == p2);
     }
 }

@@ -90,10 +90,10 @@ program& program::operator=(program&&) noexcept = default;
 program::~program() noexcept                    = default;
 
 // copy constructor
-program::program(const program& p) noexcept { copy(p); }
+program::program(const program& p) { copy(p); }
 
 // copy assignment operator
-program& program::operator=(const program& p) noexcept
+program& program::operator=(const program& p)
 {
     if(this != &p)
     {
@@ -130,7 +130,7 @@ void program::copy(const program& p)
             auto&& name = any_cast<builtin::param>(ins->get_operator()).parameter;
             auto s      = ins->get_shape();
             copy_ins    = impl->instructions.insert(
-                impl->instructions.end(), {builtin::param{std::move(name)}, std::move(s), {}});
+                impl->instructions.end(), {builtin::param{name}, std::move(s), {}});
         }
         else if(ins->name() == "@outline")
         {

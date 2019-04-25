@@ -127,7 +127,7 @@ struct program
     friend bool operator!=(const program& x, const program& y) { return !(x == y); }
 
     private:
-    void copy(const program& p);
+    void assign(const program& p);
 
     private:
     std::unique_ptr<program_impl> impl;

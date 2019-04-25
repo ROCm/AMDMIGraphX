@@ -89,7 +89,7 @@ program::program(program&&) noexcept = default;
 program::~program() noexcept         = default;
 
 // copy constructor
-program::program(const program& p) { copy(p); }
+program::program(const program& p) { assign(p); }
 
 // copy assignment operator
 program& program::operator=(program p)
@@ -98,7 +98,7 @@ program& program::operator=(program p)
     return *this;
 }
 
-void program::copy(const program& p)
+void program::assign(const program& p)
 {
     // clean the current program
     if(!impl)
@@ -107,7 +107,7 @@ void program::copy(const program& p)
     }
     else if(!impl->instructions.empty())
     {
-        remove_instructions(begin(), end());
+        impl->instructions.clear();
     }
     impl->ctx = p.impl->ctx;
 

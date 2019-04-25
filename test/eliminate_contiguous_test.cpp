@@ -44,9 +44,9 @@ TEST_CASE(non_standard_op)
 TEST_CASE(transpose_gemm)
 {
     migraphx::program p;
-    auto l = p.add_literal(get_2x2());
-    auto t = p.add_instruction(migraphx::op::transpose{{1, 0}}, l);
-    auto c = p.add_instruction(migraphx::op::contiguous{}, t);
+    auto l  = p.add_literal(get_2x2());
+    auto t  = p.add_instruction(migraphx::op::transpose{{1, 0}}, l);
+    auto c  = p.add_instruction(migraphx::op::contiguous{}, t);
     auto ic = p.add_instruction(migraphx::op::identity{}, c);
     p.add_instruction(migraphx::op::dot{}, ic, l);
     auto count = std::distance(p.begin(), p.end());

@@ -86,7 +86,7 @@ static void print_program(const program& p, F print_func)
 program::program() : impl(std::make_unique<program_impl>()) {}
 
 program::program(program&&) noexcept = default;
-program::~program() noexcept                    = default;
+program::~program() noexcept         = default;
 
 // copy constructor
 program::program(const program& p) { copy(p); }

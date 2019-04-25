@@ -37,11 +37,8 @@ struct program
     // copy constructor
     program(const program&);
 
-    // move assignment operator
-    program& operator=(program&&) noexcept;
-
     // copy assignment operator
-    program& operator=(const program&);
+    program& operator=(program);
 
     ~program() noexcept;
 

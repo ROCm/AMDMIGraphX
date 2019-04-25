@@ -86,20 +86,15 @@ static void print_program(const program& p, F print_func)
 program::program() : impl(std::make_unique<program_impl>()) {}
 
 program::program(program&&) noexcept = default;
-program& program::operator=(program&&) noexcept = default;
 program::~program() noexcept                    = default;
 
 // copy constructor
 program::program(const program& p) { copy(p); }
 
 // copy assignment operator
-program& program::operator=(const program& p)
+program& program::operator=(program p)
 {
-    if(this != &p)
-    {
-        copy(p);
-    }
-
+    std::swap(p.impl, this->impl);
     return *this;
 }
 

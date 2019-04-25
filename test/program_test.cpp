@@ -40,32 +40,45 @@ TEST_CASE(program_copy)
         auto l2  = p.add_literal(migraphx::literal(s, data));
         auto p1  = p.add_parameter("x", s);
         auto po  = p.add_outline(s);
-        auto sum = p.add_instruction(migraphx::op::add{}, l2, p1);
-        p.add_instruction(migraphx::op::mul{}, sum, po);
+        auto sum = p.add_instruction(migraphx::op::add{}, l2, po);
+        p.add_instruction(migraphx::op::mul{}, sum, p1);
 
         return p;
     };
 
     {
         auto p1 = create_program_1();
-        auto p2 = p1;
+        migraphx::program p2{};
+        p2 = p1;
+
         p2.compile(migraphx::cpu::target{});
+        EXPECT(p1 != p2);
+
+        p1.compile(migraphx::cpu::target{});
         EXPECT(p1 == p2);
     }
 
     {
         auto p1 = create_program_1();
         auto p2(p1);
-        p2.compile(migraphx::cpu::target{});
+        EXPECT(p1 == p2);
+
+        p1.compile(migraphx::cpu::target{});
+        EXPECT(p1 != p2);
+
+        p2 = p1;
         EXPECT(p1 == p2);
     }
 
     {
         auto p1 = create_program_1();
         auto p2 = create_program();
-        p2.compile(migraphx::cpu::target{});
+        EXPECT(p1 != p2);
 
         p2 = p1;
+        EXPECT(p1 == p2);
+
+        p1.compile(migraphx::cpu::target{});
         p2.compile(migraphx::cpu::target{});
 
         EXPECT(p1 == p2);

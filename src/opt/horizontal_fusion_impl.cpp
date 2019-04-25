@@ -60,6 +60,7 @@ encode_info EncodeCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned op
     instruction_ref op1 = ins->inputs().front();
     assert(instr2_value.find(op1) != instr2_value.end());
     hash_value_ptr op1_val = instr2_value[op1];
+
     if (!op1_val || (op1_val->id >= ( 1 << hash_id_bits)))
         return encode_info(0, false);
     encode |= (static_cast<key_type>(op1_val->id) << hash_id_shift_count());

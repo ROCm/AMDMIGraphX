@@ -62,6 +62,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         dead_code_elimination{},
         fuse_ops{&ctx},
         dead_code_elimination{},
+        horizontal_fusion{},    
         write_literals{&ctx},
         schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, enabled(MIGRAPHX_ENABLE_SCHEDULE_PASS{})},
         memory_coloring{"hip::allocate"},

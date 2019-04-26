@@ -304,9 +304,18 @@ void horizontal_fusion_impl::concat(std::vector<instruction_ref>& instrs,
         unsigned long long total_bytes = new_elements * type_size;
         std::shared_ptr<char> input    = make_shared_array<char>(total_bytes);
         std::vector<unsigned long long> bytes_per_slice;
+        unsigned long long unit_slice_bytes = unit_slice * type_size;
 
+        std::transform(instrs.begin(),
+                       instrs.end(),
+                       std::back_inserter(bytes_per_slice),
+                       [&](auto&& d) -> unsigned long long {
+                           return d->get_shape().lens().at(axis) * unit_slice_bytes;
+                       });
+#if 0
         for(auto&& ins : instrs)
             bytes_per_slice.push_back(ins->get_shape().lens().at(axis) * unit_slice * type_size);
+#endif        
 
         unsigned copy_bytes = 0;
         int slice_ndx       = 0;
@@ -560,10 +569,12 @@ void horizontal_fusion_impl::transform()
             for(int ndx = 0; ndx < input0.size(); ndx++)
             {
                 std::vector<instruction_ref> instrs;
-                for(auto&& input : all_inputs)
-                {
-                    instrs.push_back(input.at(ndx));
-                }
+                std::transform(all_inputs.begin(),
+                               all_inputs.end(),
+                               std::back_inserter(instrs),
+                               [&](auto &&d) -> instruction_ref {
+                                   return d.at(ndx);
+                               });
                 concat(instrs, root, axis);
             }
 

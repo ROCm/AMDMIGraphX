@@ -111,12 +111,14 @@ void migemm(const argument& c_arg, const argument& a_arg, const argument& b_arg,
         [&](auto cmat, auto amat, auto bmat) { migemm_impl(cmat, amat, bmat, alpha, beta); });
 }
 
-void migemm(const argument& c_arg, const argument& a_arg, const argument& b_arg, float alpha, float beta)
+void migemm(
+    const argument& c_arg, const argument& a_arg, const argument& b_arg, float alpha, float beta)
 {
     migemm(c_arg, a_arg, b_arg, alpha, beta);
 }
 
-void migemm(const argument& c_arg, const argument& a_arg, const argument& b_arg, int8_t alpha, int8_t beta)
+void migemm(
+    const argument& c_arg, const argument& a_arg, const argument& b_arg, int8_t alpha, int8_t beta)
 {
     migemm(c_arg, a_arg, b_arg, alpha, beta);
 }

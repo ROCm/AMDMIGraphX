@@ -312,10 +312,6 @@ void horizontal_fusion_impl::concat(std::vector<instruction_ref>& instrs,
                        [&](auto&& d) -> unsigned long long {
                            return d->get_shape().lens().at(axis) * unit_slice_bytes;
                        });
-#if 0
-        for(auto&& ins : instrs)
-            bytes_per_slice.push_back(ins->get_shape().lens().at(axis) * unit_slice * type_size);
-#endif        
 
         unsigned copy_bytes = 0;
         int slice_ndx       = 0;
@@ -480,8 +476,8 @@ void horizontal_fusion_impl::transform()
         std::unordered_map<instruction_ref, bool> visited;
         std::unordered_map<instruction_ref, instruction_ref> root;
         std::unordered_map<instruction_ref, std::vector<std::vector<std::size_t>>> orig_dims;
-        std::unordered_map<instruction_ref, int> enum_in_cluster;
         std::unordered_map<instruction_ref, int> split_axis;
+        std::unordered_map<instruction_ref, std::vector<int>> orig_clusters;
         unsigned last_hash_id = 0;
 
         for(auto&& hash_id : cluster)
@@ -507,16 +503,17 @@ void horizontal_fusion_impl::transform()
 
             // save original dimensions.
             std::vector<std::vector<std::size_t>> lens;
-
+            std::vector<int> clusters;
             int enum_ndx = 0;
             for(auto&& ins : base_instrs)
             {
                 lens.push_back(ins->get_shape().lens());
-                for(auto&& output : ins->outputs())
-                    enum_in_cluster[output] = enum_ndx;
+                for(auto i = 0; i < ins->outputs().size(); i++)
+                    clusters.push_back(enum_ndx);
                 enum_ndx++;
             }
             orig_dims[ins0] = lens;
+            orig_clusters[ins0] = clusters;
 
             if(ins0->inputs().size() == 1)
             {
@@ -615,11 +612,15 @@ void horizontal_fusion_impl::transform()
 
             std::vector<instruction_ref> outputs;
             std::unordered_map<int, bool> enum2_concat;
+            int enum_output = 0;
+            std::vector<int> clusters = orig_clusters[last_ins];
+            assert(clusters.size() == last_ins->outputs().size());
             for(auto&& output : last_ins->outputs())
             {
                 outputs.push_back(output);
                 if(is_concat(output))
-                    enum2_concat[enum_in_cluster[output]] = true;
+                    enum2_concat[clusters[enum_output]] = true;
+                enum_output++;
             }
 
             instruction_ref insert_before = std::next(last_ins);
@@ -637,10 +638,10 @@ void horizontal_fusion_impl::transform()
                 offset += orig_s.bytes();
             }
             std::unordered_map<int, instruction_ref> enum2_instr;
+            enum_output = 0;
             for(auto&& output : outputs)
             {
-                assert(enum_in_cluster.find(output) != enum_in_cluster.end());
-                int enum_ndx = enum_in_cluster[output];
+                int enum_ndx = clusters[enum_output++];
                 shape orig_s = shape{s.type(), dims[enum_ndx]};
                 instruction_ref new_ins;
                 if(enum2_instr.find(enum_ndx) == enum2_instr.end())

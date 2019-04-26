@@ -105,7 +105,8 @@ void migemm_impl(tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, 
 }
 
 template <class F>
-void migemm_tpl(const argument& c_arg, const argument& a_arg, const argument& b_arg, F alpha, F beta)
+void migemm_tpl(
+    const argument& c_arg, const argument& a_arg, const argument& b_arg, F alpha, F beta)
 {
     visit_all(c_arg, a_arg, b_arg)(
         [&](auto cmat, auto amat, auto bmat) { migemm_impl(cmat, amat, bmat, alpha, beta); });

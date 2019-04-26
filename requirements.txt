@@ -1,7 +1,7 @@
 google/protobuf -DCMAKE_POSITION_INDEPENDENT_CODE=On
 RadeonOpenCompute/rocm-cmake@42f6740 --build
 ROCmSoftwarePlatform/rocBLAS@30a992ae02fda568688bcd190edd5e277d6674d9
-ROCmSoftwarePlatform/MIOpen@1.7.0
+ROCmSoftwarePlatform/MIOpen@1.8.0
 blaze,https://bitbucket.org/blaze-lib/blaze/get/f0755dea0e03.tar.gz -X header -DHEADER_DIR=blaze
 half,https://github.com/pfultz2/half/archive/1.12.0.tar.gz -X header -H sha256:0a08660b68abb176ebc2a0cdf8de46e3182a7f46c66443bb80dbfaaec98cf969
 pybind/pybind11@v2.2.4 -DPYBIND11_TEST=Off --build

@@ -44,12 +44,12 @@ struct is_fast_gemm_type<float> : std::true_type
 {
 };
 
-template <class T>
+template <class T, class F>
 void migemm_impl(tensor_view<T> cmat,
                  tensor_view<T> amat,
                  tensor_view<T> bmat,
-                 float alpha,
-                 float beta,
+                 F alpha,
+                 F beta,
                  std::true_type)
 {
     visit_mat(amat, [&](const auto& a) {
@@ -66,12 +66,12 @@ void migemm_impl(tensor_view<T> cmat,
     });
 }
 
-template <class T>
+template <class T, class F>
 void migemm_impl(tensor_view<T> cmat,
                  tensor_view<T> amat,
                  tensor_view<T> bmat,
-                 float alpha,
-                 float beta,
+                 F alpha,
+                 F beta,
                  std::false_type)
 {
     std::size_t n_dims = cmat.get_shape().lens().size();
@@ -95,9 +95,9 @@ void migemm_impl(tensor_view<T> cmat,
     });
 }
 
-template <class T>
+template <class T, class F>
 void migemm_impl(
-    tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, float alpha, float beta)
+    tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, F alpha, F beta)
 {
     auto lens = amat.get_shape().lens();
     bool batch_mul =
@@ -113,8 +113,9 @@ void migemm_impl(
     }
 }
 
+template<class F>
 void migemm(
-    const argument& c_arg, const argument& a_arg, const argument& b_arg, float alpha, float beta)
+    const argument& c_arg, const argument& a_arg, const argument& b_arg, F alpha, F beta)
 {
     visit_all(c_arg, a_arg, b_arg)(
         [&](auto cmat, auto amat, auto bmat) { migemm_impl(cmat, amat, bmat, alpha, beta); });

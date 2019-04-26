@@ -8,8 +8,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
 
+template<class T>
 void migemm(
-    const argument& c_arg, const argument& a_arg, const argument& b_arg, float alpha, float beta);
+    const argument& c_arg, const argument& a_arg, const argument& b_arg, T alpha, T beta);
 
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS

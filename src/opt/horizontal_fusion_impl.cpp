@@ -279,7 +279,10 @@ void horizontal_fusion_impl::concat(std::vector<instruction_ref>& instrs,
 
     assert(ins0->outputs().size() == 1);
     instruction_ref output = ins0->outputs().at(0);
-    assert((base == output) || match_dim(base, output, -1));
+    if((base != output) && !match_dim(base, output, -1))
+    {
+        MIGRAPHX_THROW("unmatched output");
+    }
 
     if(ins0->name() == "@literal")
     {
@@ -403,7 +406,7 @@ void horizontal_fusion_impl::remove_redundant_roots(std::vector<instruction_ref>
     instruction_ref root_ins = base_instrs.at(0);
     for(int ndx = 1; ndx < base_instrs.size(); ndx++)
     {
-        instruction_ref base = base_instrs.at(ndx);
+        instruction_ref base                 = base_instrs.at(ndx);
         std::vector<instruction_ref> outputs = base->outputs();
         for(auto&& output : outputs)
             instruction::replace_argument(output, base, root_ins, false);
@@ -447,6 +450,21 @@ instruction_ref horizontal_fusion_impl::break_split(int enum_ndx, instruction_re
     return new_split;
 }
 
+bool horizontal_fusion_impl::has_unique_output(std::vector<instruction_ref> instrs)
+{
+    std::unordered_map<instruction_ref, bool> seen;
+    for(auto&& ins : instrs)
+    {
+        for(auto&& output : ins->outputs())
+        {
+            if(seen.find(output) != seen.end())
+                return false;
+            seen[output] = true;
+        }
+    }
+    return true;
+}
+
 void horizontal_fusion_impl::transform()
 {
     for(auto&& val : values)
@@ -463,8 +481,10 @@ void horizontal_fusion_impl::transform()
         while((hash_outputs.find(cur) != hash_outputs.end()) && (hash_outputs[cur].size() == 1))
         {
             unsigned output = (*(hash_outputs[cur].begin()))->id;
+            // Currently instruction can not have more than one same outputs.
+            // Therefore skip outputs that are not unique.
             if((hash_instrs.find(output) != hash_instrs.end()) &&
-               (hash_instrs[output].size() == size))
+               (hash_instrs[output].size() == size) && has_unique_output(get_instrs(output)))
             {
                 cluster.push_back(output);
                 cur = output;
@@ -512,7 +532,7 @@ void horizontal_fusion_impl::transform()
                     clusters.push_back(enum_ndx);
                 enum_ndx++;
             }
-            orig_dims[ins0] = lens;
+            orig_dims[ins0]     = lens;
             orig_clusters[ins0] = clusters;
 
             if(ins0->inputs().size() == 1)
@@ -569,9 +589,7 @@ void horizontal_fusion_impl::transform()
                 std::transform(all_inputs.begin(),
                                all_inputs.end(),
                                std::back_inserter(instrs),
-                               [&](auto &&d) -> instruction_ref {
-                                   return d.at(ndx);
-                               });
+                               [&](auto&& d) -> instruction_ref { return d.at(ndx); });
                 concat(instrs, root, axis);
             }
 
@@ -606,13 +624,11 @@ void horizontal_fusion_impl::transform()
             std::transform(orig_dims[last_ins].begin(),
                            orig_dims[last_ins].end(),
                            std::back_inserter(slice_dims),
-                           [&](auto&& d) -> int {
-                               return d.at(axis);
-                           });
+                           [&](auto&& d) -> int { return d.at(axis); });
 
             std::vector<instruction_ref> outputs;
             std::unordered_map<int, bool> enum2_concat;
-            int enum_output = 0;
+            int enum_output           = 0;
             std::vector<int> clusters = orig_clusters[last_ins];
             assert(clusters.size() == last_ins->outputs().size());
             for(auto&& output : last_ins->outputs())

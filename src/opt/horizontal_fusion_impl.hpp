@@ -151,6 +151,7 @@ struct horizontal_fusion_impl
     bool match_dim(instruction_ref, instruction_ref, int axis);
     bool is_conv(instruction_ref);
     bool is_concat(instruction_ref);
+    bool has_unique_output(std::vector<instruction_ref>);
     void remove_redundant_roots(std::vector<instruction_ref>&);
     void update_hash_tree(unsigned hash_id);
     int get_channel_axis() { return 1; }

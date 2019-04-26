@@ -40,6 +40,7 @@
 #include <migraphx/op/outline.hpp>
 #include <migraphx/op/pad.hpp>
 #include <migraphx/op/pooling.hpp>
+#include <migraphx/op/quant_dot.hpp>
 #include <migraphx/op/relu.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/rnn.hpp>

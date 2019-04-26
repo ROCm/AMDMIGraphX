@@ -7,6 +7,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/par_dfor.hpp>
 #include <migraphx/cpu/gemm.hpp>
+#include <migraphx/cpu/quant_gemm.hpp>
 #include <unordered_map>
 #include <utility>
 
@@ -383,7 +384,7 @@ struct cpu_gemm
     {
         argument result{output_shape};
         // 3 inputs, it is alpha * A * B + beta * C, then
-        // A and B are matrics, and C is broadcastable to A * B
+        // A and B are matrices, and C is of the same shape as A * B
         if(args.size() == 3)
         {
             // no need to consider the value of args[2]
@@ -405,6 +406,68 @@ struct cpu_gemm
 
         // 2 input arguments
         migemm(result, args[0], args[1], op.alpha, 0.0f);
+
+        return result;
+    }
+};
+
+struct cpu_quant_gemm
+{
+    op::quant_dot op;
+    std::string name() const { return "cpu::quant_dot"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        if(inputs.size() == 3)
+        {
+            auto c_shape = inputs.at(2);
+            check_shapes{{c_shape}}.not_broadcasted();
+        }
+        return op.compute_shape(inputs);
+    }
+
+    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        // 3 inputs, it is alpha * A * B + beta * C, then
+        // A and B are matrices, and C is of the same shape to A * B
+
+        // first, convert the args[0] and args[1] from int8_t to int32_t
+        argument arg_0{{shape::int32_type, {args.at(0).get_shape().lens()}}};
+        argument arg_1{{shape::int32_type, {args.at(1).get_shape().lens()}}};
+        arg_0.visit([&](auto output) {
+            args.at(0).visit([&](auto input) {
+                std::copy(input.begin(), input.end(), output.begin());
+            });
+        });
+
+        arg_1.visit([&](auto output) {
+            args.at(1).visit([&](auto input) {
+                std::copy(input.begin(), input.end(), output.begin());
+            });
+        });
+
+        if(args.size() == 3)
+        {
+            // no need to consider the value of args[2]
+            if(op.beta == 0)
+            {
+                result.visit([&](auto output) { std::fill(output.begin(), output.end(), 0); });
+            }
+            else
+            {
+                visit_all(result, args[2])([&](auto output, auto input) {
+                    std::copy(input.begin(), input.end(), output.begin());
+                });
+            }
+
+            migemm(result, arg_0, arg_1, op.alpha, op.beta);
+
+            return result;
+        }
+
+        // 2 input arguments
+        int8_t beta = 0;
+        migemm(result, arg_0, arg_1, op.alpha, beta);
 
         return result;
     }
@@ -816,6 +879,7 @@ struct cpu_apply
         apply_map["im2col"]      = extend_op<cpu_im2col, op::im2col>();
         apply_map["convolution"] = extend_op<cpu_convolution, op::convolution>();
         apply_map["dot"]         = extend_op<cpu_gemm, op::dot>();
+        apply_map["quant_dot"]         = extend_op<cpu_quant_gemm, op::quant_dot>();
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["lrn"]        = extend_op<cpu_lrn, op::lrn>();

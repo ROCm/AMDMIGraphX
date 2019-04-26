@@ -435,15 +435,13 @@ struct cpu_quant_gemm
         argument arg_0{{shape::int32_type, {args.at(0).get_shape().lens()}}};
         argument arg_1{{shape::int32_type, {args.at(1).get_shape().lens()}}};
         arg_0.visit([&](auto output) {
-            args.at(0).visit([&](auto input) {
-                std::copy(input.begin(), input.end(), output.begin());
-            });
+            args.at(0).visit(
+                [&](auto input) { std::copy(input.begin(), input.end(), output.begin()); });
         });
 
         arg_1.visit([&](auto output) {
-            args.at(1).visit([&](auto input) {
-                std::copy(input.begin(), input.end(), output.begin());
-            });
+            args.at(1).visit(
+                [&](auto input) { std::copy(input.begin(), input.end(), output.begin()); });
         });
 
         if(args.size() == 3)
@@ -879,7 +877,7 @@ struct cpu_apply
         apply_map["im2col"]      = extend_op<cpu_im2col, op::im2col>();
         apply_map["convolution"] = extend_op<cpu_convolution, op::convolution>();
         apply_map["dot"]         = extend_op<cpu_gemm, op::dot>();
-        apply_map["quant_dot"]         = extend_op<cpu_quant_gemm, op::quant_dot>();
+        apply_map["quant_dot"]   = extend_op<cpu_quant_gemm, op::quant_dot>();
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["lrn"]        = extend_op<cpu_lrn, op::lrn>();

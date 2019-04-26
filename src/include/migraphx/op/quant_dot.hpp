@@ -34,7 +34,7 @@ struct quant_dot
         const shape& a = inputs.at(0);
         const shape& b = inputs.at(1);
         auto t         = a.type();
-        if (t != shape::int8_type)
+        if(t != shape::int8_type)
         {
             MIGRAPHX_THROW("QUANT_DOT: only support data type int8_t");
         }
@@ -48,16 +48,16 @@ struct quant_dot
         if(!std::equal(
                a.lens().rbegin() + 2, a.lens().rend(), b.lens().rbegin() + 2, b.lens().rend()))
         {
-            MIGRAPHX_THROW("QUANT_DOT: batch size of A and B mismatch: {" + to_string_range(a.lens()) +
-                           "} x {" + to_string_range(b.lens()) + "}");
+            MIGRAPHX_THROW("QUANT_DOT: batch size of A and B mismatch: {" +
+                           to_string_range(a.lens()) + "} x {" + to_string_range(b.lens()) + "}");
         }
 
         std::size_t dim_0 = a.lens().size() - 2;
         std::size_t dim_1 = a.lens().size() - 1;
         if(a.lens()[dim_1] != b.lens()[dim_0])
         {
-            MIGRAPHX_THROW("QUANT_DOT: inner dimensions do not match: {" + to_string_range(a.lens()) +
-                           "} x {" + to_string_range(b.lens()) + "}");
+            MIGRAPHX_THROW("QUANT_DOT: inner dimensions do not match: {" +
+                           to_string_range(a.lens()) + "} x {" + to_string_range(b.lens()) + "}");
         }
 
         auto out_lens   = a.lens();
@@ -69,7 +69,7 @@ struct quant_dot
                            "}, cannot add to operand A * B: {" + to_string_range(out_lens) + "}");
         }
 
-        if (inputs.size() == 3 && inputs.at(2).type() != shape::int32_type)
+        if(inputs.size() == 3 && inputs.at(2).type() != shape::int32_type)
         {
             MIGRAPHX_THROW("QUANT_DOT: operand C type must be int32");
         }

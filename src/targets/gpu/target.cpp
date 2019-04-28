@@ -20,6 +20,7 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
+#include <migraphx/gpu/adjust_allocation.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/schedule.hpp>
 
@@ -56,6 +57,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         eliminate_concat{concat_gpu_optimization{}},
         dead_code_elimination{},
         eliminate_contiguous{},
+        dead_code_elimination{},
+        adjust_allocation{},
         dead_code_elimination{},
         fuse_ops{&ctx},
         dead_code_elimination{},

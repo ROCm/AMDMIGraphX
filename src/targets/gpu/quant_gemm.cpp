@@ -62,7 +62,7 @@ argument miopen_quant_gemm::compute(context& ctx,
                                     const std::vector<argument>& args) const
 {
     bool is_3inputs = (args.size() == 4);
-    int8_t beta      = 0;
+    int8_t beta     = 0;
     if(is_3inputs)
     {
         beta = op.beta;

@@ -13,7 +13,15 @@ struct unary : op_name<Derived>
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs}.has(1);
-        return inputs.at(0);
+        auto s = inputs.at(0);
+        if(s.packed())
+        {
+            return s;
+        }
+        else
+        {
+            return {s.type(), s.lens()};
+        }
     }
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {

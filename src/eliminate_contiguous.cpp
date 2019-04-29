@@ -21,7 +21,7 @@ static bool try_compute_shape(instruction_ref ins, const std::vector<shape>& inp
         }
 
         // if no changes for the shape, the contiguous can also be removed
-        if (new_shape == ins->get_shape())
+        if(new_shape == ins->get_shape())
         {
             return true;
         }

@@ -1,4 +1,5 @@
 #include <migraphx/gpu/quant_gemm.hpp>
+#include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/context.hpp>
 
 namespace migraphx {
@@ -6,129 +7,15 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 template <class... Ts>
-rocblas_status generic_rocblas_scal(shape::as<float>, Ts&&... xs)
+rocblas_status generic_rocblas_gemm_ex(Ts&&... xs)
 {
-    return rocblas_sscal(std::forward<Ts>(xs)...);
+    return rocblas_gemm_ex(std::forward<Ts>(xs)...);
 }
 
 template <class... Ts>
-rocblas_status generic_rocblas_scal(shape::as<double>, Ts&&... xs)
+rocblas_status generic_rocblas_batched_gemm_ex(Ts&&... xs)
 {
-    return rocblas_dscal(std::forward<Ts>(xs)...);
-}
-
-template <class T, class... Ts>
-rocblas_status generic_rocblas_scal(shape::as<T>, Ts&&...)
-{
-    MIGRAPHX_THROW("GENERIC_ROCBLAS_SCAL: type unsupported by rocblas");
-}
-
-template <class... Ts>
-rocblas_status generic_rocblas_axpy(shape::as<half>, Ts&&... xs)
-{
-    return rocblas_haxpy(std::forward<Ts>(xs)...);
-}
-
-template <class... Ts>
-rocblas_status generic_rocblas_axpy(shape::as<float>, Ts&&... xs)
-{
-    return rocblas_saxpy(std::forward<Ts>(xs)...);
-}
-
-template <class... Ts>
-rocblas_status generic_rocblas_axpy(shape::as<double>, Ts&&... xs)
-{
-    return rocblas_daxpy(std::forward<Ts>(xs)...);
-}
-
-template <class T, class... Ts>
-rocblas_status generic_rocblas_axpy(shape::as<T>, Ts&&...)
-{
-    MIGRAPHX_THROW("GENERIC_ROCBLAS_AXPY: type unsupported by rocblas");
-}
-
-template <class... Ts>
-rocblas_status generic_rocblas_dot(shape::as<float>, Ts&&... xs)
-{
-    return rocblas_sdot(std::forward<Ts>(xs)...);
-}
-
-template <class... Ts>
-rocblas_status generic_rocblas_dot(shape::as<double>, Ts&&... xs)
-{
-    return rocblas_ddot(std::forward<Ts>(xs)...);
-}
-
-template <class T, class... Ts>
-rocblas_status generic_rocblas_dot(shape::as<T>, Ts&&...)
-{
-    MIGRAPHX_THROW("GENERIC_ROCBLAS_DOT: type unsupported by rocblas");
-}
-
-template <class... Ts>
-rocblas_status generic_rocblas_gemv(shape::as<float>, Ts&&... xs)
-{
-    return rocblas_sgemv(std::forward<Ts>(xs)...);
-}
-
-template <class... Ts>
-rocblas_status generic_rocblas_gemv(shape::as<double>, Ts&&... xs)
-{
-    return rocblas_dgemv(std::forward<Ts>(xs)...);
-}
-
-template <class T, class... Ts>
-rocblas_status generic_rocblas_gemv(shape::as<T>, Ts&&...)
-{
-    MIGRAPHX_THROW("GENERIC_ROCBLAS_GEMMV: type unsupported by rocblas");
-}
-
-template <class... Ts>
-rocblas_status generic_rocblas_batched_gemm(shape::as<float>, Ts&&... xs)
-{
-    return rocblas_sgemm_strided_batched(std::forward<Ts>(xs)...);
-}
-
-template <class... Ts>
-rocblas_status generic_rocblas_batched_gemm(shape::as<double>, Ts&&... xs)
-{
-    return rocblas_dgemm_strided_batched(std::forward<Ts>(xs)...);
-}
-
-template <class... Ts>
-rocblas_status generic_rocblas_batched_gemm(shape::as<half>, Ts&&... xs)
-{
-    return rocblas_hgemm_strided_batched(std::forward<Ts>(xs)...);
-}
-
-template <class T, class... Ts>
-rocblas_status generic_rocblas_batched_gemm(shape::as<T>, Ts&&...)
-{
-    MIGRAPHX_THROW("GENERIC_ROCBLAS_BATCHED_GEMM: type unsupported by rocblas");
-}
-
-template <class... Ts>
-rocblas_status generic_rocblas_gemm(shape::as<float>, Ts&&... xs)
-{
-    return rocblas_sgemm(std::forward<Ts>(xs)...);
-}
-
-template <class... Ts>
-rocblas_status generic_rocblas_gemm(shape::as<double>, Ts&&... xs)
-{
-    return rocblas_dgemm(std::forward<Ts>(xs)...);
-}
-
-template <class... Ts>
-rocblas_status generic_rocblas_gemm(shape::as<half>, Ts&&... xs)
-{
-    return rocblas_hgemm(std::forward<Ts>(xs)...);
-}
-
-template <class T, class... Ts>
-rocblas_status generic_rocblas_gemm(shape::as<T>, Ts&&...)
-{
-    MIGRAPHX_THROW("GENERIC_ROCBLAS_GEMM: type unsupported by rocblas");
+    return rocblas_gemm_strided_batched_ex(std::forward<Ts>(xs)...);
 }
 
 template <class T>
@@ -164,8 +51,6 @@ rb_type<T>* to_rocblas_type(T* x)
     return reinterpret_cast<rb_type<T>*>(x);
 }
 
-rocblas_half to_rocblas_type(half x) { return reinterpret_cast<const rocblas_half&>(x); }
-
 shape miopen_quant_gemm::compute_shape(const std::vector<shape>& inputs) const
 {
     std::vector<shape> input_shapes(inputs.begin(), inputs.begin() + inputs.size() - 1);
@@ -181,14 +66,6 @@ argument miopen_quant_gemm::compute(context& ctx,
     float beta      = 0.0f;
     if(is_3inputs)
     {
-        output_shape.visit_type([&](auto as) {
-            auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
-            hipMemcpyAsync(to_pointer(args[3]),
-                           to_pointer(args[2]),
-                           output_shape.bytes(),
-                           hipMemcpyDeviceToDevice,
-                           ctx.get_stream().get());
-        });
         beta = op.beta;
     }
 
@@ -209,13 +86,16 @@ argument miopen_quant_gemm::compute(context& ctx,
         rocblas_int m     = out_lens[dim_0];
         rocblas_int n     = out_lens[dim_1];
         rocblas_int k     = args[0].get_shape().lens()[dim_1];
+        auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
+        assert(k % 4 == 0);
+        assert(transa && (lda % 4 == 0));
+        assert(!transb && (ldb % 4 == 0));
+
         auto num_matrices = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
-        auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
         if(num_matrices == 1)
         {
-            generic_rocblas_gemm(as,
-                                 ctx.get_stream().get_rocblas(),
+            generic_rocblas_gemm_ex(ctx.get_stream().get_rocblas(),
                                  transb ? rocblas_operation_transpose : rocblas_operation_none,
                                  transa ? rocblas_operation_transpose : rocblas_operation_none,
                                  n,
@@ -223,17 +103,25 @@ argument miopen_quant_gemm::compute(context& ctx,
                                  k,
                                  &alpha_r,
                                  to_pointer(args[1]),
+                                 rocblas_datatype_i8_r,
                                  ldb,
                                  to_pointer(args[0]),
+                                 rocblas_datatype_i8_r,                                 
                                  lda,
                                  &beta_r,
+                                 to_pointer(args[2]),
+                                 rocblas_datatype_i32_r,
+                                 ldc,
                                  (is_3inputs ? to_pointer(args[3]) : to_pointer(args[2])),
-                                 ldc);
+                                 rocblas_datatype_i32_r,
+                                 ldc,
+                                 rocblas_datatype_i32_r,
+                                 rocblas_gemm_algo_standard,
+                                 0, 0, nullptr, nullptr);
         }
         else
         {
-            generic_rocblas_batched_gemm(
-                as,
+            generic_rocblas_batched_gemm_ex(
                 ctx.get_stream().get_rocblas(),
                 transb ? rocblas_operation_transpose : rocblas_operation_none,
                 transa ? rocblas_operation_transpose : rocblas_operation_none,
@@ -242,16 +130,26 @@ argument miopen_quant_gemm::compute(context& ctx,
                 k,
                 &alpha_r,
                 to_pointer(args[1]),
+                rocblas_datatype_i8_r,
                 ldb,
                 k * n,
                 to_pointer(args[0]),
+                rocblas_datatype_i8_r,
                 lda,
                 m * k,
                 &beta_r,
-                (is_3inputs ? to_pointer(args[3]) : to_pointer(args[2])),
+                to_pointer(args[2]),
+                rocblas_datatype_i32_r,
                 ldc,
                 m * n,
-                num_matrices);
+                (is_3inputs ? to_pointer(args[3]) : to_pointer(args[2])),
+                rocblas_datatype_i32_r,
+                ldc,
+                m * n,
+                num_matrices,
+                rocblas_datatype_i32_r,
+                rocblas_gemm_algo_standard,
+                0, 0, nullptr, nullptr);
         }
     });
 

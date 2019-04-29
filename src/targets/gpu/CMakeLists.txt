@@ -46,6 +46,7 @@ add_library(migraphx_gpu
     target.cpp
     lowering.cpp
     gemm.cpp
+    quant_gemm.cpp
     pooling.cpp
     convolution.cpp
     softmax.cpp

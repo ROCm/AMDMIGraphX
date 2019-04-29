@@ -17,9 +17,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct sin : unary
+struct sin : unary<sin>
 {
-    std::string name() const { return "sin"; }
+    auto apply() const
+    {
+        return [](auto x) { return std::sin(x); };
+    }
 };
 
 } // namespace op

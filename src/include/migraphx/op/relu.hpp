@@ -17,9 +17,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct relu : unary
+struct relu : unary<relu>
 {
-    std::string name() const { return "relu"; }
+    auto apply() const
+    {
+        return [](auto x) { return std::max(decltype(x){0}, x); };
+    }
 };
 
 } // namespace op

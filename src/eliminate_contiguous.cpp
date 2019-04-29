@@ -20,6 +20,12 @@ static bool try_compute_shape(instruction_ref ins, const std::vector<shape>& inp
             return true;
         }
 
+        // if no changes for the shape, the contiguous can also be removed
+        if (new_shape == ins->get_shape())
+        {
+            return true;
+        }
+
         auto outputs = ins->outputs();
         // If the current instruction has no output, it means it is the last
         // instruction and generates a non-standard output. But for unary

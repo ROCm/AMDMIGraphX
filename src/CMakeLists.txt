@@ -5,7 +5,7 @@ include(ROCMPackageConfigHelpers)
 add_library(migraphx 
     auto_contiguous.cpp
     common_subexpression_elimination.cpp
-    constant_propagate.cpp
+    propagate_constant.cpp
     dead_code_elimination.cpp
     eliminate_allocation.cpp
     eliminate_contiguous.cpp

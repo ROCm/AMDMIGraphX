@@ -17,9 +17,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct cosh : unary
+struct cosh : unary<cosh>
 {
-    std::string name() const { return "cosh"; }
+    auto apply() const
+    {
+        return [](auto x) { return std::cosh(x); };
+    }
 };
 
 } // namespace op

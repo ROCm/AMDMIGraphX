@@ -22,7 +22,7 @@ struct unary
     {
         check_shapes{inputs}.has(1);
         auto s = inputs.at(0);
-        if (s.packed())
+        if(s.packed())
         {
             return s;
         }

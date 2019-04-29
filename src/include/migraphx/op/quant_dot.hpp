@@ -60,6 +60,16 @@ struct quant_dot
                            to_string_range(a.lens()) + "} x {" + to_string_range(b.lens()) + "}");
         }
 
+        // all dims need to be multiple of 4
+        auto m = a.lens()[dim_0];
+        auto n = b.lens()[dim_1];
+        auto k = a.lens()[dim_1];
+        if ((m % 4) != 0 or (n % 4) != 0 or (k % 4) != 0)
+        {
+            MIGRAPHX_THROW("QUANT_DOT: size of A {" + to_string_range(a.lens()) + "} and B {" +
+                    to_string_range(b.lens()) + "} must be multiple of 4 for int8 type");
+        }
+
         auto out_lens   = a.lens();
         out_lens[dim_1] = b.lens()[dim_1];
         if(inputs.size() == 3 && out_lens != inputs.at(2).lens())

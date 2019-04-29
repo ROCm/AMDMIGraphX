@@ -1,5 +1,4 @@
 #include <migraphx/gpu/quant_gemm.hpp>
-#include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/context.hpp>
 
 namespace migraphx {
@@ -63,7 +62,7 @@ argument miopen_quant_gemm::compute(context& ctx,
                                     const std::vector<argument>& args) const
 {
     bool is_3inputs = (args.size() == 4);
-    float beta      = 0.0f;
+    int8_t beta      = 0;
     if(is_3inputs)
     {
         beta = op.beta;
@@ -88,8 +87,8 @@ argument miopen_quant_gemm::compute(context& ctx,
         rocblas_int k   = args[0].get_shape().lens()[dim_1];
         auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
         assert(k % 4 == 0);
-        assert(transa && (lda % 4 == 0));
-        assert(!transb && (ldb % 4 == 0));
+        assert(transa or (lda % 4 == 0));
+        assert(!transb or (ldb % 4 == 0));
 
         auto num_matrices = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());

@@ -96,7 +96,7 @@ struct miopen_apply
         add_generic_op<hip_min>("min");
 
         add_extend_op<miopen_gemm, op::dot>("dot");
-        add_extend_op<miopen_quant_gemm, op::quant_dot>("dot");
+        add_extend_op<miopen_quant_gemm, op::quant_dot>("quant_dot");
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
         add_extend_op<miopen_softmax, op::softmax>("softmax");

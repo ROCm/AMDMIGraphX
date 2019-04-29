@@ -237,8 +237,7 @@ struct test_exp : verify_program<test_exp>
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {6}};
-        std::vector<float> data{0.1f, 0.2f, 1.f, 2.f, 0.6f, 10.f};
-        auto x = p.add_literal(s, data);
+        auto x = p.add_instruction(migraphx::op::abs{}, p.add_parameter("x", s));
         p.add_instruction(migraphx::op::exp{}, x);
         return p;
     }
@@ -250,8 +249,7 @@ struct test_log : verify_program<test_log>
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {6}};
-        std::vector<float> data{0.1f, 0.2f, 1.f, 2.f, 0.6f, 100.f};
-        auto x = p.add_literal(s, data);
+        auto x = p.add_instruction(migraphx::op::abs{}, p.add_parameter("x", s));
         p.add_instruction(migraphx::op::log{}, x);
         return p;
     }

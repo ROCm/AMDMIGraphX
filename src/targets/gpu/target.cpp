@@ -11,7 +11,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/simplify_algebra.hpp>
-#include <migraphx/constant_propagate.hpp>
+#include <migraphx/propagate_constant.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/common_subexpression_elimination.hpp>
 #include <migraphx/fwd_conv_batchnorm_rewrite.hpp>
@@ -48,7 +48,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         //dead_code_elimination{},
         simplify_algebra{},
         dead_code_elimination{},
-        constant_propagate{},
+        propagate_constant{},
         dead_code_elimination{},
         auto_contiguous{},
         //simplify_reshapes{},

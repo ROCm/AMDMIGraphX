@@ -602,6 +602,7 @@ struct cpu_unary
                 std::transform(input.begin(), input.end(), output.begin(), op.fcn());
             });
         });
+
         return result;
     }
 };

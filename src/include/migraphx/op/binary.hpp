@@ -1,22 +1,14 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_BINARY_HPP
 #define MIGRAPHX_GUARD_OPERATORS_BINARY_HPP
 
-#include <array>
-#include <migraphx/operation.hpp>
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/streamutils.hpp>
-#include <migraphx/literal.hpp>
-#include <migraphx/shape_for_each.hpp>
-#include <migraphx/config.hpp>
-#include <cmath>
-#include <utility>
+#include <migraphx/op/name.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct binary
+template <class Derived>
+struct binary : op_name<Derived>
 {
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -30,7 +22,6 @@ struct binary
             return {inputs.at(0).type(), inputs.at(0).lens()};
         }
     }
-
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};

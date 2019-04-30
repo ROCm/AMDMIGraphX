@@ -18,11 +18,18 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct clip : unary
+struct clip : unary<clip>
 {
     float max_val = std::numeric_limits<float>::max();
     float min_val = std::numeric_limits<float>::min();
     std::string name() const { return "clip"; }
+
+    auto apply() const
+    {
+        auto& max = max_val;
+        auto& min = min_val;
+        return [max, min](auto x) { return x > min ? (x < max ? x : max) : min; };
+    }
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

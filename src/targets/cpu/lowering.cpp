@@ -148,7 +148,9 @@ struct clip_op
     {
         auto& max = op.max_val;
         auto& min = op.min_val;
-        return [max, min](auto x) { return x > min ? (x < max ? x : max) : min; };
+        return [max, min](auto x) {     
+            using type = decltype(x);
+            return std::min(std::max(type(min), x), type(max)); };
     }
 };
 

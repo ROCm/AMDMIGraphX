@@ -352,7 +352,6 @@ void horizontal_fusion_impl::concat(std::vector<instruction_ref>& instrs,
     }
     else
     {
-        assert(match_dim(output, base_lens));
         output->set_shape({output->get_shape().type(), base_lens});
     }
 }

@@ -12,8 +12,7 @@ shape hip_clip::compute_shape(std::vector<shape> inputs) const
     return op.compute_shape(inputs);
 }
 
-argument
-hip_clip::compute(context& ctx, const shape&, const std::vector<argument>& args) const
+argument hip_clip::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
     device::clip(ctx.get_stream().get(), args.back(), args.front(), op.max_val, op.min_val);
     return args.back();

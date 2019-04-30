@@ -340,6 +340,19 @@ struct test_trans_tanh : verify_program<test_trans_tanh>
     }
 };
 
+struct test_slice_sin : verify_program<test_slice_sin>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto l   = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
+        auto t   = p.add_instruction(migraphx::op::slice{{1}, {1}, {2}}, l);
+        p.add_instruction(migraphx::op::sin{}, t);
+
+        return p;
+    }
+};
+
 struct test_asin : verify_program<test_asin>
 {
     migraphx::program create_program() const

@@ -168,11 +168,10 @@ bool instruction::can_eval() const
     {
         return true;
     }
-    else if (is_context_free(op))
+    else if(is_context_free(op))
     {
-        return std::all_of(this->inputs().begin(), this->inputs().end(), [](auto arg) {
-            return arg->can_eval();
-        });
+        return std::all_of(
+            this->inputs().begin(), this->inputs().end(), [](auto arg) { return arg->can_eval(); });
     }
     else
     {
@@ -189,9 +188,10 @@ argument instruction::eval() const
     if(is_context_free(op) and this->can_eval())
     {
         std::vector<argument> args;
-        std::transform(this->inputs().begin(), this->inputs().end(), std::back_inserter(args), [](auto arg) {
-            return arg->eval();
-        });
+        std::transform(this->inputs().begin(),
+                       this->inputs().end(),
+                       std::back_inserter(args),
+                       [](auto arg) { return arg->eval(); });
         return op.compute(result, args);
     }
     return {};

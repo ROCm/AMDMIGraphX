@@ -66,6 +66,7 @@ add_library(migraphx_gpu
     gather.cpp
     lrn.cpp
     schedule_model.cpp
+    adjust_allocation.cpp
     clip.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)

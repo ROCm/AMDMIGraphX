@@ -3,6 +3,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/op/add.hpp>
+#include <migraphx/op/dot.hpp>
 #include <migraphx/op/mul.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <sstream>
@@ -82,6 +83,25 @@ TEST_CASE(program_copy)
         p2.compile(migraphx::cpu::target{});
 
         EXPECT(p1 == p2);
+    }
+
+    {
+        migraphx::program p1;
+        migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
+        migraphx::shape s2{migraphx::shape::float_type, {3, 6}};
+        migraphx::shape s3{migraphx::shape::float_type, {2, 6}};
+        auto para1 = p1.add_parameter("m1", s1);
+        auto para2 = p1.add_parameter("m2", s2);
+        auto para3 = p1.add_parameter("m3", s3);
+        p1.add_instruction(migraphx::op::dot{0.31f, 0.28f}, para1, para2, para3);
+
+        migraphx::program p2{};
+        p2 = p1;
+        EXPECT(p2 == p1);
+
+        p1.compile(migraphx::cpu::target{});
+        p2.compile(migraphx::cpu::target{});
+        EXPECT(p2 == p1);
     }
 }
 

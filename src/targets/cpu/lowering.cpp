@@ -140,6 +140,18 @@ struct cpu_lrn
     }
 };
 
+struct clip_op
+{
+    op::clip op;
+    std::string name() const { return "cpu::clip"; }
+    auto fcn() const
+    {
+        auto& max = op.max_val;
+        auto& min = op.min_val;
+        return [max, min](auto x) { return x > min ? (x < max ? x : max) : min ; };
+    }
+};
+
 struct cpu_convolution
 {
     op::convolution op;
@@ -819,6 +831,7 @@ struct cpu_apply
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["lrn"]        = extend_op<cpu_lrn, op::lrn>();
+        apply_map["clip"]       = extend_op<cpu_unary<clip_op>, op::clip>();
         apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
         apply_map["pad"]        = extend_op<cpu_pad, op::pad>();
         apply_map["concat"]     = extend_op<cpu_concat, op::concat>();

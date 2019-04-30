@@ -1285,6 +1285,20 @@ struct test_batchnorm_inference : verify_program<test_batchnorm_inference>
     }
 };
 
+struct test_clip : verify_program<test_clip>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3}});
+        migraphx::op::clip op;
+        op.max_val = 6.0;
+        op.min_val = 0.0;
+        p.add_instruction(op, x);
+        return p;
+    }
+};
+
 struct test_conv_bn : verify_program<test_conv_bn>
 {
     migraphx::program create_program() const

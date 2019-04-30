@@ -18,7 +18,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-
 struct clip : unary<clip>
 {
     float max_val = std::numeric_limits<float>::max();
@@ -30,9 +29,10 @@ struct clip : unary<clip>
     {
         auto& max = max_val;
         auto& min = min_val;
-        return [max, min](auto x) {     
+        return [max, min](auto x) {
             using type = decltype(x);
-            return std::min(std::max(type(min), x), type(max)); };
+            return std::min(std::max(type(min), x), type(max));
+        };
     }
 
     template <class Self, class F>

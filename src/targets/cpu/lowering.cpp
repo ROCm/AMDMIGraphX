@@ -146,8 +146,8 @@ struct clip_op
     std::string name() const { return "cpu::clip"; }
     auto fcn() const
     {
-        auto& max = op.max_val;
-        auto& min = op.min_val;
+        auto max = op.max_val;
+        auto min = op.min_val;
         return [max, min](auto x) {
             using type = decltype(x);
             return std::min(std::max(type(min), x), type(max));

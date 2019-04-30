@@ -162,22 +162,36 @@ void instruction::replace_argument(instruction_ref old, instruction_ref new_ins)
     old->remove_output(*this);
 }
 
+bool instruction::can_eval() const
+{
+    if(op.name() == "@literal")
+    {
+        return true;
+    }
+    else if (is_context_free(op))
+    {
+        return std::all_of(this->inputs().begin(), this->inputs().end(), [](auto arg) {
+            return arg->can_eval();
+        });
+    }
+    else
+    {
+        return false;
+    }
+}
+
 argument instruction::eval() const
 {
     if(op.name() == "@literal")
     {
         return this->get_literal().get_argument();
     }
-    if(is_context_free(op))
+    if(is_context_free(op) and this->can_eval())
     {
         std::vector<argument> args;
-        for(auto&& arg : this->inputs())
-        {
-            argument a = arg->eval();
-            if(a.empty())
-                return {};
-            args.push_back(a);
-        }
+        std::transform(this->inputs().begin(), this->inputs().end(), std::back_inserter(args), [](auto arg) {
+            return arg->eval();
+        });
         return op.compute(result, args);
     }
     return {};

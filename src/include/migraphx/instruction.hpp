@@ -72,6 +72,8 @@ struct instruction
     static void
     replace(instruction_ref ins, operation o, const shape& r, std::vector<instruction_ref> args);
 
+    bool can_eval() const;
+
     argument eval() const;
 
     void finalize(context& ctx);

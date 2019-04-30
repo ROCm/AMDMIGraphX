@@ -11,7 +11,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/simplify_algebra.hpp>
-#include <migraphx/constant_propagate.hpp>
+#include <migraphx/propagate_constant.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/common_subexpression_elimination.hpp>
 #include <migraphx/fwd_conv_batchnorm_rewrite.hpp>
@@ -20,6 +20,7 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
+#include <migraphx/gpu/adjust_allocation.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/schedule.hpp>
 
@@ -47,7 +48,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         //dead_code_elimination{},
         simplify_algebra{},
         dead_code_elimination{},
-        constant_propagate{},
+        propagate_constant{},
         dead_code_elimination{},
         auto_contiguous{},
         //simplify_reshapes{},
@@ -56,6 +57,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         eliminate_concat{concat_gpu_optimization{}},
         dead_code_elimination{},
         eliminate_contiguous{},
+        dead_code_elimination{},
+        adjust_allocation{},
         dead_code_elimination{},
         fuse_ops{&ctx},
         dead_code_elimination{},

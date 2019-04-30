@@ -17,9 +17,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct sigmoid : unary
+struct sigmoid : unary<sigmoid>
 {
-    std::string name() const { return "sigmoid"; }
+    auto apply() const
+    {
+        return [](auto x) { return 1.f / (1.f + std::exp(-x)); };
+    }
 };
 
 } // namespace op

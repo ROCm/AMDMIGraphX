@@ -59,9 +59,9 @@ TEST_CASE(transpose_gemm)
 TEST_CASE(transpose_standard_op)
 {
     migraphx::program p;
-    auto l   = p.add_literal(get_2x2());
-    auto t   = p.add_instruction(migraphx::op::transpose{{1, 0}}, l);
-    auto c   = p.add_instruction(migraphx::op::contiguous{}, t);
+    auto l  = p.add_literal(get_2x2());
+    auto t  = p.add_instruction(migraphx::op::transpose{{1, 0}}, l);
+    auto c  = p.add_instruction(migraphx::op::contiguous{}, t);
     auto sn = p.add_instruction(migraphx::op::sin{}, c);
     p.add_instruction(pass_standard_op{}, sn);
     auto count = std::distance(p.begin(), p.end());
@@ -72,9 +72,9 @@ TEST_CASE(transpose_standard_op)
 TEST_CASE(no_packed_unary_op)
 {
     migraphx::program p;
-    auto l   = p.add_literal(get_2x2());
-    auto t   = p.add_instruction(migraphx::op::slice{{1}, {1}, {2}}, l);
-    auto c   = p.add_instruction(migraphx::op::contiguous{}, t);
+    auto l  = p.add_literal(get_2x2());
+    auto t  = p.add_instruction(migraphx::op::slice{{1}, {1}, {2}}, l);
+    auto c  = p.add_instruction(migraphx::op::contiguous{}, t);
     auto sn = p.add_instruction(migraphx::op::sin{}, c);
     p.add_instruction(pass_standard_op{}, sn);
     auto count = std::distance(p.begin(), p.end());

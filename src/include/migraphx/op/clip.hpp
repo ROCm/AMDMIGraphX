@@ -27,8 +27,8 @@ struct clip : unary<clip>
 
     auto apply() const
     {
-        auto& max = max_val;
-        auto& min = min_val;
+        auto max = max_val;
+        auto min = min_val;
         return [max, min](auto x) {
             using type = decltype(x);
             return std::min(std::max(type(min), x), type(max));

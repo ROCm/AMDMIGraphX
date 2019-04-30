@@ -90,23 +90,30 @@ argument miopen_quant_gemm::compute(context& ctx,
         assert(transa or (lda % 4 == 0));
         assert(!transb or (ldb % 4 == 0));
 
+        auto arg_0 = migraphx::gpu::from_gpu(args[0]);
+        auto arg_1 = migraphx::gpu::from_gpu(args[1]);
+        auto arg_2 = migraphx::gpu::from_gpu(args[2]);
+        std::cout << "arg_0 = " << arg_0 << std::endl;
+        std::cout << "arg_1 = " << arg_1 << std::endl;
+        std::cout << "arg_2 = " << arg_2 << std::endl;
+
         auto num_matrices = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
         if(num_matrices == 1)
         {
             generic_rocblas_gemm_ex(ctx.get_stream().get_rocblas(),
-                                    transb ? rocblas_operation_transpose : rocblas_operation_none,
                                     transa ? rocblas_operation_transpose : rocblas_operation_none,
-                                    n,
+                                    transb ? rocblas_operation_transpose : rocblas_operation_none,
                                     m,
+                                    n,
                                     k,
                                     &alpha_r,
-                                    to_pointer(args[1]),
-                                    rocblas_datatype_i8_r,
-                                    ldb,
                                     to_pointer(args[0]),
                                     rocblas_datatype_i8_r,
                                     lda,
+                                    to_pointer(args[1]),
+                                    rocblas_datatype_i8_r,
+                                    ldb,
                                     &beta_r,
                                     to_pointer(args[2]),
                                     rocblas_datatype_i32_r,

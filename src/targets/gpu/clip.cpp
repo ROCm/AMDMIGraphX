@@ -12,9 +12,8 @@ shape hip_clip::compute_shape(std::vector<shape> inputs) const
     return op.compute_shape(inputs);
 }
 
-argument hip_clip::compute(context& ctx,
-                             const shape& output_shape,
-                             const std::vector<argument>& args) const
+argument
+hip_clip::compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
 {
     assert(output_shape == args.back().get_shape());
     (void)output_shape;

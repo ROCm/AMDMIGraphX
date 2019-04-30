@@ -226,7 +226,9 @@ struct onnx_parser
         });
     }
 
-    instruction_ref parse_clip(const std::string&, const attribute_map& attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_clip(const std::string&,
+                               const attribute_map& attributes,
+                               std::vector<instruction_ref> args)
     {
         op::clip op;
         if(contains(attributes, "max"))

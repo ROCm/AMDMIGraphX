@@ -23,18 +23,7 @@ instruction_ref insert_fp16(program& prog,
     assert(ins->get_shape().type() == shape::float_type ||
            ins->get_shape().type() == shape::double_type);
     instruction_ref ins_fp16{};
-    if(ins->name() == "@literal" && ins->outputs().size() == 1)
-    {
-        auto l = ins->get_literal();
-        auto s = ins->get_shape();
-        l.visit([&](auto val) {
-            ins_fp16 = prog.add_literal(literal({type, s.lens()}, val.begin(), val.end()));
-        });
-    }
-    else
-    {
-        ins_fp16 = prog.insert_instruction(std::next(ins), op::convert{type}, ins);
-    }
+    ins_fp16 = prog.insert_instruction(std::next(ins), op::convert{type}, ins);
     map_fp16[ins] = ins_fp16;
 
     return ins_fp16;

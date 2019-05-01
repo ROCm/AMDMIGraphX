@@ -11,21 +11,21 @@ static unsigned kernel_bits  = 8;
 
 // Register a single operation.
 // 1st arg: operation name. 2nd arg: encoding function.
-void horizontal_fusion_impl::register_op(std::string name, Encoder func, int flag)
+void horizontal_fusion_impl::register_op(const std::string name, Encoder func, int flag)
 {
-    op_registry[name] = func;
+    op_registry[name] = std::move(func);
     op_flag[name]     = flag;
 }
 
 // Register operations.
 void horizontal_fusion_impl::register_all()
 {
-    register_op("gpu::convolution", EncodeConvCommon, 1);
-    register_op("gpu::conv_bias_relu", EncodeConvCommon, 1);
-    register_op("hip::add_relu", EncodeCommon, 0);
-    register_op("convolution", EncodeConvCommon, 1);
-    register_op("add", EncodeCommon, 0);
-    register_op("relu", EncodeCommon, 0);
+    register_op("gpu::convolution", encodeConvCommon, 1);
+    register_op("gpu::conv_bias_relu", encodeConvCommon, 1);
+    register_op("hip::add_relu", encodeCommon, 0);
+    register_op("convolution", encodeConvCommon, 1);
+    register_op("add", encodeCommon, 0);
+    register_op("relu", encodeCommon, 0);
 }
 
 static unsigned opcode_shift_count() { return ((sizeof(key_type) * 8) - opcode_bits); }
@@ -40,9 +40,9 @@ static unsigned kernel_shift_count() { return (filter_shift_count() - kernel_bit
 //
 // |----- 16 bits -----|----- 16 bits -------|----- 32 bits -----|
 // |      opcode       | 1st operand hash id |
-encode_info EncodeCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned opcode)
+encode_info encodeCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned opcode)
 {
-    if(opcode >= (1 << opcode_bits))
+    if(opcode >= (static_cast<unsigned>(1) << opcode_bits))
         return encode_info(0, false);
     key_type encode     = (static_cast<key_type>(opcode) << opcode_shift_count());
     instruction_ref op1 = ins->inputs().front();
@@ -50,7 +50,7 @@ encode_info EncodeCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned op
         return encode_info(0, false);
     hash_value_ptr op1_val = instr2_value[op1];
 
-    if(!op1_val || (op1_val->id >= (1 << hash_id_bits)))
+    if((op1_val == nullptr) || (op1_val->id >= (static_cast<unsigned>(1) << hash_id_bits)))
         return encode_info(0, false);
     encode |= (static_cast<key_type>(op1_val->id) << hash_id_shift_count());
     encode_info info(encode, true);
@@ -64,9 +64,9 @@ encode_info EncodeCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned op
 // -----| |     opcode        | 1st operand hash id |   filter size    |  kernel size    |
 // 0x0000        |
 
-encode_info EncodeConvCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned opcode)
+encode_info encodeConvCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned opcode)
 {
-    encode_info info = EncodeCommon(ins, instr2_value, opcode);
+    encode_info info = encodeCommon(ins, instr2_value, opcode);
     if(!info.is_valid())
         return info;
     key_type encode     = info.get_key();
@@ -74,7 +74,8 @@ encode_info EncodeConvCommon(instruction_ref ins, Ins2Val& instr2_value, unsigne
     auto lens           = op2->get_shape().lens();
     auto filter         = lens[lens.size() - 2];
     auto kernel         = lens[lens.size() - 1];
-    if((filter < (1 << filter_bits)) && (kernel < (1 << kernel_bits)))
+    if((filter < (static_cast<unsigned>(1) << filter_bits)) &&
+       (kernel < (static_cast<unsigned>(1) << kernel_bits)))
     {
         encode |= (filter << filter_shift_count());
         encode |= (kernel << kernel_shift_count());
@@ -362,7 +363,7 @@ int horizontal_fusion_impl::find_unique_axis(instruction_ref ins, instruction_re
     auto lens1 = ins->get_shape().lens();
     auto lens2 = input->get_shape().lens();
     if(lens1.size() != lens2.size())
-        return false;
+        return -1;
     int count = 0;
     int ndx   = 0;
     int ret   = -1;
@@ -403,7 +404,7 @@ int horizontal_fusion_impl::find_axis(instruction_ref ins,
 void horizontal_fusion_impl::remove_redundant_roots(std::vector<instruction_ref>& base_instrs)
 {
     instruction_ref root_ins = base_instrs.at(0);
-    for(int ndx = 1; ndx < base_instrs.size(); ndx++)
+    for(auto ndx = 1; ndx < base_instrs.size(); ndx++)
     {
         instruction_ref base                 = base_instrs.at(ndx);
         std::vector<instruction_ref> outputs = base->outputs();
@@ -452,7 +453,7 @@ instruction_ref horizontal_fusion_impl::break_split(int enum_ndx, instruction_re
     return new_split;
 }
 
-bool horizontal_fusion_impl::has_unique_output(std::vector<instruction_ref> instrs)
+bool horizontal_fusion_impl::has_unique_output(const std::vector<instruction_ref> instrs)
 {
     std::unordered_map<instruction_ref, bool> seen;
     for(auto&& ins : instrs)
@@ -467,6 +468,103 @@ bool horizontal_fusion_impl::has_unique_output(std::vector<instruction_ref> inst
     return true;
 }
 
+std::vector<unsigned> horizontal_fusion_impl::find_cluster(unsigned id)
+{
+    std::vector<unsigned> cluster;
+    cluster.push_back(id);
+    unsigned cur = id;
+    int size     = hash_instrs[id].size();
+    // Find a sub-tree of the hash tree to be fused together.
+    // Every node in the sub-tree contain the same amount of instructions.
+    while((hash_outputs.find(cur) != hash_outputs.end()) && (hash_outputs[cur].size() == 1))
+    {
+        unsigned output = (*(hash_outputs[cur].begin()))->id;
+        // Currently instruction can not have more than one same outputs.
+        // Therefore skip outputs that are not unique.
+        if((hash_instrs.find(output) != hash_instrs.end()) &&
+           (hash_instrs[output].size() == size) && has_unique_output(get_instrs(output)))
+        {
+            cluster.push_back(output);
+            cur = output;
+        }
+        else
+            break;
+    }
+    return cluster;
+}
+
+void horizontal_fusion_impl::transform_layers(
+    std::vector<std::vector<instruction_ref>>& all_inputs,
+    std::unordered_map<instruction_ref, instruction_ref>& root,
+    int axis,
+    std::vector<instruction_ref>& base_instrs)
+{
+    std::vector<instruction_ref> input0 = all_inputs.at(0);
+    // concat inputs.
+    for(int ndx = 0; ndx < input0.size(); ndx++)
+    {
+        std::vector<instruction_ref> instrs;
+        std::transform(all_inputs.begin(),
+                       all_inputs.end(),
+                       std::back_inserter(instrs),
+                       [&](auto&& d) -> instruction_ref { return d.at(ndx); });
+        concat(instrs, root, axis);
+    }
+
+    remove_redundant_roots(base_instrs);
+
+    // remove redundant inputs.
+    int ndx = 0;
+    for(auto&& input : all_inputs)
+    {
+        for(auto&& ins : input)
+        {
+            bool is_literal = (ins->name() == "@literal");
+            if((ndx == 0) && !is_literal)
+                continue;
+            p_program->remove_instruction(ins);
+        }
+        ndx++;
+    }
+}
+
+// collect and compare inputs to be concated.
+bool horizontal_fusion_impl::collect_inputs(
+    std::vector<std::vector<instruction_ref>>& all_inputs,
+    int& axis,
+    std::vector<instruction_ref>& base_instrs,
+    std::unordered_map<instruction_ref, bool>& visited,
+    std::unordered_map<instruction_ref, instruction_ref>& root,
+    std::unordered_map<instruction_ref, int>& split_axis)
+{
+    bool doit = true;
+    for(auto&& ins : base_instrs)
+    {
+        // Find concat axis for ins.
+        axis = (axis == -1) ? find_axis(ins, visited) : axis;
+        if(axis == -1)
+        {
+            doit = false;
+            break;
+        }
+        split_axis[ins]                     = axis;
+        std::vector<instruction_ref> inputs = walk(ins, visited);
+        if(inputs.empty() ||
+           (!all_inputs.empty() && !compare_inputs(all_inputs.at(0), inputs, ins, axis)))
+        {
+            doit = false;
+            break;
+        }
+        else
+        {
+            for(auto&& input : inputs)
+                root[input] = ins;
+            all_inputs.push_back(inputs);
+        }
+    }
+    return doit;
+}
+
 void horizontal_fusion_impl::transform()
 {
     for(auto&& val : values)
@@ -474,27 +572,7 @@ void horizontal_fusion_impl::transform()
         unsigned id = val.id;
         if((hash_instrs.find(id) == hash_instrs.end()) || (hash_instrs[id].size() <= 1))
             continue;
-        std::vector<unsigned> cluster;
-        cluster.push_back(id);
-        unsigned cur = id;
-        int size     = hash_instrs[id].size();
-        // Find a sub-tree of the hash tree to be fused together.
-        // Every node in the sub-tree contain the same amount of instructions.
-        while((hash_outputs.find(cur) != hash_outputs.end()) && (hash_outputs[cur].size() == 1))
-        {
-            unsigned output = (*(hash_outputs[cur].begin()))->id;
-            // Currently instruction can not have more than one same outputs.
-            // Therefore skip outputs that are not unique.
-            if((hash_instrs.find(output) != hash_instrs.end()) &&
-               (hash_instrs[output].size() == size) && has_unique_output(get_instrs(output)))
-            {
-                cluster.push_back(output);
-                cur = output;
-            }
-            else
-                break;
-        }
-
+        std::vector<unsigned> cluster = find_cluster(id);
         std::unordered_map<instruction_ref, bool> visited;
         std::unordered_map<instruction_ref, instruction_ref> root;
         std::unordered_map<instruction_ref, std::vector<std::vector<std::size_t>>> orig_dims;
@@ -553,65 +631,13 @@ void horizontal_fusion_impl::transform()
                 continue;
             }
 
-            // collect and compare inputs to be concated.
             std::vector<std::vector<instruction_ref>> all_inputs;
             int axis = -1;
 
-            for(auto&& ins : base_instrs)
-            {
-                // Find concat axis for ins.
-                axis = (axis == -1) ? find_axis(ins, visited) : axis;
-                if(axis == -1)
-                {
-                    doit = false;
-                    break;
-                }
-                split_axis[ins]                     = axis;
-                std::vector<instruction_ref> inputs = walk(ins, visited);
-                if(inputs.empty() ||
-                   (!all_inputs.empty() && !compare_inputs(all_inputs.at(0), inputs, ins, axis)))
-                {
-                    doit = false;
-                    break;
-                }
-                else
-                {
-                    for(auto&& input : inputs)
-                        root[input] = ins;
-                    all_inputs.push_back(inputs);
-                }
-            }
-            if(!doit)
+            if(!collect_inputs(all_inputs, axis, base_instrs, visited, root, split_axis))
                 continue;
 
-            std::vector<instruction_ref> input0 = all_inputs.at(0);
-            // concat inputs.
-            for(int ndx = 0; ndx < input0.size(); ndx++)
-            {
-                std::vector<instruction_ref> instrs;
-                std::transform(all_inputs.begin(),
-                               all_inputs.end(),
-                               std::back_inserter(instrs),
-                               [&](auto&& d) -> instruction_ref { return d.at(ndx); });
-                concat(instrs, root, axis);
-            }
-
-            remove_redundant_roots(base_instrs);
-
-            // remove redundant inputs.
-            int ndx = 0;
-            for(auto&& input : all_inputs)
-            {
-                for(auto&& ins : input)
-                {
-                    bool is_literal = (ins->name() == "@literal");
-                    if((ndx == 0) && !is_literal)
-                        continue;
-                    p_program->remove_instruction(ins);
-                }
-                ndx++;
-            }
-
+            transform_layers(all_inputs, root, axis, base_instrs);
             update_hash_tree(hash_id);
             last_hash_id = hash_id;
         }

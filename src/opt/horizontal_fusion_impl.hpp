@@ -122,9 +122,19 @@ struct horizontal_fusion_impl
         return opcode_table[str];
     }
 
-    void register_op(std::string, Encoder, int);
+    void register_op(const std::string, Encoder, int);
     void register_all();
+    bool collect_inputs(std::vector<std::vector<instruction_ref>>&,
+                        int&,
+                        std::vector<instruction_ref>&,
+                        std::unordered_map<instruction_ref, bool>&,
+                        std::unordered_map<instruction_ref, instruction_ref>&,
+                        std::unordered_map<instruction_ref, int>&);
     void transform();
+    void transform_layers(std::vector<std::vector<instruction_ref>>&,
+                          std::unordered_map<instruction_ref, instruction_ref>&,
+                          int,
+                          std::vector<instruction_ref>&);
     std::vector<instruction_ref> get_instrs(unsigned hash_id)
     {
         assert(hash_instrs.find(hash_id) != hash_instrs.end());
@@ -148,10 +158,11 @@ struct horizontal_fusion_impl
     int find_axis(instruction_ref, int dim);
     int find_axis(instruction_ref, instruction_ref, int);
     int find_unique_axis(instruction_ref, instruction_ref);
+    std::vector<unsigned> find_cluster(unsigned);
     bool match_dim(instruction_ref, instruction_ref, int axis);
     bool is_conv(instruction_ref);
     bool is_concat(instruction_ref);
-    bool has_unique_output(std::vector<instruction_ref>);
+    bool has_unique_output(const std::vector<instruction_ref>);
     void remove_redundant_roots(std::vector<instruction_ref>&);
     void update_hash_tree(unsigned hash_id);
     int get_channel_axis() { return 1; }
@@ -192,8 +203,8 @@ struct horizontal_fusion_impl
 };
 
 // Encoding functions.
-encode_info EncodeCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned);
-encode_info EncodeConvCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned);
+encode_info encodeCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned);
+encode_info encodeConvCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

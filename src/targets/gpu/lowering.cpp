@@ -257,9 +257,7 @@ struct miopen_apply
             {
                 std::vector<int64_t> dims;
                 dims.resize(out_s.lens().size());
-                std::copy(out_s.lens().begin(),
-                          out_s.lens().end(),
-                          dims.begin());
+                std::copy(out_s.lens().begin(), out_s.lens().end(), dims.begin());
                 return prog->replace_instruction(ins, op::reshape{dims}, refs);
             }
 

@@ -80,7 +80,7 @@ TEST_CASE(concat_test)
     int axis = 1;
     // tf uses axis as the third input, and it is in int32 format
     // add the literal using a vector in order to set stride to 1 (like in tf parser)
-    p.add_literal(migraphx::shape{migraphx::shape::int32_type, {1}}, std::vector<int>{axis});
+    p.add_literal(migraphx::shape{migraphx::shape::int32_type}, std::vector<int>{axis});
 
     p.add_instruction(migraphx::op::concat{static_cast<std::size_t>(axis)}, l0, l1);
     auto prog = migraphx::parse_tf("concat_test.pb", false);
@@ -91,7 +91,7 @@ TEST_CASE(concat_test)
 TEST_CASE(const_test)
 {
     migraphx::program p;
-    p.add_literal(migraphx::shape{migraphx::shape::float_type, {1}}, std::vector<float>{1.0f});
+    p.add_literal(migraphx::shape{migraphx::shape::float_type}, std::vector<float>{1.0f});
     auto prog = migraphx::parse_tf("constant_test.pb", false);
 
     EXPECT(p == prog);

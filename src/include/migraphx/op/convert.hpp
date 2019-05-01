@@ -2,7 +2,7 @@
 #define MIGRAPHX_GUARD_OPERATORS_CONVERT_HPP
 
 #include <array>
-#include <migraphx/op/binary.hpp>
+#include <migraphx/op/unary.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
@@ -17,7 +17,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct convert
+struct convert : unary<convert>
 {
     shape::type_t target_type = shape::half_type;
 
@@ -27,23 +27,26 @@ struct convert
         return pack(f(self.target_type, "target_type"));
     }
 
-    std::string name() const { return "convert"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        return {target_type, inputs.front().lens(), inputs.front().strides()};
+        if (inputs.at(0).packed())
+        {
+            return {target_type, inputs.at(0).lens(), inputs.at(0).strides()};
+        }
+        else
+        {
+            return {target_type, inputs.at(0).lens()};
+        }
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    auto apply() const
     {
-        argument result{output_shape};
-        result.visit([&](auto output) {
-            args.front().visit(
-                [&](auto input) { std::copy(input.begin(), input.end(), output.begin()); });
-        });
-
-        return result;
+        return [](auto x) { return x; };
     }
+
+    convert(shape::type_t t) : target_type{t} { }
+    convert() { }
 };
 
 } // namespace op

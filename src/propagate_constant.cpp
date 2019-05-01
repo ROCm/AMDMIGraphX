@@ -33,7 +33,7 @@ void propagate_constant::apply(program& p) const
                                                          ins->outputs().end());
             for(auto child : children)
             {
-                if (skip_propogate(child))
+                if(skip_propogate(child))
                 {
                     self(child);
                     continue;

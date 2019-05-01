@@ -22,14 +22,15 @@ bool skip_propogate(instruction_ref ins)
 
 void propagate_constant::apply(program& p) const
 {
-    for(auto i:iterator_for(p))
+    for(auto i : iterator_for(p))
     {
-        if (i->name() != "@literal")
+        if(i->name() != "@literal")
             continue;
-        if (i->outputs().empty())
+        if(i->outputs().empty())
             continue;
         fix([&](auto self, auto ins) {
-            std::unordered_set<instruction_ref> children(ins->outputs().begin(), ins->outputs().end());
+            std::unordered_set<instruction_ref> children(ins->outputs().begin(),
+                                                         ins->outputs().end());
             for(auto child : children)
             {
                 if(not skip_propogate(child))
@@ -41,7 +42,7 @@ void propagate_constant::apply(program& p) const
                         auto l = p.add_literal(r.get_shape(), r.data());
                         self(p.replace_instruction(child, l));
                     }
-                } 
+                }
                 else
                 {
                     self(child);

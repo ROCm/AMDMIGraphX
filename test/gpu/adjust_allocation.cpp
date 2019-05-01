@@ -61,7 +61,7 @@ TEST_CASE(tanh_shape)
     }
     EXPECT(p1 != p2);
 
-    migraphx::run_passes(p2,
+    migraphx::run_passes(p1,
                          {migraphx::gpu::adjust_allocation{}, migraphx::dead_code_elimination{}});
     EXPECT(p1 == p2);
 }

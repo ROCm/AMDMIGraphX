@@ -47,6 +47,9 @@ void simplify_reshapes::apply(program& p) const
     auto end = std::prev(p.end());
     for(auto ins : iterator_for(p))
     {
+        if (ins == end and ins->name() == "contiguous")
+            continue;
+        // Skip possible dead instructions
         if(ins->outputs().empty() and ins != end)
             continue;
         if(is_reshaper(ins))

@@ -30,7 +30,7 @@ struct convert : unary<convert>
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        if (inputs.at(0).packed())
+        if(inputs.at(0).packed())
         {
             return {target_type, inputs.at(0).lens(), inputs.at(0).strides()};
         }
@@ -45,8 +45,8 @@ struct convert : unary<convert>
         return [](auto x) { return x; };
     }
 
-    convert(shape::type_t t) : target_type{t} { }
-    convert() { }
+    convert(shape::type_t t) : target_type{t} {}
+    convert() {}
 };
 
 } // namespace op

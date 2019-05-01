@@ -24,9 +24,9 @@ struct unary : op_name<Derived>
                 if(input.get_shape().packed())
                 {
                     std::transform(input.begin(),
-                                input.end(),
-                                output.begin(),
-                                static_cast<const Derived&>(*this).apply());
+                                   input.end(),
+                                   output.begin(),
+                                   static_cast<const Derived&>(*this).apply());
 
                     return result;
                 }

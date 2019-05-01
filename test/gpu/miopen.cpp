@@ -236,8 +236,7 @@ struct test_exp : verify_program<test_exp>
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {6}};
-        std::vector<float> data{0.1f, 0.2f, 1.f, 2.f, 0.6f, 10.f};
-        auto x = p.add_literal(s, data);
+        auto x = p.add_instruction(migraphx::op::abs{}, p.add_parameter("x", s));
         p.add_instruction(migraphx::op::exp{}, x);
         return p;
     }
@@ -249,8 +248,7 @@ struct test_log : verify_program<test_log>
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {6}};
-        std::vector<float> data{0.1f, 0.2f, 1.f, 2.f, 0.6f, 100.f};
-        auto x = p.add_literal(s, data);
+        auto x = p.add_instruction(migraphx::op::abs{}, p.add_parameter("x", s));
         p.add_instruction(migraphx::op::log{}, x);
         return p;
     }
@@ -323,6 +321,19 @@ struct test_tanh : verify_program<test_tanh>
         migraphx::program p;
         auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         p.add_instruction(migraphx::op::tanh{}, x);
+        return p;
+    }
+};
+
+struct test_trans_tanh : verify_program<test_trans_tanh>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x  = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto tx = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
+        auto tanhx = p.add_instruction(migraphx::op::tanh{}, tx);
+        p.add_instruction(migraphx::op::add{}, tanhx, tanhx);
         return p;
     }
 };
@@ -670,6 +681,19 @@ struct test_abs : verify_program<test_abs>
         migraphx::program p;
         auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         p.add_instruction(migraphx::op::abs{}, x);
+        return p;
+    }
+};
+
+struct test_trans_abs : verify_program<test_trans_abs>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x  = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto tx = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
+        auto tanhx = p.add_instruction(migraphx::op::abs{}, tx);
+        p.add_instruction(migraphx::op::add{}, tanhx, tanhx);
         return p;
     }
 };

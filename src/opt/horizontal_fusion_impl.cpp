@@ -46,7 +46,8 @@ encode_info EncodeCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned op
         return encode_info(0, false);
     key_type encode     = (static_cast<key_type>(opcode) << opcode_shift_count());
     instruction_ref op1 = ins->inputs().front();
-    assert(instr2_value.find(op1) != instr2_value.end());
+    if(instr2_value.find(op1) == instr2_value.end())
+        return encode_info(0, false);
     hash_value_ptr op1_val = instr2_value[op1];
 
     if(!op1_val || (op1_val->id >= (1 << hash_id_bits)))

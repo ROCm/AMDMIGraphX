@@ -3270,7 +3270,7 @@ struct test_lstm_bidirct_default_actv2 : verify_program<test_lstm_bidirct_defaul
         return p;
     }
 };
-#if 0
+#if 1
 template <int Axis>
 struct test_logsoftmax : verify_program<test_logsoftmax<Axis>>
 {

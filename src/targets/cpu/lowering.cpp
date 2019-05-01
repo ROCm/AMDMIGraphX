@@ -186,6 +186,52 @@ struct cpu_convolution
     }
 };
 
+struct cpu_quant_convolution
+{
+    op::quant_convolution op;
+
+    std::string name() const { return "cpu::quant_convolution"; }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
+            auto in   = input.get_shape().lens();
+            auto in_h = in[2];
+            auto in_w = in[3];
+
+            auto wei   = weights.get_shape().lens();
+            auto wei_n = wei[0];
+            auto wei_c = wei[1];
+            auto wei_h = wei[2];
+            auto wei_w = wei[3];
+
+            par_dfor(output_shape.lens()[0],
+                     output_shape.lens()[1],
+                     output_shape.lens()[2],
+                     output_shape.lens()[3])(
+                [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
+                    const int start_x  = i * op.stride[0] - op.padding[0];
+                    const int start_y  = j * op.stride[1] - op.padding[1];
+                    const int group_id = w / (wei_n / op.group);
+
+                    double acc = 0;
+                    dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t y) {
+                        const int in_x  = start_x + x;
+                        const int in_y  = start_y + y;
+                        const int in_ch = group_id * wei_c + k;
+                        if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
+                        {
+                            acc += input(o, in_ch, in_x, in_y) * weights(w, k, x, y);
+                        }
+                    });
+                    output(o, w, i, j) = acc;
+                });
+        });
+        return result;
+    }
+};
+
 struct cpu_im2col
 {
     op::im2col op;
@@ -876,6 +922,7 @@ struct cpu_apply
     {
         apply_map["im2col"]      = extend_op<cpu_im2col, op::im2col>();
         apply_map["convolution"] = extend_op<cpu_convolution, op::convolution>();
+        apply_map["quant_convolution"] = extend_op<cpu_quant_convolution, op::quant_convolution>();
         apply_map["dot"]         = extend_op<cpu_gemm, op::dot>();
         apply_map["quant_dot"]   = extend_op<cpu_quant_gemm, op::quant_dot>();
         apply_map["batch_norm_inference"] =

@@ -179,19 +179,21 @@ bool instruction::can_eval() const
     }
 }
 
-argument instruction::eval() const
+argument instruction::eval(bool check_eval) const
 {
     if(op.name() == "@literal")
     {
         return this->get_literal().get_argument();
     }
-    if(is_context_free(op) and this->can_eval())
+    if(is_context_free(op))
     {
+        if (check_eval and not this->can_eval())
+            return {};
         std::vector<argument> args;
         std::transform(this->inputs().begin(),
                        this->inputs().end(),
                        std::back_inserter(args),
-                       [](auto arg) { return arg->eval(); });
+                       [](auto arg) { return arg->eval(false); });
         return op.compute(result, args);
     }
     return {};

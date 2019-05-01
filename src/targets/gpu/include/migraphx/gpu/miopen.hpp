@@ -57,7 +57,8 @@ inline tensor_descriptor make_tensor(const migraphx::shape& s)
     return t;
 }
 
-inline convolution_descriptor make_conv(const migraphx::op::convolution& op)
+template<class T>
+inline convolution_descriptor make_conv(const T& op)
 {
     auto c = make_obj<convolution_descriptor>(&miopenCreateConvolutionDescriptor);
     miopenConvolutionMode_t c_mode = miopenConvolution;

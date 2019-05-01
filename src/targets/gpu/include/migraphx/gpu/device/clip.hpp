@@ -13,8 +13,8 @@ namespace device {
 void clip(hipStream_t stream,
           const argument& result,
           const argument& arg1,
-          const float& max,
-          const float& min);
+          const float max,
+          const float min);
 
 } // namespace device
 } // namespace gpu

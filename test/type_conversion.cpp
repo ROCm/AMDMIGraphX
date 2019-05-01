@@ -181,8 +181,10 @@ TEST_CASE(literal_add)
         auto p2 = create_program_half();
 
         migraphx::quantize(p1, {"all"});
-        migraphx::run_passes(p1, {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
-        migraphx::run_passes(p2, {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
+        migraphx::run_passes(p1,
+                             {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
+        migraphx::run_passes(p2,
+                             {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
 
         EXPECT(p1 == p2);
     }
@@ -192,8 +194,10 @@ TEST_CASE(literal_add)
         auto p2 = create_program_half();
 
         migraphx::quantize(p1, {"add"});
-        migraphx::run_passes(p1, {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
-        migraphx::run_passes(p2, {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
+        migraphx::run_passes(p1,
+                             {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
+        migraphx::run_passes(p2,
+                             {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
         EXPECT(p1 == p2);
     }
 }

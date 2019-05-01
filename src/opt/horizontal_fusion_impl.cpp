@@ -278,12 +278,11 @@ void horizontal_fusion_impl::concat(std::vector<instruction_ref>& instrs,
     if(base_lens[root_axis] != base_sum)
         base_lens[root_axis] = base_sum;
 
-    assert(ins0->outputs().size() == 1);
+    if(ins0->outputs().size() != 1)
+        MIGRAPHX_THROW("unexpected output size");
     instruction_ref output = ins0->outputs().at(0);
     if((base != output) && !match_dim(base, output, -1))
-    {
         MIGRAPHX_THROW("unmatched output");
-    }
 
     if(ins0->name() == "@literal")
     {
@@ -427,8 +426,11 @@ instruction_ref horizontal_fusion_impl::break_split(int enum_ndx, instruction_re
     const operation& op = split_ins->get_operator();
     int first           = (any_cast<op::split>(op)).slice_selector.first;
     int second          = (any_cast<op::split>(op)).slice_selector.second;
-    assert((first >= 0) && (second >= first));
-    assert((enum_ndx == first) || (enum_ndx == second));
+    if((first < 0) || (second < first))
+        MIGRAPHX_THROW("unexpected selector");
+    if((enum_ndx != first) && (enum_ndx != second))
+        MIGRAPHX_THROW("unexpected slice enumerator");
+
     if(first == second)
         return split_ins;
     int axis                    = (any_cast<op::split>(op)).axis;
@@ -502,7 +504,8 @@ void horizontal_fusion_impl::transform()
 
         for(auto&& hash_id : cluster)
         {
-            assert(hash_inputs.find(hash_id) != hash_inputs.end());
+            if(hash_inputs.find(hash_id) == hash_inputs.end())
+                MIGRAPHX_THROW("Hash input not found");
             bool doit = true;
             // Flag common inputs which will not be concated.
             for(auto&& input : hash_inputs[hash_id])
@@ -616,9 +619,12 @@ void horizontal_fusion_impl::transform()
         if(last_hash_id != 0)
         {
             std::vector<instruction_ref> base_instrs = get_instrs(last_hash_id);
-            assert(base_instrs.size() == 1);
+            if(base_instrs.size() != 1)
+                MIGRAPHX_THROW("Unexpect number of instructions");
             instruction_ref last_ins = base_instrs.at(0);
-            assert(split_axis.find(last_ins) != split_axis.end());
+            if(split_axis.find(last_ins) == split_axis.end())
+                MIGRAPHX_THROW("Split axis not found");
+
             int axis = split_axis[last_ins];
             std::vector<int> slice_dims;
             std::transform(orig_dims[last_ins].begin(),
@@ -630,7 +636,9 @@ void horizontal_fusion_impl::transform()
             std::unordered_map<int, bool> enum2_concat;
             int enum_output           = 0;
             std::vector<int> clusters = orig_clusters[last_ins];
-            assert(clusters.size() == last_ins->outputs().size());
+            if(clusters.size() != last_ins->outputs().size())
+                MIGRAPHX_THROW("Unmatched output size");
+
             for(auto&& output : last_ins->outputs())
             {
                 outputs.push_back(output);

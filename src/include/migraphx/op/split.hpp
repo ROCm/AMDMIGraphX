@@ -26,24 +26,22 @@ struct split
     std::vector<unsigned> compute_slice_elements(shape input_shape) const
     {
         unsigned accum = 1;
-        int axis_id = 0;
-        
-         //  compute accumulated elements on un-splitted axises.
+        int axis_id    = 0;
+
+        //  compute accumulated elements on un-splitted axises.
         for(auto&& len : input_shape.lens())
         {
-            if (axis_id != axis)
+            if(axis_id != axis)
                 accum *= len;
             axis_id++;
         }
-            
+
         // compute number of elements for each slice.
         std::vector<unsigned> slice_elements;
         std::transform(slice_dims.begin(),
                        slice_dims.end(),
                        std::back_inserter(slice_elements),
-                       [&](auto&& d) ->unsigned {
-                           return accum * d;
-                       });
+                       [&](auto&& d) -> unsigned { return accum * d; });
         return slice_elements;
     }
 
@@ -53,18 +51,20 @@ struct split
         auto input_shape = inputs[0];
         std::vector<std::size_t> out_dims;
 
-        if (slice_selector.first >= 0)
+        if(slice_selector.first >= 0)
         {
-            int first = slice_selector.first;
+            int first  = slice_selector.first;
             int second = slice_selector.second;
-            assert(second >= first);
-            if (first == second)
+            if(second < first)
+                MIGRAPHX_THROW("Illegal split selector");
+
+            if(first == second)
             {
-                int axis_id = 0;
+                int axis_id   = 0;
                 int slice_dim = slice_dims[first];
-                for (auto&& len : input_shape.lens())
+                for(auto&& len : input_shape.lens())
                 {
-                    if (axis_id == axis)
+                    if(axis_id == axis)
                         out_dims.push_back(slice_dim);
                     else
                         out_dims.push_back(len);
@@ -72,19 +72,22 @@ struct split
                 }
             }
             else
-            {                
+            {
                 std::vector<unsigned> slice_elements = compute_slice_elements(input_shape);
-                int total_elements = 0;
-                assert(second < slice_dims.size());
-            
-                for (int i = first; i <= second; i++)
+                int total_elements                   = 0;
+                if(second >= slice_dims.size())
+                    MIGRAPHX_THROW("Illegal split selector");
+
+                for(int i = first; i <= second; i++)
                     total_elements += slice_elements[i];
-                assert(total_elements > 0);
+                if(total_elements <= 0)
+                    MIGRAPHX_THROW("Invalid number of elements");
+
                 out_dims.push_back(total_elements);
             }
         }
         else
-        {                           
+        {
             out_dims.push_back(input_shape.elements());
         }
         return {input_shape.type(), out_dims};
@@ -94,7 +97,7 @@ struct split
     {
         std::vector<int> index_map;
         int unit_slice = 1;
-        int axis_id         = 0;
+        int axis_id    = 0;
         if((axis < 0) || (axis >= s.lens().size()))
             MIGRAPHX_THROW("batch_contiguous: invalid split axis");
 
@@ -113,13 +116,13 @@ struct split
         if(total_slice_dim != s.lens()[axis])
             MIGRAPHX_THROW("batch_contiguous: invalid split dimension");
 
-        int stride       = unit_slice * total_slice_dim;
+        int stride            = unit_slice * total_slice_dim;
         std::size_t nelements = s.elements();
         std::vector<int> segment_size;
         std::vector<int> begin_index;
         int num_of_segments = nelements / stride;
         int index           = 0;
-        
+
         // For each slice, compute segment size and begin index in the output.
         for(auto&& dim : slice_dims)
         {
@@ -160,14 +163,14 @@ struct split
     unsigned compute_offset(shape input_shape) const
     {
         int first = slice_selector.first;
-        if (first <= 0)
+        if(first <= 0)
             return 0;
-        unsigned offset = 0;
+        unsigned offset                      = 0;
         std::vector<unsigned> slice_elements = compute_slice_elements(input_shape);
-        int slice_ndx = 0;
-        for (auto&& ele : slice_elements)
+        int slice_ndx                        = 0;
+        for(auto&& ele : slice_elements)
         {
-            if (slice_ndx == first)
+            if(slice_ndx == first)
                 break;
             offset += ele;
             slice_ndx++;
@@ -182,11 +185,11 @@ struct split
         if((axis == 0) && (first == -1))
             return {std::move(output_shape), std::move(arg0.data)};
 
-        shape input_shape = arg0.get_shape();
+        shape input_shape          = arg0.get_shape();
         std::vector<int> index_map = compute_index_map(input_shape);
         argument result{output_shape};
         std::size_t nelements = output_shape.elements();
-        unsigned offset = compute_offset(input_shape);
+        unsigned offset       = compute_offset(input_shape);
         visit_all(result, arg0)([&](auto output, auto input) {
             auto slice = make_view(output_shape, output.data());
             for(std::size_t i = 0; i < nelements; i++)

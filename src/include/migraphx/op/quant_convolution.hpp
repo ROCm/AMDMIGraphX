@@ -44,8 +44,8 @@ struct quant_convolution
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
         auto t               = input.type();
-        
-        if (t != shape::int8_type)
+
+        if(t != shape::int8_type)
         {
             MIGRAPHX_THROW("QUANT_THROW: only accept input of type int8_t");
         }

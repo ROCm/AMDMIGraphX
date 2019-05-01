@@ -12,8 +12,8 @@ shape miopen_quant_convolution::compute_shape(const std::vector<shape>& inputs) 
     return op.compute_shape({inputs.at(0), inputs.at(1)});
 }
 argument miopen_quant_convolution::compute(context& ctx,
-                                     const shape& output_shape,
-                                     const std::vector<argument>& args) const
+                                           const shape& output_shape,
+                                           const std::vector<argument>& args) const
 {
     auto x_desc = make_tensor(args[0].get_shape());
     auto w_desc = make_tensor(args[1].get_shape());
@@ -21,7 +21,7 @@ argument miopen_quant_convolution::compute(context& ctx,
 
     int8_t alpha = 1;
     int8_t beta  = 0;
-    auto status = miopenConvolutionForward(ctx.get_stream().get_miopen(),
+    auto status  = miopenConvolutionForward(ctx.get_stream().get_miopen(),
                                            &alpha,
                                            x_desc.get(),
                                            args[0].implicit(),
@@ -39,8 +39,8 @@ argument miopen_quant_convolution::compute(context& ctx,
 }
 
 shape miopen_quant_convolution::compile(context& ctx,
-                                  const shape& output_shape,
-                                  std::vector<shape> inputs)
+                                        const shape& output_shape,
+                                        std::vector<shape> inputs)
 {
     shape workspace_shape{};
     auto x_desc = make_tensor(inputs[0]);
@@ -85,8 +85,8 @@ shape miopen_quant_convolution::compile(context& ctx,
 }
 
 void miopen_quant_convolution::finalize(context& ctx,
-                                  const shape& output_shape,
-                                  std::vector<shape> inputs)
+                                        const shape& output_shape,
+                                        std::vector<shape> inputs)
 {
     if(handle == ctx.get_stream().get_miopen())
         return;

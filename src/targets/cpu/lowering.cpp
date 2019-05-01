@@ -920,11 +920,11 @@ struct cpu_apply
 
     void init()
     {
-        apply_map["im2col"]      = extend_op<cpu_im2col, op::im2col>();
-        apply_map["convolution"] = extend_op<cpu_convolution, op::convolution>();
+        apply_map["im2col"]            = extend_op<cpu_im2col, op::im2col>();
+        apply_map["convolution"]       = extend_op<cpu_convolution, op::convolution>();
         apply_map["quant_convolution"] = extend_op<cpu_quant_convolution, op::quant_convolution>();
-        apply_map["dot"]         = extend_op<cpu_gemm, op::dot>();
-        apply_map["quant_dot"]   = extend_op<cpu_quant_gemm, op::quant_dot>();
+        apply_map["dot"]               = extend_op<cpu_gemm, op::dot>();
+        apply_map["quant_dot"]         = extend_op<cpu_quant_gemm, op::quant_dot>();
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["lrn"]        = extend_op<cpu_lrn, op::lrn>();

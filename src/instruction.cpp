@@ -187,7 +187,7 @@ argument instruction::eval(bool check_eval) const
     }
     if(is_context_free(op))
     {
-        if (check_eval and not this->can_eval())
+        if(check_eval and not this->can_eval())
             return {};
         std::vector<argument> args;
         std::transform(this->inputs().begin(),

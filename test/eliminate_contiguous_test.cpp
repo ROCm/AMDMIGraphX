@@ -40,7 +40,7 @@ TEST_CASE(non_standard_op)
     p.add_instruction(pass_op{}, c);
     auto count = std::distance(p.begin(), p.end());
     p.compile(eliminate_contiguous_target{});
-    EXPECT(std::distance(p.begin(), p.end()) == (count - 1));
+    EXPECT(std::distance(p.begin(), p.end()) == count);
 }
 
 TEST_CASE(transpose_gemm)

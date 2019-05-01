@@ -3333,37 +3333,37 @@ struct test_logsoftmax_1 : verify_program<test_logsoftmax_1<Axis>>
 template struct test_logsoftmax_1<0>;
 template struct test_logsoftmax_1<1>;
 
-// struct test_fp32_fp16_lall : verify_program<test_fp32_fp16_lall>
-// {
-//     migraphx::program create_program() const
-//     {
-//         migraphx::program p;
-//         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-//         std::vector<float> data(2 * 3);
-//         std::iota(data.begin(), data.end(), 1.0f);
-//         auto l1 = p.add_literal(migraphx::literal(s, data));
-//         auto l2 = p.add_literal(migraphx::literal(s, data));
-//         p.add_instruction(migraphx::op::add{}, l1, l2);
-//         //migraphx::quantize(p, {"all"});
-//         return p;
-//     };
-// };
+struct test_fp32_fp16_lall : verify_program<test_fp32_fp16_lall>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+        std::vector<float> data(2 * 3);
+        std::iota(data.begin(), data.end(), 1.0f);
+        auto l1 = p.add_literal(migraphx::literal(s, data));
+        auto l2 = p.add_parameter("p2", s);
+        p.add_instruction(migraphx::op::add{}, l1, l2);
+        migraphx::quantize(p, {"all"});
+        return p;
+    };
+};
 
-// struct test_fp32_fp16_ladd : verify_program<test_fp32_fp16_ladd>
-// {
-//     migraphx::program create_program() const
-//     {
-//         migraphx::program p;
-//         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-//         std::vector<float> data(2 * 3);
-//         std::iota(data.begin(), data.end(), 1.0f);
-//         auto l1 = p.add_literal(migraphx::literal(s, data));
-//         auto l2 = p.add_literal(migraphx::literal(s, data));
-//         p.add_instruction(migraphx::op::add{}, l1, l2);
-//         migraphx::quantize(p, {"all"});
-//         return p;
-//     };
-// };
+struct test_fp32_fp16_ladd : verify_program<test_fp32_fp16_ladd>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+        std::vector<float> data(2 * 3);
+        std::iota(data.begin(), data.end(), 1.0f);
+        auto l1 = p.add_literal(migraphx::literal(s, data));
+        auto l2 = p.add_parameter("p2", s);
+        p.add_instruction(migraphx::op::add{}, l1, l2);
+        migraphx::quantize(p, {"add"});
+        return p;
+    };
+};
 
 struct test_fp32_fp16_add : verify_program<test_fp32_fp16_add>
 {

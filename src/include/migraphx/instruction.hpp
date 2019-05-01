@@ -72,7 +72,9 @@ struct instruction
     static void
     replace(instruction_ref ins, operation o, const shape& r, std::vector<instruction_ref> args);
 
-    argument eval() const;
+    bool can_eval() const;
+
+    argument eval(bool check_eval = true) const;
 
     void finalize(context& ctx);
 

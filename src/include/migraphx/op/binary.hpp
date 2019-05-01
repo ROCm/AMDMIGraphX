@@ -18,7 +18,7 @@ struct binary : op_name<Derived>
             return {s.type()};
         return {s.type(), s.lens()};
     }
-    
+
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};

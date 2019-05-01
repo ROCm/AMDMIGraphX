@@ -33,19 +33,17 @@ void propagate_constant::apply(program& p) const
                                                          ins->outputs().end());
             for(auto child : children)
             {
-                if(not skip_propogate(child))
-                {
-                    auto r = child->eval();
-                    if(not r.empty())
-                    {
-                        assert(r.get_shape() == child->get_shape());
-                        auto l = p.add_literal(r.get_shape(), r.data());
-                        self(p.replace_instruction(child, l));
-                    }
-                }
-                else
+                if (skip_propogate(child))
                 {
                     self(child);
+                    continue;
+                }
+                auto r = child->eval();
+                if(not r.empty())
+                {
+                    assert(r.get_shape() == child->get_shape());
+                    auto l = p.add_literal(r.get_shape(), r.data());
+                    self(p.replace_instruction(child, l));
                 }
             }
         })(i);

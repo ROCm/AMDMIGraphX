@@ -340,12 +340,13 @@ struct tf_parser
         return prog.add_instruction(op, {args[0], weights});
     }
 
-    instruction_ref
-    parse_depthwiseconv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_depthwiseconv(const std::string&,
+                                        attribute_map attributes,
+                                        std::vector<instruction_ref> args)
     {
         op::convolution op;
         size_t num_channels = args[0]->get_shape().lens()[1];
-        op.group = num_channels;
+        op.group            = num_channels;
         if(contains(attributes, "padding"))
         {
             const std::string& pad_mode = attributes.at("padding").s();
@@ -378,16 +379,16 @@ struct tf_parser
             else
             {
                 weights = prog.add_instruction(op::transpose{{3, 2, 0, 1}}, args[1]);
-            }    
+            }
         }
         std::vector<int64_t> new_weights_shape;
         copy(weights->get_shape().lens(), std::back_inserter(new_weights_shape));
-        int64_t multiplier = new_weights_shape[0];
+        int64_t multiplier   = new_weights_shape[0];
         int64_t out_channels = num_channels * multiplier;
         new_weights_shape[0] = out_channels;
         new_weights_shape[1] = 1;
-        auto new_weights = prog.add_instruction(op::reshape{new_weights_shape}, weights);
-        
+        auto new_weights     = prog.add_instruction(op::reshape{new_weights_shape}, weights);
+
         return prog.add_instruction(op, {args[0], new_weights});
     }
 

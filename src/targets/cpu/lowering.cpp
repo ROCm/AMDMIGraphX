@@ -878,7 +878,7 @@ template <typename Op>
 struct cpu_binary
 {
     Op op;
-    std::string name() const { return op.name(); }
+    std::string name() const { return "cpu::" + op.name(); }
     shape compute_shape(const std::vector<shape>& inputs) const { return inputs.front(); }
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {

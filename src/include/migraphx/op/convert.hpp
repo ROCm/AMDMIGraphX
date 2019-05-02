@@ -30,14 +30,7 @@ struct convert : unary<convert>
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        if(inputs.at(0).packed())
-        {
-            return {target_type, inputs.at(0).lens(), inputs.at(0).strides()};
-        }
-        else
-        {
-            return {target_type, inputs.at(0).lens()};
-        }
+        return {target_type, inputs.at(0).lens(), inputs.at(0).strides()};
     }
 
     auto apply() const

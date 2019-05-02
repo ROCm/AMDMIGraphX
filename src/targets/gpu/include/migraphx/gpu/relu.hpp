@@ -19,7 +19,7 @@ struct miopen_relu
     {
         return gpu::reflect(self.ad.get(), f);
     }
-    
+
     std::string name() const { return "gpu::relu"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument

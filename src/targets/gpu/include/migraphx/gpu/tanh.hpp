@@ -19,7 +19,7 @@ struct miopen_tanh
     {
         return gpu::reflect(self.ad.get(), f);
     }
-    
+
     std::string name() const { return "gpu::tanh"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument

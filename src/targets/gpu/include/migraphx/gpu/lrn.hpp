@@ -19,7 +19,7 @@ struct miopen_lrn
     {
         return gpu::reflect(self.ldesc.get(), f);
     }
-    
+
     std::string name() const { return "gpu::lrn"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument

@@ -19,7 +19,7 @@ struct miopen_batch_norm_inference
     {
         return migraphx::reflect(self.op, f);
     }
-    
+
     std::string name() const { return "gpu::batch_norm_inference"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument

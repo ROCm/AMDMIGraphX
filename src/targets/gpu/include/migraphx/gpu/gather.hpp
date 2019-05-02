@@ -20,7 +20,7 @@ struct hip_gather
     {
         return migraphx::reflect(self.op, f);
     }
-    
+
     std::string name() const { return "gpu::gather"; }
     shape compute_shape(std::vector<shape> inputs) const;
     argument

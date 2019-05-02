@@ -87,7 +87,8 @@ namespace operation_equal {
 template <class T, class U>
 auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
 {
-    static_assert(is_reflectable<T>{} or sizeof(T) <= 1, "Missing equality operator or reflect method.");
+    static_assert(is_reflectable<T>{} or sizeof(T) <= 1,
+                  "Missing equality operator or reflect method.");
     if(x.name() != y.name())
         return false;
     const auto& yy = any_cast<T>(y);

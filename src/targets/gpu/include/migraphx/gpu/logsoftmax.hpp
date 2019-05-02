@@ -31,7 +31,7 @@ struct hip_logsoftmax
     {
         return migraphx::reflect(self.op, f);
     }
-    
+
     std::string name() const { return "gpu::logsoftmax"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument

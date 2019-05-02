@@ -19,7 +19,7 @@ struct miopen_gemm
     {
         return migraphx::reflect(self.op, f);
     }
-    
+
     std::string name() const { return "gpu::gemm"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument

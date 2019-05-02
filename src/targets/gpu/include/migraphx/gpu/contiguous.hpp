@@ -19,7 +19,7 @@ struct miopen_contiguous
     {
         return migraphx::reflect(self.op, f);
     }
-    
+
     std::string name() const { return "gpu::contiguous"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument compute(context&, shape output_shape, const std::vector<argument>& args) const;

@@ -25,7 +25,7 @@ struct concat
     {
         return pack(f(self.axis, "axis"));
     }
-    
+
     std::string name() const { return "concat"; }
     std::vector<std::size_t> compute_offsets(const shape& output_shape,
                                              const std::vector<argument>& args) const

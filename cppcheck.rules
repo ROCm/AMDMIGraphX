@@ -90,12 +90,66 @@
     </message>
 </rule>
 <rule>
-    <tokenlist>normal</tokenlist>
-    <pattern>! !</pattern>
+    <tokenlist>raw</tokenlist>
+    <pattern><![CDATA[hipLaunchKernelGGL \( (?!\( \w+ < \w+ > \))]]></pattern>
     <message>
-        <id>doubleNegative</id>
+        <id>UseDeviceLaunch</id>
         <severity>style</severity>
-        <summary>Double negative is always positive</summary>
+        <summary>Use device::launch instead</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[if (\([^()]*(?-1)*[^()]*\)) { [^{}]* (return|throw|break|continue) [^;]* ; } else {]]></pattern>
+    <message>
+        <id>UnnecessaryElseStatement</id>
+        <severity>style</severity>
+        <summary>Else statement is not necessary.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[\? (true|false) : (true|false)]]></pattern>
+    <message>
+        <id>RedundantConditionalOperator</id>
+        <severity>style</severity>
+        <summary>Conditional operator is redundant.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[switch (\([^()]*(?-1)*[^()]*\)) { }]]></pattern>
+    <message>
+        <id>EmptySwitchStatement</id>
+        <severity>style</severity>
+        <summary>Empty switch statement.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[(?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w) ; \1 = [^;]+ ; return \1 ;]]></pattern>
+    <message>
+        <id>RedundantLocalVariable</id>
+        <severity>style</severity>
+        <summary>Variable is returned immediately after its declaration, can be simplified to just return expression.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[for \( ; [^;]+ ; \)]]></pattern>
+    <message>
+        <id>ForLoopShouldBeWhileLoop</id>
+        <severity>style</severity>
+        <summary>For loop should be written as a while loop.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[while (\([^()]*(?-1)*[^()]*\)) { }]]></pattern>
+    <message>
+        <id>EmptyWhileStatement</id>
+        <severity>style</severity>
+        <summary>Empty while statement.</summary>
     </message>
 </rule>
 <rule>
@@ -109,33 +163,6 @@
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[if \( [^)]+ \) { if \( [^)]+ \) ({[^{}]*(?1)*[^{}]*}) }]]></pattern>
-    <message>
-        <id>CollapsibleIfStatements</id>
-        <severity>style</severity>
-        <summary>These two if statements can be collapsed into one.</summary>
-    </message>
-</rule>
-<rule>
-    <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[catch \( [^())]+ \) { }]]></pattern>
-    <message>
-        <id>EmptyCatchStatement</id>
-        <severity>style</severity>
-        <summary>An empty catch statement.</summary>
-    </message>
-</rule>
-<rule>
-    <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[do { } while \(]]></pattern>
-    <message>
-        <id>EmptyDoWhileStatement</id>
-        <severity>style</severity>
-        <summary>Empty do-while.</summary>
-    </message>
-</rule>
-<rule>
-    <tokenlist>normal</tokenlist>
     <pattern><![CDATA[else { }]]></pattern>
     <message>
         <id>EmptyElseBlock</id>
@@ -145,7 +172,7 @@
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[for \( [^()]+ \) { }]]></pattern>
+    <pattern><![CDATA[for (\([^()]*(?-1)*[^()]*\)) { }]]></pattern>
     <message>
         <id>EmptyForStatement</id>
         <severity>style</severity>
@@ -154,7 +181,7 @@
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[if \( [^()]+ \) { }]]></pattern>
+    <pattern><![CDATA[if (\([^()]*(?-1)*[^()]*\)) { }]]></pattern>
     <message>
         <id>EmptyIfStatement</id>
         <severity>style</severity>
@@ -163,43 +190,52 @@
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[switch \( [^()]+ \) { }]]></pattern>
+    <pattern><![CDATA[if (\([^()]*(?-1)*[^()]*\)) { return (true|false) ; } else { return (true|false) ; }]]></pattern>
     <message>
-        <id>EmptySwitchStatement</id>
+        <id>RedundantIfStatement</id>
         <severity>style</severity>
-        <summary>Empty switch statement.</summary>
+        <summary>The if statement is redundant.</summary>
     </message>
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[while \( [^()]+ \) { }]]></pattern>
+    <pattern><![CDATA[! !]]></pattern>
     <message>
-        <id>EmptyWhileStatement</id>
+        <id>DoubleNegative</id>
         <severity>style</severity>
-        <summary>Empty while statement.</summary>
+        <summary>Double negative is always positive.</summary>
     </message>
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[ for \( ; [^;]+ ; \)]]></pattern>
+    <pattern><![CDATA[~ ~]]></pattern>
     <message>
-        <id>ForLoopShouldBeWhileLoop</id>
+        <id>DoubleNegative</id>
         <severity>style</severity>
-        <summary>For loop should be written as a while loop.</summary>
+        <summary>Double negative is always positive.</summary>
     </message>
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
-    <pattern>goto</pattern>
+    <pattern><![CDATA[! \( !]]></pattern>
     <message>
-        <id>GotoStatement</id>
+        <id>DoubleNegative</id>
         <severity>style</severity>
-        <summary>Goto considered harmful.</summary>
+        <summary>Double negative is always positive.</summary>
     </message>
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[if \( \w+ != \w+ \) ({[^{}]*(?1)*[^{}]*}) else { (?!if)]]></pattern>
+    <pattern><![CDATA[~ \( ~]]></pattern>
+    <message>
+        <id>DoubleNegative</id>
+        <severity>style</severity>
+        <summary>Double negative is always positive.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[if \( \w+ != \w+ \) ({[^{}]*(?-1)*[^{}]*}) else { (?!if)]]></pattern>
     <message>
         <id>InvertedLogic</id>
         <severity>style</severity>
@@ -208,7 +244,7 @@
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[if \( ! \w+ \) ({[^{}]*(?1)*[^{}]*}) else { (?!if)]]></pattern>
+    <pattern><![CDATA[if \( ! \w+ \) ({[^{}]*(?-1)*[^{}]*}) else { (?!if)]]></pattern>
     <message>
         <id>InvertedLogic</id>
         <severity>style</severity>
@@ -235,34 +271,43 @@
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[\? (true|false) : (true|false)]]></pattern>
+    <pattern><![CDATA[catch (\([^()]*(?-1)*[^()]*\)) { }]]></pattern>
     <message>
-        <id>RedundantConditionalOperator</id>
+        <id>EmptyCatchStatement</id>
         <severity>style</severity>
-        <summary>Conditional operator is redundant.</summary>
+        <summary>An empty catch statement.</summary>
     </message>
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[if \( [^()]+ \) { return (true|false) ; } else { return (true|false) ; }]]></pattern>
+    <pattern><![CDATA[if (\([^()]*(?-1)*[^()]*\)) { assert (\([^()]*(?-1)*[^()]*\)) ; }]]></pattern>
     <message>
-        <id>RedundantIfStatement</id>
+        <id>ConditionalAssert</id>
         <severity>style</severity>
-        <summary>The if statement is redundant.</summary>
+        <summary>The if condition should be included in assert.</summary>
     </message>
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[if \( [^()]+ \) { [^{}]* (return|throw|break|continue) [^;]* ; } else {]]></pattern>
+    <pattern><![CDATA[if \( (\w) . empty \( \) \) { for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* \w : \1 \) ({[^{}]*(?-1)*[^{}]*}) }]]></pattern>
     <message>
-        <id>UnnecessaryElseStatement</id>
+        <id>UnnecessaryEmptyCondition</id>
         <severity>style</severity>
-        <summary>Else statement is not necessary.</summary>
+        <summary>Unnecessary check for empty before for range loop.</summary>
     </message>
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[for \( \w+ (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = \w+ \[ \1 \] ; }]]></pattern>
+    <pattern><![CDATA[if \( ! (\w) . empty \( \) \) { for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* \w : \1 \) ({[^{}]*(?-1)*[^{}]*}) }]]></pattern>
+    <message>
+        <id>UnnecessaryEmptyCondition</id>
+        <severity>style</severity>
+        <summary>Unnecessary check for empty before for range loop.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>simple</tokenlist>
+    <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = \w+ \[ \1 \] ; }]]></pattern>
     <message>
         <id>useStlAlgorithm</id>
         <severity>style</severity>
@@ -270,8 +315,8 @@
     </message>
 </rule>
 <rule>
-    <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[for \( \w+ (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = \w+ ; }]]></pattern>
+    <tokenlist>simple</tokenlist>
+    <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = \w+ ; }]]></pattern>
     <message>
         <id>useStlAlgorithm</id>
         <severity>style</severity>
@@ -279,8 +324,8 @@
     </message>
 </rule>
 <rule>
-    <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[for \( \w+ (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = (\w+ :: )*\w+ \( \) ; }]]></pattern>
+    <tokenlist>simple</tokenlist>
+    <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = (?:\w+ :: )*\w+ \( \) ; }]]></pattern>
     <message>
         <id>useStlAlgorithm</id>
         <severity>style</severity>
@@ -288,8 +333,8 @@
     </message>
 </rule>
 <rule>
-    <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[for \( \w+ (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = (\w+ :: )*\w+ \( \w+ \[ \1 \] \) ; }]]></pattern>
+    <tokenlist>simple</tokenlist>
+    <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = (?:\w+ :: )*\w+ \( \w+ \[ \1 \] \) ; }]]></pattern>
     <message>
         <id>useStlAlgorithm</id>
         <severity>style</severity>
@@ -297,11 +342,65 @@
     </message>
 </rule>
 <rule>
-    <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[for \( \w+ (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = (\w+ :: )*\w+ \( \w+ \[ \1 \] , \w+ \[ \1 \] \) ; }]]></pattern>
+    <tokenlist>simple</tokenlist>
+    <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = (?:\w+ :: )*\w+ \( \w+ \[ \1 \] , \w+ \[ \1 \] \) ; }]]></pattern>
     <message>
         <id>useStlAlgorithm</id>
         <severity>style</severity>
         <summary>Considering using std::transform instead.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>simple</tokenlist>
+    <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) : (?:[^()]*(\([^()]*(?-1)*[^()]*\)))*[^)]*\) { (?:(?<idx1>\w+) \+\+|\+\+ (?<idx2>\w+)) ; if (\([^()]*(?-1)*[^()]*\)) { \w+ = \g{idx1}|\g{idx2} ; (?:break ; )?(?:return [^;]*; )?} }]]></pattern>
+    <message>
+        <id>useStlAlgorithm</id>
+        <severity>style</severity>
+        <summary>Considering using std::find or std::find_if instead.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>simple</tokenlist>
+    <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) : (?:[^()]*(\([^()]*(?-1)*[^()]*\)))*[^)]*\) { if (\([^()]*(?-1)*[^()]*\)) { \w+ = (?<idx>\w) ; (?:break ; )?(?:return [^;]*; )?} (?:(\g{idx}) \+\+|\+\+ (\g{idx})) ; }]]></pattern>
+    <message>
+        <id>useStlAlgorithm</id>
+        <severity>style</severity>
+        <summary>Considering using std::find or std::find_if instead.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>simple</tokenlist>
+    <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) : (?:[^()]*(\([^()]*(?-1)*[^()]*\)))*[^)]*\) { (?:(?<idx1>\w+) \+\+|\+\+ (?<idx2>\w+)) ; if (\([^()]*(?-1)*[^()]*\)) { return \g{idx1}|\g{idx2} ; } }]]></pattern>
+    <message>
+        <id>useStlAlgorithm</id>
+        <severity>style</severity>
+        <summary>Considering using std::find or std::find_if instead.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>simple</tokenlist>
+    <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) : (?:[^()]*(\([^()]*(?-1)*[^()]*\)))*[^)]*\) { if (\([^()]*(?-1)*[^()]*\)) { return (?<idx>\w+) ; } (?:(\g{idx}) \+\+|\+\+ (\g{idx})) ; }]]></pattern>
+    <message>
+        <id>useStlAlgorithm</id>
+        <severity>style</severity>
+        <summary>Considering using std::find or std::find_if instead.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[do { } while \(]]></pattern>
+    <message>
+        <id>EmptyDoWhileStatement</id>
+        <severity>style</severity>
+        <summary>Empty do-while.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern>goto</pattern>
+    <message>
+        <id>GotoStatement</id>
+        <severity>style</severity>
+        <summary>Goto considered harmful.</summary>
     </message>
 </rule>

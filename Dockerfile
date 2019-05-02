@@ -44,13 +44,14 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     rm -rf /var/lib/apt/lists/*
 
 # Install cget
-RUN pip install cget
+# RUN pip install cget
+RUN pip install https://github.com/pfultz2/cget/archive/57b3289000fcdb3b7e424c60a35ea09bc44d8538.tar.gz
 
 # Install rclone
 RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
 
 # Install hcc
-RUN rclone -b roc-2.0.x -c 757fb492517b80e7c86338af5fc1a43d63cb25a9 https://github.com/RadeonOpenCompute/hcc.git /hcc
+RUN rclone -b roc-2.3.x -c fd93baed7dcc4fe8019b5fdc90213bfe7c298245 https://github.com/RadeonOpenCompute/hcc.git /hcc
 RUN cget -p $PREFIX install hcc,/hcc
 
 # Use hcc

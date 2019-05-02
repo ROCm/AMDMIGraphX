@@ -39,6 +39,11 @@ struct undefined
 struct unknown
 {
     std::string op;
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.op, "op"));
+    }
     std::string name() const { return "unknown:" + op; }
     shape compute_shape(std::vector<shape> input) const
     {

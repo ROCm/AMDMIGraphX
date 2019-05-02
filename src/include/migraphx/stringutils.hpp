@@ -39,7 +39,7 @@ inline std::string join_strings(Strings strings, const std::string& delim)
 
     auto nit = std::next(it);
     return std::accumulate(
-        nit, strings.end(), *it, [&](std::string x, std::string y) { return x + delim + y; });
+        nit, strings.end(), *it, [&](std::string x, std::string y) { return std::move(x) + delim + std::move(y); });
 }
 
 template <class F>

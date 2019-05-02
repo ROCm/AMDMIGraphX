@@ -798,10 +798,7 @@ TEST_CASE(clip_test)
 {
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
-    migraphx::op::clip op;
-    op.max_val = 6.0;
-    op.min_val = 0.0;
-    p.add_instruction(op, l0);
+    p.add_instruction(migraphx::op::clip{6.0, 0.0}, l0);
     auto prog = migraphx::parse_onnx("clip_test.onnx");
 
     EXPECT(p == prog);

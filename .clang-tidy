@@ -3,6 +3,8 @@ CheckOptions:
     value:           '::std::async;::std::launder;::std::remove;::std::remove_if;::std::unique;::std::unique_ptr::release;::std::basic_string::empty;::std::vector::empty;::std::find;::std::find_if;::std::find_if_not;::std::all_of;::std::any_of;::std::none_of;::std::count;::std::count_if;::std::mismatch;::std::find_end;::std::find_first_of;::std::adjacent_find;::std::search;::std::search_n;::std::nth_element;::std::lower_bound;::std::upper_bound;::std::binary_search;::std::equal_range;::std::max;::std::max_element;::std::min;::std::min_element;::std::minmax;::std::minmax_element;::std::equal;::std::lexicographical_compare;::std::accumulate;::std::inner_product'
   - key:             cppcoreguidelines-macro-usage.AllowedRegexp
     value:           'DEBUG|FALLTHROUGH|_THROW|_REQUIRES|_DECLARE_|_VISIT_|_GENERATE_|_DETAIL_|_MANAGE_PTR|_MATCHER|DEVICE_SHARED'
+  - key:             cppcoreguidelines-narrowing-conversions.WarnOnFloatingPointNarrowingConversion
+    value:           0
   - key:             modernize-loop-convert.MinConfidence
     value:           risky   
   - key:             modernize-loop-convert.NamingStyle

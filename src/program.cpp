@@ -63,10 +63,15 @@ static void print_program(const program& p, F print_func)
 
     for(auto ins : iterator_for(p))
     {
-        std::string var_name = "@" + std::to_string(count);
+        std::string var_name;
         if(ins->name() == "@param")
         {
             var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
+        }
+        else
+        {
+            var_name = "@" + std::to_string(count);
+            count++;
         }
         names.emplace(ins, var_name);
 
@@ -78,8 +83,6 @@ static void print_program(const program& p, F print_func)
         }
 
         print_func(ins, names);
-
-        count++;
     }
 }
 

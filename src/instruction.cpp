@@ -28,6 +28,12 @@ void instruction::replace(const shape& r)
     }
 }
 
+void instruction::replace(const operation& o)
+{
+    op = std::move(o);
+    recompute_shape();
+}
+
 void instruction::recompute_shape() { replace(compute_shape(op, arguments)); }
 
 void instruction::clear_arguments()

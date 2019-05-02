@@ -56,7 +56,7 @@ TEST_CASE(tanh_shape)
         if(ins->name() == "hip::allocate")
         {
             migraphx::shape wrong_s{migraphx::shape::float_type, {3, 2}, {1, 3}};
-            ins->replace(wrong_s);
+            ins->replace(migraphx::gpu::hip_allocate{wrong_s});
         }
     }
     EXPECT(p1 != p2);

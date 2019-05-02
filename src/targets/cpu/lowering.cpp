@@ -228,8 +228,8 @@ struct cpu_im2col
                     dfor(channels,
                          kernel_h,
                          kernel_w)([&](std::size_t c, std::size_t koffset, std::size_t loffset) {
-                        auto idx     = iinput + koffset - kdiv2_h;
-                        auto jdx     = jinput + loffset - kdiv2_w;
+                        auto idx    = iinput + koffset - kdiv2_h;
+                        auto jdx    = jinput + loffset - kdiv2_w;
                         col(ldx, p) = ((idx >= 0) && (idx < height) && (jdx >= 0) && (jdx < width))
                                           ? input(0, c, idx, jdx)
                                           : 0;

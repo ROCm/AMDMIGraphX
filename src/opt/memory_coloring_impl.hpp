@@ -25,10 +25,10 @@ static const std::size_t invalid_offset = std::numeric_limits<std::size_t>::max(
 
 struct live_range
 {
-    std::size_t begin;        // begin point in the instruction stream.
-    std::size_t end;          // end point in the instruction stream.
+    std::size_t begin;  // begin point in the instruction stream.
+    std::size_t end;    // end point in the instruction stream.
     std::size_t offset; // offset to base pointer of allocated memory trunk.
-    std::size_t vn;           // value number that identifies this live_range.
+    std::size_t vn;     // value number that identifies this live_range.
     std::size_t size;   // size of required memory in bytes
 #ifdef MIGRAPHX_DEBUG_OPT
     void dump();

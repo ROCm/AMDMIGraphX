@@ -66,7 +66,7 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
     std::size_t offset = 0;
     while(!conflict_queue.empty())
     {
-        live_range* range     = conflict_queue.top();
+        live_range* range       = conflict_queue.top();
         std::size_t iter_offset = range->offset;
         if(offset > iter_offset)
         {
@@ -97,7 +97,7 @@ void memory_coloring_impl::build()
     if(num_of_instrs == 0)
         return;
 
-    auto cur_points        = num_of_instrs * 2;
+    auto cur_points       = num_of_instrs * 2;
     instruction_ref iter  = p_program->end();
     instruction_ref begin = p_program->begin();
     std::vector<instruction_ref> dead_instrs;

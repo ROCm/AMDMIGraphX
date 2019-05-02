@@ -354,29 +354,23 @@ struct cpu_op
     {
         return op.compute(output_shape, std::move(args));
     }
-    friend bool operator==(const cpu_op& x, const cpu_op& y)
-    {
-        return x.op == y.op;
-    }
+    friend bool operator==(const cpu_op& x, const cpu_op& y) { return x.op == y.op; }
     friend bool operator==(const cpu_op& x, const operation& y)
     {
         if(x.name() != y.name())
             return false;
         return x == any_cast<cpu_op>(y);
     }
-    friend bool operator==(const operation& x, const cpu_op& y)
-    {
-        return y == x;
-    }
-
+    friend bool operator==(const operation& x, const cpu_op& y) { return y == x; }
 };
 
 // struct cpu_contiguous
 // {
 //     op::contiguous op;
 //     std::string name() const { return "cpu::contiguous"; }
-//     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-//     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+//     shape compute_shape(const std::vector<shape>& inputs) const { return
+//     op.compute_shape(inputs); } argument compute(context&, const shape& output_shape,
+//     std::vector<argument> args) const
 //     {
 //         return op.compute(output_shape, std::move(args));
 //     }
@@ -419,8 +413,9 @@ struct cpu_pad
 // {
 //     op::concat op;
 //     std::string name() const { return "cpu::concat"; }
-//     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-//     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+//     shape compute_shape(const std::vector<shape>& inputs) const { return
+//     op.compute_shape(inputs); } argument compute(context&, const shape& output_shape,
+//     std::vector<argument> args) const
 //     {
 //         return op.compute(output_shape, std::move(args));
 //     }
@@ -481,7 +476,8 @@ struct cpu_gemm
 // {
 //     op::gather op;
 //     std::string name() const { return "cpu::gather"; }
-//     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+//     shape compute_shape(const std::vector<shape>& inputs) const { return
+//     op.compute_shape(inputs); }
 
 //     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
 //     {
@@ -903,7 +899,7 @@ struct cpu_apply
         apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
         apply_map["logsoftmax"] = extend_op<cpu_logsoftmax, op::logsoftmax>();
         apply_map["elu"]        = extend_op<cpu_unary<elu_op>, op::elu>();
-        apply_map["softmax"] = simple_op<softmax2d>();
+        apply_map["softmax"]    = simple_op<softmax2d>();
         apply_map["pad"]        = extend_op<cpu_pad, op::pad>();
         // apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
         // apply_map["concat"]     = extend_op<cpu_concat, op::concat>();
@@ -930,7 +926,6 @@ struct cpu_apply
         // apply_map["div"]        = simple_op<cpu_binary<div_op>>();
         // apply_map["max"]        = simple_op<cpu_binary<max_op>>();
         // apply_map["min"]        = simple_op<cpu_binary<min_op>>();
-
     }
 
     void apply()
@@ -946,7 +941,7 @@ struct cpu_apply
             {
                 apply_map.at(it->name())(it);
             }
-            else if (is_context_free(it->get_operator()))
+            else if(is_context_free(it->get_operator()))
             {
                 apply_cpu_op(it);
             }

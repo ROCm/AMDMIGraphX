@@ -13,7 +13,7 @@ struct context;
 struct miopen_abs
 {
     shared<activation_descriptor> ad;
-    
+
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {

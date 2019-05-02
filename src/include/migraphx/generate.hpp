@@ -17,7 +17,7 @@ constexpr T normalize(unsigned long z)
         return T(0);
     const auto max     = 32;
     const double range = max / 2; // NOLINT
-    double result      = (z % max) / range;
+    double result      = double(z % max) / range;
     result -= 1;
     return T(result);
 }

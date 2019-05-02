@@ -380,9 +380,9 @@ struct operation
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const                                = 0;
-        virtual bool is_context_free() const                            = 0;
-        virtual bool has_finalize() const                               = 0;
+        virtual std::string name() const                                           = 0;
+        virtual bool is_context_free() const                                       = 0;
+        virtual bool has_finalize() const                                          = 0;
         virtual std::ptrdiff_t output_alias(const std::vector<shape>& input) const = 0;
         virtual void
         finalize(context& ctx, const shape& output, const std::vector<shape>& input) = 0;

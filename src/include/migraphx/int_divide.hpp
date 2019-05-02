@@ -7,13 +7,13 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template<class R, class T, class U>
+template <class R, class T, class U>
 R floor_divide(T x, U y)
 {
     return R(std::floor(double(x) / double(y)));
 }
 
-template<class R, class T, class U>
+template <class R, class T, class U>
 R ceil_divide(T x, U y)
 {
     return R(std::ceil(double(x) / double(y)));

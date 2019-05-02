@@ -23,7 +23,12 @@ struct clip : unary<clip>
     float max_val = std::numeric_limits<float>::max();
     float min_val = std::numeric_limits<float>::min();
 
-    std::string name() const { return "clip"; }
+    clip()
+    {
+    }
+
+    clip(float max, float min) : max_val(max), min_val(min)
+    {}
 
     auto apply() const
     {

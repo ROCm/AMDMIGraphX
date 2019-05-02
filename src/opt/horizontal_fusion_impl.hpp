@@ -135,6 +135,12 @@ struct horizontal_fusion_impl
                           std::unordered_map<instruction_ref, instruction_ref>&,
                           int,
                           std::vector<instruction_ref>&);
+    void
+    transform_output(unsigned,
+                     std::unordered_map<instruction_ref, int>&,
+                     std::unordered_map<instruction_ref, std::vector<std::vector<std::size_t>>>&,
+                     std::unordered_map<instruction_ref, std::vector<int>>&);
+
     std::vector<instruction_ref> get_instrs(unsigned hash_id)
     {
         assert(hash_instrs.find(hash_id) != hash_instrs.end());

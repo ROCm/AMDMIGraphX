@@ -565,6 +565,91 @@ bool horizontal_fusion_impl::collect_inputs(
     return doit;
 }
 
+void horizontal_fusion_impl::transform_output(
+    unsigned last_hash_id,
+    std::unordered_map<instruction_ref, int>& split_axis,
+    std::unordered_map<instruction_ref, std::vector<std::vector<std::size_t>>>& orig_dims,
+    std::unordered_map<instruction_ref, std::vector<int>>& orig_clusters)
+{
+
+    std::vector<instruction_ref> base_instrs = get_instrs(last_hash_id);
+    if(base_instrs.size() != 1)
+        MIGRAPHX_THROW("Unexpect number of instructions");
+    instruction_ref last_ins = base_instrs.at(0);
+    if(split_axis.find(last_ins) == split_axis.end())
+        MIGRAPHX_THROW("Split axis not found");
+
+    int axis = split_axis[last_ins];
+    std::vector<int> slice_dims;
+    std::transform(orig_dims[last_ins].begin(),
+                   orig_dims[last_ins].end(),
+                   std::back_inserter(slice_dims),
+                   [&](auto&& d) -> int { return d.at(axis); });
+
+    std::vector<instruction_ref> outputs;
+    std::unordered_map<int, bool> enum2_concat;
+    int enum_output           = 0;
+    std::vector<int> clusters = orig_clusters[last_ins];
+    if(clusters.size() != last_ins->outputs().size())
+        MIGRAPHX_THROW("Unmatched output size");
+
+    for(auto&& output : last_ins->outputs())
+    {
+        outputs.push_back(output);
+        if(is_concat(output))
+            enum2_concat[clusters[enum_output]] = true;
+        enum_output++;
+    }
+
+    instruction_ref insert_before = std::next(last_ins);
+    auto split_ins                = p_program->insert_instruction(
+        insert_before, op::split{axis, slice_dims, {0, slice_dims.size() - 1}}, last_ins);
+    unsigned offset                            = 0;
+    shape s                                    = last_ins->get_shape();
+    std::vector<std::vector<std::size_t>> dims = orig_dims[last_ins];
+    std::vector<unsigned> offsets;
+
+    for(auto&& dim : dims)
+    {
+        offsets.push_back(offset);
+        shape orig_s = shape{s.type(), dim};
+        offset += orig_s.bytes();
+    }
+    std::unordered_map<int, instruction_ref> enum2_instr;
+    enum_output = 0;
+    for(auto&& output : outputs)
+    {
+        int enum_ndx = clusters[enum_output++];
+        shape orig_s = shape{s.type(), dims[enum_ndx]};
+        instruction_ref new_ins;
+        if(enum2_instr.find(enum_ndx) == enum2_instr.end())
+        {
+            bool add_load = true;
+            if(enum2_concat.find(enum_ndx) != enum2_concat.end())
+            {
+                new_ins  = break_split(enum_ndx, split_ins);
+                add_load = (new_ins == split_ins);
+            }
+            if(add_load)
+            {
+                const operation& op  = split_ins->get_operator();
+                shape input_s        = split_ins->inputs().at(0)->get_shape();
+                unsigned offset_bias = (any_cast<op::split>(op)).compute_offset(input_s);
+                offset_bias *= input_s.type_size();
+                new_ins = p_program->insert_instruction(
+                    insert_before, op::load{orig_s, offsets[enum_ndx] - offset_bias}, split_ins);
+            }
+
+            enum2_instr[enum_ndx] = new_ins;
+        }
+        else
+        {
+            new_ins = enum2_instr[enum_ndx];
+        }
+        instruction::replace_argument(output, last_ins, new_ins, false);
+    }
+}
+
 void horizontal_fusion_impl::transform()
 {
     for(auto&& val : values)
@@ -643,86 +728,7 @@ void horizontal_fusion_impl::transform()
         }
 
         if(last_hash_id != 0)
-        {
-            std::vector<instruction_ref> base_instrs = get_instrs(last_hash_id);
-            if(base_instrs.size() != 1)
-                MIGRAPHX_THROW("Unexpect number of instructions");
-            instruction_ref last_ins = base_instrs.at(0);
-            if(split_axis.find(last_ins) == split_axis.end())
-                MIGRAPHX_THROW("Split axis not found");
-
-            int axis = split_axis[last_ins];
-            std::vector<int> slice_dims;
-            std::transform(orig_dims[last_ins].begin(),
-                           orig_dims[last_ins].end(),
-                           std::back_inserter(slice_dims),
-                           [&](auto&& d) -> int { return d.at(axis); });
-
-            std::vector<instruction_ref> outputs;
-            std::unordered_map<int, bool> enum2_concat;
-            int enum_output           = 0;
-            std::vector<int> clusters = orig_clusters[last_ins];
-            if(clusters.size() != last_ins->outputs().size())
-                MIGRAPHX_THROW("Unmatched output size");
-
-            for(auto&& output : last_ins->outputs())
-            {
-                outputs.push_back(output);
-                if(is_concat(output))
-                    enum2_concat[clusters[enum_output]] = true;
-                enum_output++;
-            }
-
-            instruction_ref insert_before = std::next(last_ins);
-            auto split_ins                = p_program->insert_instruction(
-                insert_before, op::split{axis, slice_dims, {0, slice_dims.size() - 1}}, last_ins);
-            unsigned offset                            = 0;
-            shape s                                    = last_ins->get_shape();
-            std::vector<std::vector<std::size_t>> dims = orig_dims[last_ins];
-            std::vector<unsigned> offsets;
-
-            for(auto&& dim : dims)
-            {
-                offsets.push_back(offset);
-                shape orig_s = shape{s.type(), dim};
-                offset += orig_s.bytes();
-            }
-            std::unordered_map<int, instruction_ref> enum2_instr;
-            enum_output = 0;
-            for(auto&& output : outputs)
-            {
-                int enum_ndx = clusters[enum_output++];
-                shape orig_s = shape{s.type(), dims[enum_ndx]};
-                instruction_ref new_ins;
-                if(enum2_instr.find(enum_ndx) == enum2_instr.end())
-                {
-                    bool add_load = true;
-                    if(enum2_concat.find(enum_ndx) != enum2_concat.end())
-                    {
-                        new_ins  = break_split(enum_ndx, split_ins);
-                        add_load = (new_ins == split_ins);
-                    }
-                    if(add_load)
-                    {
-                        const operation& op  = split_ins->get_operator();
-                        shape input_s        = split_ins->inputs().at(0)->get_shape();
-                        unsigned offset_bias = (any_cast<op::split>(op)).compute_offset(input_s);
-                        offset_bias *= input_s.type_size();
-                        new_ins = p_program->insert_instruction(
-                            insert_before,
-                            op::load{orig_s, offsets[enum_ndx] - offset_bias},
-                            split_ins);
-                    }
-
-                    enum2_instr[enum_ndx] = new_ins;
-                }
-                else
-                {
-                    new_ins = enum2_instr[enum_ndx];
-                }
-                instruction::replace_argument(output, last_ins, new_ins, false);
-            }
-        }
+            transform_output(last_hash_id, split_axis, orig_dims, orig_clusters);
     }
 }
 

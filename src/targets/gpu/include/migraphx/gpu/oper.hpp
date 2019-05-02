@@ -45,13 +45,14 @@ struct unary_device : oper<Derived>
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(2);
-        if(inputs.at(0).packed())
+        auto s = inputs.at(0);
+        if(s.packed())
         {
-            return inputs.at(0);
+            return s;
         }
         else
         {
-            return {inputs.at(0).type(), inputs.at(0).lens()};
+            return {s.type(), s.lens()};
         }
     }
 
@@ -73,13 +74,15 @@ struct binary_device : oper<Derived>
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(3);
-        if(inputs.at(0) == inputs.at(1) and inputs.at(0).packed())
+        auto s0 = inputs.at(0);
+        auto s1 = inputs.at(1);
+        if(s0 == s1 and s0.packed())
         {
-            return inputs.at(0);
+            return s0;
         }
         else
         {
-            return {inputs.at(0).type(), inputs.at(0).lens()};
+            return {s0.type(), s0.lens()};
         }
     }
 

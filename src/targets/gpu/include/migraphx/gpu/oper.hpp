@@ -54,7 +54,10 @@ struct unary_device : oper<Derived>
         return args[1];
     }
 
-    int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
 };
 
 template <class Derived, void (*F)(hipStream_t, const argument&, const argument&, const argument&)>
@@ -72,7 +75,10 @@ struct binary_device : oper<Derived>
         return args[2];
     }
 
-    int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
 };
 
 } // namespace gpu

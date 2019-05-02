@@ -153,7 +153,7 @@ struct tf_parser
     template <class T>
     void add_binary_op(std::string name, T x)
     {
-        add_op(name, [this, x](attribute_map attributes, std::vector<instruction_ref> args) {
+        add_op(name, [this, x](const attribute_map& attributes, std::vector<instruction_ref> args) {
             if(args.size() != 2)
                 MIGRAPHX_THROW("binary operators should have 2 operands");
             auto l0 = args[1];
@@ -215,7 +215,7 @@ struct tf_parser
     template <class T>
     void add_generic_op(std::string name, T x)
     {
-        add_op(name, [this, x](attribute_map, std::vector<instruction_ref> args) {
+        add_op(name, [this, x](const attribute_map&, std::vector<instruction_ref> args) {
             return prog.add_instruction(x, args);
         });
     }
@@ -906,7 +906,7 @@ struct tf_parser
         std::transform(input_dims.begin(),
                        input_dims.end(),
                        std::back_inserter(dims),
-                       [](tensorflow::TensorShapeProto_Dim dim) { return dim.size(); });
+                       [](const tensorflow::TensorShapeProto_Dim& dim) { return dim.size(); });
         return dims;
     }
 

@@ -18,19 +18,21 @@ namespace op {
 
 struct leaky_relu
 {
-    std::string name() const { return "leaky_relu"; }
     float alpha;
+    
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.alpha, "alpha"));
+    }
+    
+    std::string name() const { return "leaky_relu"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
         return inputs.front();
     }
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.alpha, "alpha"));
-    }
 };
 
 } // namespace op

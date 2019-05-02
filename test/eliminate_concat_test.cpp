@@ -10,6 +10,13 @@ struct concat
 {
     concat(std::size_t axis) { op.axis = axis; }
     migraphx::op::concat op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
     std::string name() const { return "eliminate_concat::concat"; }
     migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
     {
@@ -51,6 +58,13 @@ struct eliminate_concat_target
 struct allocate
 {
     migraphx::shape s{};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::pack(f(self.s, "shape"));
+    }
+
     std::string name() const { return "allocate"; }
     migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
     {

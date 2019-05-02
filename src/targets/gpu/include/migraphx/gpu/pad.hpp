@@ -14,6 +14,12 @@ struct hip_pad
 {
     op::pad op;
 
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
     std::string name() const { return "gpu::pad"; }
     shape compute_shape(std::vector<shape> inputs) const;
     argument

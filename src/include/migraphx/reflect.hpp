@@ -11,6 +11,15 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace detail {
 
+struct reflect_placeholder
+{
+    template<class... Ts>
+    int operator()(Ts&&...) const
+    {
+        return 0;
+    }
+};
+
 template <class T, class Selector>
 auto reflect_impl(rank<1>, T& x, Selector f) -> decltype(T::reflect(x, f))
 {
@@ -23,7 +32,16 @@ auto reflect_impl(rank<0>, T&, Selector)
     return pack();
 }
 
+template <class T>
+auto reflectable_impl(rank<1>, T&& x) -> decltype(T::reflect(x, reflect_placeholder{}), std::true_type{});
+
+template <class T>
+auto reflectable_impl(rank<0>, T&&) -> decltype(std::false_type{});
+
 } // namespace detail
+
+template<class T>
+using is_reflectable = decltype(detail::reflectable_impl(rank<1>{}, std::declval<T>()));
 
 template <class T, class Selector>
 auto reflect(T& x, Selector f)

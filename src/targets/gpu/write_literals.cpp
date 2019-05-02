@@ -14,6 +14,13 @@ struct hip_load_literal
 {
     shape s;
     std::size_t n = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.s, "shape"), f(self.n, "id"));
+    }
+
     std::string name() const { return "hip::load_literal"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {

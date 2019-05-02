@@ -21,9 +21,9 @@ struct hash_value
     unsigned id        = 0;
     unsigned cur_point = 0;
     unsigned mask      = 0;
-    bool is_root() const { return (mask & (1 << root)) != 0; }
-    bool is_fused() const { return (mask & (1 << fused)) != 0; }
-    void set_root() { mask |= (1 << root); }
+    bool is_root() const { return (mask & (static_cast<unsigned>(1) << root)) != 0; }
+    bool is_fused() const { return (mask & (static_cast<unsigned>(1) << fused)) != 0; }
+    void set_root() { mask |= (static_cast<unsigned>(1) << root); }
 };
 
 using hash_value_ptr = hash_value*;
@@ -46,10 +46,10 @@ struct encode_info
     std::vector<hash_value_ptr> inputs;
 };
 
-using Ins2Val    = std::unordered_map<instruction_ref, hash_value_ptr>;
-using String2Val = std::unordered_map<std::string, unsigned>;
+using ins2_val    = std::unordered_map<instruction_ref, hash_value_ptr>;
+using string2_val = std::unordered_map<std::string, unsigned>;
 
-using Encoder = std::function<encode_info(instruction_ref, Ins2Val&, unsigned)>;
+using encoder = std::function<encode_info(instruction_ref, ins2_val&, unsigned)>;
 
 struct horizontal_fusion_impl
 {
@@ -122,7 +122,7 @@ struct horizontal_fusion_impl
         return opcode_table[str];
     }
 
-    void register_op(const std::string, Encoder, int);
+    void register_op(const std::string&, encoder, int);
     void register_all();
     bool collect_inputs(std::vector<std::vector<instruction_ref>>&,
                         int&,
@@ -168,7 +168,7 @@ struct horizontal_fusion_impl
     bool match_dim(instruction_ref, instruction_ref, int axis);
     bool is_conv(instruction_ref);
     bool is_concat(instruction_ref);
-    bool has_unique_output(const std::vector<instruction_ref>);
+    bool has_unique_output(const std::vector<instruction_ref>&);
     void remove_redundant_roots(std::vector<instruction_ref>&);
     void update_hash_tree(unsigned hash_id);
     int get_channel_axis() { return 1; }
@@ -185,15 +185,15 @@ struct horizontal_fusion_impl
     // Flag an instruction to hash.
     std::unordered_map<instruction_ref, bool> instr2_hash;
     // Map an instruction to a hash value pointer.
-    Ins2Val instr2_value;
+    ins2_val instr2_value;
     std::unordered_map<unsigned, instruction_ref> point2_instr;
     // Map an encoding to a hash value pointer.
     std::unordered_map<key_type, hash_value_ptr> encode2_value;
     // Map an operation name to its encoder function.
-    std::unordered_map<std::string, Encoder> op_registry;
+    std::unordered_map<std::string, encoder> op_registry;
     std::unordered_map<std::string, int> op_flag;
     // Map an opcode string to a value.
-    String2Val opcode_table;
+    string2_val opcode_table;
     // Universe of hash values.
     std::vector<hash_value> values;
     // Map of hash value id to hash-value inputs.
@@ -209,8 +209,8 @@ struct horizontal_fusion_impl
 };
 
 // Encoding functions.
-encode_info encodeCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned);
-encode_info encodeConvCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned);
+encode_info encode_common(instruction_ref ins, ins2_val& instr2_value, unsigned);
+encode_info encode_conv_common(instruction_ref ins, ins2_val& instr2_value, unsigned);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

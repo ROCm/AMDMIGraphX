@@ -11,7 +11,7 @@ static unsigned kernel_bits  = 8;
 
 // Register a single operation.
 // 1st arg: operation name. 2nd arg: encoding function.
-void horizontal_fusion_impl::register_op(const std::string name, Encoder func, int flag)
+void horizontal_fusion_impl::register_op(const std::string& name, encoder func, int flag)
 {
     op_registry[name] = std::move(func);
     op_flag[name]     = flag;
@@ -20,12 +20,12 @@ void horizontal_fusion_impl::register_op(const std::string name, Encoder func, i
 // Register operations.
 void horizontal_fusion_impl::register_all()
 {
-    register_op("gpu::convolution", encodeConvCommon, 1);
-    register_op("gpu::conv_bias_relu", encodeConvCommon, 1);
-    register_op("hip::add_relu", encodeCommon, 0);
-    register_op("convolution", encodeConvCommon, 1);
-    register_op("add", encodeCommon, 0);
-    register_op("relu", encodeCommon, 0);
+    register_op("gpu::convolution", encode_conv_common, 1);
+    register_op("gpu::conv_bias_relu", encode_conv_common, 1);
+    register_op("hip::add_relu", encode_common, 0);
+    register_op("convolution", encode_conv_common, 1);
+    register_op("add", encode_common, 0);
+    register_op("relu", encode_common, 0);
 }
 
 static unsigned opcode_shift_count() { return ((sizeof(key_type) * 8) - opcode_bits); }
@@ -40,7 +40,7 @@ static unsigned kernel_shift_count() { return (filter_shift_count() - kernel_bit
 //
 // |----- 16 bits -----|----- 16 bits -------|----- 32 bits -----|
 // |      opcode       | 1st operand hash id |
-encode_info encodeCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned opcode)
+encode_info encode_common(instruction_ref ins, ins2_val& instr2_value, unsigned opcode)
 {
     if(opcode >= (static_cast<unsigned>(1) << opcode_bits))
         return encode_info(0, false);
@@ -64,9 +64,9 @@ encode_info encodeCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned op
 // -----| |     opcode        | 1st operand hash id |   filter size    |  kernel size    |
 // 0x0000        |
 
-encode_info encodeConvCommon(instruction_ref ins, Ins2Val& instr2_value, unsigned opcode)
+encode_info encode_conv_common(instruction_ref ins, ins2_val& instr2_value, unsigned opcode)
 {
-    encode_info info = encodeCommon(ins, instr2_value, opcode);
+    encode_info info = encode_common(ins, instr2_value, opcode);
     if(!info.is_valid())
         return info;
     key_type encode     = info.get_key();
@@ -103,7 +103,7 @@ hash_value_ptr horizontal_fusion_impl::hash(instruction_ref ins)
     if(op_registry.find(ins->name()) == op_registry.end())
         return nullptr;
 
-    Encoder encode_func    = op_registry.at(ins->name());
+    encoder encode_func    = op_registry.at(ins->name());
     unsigned opcode        = hash_opcode(ins);
     encode_info encode_val = encode_func(ins, instr2_value, opcode);
     if(!encode_val.is_valid())
@@ -404,7 +404,7 @@ int horizontal_fusion_impl::find_axis(instruction_ref ins,
 void horizontal_fusion_impl::remove_redundant_roots(std::vector<instruction_ref>& base_instrs)
 {
     instruction_ref root_ins = base_instrs.at(0);
-    for(auto ndx = 1; ndx < base_instrs.size(); ndx++)
+    for(unsigned long ndx = 1; ndx < base_instrs.size(); ndx++)
     {
         instruction_ref base                 = base_instrs.at(ndx);
         std::vector<instruction_ref> outputs = base->outputs();
@@ -453,7 +453,7 @@ instruction_ref horizontal_fusion_impl::break_split(int enum_ndx, instruction_re
     return new_split;
 }
 
-bool horizontal_fusion_impl::has_unique_output(const std::vector<instruction_ref> instrs)
+bool horizontal_fusion_impl::has_unique_output(const std::vector<instruction_ref>& instrs)
 {
     std::unordered_map<instruction_ref, bool> seen;
     for(auto&& ins : instrs)
@@ -501,7 +501,7 @@ void horizontal_fusion_impl::transform_layers(
 {
     std::vector<instruction_ref> input0 = all_inputs.at(0);
     // concat inputs.
-    for(int ndx = 0; ndx < input0.size(); ndx++)
+    for(unsigned long ndx = 0; ndx < input0.size(); ndx++)
     {
         std::vector<instruction_ref> instrs;
         std::transform(all_inputs.begin(),
@@ -694,7 +694,7 @@ void horizontal_fusion_impl::transform()
             for(auto&& ins : base_instrs)
             {
                 lens.push_back(ins->get_shape().lens());
-                for(auto i = 0; i < ins->outputs().size(); i++)
+                for(unsigned long i = 0; i < ins->outputs().size(); i++)
                     clusters.push_back(enum_ndx);
                 enum_ndx++;
             }

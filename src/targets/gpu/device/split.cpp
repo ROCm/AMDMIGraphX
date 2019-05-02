@@ -1,8 +1,8 @@
+#include <hip/hip_runtime.h>
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/device/split.hpp>
 #include <migraphx/gpu/device/tensor.hpp>
-#include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/types.hpp>
 
 namespace migraphx {
@@ -11,14 +11,14 @@ namespace gpu {
 namespace device {
 
 __global__ void split_kernel(hipLaunchParm,
-                            char* input,
-                            const int* map,
-                            char* output,
-                            std::size_t n,
-                            int bytes,
-                            unsigned offset)
+                             char* input,
+                             const int* map,
+                             char* output,
+                             std::size_t n,
+                             int bytes,
+                             unsigned offset)
 {
-    unsigned global_id = blockIdx.x * blockDim.x + threadIdx.x;
+    unsigned global_id = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
     if(global_id < n)
     {
         int map_index     = map[global_id + offset];

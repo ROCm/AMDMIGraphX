@@ -369,7 +369,6 @@ struct tf_parser
         }
         auto weights = args[1];
         // check if weights are from a constant
-
         if(weights->name() != "@param")
         {
             if(is_nhwc)
@@ -381,8 +380,13 @@ struct tf_parser
                 weights = prog.add_instruction(op::transpose{{3, 2, 0, 1}}, args[1]);
             }
         }
+
         std::vector<int64_t> new_weights_shape;
         copy(weights->get_shape().lens(), std::back_inserter(new_weights_shape));
+
+        // weight format is (out_channels, in_channels, h, w), but in depthwise_conv,
+        // out_channels is equal to the multiplier. Adjust by inserting a reshape and
+        // setting in_channels to 1
         int64_t multiplier   = new_weights_shape[0];
         int64_t out_channels = num_channels * multiplier;
         new_weights_shape[0] = out_channels;

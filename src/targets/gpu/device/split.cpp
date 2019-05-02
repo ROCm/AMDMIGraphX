@@ -10,16 +10,16 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-__global__ void SplitKernel(hipLaunchParm,
+__global__ void split_kernel(hipLaunchParm,
                             char* input,
                             const int* map,
                             char* output,
-                            std::size_t N,
+                            std::size_t n,
                             int bytes,
                             unsigned offset)
 {
     unsigned global_id = blockIdx.x * blockDim.x + threadIdx.x;
-    if(global_id < N)
+    if(global_id < n)
     {
         int map_index     = map[global_id + offset];
         char* output_addr = output + bytes * global_id;
@@ -44,7 +44,7 @@ argument split(hipStream_t stream,
     std::size_t groups    = 1 + nelements / local;
     std::size_t nglobal   = std::min<std::size_t>(256, groups) * local;
 
-    hipLaunchKernel(SplitKernel,
+    hipLaunchKernel(split_kernel,
                     dim3(nglobal / local),
                     dim3(local),
                     0,

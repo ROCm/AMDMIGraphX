@@ -24,7 +24,7 @@ struct instruction
 
     instruction(literal l);
 
-    void replace(const operation& o);
+    void replace(operation o);
 
     void recompute_shape();
 

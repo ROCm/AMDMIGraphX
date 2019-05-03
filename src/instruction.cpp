@@ -28,7 +28,7 @@ void instruction::replace(const shape& r)
     }
 }
 
-void instruction::replace(const operation& o)
+void instruction::replace(operation o)
 {
     op = std::move(o);
     recompute_shape();

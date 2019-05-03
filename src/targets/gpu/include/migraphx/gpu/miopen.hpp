@@ -166,9 +166,9 @@ template <class F>
 auto reflect(miopenActivationDescriptor_t ad, F f)
 {
     miopenActivationMode_t mode = miopenActivationPASTHRU;
-    double alpha = 0.0;
-    double beta = 0.0;
-    double gamma = 0.0;
+    double alpha                = 0.0;
+    double beta                 = 0.0;
+    double gamma                = 0.0;
     miopenGetActivationDescriptor(ad, &mode, &alpha, &beta, &gamma);
     return pack(f(mode, "mode"), f(alpha, "alpha"), f(beta, "beta"), f(gamma, "gamma"));
 }
@@ -177,10 +177,10 @@ template <class F>
 auto reflect(miopenLRNDescriptor_t lrnd, F f)
 {
     miopenLRNMode_t mode = miopenLRNWithinChannel;
-    unsigned int n = 0;
-    double alpha = 0.0;
-    double beta = 0.0;
-    double k = 0.0;
+    unsigned int n       = 0;
+    double alpha         = 0.0;
+    double beta          = 0.0;
+    double k             = 0.0;
     miopenGetLRNDescriptor(lrnd, &mode, &n, &alpha, &beta, &k);
     return pack(f(mode, "mode"), f(n, "n"), f(alpha, "alpha"), f(beta, "beta"), f(k, "k"));
 }

@@ -117,7 +117,7 @@ struct cpu_lrn
             int channels        = output_shape.lens()[1];
             int height          = output_shape.lens()[2];
             int width           = output_shape.lens()[3];
-            float alphaoverarea = op.alpha / op.size;
+            float alphaoverarea = op.alpha / float(op.size);
             int radius          = (op.size - 1) / 2;
 
             par_dfor(n_batch, height, width)([&](int b, int h, int w) {
@@ -165,15 +165,15 @@ struct cpu_convolution
                      output_shape.lens()[2],
                      output_shape.lens()[3])(
                 [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
-                    const int start_x  = i * op.stride[0] - op.padding[0];
-                    const int start_y  = j * op.stride[1] - op.padding[1];
-                    const int group_id = w / (wei_n / op.group);
+                    const auto start_x  = i * op.stride[0] - op.padding[0];
+                    const auto start_y  = j * op.stride[1] - op.padding[1];
+                    const auto group_id = w / (wei_n / op.group);
 
                     double acc = 0;
                     dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t y) {
-                        const int in_x  = start_x + x;
-                        const int in_y  = start_y + y;
-                        const int in_ch = group_id * wei_c + k;
+                        const auto in_x  = start_x + x;
+                        const auto in_y  = start_y + y;
+                        const auto in_ch = group_id * wei_c + k;
                         if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
                         {
                             acc += input(o, in_ch, in_x, in_y) * weights(w, k, x, y);
@@ -255,10 +255,8 @@ struct cpu_im2col
             const std::size_t& stride_h = op.stride[0];
             const std::size_t& stride_w = op.stride[1];
 
-            int kdiv2_h;
-            int kdiv2_w;
-            kdiv2_h = kernel_h / 2;
-            kdiv2_w = kernel_w / 2;
+            auto kdiv2_h = kernel_h / 2;
+            auto kdiv2_w = kernel_w / 2;
             // calculate output sizes
             const std::size_t col_height = (height - kernel_h + 2 * pad_h) / stride_h + 1;
             const std::size_t col_width  = (width - kernel_w + 2 * pad_w) / stride_w + 1;
@@ -276,8 +274,8 @@ struct cpu_im2col
                     dfor(channels,
                          kernel_h,
                          kernel_w)([&](std::size_t c, std::size_t koffset, std::size_t loffset) {
-                        int idx     = iinput + koffset - kdiv2_h;
-                        int jdx     = jinput + loffset - kdiv2_w;
+                        auto idx    = iinput + koffset - kdiv2_h;
+                        auto jdx    = jinput + loffset - kdiv2_w;
                         col(ldx, p) = ((idx >= 0) && (idx < height) && (jdx >= 0) && (jdx < width))
                                           ? input(0, c, idx, jdx)
                                           : 0;
@@ -728,20 +726,20 @@ struct softmax2d
             auto nw          = input.get_shape().lens()[3];
             dfor(nb, nh, nw)([&](std::size_t b, std::size_t i, std::size_t j) {
                 value_type cmax = std::numeric_limits<value_type>::lowest();
-                for(int c = 0; c < nc; c++)
+                for(std::size_t c = 0; c < nc; c++)
                 {
                     cmax = std::max(cmax, input(b, c, i, j));
                 }
-                for(int c = 0; c < nc; c++)
+                for(std::size_t c = 0; c < nc; c++)
                 {
                     output(b, c, i, j) = std::exp(input(b, c, i, j) - cmax);
                 }
                 value_type sum = value_type(0);
-                for(int c = 0; c < nc; c++)
+                for(std::size_t c = 0; c < nc; c++)
                 {
                     sum += output(b, c, i, j);
                 }
-                for(int c = 0; c < nc; c++)
+                for(std::size_t c = 0; c < nc; c++)
                 {
                     output(b, c, i, j) = output(b, c, i, j) / sum;
                 }

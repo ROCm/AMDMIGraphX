@@ -8,6 +8,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/op/add.hpp>
 #include <migraphx/op/transpose.hpp>
+#include <migraphx/op/contiguous.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/op/tanh.hpp>
@@ -37,7 +38,8 @@ TEST_CASE(tanh_shape)
         auto x   = p.add_parameter("x", s);
         auto tx  = p.add_instruction(migraphx::op::transpose{{1, 0}}, x);
         auto txh = p.add_instruction(migraphx::op::tanh{}, tx);
-        p.add_instruction(migraphx::op::add{}, txh, txh);
+        auto sum = p.add_instruction(migraphx::op::add{}, txh, txh);
+        p.add_instruction(migraphx::op::contiguous{}, sum);
 
         return p;
     };
@@ -61,7 +63,7 @@ TEST_CASE(tanh_shape)
     }
     EXPECT(p1 != p2);
 
-    migraphx::run_passes(p1,
+    migraphx::run_passes(p2,
                          {migraphx::gpu::adjust_allocation{}, migraphx::dead_code_elimination{}});
     EXPECT(p1 == p2);
 }

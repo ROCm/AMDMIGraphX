@@ -350,9 +350,9 @@ struct cpu_op
     operation op;
     std::string name() const { return "cpu::" + op.name(); }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+    argument compute(context&, const shape& output_shape, const std::vector<argument>& args) const
     {
-        return op.compute(output_shape, std::move(args));
+        return op.compute(output_shape, args);
     }
     friend bool operator==(const cpu_op& x, const cpu_op& y) { return x.op == y.op; }
     friend bool operator==(const cpu_op& x, const operation& y)

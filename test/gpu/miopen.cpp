@@ -1315,7 +1315,7 @@ struct test_clip : verify_program<test_clip>
     {
         migraphx::program p;
         auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3}});
-        p.add_instruction(migraphx::op::clip(6.0, 0.0), x);
+        p.add_instruction(migraphx::op::clip{6.0, 0.0}, x);
         return p;
     }
 };

@@ -165,24 +165,26 @@ inline fused_operator_args make_fused_args()
 template <class F>
 auto reflect(miopenActivationDescriptor_t ad, F f)
 {
+    assert(ad != nullptr);
     miopenActivationMode_t mode = miopenActivationPASTHRU;
     double alpha                = 0.0;
     double beta                 = 0.0;
     double gamma                = 0.0;
     miopenGetActivationDescriptor(ad, &mode, &alpha, &beta, &gamma);
-    return pack(f(mode, "mode"), f(alpha, "alpha"), f(beta, "beta"), f(gamma, "gamma"));
+    return pack(f(std::move(mode), "mode"), f(std::move(alpha), "alpha"), f(std::move(beta), "beta"), f(std::move(gamma), "gamma"));
 }
 
 template <class F>
 auto reflect(miopenLRNDescriptor_t lrnd, F f)
 {
+    assert(lrnd != nullptr);
     miopenLRNMode_t mode = miopenLRNWithinChannel;
     unsigned int n       = 0;
     double alpha         = 0.0;
     double beta          = 0.0;
     double k             = 0.0;
     miopenGetLRNDescriptor(lrnd, &mode, &n, &alpha, &beta, &k);
-    return pack(f(mode, "mode"), f(n, "n"), f(alpha, "alpha"), f(beta, "beta"), f(k, "k"));
+    return pack(f(std::move(mode), "mode"), f(std::move(n), "n"), f(std::move(alpha), "alpha"), f(std::move(beta), "beta"), f(std::move(k), "k"));
 }
 
 } // namespace gpu

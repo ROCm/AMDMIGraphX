@@ -39,36 +39,33 @@ auto reflectable_impl(rank<1>, T&& x)
 template <class T>
 auto reflectable_impl(rank<0>, T &&) -> decltype(std::false_type{});
 
-template<class T>
+template <class T>
 struct remove_rvalue_reference
 {
     using type = T;
 };
 
-template<class T>
+template <class T>
 struct remove_rvalue_reference<T&&>
 {
     using type = T;
 };
 
-template<class T>
+template <class T>
 struct wrapper
 {
     using type = typename remove_rvalue_reference<T>::type;
     type data;
-    type get() const
-    {
-        return data;
-    }
+    type get() const { return data; }
 };
 
-template<class T>
+template <class T>
 wrapper<T> wrap(std::remove_reference_t<T>& x)
 {
     return wrapper<T>{std::forward<T>(x)};
 }
 
-template< class... Ts >
+template <class... Ts>
 std::tuple<typename remove_rvalue_reference<Ts>::type...> auto_tuple(Ts&&... xs)
 {
     return {std::forward<Ts>(xs)...};
@@ -95,10 +92,11 @@ auto reflect_tie(T& x)
 template <class T, class F>
 void reflect_each(T& x, F f)
 {
-    return reflect(x, [](auto&& y, auto... ys) { return pack(detail::wrap<decltype(y)>(y), ys...); })(
-        [&](auto&&... xs) {
-            each_args([&](auto p) { p([&](auto&& y, auto... ys) { f(y.get(), ys...); }); }, xs...);
-        });
+    return reflect(x, [](auto&& y, auto... ys) {
+        return pack(detail::wrap<decltype(y)>(y), ys...);
+    })([&](auto&&... xs) {
+        each_args([&](auto p) { p([&](auto&& y, auto... ys) { f(y.get(), ys...); }); }, xs...);
+    });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

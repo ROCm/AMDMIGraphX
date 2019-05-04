@@ -30,7 +30,7 @@ struct gather
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2);
+        check_shapes{inputs, *this}.has(2).standard();
         auto lens = inputs[0].lens();
         int n_dim = static_cast<int>(lens.size());
         if(axis >= n_dim || axis < -n_dim)

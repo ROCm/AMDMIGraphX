@@ -69,7 +69,7 @@ auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
 {
     os << x.name();
     char delim = '[';
-    reflect_each(x, [&](auto& y, auto name) {
+    reflect_each(x, [&](auto&& y, auto name) {
         os << delim;
         os << name << "=";
         stream_write_value(os, y);

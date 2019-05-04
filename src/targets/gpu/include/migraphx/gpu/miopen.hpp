@@ -171,9 +171,9 @@ auto reflect(miopenActivationDescriptor_t ad, F f)
     double beta                 = 0.0;
     double gamma                = 0.0;
     miopenGetActivationDescriptor(ad, &mode, &alpha, &beta, &gamma);
-    return pack(f(std::move(mode), "mode"), // NOLINT
-                f(std::move(alpha), "alpha"), // NOLINT
-                f(std::move(beta), "beta"), // NOLINT
+    return pack(f(std::move(mode), "mode"),    // NOLINT
+                f(std::move(alpha), "alpha"),  // NOLINT
+                f(std::move(beta), "beta"),    // NOLINT
                 f(std::move(gamma), "gamma")); // NOLINT
 }
 
@@ -187,11 +187,11 @@ auto reflect(miopenLRNDescriptor_t lrnd, F f)
     double beta          = 0.0;
     double k             = 0.0;
     miopenGetLRNDescriptor(lrnd, &mode, &n, &alpha, &beta, &k);
-    return pack(f(std::move(mode), "mode"), // NOLINT
-                f(std::move(n), "n"), // NOLINT
+    return pack(f(std::move(mode), "mode"),   // NOLINT
+                f(std::move(n), "n"),         // NOLINT
                 f(std::move(alpha), "alpha"), // NOLINT
-                f(std::move(beta), "beta"), // NOLINT
-                f(std::move(k), "k")); // NOLINT
+                f(std::move(beta), "beta"),   // NOLINT
+                f(std::move(k), "k"));        // NOLINT
 }
 
 } // namespace gpu

@@ -204,7 +204,7 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
     auto tran_sr = prog.insert_instruction(ins, op::transpose{perm}, sr);
 
     // initial hidden state
-    auto sih = prog.insert_instruction(ins, op::squeeze{{0}}, ih);
+    auto sih      = prog.insert_instruction(ins, op::squeeze{{0}}, ih);
     auto sih_lens = sih->get_shape().lens();
 
     // bias
@@ -515,7 +515,7 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
     auto tran_rh = prog.insert_instruction(ins, op::transpose{perm}, rh);
 
     // initial states
-    auto sih = prog.insert_instruction(ins, op::squeeze{{0}}, ih);
+    auto sih      = prog.insert_instruction(ins, op::squeeze{{0}}, ih);
     auto sih_lens = sih->get_shape().lens();
 
     // bias

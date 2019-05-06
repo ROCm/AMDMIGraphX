@@ -82,7 +82,7 @@ argument miopen_quant_gemm::compute(context& ctx,
         device::pack_a(ctx.get_stream().get(), args[1], arg_b);
     }
 
-    // need to pack A in this scenario, use the algorithm to pack B in the 
+    // need to pack A in this scenario, use the algorithm to pack B in the
     // comment of the API
     if(transa)
     {

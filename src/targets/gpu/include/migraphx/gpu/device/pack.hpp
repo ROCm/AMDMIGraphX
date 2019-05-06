@@ -10,11 +10,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void pack_a(hipStream_t stream,
-            const argument& result, const argument& arg);
+void pack_a(hipStream_t stream, const argument& result, const argument& arg);
 
-void pack_b(hipStream_t stream,
-            const argument& result, const argument& arg);
+void pack_b(hipStream_t stream, const argument& result, const argument& arg);
 } // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

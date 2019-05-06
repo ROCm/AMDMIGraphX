@@ -272,9 +272,9 @@ struct miopen_apply
             std::vector<instruction_ref> refs = ins->inputs();
             refs.push_back(output);
 
-            // Need another two buffers for packed data buffer 
+            // Need another two buffers for packed data buffer
             auto shape_a = refs.at(0)->get_shape();
-            if (shape_a.transposed())
+            if(shape_a.transposed())
             {
                 auto pack_a = insert_allocation(ins, shape_a);
                 refs.push_back(pack_a);
@@ -282,7 +282,7 @@ struct miopen_apply
             }
 
             auto shape_b = refs.at(1)->get_shape();
-            if (!shape_b.transposed())
+            if(!shape_b.transposed())
             {
                 auto pack_b = insert_allocation(ins, shape_b);
                 refs.push_back(pack_b);

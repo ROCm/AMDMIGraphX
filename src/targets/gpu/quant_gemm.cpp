@@ -91,7 +91,7 @@ argument miopen_quant_gemm::compute(context& ctx,
         assert(transb or (ldb % 4 == 0));
 
         // need to pack B in thi scenario
-        if (!transb)
+        if(!transb)
         {
             int nb = 4;
             for(int i_m = 0; i_m < m; i_m++)
@@ -104,16 +104,15 @@ argument miopen_quant_gemm::compute(context& ctx,
         }
 
         // need to pack A in this scenario
-        if (transa)
+        if(transa)
         {
-
         }
 
         auto num_matrices = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
         if(num_matrices == 1)
         {
-            // the rocblas_gemm API handles inputs and output matrices as 
+            // the rocblas_gemm API handles inputs and output matrices as
             // column-major format. When doing a C = A * B, we actually do
             // C^T = (B^T) * (A^T). That is the reason we input args[1] as
             // A and args[0] as B in calling the rocblas_gemm.

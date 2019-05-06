@@ -215,7 +215,7 @@ argument miopen_gemm::compute(context& ctx,
         auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
         if(num_matrices == 1)
         {
-            // the rocblas_gemm API handles inputs and output matrices as 
+            // the rocblas_gemm API handles inputs and output matrices as
             // column-major format. When doing a C = A * B, we actually do
             // C^T = (B^T) * (A^T). That is the reason we input args[1] as
             // A and args[0] as B in calling the rocblas_gemm.

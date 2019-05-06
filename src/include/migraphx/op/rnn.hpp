@@ -25,6 +25,15 @@ struct rnn
     rnn_direction direction = rnn_direction::forward;
     float clip              = 0.0f;
 
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.hidden_size, "hidden_size"),
+                    f(self.actv_funcs, "actv_func"),
+                    f(self.direction, "direction"),
+                    f(self.clip, "clip"));
+    }
+
     std::string name() const { return "rnn"; }
     shape compute_shape(std::vector<shape> inputs) const
     {

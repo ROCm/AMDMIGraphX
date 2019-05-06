@@ -141,8 +141,8 @@ struct onnx_parser
                 if(broadcasted != 0)
                 {
                     uint64_t axis = parse_value(attributes.at("axis")).at<uint64_t>();
-                    auto l =
-                        prog.add_instruction(op::broadcast{axis, args[0]->get_shape()}, args[1]);
+                    auto l = prog.add_instruction(op::broadcast{axis, args[0]->get_shape().lens()},
+                                                  args[1]);
                     return prog.add_instruction(x, args[0], l);
                 }
                 return prog.add_instruction(x, args);
@@ -207,7 +207,7 @@ struct onnx_parser
     template <class T>
     void add_generic_op(std::string name, T x)
     {
-        add_op(name, [this, x](attribute_map, std::vector<instruction_ref> args) {
+        add_op(name, [this, x](const attribute_map&, std::vector<instruction_ref> args) {
             return prog.add_instruction(x, args);
         });
     }
@@ -215,7 +215,7 @@ struct onnx_parser
     template <class T>
     void add_variadic_op(std::string name, T x)
     {
-        add_op(name, [this, x](attribute_map, std::vector<instruction_ref> args) {
+        add_op(name, [this, x](const attribute_map&, std::vector<instruction_ref> args) {
             return std::accumulate(std::next(args.begin()),
                                    args.end(),
                                    args.front(),
@@ -306,7 +306,7 @@ struct onnx_parser
         {
             uint64_t axis = 1;
             auto l1       = prog.add_instruction(op, args[0], args[1]);
-            auto l2       = prog.add_instruction(op::broadcast{axis, l1->get_shape()}, args[2]);
+            auto l2 = prog.add_instruction(op::broadcast{axis, l1->get_shape().lens()}, args[2]);
             return prog.add_instruction(op::add{}, l1, l2);
         }
         return prog.add_instruction(op, l0, args[1]);
@@ -670,15 +670,15 @@ struct onnx_parser
             auto&& bias_floats = attributes["bias"].floats();
             bias               = std::vector<float>(bias_floats.begin(), bias_floats.end());
         }
-        auto input_shape = args.front()->get_shape();
+        auto input_lens = args.front()->get_shape().lens();
 
         auto scale_val = prog.add_literal(scale);
         auto bias_vals = prog.add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::float_type, {bias.size()}}, bias});
 
-        auto scale_tensor = prog.add_instruction(migraphx::op::scalar{input_shape}, scale_val);
+        auto scale_tensor = prog.add_instruction(migraphx::op::scalar{input_lens}, scale_val);
         auto img_scaled   = prog.add_instruction(migraphx::op::mul{}, args.front(), scale_tensor);
-        auto bias_bcast = prog.add_instruction(migraphx::op::broadcast{1, input_shape}, bias_vals);
+        auto bias_bcast   = prog.add_instruction(migraphx::op::broadcast{1, input_lens}, bias_vals);
         return prog.add_instruction(migraphx::op::add{}, img_scaled, bias_bcast);
     }
 
@@ -1360,28 +1360,26 @@ struct onnx_parser
     static literal parse_tensor(const onnx::TensorProto& t)
     {
         std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
-        // in case of scalar constants in onnx file, use dims=1 to fill initializer data
-        if(dims.empty())
-        {
-            dims = {1};
-        }
         if(t.has_raw_data())
         {
             const std::string& s = t.raw_data();
             switch(t.data_type())
             {
             case onnx::TensorProto::UNDEFINED: throw std::runtime_error("");
-            case onnx::TensorProto::FLOAT: return literal{{shape::float_type, dims}, s.data()};
+            case onnx::TensorProto::FLOAT: return create_literal(shape::float_type, dims, s.data());
             case onnx::TensorProto::UINT8: throw std::runtime_error("");
-            case onnx::TensorProto::INT8: return literal{{shape::int32_type, dims}, s.data()};
-            case onnx::TensorProto::UINT16: return literal{{shape::int32_type, dims}, s.data()};
-            case onnx::TensorProto::INT16: return literal{{shape::int32_type, dims}, s.data()};
-            case onnx::TensorProto::INT32: return literal{{shape::int32_type, dims}, s.data()};
-            case onnx::TensorProto::INT64: return literal{{shape::int64_type, dims}, s.data()};
+            case onnx::TensorProto::INT8: return create_literal(shape::int32_type, dims, s.data());
+            case onnx::TensorProto::UINT16:
+                return create_literal(shape::int32_type, dims, s.data());
+            case onnx::TensorProto::INT16: return create_literal(shape::int32_type, dims, s.data());
+            case onnx::TensorProto::INT32: return create_literal(shape::int32_type, dims, s.data());
+            case onnx::TensorProto::INT64: return create_literal(shape::int64_type, dims, s.data());
             case onnx::TensorProto::STRING: throw std::runtime_error("");
-            case onnx::TensorProto::BOOL: return literal{{shape::int32_type, dims}, s.data()};
-            case onnx::TensorProto::FLOAT16: return literal{{shape::half_type, dims}, s.data()};
-            case onnx::TensorProto::DOUBLE: return literal{{shape::double_type, dims}, s.data()};
+            case onnx::TensorProto::BOOL: return create_literal(shape::int32_type, dims, s.data());
+            case onnx::TensorProto::FLOAT16:
+                return create_literal(shape::half_type, dims, s.data());
+            case onnx::TensorProto::DOUBLE:
+                return create_literal(shape::double_type, dims, s.data());
             case onnx::TensorProto::UINT32: throw std::runtime_error("");
             case onnx::TensorProto::UINT64: throw std::runtime_error("");
             case onnx::TensorProto::COMPLEX64: throw std::runtime_error("");
@@ -1393,21 +1391,21 @@ struct onnx_parser
         {
         case onnx::TensorProto::UNDEFINED: throw std::runtime_error("");
         case onnx::TensorProto::FLOAT:
-            return literal{{shape::float_type, dims}, t.float_data().begin(), t.float_data().end()};
+            return create_literal(shape::float_type, dims, t.float_data());
         case onnx::TensorProto::UINT8: throw std::runtime_error("");
         case onnx::TensorProto::INT8:
-            return literal{{shape::int32_type, dims}, t.int32_data().begin(), t.int32_data().end()};
+            return create_literal(shape::int32_type, dims, t.int32_data());
         case onnx::TensorProto::UINT16:
-            return literal{{shape::int32_type, dims}, t.int32_data().begin(), t.int32_data().end()};
+            return create_literal(shape::int32_type, dims, t.int32_data());
         case onnx::TensorProto::INT16:
-            return literal{{shape::int32_type, dims}, t.int32_data().begin(), t.int32_data().end()};
+            return create_literal(shape::int32_type, dims, t.int32_data());
         case onnx::TensorProto::INT32:
-            return literal{{shape::int32_type, dims}, t.int32_data().begin(), t.int32_data().end()};
+            return create_literal(shape::int32_type, dims, t.int32_data());
         case onnx::TensorProto::INT64:
-            return literal{{shape::int64_type, dims}, t.int64_data().begin(), t.int64_data().end()};
+            return create_literal(shape::int64_type, dims, t.int64_data());
         case onnx::TensorProto::STRING: throw std::runtime_error("");
         case onnx::TensorProto::BOOL:
-            return literal{{shape::int32_type, dims}, t.int32_data().begin(), t.int32_data().end()};
+            return create_literal(shape::int32_type, dims, t.int32_data());
         case onnx::TensorProto::FLOAT16:
         {
             std::vector<uint16_t> data_uint16(t.int32_data().begin(), t.int32_data().end());
@@ -1416,17 +1414,33 @@ struct onnx_parser
                            data_uint16.end(),
                            std::back_inserter(data_half),
                            [](uint16_t raw_val) { return *reinterpret_cast<half*>(&raw_val); });
-            return literal{{shape::half_type, dims}, data_half.begin(), data_half.end()};
+            return create_literal(shape::half_type, dims, data_half);
         }
         case onnx::TensorProto::DOUBLE:
-            return literal{
-                {shape::double_type, dims}, t.double_data().begin(), t.double_data().end()};
+            return create_literal(shape::double_type, dims, t.double_data());
         case onnx::TensorProto::UINT32: throw std::runtime_error("");
         case onnx::TensorProto::UINT64: throw std::runtime_error("");
         case onnx::TensorProto::COMPLEX64: throw std::runtime_error("");
         case onnx::TensorProto::COMPLEX128: throw std::runtime_error("");
         }
         MIGRAPHX_THROW("Invalid tensor type");
+    }
+
+    static literal
+    create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const char* data)
+    {
+        // in case of scalar constants in onnx file, use dims=1 to fill initializer data
+        if(dims.empty())
+            return literal{{shape_type}, data};
+        return literal{{shape_type, dims}, data};
+    }
+
+    template <class T, MIGRAPHX_REQUIRES(not std::is_pointer<T>{})>
+    static literal create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, T data)
+    {
+        if(dims.empty())
+            return literal{{shape_type}, data.begin(), data.end()};
+        return literal{{shape_type, dims}, data.begin(), data.end()};
     }
 
     static shape parse_type(const onnx::TypeProto& t)

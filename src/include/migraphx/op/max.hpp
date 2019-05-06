@@ -17,9 +17,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct max : binary
+struct max : binary<max>
 {
-    std::string name() const { return "max"; }
+    auto apply() const
+    {
+        return [](auto x, auto y) { return std::max(x, y); };
+    }
 };
 
 } // namespace op

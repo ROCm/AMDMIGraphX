@@ -42,7 +42,7 @@ struct multibroadcast
 
         std::vector<size_t> bcast_strides(output_lens.size(), 0);
         auto offset = output_lens.size() - input.lens().size();
-        for(int i = input.lens().size() - 1; i >= 0; i--)
+        for(std::ptrdiff_t i = input.lens().size() - 1; i >= 0; i--)
         {
             if(output_lens[i + offset] == input.lens()[i])
             {
@@ -55,7 +55,7 @@ struct multibroadcast
     {
         return {std::move(output_shape), std::move(args.at(0).data)};
     }
-    int output_alias(const std::vector<shape>&) const { return 0; }
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 } // namespace op

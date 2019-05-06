@@ -63,7 +63,7 @@ void fwd_conv_batchnorm_rewrite::apply(program& p) const
         auto l_weights = p.add_literal({weights.get_shape(), new_weights.data()});
         auto l_bias    = p.add_literal({new_bias.get_shape(), new_bias.data()});
         auto c = p.replace_instruction(conv_ins, conv_op, {conv_ins->inputs()[0], l_weights});
-        auto b = p.insert_instruction(ins, op::broadcast{1, c->get_shape()}, l_bias);
+        auto b = p.insert_instruction(ins, op::broadcast{1, c->get_shape().lens()}, l_bias);
         p.replace_instruction(ins, op::add{}, {c, b});
     }
 }

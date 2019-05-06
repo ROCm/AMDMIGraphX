@@ -24,7 +24,7 @@ struct quant_dot
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.alpha, "alpha"), f(self.beta, "beta"));
+        return pack(f(as_number(self.alpha), "alpha"), f(as_number(self.beta), "beta"));
     }
 
     std::string name() const { return "quant_dot"; }
@@ -60,11 +60,8 @@ struct quant_dot
                            to_string_range(a.lens()) + "} x {" + to_string_range(b.lens()) + "}");
         }
 
-        // all dims need to be multiple of 4
-        auto m = a.lens()[dim_0];
-        auto n = b.lens()[dim_1];
-        auto k = a.lens()[dim_1];
-        if((m % 4) != 0 or (n % 4) != 0 or (k % 4) != 0)
+        // k be multiple of 4
+        if((a.lens()[dim_1] % 4) != 0)
         {
             MIGRAPHX_THROW("QUANT_DOT: size of A {" + to_string_range(a.lens()) + "} and B {" +
                            to_string_range(b.lens()) + "} must be multiple of 4 for int8 type");

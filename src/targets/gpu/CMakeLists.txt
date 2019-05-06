@@ -69,6 +69,7 @@ add_library(migraphx_gpu
     lrn.cpp
     schedule_model.cpp
     adjust_allocation.cpp
+    pack_int8_args.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_clang_tidy_check(migraphx_gpu)

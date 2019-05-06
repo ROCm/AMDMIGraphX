@@ -18,7 +18,7 @@ T as_number(T x)
     return x;
 }
 inline int32_t as_number(int8_t x) { return static_cast<int32_t>(x); }
-inline uint32_t as_number(uint8_t x) { return static_cast<uint8_t>(x); }
+inline uint32_t as_number(uint8_t x) { return static_cast<uint32_t>(x); }
 
 template <class T>
 struct tensor_view

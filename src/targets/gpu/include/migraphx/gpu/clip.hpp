@@ -19,7 +19,7 @@ struct hip_clip
     {
         return migraphx::reflect(self.op, f);
     }
-    
+
     std::string name() const { return "gpu::clip"; }
     shape compute_shape(std::vector<shape> inputs) const;
     argument

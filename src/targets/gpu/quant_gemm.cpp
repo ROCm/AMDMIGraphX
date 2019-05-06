@@ -1,4 +1,5 @@
 #include <migraphx/gpu/quant_gemm.hpp>
+#include <migraphx/gpu/device/pack.hpp>
 #include <migraphx/gpu/context.hpp>
 
 namespace migraphx {
@@ -61,7 +62,36 @@ argument miopen_quant_gemm::compute(context& ctx,
                                     const shape& output_shape,
                                     const std::vector<argument>& args) const
 {
-    bool is_3inputs = (args.size() == 4);
+    // handling the packing of B MUST be before handling that for A
+    bool transa     = args[0].get_shape().transposed();
+    bool transb     = args[1].get_shape().transposed();
+    auto n_dim      = output_shape.lens().size();
+    auto dim_1      = n_dim - 1;
+    auto dim_0      = n_dim - 2;
+    rocblas_int lda = args[0].get_shape().strides()[transa ? dim_1 : dim_0];
+    rocblas_int ldb = args[1].get_shape().strides()[transb ? dim_1 : dim_0];
+    rocblas_int ldc = args[2].get_shape().strides()[dim_0];
+
+    size_t addi_ref_num = 0;
+    if(!transb)
+    {
+        ++addi_ref_num;
+        const argument& arg_b = args[args.size() - 1];
+        // argument for B is the last one in the input argument vector
+        // use the algorithm to pack A
+        device::pack_a(ctx.get_stream().get(), args[1], arg_b);
+    }
+
+    // need to pack A in this scenario, use the algorithm to pack B in the 
+    // comment of the API
+    if(transa)
+    {
+        ++addi_ref_num;
+        const argument& arg_a = args[args.size() - 1 - addi_ref_num];
+        device::pack_b(ctx.get_stream().get(), args[0], arg_a);
+    }
+
+    bool is_3inputs = (args.size() - addi_ref_num == 4);
     int8_t beta     = 0;
     if(is_3inputs)
     {
@@ -71,42 +101,14 @@ argument miopen_quant_gemm::compute(context& ctx,
     auto a_lens = args[0].get_shape().lens();
     auto b_lens = args[1].get_shape().lens();
     output_shape.visit_type([&](auto as) {
-        auto n_dim      = output_shape.lens().size();
-        auto dim_1      = n_dim - 1;
-        auto dim_0      = n_dim - 2;
         auto alpha_r    = to_rocblas_type(as(op.alpha));
         auto beta_r     = to_rocblas_type(as(beta));
-        bool transa     = args[0].get_shape().transposed();
-        bool transb     = args[1].get_shape().transposed();
-        rocblas_int lda = args[0].get_shape().strides()[transa ? dim_1 : dim_0];
-        rocblas_int ldb = args[1].get_shape().strides()[transb ? dim_1 : dim_0];
-        rocblas_int ldc = args[2].get_shape().strides()[dim_0];
         auto out_lens   = output_shape.lens();
         rocblas_int m   = out_lens[dim_0];
         rocblas_int n   = out_lens[dim_1];
         rocblas_int k   = args[0].get_shape().lens()[dim_1];
         auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
         assert(k % 4 == 0);
-        assert(!transa or (lda % 4 == 0));
-        assert(transb or (ldb % 4 == 0));
-
-        // need to pack B in thi scenario
-        if(!transb)
-        {
-            int nb = 4;
-            for(int i_m = 0; i_m < m; i_m++)
-            {
-                for(int i_k = 0; i_k < k; i_k++)
-                {
-                    A_packed[i_k % nb + (i_m + (i_k / nb) * lda) * nb] = A[i_m + i_k * lda];
-                }
-            }
-        }
-
-        // need to pack A in this scenario
-        if(transa)
-        {
-        }
 
         auto num_matrices = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());

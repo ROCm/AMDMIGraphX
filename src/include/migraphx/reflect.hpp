@@ -65,10 +65,13 @@ wrapper<T> wrap(std::remove_reference_t<T>& x)
     return wrapper<T>{std::forward<T>(x)};
 }
 
+template<class... Ts>
+using auto_tuple_t = std::tuple<typename remove_rvalue_reference<Ts>::type...>;
+
 template <class... Ts>
-std::tuple<typename remove_rvalue_reference<Ts>::type...> auto_tuple(Ts&&... xs)
+auto_tuple_t<Ts...> auto_tuple(Ts&&... xs)
 {
-    return {std::forward<Ts>(xs)...};
+    return auto_tuple_t<Ts...>{std::forward<Ts>(xs)...};
 }
 
 } // namespace detail

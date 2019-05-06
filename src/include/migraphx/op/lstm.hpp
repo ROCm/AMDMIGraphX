@@ -25,6 +25,15 @@ struct lstm
     float clip              = 0.0f;
     int input_forget        = 0;
 
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.hidden_size, "hidden_size"),
+                    f(self.actv_funcs, "actv_func"),
+                    f(self.direction, "direction"),
+                    f(self.input_forget, "input_forget"));
+    }
+
     std::string name() const { return "lstm"; }
     shape compute_shape(std::vector<shape> inputs) const
     {

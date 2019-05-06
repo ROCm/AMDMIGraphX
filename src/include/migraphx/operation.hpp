@@ -49,7 +49,7 @@ struct operation
     argument compute(context& ctx, const shape& output, const std::vector<argument>& input) const;
     /// An optional method to return which argument the output will alias. If
     /// there is no aliased output then -1 can be returned.
-    int output_alias(const std::vector<shape>& input) const;
+    std::ptrdiff_t output_alias(const std::vector<shape>& input) const;
     /// An optional stream operator to print the operation. When this is not
     /// implemented, it will just print the operation's name.
     friend std::ostream& operator<<(std::ostream& os, const operation& op);
@@ -175,7 +175,7 @@ auto is_context_free_op(const T& x) -> decltype(is_context_free_op(
 }
 
 template <class T>
-int output_alias_op(rank<0>, const T&, const std::vector<shape>&)
+std::ptrdiff_t output_alias_op(rank<0>, const T&, const std::vector<shape>&)
 {
     return -1;
 }
@@ -188,7 +188,7 @@ auto output_alias_op(rank<1>, const T& x, const std::vector<shape>& shapes)
 }
 
 template <class T>
-int output_alias_op(const T& x, const std::vector<shape>& shapes)
+std::ptrdiff_t output_alias_op(const T& x, const std::vector<shape>& shapes)
 {
     return output_alias_op(rank<1>{}, x, shapes);
 }
@@ -239,7 +239,7 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
  *      std::string name() const;
  *      bool is_context_free() const;
  *      bool has_finalize() const;
- *      int output_alias(const std::vector<shape>& input) const;
+ *      std::ptrdiff_t output_alias(const std::vector<shape>& input) const;
  *      void finalize(context& ctx,const shape& output,const std::vector<shape>& input) ;
  *      shape compute_shape(const std::vector<shape>& input) const;
  *      argument compute(context& ctx,const shape& output,const std::vector<argument>& input) const;
@@ -325,7 +325,7 @@ struct operation
         return (*this).private_detail_te_get_handle().has_finalize();
     }
 
-    int output_alias(const std::vector<shape>& input) const
+    std::ptrdiff_t output_alias(const std::vector<shape>& input) const
     {
         assert((*this).private_detail_te_handle_mem_var);
         return (*this).private_detail_te_get_handle().output_alias(input);
@@ -380,10 +380,10 @@ struct operation
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const                                = 0;
-        virtual bool is_context_free() const                            = 0;
-        virtual bool has_finalize() const                               = 0;
-        virtual int output_alias(const std::vector<shape>& input) const = 0;
+        virtual std::string name() const                                           = 0;
+        virtual bool is_context_free() const                                       = 0;
+        virtual bool has_finalize() const                                          = 0;
+        virtual std::ptrdiff_t output_alias(const std::vector<shape>& input) const = 0;
         virtual void
         finalize(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
         virtual shape compute_shape(const std::vector<shape>& input) const           = 0;
@@ -432,7 +432,7 @@ struct operation
 
         bool has_finalize() const override { return has_finalize_op(private_detail_te_value); }
 
-        int output_alias(const std::vector<shape>& input) const override
+        std::ptrdiff_t output_alias(const std::vector<shape>& input) const override
         {
 
             return output_alias_op(private_detail_te_value, input);

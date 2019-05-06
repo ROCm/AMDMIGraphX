@@ -17,7 +17,10 @@ struct miopen_elu
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
 };
 
 } // namespace gpu

@@ -49,7 +49,7 @@ struct operation
     argument compute(context& ctx, const shape& output, const std::vector<argument>& input) const;
     /// An optional method to return which argument the output will alias. If
     /// there is no aliased output then -1 can be returned.
-    int output_alias(const std::vector<shape>& input) const;
+    std::ptrdiff_t output_alias(const std::vector<shape>& input) const;
     /// An optional stream operator to print the operation. When this is not
     /// implemented, it will just print the operation's name.
     friend std::ostream& operator<<(std::ostream& os, const operation& op);

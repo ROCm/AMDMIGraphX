@@ -17,13 +17,10 @@ struct miopen_gemm
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
-
-    private:
-    void fill_result(const shape& output_shape, const argument& result, const argument& c) const;
-
-    argument
-    batch_matmul(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
 };
 
 } // namespace gpu

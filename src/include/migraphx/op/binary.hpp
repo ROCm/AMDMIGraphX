@@ -13,10 +13,16 @@ struct binary : op_name<Derived>
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs}.has(2).same_type().same_dims();
-        const auto& s = inputs.front();
-        if(s.scalar() and s.elements() == 1)
-            return {s.type()};
-        return {s.type(), s.lens()};
+        auto s0 = inputs.at(0);
+        auto s1 = inputs.at(1);
+        if(s0 == s1 and s0.packed())
+        {
+            return s0;
+        }
+        else
+        {
+            return {s0.type(), s0.lens()};
+        }
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const

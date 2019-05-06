@@ -18,7 +18,7 @@ struct pack_int8_args
     void apply(program& p) const;
 };
 
-}
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

@@ -59,5 +59,5 @@
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/unary.hpp>
 #include <migraphx/op/unsqueeze.hpp>
-
+#include <migraphx/op/split.hpp>
 #endif

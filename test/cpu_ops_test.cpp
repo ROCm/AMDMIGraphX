@@ -1557,6 +1557,7 @@ TEST_CASE(fp16_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+<<<<<<< HEAD
 TEST_CASE(clip_test)
 {
     migraphx::program p;
@@ -1572,6 +1573,120 @@ TEST_CASE(clip_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0.0, 0.0, 6.0};
     EXPECT(migraphx::verify_range(results_vector, gold));
+=======
+TEST_CASE(SPLIT_TEST)
+{
+    {
+        migraphx::program p;
+        std::vector<int> data = {0,  9, 18, 1,  10, 19, 2,  11, 20, 3,  12, 21, 4, 13,
+                                 22, 5, 14, 23, 6,  15, 24, 7,  16, 25, 8,  17, 26};
+        migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
+        auto l0 = p.add_literal(migraphx::literal{s, data});
+        p.add_instruction(migraphx::op::split{1, {1, 1, 1}}, l0);
+        p.compile(migraphx::cpu::target{});
+        auto result           = p.eval({});
+        std::vector<int> gold = {0,  9, 18, 3,  12, 21, 6,  15, 24, 1,  10, 19, 4, 13,
+                                 22, 7, 16, 25, 2,  11, 20, 5,  14, 23, 8,  17, 26};
+        std::vector<int> results_vector(3 * 3 * 3);
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    {
+        migraphx::program p;
+        std::vector<int> data = {0,  9, 18, 1,  10, 19, 2,  11, 20, 3,  12, 21, 4, 13,
+                                 22, 5, 14, 23, 6,  15, 24, 7,  16, 25, 8,  17, 26};
+        migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
+        auto l0 = p.add_literal(migraphx::literal{s, data});
+        p.add_instruction(migraphx::op::split{1, {2, 1}}, l0);
+        p.compile(migraphx::cpu::target{});
+        auto result           = p.eval({});
+        std::vector<int> gold = {0,  9, 18, 1,  10, 19, 3,  12, 21, 4,  13, 22, 6, 15,
+                                 24, 7, 16, 25, 2,  11, 20, 5,  14, 23, 8,  17, 26};
+        std::vector<int> results_vector(3 * 3 * 3);
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    {
+        migraphx::program p;
+        std::vector<int> data = {0,  9, 18, 1,  10, 19, 2,  11, 20, 3,  12, 21, 4, 13,
+                                 22, 5, 14, 23, 6,  15, 24, 7,  16, 25, 8,  17, 26};
+        migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
+        auto l0 = p.add_literal(migraphx::literal{s, data});
+        p.add_instruction(migraphx::op::split{1, {2, 1}, {0, 0}}, l0);
+        p.compile(migraphx::cpu::target{});
+        auto result           = p.eval({});
+        std::vector<int> gold = {0, 9, 18, 1, 10, 19, 3, 12, 21, 4, 13, 22, 6, 15, 24, 7, 16, 25};
+        std::vector<int> results_vector(3 * 2 * 3);
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    {
+        migraphx::program p;
+        std::vector<int> data = {0,  9, 18, 1,  10, 19, 2,  11, 20, 3,  12, 21, 4, 13,
+                                 22, 5, 14, 23, 6,  15, 24, 7,  16, 25, 8,  17, 26};
+        migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
+        auto l0 = p.add_literal(migraphx::literal{s, data});
+        p.add_instruction(migraphx::op::split{1, {3}}, l0);
+        p.compile(migraphx::cpu::target{});
+        auto result           = p.eval({});
+        std::vector<int> gold = {0,  9, 18, 1,  10, 19, 2,  11, 20, 3,  12, 21, 4, 13,
+                                 22, 5, 14, 23, 6,  15, 24, 7,  16, 25, 8,  17, 26};
+        std::vector<int> results_vector(3 * 3 * 3);
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    {
+        migraphx::program p;
+        std::vector<int> data = {0,  9, 18, 1,  10, 19, 2,  11, 20, 3,  12, 21, 4, 13,
+                                 22, 5, 14, 23, 6,  15, 24, 7,  16, 25, 8,  17, 26};
+        migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
+        auto l0 = p.add_literal(migraphx::literal{s, data});
+        p.add_instruction(migraphx::op::split{2, {2, 1}}, l0);
+        p.compile(migraphx::cpu::target{});
+        auto result           = p.eval({});
+        std::vector<int> gold = {0, 9,  1, 10, 2,  11, 3,  12, 4,  13, 5,  14, 6, 15,
+                                 7, 16, 8, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26};
+        std::vector<int> results_vector(3 * 3 * 3);
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    {
+        migraphx::program p;
+        std::vector<int> data = {0,  9, 18, 1,  10, 19, 2,  11, 20, 3,  12, 21, 4, 13,
+                                 22, 5, 14, 23, 6,  15, 24, 7,  16, 25, 8,  17, 26};
+        migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
+        auto l0 = p.add_literal(migraphx::literal{s, data});
+        p.add_instruction(migraphx::op::split{0, {2, 1}}, l0);
+        p.compile(migraphx::cpu::target{});
+        auto result           = p.eval({});
+        std::vector<int> gold = {0,  9, 18, 1,  10, 19, 2,  11, 20, 3,  12, 21, 4, 13,
+                                 22, 5, 14, 23, 6,  15, 24, 7,  16, 25, 8,  17, 26};
+        std::vector<int> results_vector(3 * 3 * 3);
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    {
+        migraphx::program p;
+        std::vector<int> data = {0,  9, 18, 1,  10, 19, 2,  11, 20, 3,  12, 21, 4, 13,
+                                 22, 5, 14, 23, 6,  15, 24, 7,  16, 25, 8,  17, 26};
+        migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
+        auto l0 = p.add_literal(migraphx::literal{s, data});
+        p.add_instruction(migraphx::op::split{0, {2, 1}, {1, 1}}, l0);
+        p.compile(migraphx::cpu::target{});
+        auto result           = p.eval({});
+        std::vector<int> gold = {6, 15, 24, 7, 16, 25, 8, 17, 26};
+        std::vector<int> results_vector(1 * 3 * 3);
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+>>>>>>> 710ff7937b39f8398bb863f3e79aec5da4d95195
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

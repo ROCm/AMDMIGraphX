@@ -29,6 +29,10 @@ static void print_instruction(std::ostream& os,
                               instruction_ref ins,
                               const std::unordered_map<instruction_ref, std::string>& names)
 {
+    if(ins->id > 0)
+        os << "(" << ins->id << ")"
+           << " ";
+
     os << names.at(ins) << " = ";
 
     os << ins->get_operator();

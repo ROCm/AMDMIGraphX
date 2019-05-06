@@ -140,6 +140,21 @@ struct cpu_lrn
     }
 };
 
+struct clip_op
+{
+    op::clip op;
+    std::string name() const { return "cpu::clip"; }
+    auto fcn() const
+    {
+        auto max = op.max_val;
+        auto min = op.min_val;
+        return [max, min](auto x) {
+            using type = decltype(x);
+            return std::min(std::max(type(min), x), type(max));
+        };
+    }
+};
+
 struct cpu_convolution
 {
     op::convolution op;
@@ -591,13 +606,35 @@ struct cpu_unary
 {
     Op op;
     std::string name() const { return op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const { return inputs.front(); }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs}.has(1);
+        auto s = inputs.at(0);
+        if(s.packed())
+        {
+            return s;
+        }
+        else
+        {
+            return {s.type(), s.lens()};
+        }
+    }
+
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         result.visit([&](auto output) {
             args[0].visit([&](auto input) {
-                std::transform(input.begin(), input.end(), output.begin(), op.fcn());
+                if(input.get_shape().standard())
+                {
+                    std::transform(input.begin(), input.end(), output.begin(), op.fcn());
+                }
+                else
+                {
+                    shape_for_each(output.get_shape(), [&](const auto& idx) {
+                        output(idx.begin(), idx.end()) = op.fcn()(input(idx.begin(), idx.end()));
+                    });
+                }
             });
         });
 
@@ -771,12 +808,28 @@ struct cpu_binary
 {
     Op op;
     std::string name() const { return "cpu::" + op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const { return inputs.front(); }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs}.has(2).same_type().same_dims();
+        auto s0 = inputs.at(0);
+        auto s1 = inputs.at(1);
+        if(s0 == s1 and s0.packed())
+        {
+            return s0;
+        }
+        else
+        {
+            return {s0.type(), s0.lens()};
+        }
+    }
+
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {
-            if(input1.get_shape().packed() and input2.get_shape().packed())
+            auto s1 = input1.get_shape();
+            auto s2 = input2.get_shape();
+            if(s1 == s2 and s1.standard())
             {
                 std::transform(
                     input1.begin(), input1.end(), input2.begin(), output.begin(), op.fcn());
@@ -789,6 +842,7 @@ struct cpu_binary
                 });
             }
         });
+
         return result;
     }
 };
@@ -818,6 +872,7 @@ struct cpu_apply
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["lrn"]        = extend_op<cpu_lrn, op::lrn>();
+        apply_map["clip"]       = extend_op<cpu_unary<clip_op>, op::clip>();
         apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
         apply_map["pad"]        = extend_op<cpu_pad, op::pad>();
         apply_map["concat"]     = extend_op<cpu_concat, op::concat>();

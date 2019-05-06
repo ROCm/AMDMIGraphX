@@ -54,11 +54,11 @@ rb_type<T>* to_rocblas_type(T* x)
 shape miopen_quant_gemm::compute_shape(const std::vector<shape>& inputs) const
 {
     std::vector<shape> input_shapes(inputs);
-    if (!inputs.at(1).transposed())
+    if(!inputs.at(1).transposed())
     {
         input_shapes.pop_back();
     }
-    if (inputs.at(0).transposed())
+    if(inputs.at(0).transposed())
     {
         input_shapes.pop_back();
     }

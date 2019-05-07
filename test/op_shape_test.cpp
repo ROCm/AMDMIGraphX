@@ -608,17 +608,13 @@ TEST_CASE(quant_dot_2args)
     {
         migraphx::shape s_m1{migraphx::shape::int8_type, {2, 3}};
         migraphx::shape s_m2{migraphx::shape::int8_type, {3, 8}};
-        throws_shape(migraphx::op::quant_dot{},
-                     s_m1,
-                     s_m2);
+        throws_shape(migraphx::op::quant_dot{}, s_m1, s_m2);
     }
 
     {
         migraphx::shape s_m1{migraphx::shape::int8_type, {2, 4}};
         migraphx::shape s_m2{migraphx::shape::int8_type, {8, 8}};
-        throws_shape(migraphx::op::quant_dot{},
-                     s_m1,
-                     s_m2);
+        throws_shape(migraphx::op::quant_dot{}, s_m1, s_m2);
     }
 }
 
@@ -639,10 +635,7 @@ TEST_CASE(quant_dot_3args)
         migraphx::shape s_m1{migraphx::shape::int8_type, {2, 4}};
         migraphx::shape s_m2{migraphx::shape::int8_type, {4, 8}};
         migraphx::shape s_m3{migraphx::shape::int8_type, {2, 8}};
-        throws_shape(migraphx::op::quant_dot{1, 2},
-                     s_m1,
-                     s_m2,
-                     s_m3);
+        throws_shape(migraphx::op::quant_dot{1, 2}, s_m1, s_m2, s_m3);
     }
 }
 

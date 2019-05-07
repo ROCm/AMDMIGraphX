@@ -48,6 +48,12 @@ struct cpu_batch_norm_inference
 {
     op::batch_norm_inference op;
 
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
     std::string name() const { return "cpu::batch_norm_inference"; }
 
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
@@ -107,6 +113,12 @@ struct cpu_lrn
 {
     op::lrn op;
 
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
     std::string name() const { return "cpu::lrn"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, shape output_shape, std::vector<argument> args) const
@@ -140,24 +152,15 @@ struct cpu_lrn
     }
 };
 
-struct clip_op
-{
-    op::clip op;
-    std::string name() const { return "cpu::clip"; }
-    auto fcn() const
-    {
-        auto max = op.max_val;
-        auto min = op.min_val;
-        return [max, min](auto x) {
-            using type = decltype(x);
-            return std::min(std::max(type(min), x), type(max));
-        };
-    }
-};
-
 struct cpu_convolution
 {
     op::convolution op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
 
     std::string name() const { return "cpu::convolution"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
@@ -204,6 +207,12 @@ struct cpu_convolution
 struct cpu_im2col
 {
     op::im2col op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
 
     static std::string name() { return "cpu::im2col"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
@@ -286,6 +295,12 @@ struct cpu_pooling
 {
     op::pooling op;
 
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
     std::string name() const { return "cpu::pooling_" + Op::name(); }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
@@ -330,20 +345,35 @@ struct cpu_pooling
     }
 };
 
-struct cpu_contiguous
+struct cpu_op
 {
-    op::contiguous op;
-    std::string name() const { return "cpu::contiguous"; }
+    operation op;
+    std::string name() const { return "cpu::" + op.name(); }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+    argument compute(context&, const shape& output_shape, const std::vector<argument>& args) const
     {
-        return op.compute(output_shape, std::move(args));
+        return op.compute(output_shape, args);
     }
+    friend bool operator==(const cpu_op& x, const cpu_op& y) { return x.op == y.op; }
+    friend bool operator==(const cpu_op& x, const operation& y)
+    {
+        if(x.name() != y.name())
+            return false;
+        return x == any_cast<cpu_op>(y);
+    }
+    friend bool operator==(const operation& x, const cpu_op& y) { return y == x; }
 };
 
 struct cpu_pad
 {
     op::pad op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
     std::string name() const { return "cpu::contiguous"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
@@ -367,20 +397,15 @@ struct cpu_pad
     }
 };
 
-struct cpu_concat
-{
-    op::concat op;
-    std::string name() const { return "cpu::concat"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-    {
-        return op.compute(output_shape, std::move(args));
-    }
-};
-
 struct cpu_gemm
 {
     op::dot op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
     std::string name() const { return "cpu::dot"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
@@ -423,162 +448,6 @@ struct cpu_gemm
     }
 };
 
-struct cpu_gather
-{
-    op::gather op;
-    std::string name() const { return "cpu::gather"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-    {
-        return op.compute(output_shape, std::move(args));
-    }
-};
-
-struct identity_op
-{
-    std::string name() const { return "cpu::identity"; }
-    auto fcn() const
-    {
-        return [](auto x) { return x; };
-    }
-};
-
-struct abs_op
-{
-    std::string name() const { return "cpu::abs"; }
-    auto fcn() const
-    {
-        return [](auto x) { return std::abs(make_signed(x)); };
-    }
-};
-
-struct exp_op
-{
-    std::string name() const { return "cpu::exp"; }
-    auto fcn() const
-    {
-        return [](auto x) { return std::exp(x); };
-    }
-};
-
-struct log_op
-{
-    std::string name() const { return "cpu::log"; }
-    auto fcn() const
-    {
-        return [](auto x) { return std::log(x); };
-    }
-};
-
-struct sin_op
-{
-    std::string name() const { return "cpu::sin"; }
-    auto fcn() const
-    {
-        return [](auto x) { return std::sin(x); };
-    }
-};
-
-struct cos_op
-{
-    std::string name() const { return "cpu::cos"; }
-    auto fcn() const
-    {
-        return [](auto x) { return std::cos(x); };
-    }
-};
-
-struct tan_op
-{
-    std::string name() const { return "cpu::tan"; }
-    auto fcn() const
-    {
-        return [](auto x) { return std::tan(x); };
-    }
-};
-
-struct asin_op
-{
-    std::string name() const { return "cpu::asin"; }
-    auto fcn() const
-    {
-        return [](auto x) { return std::asin(x); };
-    }
-};
-
-struct acos_op
-{
-    std::string name() const { return "cpu::acos"; }
-    auto fcn() const
-    {
-        return [](auto x) { return std::acos(x); };
-    }
-};
-
-struct atan_op
-{
-    std::string name() const { return "cpu::atan"; }
-    auto fcn() const
-    {
-        return [](auto x) { return std::atan(x); };
-    }
-};
-
-struct sinh_op
-{
-    std::string name() const { return "cpu::sinh"; }
-    auto fcn() const
-    {
-        return [](auto x) { return std::sinh(x); };
-    }
-};
-
-struct cosh_op
-{
-    std::string name() const { return "cpu::cosh"; }
-    auto fcn() const
-    {
-        return [](auto x) { return std::cosh(x); };
-    }
-};
-
-struct tanh_op
-{
-    std::string name() const { return "cpu::tanh"; }
-    auto fcn() const
-    {
-        return [](auto x) { return std::tanh(x); };
-    }
-};
-
-struct sigmoid_op
-{
-    std::string name() const { return "cpu::sigmoid"; }
-    auto fcn() const
-    {
-        return [](auto x) { return 1.f / (1.f + std::exp(-x)); };
-    }
-};
-
-struct neg_op
-{
-    std::string name() const { return "cpu::neg"; }
-    auto fcn() const
-    {
-        return [](auto x) { return -x; };
-    }
-};
-
-struct relu_op
-{
-    std::string name() const { return "cpu::relu"; }
-    auto fcn() const
-    {
-        return [](auto x) { return std::max(decltype(x){0}, x); };
-    }
-};
-
 struct leaky_relu_op
 {
     op::leaky_relu op;
@@ -605,6 +474,12 @@ template <typename Op>
 struct cpu_unary
 {
     Op op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op.op, f);
+    }
     std::string name() const { return op.name(); }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
@@ -683,6 +558,13 @@ struct softmax2d
 struct cpu_logsoftmax
 {
     op::logsoftmax op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
     std::string name() const { return "cpu::logsoftmax"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
@@ -749,104 +631,6 @@ struct cpu_logsoftmax
     }
 };
 
-struct add_op
-{
-    std::string name() const { return "add"; }
-    auto fcn() const
-    {
-        return [](auto x, auto y) { return x + y; };
-    }
-};
-
-struct sub_op
-{
-    std::string name() const { return "sub"; }
-    auto fcn() const
-    {
-        return [](auto x, auto y) { return x - y; };
-    }
-};
-
-struct mul_op
-{
-    std::string name() const { return "mul"; }
-    auto fcn() const
-    {
-        return [](auto x, auto y) { return x * y; };
-    }
-};
-
-struct div_op
-{
-    std::string name() const { return "div"; }
-    auto fcn() const
-    {
-        return [](auto x, auto y) { return x / y; };
-    }
-};
-
-struct max_op
-{
-    std::string name() const { return "max"; }
-    auto fcn() const
-    {
-        return [](auto x, auto y) { return std::max(x, y); };
-    }
-};
-
-struct min_op
-{
-    std::string name() const { return "min"; }
-    auto fcn() const
-    {
-        return [](auto x, auto y) { return std::min(x, y); };
-    }
-};
-
-template <typename Op>
-struct cpu_binary
-{
-    Op op;
-    std::string name() const { return "cpu::" + op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs}.has(2).same_type().same_dims();
-        auto s0 = inputs.at(0);
-        auto s1 = inputs.at(1);
-        if(s0 == s1 and s0.packed())
-        {
-            return s0;
-        }
-        else
-        {
-            return {s0.type(), s0.lens()};
-        }
-    }
-
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {
-            auto s1 = input1.get_shape();
-            auto s2 = input2.get_shape();
-            if(s1 == s2 and s1.standard())
-            {
-                std::transform(
-                    input1.begin(), input1.end(), input2.begin(), output.begin(), op.fcn());
-            }
-            else
-            {
-                shape_for_each(output.get_shape(), [&](const auto& idx) {
-                    output(idx.begin(), idx.end()) =
-                        op.fcn()(input1(idx.begin(), idx.end()), input2(idx.begin(), idx.end()));
-                });
-            }
-        });
-
-        return result;
-    }
-};
-
 struct cpu_apply
 {
     program* prog;
@@ -866,44 +650,17 @@ struct cpu_apply
 
     void init()
     {
-        apply_map["im2col"]      = extend_op<cpu_im2col, op::im2col>();
-        apply_map["convolution"] = extend_op<cpu_convolution, op::convolution>();
-        apply_map["dot"]         = extend_op<cpu_gemm, op::dot>();
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
-        apply_map["lrn"]        = extend_op<cpu_lrn, op::lrn>();
-        apply_map["clip"]       = extend_op<cpu_unary<clip_op>, op::clip>();
-        apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
-        apply_map["pad"]        = extend_op<cpu_pad, op::pad>();
-        apply_map["concat"]     = extend_op<cpu_concat, op::concat>();
-        apply_map["gather"]     = extend_op<cpu_gather, op::gather>();
-        apply_map["logsoftmax"] = extend_op<cpu_logsoftmax, op::logsoftmax>();
-        apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
-        apply_map["elu"]        = extend_op<cpu_unary<elu_op>, op::elu>();
-        apply_map["identity"]   = simple_op<cpu_unary<identity_op>>();
-        apply_map["abs"]        = simple_op<cpu_unary<abs_op>>();
-        apply_map["sinh"]       = simple_op<cpu_unary<sinh_op>>();
-        apply_map["cosh"]       = simple_op<cpu_unary<cosh_op>>();
-        apply_map["tanh"]       = simple_op<cpu_unary<tanh_op>>();
-        apply_map["sigmoid"]    = simple_op<cpu_unary<sigmoid_op>>();
-        apply_map["exp"]        = simple_op<cpu_unary<exp_op>>();
-        apply_map["log"]        = simple_op<cpu_unary<log_op>>();
-        apply_map["neg"]        = simple_op<cpu_unary<neg_op>>();
-        apply_map["sin"]        = simple_op<cpu_unary<sin_op>>();
-        apply_map["cos"]        = simple_op<cpu_unary<cos_op>>();
-        apply_map["tan"]        = simple_op<cpu_unary<tan_op>>();
-        apply_map["asin"]       = simple_op<cpu_unary<asin_op>>();
-        apply_map["acos"]       = simple_op<cpu_unary<acos_op>>();
-        apply_map["atan"]       = simple_op<cpu_unary<atan_op>>();
-        apply_map["relu"]       = simple_op<cpu_unary<relu_op>>();
-        apply_map["add"]        = simple_op<cpu_binary<add_op>>();
-        apply_map["sub"]        = simple_op<cpu_binary<sub_op>>();
-        apply_map["mul"]        = simple_op<cpu_binary<mul_op>>();
-        apply_map["div"]        = simple_op<cpu_binary<div_op>>();
-        apply_map["max"]        = simple_op<cpu_binary<max_op>>();
-        apply_map["min"]        = simple_op<cpu_binary<min_op>>();
-
-        apply_map["softmax"] = simple_op<softmax2d>();
+        apply_map["convolution"] = extend_op<cpu_convolution, op::convolution>();
+        apply_map["dot"]         = extend_op<cpu_gemm, op::dot>();
+        apply_map["elu"]         = extend_op<cpu_unary<elu_op>, op::elu>();
+        apply_map["im2col"]      = extend_op<cpu_im2col, op::im2col>();
+        apply_map["leaky_relu"]  = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
+        apply_map["logsoftmax"]  = extend_op<cpu_logsoftmax, op::logsoftmax>();
+        apply_map["lrn"]         = extend_op<cpu_lrn, op::lrn>();
+        apply_map["pad"]         = extend_op<cpu_pad, op::pad>();
+        apply_map["softmax"]     = simple_op<softmax2d>();
     }
 
     void apply()
@@ -919,7 +676,16 @@ struct cpu_apply
             {
                 apply_map.at(it->name())(it);
             }
+            else if(is_context_free(it->get_operator()))
+            {
+                apply_cpu_op(it);
+            }
         }
+    }
+
+    void apply_cpu_op(instruction_ref ins)
+    {
+        prog->replace_instruction(ins, cpu_op{ins->get_operator()}, ins->inputs());
     }
 
     template <class T>

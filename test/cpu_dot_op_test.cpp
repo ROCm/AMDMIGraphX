@@ -1108,12 +1108,9 @@ TEST_CASE(quant_dot_2args_multi4)
         auto l2 = p.add_literal(migraphx::literal{m2_shape, data2});
         p.add_instruction(migraphx::op::quant_dot{}, l1, l2);
 
-        std::vector<int> gold = {
-        112,  118,  124,  130,  136,  142,  148,  154,
-        304,  326,  348,  370,  392,  414,  436,  458,
-        496,  534,  572,  610,  648,  686,  724,  762,
-        688,  742,  796,  850,  904,  958, 1012, 1066
-        };
+        std::vector<int> gold = {112, 118, 124, 130, 136, 142, 148, 154, 304,  326, 348,
+                                 370, 392, 414, 436, 458, 496, 534, 572, 610,  648, 686,
+                                 724, 762, 688, 742, 796, 850, 904, 958, 1012, 1066};
 
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
@@ -1131,17 +1128,14 @@ TEST_CASE(quant_dot_2args_multi4)
         std::iota(data1.begin(), data1.end(), 0);
         std::iota(data2.begin(), data2.end(), 0);
 
-        auto l1 = p.add_literal(migraphx::literal{m1_shape, data1});
+        auto l1  = p.add_literal(migraphx::literal{m1_shape, data1});
         auto tl1 = p.add_instruction(migraphx::op::transpose{{1, 0}}, l1);
-        auto l2 = p.add_literal(migraphx::literal{m2_shape, data2});
+        auto l2  = p.add_literal(migraphx::literal{m2_shape, data2});
         p.add_instruction(migraphx::op::quant_dot{}, tl1, l2);
 
-        std::vector<int> gold = {
-            448, 472, 496, 520, 544, 568, 592, 616,
-            496, 524, 552, 580, 608, 636, 664, 692,
-            544, 576, 608, 640, 672, 704, 736, 768,
-            592, 628, 664, 700, 736, 772, 808, 844
-        };
+        std::vector<int> gold = {448, 472, 496, 520, 544, 568, 592, 616, 496, 524, 552,
+                                 580, 608, 636, 664, 692, 544, 576, 608, 640, 672, 704,
+                                 736, 768, 592, 628, 664, 700, 736, 772, 808, 844};
 
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
@@ -1159,17 +1153,14 @@ TEST_CASE(quant_dot_2args_multi4)
         std::iota(data1.begin(), data1.end(), 0);
         std::iota(data2.begin(), data2.end(), 0);
 
-        auto l1 = p.add_literal(migraphx::literal{m1_shape, data1});
-        auto l2 = p.add_literal(migraphx::literal{m2_shape, data2});
+        auto l1  = p.add_literal(migraphx::literal{m1_shape, data1});
+        auto l2  = p.add_literal(migraphx::literal{m2_shape, data2});
         auto tl2 = p.add_instruction(migraphx::op::transpose{{1, 0}}, l2);
         p.add_instruction(migraphx::op::quant_dot{}, l1, tl2);
 
-        std::vector<int> gold = {
-            14,   38,   62,   86,  110,  134,  158,  182,
-            38,  126,  214,  302,  390,  478,  566,  654,
-            62,  214,  366,  518,  670,  822,  974, 1126,
-            86,  302,  518,  734,  950, 1166, 1382, 1598
-        };
+        std::vector<int> gold = {14,  38,   62,  86,  110, 134, 158, 182,  38,   126, 214,
+                                 302, 390,  478, 566, 654, 62,  214, 366,  518,  670, 822,
+                                 974, 1126, 86,  302, 518, 734, 950, 1166, 1382, 1598};
 
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
@@ -1187,18 +1178,15 @@ TEST_CASE(quant_dot_2args_multi4)
         std::iota(data1.begin(), data1.end(), 0);
         std::iota(data2.begin(), data2.end(), 0);
 
-        auto l1 = p.add_literal(migraphx::literal{m1_shape, data1});
+        auto l1  = p.add_literal(migraphx::literal{m1_shape, data1});
         auto tl1 = p.add_instruction(migraphx::op::transpose{{1, 0}}, l1);
-        auto l2 = p.add_literal(migraphx::literal{m2_shape, data2});
+        auto l2  = p.add_literal(migraphx::literal{m2_shape, data2});
         auto tl2 = p.add_instruction(migraphx::op::transpose{{1, 0}}, l2);
         p.add_instruction(migraphx::op::quant_dot{}, tl1, tl2);
 
-        std::vector<int> gold = {
-            56,  152,  248,  344,  440,  536,  632,  728,
-            62,  174,  286,  398,  510,  622,  734,  846,
-            68,  196,  324,  452,  580,  708,  836,  964,
-            74,  218,  362,  506,  650,  794,  938, 1082
-        };
+        std::vector<int> gold = {56,  152, 248, 344, 440, 536, 632, 728, 62,  174, 286,
+                                 398, 510, 622, 734, 846, 68,  196, 324, 452, 580, 708,
+                                 836, 964, 74,  218, 362, 506, 650, 794, 938, 1082};
 
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
@@ -1224,10 +1212,7 @@ TEST_CASE(quant_dot_2args_general)
         p.add_instruction(migraphx::op::quant_dot{}, l1, l2);
 
         std::vector<int> gold = {
-            70,  76,  82,  88,  94,
-            190, 212, 234, 256, 278,
-            310, 348, 386, 424, 462
-        };
+            70, 76, 82, 88, 94, 190, 212, 234, 256, 278, 310, 348, 386, 424, 462};
 
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
@@ -1245,16 +1230,13 @@ TEST_CASE(quant_dot_2args_general)
         std::iota(data1.begin(), data1.end(), 0);
         std::iota(data2.begin(), data2.end(), 0);
 
-        auto l1 = p.add_literal(migraphx::literal{m1_shape, data1});
+        auto l1  = p.add_literal(migraphx::literal{m1_shape, data1});
         auto tl1 = p.add_instruction(migraphx::op::transpose{{1, 0}}, l1);
-        auto l2 = p.add_literal(migraphx::literal{m2_shape, data2});
+        auto l2  = p.add_literal(migraphx::literal{m2_shape, data2});
         p.add_instruction(migraphx::op::quant_dot{}, tl1, l2);
 
         std::vector<int> gold = {
-            210, 228, 246, 264, 282,
-            240, 262, 284, 306, 328,
-            270, 296, 322, 348, 374        
-        };
+            210, 228, 246, 264, 282, 240, 262, 284, 306, 328, 270, 296, 322, 348, 374};
 
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
@@ -1272,16 +1254,18 @@ TEST_CASE(quant_dot_2args_general)
         std::iota(data1.begin(), data1.end(), 0);
         std::iota(data2.begin(), data2.end(), 0);
 
-        auto l1 = p.add_literal(migraphx::literal{m1_shape, data1});
-        auto l2 = p.add_literal(migraphx::literal{m2_shape, data2});
+        auto l1  = p.add_literal(migraphx::literal{m1_shape, data1});
+        auto l2  = p.add_literal(migraphx::literal{m2_shape, data2});
         auto tl2 = p.add_instruction(migraphx::op::transpose{{1, 0}}, l2);
-        p.add_instruction(migraphx::op::quant_dot{2, }, l1, tl2);
+        p.add_instruction(
+            migraphx::op::quant_dot{
+                2,
+            },
+            l1,
+            tl2);
 
         std::vector<int> gold = {
-            28,   76,  124,  172,  220,
-            76,  252,  428,  604,  780,
-            124,  428,  732, 1036, 1340        
-        };
+            28, 76, 124, 172, 220, 76, 252, 428, 604, 780, 124, 428, 732, 1036, 1340};
 
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
@@ -1299,17 +1283,14 @@ TEST_CASE(quant_dot_2args_general)
         std::iota(data1.begin(), data1.end(), 0);
         std::iota(data2.begin(), data2.end(), 0);
 
-        auto l1 = p.add_literal(migraphx::literal{m1_shape, data1});
+        auto l1  = p.add_literal(migraphx::literal{m1_shape, data1});
         auto tl1 = p.add_instruction(migraphx::op::transpose{{1, 0}}, l1);
-        auto l2 = p.add_literal(migraphx::literal{m2_shape, data2});
+        auto l2  = p.add_literal(migraphx::literal{m2_shape, data2});
         auto tl2 = p.add_instruction(migraphx::op::transpose{{1, 0}}, l2);
         p.add_instruction(migraphx::op::quant_dot{3, 2}, tl1, tl2);
 
         std::vector<int> gold = {
-            126,  342,  558,  774,  990,
-            144,  408,  672,  936, 1200,
-            162,  474,  786, 1098, 1410
-        };
+            126, 342, 558, 774, 990, 144, 408, 672, 936, 1200, 162, 474, 786, 1098, 1410};
 
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
@@ -1339,9 +1320,7 @@ TEST_CASE(quant_dot_3args_general)
         p.add_instruction(migraphx::op::quant_dot{}, l1, l2, l3);
 
         std::vector<int> gold = {
-            982, 1011, 1040, 1069, 1098, 1127, 1156,
-            2557, 2650, 2743, 2836, 2929, 3022, 3115        
-        };
+            982, 1011, 1040, 1069, 1098, 1127, 1156, 2557, 2650, 2743, 2836, 2929, 3022, 3115};
 
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
@@ -1362,16 +1341,14 @@ TEST_CASE(quant_dot_3args_general)
         std::iota(data2.begin(), data2.end(), 0);
         std::iota(data3.begin(), data3.end(), 2);
 
-        auto l1 = p.add_literal(migraphx::literal{m1_shape, data1});
+        auto l1  = p.add_literal(migraphx::literal{m1_shape, data1});
         auto tl1 = p.add_instruction(migraphx::op::transpose{{1, 0}}, l1);
-        auto l2 = p.add_literal(migraphx::literal{m2_shape, data2});
-        auto l3 = p.add_literal(migraphx::literal{m3_shape, data3});
+        auto l2  = p.add_literal(migraphx::literal{m2_shape, data2});
+        auto l3  = p.add_literal(migraphx::literal{m3_shape, data3});
         p.add_instruction(migraphx::op::quant_dot{1, 3}, tl1, l2, l3);
 
         std::vector<int> gold = {
-            1966, 2025, 2084, 2143, 2202, 2261, 2320,
-            2183, 2250, 2317, 2384, 2451, 2518, 2585        
-        };
+            1966, 2025, 2084, 2143, 2202, 2261, 2320, 2183, 2250, 2317, 2384, 2451, 2518, 2585};
 
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
@@ -1392,16 +1369,14 @@ TEST_CASE(quant_dot_3args_general)
         std::iota(data2.begin(), data2.end(), 0);
         std::iota(data3.begin(), data3.end(), 2);
 
-        auto l1 = p.add_literal(migraphx::literal{m1_shape, data1});
-        auto l2 = p.add_literal(migraphx::literal{m2_shape, data2});
+        auto l1  = p.add_literal(migraphx::literal{m1_shape, data1});
+        auto l2  = p.add_literal(migraphx::literal{m2_shape, data2});
         auto tl2 = p.add_instruction(migraphx::op::transpose{{1, 0}}, l2);
-        auto l3 = p.add_literal(migraphx::literal{m3_shape, data3});
+        auto l3  = p.add_literal(migraphx::literal{m3_shape, data3});
         p.add_instruction(migraphx::op::quant_dot{2, 3}, l1, tl2, l3);
 
         std::vector<int> gold = {
-            286,  737, 1188, 1639, 2090, 2541, 2992,
-            755, 2230, 3705, 5180, 6655, 8130, 9605        
-        };
+            286, 737, 1188, 1639, 2090, 2541, 2992, 755, 2230, 3705, 5180, 6655, 8130, 9605};
 
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
@@ -1422,17 +1397,15 @@ TEST_CASE(quant_dot_3args_general)
         std::iota(data2.begin(), data2.end(), 0);
         std::iota(data3.begin(), data3.end(), 2);
 
-        auto l1 = p.add_literal(migraphx::literal{m1_shape, data1});
+        auto l1  = p.add_literal(migraphx::literal{m1_shape, data1});
         auto tl1 = p.add_instruction(migraphx::op::transpose{{1, 0}}, l1);
-        auto l2 = p.add_literal(migraphx::literal{m2_shape, data2});
+        auto l2  = p.add_literal(migraphx::literal{m2_shape, data2});
         auto tl2 = p.add_instruction(migraphx::op::transpose{{1, 0}}, l2);
-        auto l3 = p.add_literal(migraphx::literal{m3_shape, data3});
+        auto l3  = p.add_literal(migraphx::literal{m3_shape, data3});
         p.add_instruction(migraphx::op::quant_dot{3, 2}, tl1, tl2, l3);
 
         std::vector<int> gold = {
-            844,  2190,  3536,  4882,  6228,  7574,  8920,
-            942,  2480,  4018,  5556,  7094,  8632, 10170        
-        };
+            844, 2190, 3536, 4882, 6228, 7574, 8920, 942, 2480, 4018, 5556, 7094, 8632, 10170};
 
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});

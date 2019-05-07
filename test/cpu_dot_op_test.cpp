@@ -1415,4 +1415,83 @@ TEST_CASE(quant_dot_3args_general)
     }
 }
 
+TEST_CASE(quant_dot_3args_batch)
+{
+    {
+        migraphx::program p;
+        migraphx::shape m1_shape{migraphx::shape::int8_type, {2, 2, 2, 4}};
+        migraphx::shape m2_shape{migraphx::shape::int8_type, {2, 2, 4, 7}};
+        migraphx::shape m3_shape{migraphx::shape::int32_type, {2, 2, 2, 7}};
+        std::vector<int8_t> data1(4 * 2 * 4);
+        std::vector<int8_t> data2(4 * 4 * 7);
+        std::vector<int> data3(4 * 2 * 7);
+        std::iota(data1.begin(), data1.end(), 0);
+        std::iota(data2.begin(), data2.end(), 0);
+        std::iota(data3.begin(), data3.end(), 2);
+
+        auto l1 = p.add_literal(migraphx::literal{m1_shape, data1});
+        auto l2 = p.add_literal(migraphx::literal{m2_shape, data2});
+        auto l3 = p.add_literal(migraphx::literal{m3_shape, data3});
+        p.add_instruction(migraphx::op::quant_dot{1, 2}, l1, l2, l3);
+
+        std::vector<int> gold = {
+           102,   110,   118,   126,   134,   142,   150,
+           284,   308,   332,   356,   380,   404,   428,
+           1530,  1570,  1610,  1650,  1690,  1730,  1770,
+           2160,  2216,  2272,  2328,  2384,  2440,  2496,
+           4750,  4822,  4894,  4966,  5038,  5110,  5182,
+           5828,  5916,  6004,  6092,  6180,  6268,  6356,
+           9762,  9866,  9970, 10074, 10178, 10282, 10386,
+           11288, 11408, 11528, 11648, 11768, 11888, 12008            
+        };
+
+        p.compile(migraphx::cpu::target{});
+        auto result = p.eval({});
+        std::vector<float> m;
+        result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(m, gold));
+    }
+
+    {
+        migraphx::program p;
+        migraphx::shape m1_shape{migraphx::shape::int8_type, {2, 2, 4, 3}};
+        migraphx::shape m2_shape{migraphx::shape::int8_type, {2, 2, 6, 4}};
+        migraphx::shape m3_shape{migraphx::shape::int32_type, {2, 2, 3, 6}};
+        std::vector<int8_t> data1(48);
+        std::vector<int8_t> data2(96);
+        std::vector<int> data3(72);
+        std::iota(data1.begin(), data1.end(), 0);
+        std::iota(data2.begin(), data2.end(), 0);
+        std::iota(data3.begin(), data3.end(), 2);
+
+        auto l1 = p.add_literal(migraphx::literal{m1_shape, data1});
+        auto tl1 = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, l1);
+        auto l2 = p.add_literal(migraphx::literal{m2_shape, data2});
+        auto tl2 = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, l2);
+        auto l3 = p.add_literal(migraphx::literal{m3_shape, data3});
+        p.add_instruction(migraphx::op::quant_dot{2, 3}, tl1, tl2, l3);
+
+        std::vector<int> gold = {
+             90,   237,   384,   531,   678,   825,
+            120,   299,   478,   657,   836,  1015,
+            150,   361,   572,   783,   994,  1205,
+           3456,  3987,  4518,  5049,  5580,  6111,
+           3678,  4241,  4804,  5367,  5930,  6493,
+           3900,  4495,  5090,  5685,  6280,  6875,
+          11430, 12345, 13260, 14175, 15090, 16005,
+          11844, 12791, 13738, 14685, 15632, 16579,
+          12258, 13237, 14216, 15195, 16174, 17153,
+          24012, 25311, 26610, 27909, 29208, 30507,
+          24618, 25949, 27280, 28611, 29942, 31273,
+          25224, 26587, 27950, 29313, 30676, 32039
+        };
+
+        p.compile(migraphx::cpu::target{});
+        auto result = p.eval({});
+        std::vector<float> m;
+        result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(m, gold));
+    }
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -32,6 +32,7 @@ add_library(migraphx_device
     device/pad.cpp
     device/gather.cpp
     device/sub.cpp
+    device/clip.cpp
     device/split.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
@@ -66,6 +67,8 @@ add_library(migraphx_gpu
     gather.cpp
     lrn.cpp
     schedule_model.cpp
+    adjust_allocation.cpp
+    clip.cpp
     split.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)

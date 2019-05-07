@@ -17,9 +17,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct neg : unary
+struct neg : unary<neg>
 {
-    std::string name() const { return "neg"; }
+    auto apply() const
+    {
+        return [](auto x) { return -x; };
+    }
 };
 
 } // namespace op

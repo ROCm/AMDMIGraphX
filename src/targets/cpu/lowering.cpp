@@ -117,7 +117,7 @@ struct cpu_lrn
             int channels        = output_shape.lens()[1];
             int height          = output_shape.lens()[2];
             int width           = output_shape.lens()[3];
-            float alphaoverarea = op.alpha / op.size;
+            float alphaoverarea = op.alpha / float(op.size);
             int radius          = (op.size - 1) / 2;
 
             par_dfor(n_batch, height, width)([&](int b, int h, int w) {
@@ -137,6 +137,21 @@ struct cpu_lrn
             });
         });
         return result;
+    }
+};
+
+struct clip_op
+{
+    op::clip op;
+    std::string name() const { return "cpu::clip"; }
+    auto fcn() const
+    {
+        auto max = op.max_val;
+        auto min = op.min_val;
+        return [max, min](auto x) {
+            using type = decltype(x);
+            return std::min(std::max(type(min), x), type(max));
+        };
     }
 };
 
@@ -165,15 +180,15 @@ struct cpu_convolution
                      output_shape.lens()[2],
                      output_shape.lens()[3])(
                 [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
-                    const int start_x  = i * op.stride[0] - op.padding[0];
-                    const int start_y  = j * op.stride[1] - op.padding[1];
-                    const int group_id = w / (wei_n / op.group);
+                    const auto start_x  = i * op.stride[0] - op.padding[0];
+                    const auto start_y  = j * op.stride[1] - op.padding[1];
+                    const auto group_id = w / (wei_n / op.group);
 
                     double acc = 0;
                     dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t y) {
-                        const int in_x  = start_x + x;
-                        const int in_y  = start_y + y;
-                        const int in_ch = group_id * wei_c + k;
+                        const auto in_x  = start_x + x;
+                        const auto in_y  = start_y + y;
+                        const auto in_ch = group_id * wei_c + k;
                         if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
                         {
                             acc += input(o, in_ch, in_x, in_y) * weights(w, k, x, y);
@@ -209,10 +224,8 @@ struct cpu_im2col
             const std::size_t& stride_h = op.stride[0];
             const std::size_t& stride_w = op.stride[1];
 
-            int kdiv2_h;
-            int kdiv2_w;
-            kdiv2_h = kernel_h / 2;
-            kdiv2_w = kernel_w / 2;
+            auto kdiv2_h = kernel_h / 2;
+            auto kdiv2_w = kernel_w / 2;
             // calculate output sizes
             const std::size_t col_height = (height - kernel_h + 2 * pad_h) / stride_h + 1;
             const std::size_t col_width  = (width - kernel_w + 2 * pad_w) / stride_w + 1;
@@ -230,8 +243,8 @@ struct cpu_im2col
                     dfor(channels,
                          kernel_h,
                          kernel_w)([&](std::size_t c, std::size_t koffset, std::size_t loffset) {
-                        int idx     = iinput + koffset - kdiv2_h;
-                        int jdx     = jinput + loffset - kdiv2_w;
+                        auto idx    = iinput + koffset - kdiv2_h;
+                        auto jdx    = jinput + loffset - kdiv2_w;
                         col(ldx, p) = ((idx >= 0) && (idx < height) && (jdx >= 0) && (jdx < width))
                                           ? input(0, c, idx, jdx)
                                           : 0;
@@ -593,15 +606,38 @@ struct cpu_unary
 {
     Op op;
     std::string name() const { return op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const { return inputs.front(); }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs}.has(1);
+        auto s = inputs.at(0);
+        if(s.packed())
+        {
+            return s;
+        }
+        else
+        {
+            return {s.type(), s.lens()};
+        }
+    }
+
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         result.visit([&](auto output) {
             args[0].visit([&](auto input) {
-                std::transform(input.begin(), input.end(), output.begin(), op.fcn());
+                if(input.get_shape().standard())
+                {
+                    std::transform(input.begin(), input.end(), output.begin(), op.fcn());
+                }
+                else
+                {
+                    shape_for_each(output.get_shape(), [&](const auto& idx) {
+                        output(idx.begin(), idx.end()) = op.fcn()(input(idx.begin(), idx.end()));
+                    });
+                }
             });
         });
+
         return result;
     }
 };
@@ -621,20 +657,20 @@ struct softmax2d
             auto nw          = input.get_shape().lens()[3];
             dfor(nb, nh, nw)([&](std::size_t b, std::size_t i, std::size_t j) {
                 value_type cmax = std::numeric_limits<value_type>::lowest();
-                for(int c = 0; c < nc; c++)
+                for(std::size_t c = 0; c < nc; c++)
                 {
                     cmax = std::max(cmax, input(b, c, i, j));
                 }
-                for(int c = 0; c < nc; c++)
+                for(std::size_t c = 0; c < nc; c++)
                 {
                     output(b, c, i, j) = std::exp(input(b, c, i, j) - cmax);
                 }
                 value_type sum = value_type(0);
-                for(int c = 0; c < nc; c++)
+                for(std::size_t c = 0; c < nc; c++)
                 {
                     sum += output(b, c, i, j);
                 }
-                for(int c = 0; c < nc; c++)
+                for(std::size_t c = 0; c < nc; c++)
                 {
                     output(b, c, i, j) = output(b, c, i, j) / sum;
                 }
@@ -771,13 +807,29 @@ template <typename Op>
 struct cpu_binary
 {
     Op op;
-    std::string name() const { return op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const { return inputs.front(); }
+    std::string name() const { return "cpu::" + op.name(); }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs}.has(2).same_type().same_dims();
+        auto s0 = inputs.at(0);
+        auto s1 = inputs.at(1);
+        if(s0 == s1 and s0.packed())
+        {
+            return s0;
+        }
+        else
+        {
+            return {s0.type(), s0.lens()};
+        }
+    }
+
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {
-            if(input1.get_shape().packed() and input2.get_shape().packed())
+            auto s1 = input1.get_shape();
+            auto s2 = input2.get_shape();
+            if(s1 == s2 and s1.standard())
             {
                 std::transform(
                     input1.begin(), input1.end(), input2.begin(), output.begin(), op.fcn());
@@ -790,6 +842,7 @@ struct cpu_binary
                 });
             }
         });
+
         return result;
     }
 };
@@ -819,6 +872,7 @@ struct cpu_apply
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["lrn"]        = extend_op<cpu_lrn, op::lrn>();
+        apply_map["clip"]       = extend_op<cpu_unary<clip_op>, op::clip>();
         apply_map["contiguous"] = extend_op<cpu_contiguous, op::contiguous>();
         apply_map["pad"]        = extend_op<cpu_pad, op::pad>();
         apply_map["concat"]     = extend_op<cpu_concat, op::concat>();

@@ -17,9 +17,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct div : binary
+struct div : binary<div>
 {
-    std::string name() const { return "div"; }
+    auto apply() const
+    {
+        return [](auto x, auto y) { return x / y; };
+    }
 };
 
 } // namespace op

@@ -17,9 +17,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct log : unary
+struct log : unary<log>
 {
-    std::string name() const { return "log"; }
+    auto apply() const
+    {
+        return [](auto x) { return std::log(x); };
+    }
 };
 
 } // namespace op

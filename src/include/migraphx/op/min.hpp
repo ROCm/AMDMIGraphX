@@ -17,9 +17,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct min : binary
+struct min : binary<min>
 {
-    std::string name() const { return "min"; }
+    auto apply() const
+    {
+        return [](auto x, auto y) { return std::min(x, y); };
+    }
 };
 
 } // namespace op

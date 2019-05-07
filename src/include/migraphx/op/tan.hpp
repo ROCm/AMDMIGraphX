@@ -17,9 +17,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct tan : unary
+struct tan : unary<tan>
 {
-    std::string name() const { return "tan"; }
+    auto apply() const
+    {
+        return [](auto x) { return std::tan(x); };
+    }
 };
 
 } // namespace op

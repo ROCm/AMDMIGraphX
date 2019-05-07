@@ -22,7 +22,7 @@ struct miopen_quant_convolution
     static auto reflect(Self& self, F f)
     {
         // TODO: Add algo
-        return op::convolution::reflect(self.op, f);
+        return op::quant_convolution::reflect(self.op, f);
     }
 
     std::string name() const { return "gpu::quant_convolution"; }

@@ -14,6 +14,13 @@ struct context;
 struct hip_gather
 {
     op::gather op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
     std::string name() const { return "gpu::gather"; }
     shape compute_shape(std::vector<shape> inputs) const;
     argument

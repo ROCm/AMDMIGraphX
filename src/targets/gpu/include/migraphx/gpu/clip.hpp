@@ -13,6 +13,13 @@ struct context;
 struct hip_clip
 {
     op::clip op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
     std::string name() const { return "gpu::clip"; }
     shape compute_shape(std::vector<shape> inputs) const;
     argument

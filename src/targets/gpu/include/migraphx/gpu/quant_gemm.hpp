@@ -13,6 +13,13 @@ struct context;
 struct miopen_quant_gemm
 {
     op::quant_dot op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
     std::string name() const { return "gpu::quant_gemm"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument

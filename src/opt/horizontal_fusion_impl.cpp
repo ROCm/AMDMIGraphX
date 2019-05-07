@@ -210,6 +210,8 @@ int horizontal_fusion_impl::find_axis(instruction_ref ins, instruction_ref base,
     }
     else if(ins->outputs().at(0)->name() == "broadcast")
     {
+        if(!match_dim(base, ins->outputs().at(0), -1))
+            MIGRAPHX_THROW("Unmatched output");
         int dim = base->get_shape().lens().at(base_axis);
         return find_axis(ins, dim);
     }
@@ -241,7 +243,8 @@ bool horizontal_fusion_impl::compare_inputs(std::vector<instruction_ref>& input1
 {
     if(input1.size() != input2.size())
         return false;
-    int ndx = 0;
+    int ndx              = 0;
+    std::size_t base_dim = base_ins->get_shape().lens().at(base_axis);
 
     for(auto&& ins1 : input1)
     {
@@ -253,6 +256,8 @@ bool horizontal_fusion_impl::compare_inputs(std::vector<instruction_ref>& input1
         if(axis == -1)
             return false;
         if(!match_dim(ins1, ins2, axis))
+            return false;
+        if(ins2->get_shape().lens().at(axis) != base_dim)
             return false;
     }
 
@@ -281,19 +286,17 @@ void horizontal_fusion_impl::concat(std::vector<instruction_ref>& instrs,
 
     if(ins0->outputs().size() != 1)
         MIGRAPHX_THROW("unexpected output size");
-    instruction_ref output = ins0->outputs().at(0);
-    if((base != output) && !match_dim(base, output, -1))
-        MIGRAPHX_THROW("unmatched output");
+    instruction_ref output            = ins0->outputs().at(0);
+    shape s                           = ins0->get_shape();
+    std::vector<std::size_t> new_lens = s.lens();
+    new_lens[axis]                    = sum;
 
     if(ins0->name() == "@literal")
     {
         // concat literals.
-        shape s                           = ins0->get_shape();
-        std::vector<std::size_t> new_lens = s.lens();
-        new_lens[axis]                    = sum;
-        unsigned long long unit_slice     = 1;
-        int ndx                           = 0;
-        unsigned long long new_elements   = 1;
+        unsigned long long unit_slice   = 1;
+        int ndx                         = 0;
+        unsigned long long new_elements = 1;
 
         for(auto&& len : s.lens())
         {
@@ -336,25 +339,26 @@ void horizontal_fusion_impl::concat(std::vector<instruction_ref>& instrs,
         }
         shape new_shape{s.type(), new_lens};
         auto new_literal = p_program->add_literal(literal(new_shape, input.get()));
-        output->set_shape({output->get_shape().type(), base_lens});
         instruction::replace_argument(output, ins0, new_literal, false);
-
-        if(output->name() == "broadcast")
-        {
-            // workaround for a bad practice: broadcast has a broadcast_shape field.
-            uint64_t ax  = (any_cast<op::broadcast>(output->get_operator())).axis;
-            operation op = op::broadcast{ax, output->get_shape().lens()};
-            std::vector<shape> input_shapes;
-            input_shapes.push_back(output->inputs().at(0)->get_shape());
-            shape new_s = op.compute_shape(input_shapes);
-            output->set_operator(op);
-            output->set_shape(new_s);
-        }
     }
     else
     {
-        output->set_shape({output->get_shape().type(), base_lens});
+        ins0->set_shape({ins0->get_shape().type(), new_lens});
+        if(ins0->name() == "broadcast")
+        {
+            // workaround for a bad practice: broadcast has a broadcast_shape field.
+            uint64_t ax  = (any_cast<op::broadcast>(ins0->get_operator())).axis;
+            operation op = op::broadcast{ax, ins0->get_shape().lens()};
+            std::vector<shape> input_shapes;
+            input_shapes.push_back(ins0->inputs().at(0)->get_shape());
+            shape new_s = op.compute_shape(input_shapes);
+            ins0->set_operator(op);
+            ins0->set_shape(new_s);
+        }
     }
+
+    if(output == base)
+        output->set_shape({output->get_shape().type(), base_lens});
 }
 
 // If ins and input only diff in one axis, return that axis.

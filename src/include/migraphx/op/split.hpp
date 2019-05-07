@@ -56,7 +56,7 @@ struct split
             int first  = slice_selector.first;
             int second = slice_selector.second;
             if(second < first)
-                MIGRAPHX_THROW("Illegal split selector");
+                MIGRAPHX_THROW("SPLIT:illegal split selector");
 
             if(first == second)
             {
@@ -76,12 +76,12 @@ struct split
                 std::vector<unsigned> slice_elements = compute_slice_elements(input_shape);
                 int total_elements                   = 0;
                 if(second >= slice_dims.size())
-                    MIGRAPHX_THROW("Illegal split selector");
+                    MIGRAPHX_THROW("SPLIT:illegal split selector");
 
                 for(int i = first; i <= second; i++)
                     total_elements += slice_elements[i];
                 if(total_elements <= 0)
-                    MIGRAPHX_THROW("Invalid number of elements");
+                    MIGRAPHX_THROW("SPLIT:invalid number of elements");
 
                 out_dims.push_back(total_elements);
             }
@@ -99,7 +99,7 @@ struct split
         int unit_slice = 1;
         int axis_id    = 0;
         if((axis < 0) || (axis >= s.lens().size()))
-            MIGRAPHX_THROW("batch_contiguous: invalid split axis");
+            MIGRAPHX_THROW("SPLIT:invalid split axis");
 
         for(auto&& len : s.lens())
         {
@@ -110,11 +110,11 @@ struct split
         for(auto&& dim : slice_dims)
         {
             if(dim == 0)
-                MIGRAPHX_THROW("batch_contiguous: invalid split dimension");
+                MIGRAPHX_THROW("SPLIT:invalid split dimension");
             total_slice_dim += dim;
         }
         if(total_slice_dim != s.lens()[axis])
-            MIGRAPHX_THROW("batch_contiguous: invalid split dimension");
+            MIGRAPHX_THROW("SPLIT:invalid split dimension");
 
         int stride            = unit_slice * total_slice_dim;
         std::size_t nelements = s.elements();

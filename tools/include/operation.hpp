@@ -69,7 +69,7 @@ auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
 {
     os << x.name();
     char delim = '[';
-    reflect_each(x, [&](auto& y, auto name) {
+    reflect_each(x, [&](auto&& y, auto name) {
         os << delim;
         os << name << "=";
         stream_write_value(os, y);
@@ -87,6 +87,8 @@ namespace operation_equal {
 template <class T, class U>
 auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
 {
+    static_assert(is_reflectable<T>{} or sizeof(T) <= 1,
+                  "Missing equality operator or reflect method.");
     if(x.name() != y.name())
         return false;
     const auto& yy = any_cast<T>(y);
@@ -175,7 +177,7 @@ auto is_context_free_op(const T& x) -> decltype(is_context_free_op(
 }
 
 template <class T>
-int output_alias_op(rank<0>, const T&, const std::vector<shape>&)
+std::ptrdiff_t output_alias_op(rank<0>, const T&, const std::vector<shape>&)
 {
     return -1;
 }
@@ -188,7 +190,7 @@ auto output_alias_op(rank<1>, const T& x, const std::vector<shape>& shapes)
 }
 
 template <class T>
-int output_alias_op(const T& x, const std::vector<shape>& shapes)
+std::ptrdiff_t output_alias_op(const T& x, const std::vector<shape>& shapes)
 {
     return output_alias_op(rank<1>{}, x, shapes);
 }
@@ -238,7 +240,7 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
      virtual('is_context_free', returns = 'bool', const = True, default = 'is_context_free_op'),
      virtual('has_finalize', returns = 'bool', const = True, default = 'has_finalize_op'),
      virtual('output_alias',
-             returns = 'int',
+             returns = 'std::ptrdiff_t',
              input   = 'const std::vector<shape>&',
              const   = True,
              default = 'output_alias_op'),

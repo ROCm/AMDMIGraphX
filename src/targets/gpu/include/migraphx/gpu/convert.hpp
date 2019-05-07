@@ -16,6 +16,12 @@ struct hip_convert : unary_device<hip_convert, device::convert>
 {
     op::convert op;
 
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
     hip_convert(op::convert oper) : op(oper) {}
 
     shape compute_shape(std::vector<shape> inputs) const

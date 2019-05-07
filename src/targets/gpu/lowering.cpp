@@ -46,6 +46,7 @@
 #include <migraphx/gpu/gather.hpp>
 #include <migraphx/gpu/lrn.hpp>
 #include <migraphx/gpu/convert.hpp>
+#include <migraphx/gpu/clip.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -103,6 +104,7 @@ struct miopen_apply
         add_extend_op<hip_gather, op::gather>("gather");
         add_extend_op<hip_pad, op::pad>("pad");
         add_extend_op<hip_convert, op::convert>("convert");
+        add_extend_op<hip_clip, op::clip>("clip");
 
         add_lrn_op();
         add_convolution_op();

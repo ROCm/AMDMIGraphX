@@ -1,8 +1,8 @@
-#ifndef MIGRAPHX_GUARD_RTGLIB_CONCAT_HPP
-#define MIGRAPHX_GUARD_RTGLIB_CONCAT_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_CLIP_HPP
+#define MIGRAPHX_GUARD_RTGLIB_CLIP_HPP
 
 #include <migraphx/shape.hpp>
-#include <migraphx/op/concat.hpp>
+#include <migraphx/op/clip.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -10,9 +10,9 @@ namespace gpu {
 
 struct context;
 
-struct hip_concat
+struct hip_clip
 {
-    op::concat op;
+    op::clip op;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -20,7 +20,7 @@ struct hip_concat
         return migraphx::reflect(self.op, f);
     }
 
-    std::string name() const { return "gpu::concat"; }
+    std::string name() const { return "gpu::clip"; }
     shape compute_shape(std::vector<shape> inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;

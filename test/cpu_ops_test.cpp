@@ -1586,4 +1586,21 @@ TEST_CASE(fp32_fp16_test)
     test_case({"add"});
 }
 
+TEST_CASE(clip_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto l = p.add_literal(migraphx::literal{s, {-1.0, 0.0, 10.0}});
+    migraphx::op::clip op;
+    op.max_val = 6.0;
+    op.min_val = 0.0;
+    p.add_instruction(op, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {0.0, 0.0, 6.0};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

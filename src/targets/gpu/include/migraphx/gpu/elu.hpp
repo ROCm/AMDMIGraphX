@@ -13,6 +13,13 @@ struct context;
 struct miopen_elu
 {
     shared<activation_descriptor> ad;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return gpu::reflect(self.ad.get(), f);
+    }
+
     std::string name() const { return "gpu::elu"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument

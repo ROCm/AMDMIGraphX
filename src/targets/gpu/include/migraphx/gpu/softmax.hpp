@@ -13,6 +13,13 @@ struct context;
 struct miopen_softmax
 {
     op::softmax op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
     std::string name() const { return "gpu::softmax"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument

@@ -771,17 +771,17 @@ struct cpu_apply
     {
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
-        apply_map["convolution"] = extend_op<cpu_convolution, op::convolution>();
-        apply_map["dot"]         = extend_op<cpu_gemm, op::dot>();
+        apply_map["convolution"]       = extend_op<cpu_convolution, op::convolution>();
+        apply_map["dot"]               = extend_op<cpu_gemm, op::dot>();
         apply_map["quant_dot"]         = extend_op<cpu_quant_gemm, op::quant_dot>();
         apply_map["quant_convolution"] = extend_op<cpu_quant_convolution, op::quant_convolution>();
-        apply_map["elu"]         = extend_op<cpu_unary<elu_op>, op::elu>();
-        apply_map["im2col"]      = extend_op<cpu_im2col, op::im2col>();
-        apply_map["leaky_relu"]  = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
-        apply_map["logsoftmax"]  = extend_op<cpu_logsoftmax, op::logsoftmax>();
-        apply_map["lrn"]         = extend_op<cpu_lrn, op::lrn>();
-        apply_map["pad"]         = extend_op<cpu_pad, op::pad>();
-        apply_map["softmax"]     = simple_op<softmax2d>();
+        apply_map["elu"]               = extend_op<cpu_unary<elu_op>, op::elu>();
+        apply_map["im2col"]            = extend_op<cpu_im2col, op::im2col>();
+        apply_map["leaky_relu"]        = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
+        apply_map["logsoftmax"]        = extend_op<cpu_logsoftmax, op::logsoftmax>();
+        apply_map["lrn"]               = extend_op<cpu_lrn, op::lrn>();
+        apply_map["pad"]               = extend_op<cpu_pad, op::pad>();
+        apply_map["softmax"]           = simple_op<softmax2d>();
     }
 
     void apply()

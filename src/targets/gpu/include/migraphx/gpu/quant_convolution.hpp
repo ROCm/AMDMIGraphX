@@ -17,6 +17,8 @@ struct miopen_quant_convolution
     shared<convolution_descriptor> cd;
     miopenConvFwdAlgorithm_t algo{};
     miopenHandle_t handle = nullptr;
+    argument arg_vec4_x{};
+    argument arg_vec4_w{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -32,6 +34,9 @@ struct miopen_quant_convolution
     shape compile(context& ctx, const shape& output_shape, std::vector<shape> inputs);
     void finalize(context& ctx, const shape& output_shape, std::vector<shape> inputs);
     int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
+
+    private:
+    shape pack_int8_shape(shape& s);
 };
 
 } // namespace gpu

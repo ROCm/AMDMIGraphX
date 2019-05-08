@@ -16,15 +16,43 @@ argument miopen_quant_convolution::compute(context& ctx,
                                            const std::vector<argument>& args) const
 {
     auto x_desc = make_tensor(args[0].get_shape());
+    auto x_desc_vec4 = make_tensor(args[0].get_shape(), true);
     auto w_desc = make_tensor(args[1].get_shape());
+    auto w_desc_vec4 = make_tensor(args[1].get_shape(), true);
     auto y_desc = make_tensor(output_shape);
 
-    int8_t alpha = 1;
-    int8_t beta  = 0;
-    auto status  = miopenConvolutionForward(ctx.get_stream().get_miopen(),
+    float alpha = 1;
+    float beta  = 0;
+
+    // pack input to vec4 format
+    auto status = miopenTransformTensor(ctx.get_stream().get_miopen(),
+                          &alpha,
+                          x_desc.get(),
+                          args[0].implicit(),
+                          &beta,
+                          x_desc_vec4.get(),
+                          arg_vec4_x.implicit());
+    if (status != miopenStatusSuccess)
+    {
+        MIGRAPHX_THROW("QUANT_CONVOLUTION: transform input tensfor failed");
+    }
+
+    status = miopenTransformTensor(ctx.get_stream().get_miopen(),
+                          &alpha,
+                          w_desc.get(),
+                          args[1].implicit(),
+                          &beta,
+                          w_desc_vec4.get(),
+                          arg_vec4_w.implicit());
+    if (status != miopenStatusSuccess)
+    {
+        MIGRAPHX_THROW("QUANT_CONVOLUTION: transform weight tensfor failed");
+    }
+
+    status  = miopenConvolutionForward(ctx.get_stream().get_miopen(),
                                            &alpha,
                                            x_desc.get(),
-                                           args[0].implicit(),
+                                           arg_vec4_x.implicit(),
                                            w_desc.get(),
                                            args[1].implicit(),
                                            cd.get(),
@@ -34,7 +62,10 @@ argument miopen_quant_convolution::compute(context& ctx,
                                            args[3].implicit(),
                                            args[2].implicit(),
                                            args[2].get_shape().bytes());
-    assert(status == miopenStatusSuccess);
+    if (status != miopenStatusSuccess)
+    {
+        MIGRAPHX_THROW("QUANT_CONVOLUTION: run convolution forward failed");
+    }
     return args[3];
 }
 
@@ -43,8 +74,8 @@ shape miopen_quant_convolution::compile(context& ctx,
                                         std::vector<shape> inputs)
 {
     shape workspace_shape{};
-    auto x_desc = make_tensor(inputs[0]);
-    auto w_desc = make_tensor(inputs[1]);
+    auto x_desc = make_tensor(inputs[0], true);
+    auto w_desc = make_tensor(inputs[1], true);
     auto y_desc = make_tensor(output_shape);
 
     std::size_t workspace_size = 0;
@@ -56,8 +87,8 @@ shape miopen_quant_convolution::compile(context& ctx,
                                              &workspace_size);
     workspace_shape = shape{shape::int8_type, {workspace_size}};
 
-    auto x         = to_gpu(generate_argument(inputs[0]));
-    auto w         = to_gpu(generate_argument(inputs[1]));
+    arg_vec4_x     = to_gpu(generate_argument(pack_int8_shape(inputs[0])));
+    arg_vec4_w     = to_gpu(generate_argument(pack_int8_shape(inputs[1])));
     auto y         = allocate_gpu(output_shape);
     auto workspace = allocate_gpu(workspace_shape);
 
@@ -65,9 +96,9 @@ shape miopen_quant_convolution::compile(context& ctx,
     miopenConvAlgoPerf_t perf;
     auto status = miopenFindConvolutionForwardAlgorithm(ctx.get_stream().get_miopen(),
                                                         x_desc.get(),
-                                                        x.implicit(),
+                                                        arg_vec4_x.implicit(),
                                                         w_desc.get(),
-                                                        w.implicit(),
+                                                        arg_vec4_x.implicit(),
                                                         cd.get(),
                                                         y_desc.get(),
                                                         y.implicit(),
@@ -78,7 +109,9 @@ shape miopen_quant_convolution::compile(context& ctx,
                                                         workspace_size,
                                                         false);
     if(status != miopenStatusSuccess)
-        MIGRAPHX_THROW("Find convolution failed");
+    {
+        MIGRAPHX_THROW("QUANT_CONVOLUTION: find convolution failed");
+    }
     handle = ctx.get_stream().get_miopen();
     algo   = perf.fwd_algo;
     return shape{shape::int8_type, {perf.memory}};
@@ -95,6 +128,21 @@ void miopen_quant_convolution::finalize(context& ctx,
     auto ws   = compile(ctx, output_shape, std::move(inputs));
     if(ws.bytes() > size)
         MIGRAPHX_THROW("Workspace has changed during finalization.");
+}
+
+shape miopen_quant_convolution::pack_int8_shape(shape& s)
+{
+    if (s.type() != shape::int8_type)
+    {
+        MIGRAPHX_THROW("PACK_INT8_SHAPE: only process int8_type");
+    }
+
+    auto lens = s.lens();
+    auto strides = s.strides();
+    lens[1] = (lens[1] + 3) / 4 * 4;
+    strides[0] = strides[1] * lens[1];
+
+    return {s.type(), lens, strides};
 }
 
 } // namespace gpu

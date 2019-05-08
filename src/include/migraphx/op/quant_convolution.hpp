@@ -45,9 +45,10 @@ struct quant_convolution
         const shape& weights = inputs.at(1);
         auto t               = input.type();
 
+        // all input type must be int8_type and output is float_type
         if(t != shape::int8_type)
         {
-            MIGRAPHX_THROW("QUANT_THROW: only accept input of type int8_t");
+            MIGRAPHX_THROW("QUANT_CONVOLUTION: only accept input and weights of type int8_t");
         }
         t = shape::float_type;
 

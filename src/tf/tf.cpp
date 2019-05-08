@@ -542,10 +542,10 @@ struct tf_parser
                                        std::vector<instruction_ref> args)
     {
         op::slice op;
-        auto starts     = args[1]->eval().get<int32_t>().to_vector();
-        auto ends       = args[2]->eval().get<int32_t>().to_vector();
+        auto starts              = args[1]->eval().get<int32_t>().to_vector();
+        auto ends                = args[2]->eval().get<int32_t>().to_vector();
         std::vector<size_t> axes = args[0]->get_shape().lens();
-        size_t num_axes = axes.size();
+        size_t num_axes          = axes.size();
         if(num_axes >= 4)
         {
             reorder_data(starts);
@@ -556,8 +556,8 @@ struct tf_parser
         op.ends   = std::vector<int64_t>(ends.begin(), ends.end());
         op.axes   = std::vector<int64_t>(num_axes);
         std::iota(op.axes.begin(), op.axes.end(), 0);
-        uint32_t begin_mask = 0;
-        uint32_t end_mask = 0;
+        uint32_t begin_mask       = 0;
+        uint32_t end_mask         = 0;
         uint32_t shrink_axis_mask = 0;
         uint32_t bitwise_compare  = 1;
         std::vector<int64_t> begin_axes;
@@ -591,7 +591,7 @@ struct tf_parser
                 end_axes.push_back(0);
         }
 
-        if (num_axes >= 4)
+        if(num_axes >= 4)
         {
             reorder_data(begin_axes);
             reorder_data(end_axes);

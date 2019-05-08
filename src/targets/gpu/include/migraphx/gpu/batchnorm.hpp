@@ -13,6 +13,13 @@ struct context;
 struct miopen_batch_norm_inference
 {
     op::batch_norm_inference op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
     std::string name() const { return "gpu::batch_norm_inference"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument

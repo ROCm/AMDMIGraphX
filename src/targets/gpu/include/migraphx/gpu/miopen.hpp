@@ -49,21 +49,21 @@ inline tensor_descriptor make_tensor(const migraphx::shape& s, bool pack = false
         d = miopenFloat;
     else if(s.type() == shape::half_type)
         d = miopenHalf;
-    else if(s.type() == shape::int8_type) 
+    else if(s.type() == shape::int8_type)
     {
-        if (pack)
+        if(pack)
         {
             // update the lens and corresponding strides
-            d = miopenInt8x4;
-            lens[1] = ((lens[1] + 3) / 4) * 4;
+            d          = miopenInt8x4;
+            lens[1]    = ((lens[1] + 3) / 4) * 4;
             strides[0] = strides[1] * lens[1];
         }
         else
         {
-            d = miopenInt8;        
-        }        
+            d = miopenInt8;
+        }
     }
-    else 
+    else
     {
         MIGRAPHX_THROW("MAKE_TENSOR: unsupported type");
     }

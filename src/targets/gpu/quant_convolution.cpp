@@ -15,54 +15,54 @@ argument miopen_quant_convolution::compute(context& ctx,
                                            const shape& output_shape,
                                            const std::vector<argument>& args) const
 {
-    auto x_desc = make_tensor(args[0].get_shape());
+    auto x_desc      = make_tensor(args[0].get_shape());
     auto x_desc_vec4 = make_tensor(args[0].get_shape(), true);
-    auto w_desc = make_tensor(args[1].get_shape());
+    auto w_desc      = make_tensor(args[1].get_shape());
     auto w_desc_vec4 = make_tensor(args[1].get_shape(), true);
-    auto y_desc = make_tensor(output_shape);
+    auto y_desc      = make_tensor(output_shape);
 
     float alpha = 1;
     float beta  = 0;
 
     // pack input to vec4 format
     auto status = miopenTransformTensor(ctx.get_stream().get_miopen(),
-                          &alpha,
-                          x_desc.get(),
-                          args[0].implicit(),
-                          &beta,
-                          x_desc_vec4.get(),
-                          arg_vec4_x.implicit());
-    if (status != miopenStatusSuccess)
+                                        &alpha,
+                                        x_desc.get(),
+                                        args[0].implicit(),
+                                        &beta,
+                                        x_desc_vec4.get(),
+                                        arg_vec4_x.implicit());
+    if(status != miopenStatusSuccess)
     {
         MIGRAPHX_THROW("QUANT_CONVOLUTION: transform input tensfor failed");
     }
 
     status = miopenTransformTensor(ctx.get_stream().get_miopen(),
-                          &alpha,
-                          w_desc.get(),
-                          args[1].implicit(),
-                          &beta,
-                          w_desc_vec4.get(),
-                          arg_vec4_w.implicit());
-    if (status != miopenStatusSuccess)
+                                   &alpha,
+                                   w_desc.get(),
+                                   args[1].implicit(),
+                                   &beta,
+                                   w_desc_vec4.get(),
+                                   arg_vec4_w.implicit());
+    if(status != miopenStatusSuccess)
     {
         MIGRAPHX_THROW("QUANT_CONVOLUTION: transform weight tensfor failed");
     }
 
-    status  = miopenConvolutionForward(ctx.get_stream().get_miopen(),
-                                           &alpha,
-                                           x_desc.get(),
-                                           arg_vec4_x.implicit(),
-                                           w_desc.get(),
-                                           args[1].implicit(),
-                                           cd.get(),
-                                           algo,
-                                           &beta,
-                                           y_desc.get(),
-                                           args[3].implicit(),
-                                           args[2].implicit(),
-                                           args[2].get_shape().bytes());
-    if (status != miopenStatusSuccess)
+    status = miopenConvolutionForward(ctx.get_stream().get_miopen(),
+                                      &alpha,
+                                      x_desc.get(),
+                                      arg_vec4_x.implicit(),
+                                      w_desc.get(),
+                                      args[1].implicit(),
+                                      cd.get(),
+                                      algo,
+                                      &beta,
+                                      y_desc.get(),
+                                      args[3].implicit(),
+                                      args[2].implicit(),
+                                      args[2].get_shape().bytes());
+    if(status != miopenStatusSuccess)
     {
         MIGRAPHX_THROW("QUANT_CONVOLUTION: run convolution forward failed");
     }
@@ -132,15 +132,15 @@ void miopen_quant_convolution::finalize(context& ctx,
 
 shape miopen_quant_convolution::pack_int8_shape(shape& s)
 {
-    if (s.type() != shape::int8_type)
+    if(s.type() != shape::int8_type)
     {
         MIGRAPHX_THROW("PACK_INT8_SHAPE: only process int8_type");
     }
 
-    auto lens = s.lens();
+    auto lens    = s.lens();
     auto strides = s.strides();
-    lens[1] = (lens[1] + 3) / 4 * 4;
-    strides[0] = strides[1] * lens[1];
+    lens[1]      = (lens[1] + 3) / 4 * 4;
+    strides[0]   = strides[1] * lens[1];
 
     return {s.type(), lens, strides};
 }

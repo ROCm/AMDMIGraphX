@@ -34,9 +34,10 @@ argument miopen_quant_convolution::compute(context& ctx,
                                         arg_vec4_x.implicit());
     if(status != miopenStatusSuccess)
     {
-        MIGRAPHX_THROW("QUANT_CONVOLUTION: transform input tensfor failed");
+        MIGRAPHX_THROW("QUANT_CONVOLUTION: transform input tensor failed");
     }
 
+    // pack input to vec4 format
     status = miopenTransformTensor(ctx.get_stream().get_miopen(),
                                    &alpha,
                                    w_desc.get(),
@@ -46,15 +47,15 @@ argument miopen_quant_convolution::compute(context& ctx,
                                    arg_vec4_w.implicit());
     if(status != miopenStatusSuccess)
     {
-        MIGRAPHX_THROW("QUANT_CONVOLUTION: transform weight tensfor failed");
+        MIGRAPHX_THROW("QUANT_CONVOLUTION: transform weight tensor failed");
     }
 
     status = miopenConvolutionForward(ctx.get_stream().get_miopen(),
                                       &alpha,
-                                      x_desc.get(),
+                                      x_desc_vec4.get(),
                                       arg_vec4_x.implicit(),
-                                      w_desc.get(),
-                                      args[1].implicit(),
+                                      w_desc_vec4.get(),
+                                      arg_vec4_w.implicit(),
                                       cd.get(),
                                       algo,
                                       &beta,

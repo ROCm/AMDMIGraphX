@@ -1,6 +1,7 @@
 #include <migraphx/gpu/quant_gemm.hpp>
 #include <migraphx/gpu/device/pack.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/generate.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -54,15 +55,21 @@ rb_type<T>* to_rocblas_type(T* x)
 shape miopen_quant_gemm::compute_shape(const std::vector<shape>& inputs) const
 {
     std::vector<shape> input_shapes(inputs);
-    if(!inputs.at(1).transposed())
-    {
-        input_shapes.pop_back();
-    }
-    if(inputs.at(0).transposed())
-    {
-        input_shapes.pop_back();
-    }
     input_shapes.pop_back();
+    // if(!inputs.at(1).transposed())
+    // {
+    //     if (pack_1.empty())
+    //     {
+    //         pack_1 = allocate_gpu(inputs.at(1));
+    //     }
+    // }
+    // if(inputs.at(0).transposed())
+    // {
+    //     if (pack_0.empty())
+    //     {
+    //         pack_0 = allocate_gpu(inputs.at(0));
+    //     }
+    // }
 
     check_shapes{input_shapes}.not_broadcasted();
     return op.compute_shape(input_shapes);
@@ -82,26 +89,37 @@ argument miopen_quant_gemm::compute(context& ctx,
     rocblas_int ldb = args[1].get_shape().strides()[transb ? dim_1 : dim_0];
     rocblas_int ldc = args[2].get_shape().strides()[dim_0];
 
-    size_t addi_ref_num = 0;
     if(!transb)
     {
-        ++addi_ref_num;
-        const argument& arg_b = args[args.size() - 1];
-        // argument for B is the last one in the input argument vector
         // use the algorithm to pack A
-        device::pack_a(ctx.get_stream().get(), args[1], arg_b);
+        if (pack_1.empty())
+        {
+            std::cout << "allocate pack_1" << std::endl;
+            pack_1 = allocate_gpu(args.at(1).get_shape());
+        }
+        //assert(!pack_1.empty());
+        device::pack_a(ctx.get_stream().get(), pack_1, args[1]);
+        auto pb = from_gpu(pack_1);
+        std::cout << "pb = " << pb << std::endl;
     }
 
     // need to pack A in this scenario, use the algorithm to pack B in the
     // comment of the API
     if(transa)
     {
-        ++addi_ref_num;
-        const argument& arg_a = args[args.size() - 1 - addi_ref_num];
-        device::pack_b(ctx.get_stream().get(), args[0], arg_a);
+        if (pack_0.empty())
+        {
+            std::cout << "allocate pack_0" << std::endl;
+            pack_0 = allocate_gpu(args.at(0).get_shape());
+        }
+        device::pack_b(ctx.get_stream().get(), pack_0, args[0]);
+        auto a = from_gpu(args[0]);
+        auto pa = from_gpu(pack_0);
+        std::cout << "a = " << a << std::endl;
+        std::cout << "pa = " << pa << std::endl;
     }
 
-    bool is_3inputs = (args.size() - addi_ref_num == 4);
+    bool is_3inputs = (args.size() == 4);
     int8_t beta     = 0;
     if(is_3inputs)
     {
@@ -135,10 +153,10 @@ argument miopen_quant_gemm::compute(context& ctx,
                                     m,
                                     k,
                                     &alpha_r,
-                                    to_pointer(args[1]),
+                                    (!transb) ? to_pointer(pack_1) : to_pointer(args[1]),
                                     rocblas_datatype_i8_r,
                                     ldb,
-                                    to_pointer(args[0]),
+                                    transa ? to_pointer(pack_0) : to_pointer(args[0]),
                                     rocblas_datatype_i8_r,
                                     lda,
                                     &beta_r,
@@ -165,11 +183,11 @@ argument miopen_quant_gemm::compute(context& ctx,
                 m,
                 k,
                 &alpha_r,
-                to_pointer(args[1]),
+                (!transb) ? to_pointer(pack_1) : to_pointer(args[1]),
                 rocblas_datatype_i8_r,
                 ldb,
                 k * n,
-                to_pointer(args[0]),
+                transa ? to_pointer(pack_0) : to_pointer(args[0]),
                 rocblas_datatype_i8_r,
                 lda,
                 m * k,

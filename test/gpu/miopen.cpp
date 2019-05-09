@@ -1490,6 +1490,72 @@ struct test_conv_bn_relu_pooling : verify_program<test_conv_bn_relu_pooling>
     }
 };
 
+struct quant_conv : verify_program<quant_conv>
+{
+    migraphx::program create_program() {
+        migraphx::program p;
+        migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
+        auto pa = p.add_parameter("a", a_shape);
+        migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
+        auto pc = p.add_parameter("c", c_shape);
+        p.add_instruction(migraphx::op::quant_convolution{}, pa, pc);
+        return p;
+    }
+};
+
+struct quant_conv_default_mode : verify_program<quant_conv_default_mode>
+{
+    migraphx::program create_program() {
+        migraphx::program p;
+        migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
+        auto pa = p.add_parameter("a", a_shape);
+        migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
+        auto pc = p.add_parameter("c", c_shape);
+        p.add_instruction(migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}, migraphx::op::same}, pa, pc);
+        return p;
+    }
+};
+
+struct quant_conv_valid_mode : verify_program<quant_conv_valid_mode>
+{
+    migraphx::program create_program() {
+        migraphx::program p;
+        migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
+        auto pa = p.add_parameter("a", a_shape);
+        migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
+        auto pc = p.add_parameter("c", c_shape);
+        p.add_instruction(migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}, migraphx::op::valid}, pa, pc);
+        return p;
+    }
+};
+
+struct quant_conv_padding : verify_program<quant_conv_padding>
+{
+    migraphx::program create_program() {
+        migraphx::program p;
+        migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
+        auto pa = p.add_parameter("a", a_shape);
+        migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
+        auto pc = p.add_parameter("c", c_shape);
+        p.add_instruction(migraphx::op::quant_convolution{{{1, 1}}, {{1, 1}}}, pa, pc);
+        return p;
+    }
+};
+
+struct quant_conv_padding_stride : verify_program<quant_conv_padding_stride>
+{
+    migraphx::program create_program() {
+        migraphx::program p;
+        migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
+        auto pa = p.add_parameter("a", a_shape);
+        migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
+        auto pc = p.add_parameter("c", c_shape);
+        p.add_instruction(migraphx::op::quant_convolution{{{1, 1}}, {{2, 2}}}, pa, pc);
+
+        return p;
+    }
+};
+
 struct test_concat : verify_program<test_concat>
 {
     migraphx::program create_program() const

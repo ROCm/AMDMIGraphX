@@ -1557,7 +1557,6 @@ TEST_CASE(fp16_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-<<<<<<< HEAD
 TEST_CASE(clip_test)
 {
     migraphx::program p;
@@ -1573,7 +1572,8 @@ TEST_CASE(clip_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0.0, 0.0, 6.0};
     EXPECT(migraphx::verify_range(results_vector, gold));
-=======
+}
+
 TEST_CASE(SPLIT_TEST)
 {
     {
@@ -1686,7 +1686,6 @@ TEST_CASE(SPLIT_TEST)
 
         EXPECT(migraphx::verify_range(results_vector, gold));
     }
->>>>>>> 710ff7937b39f8398bb863f3e79aec5da4d95195
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

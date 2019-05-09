@@ -182,7 +182,8 @@ PYBIND11_MODULE(migraphx, m)
     });
 
     m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);
-    m.def("quantize", &migraphx::quantize);
+    m.def("quantize", [](migraphx::program& p, std::vector<std::string>& ins_names) {migraphx::quantize(p, ins_names); });
+    m.def("quantize", [](migraphx::program& p) {migraphx::quantize(p, {"all"}); });
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

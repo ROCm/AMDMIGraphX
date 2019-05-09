@@ -1354,10 +1354,22 @@ TEST_CASE(quant_conv2d_test)
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
 
-    std::vector<float> s = {
-       10197,        10548,        11601,        11952,        25506,        26586, 
-       29826,        30906,        27045,        27396,        28449,        28800, 
-       77346,        78426,        81666,        82746};
+    std::vector<float> s = {10197,
+                            10548,
+                            11601,
+                            11952,
+                            25506,
+                            26586,
+                            29826,
+                            30906,
+                            27045,
+                            27396,
+                            28449,
+                            28800,
+                            77346,
+                            78426,
+                            81666,
+                            82746};
 
     std::vector<float> results_vector(16);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });

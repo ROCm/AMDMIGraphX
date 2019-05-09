@@ -92,12 +92,12 @@ argument miopen_quant_gemm::compute(context& ctx,
     if(!transb)
     {
         // use the algorithm to pack A
-        if (pack_1.empty())
+        if(pack_1.empty())
         {
             std::cout << "allocate pack_1" << std::endl;
             pack_1 = allocate_gpu(args.at(1).get_shape());
         }
-        //assert(!pack_1.empty());
+        // assert(!pack_1.empty());
         device::pack_a(ctx.get_stream().get(), pack_1, args[1]);
         auto pb = from_gpu(pack_1);
         std::cout << "pb = " << pb << std::endl;
@@ -107,13 +107,13 @@ argument miopen_quant_gemm::compute(context& ctx,
     // comment of the API
     if(transa)
     {
-        if (pack_0.empty())
+        if(pack_0.empty())
         {
             std::cout << "allocate pack_0" << std::endl;
             pack_0 = allocate_gpu(args.at(0).get_shape());
         }
         device::pack_b(ctx.get_stream().get(), pack_0, args[0]);
-        auto a = from_gpu(args[0]);
+        auto a  = from_gpu(args[0]);
         auto pa = from_gpu(pack_0);
         std::cout << "a = " << a << std::endl;
         std::cout << "pa = " << pa << std::endl;

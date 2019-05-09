@@ -75,7 +75,7 @@ struct hip_tensor_descriptor
         for(size_t is = 0; is < NDim; is++)
         {
             result[indices[is]] = tidx / strides[indices[is]];
-            tidx       = tidx % strides[indices[is]];
+            tidx                = tidx % strides[indices[is]];
         }
         return result;
     }

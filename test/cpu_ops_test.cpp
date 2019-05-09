@@ -1337,6 +1337,33 @@ TEST_CASE(conv2d_padding_stride_test)
     EXPECT(migraphx::verify_range(results_vector, s));
 }
 
+TEST_CASE(quant_conv2d_test)
+{
+    migraphx::program p;
+    migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
+    std::vector<int8_t> a(2 * 3 * 4 * 4);
+    std::iota(a.begin(), a.end(), 0);
+    auto al = p.add_literal(migraphx::literal{a_shape, a});
+
+    migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
+    std::vector<int8_t> c(2 * 3 * 3 * 3);
+    std::iota(c.begin(), c.end(), 0);
+    auto cl = p.add_literal(migraphx::literal{c_shape, c});
+
+    p.add_instruction(migraphx::op::quant_convolution{}, al, cl);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+
+    std::vector<float> s = {
+       10197,        10548,        11601,        11952,        25506,        26586, 
+       29826,        30906,        27045,        27396,        28449,        28800, 
+       77346,        78426,        81666,        82746};
+
+    std::vector<float> results_vector(16);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, s));
+}
+
 TEST_CASE(transpose_test)
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 2, 2, 3}};

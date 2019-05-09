@@ -76,6 +76,34 @@ TEST_CASE(convolution_shape)
     throws_shape(migraphx::op::convolution{}, input2, weights);
 }
 
+TEST_CASE(quant_convolution_shape)
+{
+    migraphx::shape output{migraphx::shape::float_type, {4, 4, 1, 1}};
+    migraphx::shape input{migraphx::shape::int8_type, {4, 3, 3, 3}};
+    migraphx::shape weights{migraphx::shape::int8_type, {4, 3, 3, 3}};
+    expect_shape(output, migraphx::op::quant_convolution{}, input, weights);
+    throws_shape(migraphx::op::quant_convolution{}, input);
+
+    migraphx::shape input2{migraphx::shape::float_type, {3, 3}};
+    migraphx::shape weights2{migraphx::shape::float_type, {3, 3}};
+    throws_shape(migraphx::op::quant_convolution{}, input2, weights2);
+    throws_shape(migraphx::op::quant_convolution{}, input2, weights);
+
+    migraphx::shape input3{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape weight3{migraphx::shape::float_type, {4, 3, 3, 3}};
+    throws_shape(migraphx::op::quant_convolution{}, input3, weights);
+    throws_shape(migraphx::op::quant_convolution{}, input, weight3);
+    throws_shape(migraphx::op::quant_convolution{}, input3, weight3);
+
+    migraphx::shape output_same_mode{migraphx::shape::float_type, {4, 4, 3, 3}};
+    expect_shape(output_same_mode, migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}, 
+                migraphx::op::same}, input, weights);
+    expect_shape(output, migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}, 
+                migraphx::op::valid}, input, weights);
+    throws_shape(migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}, 
+                 migraphx::op::padding_mode_t(9999)}, input, weights);
+}
+
 TEST_CASE(transpose_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 2}};

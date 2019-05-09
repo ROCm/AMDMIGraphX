@@ -93,11 +93,11 @@ struct split
         return {input_shape.type(), out_dims};
     }
 
-    std::vector<int> compute_index_map(const shape& s) const
+    std::vector<std::size_t> compute_index_map(const shape& s) const
     {
-        std::vector<int> index_map;
-        int unit_slice = 1;
-        int axis_id    = 0;
+        std::vector<std::size_t> index_map;
+        std::size_t unit_slice = 1;
+        int axis_id            = 0;
         if((axis < 0) || (axis >= s.lens().size()))
             MIGRAPHX_THROW("SPLIT:invalid split axis");
 
@@ -116,17 +116,17 @@ struct split
         if(total_slice_dim != s.lens()[axis])
             MIGRAPHX_THROW("SPLIT:invalid split dimension");
 
-        int stride            = unit_slice * total_slice_dim;
+        std::size_t stride    = unit_slice * total_slice_dim;
         std::size_t nelements = s.elements();
-        std::vector<int> segment_size;
-        std::vector<int> begin_index;
-        int num_of_segments = nelements / stride;
-        int index           = 0;
+        std::vector<std::size_t> segment_size;
+        std::vector<std::size_t> begin_index;
+        std::size_t num_of_segments = nelements / stride;
+        std::size_t index           = 0;
 
         // For each slice, compute segment size and begin index in the output.
         for(auto&& dim : slice_dims)
         {
-            int size = unit_slice * dim;
+            std::size_t size = unit_slice * dim;
             segment_size.push_back(size);
             begin_index.push_back(index);
             index += (num_of_segments * size);
@@ -153,7 +153,7 @@ struct split
                 a_segment_size += seg;
                 id++;
             }
-            int map_index =
+            std::size_t map_index =
                 begin_index[slice_id] + segment_id * segment_size[slice_id] + element_index;
             index_map[map_index] = i;
         }
@@ -185,8 +185,8 @@ struct split
         if((axis == 0) && (first == -1))
             return {std::move(output_shape), std::move(arg0.data)};
 
-        shape input_shape          = arg0.get_shape();
-        std::vector<int> index_map = compute_index_map(input_shape);
+        shape input_shape                  = arg0.get_shape();
+        std::vector<std::size_t> index_map = compute_index_map(input_shape);
         argument result{output_shape};
         std::size_t nelements = output_shape.elements();
         unsigned offset       = compute_offset(input_shape);
@@ -200,7 +200,10 @@ struct split
         return result;
     }
 
-    int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
 };
 
 } // namespace op

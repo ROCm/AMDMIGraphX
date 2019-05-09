@@ -67,10 +67,25 @@ TEST_CASE(test1)
     auto r3 = p.add_instruction(migraphx::op::relu{}, a3);
     auto p3 = p.add_instruction(migraphx::op::pooling{}, r3);
     p.add_instruction(migraphx::op::concat{1}, r1, p2, p3);
+    auto count = std::distance(p.begin(), p.end());
     p.compile(horizontal_fusion_target{});
-    EXPECT(std::any_of(p.begin(), p.end(), [](const migraphx::instruction& ins) {
-        return ins.name() == "split";
-    }));
+
+    EXPECT(std::distance(p.begin(), p.end()) == count - 6);
+    EXPECT(std::count_if(p.begin(), p.end(), [](const migraphx::instruction& ins) {
+               return ins.name() == "convolution";
+           }) == 1);
+    EXPECT(std::count_if(p.begin(), p.end(), [](const migraphx::instruction& ins) {
+               return ins.name() == "relu";
+           }) == 1);
+    EXPECT(std::count_if(p.begin(), p.end(), [](const migraphx::instruction& ins) {
+               return ins.name() == "add";
+           }) == 1);
+    EXPECT(std::count_if(p.begin(), p.end(), [](const migraphx::instruction& ins) {
+               return ins.name() == "split";
+           }) == 2);
+    EXPECT(std::count_if(p.begin(), p.end(), [](const migraphx::instruction& ins) {
+               return ins.name() == "load";
+           }) == 2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -18,9 +18,9 @@ struct hash_value
         root = 0,
         fused
     };
-    unsigned id        = 0;
-    unsigned cur_point = 0;
-    unsigned mask      = 0;
+    unsigned id   = 0;
+    int cur_point = 0;
+    unsigned mask = 0;
     bool is_root() const { return (mask & (static_cast<unsigned>(1) << root)) != 0; }
     bool is_fused() const { return (mask & (static_cast<unsigned>(1) << fused)) != 0; }
     void set_root() { mask |= (static_cast<unsigned>(1) << root); }
@@ -97,7 +97,7 @@ struct horizontal_fusion_impl
             vals.insert(ptr);
             hash_inputs[id] = vals;
         }
-        else if(hash_inputs[id].find(ptr) == hash_inputs[id].end())
+        else if(!hash_inputs[id].count(ptr))
             hash_inputs[id].insert(ptr);
     }
 
@@ -203,7 +203,7 @@ struct horizontal_fusion_impl
     // Map of hash value id to instructions having the same hash value.
     std::unordered_map<unsigned, std::set<unsigned>> hash_instrs;
     // Current program point.
-    unsigned cur_point;
+    int cur_point;
     // Opcode id.
     unsigned opcode_id;
 };

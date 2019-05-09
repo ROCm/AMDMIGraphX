@@ -265,9 +265,9 @@ struct miopen_apply
 
             auto output = insert_allocation(ins, out_s);
 
-            auto arg0                  = refs[0];
-            const shape& s             = arg0->get_shape();
-            std::vector<int> index_map = op.compute_index_map(s);
+            auto arg0                          = refs[0];
+            const shape& s                     = arg0->get_shape();
+            std::vector<std::size_t> index_map = op.compute_index_map(s);
             std::vector<std::size_t> lens;
             lens.push_back(s.elements());
             auto map = prog->add_literal(

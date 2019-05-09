@@ -281,8 +281,7 @@ void horizontal_fusion_impl::concat(std::vector<instruction_ref>& instrs,
         base_sum += root[ins]->get_shape().lens().at(root_axis);
     }
 
-    if(base_lens[root_axis] != base_sum)
-        base_lens[root_axis] = base_sum;
+    base_lens[root_axis] = base_sum;
 
     if(ins0->outputs().size() != 1)
         MIGRAPHX_THROW("unexpected output size");

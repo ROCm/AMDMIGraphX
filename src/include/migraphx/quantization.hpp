@@ -13,6 +13,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct program;
 
 void quantize(program& prog, const std::vector<std::string>& ins_names);
+void quantize(program& prog);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

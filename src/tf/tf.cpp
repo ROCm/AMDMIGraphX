@@ -123,6 +123,7 @@ struct tf_parser
         add_mem_op("Mean", &tf_parser::parse_mean);
         add_mem_op("Pack", &tf_parser::parse_pack);
         add_mem_op("Pad", &tf_parser::parse_pad);
+        add_mem_op("Relu6", &tf_parser::parse_relu6);
         add_mem_op("Reshape", &tf_parser::parse_reshape);
         add_mem_op("Softmax", &tf_parser::parse_softmax);
         add_mem_op("Squeeze", &tf_parser::parse_squeeze);
@@ -480,6 +481,15 @@ struct tf_parser
             op.lengths[1] = ksize[3];
         }
         return prog.add_instruction(op, args[0]);
+    }
+
+    instruction_ref
+    parse_relu6(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    {
+        op::clip op;
+        op.max_val = 6.0;
+        op.min_val = 0.0;
+        return prog.add_instruction(op, std::move(args));
     }
 
     instruction_ref

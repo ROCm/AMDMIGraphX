@@ -178,11 +178,26 @@ struct miopen_apply
             auto&& op                         = any_cast<op::quant_dot>(ins->get_operator());
             std::vector<instruction_ref> refs = ins->inputs();
 
-            // add additional arguments if need packing
-            if(refs.at(0)->get_shape().transposed())
+            // add additional arguments if need packing. Since lowering is added
+            // after auto_contiguous and before eliminate contiguous, the shapes 
+            // of all inputs are standard, so the input shape cannot be transposed.
+            // To avoid that, we need to check whether this argument is an output
+            // of contiguous. If true, we should check the shape of the input
+            // of the contiguous operator.
+            auto prev_ins = refs.at(0);
+            if (prev_ins->name() == "gpu::contiguous")
             {
-                auto pack_a = insert_allocation(refs.at(0), refs.at(0)->get_shape());
-                refs.push_back(pack_a);
+                auto input = prev_ins->inputs().front();
+                if (input->get_shape().transposed())
+                {
+                    auto pack_a = insert_allocation(input, input->get_shape());
+                    // replace one of the inputs of quant_gemm from the output to the
+                    // input of contiguous. Then the contiguous could become dead code
+                    // of prev_ins is its only output
+                    refs.at(0) = input;
+                    instruction::replace_argument(ins, prev_ins, input);
+                    refs.push_back(pack_a);
+                }
             }
 
             if(!refs.at(1)->get_shape().transposed())

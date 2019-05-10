@@ -55,8 +55,8 @@ void pack_b(hipStream_t stream, const argument& result, const argument& arg)
             gs_launch(stream, nelements)([=](auto ii) {
                 const size_t nb    = 4;
                 auto idx           = desc.multi(ii);
-                std::size_t i_n    = idx[1];
-                std::size_t i_k    = idx[0];
+                std::size_t i_n    = idx[dim_0];
+                std::size_t i_k    = idx[dim_1];
                 std::size_t offset = ii / m_size * m_size;
                 out_ptr[i_k % nb + (i_n + (i_k / nb) * ldb) * nb + offset] =
                     in_ptr[i_n + i_k * ldb + offset];

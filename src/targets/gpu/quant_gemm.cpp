@@ -75,6 +75,7 @@ argument miopen_quant_gemm::compute(context& ctx,
                                     const std::vector<argument>& args) const
 {
     // handling the packing of B MUST be before handling that for A
+    auto arg_res = args.back();
     bool transa     = args[0].get_shape().transposed();
     bool transb     = args[1].get_shape().transposed();
     auto n_dim      = output_shape.lens().size();
@@ -82,7 +83,7 @@ argument miopen_quant_gemm::compute(context& ctx,
     auto dim_0      = n_dim - 2;
     rocblas_int lda = args[0].get_shape().strides()[transa ? dim_1 : dim_0];
     rocblas_int ldb = args[1].get_shape().strides()[transb ? dim_1 : dim_0];
-    rocblas_int ldc = args[2].get_shape().strides()[dim_0];
+    rocblas_int ldc = arg_res.get_shape().strides()[dim_0];
 
     auto arg_b               = args.at(1);
     std::size_t pack_arg_num = 0;
@@ -147,7 +148,7 @@ argument miopen_quant_gemm::compute(context& ctx,
                                     to_pointer(args[2]),
                                     rocblas_datatype_i32_r,
                                     ldc,
-                                    (is_3inputs ? to_pointer(args[3]) : to_pointer(args[2])),
+                                    to_pointer(arg_res),
                                     rocblas_datatype_i32_r,
                                     ldc,
                                     rocblas_datatype_i32_r,
@@ -180,7 +181,7 @@ argument miopen_quant_gemm::compute(context& ctx,
                 rocblas_datatype_i32_r,
                 ldc,
                 m * n,
-                (is_3inputs ? to_pointer(args[3]) : to_pointer(args[2])),
+                to_pointer(arg_res),
                 rocblas_datatype_i32_r,
                 ldc,
                 m * n,
@@ -194,7 +195,7 @@ argument miopen_quant_gemm::compute(context& ctx,
         }
     });
 
-    return (is_3inputs ? args[3] : args[2]);
+    return arg_res;
 }
 
 } // namespace gpu

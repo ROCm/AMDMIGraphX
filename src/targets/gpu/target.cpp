@@ -21,7 +21,6 @@
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/adjust_allocation.hpp>
-#include <migraphx/gpu/pack_int8_args.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/schedule.hpp>
 
@@ -71,8 +70,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         eliminate_allocation{"hip::allocate"},
         check_context<context>{},
         dead_code_elimination{},
-        // pack_int8_args{},
-        // dead_code_elimination{},
         eliminate_identity{}
     };
     // clang-format on

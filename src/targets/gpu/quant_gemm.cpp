@@ -75,7 +75,7 @@ argument miopen_quant_gemm::compute(context& ctx,
 
     if(!transb)
     {
-        if (arg_b.empty())
+        if(arg_b.empty())
         {
             arg_b = allocate_gpu(args[1].get_shape());
         }
@@ -86,7 +86,7 @@ argument miopen_quant_gemm::compute(context& ctx,
     // comment of the API
     if(transa)
     {
-        if (arg_a.empty())
+        if(arg_a.empty())
         {
             arg_a = allocate_gpu(args.at(0).get_shape());
         }

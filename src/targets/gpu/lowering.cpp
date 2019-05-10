@@ -175,22 +175,22 @@ struct miopen_apply
     void add_quant_gemm_op()
     {
         apply_map.emplace("quant_dot", [=](instruction_ref ins) {
-            auto&& op = any_cast<op::quant_dot>(ins->get_operator());
+            auto&& op                         = any_cast<op::quant_dot>(ins->get_operator());
             std::vector<instruction_ref> refs = ins->inputs();
 
             // add additional arguments if need packing
-            if (refs.at(0)->get_shape().transposed())
+            if(refs.at(0)->get_shape().transposed())
             {
                 auto pack_a = insert_allocation(refs.at(0), refs.at(0)->get_shape());
                 refs.push_back(pack_a);
             }
 
-            if (!refs.at(1)->get_shape().transposed())
+            if(!refs.at(1)->get_shape().transposed())
             {
                 auto pack_b = insert_allocation(refs.at(1), refs.at(1)->get_shape());
                 refs.push_back(pack_b);
             }
-            auto output                       = insert_allocation(ins, ins->get_shape());
+            auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
 
             return prog->replace_instruction(ins, miopen_quant_gemm{op}, refs);

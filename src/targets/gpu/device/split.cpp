@@ -44,17 +44,17 @@ argument split(hipStream_t stream,
     std::size_t groups    = 1 + nelements / local;
     std::size_t nglobal   = std::min<std::size_t>(256, groups) * local;
 
-    hipLaunchKernel(split_kernel,
-                    dim3(nglobal / local),
-                    dim3(local),
-                    0,
-                    stream,
-                    input,
-                    map,
-                    output,
-                    nelements,
-                    output_shape.type_size(),
-                    offset);
+    hipLaunchKernelGGL(split_kernel,
+                       dim3(nglobal / local),
+                       dim3(local),
+                       0,
+                       stream,
+                       input,
+                       map,
+                       output,
+                       nelements,
+                       output_shape.type_size(),
+                       offset);
 
     return args.back();
 }

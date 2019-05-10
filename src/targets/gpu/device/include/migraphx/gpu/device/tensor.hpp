@@ -61,11 +61,12 @@ struct hip_tensor_descriptor
     {
         std::copy(s.lens().begin(), s.lens().end(), lens);
         std::copy(s.strides().begin(), s.strides().end(), strides);
-        indices.resize(s.strides().size());
-        std::iota(indices.begin(), indices.end(), 0);
-        std::sort(indices.begin(), indices.end(), [&](size_t i1, size_t i2) {
-            return strides[i1] > strides[i2];
+        std::vector<std::size_t> vec_idx(s.lens().size());
+        std::iota(vec_idx.begin(), vec_idx.end(), 0);
+        std::sort(vec_idx.begin(), vec_idx.end(), [&](size_t i, size_t j) {
+            return strides[i] > strides[j];
         });
+        std::copy(vec_idx.begin(), vec_idx.end(), indices);
     }
 
     __device__ __host__ hip_index<NDim> multi(size_t idx) const
@@ -79,6 +80,7 @@ struct hip_tensor_descriptor
         }
         return result;
     }
+
     __device__ __host__ size_t linear(hip_index<NDim> s) const
     {
         size_t idx = 0;
@@ -88,7 +90,7 @@ struct hip_tensor_descriptor
     }
     size_t lens[NDim]    = {};
     size_t strides[NDim] = {};
-    std::vector<size_t> indices{};
+    size_t indices[NDim] = {};
 };
 
 } // namespace device

@@ -75,7 +75,7 @@ argument miopen_quant_gemm::compute(context& ctx,
                                     const std::vector<argument>& args) const
 {
     // handling the packing of B MUST be before handling that for A
-    auto arg_res = args.back();
+    auto arg_res    = args.back();
     bool transa     = args[0].get_shape().transposed();
     bool transb     = args[1].get_shape().transposed();
     auto n_dim      = output_shape.lens().size();

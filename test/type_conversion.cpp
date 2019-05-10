@@ -42,7 +42,7 @@ TEST_CASE(param_add)
         auto p1 = create_program_float();
         auto p2 = create_program_half();
 
-        migraphx::quantize(p1, {"all"});
+        migraphx::quantize(p1);
         EXPECT(p1 == p2);
     }
 
@@ -142,7 +142,7 @@ TEST_CASE(param_add_sub)
         auto p1 = create_program_float();
         auto p2 = create_program_half_all();
 
-        migraphx::quantize(p1, {"all"});
+        migraphx::quantize(p1);
         migraphx::run_passes(p1, {migraphx::dead_code_elimination{}});
 
         EXPECT(p1 == p2);

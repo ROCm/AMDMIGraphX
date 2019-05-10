@@ -12,18 +12,18 @@ namespace device {
 
 __global__ void split_kernel(hipLaunchParm,
                              char* input,
-                             const int* map,
+                             const std::size_t* map,
                              char* output,
                              std::size_t n,
-                             int bytes,
+                             std::size_t bytes,
                              unsigned offset)
 {
     unsigned global_id = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
     if(global_id < n)
     {
-        int map_index     = map[global_id + offset];
-        char* output_addr = output + bytes * global_id;
-        char* input_addr  = input + bytes * map_index;
+        std::size_t map_index = map[global_id + offset];
+        char* output_addr     = output + bytes * global_id;
+        char* input_addr      = input + bytes * map_index;
         std::copy(input_addr, input_addr + bytes, output_addr);
     }
 }
@@ -33,16 +33,16 @@ argument split(hipStream_t stream,
                std::vector<migraphx::argument> args,
                unsigned offset)
 {
-    auto result           = args.back();
-    auto arg0             = args[0];
-    auto arg1             = args[1];
-    std::size_t nelements = output_shape.elements();
-    auto* output          = result.data();
-    auto* input           = arg0.data();
-    const int* map        = reinterpret_cast<const int*>(arg1.data());
-    std::size_t local     = 1024;
-    std::size_t groups    = 1 + nelements / local;
-    std::size_t nglobal   = std::min<std::size_t>(256, groups) * local;
+    auto result            = args.back();
+    auto arg0              = args[0];
+    auto arg1              = args[1];
+    std::size_t nelements  = output_shape.elements();
+    auto* output           = result.data();
+    auto* input            = arg0.data();
+    const std::size_t* map = reinterpret_cast<const std::size_t*>(arg1.data());
+    std::size_t local      = 1024;
+    std::size_t groups     = 1 + nelements / local;
+    std::size_t nglobal    = std::min<std::size_t>(256, groups) * local;
 
     hipLaunchKernelGGL(split_kernel,
                        dim3(nglobal / local),

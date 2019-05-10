@@ -98,7 +98,6 @@ struct miopen_apply
         add_generic_op<hip_min>("min");
 
         add_extend_op<miopen_gemm, op::dot>("dot");
-        add_extend_op<miopen_quant_gemm, op::quant_dot>("quant_dot");
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
         add_extend_op<miopen_softmax, op::softmax>("softmax");
@@ -110,6 +109,7 @@ struct miopen_apply
         add_lrn_op();
         add_convolution_op();
         add_quant_convolution_op();
+        add_quant_gemm_op();
         add_pooling_op();
         add_batch_norm_inference_op();
     }
@@ -169,6 +169,31 @@ struct miopen_apply
 
             return prog->replace_instruction(
                 ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
+        });
+    }
+
+    void add_quant_gemm_op()
+    {
+        apply_map.emplace("quant_dot", [=](instruction_ref ins) {
+            auto&& op = any_cast<op::quant_dot>(ins->get_operator());
+            std::vector<instruction_ref> refs = ins->inputs();
+
+            // add additional arguments if need packing
+            if (refs.at(0)->get_shape().transposed())
+            {
+                auto pack_a = insert_allocation(refs.at(0), refs.at(0)->get_shape());
+                refs.push_back(pack_a);
+            }
+
+            if (!refs.at(1)->get_shape().transposed())
+            {
+                auto pack_b = insert_allocation(refs.at(1), refs.at(1)->get_shape());
+                refs.push_back(pack_b);
+            }
+            auto output                       = insert_allocation(ins, ins->get_shape());
+            refs.push_back(output);
+
+            return prog->replace_instruction(ins, miopen_quant_gemm{op}, refs);
         });
     }
 

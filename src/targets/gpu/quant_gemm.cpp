@@ -84,7 +84,7 @@ argument miopen_quant_gemm::compute(context& ctx,
     rocblas_int ldb = args[1].get_shape().strides()[transb ? dim_1 : dim_0];
     rocblas_int ldc = args[2].get_shape().strides()[dim_0];
 
-    auto arg_b = args.at(1);
+    auto arg_b               = args.at(1);
     std::size_t pack_arg_num = 0;
     if(!transb)
     {

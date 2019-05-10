@@ -119,6 +119,30 @@ TEST_CASE(conv_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(depthwiseconv_test)
+{
+    migraphx::program p;
+
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    std::vector<float> weight_data(3 * 3 * 3 * 1);
+    std::fill(weight_data.begin(), weight_data.end(), 1.0f);
+    auto l1 =
+        p.add_literal(migraphx::shape{migraphx::shape::float_type, {3, 3, 3, 1}}, weight_data);
+
+    migraphx::op::convolution op;
+    op.padding_mode = migraphx::op::padding_mode_t::same;
+    op.stride       = {1, 1};
+    op.dilation     = {1, 1};
+    op.group        = 3;
+    auto l2         = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l1);
+    auto l3         = p.add_instruction(migraphx::op::transpose{{1, 3, 0, 2}}, l2);
+    auto l4         = p.add_instruction(migraphx::op::reshape{{3, 1, 3, 3}}, l3);
+    p.add_instruction(op, l0, l4);
+    auto prog = migraphx::parse_tf("depthwise_conv_test.pb", true);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(identity_test)
 {
     migraphx::program p;

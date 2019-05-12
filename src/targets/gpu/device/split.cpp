@@ -10,8 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-__global__ void split_kernel(hipLaunchParm,
-                             char* input,
+__global__ void split_kernel(char* input,
                              const std::size_t* map,
                              char* output,
                              std::size_t n,

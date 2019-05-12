@@ -97,7 +97,7 @@ struct horizontal_fusion_impl
             vals.insert(ptr);
             hash_inputs[id] = vals;
         }
-        else if(!hash_inputs[id].count(ptr))
+        else if(hash_inputs[id].count(ptr) == 0u)
             hash_inputs[id].insert(ptr);
     }
 

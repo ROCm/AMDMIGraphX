@@ -18,8 +18,8 @@ namespace op {
 
 struct quant_dot
 {
-    int8_t alpha = 1;
-    int8_t beta  = 1;
+    int32_t alpha = 1;
+    int32_t beta  = 1;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

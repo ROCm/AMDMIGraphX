@@ -563,7 +563,7 @@ struct cpu_quant_gemm
         }
 
         // 2 input arguments
-        int8_t beta = 0;
+        int32_t beta = 0;
         migemm(result, arg_0, arg_1, op.alpha, beta);
 
         return result;

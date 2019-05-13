@@ -53,15 +53,16 @@ struct tf_parser
     template <class T>
     std::vector<T> parse_axes(std::vector<T> axes) const
     {
-        std::vector<T> new_axes;
         if(is_nhwc)
         {
+            std::vector<T> new_axes;
             std::transform(axes.begin(),
                            axes.end(),
                            std::back_inserter(new_axes),
                            [&](size_t axis) { return parse_axis(axis); });
+            return new_axes;
         }
-        return new_axes;
+        return axes;
     }
 
     // tf stores certain attributes such as strides, dilations, as a 4D input.
@@ -426,7 +427,6 @@ struct tf_parser
     instruction_ref
     parse_mean(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-
         auto axes      = parse_axes(args[1]->eval().get<int32_t>().to_vector());
         bool keep_dims = attributes.at("keep_dims").b();
         std::vector<int32_t> hw_axes{2, 3};

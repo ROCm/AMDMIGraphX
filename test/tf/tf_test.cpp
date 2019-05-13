@@ -168,6 +168,40 @@ TEST_CASE(matmul_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(mean_test)
+{
+    migraphx::program p;
+    migraphx::literal l{migraphx::shape{migraphx::shape::int32_type, {2}}, {2,3}};
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    p.add_literal(l);
+    p.add_literal(l);
+    migraphx::op::pooling op;
+    op.lengths = {16,16};
+    auto l3 = p.add_instruction(op, l0);
+    p.add_instruction(migraphx::op::squeeze{{2,3}}, l3);
+    p.add_instruction(op, l0);
+    auto prog = migraphx::parse_tf("mean_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(mean_test_nhwc)
+{
+    migraphx::program p;
+    migraphx::literal l{migraphx::shape{migraphx::shape::int32_type, {2}}, {1,2}};
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    p.add_literal(l);
+    p.add_literal(l);
+    migraphx::op::pooling op;
+    op.lengths = {16,16};
+    auto l3 = p.add_instruction(op, l0);
+    p.add_instruction(migraphx::op::squeeze{{2,3}}, l3);
+    p.add_instruction(op, l0);
+    auto prog = migraphx::parse_tf("mean_test_nhwc.pb", true);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(mul_test)
 {
     migraphx::program p;

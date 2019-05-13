@@ -94,7 +94,7 @@ argument miopen_quant_gemm::compute(context& ctx,
     }
 
     bool is_3inputs = (args.size() == 4);
-    int32_t beta     = 0;
+    int32_t beta    = 0;
     if(is_3inputs)
     {
         beta = op.beta;

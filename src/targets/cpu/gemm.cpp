@@ -118,8 +118,11 @@ void migemm(
     migemm_tpl(c_arg, a_arg, b_arg, alpha, beta);
 }
 
-void migemm(
-    const argument& c_arg, const argument& a_arg, const argument& b_arg, int32_t alpha, int32_t beta)
+void migemm(const argument& c_arg,
+            const argument& a_arg,
+            const argument& b_arg,
+            int32_t alpha,
+            int32_t beta)
 {
     migemm_tpl(c_arg, a_arg, b_arg, alpha, beta);
 }

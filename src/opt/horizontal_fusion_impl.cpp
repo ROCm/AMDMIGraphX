@@ -191,14 +191,8 @@ void horizontal_fusion_impl::process(instruction_ref ins)
 // Find the first axis that matches given dim.
 int horizontal_fusion_impl::find_axis(instruction_ref ins, int dim)
 {
-    int ndx = 0;
-    for(auto&& size : ins->get_shape().lens())
-    {
-        if(size == dim)
-            return ndx;
-        ndx++;
-    }
-    return -1;
+    auto it = std::find(ins->get_shape().lens().begin(), ins->get_shape().lens().end(), dim);
+    return (it != ins->get_shape().lens().end()) ? (it - ins->get_shape().lens().begin()) : -1;
 }
 
 // Find axis for convolution filter's output and broadcast's input.
@@ -834,6 +828,5 @@ void horizontal_fusion_impl::dump_hash_tree()
     }
 }
 #endif
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -75,43 +75,11 @@ struct horizontal_fusion_impl
 
     hash_value& create_value(instruction_ref ins);
 
-    void add_instr(unsigned id)
-    {
-        if(hash_instrs.find(id) == hash_instrs.end())
-        {
-            std::set<unsigned> vals;
-            vals.insert(cur_point);
-            hash_instrs[id] = vals;
-        }
-        else
-        {
-            hash_instrs[id].insert(cur_point);
-        }
-    }
+    void add_instr(unsigned id) { hash_instrs[id].insert(cur_point); }
 
-    void add_input(unsigned id, hash_value_ptr ptr)
-    {
-        if(hash_inputs.find(id) == hash_inputs.end())
-        {
-            std::set<hash_value_ptr> vals;
-            vals.insert(ptr);
-            hash_inputs[id] = vals;
-        }
-        else if(hash_inputs[id].count(ptr) == 0u)
-            hash_inputs[id].insert(ptr);
-    }
+    void add_input(unsigned id, hash_value_ptr ptr) { hash_inputs[id].insert(ptr); }
 
-    void add_output(unsigned id, hash_value_ptr ptr)
-    {
-        if(hash_outputs.find(id) == hash_outputs.end())
-        {
-            std::set<hash_value_ptr> vals;
-            vals.insert(ptr);
-            hash_outputs[id] = vals;
-        }
-        else if(hash_outputs[id].find(ptr) == hash_outputs[id].end())
-            hash_outputs[id].insert(ptr);
-    }
+    void add_output(unsigned id, hash_value_ptr ptr) { hash_outputs[id].insert(ptr); }
     unsigned hash_opcode(instruction_ref ins)
     {
         std::ostringstream stream;
@@ -211,7 +179,6 @@ struct horizontal_fusion_impl
 // Encoding functions.
 encode_info encode_common(instruction_ref ins, ins2_val& instr2_value, unsigned);
 encode_info encode_conv_common(instruction_ref ins, ins2_val& instr2_value, unsigned);
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif

@@ -21,11 +21,10 @@ struct hip_convert
     }
 
     std::string name() const { return "gpu::convert"; }
-    
+
     shape compute_shape(std::vector<shape> inputs) const;
 
-    argument
-    compute(context& ctx, const shape&, const std::vector<argument>& args) const;
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const;
 
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {

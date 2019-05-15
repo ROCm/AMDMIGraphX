@@ -3,6 +3,11 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/op/convert.hpp>
+#include <migraphx/op/dot.hpp>
+#include <migraphx/op/quant_dot.hpp>
+#include <migraphx/op/convolution.hpp>
+#include <migraphx/op/quant_convolution.hpp>
+#include <migraphx/op/multibroadcast.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
 #include <utility>
@@ -26,7 +31,7 @@ instruction_ref insert_quant_ins(program& prog,
            ins->get_shape().type() == shape::double_type ||
            ins->get_shape().type() == shape::int32_type);
     instruction_ref quant_ins{};
-    quant_ins    = prog.insert_instruction(std::next(ins), op::convert{type}, ins);
+    quant_ins    = prog.insert_instruction(std::next(ins), op::convert{type, scale, shift}, ins);
     map_ins[ins] = quant_ins;
 
     return quant_ins;
@@ -112,7 +117,7 @@ void quantize_int8(program& prog, const std::vector<std::string>& ins_names)
     // For now, we only support the int8 quantization of gemm and convolution
     std::vector<std::string> op_names = {"dot", "convolution"};
     if(!std::all_of(ins_names.begin(), ins_names.end(), [&](auto name) {
-           return std::find(op_names.begin(), op_names.end(), name);
+           return (std::find(op_names.begin(), op_names.end(), name) != op_names.end());
        }))
     {
         MIGRAPHX_THROW("QUANTIZE_INT8: only support DOT and CONVOLUTION operation");
@@ -209,7 +214,36 @@ void quantize_int8(program& prog, const std::vector<std::string>& ins_names)
         // When converting from other types to int8_type, there are parameters
         // used as scale and shift(.0f), which will generate results diffrent from
         // the original results. To adjust the output to be "correct(approximatly
-        // equal)", we need additional calculation for that.
+        // equal)", we need additional calculation for the adjustment
+        if (ins->name() == "dot")
+        {
+            auto dot_op = any_cast<op::dot>(ins->get_operator());
+            int32_t quant_alpha = static_cast<int32_t>(dot_op.alpha / (int8_param[0].first * int8_param[1].first) + 0.5f);
+            int32_t quant_beta = static_cast<int32_t>(dot_op.beta + 0.5f);
+            prog.replace_instruction(ins, op::quant_dot{quant_alpha, quant_beta}, converted_inputs);
+        }
+        else if (ins->name() == "convolution")
+        {
+            // Current MIOpen convolution does not support alpha and beta, 
+            // so we need a separate multiply to adjust the output
+            auto conv_op = any_cast<op::convolution>(ins->get_operator());
+            auto padding  = conv_op.padding;
+            auto stride   = conv_op.stride;
+            auto dilation = conv_op.dilation;
+            auto padding_mode = conv_op.padding_mode;
+            auto group = conv_op.group;
+            auto adjust_factor = 1.0 / int8_param[0].first * int8_param[1].first;
+
+            auto conv_res = prog.insert_instruction(ins, op::quant_convolution{padding, stride, dilation, padding_mode, group}, converted_inputs);
+            auto conv_lens = conv_res->get_shape().lens();
+            auto fl = prog.add_literal(literal(adjust_factor));
+            auto adj_fact = prog.insert_instruction(ins, op::multibroadcast{conv_lens}, fl);
+            prog.replace_instruction(ins, adj_fact);
+        }
+        else
+        {
+            MIGRAPHX_THROW("INT8_QUANTIZE: does not support operator" + ins->name());
+        }
 
         prog.replace_instruction(ins, op, converted_inputs);
     }

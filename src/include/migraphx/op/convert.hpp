@@ -20,8 +20,8 @@ namespace op {
 struct convert : unary<convert>
 {
     shape::type_t target_type = shape::half_type;
-    float scale = 1.0f;
-    float shift = 0.0f;
+    float scale               = 1.0f;
+    float shift               = 0.0f;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -41,7 +41,7 @@ struct convert : unary<convert>
     }
 
     convert(shape::type_t t) : target_type{t} {}
-    convert(shape::type_t t, float sle, float sft) : target_type{t}, scale {sle}, shift{sft} {}
+    convert(shape::type_t t, float sle, float sft) : target_type{t}, scale{sle}, shift{sft} {}
     convert() {}
 };
 

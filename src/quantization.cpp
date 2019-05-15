@@ -233,7 +233,7 @@ void quantize_int8(program& prog, const std::vector<std::string>& ins_names)
             auto dilation      = conv_op.dilation;
             auto padding_mode  = conv_op.padding_mode;
             auto group         = conv_op.group;
-            auto adjust_factor = 1.0 / int8_param[0].first * int8_param[1].first;
+            auto adjust_factor = 1.0 / (int8_param[0].first * int8_param[1].first);
 
             auto conv_res = prog.insert_instruction(
                 ins,

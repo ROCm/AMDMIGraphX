@@ -26,9 +26,8 @@ struct convert : unary<convert>
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.target_type, "target_type"),
-                    f(self.scale, "scale"),
-                    f(self.shift, "shift"));
+        return pack(
+            f(self.target_type, "target_type"), f(self.scale, "scale"), f(self.shift, "shift"));
     }
 
     shape compute_shape(std::vector<shape> inputs) const

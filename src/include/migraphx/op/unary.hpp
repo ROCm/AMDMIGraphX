@@ -27,26 +27,31 @@ struct unary : op_name<Derived>
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        result.visit([&](auto output) {
-            args[0].visit([&](auto input) {
-                if(input.get_shape().packed())
-                {
-                    std::transform(input.begin(),
-                                   input.end(),
-                                   output.begin(),
-                                   static_cast<const Derived&>(*this).apply());
+        auto in_shape = args[0].get_shape();
+        if (in_shape.packed())
+        {
+            shape std_in_shape{in_shape.type(), in_shape.lens()};
+            shape std_out_shape{output_shape.type(), output_shape.lens()};
+            auto input = make_view(std_in_shape, args[0].cast());
+            auto output = make_view(std_out_shape, result.cast());
+            std::transform(input.begin(),
+                           input.end(),
+                           output.begin(),
+                           static_cast<const Derived&>(*this).apply());
+        }
+        else
+        {
+            result.visit([&](auto output) {
+                args[0].visit([&](auto input) {
+                    shape_for_each(output.get_shape(), [&](const auto& idx) {
+                        output(idx.begin(), idx.end()) =
+                            static_cast<const Derived&>(*this).apply()(input(idx.begin(), idx.end()));
+                    });
 
                     return result;
-                }
-
-                shape_for_each(output.get_shape(), [&](const auto& idx) {
-                    output(idx.begin(), idx.end()) =
-                        static_cast<const Derived&>(*this).apply()(input(idx.begin(), idx.end()));
                 });
-
-                return result;
             });
-        });
+        }
 
         return result;
     }

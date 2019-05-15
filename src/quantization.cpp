@@ -4,6 +4,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/op/convert.hpp>
 #include <migraphx/op/dot.hpp>
+#include <migraphx/op/mul.hpp>
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>
@@ -197,7 +198,17 @@ void quantize_int8(program& prog, const std::vector<std::string>& ins_names)
         }
 
         auto op        = ins->get_operator();
-        auto ins_shape = compute_shape(op, converted_inputs);
+        shape ins_shape{};
+        // just to compute the output shape
+        if (ins->name() == "dot")
+        {
+            ins_shape = compute_shape(op::quant_dot{}, converted_inputs);
+        }
+        else
+        {
+            ins_shape = compute_shape(op::quant_convolution{}, converted_inputs);            
+        }
+        
         if(ins_shape.type() != orig_type)
         {
             // check the dead code case to avoid assert
@@ -239,17 +250,17 @@ void quantize_int8(program& prog, const std::vector<std::string>& ins_names)
                 ins,
                 op::quant_convolution{padding, stride, dilation, padding_mode, group},
                 converted_inputs);
-            auto conv_lens = conv_res->get_shape().lens();
-            auto fl        = prog.add_literal(literal(adjust_factor));
-            auto adj_fact  = prog.insert_instruction(ins, op::multibroadcast{conv_lens}, fl);
-            prog.replace_instruction(ins, adj_fact);
+            auto conv_s = conv_res->get_shape();
+            std::vector<float> vec_fact(conv_s.elements(), adjust_factor);
+
+            auto fl        = prog.add_literal(literal{conv_s, vec_fact});
+            auto ad_res = prog.insert_instruction(ins, op::mul{}, conv_res, fl);
+            prog.replace_instruction(ins, ad_res);
         }
         else
         {
             MIGRAPHX_THROW("INT8_QUANTIZE: does not support operator" + ins->name());
         }
-
-        prog.replace_instruction(ins, op, converted_inputs);
     }
 }
 

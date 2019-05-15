@@ -37,12 +37,12 @@ struct binary : op_name<Derived>
             auto input2 = make_view(std_shape, args[1].data());
             auto output = make_view(std_shape, result.data());
             std::transform(input1.begin(),
-                            input1.end(),
-                            input2.begin(),
-                            output.begin(),
-                            static_cast<const Derived&>(*this).apply());
-            }
-            else
+                           input1.end(),
+                           input2.begin(),
+                           output.begin(),
+                           static_cast<const Derived&>(*this).apply());
+        }
+        else
         {
             visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {
                 shape_for_each(output.get_shape(), [&](const auto& idx) {

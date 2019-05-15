@@ -197,18 +197,18 @@ void quantize_int8(program& prog, const std::vector<std::string>& ins_names)
             continue;
         }
 
-        auto op        = ins->get_operator();
+        auto op = ins->get_operator();
         shape ins_shape{};
         // just to compute the output shape
-        if (ins->name() == "dot")
+        if(ins->name() == "dot")
         {
             ins_shape = compute_shape(op::quant_dot{}, converted_inputs);
         }
         else
         {
-            ins_shape = compute_shape(op::quant_convolution{}, converted_inputs);            
+            ins_shape = compute_shape(op::quant_convolution{}, converted_inputs);
         }
-        
+
         if(ins_shape.type() != orig_type)
         {
             // check the dead code case to avoid assert
@@ -253,7 +253,7 @@ void quantize_int8(program& prog, const std::vector<std::string>& ins_names)
             auto conv_s = conv_res->get_shape();
             std::vector<float> vec_fact(conv_s.elements(), adjust_factor);
 
-            auto fl        = prog.add_literal(literal{conv_s, vec_fact});
+            auto fl     = prog.add_literal(literal{conv_s, vec_fact});
             auto ad_res = prog.insert_instruction(ins, op::mul{}, conv_res, fl);
             prog.replace_instruction(ins, ad_res);
         }

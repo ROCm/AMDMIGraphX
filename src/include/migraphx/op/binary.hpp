@@ -33,14 +33,16 @@ struct binary : op_name<Derived>
         if(s1 == s2 and s1.packed())
         {
             shape std_shape{s1.type(), s1.lens()};
-            auto input1 = make_view(std_shape, args[0].data());
-            auto input2 = make_view(std_shape, args[1].data());
-            auto output = make_view(std_shape, result.data());
-            std::transform(input1.begin(),
-                           input1.end(),
-                           input2.begin(),
-                           output.begin(),
-                           static_cast<const Derived&>(*this).apply());
+            argument std_result{std_shape, result.data()};
+            argument std_arg0{std_shape, args[0].data()};
+            argument std_arg1{std_shape, args[1].data()};
+            visit_all(std_result, std_arg0, std_arg1)([&](auto output, auto input1, auto input2) {
+                std::transform(input1.begin(),
+                            input1.end(),
+                            input2.begin(),
+                            output.begin(),
+                            static_cast<const Derived&>(*this).apply());
+            });
         }
         else
         {

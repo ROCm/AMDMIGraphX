@@ -32,12 +32,17 @@ struct unary : op_name<Derived>
         {
             shape std_in_shape{in_shape.type(), in_shape.lens()};
             shape std_out_shape{output_shape.type(), output_shape.lens()};
-            auto input  = make_view(std_in_shape, args[0].cast());
-            auto output = make_view(std_out_shape, result.cast());
-            std::transform(input.begin(),
-                           input.end(),
-                           output.begin(),
-                           static_cast<const Derived&>(*this).apply());
+            argument arg_in{std_in_shape, args[0].data()};
+            argument arg_out{std_out_shape, result.data()};
+            arg_out.visit([&](auto output) {
+                arg_in.visit([&](auto input) {
+                std::transform(input.begin(),
+                            input.end(),
+                            output.begin(),
+                            static_cast<const Derived&>(*this).apply());
+
+                });
+            });
         }
         else
         {
@@ -47,8 +52,6 @@ struct unary : op_name<Derived>
                         output(idx.begin(), idx.end()) = static_cast<const Derived&>(*this).apply()(
                             input(idx.begin(), idx.end()));
                     });
-
-                    return result;
                 });
             });
         }

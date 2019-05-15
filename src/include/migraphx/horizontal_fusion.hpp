@@ -14,10 +14,9 @@ struct program;
  */
 struct horizontal_fusion
 {
-    std::string name() const { return "horizontal fusion"; }
+    std::string name() const { return "horizontal_fusion"; }
     void apply(program& p) const;
 };
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

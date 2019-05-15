@@ -90,8 +90,6 @@ const literal& instruction::get_literal() const
 }
 
 const operation& instruction::get_operator() const { return op; }
-operation& instruction::get_operator_edit() { return op; }
-void instruction::set_operator(operation& o) { op = o; }
 
 std::string instruction::name() const { return op.name(); }
 
@@ -160,6 +158,8 @@ void instruction::replace(std::vector<instruction_ref> args)
     clear_arguments();
     arguments = std::move(args);
 }
+
+void instruction::replace(const operation& o) { op = o; }
 
 void instruction::replace_argument(instruction_ref old, instruction_ref new_ins)
 {
@@ -233,6 +233,5 @@ shape compute_shape(const operation& op, const std::vector<instruction_ref>& arg
 {
     return op.compute_shape(to_shapes(args));
 }
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

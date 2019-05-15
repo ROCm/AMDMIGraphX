@@ -192,7 +192,9 @@ void horizontal_fusion_impl::process(instruction_ref ins)
 int horizontal_fusion_impl::find_axis(instruction_ref ins, int dim)
 {
     auto it = std::find(ins->get_shape().lens().begin(), ins->get_shape().lens().end(), dim);
-    return (it != ins->get_shape().lens().end()) ? (it - ins->get_shape().lens().begin()) : -1;
+    return (it != ins->get_shape().lens().end())
+               ? (std::distance(ins->get_shape().lens().begin(), it))
+               : -1;
 }
 
 // Find axis for convolution filter's output and broadcast's input.
@@ -345,7 +347,7 @@ void horizontal_fusion_impl::concat(std::vector<instruction_ref>& instrs,
             std::vector<shape> input_shapes;
             input_shapes.push_back(ins0->inputs().at(0)->get_shape());
             shape new_s = op.compute_shape(input_shapes);
-            ins0->set_operator(op);
+            ins0->replace(op);
             ins0->set_shape(new_s);
         }
     }
@@ -436,16 +438,17 @@ instruction_ref horizontal_fusion_impl::break_split(int enum_ndx, instruction_re
     instruction_ref input       = split_ins->inputs().at(0);
     instruction_ref new_split   = p_program->insert_instruction(
         split_ins, op::split{axis, slice_dims, {enum_ndx, enum_ndx}}, input);
-    operation& op_edit = split_ins->get_operator_edit();
 
     if(first == enum_ndx)
-        (any_cast<op::split>(op_edit)).slice_selector.first = enum_ndx + 1;
+        first = enum_ndx + 1;
     else
-        (any_cast<op::split>(op_edit)).slice_selector.second = enum_ndx - 1;
+        second = enum_ndx - 1;
+
+    split_ins->replace(op::split{axis, slice_dims, {first, second}});
 
     std::vector<shape> shapes;
     shapes.push_back(input->get_shape());
-    shape new_shape = (any_cast<op::split>(op_edit)).compute_shape(shapes);
+    shape new_shape = (any_cast<op::split>(split_ins->get_operator())).compute_shape(shapes);
     split_ins->set_shape(new_shape);
     return new_split;
 }

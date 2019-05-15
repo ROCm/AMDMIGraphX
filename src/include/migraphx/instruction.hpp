@@ -25,6 +25,7 @@ struct instruction
     instruction(literal l);
 
     void replace(const shape& r);
+    void replace(const operation&);
 
     void recompute_shape();
 
@@ -43,10 +44,6 @@ struct instruction
     const literal& get_literal() const;
 
     const operation& get_operator() const;
-
-    operation& get_operator_edit();
-
-    void set_operator(operation&);
 
     std::string name() const;
 
@@ -94,8 +91,9 @@ struct instruction
     // internal
     void replace(operation o, const shape& r, std::vector<instruction_ref> args);
 
-    // internal
     void replace(std::vector<instruction_ref> args);
+
+    // internal
 
     // internal
     void replace_argument(instruction_ref old, instruction_ref new_ins);
@@ -124,7 +122,6 @@ struct hash<migraphx::instruction_ref>
         return std::hash<migraphx::instruction*>{}(&*x);
     }
 };
-
 } // namespace std
 
 #endif

@@ -36,10 +36,10 @@ struct unary : op_name<Derived>
             argument arg_out{std_out_shape, result.data()};
             arg_out.visit([&](auto output) {
                 arg_in.visit([&](auto input) {
-                std::transform(input.begin(),
-                            input.end(),
-                            output.begin(),
-                            static_cast<const Derived&>(*this).apply());
+                    std::transform(input.begin(),
+                                   input.end(),
+                                   output.begin(),
+                                   static_cast<const Derived&>(*this).apply());
 
                 });
             });

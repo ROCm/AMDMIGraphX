@@ -23,14 +23,14 @@ struct capture
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.f, "func"));
+        return pack(f(self.ins_index, "instruction_index"));
     }
 
     std::string name() const { return "capputure"; }
 
     shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const shape&, std::vector<argument> args) const
     {
         f(ins_index, args);
         return args.front();

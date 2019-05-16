@@ -107,7 +107,7 @@ void quantize(program& prog) { quantize(prog, {"all"}); }
 std::vector<std::vector<argument>> ins_args;
 void capture_args(std::size_t ins_index, std::vector<argument> args)
 {
-    if(ins_index = ins_args.size())
+    if(ins_index == ins_args.size())
     {
         ins_args.push_back(std::vector<argument>{});
     }

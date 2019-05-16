@@ -1,5 +1,5 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_CAPTURE_HPP
-#define MIGRAPHX_GUARD_OPERATORS_CATTURE_HPP
+#define MIGRAPHX_GUARD_OPERATORS_CAPTURE_HPP
 
 #include <array>
 #include <migraphx/operation.hpp>
@@ -18,7 +18,7 @@ namespace op {
 
 struct capture
 {
-    std::function < void(std::vector<argument>) f;
+    std::function < void(std::vector<argument>)> f;
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {

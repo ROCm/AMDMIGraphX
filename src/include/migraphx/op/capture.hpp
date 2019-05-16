@@ -18,7 +18,7 @@ namespace op {
 
 struct capture
 {
-    std::function < void(std::vector<argument>)> f;
+    std::function<void(std::vector<argument>)> f;
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {

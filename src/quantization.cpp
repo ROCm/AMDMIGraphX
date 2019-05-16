@@ -104,9 +104,10 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
 
 void quantize(program& prog) { quantize(prog, {"all"}); }
 
-std::vector<std::vector<argument> > ins_args;
-void capture_args(std::size_t ins_index, std::vector<argument> args) {
-    if (ins_index = ins_args.size())
+std::vector<std::vector<argument>> ins_args;
+void capture_args(std::size_t ins_index, std::vector<argument> args)
+{
+    if(ins_index = ins_args.size())
     {
         ins_args.push_back(std::vector<argument>{});
     }
@@ -115,7 +116,8 @@ void capture_args(std::size_t ins_index, std::vector<argument> args) {
     return;
 }
 
-void calc_quant_params(std::vector<std::vector<argument>>&ins_arg, std::vector<std::pair<float, float>>& ins_params)
+void calc_quant_params(std::vector<std::vector<argument>>& ins_arg,
+                       std::vector<std::pair<float, float>>& ins_params)
 {
     return;
 }
@@ -126,9 +128,9 @@ void capture_arguments(program& prog, const std::vector<std::string>& ins_names)
 {
     // the int8 quantization only support dot and convolution
     std::vector<std::string> op_names = {"dot", "convolution"};
-    if (!std::all_of(ins_names.begin(), ins_names.end(), [&](auto name) {
-        return std::find(op_names.begin(), op_names.end(), name) != op_names.end();
-    }))
+    if(!std::all_of(ins_names.begin(), ins_names.end(), [&](auto name) {
+           return std::find(op_names.begin(), op_names.end(), name) != op_names.end();
+       }))
     {
         MIGRAPHX_THROW("CAPTURE_ARGUMENTS: input operator is not supported");
     }
@@ -137,23 +139,24 @@ void capture_arguments(program& prog, const std::vector<std::string>& ins_names)
     std::size_t index = 0;
     for(auto ins : iterator_for(prog))
     {
-        if (not contains(ins_names, ins->name()))
+        if(not contains(ins_names, ins->name()))
         {
             continue;
         }
 
         auto inputs = ins->inputs();
         std::vector<instruction_ref> new_args;
-        for (auto input : inputs)
+        for(auto input : inputs)
         {
             instruction_ref new_ins{};
-            if (ins_map.count(input) > 0)
+            if(ins_map.count(input) > 0)
             {
                 new_ins = ins_map[input];
             }
             else
             {
-                new_ins = prog.insert_instruction(std::next(input), op::capture{index++, capture_args}, input);                
+                new_ins = prog.insert_instruction(
+                    std::next(input), op::capture{index++, capture_args}, input);
                 ins_map[input] = new_ins;
             }
             new_args.push_back(new_ins);

@@ -69,7 +69,7 @@ struct squeeze
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
-    int output_alias(const std::vector<shape>&) const { return 0; }
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 } // namespace op

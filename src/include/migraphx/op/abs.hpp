@@ -10,6 +10,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/make_signed.hpp>
 #include <cmath>
 #include <utility>
 
@@ -17,9 +18,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct abs : unary
+struct abs : unary<abs>
 {
-    std::string name() const { return "abs"; }
+    auto apply() const
+    {
+        return [](auto x) { return std::abs(make_signed(x)); };
+    }
 };
 
 } // namespace op

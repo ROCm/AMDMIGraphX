@@ -351,7 +351,7 @@ TEST_CASE(gemm_mutli_dim1_2_3)
     float beta     = 0.41;
     auto m12_alpha = p.add_instruction(migraphx::op::dot{alpha, beta}, l1, l2);
     auto l_beta    = p.add_literal(beta);
-    auto b_beta    = p.add_instruction(migraphx::op::scalar{m12_alpha->get_shape()}, l_beta);
+    auto b_beta    = p.add_instruction(migraphx::op::scalar{m12_alpha->get_shape().lens()}, l_beta);
     auto m3_beta   = p.add_instruction(migraphx::op::mul{}, b_beta, l3);
     p.add_instruction(migraphx::op::add{}, m3_beta, m12_alpha);
     p.compile(migraphx::cpu::target{});

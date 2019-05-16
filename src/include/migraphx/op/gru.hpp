@@ -27,6 +27,16 @@ struct gru
     float clip              = 0.0f;
     int linear_before_reset = 0;
 
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.hidden_size, "hidden_size"),
+                    f(self.actv_funcs, "actv_func"),
+                    f(self.direction, "direction"),
+                    f(self.clip, "clip"),
+                    f(self.linear_before_reset, "linear_before_reset"));
+    }
+
     std::string name() const { return "gru"; }
     shape compute_shape(std::vector<shape> inputs) const
     {

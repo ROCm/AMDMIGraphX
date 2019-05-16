@@ -18,7 +18,13 @@ namespace op {
 
 struct scalar
 {
-    shape scalar_bcast;
+    std::vector<std::size_t> scalar_bcast_lens;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.scalar_bcast_lens, "scalar_bcst_dims"));
+    }
 
     std::string name() const { return "scalar"; }
 
@@ -26,15 +32,15 @@ struct scalar
     {
         assert(check_shapes{inputs}.has(1).only_dims(1).size() == 1);
         auto t = inputs.at(0).type();
-        std::vector<std::size_t> strides(scalar_bcast.lens().size(), 0);
-        return {t, scalar_bcast.lens(), strides};
+        std::vector<std::size_t> strides(scalar_bcast_lens.size(), 0);
+        return {t, scalar_bcast_lens, strides};
     }
 
     argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.at(0).data)};
     }
-    int output_alias(const std::vector<shape>&) const { return 0; }
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 } // namespace op

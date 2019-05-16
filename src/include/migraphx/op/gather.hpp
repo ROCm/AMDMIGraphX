@@ -19,11 +19,18 @@ namespace op {
 struct gather
 {
     int axis = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axis, "axis"));
+    }
+
     std::string name() const { return "gather"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2);
+        check_shapes{inputs, *this}.has(2).standard();
         auto lens = inputs[0].lens();
         int n_dim = static_cast<int>(lens.size());
         if(axis >= n_dim || axis < -n_dim)

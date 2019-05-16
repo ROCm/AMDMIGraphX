@@ -17,9 +17,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct asin : unary
+struct asin : unary<asin>
 {
-    std::string name() const { return "asin"; }
+    auto apply() const
+    {
+        return [](auto x) { return std::asin(x); };
+    }
 };
 
 } // namespace op

@@ -27,45 +27,43 @@ namespace op {
 struct broadcast
 {
     uint64_t axis = 0;
+    std::vector<std::size_t> broadcast_lens;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"));
+        return pack(f(self.axis, "axis"), f(self.broadcast_lens, "dims"));
     }
 
-    shape broadcast_shape;
     std::string name() const { return "broadcast"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         auto t     = inputs.at(0).type();
         auto input = inputs.at(0);
 
-        std::vector<size_t> bcast_strides(broadcast_shape.lens().size(), 0);
+        std::vector<size_t> bcast_strides(broadcast_lens.size(), 0);
 
-        if(std::all_of(broadcast_shape.lens().cbegin(), broadcast_shape.lens().cend(), [&](auto x) {
-               return x == 1;
-           }))
+        if(std::all_of(
+               broadcast_lens.cbegin(), broadcast_lens.cend(), [&](auto x) { return x == 1; }))
         {
             if(axis != 0)
-                MIGRAPHX_THROW("when broadcasting tensor of size 1, axis should be 0");
-            return {t, broadcast_shape.lens(), std::move(bcast_strides)};
+                MIGRAPHX_THROW("BROADCAST: when broadcasting tensor of size 1, axis should be 0");
+            return {t, broadcast_lens, std::move(bcast_strides)};
         }
         else
         {
-            assert(broadcast_shape.lens().size() - axis >= input.lens().size());
-            if(!std::equal(
-                   input.lens().begin(), input.lens().end(), broadcast_shape.lens().begin() + axis))
-                MIGRAPHX_THROW("when broadcasting success sizes must match");
+            assert(broadcast_lens.size() - axis >= input.lens().size());
+            if(!std::equal(input.lens().begin(), input.lens().end(), broadcast_lens.begin() + axis))
+                MIGRAPHX_THROW("BROADCAST: when broadcasting success sizes must match");
             std::copy(input.strides().begin(), input.strides().end(), bcast_strides.begin() + axis);
-            return {t, broadcast_shape.lens(), std::move(bcast_strides)};
+            return {t, broadcast_lens, std::move(bcast_strides)};
         }
     }
     argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.at(0).data)};
     }
-    int output_alias(const std::vector<shape>&) const { return 0; }
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 } // namespace op

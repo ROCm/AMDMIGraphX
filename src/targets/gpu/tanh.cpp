@@ -7,8 +7,8 @@ namespace gpu {
 
 shape miopen_tanh::compute_shape(const std::vector<shape>& inputs) const
 {
-    check_shapes{inputs, *this}.has(2).not_broadcasted();
-    return inputs.at(1);
+    check_shapes{inputs, *this}.has(2).packed();
+    return inputs.at(0);
 }
 
 argument miopen_tanh::compute(context& ctx,

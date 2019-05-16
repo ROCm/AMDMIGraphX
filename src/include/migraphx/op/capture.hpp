@@ -18,7 +18,8 @@ namespace op {
 
 struct capture
 {
-    std::function<void(std::vector<argument>)> f;
+    std::size_t ins_index;
+    std::function<void(std::size_t ins_index, std::vector<argument>)> f;
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
@@ -31,11 +32,8 @@ struct capture
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        argument result{output_shape};
-        args.push_back(result);
-        f(args);
-
-        return result;
+        f(ins_index, args);
+        return args.front();
     }
 };
 

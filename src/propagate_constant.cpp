@@ -22,22 +22,32 @@ bool skip_propogate(instruction_ref ins)
 
 void propagate_constant::apply(program& p) const
 {
-    fix([&](auto self, auto ins) {
-        if(not skip_propogate(ins))
-        {
-            auto r = ins->eval();
-            if(not r.empty())
+    for(auto i : iterator_for(p))
+    {
+        if(i->name() != "@literal")
+            continue;
+        if(i->outputs().empty())
+            continue;
+        fix([&](auto self, auto ins) {
+            std::unordered_set<instruction_ref> children(ins->outputs().begin(),
+                                                         ins->outputs().end());
+            for(auto child : children)
             {
-                assert(r.get_shape() == ins->get_shape());
-                auto l = p.add_literal(r.get_shape(), r.data());
-                p.replace_instruction(ins, l);
-                return;
+                if(skip_propogate(child))
+                {
+                    self(child);
+                    continue;
+                }
+                auto r = child->eval();
+                if(not r.empty())
+                {
+                    assert(r.get_shape() == child->get_shape());
+                    auto l = p.add_literal(r.get_shape(), r.data());
+                    self(p.replace_instruction(child, l));
+                }
             }
-        }
-        std::unordered_set<instruction_ref> children(ins->inputs().begin(), ins->inputs().end());
-        for(auto child : children)
-            self(child);
-    })(std::prev(p.end()));
+        })(i);
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

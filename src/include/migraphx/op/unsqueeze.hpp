@@ -29,10 +29,14 @@ struct unsqueeze
     std::string name() const { return "unsqueeze"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1).standard();
-        auto input_shape     = inputs[0];
-        auto type            = input_shape.type();
-        auto old_lens        = input_shape.lens();
+        check_shapes{inputs, *this}.has(1).standard_or_scalar();
+        auto input_shape = inputs[0];
+        auto type        = input_shape.type();
+        auto old_lens    = input_shape.lens();
+
+        if(input_shape.scalar())
+            return shape{type, old_lens};
+
         std::size_t new_size = old_lens.size() + axes.size();
         std::vector<std::size_t> new_lens(new_size);
         std::size_t p = 0;
@@ -53,7 +57,7 @@ struct unsqueeze
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
-    int output_alias(const std::vector<shape>&) const { return 0; }
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 } // namespace op

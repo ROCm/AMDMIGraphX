@@ -86,7 +86,7 @@ struct slice
         auto offset = compute_offset(input.get_shape()) * output_shape.type_size();
         return {std::move(output_shape), [=] { return input.data() + offset; }};
     }
-    int output_alias(const std::vector<shape>&) const { return 0; }
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 } // namespace op

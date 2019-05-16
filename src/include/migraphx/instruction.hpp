@@ -24,7 +24,7 @@ struct instruction
 
     instruction(literal l);
 
-    void replace(const shape& r);
+    void replace(operation o);
 
     void recompute_shape();
 
@@ -72,7 +72,9 @@ struct instruction
     static void
     replace(instruction_ref ins, operation o, const shape& r, std::vector<instruction_ref> args);
 
-    argument eval() const;
+    bool can_eval() const;
+
+    argument eval(bool check_eval = true) const;
 
     void finalize(context& ctx);
 
@@ -88,7 +90,8 @@ struct instruction
     // internal
     void replace_argument(instruction_ref old, instruction_ref new_ins);
 
-    private:
+    void replace(const shape& r);
+
     operation op;
     shape result;
     std::vector<instruction_ref> output;

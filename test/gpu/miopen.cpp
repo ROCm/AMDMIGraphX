@@ -333,7 +333,22 @@ struct test_trans_tanh : verify_program<test_trans_tanh>
         auto x  = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto tx = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
         auto tanhx = p.add_instruction(migraphx::op::tanh{}, tx);
-        p.add_instruction(migraphx::op::add{}, tanhx, tanhx);
+        auto r     = p.add_instruction(migraphx::op::add{}, tanhx, tanhx);
+        p.add_instruction(migraphx::op::contiguous{}, r);
+
+        return p;
+    }
+};
+
+struct test_slice_sin : verify_program<test_slice_sin>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto l = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
+        auto t = p.add_instruction(migraphx::op::slice{{1}, {1}, {2}}, l);
+        p.add_instruction(migraphx::op::sin{}, t);
+
         return p;
     }
 };
@@ -692,8 +707,10 @@ struct test_trans_abs : verify_program<test_trans_abs>
         migraphx::program p;
         auto x  = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto tx = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
-        auto tanhx = p.add_instruction(migraphx::op::abs{}, tx);
-        p.add_instruction(migraphx::op::add{}, tanhx, tanhx);
+        auto absx = p.add_instruction(migraphx::op::abs{}, tx);
+        auto r    = p.add_instruction(migraphx::op::add{}, absx, absx);
+        p.add_instruction(migraphx::op::contiguous{}, r);
+
         return p;
     }
 };
@@ -1289,6 +1306,17 @@ struct test_batchnorm_inference : verify_program<test_batchnorm_inference>
         auto mean     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
         auto variance = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
         p.add_instruction(migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
+        return p;
+    }
+};
+
+struct test_clip : verify_program<test_clip>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3}});
+        p.add_instruction(migraphx::op::clip{6.0, 0.0}, x);
         return p;
     }
 };

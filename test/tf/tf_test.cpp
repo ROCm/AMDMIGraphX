@@ -80,7 +80,7 @@ TEST_CASE(concat_test)
     int axis = 1;
     // tf uses axis as the third input, and it is in int32 format
     // add the literal using a vector in order to set stride to 1 (like in tf parser)
-    p.add_literal(migraphx::shape{migraphx::shape::int32_type, {1}}, std::vector<int>{axis});
+    p.add_literal(migraphx::shape{migraphx::shape::int32_type}, std::vector<int>{axis});
 
     p.add_instruction(migraphx::op::concat{static_cast<std::size_t>(axis)}, l0, l1);
     auto prog = migraphx::parse_tf("concat_test.pb", false);
@@ -91,7 +91,7 @@ TEST_CASE(concat_test)
 TEST_CASE(const_test)
 {
     migraphx::program p;
-    p.add_literal(migraphx::shape{migraphx::shape::float_type, {1}}, std::vector<float>{1.0f});
+    p.add_literal(migraphx::shape{migraphx::shape::float_type}, std::vector<float>{1.0f});
     auto prog = migraphx::parse_tf("constant_test.pb", false);
 
     EXPECT(p == prog);
@@ -115,6 +115,30 @@ TEST_CASE(conv_test)
     auto l3         = p.add_instruction(migraphx::op::transpose{{1, 3, 0, 2}}, l2);
     p.add_instruction(op, l0, l3);
     auto prog = migraphx::parse_tf("conv_test.pb", true);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(depthwiseconv_test)
+{
+    migraphx::program p;
+
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    std::vector<float> weight_data(3 * 3 * 3 * 1);
+    std::fill(weight_data.begin(), weight_data.end(), 1.0f);
+    auto l1 =
+        p.add_literal(migraphx::shape{migraphx::shape::float_type, {3, 3, 3, 1}}, weight_data);
+
+    migraphx::op::convolution op;
+    op.padding_mode = migraphx::op::padding_mode_t::same;
+    op.stride       = {1, 1};
+    op.dilation     = {1, 1};
+    op.group        = 3;
+    auto l2         = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l1);
+    auto l3         = p.add_instruction(migraphx::op::transpose{{1, 3, 0, 2}}, l2);
+    auto l4         = p.add_instruction(migraphx::op::reshape{{3, 1, 3, 3}}, l3);
+    p.add_instruction(op, l0, l4);
+    auto prog = migraphx::parse_tf("depthwise_conv_test.pb", true);
 
     EXPECT(p == prog);
 }
@@ -225,6 +249,16 @@ TEST_CASE(relu_test)
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
     p.add_instruction(migraphx::op::relu{}, l0);
     auto prog = migraphx::parse_tf("relu_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(relu6_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    p.add_instruction(migraphx::op::clip{6.0, 0.0}, l0);
+    auto prog = migraphx::parse_tf("relu6_test.pb", false);
 
     EXPECT(p == prog);
 }

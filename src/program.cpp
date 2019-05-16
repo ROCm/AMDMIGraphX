@@ -63,10 +63,15 @@ static void print_program(const program& p, F print_func)
 
     for(auto ins : iterator_for(p))
     {
-        std::string var_name = "@" + std::to_string(count);
+        std::string var_name;
         if(ins->name() == "@param")
         {
             var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
+        }
+        else
+        {
+            var_name = "@" + std::to_string(count);
+            count++;
         }
         names.emplace(ins, var_name);
 
@@ -78,16 +83,76 @@ static void print_program(const program& p, F print_func)
         }
 
         print_func(ins, names);
-
-        count++;
     }
 }
 
 program::program() : impl(std::make_unique<program_impl>()) {}
 
 program::program(program&&) noexcept = default;
-program& program::operator=(program&&) noexcept = default;
-program::~program() noexcept                    = default;
+program::~program() noexcept         = default;
+
+// copy constructor
+program::program(const program& p) { assign(p); }
+
+// copy assignment operator
+program& program::operator=(program p)
+{
+    std::swap(p.impl, this->impl);
+    return *this;
+}
+
+void program::assign(const program& p)
+{
+    // clean the current program
+    if(!impl)
+    {
+        impl = std::make_unique<program_impl>();
+    }
+    else if(!impl->instructions.empty())
+    {
+        impl->instructions.clear();
+    }
+    impl->ctx = p.impl->ctx;
+
+    std::unordered_map<instruction_ref, instruction_ref> ins_map;
+    for(auto ins : iterator_for(p))
+    {
+        instruction_ref copy_ins{};
+        if(ins->name() == "@literal")
+        {
+            auto l   = ins->get_literal();
+            copy_ins = impl->instructions.insert(impl->instructions.end(), instruction{l});
+        }
+        else if(ins->name() == "@param")
+        {
+            auto&& name = any_cast<builtin::param>(ins->get_operator()).parameter;
+            auto s      = ins->get_shape();
+            copy_ins    = impl->instructions.insert(impl->instructions.end(),
+                                                 {builtin::param{name}, std::move(s), {}});
+        }
+        else if(ins->name() == "@outline")
+        {
+            auto s = ins->get_shape();
+            copy_ins =
+                impl->instructions.insert(impl->instructions.end(), {builtin::outline{s}, s, {}});
+        }
+        else
+        {
+            // retrieve its mapped input
+            auto inputs = ins->inputs();
+            // ensure all inputs have its corresponding copy instructions
+            assert(std::all_of(
+                inputs.begin(), inputs.end(), [&](auto i) { return ins_map.count(i) > 0; }));
+            std::vector<instruction_ref> copy_inputs(inputs.size());
+            std::transform(inputs.begin(), inputs.end(), copy_inputs.begin(), [&](auto i) {
+                return ins_map[i];
+            });
+            copy_ins = add_instruction(ins->get_operator(), copy_inputs);
+        }
+
+        ins_map[ins] = copy_ins;
+    }
+}
 
 instruction_ref program::add_instruction(const operation& op, std::vector<instruction_ref> args)
 {

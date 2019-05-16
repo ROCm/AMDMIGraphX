@@ -162,6 +162,38 @@ inline fused_operator_args make_fused_args()
     return make_obj<fused_operator_args>(&miopenCreateOperatorArgs);
 }
 
+template <class F>
+auto reflect(miopenActivationDescriptor_t ad, F f)
+{
+    assert(ad != nullptr);
+    miopenActivationMode_t mode = miopenActivationPASTHRU;
+    double alpha                = 0.0;
+    double beta                 = 0.0;
+    double gamma                = 0.0;
+    miopenGetActivationDescriptor(ad, &mode, &alpha, &beta, &gamma);
+    return pack(f(std::move(mode), "mode"),    // NOLINT
+                f(std::move(alpha), "alpha"),  // NOLINT
+                f(std::move(beta), "beta"),    // NOLINT
+                f(std::move(gamma), "gamma")); // NOLINT
+}
+
+template <class F>
+auto reflect(miopenLRNDescriptor_t lrnd, F f)
+{
+    assert(lrnd != nullptr);
+    miopenLRNMode_t mode = miopenLRNWithinChannel;
+    unsigned int n       = 0;
+    double alpha         = 0.0;
+    double beta          = 0.0;
+    double k             = 0.0;
+    miopenGetLRNDescriptor(lrnd, &mode, &n, &alpha, &beta, &k);
+    return pack(f(std::move(mode), "mode"),   // NOLINT
+                f(std::move(n), "n"),         // NOLINT
+                f(std::move(alpha), "alpha"), // NOLINT
+                f(std::move(beta), "beta"),   // NOLINT
+                f(std::move(k), "k"));        // NOLINT
+}
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

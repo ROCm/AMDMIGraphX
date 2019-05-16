@@ -236,8 +236,7 @@ struct test_exp : verify_program<test_exp>
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {6}};
-        std::vector<float> data{0.1f, 0.2f, 1.f, 2.f, 0.6f, 10.f};
-        auto x = p.add_literal(s, data);
+        auto x = p.add_instruction(migraphx::op::abs{}, p.add_parameter("x", s));
         p.add_instruction(migraphx::op::exp{}, x);
         return p;
     }
@@ -249,8 +248,7 @@ struct test_log : verify_program<test_log>
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {6}};
-        std::vector<float> data{0.1f, 0.2f, 1.f, 2.f, 0.6f, 100.f};
-        auto x = p.add_literal(s, data);
+        auto x = p.add_instruction(migraphx::op::abs{}, p.add_parameter("x", s));
         p.add_instruction(migraphx::op::log{}, x);
         return p;
     }
@@ -327,6 +325,34 @@ struct test_tanh : verify_program<test_tanh>
     }
 };
 
+struct test_trans_tanh : verify_program<test_trans_tanh>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x  = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto tx = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
+        auto tanhx = p.add_instruction(migraphx::op::tanh{}, tx);
+        auto r     = p.add_instruction(migraphx::op::add{}, tanhx, tanhx);
+        p.add_instruction(migraphx::op::contiguous{}, r);
+
+        return p;
+    }
+};
+
+struct test_slice_sin : verify_program<test_slice_sin>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto l = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
+        auto t = p.add_instruction(migraphx::op::slice{{1}, {1}, {2}}, l);
+        p.add_instruction(migraphx::op::sin{}, t);
+
+        return p;
+    }
+};
+
 struct test_asin : verify_program<test_asin>
 {
     migraphx::program create_program() const
@@ -371,7 +397,7 @@ struct test_scale : verify_program<test_scale>
         migraphx::shape s{migraphx::shape::float_type, {3}};
         auto x     = p.add_parameter("x", s);
         auto y     = p.add_parameter("y", migraphx::shape::float_type);
-        auto scale = p.add_instruction(migraphx::op::scalar{s}, y);
+        auto scale = p.add_instruction(migraphx::op::scalar{s.lens()}, y);
         p.add_instruction(migraphx::op::mul{}, x, scale);
         return p;
     }
@@ -417,7 +443,7 @@ struct test_triadd2 : verify_program<test_triadd2>
         auto x   = p.add_parameter("x", s);
         auto y   = p.add_parameter("y", s);
         auto z   = p.add_parameter("z", b);
-        auto zb  = p.add_instruction(migraphx::op::broadcast{1, s}, z);
+        auto zb  = p.add_instruction(migraphx::op::broadcast{1, s.lens()}, z);
         auto sum = p.add_instruction(migraphx::op::add{}, x, y);
         p.add_instruction(migraphx::op::add{}, sum, zb);
         return p;
@@ -432,7 +458,7 @@ struct test_add_broadcast : verify_program<test_add_broadcast>
         migraphx::shape s{migraphx::shape::float_type, {3}};
         auto x  = p.add_parameter("x", {migraphx::shape::float_type, {2, 2, 3}});
         auto y  = p.add_parameter("y", {migraphx::shape::float_type, {2, 2}});
-        auto by = p.add_instruction(migraphx::op::broadcast{0, x->get_shape()}, y);
+        auto by = p.add_instruction(migraphx::op::broadcast{0, x->get_shape().lens()}, y);
         p.add_instruction(migraphx::op::add{}, x, by);
         return p;
     }
@@ -446,7 +472,7 @@ struct test_add_broadcast2 : verify_program<test_add_broadcast2>
         migraphx::shape s{migraphx::shape::float_type, {3}};
         auto x  = p.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
         auto y  = p.add_parameter("y", {migraphx::shape::float_type, {3}});
-        auto by = p.add_instruction(migraphx::op::broadcast{1, x->get_shape()}, y);
+        auto by = p.add_instruction(migraphx::op::broadcast{1, x->get_shape().lens()}, y);
         p.add_instruction(migraphx::op::add{}, x, by);
         return p;
     }
@@ -460,7 +486,7 @@ struct test_add_broadcast3 : verify_program<test_add_broadcast3>
         migraphx::shape s{migraphx::shape::float_type, {3}};
         auto x  = p.add_parameter("x", {migraphx::shape::float_type, {2, 4, 5}});
         auto y  = p.add_parameter("y", {migraphx::shape::float_type, {4}});
-        auto by = p.add_instruction(migraphx::op::broadcast{1, x->get_shape()}, y);
+        auto by = p.add_instruction(migraphx::op::broadcast{1, x->get_shape().lens()}, y);
         p.add_instruction(migraphx::op::add{}, x, by);
         return p;
     }
@@ -474,7 +500,7 @@ struct test_add_broadcast4 : verify_program<test_add_broadcast4>
         migraphx::shape s{migraphx::shape::float_type, {3}};
         auto x  = p.add_parameter("x", {migraphx::shape::float_type, {2, 3, 5}});
         auto y  = p.add_parameter("y", {migraphx::shape::float_type, {3}});
-        auto by = p.add_instruction(migraphx::op::broadcast{1, x->get_shape()}, y);
+        auto by = p.add_instruction(migraphx::op::broadcast{1, x->get_shape().lens()}, y);
         p.add_instruction(migraphx::op::add{}, x, by);
         return p;
     }
@@ -488,7 +514,7 @@ struct test_add_broadcast5 : verify_program<test_add_broadcast5>
         migraphx::shape s{migraphx::shape::float_type, {3}};
         auto x  = p.add_parameter("x", {migraphx::shape::float_type, {2, 4, 8}});
         auto y  = p.add_parameter("y", {migraphx::shape::float_type, {4}});
-        auto by = p.add_instruction(migraphx::op::broadcast{1, x->get_shape()}, y);
+        auto by = p.add_instruction(migraphx::op::broadcast{1, x->get_shape().lens()}, y);
         p.add_instruction(migraphx::op::add{}, x, by);
         return p;
     }
@@ -503,7 +529,7 @@ struct test_triadd_broadcast : verify_program<test_triadd_broadcast>
         auto x   = p.add_parameter("x", {migraphx::shape::float_type, {2, 2, 3}});
         auto y   = p.add_parameter("y", {migraphx::shape::float_type, {2, 2}});
         auto z   = p.add_parameter("z", {migraphx::shape::float_type, {2, 2, 3}});
-        auto by  = p.add_instruction(migraphx::op::broadcast{0, x->get_shape()}, y);
+        auto by  = p.add_instruction(migraphx::op::broadcast{0, x->get_shape().lens()}, y);
         auto sum = p.add_instruction(migraphx::op::add{}, x, by);
         p.add_instruction(migraphx::op::add{}, sum, z);
         return p;
@@ -535,7 +561,7 @@ struct test_sub2 : verify_program<test_sub2>
         auto x    = p.add_parameter("x", s);
         auto y    = p.add_parameter("y", s);
         auto z    = p.add_parameter("z", b);
-        auto zb   = p.add_instruction(migraphx::op::broadcast{1, s}, z);
+        auto zb   = p.add_instruction(migraphx::op::broadcast{1, s.lens()}, z);
         auto diff = p.add_instruction(migraphx::op::sub{}, x, y);
         p.add_instruction(migraphx::op::sub{}, diff, zb);
         return p;
@@ -670,6 +696,21 @@ struct test_abs : verify_program<test_abs>
         migraphx::program p;
         auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         p.add_instruction(migraphx::op::abs{}, x);
+        return p;
+    }
+};
+
+struct test_trans_abs : verify_program<test_trans_abs>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x  = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto tx = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
+        auto absx = p.add_instruction(migraphx::op::abs{}, tx);
+        auto r    = p.add_instruction(migraphx::op::add{}, absx, absx);
+        p.add_instruction(migraphx::op::contiguous{}, r);
+
         return p;
     }
 };
@@ -1281,6 +1322,17 @@ struct test_batchnorm_inference : verify_program<test_batchnorm_inference>
         auto mean     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
         auto variance = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
         p.add_instruction(migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
+        return p;
+    }
+};
+
+struct test_clip : verify_program<test_clip>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3}});
+        p.add_instruction(migraphx::op::clip{6.0, 0.0}, x);
         return p;
     }
 };

@@ -19,10 +19,17 @@ namespace op {
 struct logsoftmax
 {
     int axis = 1;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axis, "axis"));
+    }
+
     std::string name() const { return "logsoftmax"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(1);
+        check_shapes{inputs}.has(1).standard();
         if(axis < 0 || axis > inputs[0].lens().size())
         {
             MIGRAPHX_THROW("LogSoftMax: input axis value " + std::to_string(axis) +

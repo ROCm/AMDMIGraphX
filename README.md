@@ -12,14 +12,18 @@ AMD's graph optimization engine.
 
 ## Installing the dependencies
 
-The dependencies can be installed with the `install_deps.cmake`, script: `cmake -P install_deps.cmake`.
+Dependencies can be installed using the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
 
-This will install by default to `/usr/local` but it can be installed in another location with `--prefix` argument:
-
+To install rbuild:
 ```
-cmake -P install_deps.cmake --prefix /some/local/dir
+pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 ```
 
+To build dependencies along with MIGraphX
+```
+rbuild build -d depend --cxx=/opt/rocm/bin/hcc
+```
+This builds dependencies in the subdirectory named depend and then builds MIGraphX using these dependencies.
 
 ## Building MIGraphX from source
 

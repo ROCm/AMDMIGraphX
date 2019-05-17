@@ -40,11 +40,15 @@ void pack_a(hipStream_t stream, const argument& result, const argument& arg)
 
 void pack_b(hipStream_t stream, const argument& result, const argument& arg)
 {
-    auto output_shape  = result.get_shape();
-    auto out_lens      = output_shape.lens();
-    auto dim_0         = output_shape.lens().size() - 2;
-    auto dim_1         = output_shape.lens().size() - 1;
-    std::size_t ldb    = output_shape.strides()[dim_1];
+    auto trans_shape  = result.get_shape();
+    auto out_lens      = trans_shape.lens();
+    auto dim_0         = trans_shape.lens().size() - 2;
+    auto dim_1         = trans_shape.lens().size() - 1;
+    std::size_t ldb    = trans_shape.strides()[dim_1];
+
+    auto wrap_lens = out_lens;
+    std::swap(wrap_lens[dim_0], wrap_lens[dim_1]);
+    shape output_shape{trans_shape.type(), wrap_lens};
     std::size_t m_size = out_lens[dim_0] * out_lens[dim_1];
     visit_all(result, arg)([&](auto output, auto input) {
         std::size_t nelements = output_shape.elements();
@@ -55,8 +59,8 @@ void pack_b(hipStream_t stream, const argument& result, const argument& arg)
             gs_launch(stream, nelements)([=](auto ii) {
                 const size_t nb    = 4;
                 auto idx           = desc.multi(ii);
-                std::size_t i_n    = idx[dim_0];
-                std::size_t i_k    = idx[dim_1];
+                std::size_t i_n    = idx[dim_1];
+                std::size_t i_k    = idx[dim_0];
                 std::size_t offset = ii / m_size * m_size;
                 out_ptr[i_k % nb + (i_n + (i_k / nb) * ldb) * nb + offset] =
                     in_ptr[i_n + i_k * ldb + offset];

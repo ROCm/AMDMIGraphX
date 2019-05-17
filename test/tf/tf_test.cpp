@@ -253,6 +253,16 @@ TEST_CASE(relu_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(relu6_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    p.add_instruction(migraphx::op::clip{6.0, 0.0}, l0);
+    auto prog = migraphx::parse_tf("relu6_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(reshape_test)
 {
     migraphx::program p;

@@ -16,7 +16,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct split
+struct horizontal_fusion_split
 {
     int axis = 0;
     std::vector<int> slice_dims;
@@ -205,7 +205,6 @@ struct split
         return shapes.size() - 1;
     }
 };
-
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -3322,7 +3322,7 @@ struct test_lstm_bidirct_default_actv2 : verify_program<test_lstm_bidirct_defaul
         return p;
     }
 };
-#if 1
+
 template <int Axis>
 struct test_logsoftmax : verify_program<test_logsoftmax<Axis>>
 {
@@ -3359,7 +3359,7 @@ struct test_logsoftmax_1 : verify_program<test_logsoftmax_1<Axis>>
 
 template struct test_logsoftmax_1<0>;
 template struct test_logsoftmax_1<1>;
-#endif
+
 struct test_split : verify_program<test_split>
 {
     migraphx::program create_program() const
@@ -3368,8 +3368,8 @@ struct test_split : verify_program<test_split>
         migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
         migraphx::shape s2{migraphx::shape::int32_type, {27}};
         auto x      = p.add_parameter("x", s);
-        auto split0 = p.add_instruction(migraphx::op::split{0, {2, 1}}, x);
-        auto split1 = p.add_instruction(migraphx::op::split{1, {2, 1}}, x);
+        auto split0 = p.add_instruction(migraphx::op::horizontal_fusion_split{0, {2, 1}}, x);
+        auto split1 = p.add_instruction(migraphx::op::horizontal_fusion_split{1, {2, 1}}, x);
         p.add_instruction(migraphx::op::add{}, split1, split0);
         return p;
     }
@@ -3382,9 +3382,11 @@ struct test_split_selector : verify_program<test_split_selector>
         migraphx::program p;
         migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
         migraphx::shape s2{migraphx::shape::int32_type, {27}};
-        auto x      = p.add_parameter("x", s);
-        auto split0 = p.add_instruction(migraphx::op::split{0, {1, 1, 1}, {0, 0}}, x);
-        auto split1 = p.add_instruction(migraphx::op::split{0, {1, 1, 1}, {1, 1}}, x);
+        auto x = p.add_parameter("x", s);
+        auto split0 =
+            p.add_instruction(migraphx::op::horizontal_fusion_split{0, {1, 1, 1}, {0, 0}}, x);
+        auto split1 =
+            p.add_instruction(migraphx::op::horizontal_fusion_split{0, {1, 1, 1}, {1, 1}}, x);
         p.add_instruction(migraphx::op::add{}, split1, split0);
         return p;
     }
@@ -3397,9 +3399,11 @@ struct test_split_selector_2 : verify_program<test_split_selector_2>
         migraphx::program p;
         migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
         migraphx::shape s2{migraphx::shape::int32_type, {27}};
-        auto x      = p.add_parameter("x", s);
-        auto split0 = p.add_instruction(migraphx::op::split{1, {1, 1, 1}, {1, 1}}, x);
-        auto split1 = p.add_instruction(migraphx::op::split{1, {1, 1, 1}, {2, 2}}, x);
+        auto x = p.add_parameter("x", s);
+        auto split0 =
+            p.add_instruction(migraphx::op::horizontal_fusion_split{1, {1, 1, 1}, {1, 1}}, x);
+        auto split1 =
+            p.add_instruction(migraphx::op::horizontal_fusion_split{1, {1, 1, 1}, {2, 2}}, x);
         p.add_instruction(migraphx::op::add{}, split1, split0);
         return p;
     }

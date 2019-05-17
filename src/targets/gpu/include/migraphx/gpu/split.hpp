@@ -12,7 +12,7 @@ struct context;
 
 struct hip_split
 {
-    op::split op;
+    op::horizontal_fusion_split op;
     std::string name() const { return "gpu::split"; }
     shape compute_shape(std::vector<shape> inputs) const;
     argument
@@ -22,7 +22,6 @@ struct hip_split
         return shapes.size() - 1;
     }
 };
-
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -1,14 +1,28 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_HORIZONTAL_FUSION_IMPL_HPP
 #define MIGRAPHX_GUARD_RTGLIB_HORIZONTAL_FUSION_IMPL_HPP
-#include <migraphx/common_header.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/operators.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/pass_config.hpp>
 #include <migraphx/config.hpp>
 
 #include <set>
 #include <stack>
+#include <vector>
 
 namespace migraphx {
 
 inline namespace MIGRAPHX_INLINE_NS {
+
+// #define MIGRAPHX_DEBUG_OPT
+
+#ifdef MIGRAPHX_DEBUG_OPT
+#define MIGRAPHX_DEBUG(s) s
+#else
+#define MIGRAPHX_DEBUG(s)
+#endif // MIGRAPHX_DEBUG_OPT
 
 // Nodes representing hashed instructions.
 struct hash_value
@@ -66,7 +80,6 @@ struct horizontal_fusion_impl
         hash_instrs.clear();
         values.reserve(p_program->size());
         opcode_table.clear();
-        register_all();
     }
     void run();
     void process(instruction_ref ins);
@@ -90,8 +103,9 @@ struct horizontal_fusion_impl
         return opcode_table[str];
     }
 
-    void register_op(const std::string&, encoder, int);
-    void register_all();
+    static std::unordered_map<std::string, encoder> create_op_registery();
+    static std::unordered_map<std::string, int> create_op_flag();
+
     bool collect_inputs(std::vector<std::vector<instruction_ref>>&,
                         int&,
                         std::vector<instruction_ref>&,
@@ -120,13 +134,13 @@ struct horizontal_fusion_impl
         }
         return instrs;
     }
-    bool compare_inputs(std::vector<instruction_ref>&,
-                        std::vector<instruction_ref>&,
+    bool compare_inputs(const std::vector<instruction_ref>&,
+                        const std::vector<instruction_ref>&,
                         instruction_ref,
                         int);
     std::vector<instruction_ref> walk(instruction_ref, std::unordered_map<instruction_ref, bool>&);
-    void concat(std::vector<instruction_ref>&,
-                std::unordered_map<instruction_ref, instruction_ref>&,
+    void concat(const std::vector<instruction_ref>&,
+                const std::unordered_map<instruction_ref, instruction_ref>&,
                 int);
     int find_axis(instruction_ref, std::unordered_map<instruction_ref, bool>&);
     int find_axis(instruction_ref, int dim);
@@ -148,6 +162,10 @@ struct horizontal_fusion_impl
     void dump_hash_value(hash_value&);
     void dump_hash_tree();
 #endif
+    // Map an operation name to its encoder function.
+    static std::unordered_map<std::string, encoder> op_registry;
+    static std::unordered_map<std::string, int> op_flag;
+
     private:
     program* p_program;
     // Flag an instruction to hash.
@@ -157,9 +175,6 @@ struct horizontal_fusion_impl
     std::unordered_map<unsigned, instruction_ref> point2_instr;
     // Map an encoding to a hash value pointer.
     std::unordered_map<key_type, hash_value_ptr> encode2_value;
-    // Map an operation name to its encoder function.
-    std::unordered_map<std::string, encoder> op_registry;
-    std::unordered_map<std::string, int> op_flag;
     // Map an opcode string to a value.
     string2_val opcode_table;
     // Universe of hash values.

@@ -9,23 +9,33 @@ static unsigned hash_id_bits = 16;
 static unsigned filter_bits  = 8;
 static unsigned kernel_bits  = 8;
 
-// Register a single operation.
-// 1st arg: operation name. 2nd arg: encoding function.
-void horizontal_fusion_impl::register_op(const std::string& name, encoder func, int flag)
+std::unordered_map<std::string, encoder> horizontal_fusion_impl::op_registry =
+    horizontal_fusion_impl::create_op_registery();
+std::unordered_map<std::string, int> horizontal_fusion_impl::op_flag =
+    horizontal_fusion_impl::create_op_flag();
+
+std::unordered_map<std::string, encoder> horizontal_fusion_impl::create_op_registery()
 {
-    op_registry[name] = std::move(func);
-    op_flag[name]     = flag;
+    std::unordered_map<std::string, encoder> m;
+    m["gpu::convolution"]    = encode_conv_common;
+    m["gpu::conv_bias_relu"] = encode_conv_common;
+    m["hip::add_relu"]       = encode_common;
+    m["convolution"]         = encode_conv_common;
+    m["add"]                 = encode_common;
+    m["relu"]                = encode_common;
+    return m;
 }
 
-// Register operations.
-void horizontal_fusion_impl::register_all()
+std::unordered_map<std::string, int> horizontal_fusion_impl::create_op_flag()
 {
-    register_op("gpu::convolution", encode_conv_common, 1);
-    register_op("gpu::conv_bias_relu", encode_conv_common, 1);
-    register_op("hip::add_relu", encode_common, 0);
-    register_op("convolution", encode_conv_common, 1);
-    register_op("add", encode_common, 0);
-    register_op("relu", encode_common, 0);
+    std::unordered_map<std::string, int> m;
+    m["gpu::convolution"]    = 1;
+    m["gpu::conv_bias_relu"] = 1;
+    m["hip::add_relu"]       = 0;
+    m["convolution"]         = 1;
+    m["add"]                 = 0;
+    m["relu"]                = 0;
+    return m;
 }
 
 static unsigned opcode_shift_count() { return ((sizeof(key_type) * 8) - opcode_bits); }
@@ -38,8 +48,8 @@ static unsigned kernel_shift_count() { return (filter_shift_count() - kernel_bit
 
 // Encode common fields.
 //
-// |----- 16 bits -----|----- 16 bits -------|----- 32 bits -----|
-// |      opcode       | 1st operand hash id |
+// |----- opcode_bits -----|----- hash_id_bits -------|----- xxx bits -----|
+// |      opcode           | 1st operand hash id      |
 encode_info encode_common(instruction_ref ins, ins2_val& instr2_value, unsigned opcode)
 {
     if(opcode >= (static_cast<unsigned>(1) << opcode_bits))
@@ -60,9 +70,9 @@ encode_info encode_common(instruction_ref ins, ins2_val& instr2_value, unsigned 
 
 // Encode common fields in convolution:
 //
-// |----- 16 bits -----|----- 16 bits -------|----- 8 bits -----|----- 8 bits-----|----- 16 bits
-// -----| |     opcode        | 1st operand hash id |   filter size    |  kernel size    |
-// 0x0000        |
+// |----- opcode_bits -----|----- hash_id_bits -------|----- filter_bits -----|-----
+// kernel-bits-----|----- xxx bits -----| |     opcode            | 1st operand hash id      |
+// filter size         |  kernel size         |      0x0000        |
 
 encode_info encode_conv_common(instruction_ref ins, ins2_val& instr2_value, unsigned opcode)
 {
@@ -206,7 +216,7 @@ int horizontal_fusion_impl::find_axis(instruction_ref ins, instruction_ref base,
     }
     else if(ins->outputs().at(0)->name() == "broadcast")
     {
-        if(!match_dim(base, ins->outputs().at(0), -1))
+        if(!match_dim(base, ins->outputs().at(0), ins->outputs().at(0)->get_shape().lens().size()))
             MIGRAPHX_THROW("Unmatched output");
         int dim = base->get_shape().lens().at(base_axis);
         return find_axis(ins, dim);
@@ -232,40 +242,39 @@ bool horizontal_fusion_impl::match_dim(instruction_ref ins1, instruction_ref ins
     return true;
 }
 
-bool horizontal_fusion_impl::compare_inputs(std::vector<instruction_ref>& input1,
-                                            std::vector<instruction_ref>& input2,
+bool horizontal_fusion_impl::compare_inputs(const std::vector<instruction_ref>& input1,
+                                            const std::vector<instruction_ref>& input2,
                                             instruction_ref base_ins,
                                             int base_axis)
 {
     if(input1.size() != input2.size())
         return false;
-    int ndx              = 0;
     std::size_t base_dim = base_ins->get_shape().lens().at(base_axis);
 
-    for(auto&& ins1 : input1)
-    {
-        instruction_ref ins2 = input2.at(ndx++);
-        if(ins1->name() != ins2->name())
-            return false;
-
-        int axis = find_axis(ins2, base_ins, base_axis);
-        if(axis == -1)
-            return false;
-        if(!match_dim(ins1, ins2, axis))
-            return false;
-        if(ins2->get_shape().lens().at(axis) != base_dim)
-            return false;
-    }
-
-    return true;
+    return (std::equal(input1.begin(),
+                       input1.end(),
+                       input2.begin(),
+                       [&](const instruction_ref& ins1, const instruction_ref& ins2) -> bool {
+                           if(ins1->name() != ins2->name())
+                               return false;
+                           int axis = find_axis(ins2, base_ins, base_axis);
+                           if(axis == -1)
+                               return false;
+                           if(!match_dim(ins1, ins2, axis))
+                               return false;
+                           if(ins2->get_shape().lens().at(axis) != base_dim)
+                               return false;
+                           return true;
+                       }));
 }
 
-void horizontal_fusion_impl::concat(std::vector<instruction_ref>& instrs,
-                                    std::unordered_map<instruction_ref, instruction_ref>& root,
-                                    int root_axis)
+void horizontal_fusion_impl::concat(
+    const std::vector<instruction_ref>& instrs,
+    const std::unordered_map<instruction_ref, instruction_ref>& root,
+    int root_axis)
 {
     instruction_ref ins0               = instrs.at(0);
-    instruction_ref base               = root[ins0];
+    instruction_ref base               = root.find(ins0)->second;
     std::vector<std::size_t> base_lens = base->get_shape().lens();
     int axis                           = find_axis(ins0, base, root_axis);
 
@@ -274,7 +283,7 @@ void horizontal_fusion_impl::concat(std::vector<instruction_ref>& instrs,
     for(auto&& ins : instrs)
     {
         sum += ins->get_shape().lens().at(axis);
-        base_sum += root[ins]->get_shape().lens().at(root_axis);
+        base_sum += root.find(ins)->second->get_shape().lens().at(root_axis);
     }
 
     base_lens[root_axis] = base_sum;
@@ -424,8 +433,8 @@ void horizontal_fusion_impl::update_hash_tree(unsigned hash_id)
 instruction_ref horizontal_fusion_impl::break_split(int enum_ndx, instruction_ref split_ins)
 {
     const operation& op = split_ins->get_operator();
-    int first           = (any_cast<op::split>(op)).slice_selector.first;
-    int second          = (any_cast<op::split>(op)).slice_selector.second;
+    int first           = (any_cast<op::horizontal_fusion_split>(op)).slice_selector.first;
+    int second          = (any_cast<op::horizontal_fusion_split>(op)).slice_selector.second;
     if((first < 0) || (second < first))
         MIGRAPHX_THROW("unexpected selector");
     if((enum_ndx != first) && (enum_ndx != second))
@@ -433,22 +442,23 @@ instruction_ref horizontal_fusion_impl::break_split(int enum_ndx, instruction_re
 
     if(first == second)
         return split_ins;
-    int axis                    = (any_cast<op::split>(op)).axis;
-    std::vector<int> slice_dims = (any_cast<op::split>(op)).slice_dims;
+    int axis                    = (any_cast<op::horizontal_fusion_split>(op)).axis;
+    std::vector<int> slice_dims = (any_cast<op::horizontal_fusion_split>(op)).slice_dims;
     instruction_ref input       = split_ins->inputs().at(0);
     instruction_ref new_split   = p_program->insert_instruction(
-        split_ins, op::split{axis, slice_dims, {enum_ndx, enum_ndx}}, input);
+        split_ins, op::horizontal_fusion_split{axis, slice_dims, {enum_ndx, enum_ndx}}, input);
 
     if(first == enum_ndx)
         first = enum_ndx + 1;
     else
         second = enum_ndx - 1;
 
-    split_ins->replace(op::split{axis, slice_dims, {first, second}});
+    split_ins->replace(op::horizontal_fusion_split{axis, slice_dims, {first, second}});
 
     std::vector<shape> shapes;
     shapes.push_back(input->get_shape());
-    shape new_shape = (any_cast<op::split>(split_ins->get_operator())).compute_shape(shapes);
+    shape new_shape =
+        (any_cast<op::horizontal_fusion_split>(split_ins->get_operator())).compute_shape(shapes);
     split_ins->set_shape(new_shape);
     return new_split;
 }
@@ -603,7 +613,9 @@ void horizontal_fusion_impl::transform_output(
 
     instruction_ref insert_before = std::next(last_ins);
     auto split_ins                = p_program->insert_instruction(
-        insert_before, op::split{axis, slice_dims, {0, slice_dims.size() - 1}}, last_ins);
+        insert_before,
+        op::horizontal_fusion_split{axis, slice_dims, {0, slice_dims.size() - 1}},
+        last_ins);
     unsigned offset                            = 0;
     shape s                                    = last_ins->get_shape();
     std::vector<std::vector<std::size_t>> dims = orig_dims[last_ins];
@@ -632,9 +644,10 @@ void horizontal_fusion_impl::transform_output(
             }
             if(add_load)
             {
-                const operation& op  = split_ins->get_operator();
-                shape input_s        = split_ins->inputs().at(0)->get_shape();
-                unsigned offset_bias = (any_cast<op::split>(op)).compute_offset(input_s);
+                const operation& op = split_ins->get_operator();
+                shape input_s       = split_ins->inputs().at(0)->get_shape();
+                unsigned offset_bias =
+                    (any_cast<op::horizontal_fusion_split>(op)).compute_offset(input_s);
                 offset_bias *= input_s.type_size();
                 new_ins = p_program->insert_instruction(
                     insert_before, op::load{orig_s, offsets[enum_ndx] - offset_bias}, split_ins);

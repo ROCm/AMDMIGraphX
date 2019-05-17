@@ -251,8 +251,8 @@ struct miopen_apply
     void add_split_op()
     {
         apply_map.emplace("split", [=](instruction_ref ins) {
-            auto&& op                         = any_cast<op::split>(ins->get_operator());
-            const shape& out_s                = ins->get_shape();
+            auto&& op          = any_cast<op::horizontal_fusion_split>(ins->get_operator());
+            const shape& out_s = ins->get_shape();
             std::vector<instruction_ref> refs = ins->inputs();
 
             if((op.axis == 0) && (op.slice_selector.first < 0))

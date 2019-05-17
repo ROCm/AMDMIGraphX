@@ -1582,7 +1582,7 @@ TEST_CASE(SPLIT_TEST)
                                  22, 5, 14, 23, 6,  15, 24, 7,  16, 25, 8,  17, 26};
         migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
         auto l0 = p.add_literal(migraphx::literal{s, data});
-        p.add_instruction(migraphx::op::split{1, {1, 1, 1}}, l0);
+        p.add_instruction(migraphx::op::horizontal_fusion_split{1, {1, 1, 1}}, l0);
         p.compile(migraphx::cpu::target{});
         auto result           = p.eval({});
         std::vector<int> gold = {0,  9, 18, 3,  12, 21, 6,  15, 24, 1,  10, 19, 4, 13,
@@ -1598,7 +1598,7 @@ TEST_CASE(SPLIT_TEST)
                                  22, 5, 14, 23, 6,  15, 24, 7,  16, 25, 8,  17, 26};
         migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
         auto l0 = p.add_literal(migraphx::literal{s, data});
-        p.add_instruction(migraphx::op::split{1, {2, 1}}, l0);
+        p.add_instruction(migraphx::op::horizontal_fusion_split{1, {2, 1}}, l0);
         p.compile(migraphx::cpu::target{});
         auto result           = p.eval({});
         std::vector<int> gold = {0,  9, 18, 1,  10, 19, 3,  12, 21, 4,  13, 22, 6, 15,
@@ -1614,7 +1614,7 @@ TEST_CASE(SPLIT_TEST)
                                  22, 5, 14, 23, 6,  15, 24, 7,  16, 25, 8,  17, 26};
         migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
         auto l0 = p.add_literal(migraphx::literal{s, data});
-        p.add_instruction(migraphx::op::split{1, {2, 1}, {0, 0}}, l0);
+        p.add_instruction(migraphx::op::horizontal_fusion_split{1, {2, 1}, {0, 0}}, l0);
         p.compile(migraphx::cpu::target{});
         auto result           = p.eval({});
         std::vector<int> gold = {0, 9, 18, 1, 10, 19, 3, 12, 21, 4, 13, 22, 6, 15, 24, 7, 16, 25};
@@ -1629,7 +1629,7 @@ TEST_CASE(SPLIT_TEST)
                                  22, 5, 14, 23, 6,  15, 24, 7,  16, 25, 8,  17, 26};
         migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
         auto l0 = p.add_literal(migraphx::literal{s, data});
-        p.add_instruction(migraphx::op::split{1, {3}}, l0);
+        p.add_instruction(migraphx::op::horizontal_fusion_split{1, {3}}, l0);
         p.compile(migraphx::cpu::target{});
         auto result           = p.eval({});
         std::vector<int> gold = {0,  9, 18, 1,  10, 19, 2,  11, 20, 3,  12, 21, 4, 13,
@@ -1645,7 +1645,7 @@ TEST_CASE(SPLIT_TEST)
                                  22, 5, 14, 23, 6,  15, 24, 7,  16, 25, 8,  17, 26};
         migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
         auto l0 = p.add_literal(migraphx::literal{s, data});
-        p.add_instruction(migraphx::op::split{2, {2, 1}}, l0);
+        p.add_instruction(migraphx::op::horizontal_fusion_split{2, {2, 1}}, l0);
         p.compile(migraphx::cpu::target{});
         auto result           = p.eval({});
         std::vector<int> gold = {0, 9,  1, 10, 2,  11, 3,  12, 4,  13, 5,  14, 6, 15,
@@ -1661,7 +1661,7 @@ TEST_CASE(SPLIT_TEST)
                                  22, 5, 14, 23, 6,  15, 24, 7,  16, 25, 8,  17, 26};
         migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
         auto l0 = p.add_literal(migraphx::literal{s, data});
-        p.add_instruction(migraphx::op::split{0, {2, 1}}, l0);
+        p.add_instruction(migraphx::op::horizontal_fusion_split{0, {2, 1}}, l0);
         p.compile(migraphx::cpu::target{});
         auto result           = p.eval({});
         std::vector<int> gold = {0,  9, 18, 1,  10, 19, 2,  11, 20, 3,  12, 21, 4, 13,
@@ -1677,7 +1677,7 @@ TEST_CASE(SPLIT_TEST)
                                  22, 5, 14, 23, 6,  15, 24, 7,  16, 25, 8,  17, 26};
         migraphx::shape s{migraphx::shape::int32_type, {3, 3, 3}};
         auto l0 = p.add_literal(migraphx::literal{s, data});
-        p.add_instruction(migraphx::op::split{0, {2, 1}, {1, 1}}, l0);
+        p.add_instruction(migraphx::op::horizontal_fusion_split{0, {2, 1}, {1, 1}}, l0);
         p.compile(migraphx::cpu::target{});
         auto result           = p.eval({});
         std::vector<int> gold = {6, 15, 24, 7, 16, 25, 8, 17, 26};

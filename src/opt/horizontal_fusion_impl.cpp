@@ -372,19 +372,13 @@ int horizontal_fusion_impl::find_unique_axis(instruction_ref ins, instruction_re
     auto lens2 = input->get_shape().lens();
     if(lens1.size() != lens2.size())
         return -1;
-    int count = 0;
-    int ndx   = 0;
-    int ret   = -1;
-    for(auto&& size : lens1)
-    {
-        if(size != lens2.at(ndx))
-        {
-            count++;
-            ret = ndx;
-        }
-        ndx++;
-    }
-    return (count == 1) ? ret : -1;
+    auto m = std::mismatch(lens1.begin(), lens1.end(), lens2.begin(), lens2.end());
+    if(m.first == lens1.end())
+        return -1;
+    if(((std::distance(m.first, lens1.end()) > 1) or (std::distance(m.second, lens2.end()) > 1)) and
+       not std::equal(m.first + 1, lens1.end(), m.second + 1, lens2.end()))
+        return -1;
+    return std::distance(lens1.begin(), m.first);
 }
 
 // find concat axis for ins.

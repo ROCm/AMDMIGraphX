@@ -29,6 +29,11 @@ instruction_ref insert_quant_ins(program& prog,
         return map_ins[ins];
     }
 
+    if(ins->name() == "undefined")
+    {
+        return ins;
+    }
+
     assert(ins->get_shape().type() == shape::float_type ||
            ins->get_shape().type() == shape::double_type ||
            ins->get_shape().type() == shape::int32_type);
@@ -126,7 +131,7 @@ void quantize_int8(program& prog, const std::vector<std::string>& ins_names)
     }
 
     // tmp value used just testing
-    std::vector<std::pair<float, float>> int8_param{{1.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 0.0f}};
+    std::vector<std::pair<float, float>> int8_param{{64.0f, 0.0f}, {64.0f, 0.0f}, {128.0f, 0.0f}};
 
     std::unordered_map<instruction_ref, instruction_ref> map_quant_ins;
     for(auto ins : iterator_for(prog))
@@ -332,7 +337,9 @@ void quantize_int8(program& prog, const std::vector<std::string>& ins_names)
             auto group         = conv_op.group;
             auto adjust_factor = 1.0 / (int8_param[0].first * int8_param[1].first);
 
-            shape quant_shape = compute_shape(op::quant_convolution{}, converted_inputs);
+            shape quant_shape =
+                compute_shape(op::quant_convolution{padding, stride, dilation, padding_mode, group},
+                              converted_inputs);
             std::vector<float> vec_factor(quant_shape.elements(), adjust_factor);
             auto fl = prog.add_literal(literal{{orig_type, quant_shape.lens()}, vec_factor});
             if(quant_shape.type() == orig_type)
@@ -346,7 +353,7 @@ void quantize_int8(program& prog, const std::vector<std::string>& ins_names)
                 }
                 else
                 {
-                    auto quant_conv = prog.replace_instruction(
+                    auto quant_conv = prog.insert_instruction(
                         ins,
                         op::quant_convolution{padding, stride, dilation, padding_mode, group},
                         converted_inputs);

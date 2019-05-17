@@ -40,11 +40,11 @@ void pack_a(hipStream_t stream, const argument& result, const argument& arg)
 
 void pack_b(hipStream_t stream, const argument& result, const argument& arg)
 {
-    auto trans_shape  = result.get_shape();
-    auto out_lens      = trans_shape.lens();
-    auto dim_0         = trans_shape.lens().size() - 2;
-    auto dim_1         = trans_shape.lens().size() - 1;
-    std::size_t ldb    = trans_shape.strides()[dim_1];
+    auto trans_shape = result.get_shape();
+    auto out_lens    = trans_shape.lens();
+    auto dim_0       = trans_shape.lens().size() - 2;
+    auto dim_1       = trans_shape.lens().size() - 1;
+    std::size_t ldb  = trans_shape.strides()[dim_1];
 
     auto wrap_lens = out_lens;
     std::swap(wrap_lens[dim_0], wrap_lens[dim_1]);

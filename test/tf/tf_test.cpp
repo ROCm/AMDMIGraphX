@@ -136,8 +136,9 @@ TEST_CASE(depthwiseconv_test)
     op.group        = 3;
     auto l2         = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l1);
     auto l3         = p.add_instruction(migraphx::op::transpose{{1, 3, 0, 2}}, l2);
-    auto l4         = p.add_instruction(migraphx::op::reshape{{3, 1, 3, 3}}, l3);
-    p.add_instruction(op, l0, l4);
+    auto l4         = p.add_instruction(migraphx::op::contiguous{}, l3);
+    auto l5         = p.add_instruction(migraphx::op::reshape{{3, 1, 3, 3}}, l4);
+    p.add_instruction(op, l0, l5);
     auto prog = migraphx::parse_tf("depthwise_conv_test.pb", true);
 
     EXPECT(p == prog);

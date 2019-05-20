@@ -392,7 +392,9 @@ struct tf_parser
         int64_t out_channels = num_channels * multiplier;
         new_weights_shape[0] = out_channels;
         new_weights_shape[1] = 1;
-        auto new_weights     = prog.add_instruction(op::reshape{new_weights_shape}, weights);
+        // Make sure weights are contiguous before doing reshape
+        auto cweights = prog.add_instruction(op::contiguous{}, weights);
+        auto new_weights     = prog.add_instruction(op::reshape{new_weights_shape}, cweights);
 
         return prog.add_instruction(op, {args[0], new_weights});
     }

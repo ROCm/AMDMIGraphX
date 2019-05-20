@@ -27,7 +27,7 @@ struct raw_data : raw_data_base
     template <class Stream>
     friend Stream& operator<<(Stream& os, const Derived& d)
     {
-        if (d.empty())
+        if(d.empty())
             os << "empty";
         else
             d.visit([&](auto x) { os << x; });
@@ -44,7 +44,7 @@ struct raw_data : raw_data_base
     void visit_at(Visitor v, std::size_t n = 0) const
     {
         auto&& derived = static_cast<const Derived&>(*this);
-        if (derived.empty())
+        if(derived.empty())
             MIGRAPHX_THROW("Visiting empty data!");
         auto&& s      = derived.get_shape();
         auto&& buffer = derived.data();
@@ -62,7 +62,7 @@ struct raw_data : raw_data_base
     void visit(Visitor v) const
     {
         auto&& derived = static_cast<const Derived&>(*this);
-        if (derived.empty())
+        if(derived.empty())
             MIGRAPHX_THROW("Visiting empty data!");
         auto&& s      = derived.get_shape();
         auto&& buffer = derived.data();

@@ -2,7 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_CONVOLUTION_HPP
 
 #include <migraphx/shape.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/convolution.hpp>
 #include <migraphx/gpu/miopen.hpp>
 
 namespace migraphx {
@@ -31,7 +31,10 @@ struct miopen_convolution
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
     shape compile(context& ctx, const shape& output_shape, std::vector<shape> inputs);
     void finalize(context& ctx, const shape& output_shape, std::vector<shape> inputs);
-    int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
 };
 
 } // namespace gpu

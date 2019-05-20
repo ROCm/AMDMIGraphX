@@ -1,5 +1,6 @@
 #include <migraphx/auto_contiguous.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/transpose.hpp>
+#include <migraphx/op/broadcast.hpp>
 #include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
@@ -59,7 +60,7 @@ TEST_CASE(after_literal_broadcast)
     auto l2 = p.add_literal(get_2());
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().broadcasted());
-    auto b = p.add_instruction(migraphx::op::broadcast{0, l1->get_shape()}, l2);
+    auto b = p.add_instruction(migraphx::op::broadcast{0, l1->get_shape().lens()}, l2);
     p.add_instruction(pass_op{}, b);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().broadcasted());
@@ -90,7 +91,7 @@ TEST_CASE(after_param_broadcast)
     auto l2 = p.add_parameter("2", {migraphx::shape::float_type, {2}});
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().broadcasted());
-    auto b = p.add_instruction(migraphx::op::broadcast{0, l1->get_shape()}, l2);
+    auto b = p.add_instruction(migraphx::op::broadcast{0, l1->get_shape().lens()}, l2);
     p.add_instruction(pass_op{}, b);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().broadcasted());

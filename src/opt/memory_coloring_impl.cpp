@@ -1,3 +1,4 @@
+#include <migraphx/op/load.hpp>
 #include "memory_coloring_impl.hpp"
 
 namespace migraphx {
@@ -62,11 +63,11 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
         }
     }
 
-    long long offset = 0;
+    std::size_t offset = 0;
     while(!conflict_queue.empty())
     {
-        live_range* range     = conflict_queue.top();
-        long long iter_offset = range->offset;
+        live_range* range       = conflict_queue.top();
+        std::size_t iter_offset = range->offset;
         if(offset > iter_offset)
         {
             offset = std::max(offset, iter_offset + range->size);
@@ -96,7 +97,7 @@ void memory_coloring_impl::build()
     if(num_of_instrs == 0)
         return;
 
-    int cur_points        = num_of_instrs * 2;
+    auto cur_points       = num_of_instrs * 2;
     instruction_ref iter  = p_program->end();
     instruction_ref begin = p_program->begin();
     std::vector<instruction_ref> dead_instrs;
@@ -192,28 +193,19 @@ void memory_coloring_impl::rewrite()
                 continue;
 
             std::size_t offset = 0;
-            if(interval->get_offset() == invalid_offset)
+            if(interval->get_offset() != invalid_offset)
             {
-                assert(interval->result.bytes() == 0);
+                offset = interval->get_offset();
             }
             else
             {
-                offset = interval->get_offset();
+                assert(interval->result.bytes() == 0);
             }
 
             if(is_allocate(ins))
             {
                 p_program->replace_instruction(
                     ins, op::load{ins->get_shape(), offset}, scratch_param);
-            }
-            else if(is_literal(ins))
-            {
-#if 0                
-                auto pre      = p_program->add_literal(ins->lit);
-                bool pre_copy = (interval->get_begin() < earliest_end_point);
-                p_program->replace_instruction(
-                    ins, write_literal{offset, pre_copy}, scratch_param, pre);
-#endif
             }
         }
     }

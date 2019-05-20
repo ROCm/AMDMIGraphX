@@ -2,7 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_CONCAT_HPP
 
 #include <migraphx/shape.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/concat.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -14,11 +14,20 @@ struct hip_concat
 {
     op::concat op;
 
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
     std::string name() const { return "gpu::concat"; }
     shape compute_shape(std::vector<shape> inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
 };
 
 } // namespace gpu

@@ -27,9 +27,7 @@ struct raw_data : raw_data_base
     template <class Stream>
     friend Stream& operator<<(Stream& os, const Derived& d)
     {
-        if(d.empty())
-            os << "empty";
-        else
+        if(not d.empty())
             d.visit([&](auto x) { os << x; });
         return os;
     }

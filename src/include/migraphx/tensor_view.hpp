@@ -13,6 +13,14 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class T>
+T as_number(T x)
+{
+    return x;
+}
+inline int32_t as_number(int8_t x) { return static_cast<int32_t>(x); }
+inline uint32_t as_number(uint8_t x) { return static_cast<uint32_t>(x); }
+
+template <class T>
 struct tensor_view
 {
     using value_type = T;
@@ -130,10 +138,10 @@ struct tensor_view
     {
         if(!x.empty())
         {
-            os << x.front();
+            os << as_number(x.front());
             for(std::size_t i = 1; i < x.m_shape.elements(); i++)
             {
-                os << ", " << x.m_data[x.m_shape.index(i)];
+                os << ", " << as_number(x.m_data[x.m_shape.index(i)]);
             }
         }
         return os;

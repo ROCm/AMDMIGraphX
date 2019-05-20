@@ -32,7 +32,7 @@ auto read_cifar10_images(const std::string& full_path)
             labels[i] = *pimage++;
             for(size_t j = 0; j < nbytes_per_image; j++)
             {
-                float v                        = *(pimage + j) / 255.0f;
+                float v                        = float(*(pimage + j)) / 255.0f;
                 data[i * nbytes_per_image + j] = v;
             }
         }

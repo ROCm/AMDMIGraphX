@@ -50,7 +50,7 @@ RUN pip install cget
 RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
 
 # Install hcc
-RUN rclone -b roc-2.0.x -c 757fb492517b80e7c86338af5fc1a43d63cb25a9 https://github.com/RadeonOpenCompute/hcc.git /hcc
+RUN rclone -b roc-2.3.x -c fd93baed7dcc4fe8019b5fdc90213bfe7c298245 https://github.com/RadeonOpenCompute/hcc.git /hcc
 RUN cget -p $PREFIX install hcc,/hcc
 
 # Use hcc
@@ -73,3 +73,8 @@ ENV LD_LIBRARY_PATH=$PREFIX/lib
 # Install doc requirements
 ADD doc/requirements.txt /doc-requirements.txt
 RUN pip install -r /doc-requirements.txt
+
+# Setup ubsan environment to printstacktrace
+RUN ln -s /usr/bin/llvm-symbolizer-5.0 /usr/local/bin/llvm-symbolizer
+ENV UBSAN_OPTIONS=print_stacktrace=1
+ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1

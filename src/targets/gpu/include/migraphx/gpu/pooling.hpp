@@ -2,7 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_POOLING_HPP
 
 #include <migraphx/shape.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/pooling.hpp>
 #include <migraphx/gpu/miopen.hpp>
 
 namespace migraphx {
@@ -16,11 +16,20 @@ struct miopen_pooling
     op::pooling op;
     shared<pooling_descriptor> pd;
 
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
     std::string name() const { return "gpu::pooling"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
 };
 
 } // namespace gpu

@@ -2,7 +2,7 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/identity.hpp>
 #include <test.hpp>
 
 struct eliminate_identity_target

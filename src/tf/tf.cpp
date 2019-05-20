@@ -431,12 +431,12 @@ struct tf_parser
         bool keep_dims = attributes.at("keep_dims").b();
         std::vector<int32_t> hw_axes{2, 3};
         // check if conditions for GlobalAvgPool are met
-        if(axes == hw_axes and args[0]->get_shape().lens().size() == 4)
+        auto lens = args[0]->get_shape().lens();
+        if(axes == hw_axes and lens.size() == 4)
         {
             op::pooling op{"average"};
-            std::vector<size_t> input_dims{args[0]->get_shape().lens()};
-            op.lengths[0] = input_dims[2];
-            op.lengths[1] = input_dims[3];
+            op.lengths[0] = lens[2];
+            op.lengths[1] = lens[3];
             auto l0       = prog.add_instruction(op, args.front());
             if(keep_dims)
                 return l0;

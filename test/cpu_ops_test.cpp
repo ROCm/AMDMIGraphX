@@ -3,6 +3,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/operators.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/quantization.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/onnx.hpp>
@@ -1726,6 +1727,34 @@ TEST_CASE(fp16_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<migraphx::half> gold{c};
     EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(fp32_fp16_test)
+{
+    auto create_program = [] {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+        std::vector<float> data(2 * 3);
+        std::iota(data.begin(), data.end(), 1.0f);
+        auto l1 = p.add_literal(migraphx::literal(s, data));
+        auto l2 = p.add_literal(migraphx::literal(s, data));
+        p.add_instruction(migraphx::op::add{}, l1, l2);
+        return p;
+    };
+
+    auto test_case = [&](std::vector<std::string>&& op_names) {
+        std::vector<float> gold_res = {2.0, 4.0, 6.0, 8.0, 10.0, 12.0};
+        auto p                      = create_program();
+        migraphx::quantize(p, op_names);
+        p.compile(migraphx::cpu::target{});
+        auto result = p.eval({});
+        std::vector<float> res;
+        result.visit([&](auto output) { res.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(res, gold_res));
+    };
+
+    test_case({"all"});
+    test_case({"add"});
 }
 
 TEST_CASE(clip_test)

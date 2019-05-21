@@ -11,8 +11,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void convert(
-    hipStream_t stream, const argument& result, const argument& arg, float scale, float shift, shape::type_t target_type);
+void convert(hipStream_t stream,
+             const argument& result,
+             const argument& arg,
+             float scale,
+             float shift,
+             shape::type_t target_type);
 
 } // namespace device
 } // namespace gpu

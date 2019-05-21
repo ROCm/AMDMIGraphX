@@ -40,7 +40,7 @@ struct convert : unary<convert>
     {
         return [&](auto x) {
             float res = scale * x + shift;
-            if (target_type == shape::int8_type)
+            if(target_type == shape::int8_type)
             {
                 res = res > 127.0 ? 127.0 : res;
                 res = res < -128.0 ? -128.0 : res;

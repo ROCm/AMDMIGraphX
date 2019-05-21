@@ -23,25 +23,31 @@ struct unary : op_name<Derived>
             return {s.type(), s.lens()};
         }
     }
+
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        visit_all(result, args[0])([&](auto output, auto input) {
-            if(input.get_shape().standard())
-            {
-                std::transform(input.begin(),
-                               input.end(),
-                               output.begin(),
-                               static_cast<const Derived&>(*this).apply());
-            }
-            else
-            {
+        result.visit([&](auto output) {
+            args[0].visit([&](auto input) {
+                if(input.get_shape().packed())
+                {
+                    std::transform(input.begin(),
+                                   input.end(),
+                                   output.begin(),
+                                   static_cast<const Derived&>(*this).apply());
+
+                    return result;
+                }
+
                 shape_for_each(output.get_shape(), [&](const auto& idx) {
                     output(idx.begin(), idx.end()) =
                         static_cast<const Derived&>(*this).apply()(input(idx.begin(), idx.end()));
                 });
-            }
+
+                return result;
+            });
         });
+
         return result;
     }
 };

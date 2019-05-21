@@ -65,10 +65,7 @@ struct reverse_pass
 {
     std::string name() const { return "reverse_pass"; }
 
-    void apply(migraphx::program& p) const
-    {
-        std::reverse(p.begin(), p.end());
-    }
+    void apply(migraphx::program& p) const { std::reverse(p.begin(), p.end()); }
 };
 
 struct reverse_target
@@ -288,13 +285,12 @@ TEST_CASE(remove_test1)
 {
     migraphx::program p;
 
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    auto sum = p.add_instruction(sum_op{}, one, two);
+    auto one     = p.add_literal(1);
+    auto two     = p.add_literal(2);
+    auto sum     = p.add_instruction(sum_op{}, one, two);
     auto removed = p.add_instruction(minus_op{}, sum, one);
     p.remove_instruction(removed);
     EXPECT(bool{p.validate() == p.end()});
-
 
     auto result = p.eval({});
     EXPECT(result == migraphx::literal{3});
@@ -305,13 +301,12 @@ TEST_CASE(remove_test2)
 {
     migraphx::program p;
 
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
+    auto one     = p.add_literal(1);
+    auto two     = p.add_literal(2);
     auto removed = p.add_instruction(minus_op{}, two, one);
     p.add_instruction(sum_op{}, one, two);
     p.remove_instruction(removed);
     EXPECT(bool{p.validate() == p.end()});
-
 
     auto result = p.eval({});
     EXPECT(result == migraphx::literal{3});

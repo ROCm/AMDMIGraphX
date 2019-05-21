@@ -19,11 +19,10 @@ void convert(hipStream_t stream,
             auto* output_ptr      = device_cast(output.data());
             if(target_type == shape::int8_type)
             {
-                gs_launch(stream, result.get_shape().elements())(
-                    [=](auto i) {
-                        output_ptr[i] = std::min<int8_t>(std::max<float>(-128, input_ptr[i]
-                        * scale + shift), 127);
-                    });
+                gs_launch(stream, result.get_shape().elements())([=](auto i) {
+                    output_ptr[i] =
+                        std::min<int8_t>(std::max<float>(-128, input_ptr[i] * scale + shift), 127);
+                });
             }
             else
             {

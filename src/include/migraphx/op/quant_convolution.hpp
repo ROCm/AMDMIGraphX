@@ -95,7 +95,7 @@ struct quant_convolution
         }
         else
         {
-            MIGRAPHX_THROW("Invalid padding mode");
+            MIGRAPHX_THROW("QUANT_CONVOLUTION: invalid padding mode");
         }
     }
 };

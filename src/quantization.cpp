@@ -131,7 +131,7 @@ void quantize_int8(program& prog, const std::vector<std::string>& ins_names)
     }
 
     // tmp value used just testing
-    std::vector<std::pair<float, float>> int8_param{{64.0f, 0.0f}, {64.0f, 0.0f}, {128.0f, 0.0f}};
+    std::vector<std::pair<float, float>> int8_param{{127.0f, 0.0f}, {127.0f, 0.0f}, {128.0f, 0.0f}};
 
     std::unordered_map<instruction_ref, instruction_ref> map_quant_ins;
     for(auto ins : iterator_for(prog))

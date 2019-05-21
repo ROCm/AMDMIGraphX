@@ -104,11 +104,6 @@ TEST_CASE(quant_convolution_shape)
                  migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}, migraphx::op::valid},
                  input,
                  weights);
-    throws_shape(
-        migraphx::op::quant_convolution{
-            {{0, 0}}, {{1, 1}}, {{1, 1}}, migraphx::op::padding_mode_t(9999)},
-        input,
-        weights);
 }
 
 TEST_CASE(transpose_shape)

@@ -136,8 +136,9 @@ TEST_CASE(depthwiseconv_test)
     op.group        = 3;
     auto l2         = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l1);
     auto l3         = p.add_instruction(migraphx::op::transpose{{1, 3, 0, 2}}, l2);
-    auto l4         = p.add_instruction(migraphx::op::reshape{{3, 1, 3, 3}}, l3);
-    p.add_instruction(op, l0, l4);
+    auto l4         = p.add_instruction(migraphx::op::contiguous{}, l3);
+    auto l5         = p.add_instruction(migraphx::op::reshape{{3, 1, 3, 3}}, l4);
+    p.add_instruction(op, l0, l5);
     auto prog = migraphx::parse_tf("depthwise_conv_test.pb", true);
 
     EXPECT(p == prog);
@@ -164,6 +165,40 @@ TEST_CASE(matmul_test)
 
     p.add_instruction(migraphx::op::dot{}, trans_l0, trans_l1);
     auto prog = migraphx::parse_tf("matmul_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(mean_test)
+{
+    migraphx::program p;
+    migraphx::literal l{migraphx::shape{migraphx::shape::int32_type, {2}}, {2, 3}};
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    p.add_literal(l);
+    p.add_literal(l);
+    migraphx::op::pooling op;
+    op.lengths = {16, 16};
+    auto l3    = p.add_instruction(op, l0);
+    p.add_instruction(migraphx::op::squeeze{{2, 3}}, l3);
+    p.add_instruction(op, l0);
+    auto prog = migraphx::parse_tf("mean_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(mean_test_nhwc)
+{
+    migraphx::program p;
+    migraphx::literal l{migraphx::shape{migraphx::shape::int32_type, {2}}, {1, 2}};
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    p.add_literal(l);
+    p.add_literal(l);
+    migraphx::op::pooling op;
+    op.lengths = {16, 16};
+    auto l3    = p.add_instruction(op, l0);
+    p.add_instruction(migraphx::op::squeeze{{2, 3}}, l3);
+    p.add_instruction(op, l0);
+    auto prog = migraphx::parse_tf("mean_test_nhwc.pb", true);
 
     EXPECT(p == prog);
 }

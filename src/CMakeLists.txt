@@ -18,6 +18,7 @@ add_library(migraphx
     generate.cpp
     instruction.cpp
     program.cpp
+    quantization.cpp
     shape.cpp
     schedule.cpp
     pass_manager.cpp

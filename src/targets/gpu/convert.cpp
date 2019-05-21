@@ -15,7 +15,7 @@ shape hip_convert::compute_shape(std::vector<shape> inputs) const
 
 argument hip_convert::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    device::convert(ctx.get_stream().get(), args[1], args[0], op.scale, op.shift);
+    device::convert(ctx.get_stream().get(), args[1], args[0], op.scale, op.shift, op.target_type);
     return args[1];
 }
 

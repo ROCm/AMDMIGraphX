@@ -103,6 +103,13 @@ struct check_shapes
         return *this;
     }
 
+    const check_shapes& standard_or_scalar() const
+    {
+        if(!this->all_of([](const shape& s) { return s.standard() or s.scalar(); }))
+            MIGRAPHX_THROW(prefix() + "Shapes are not a scalar or in standard layout");
+        return *this;
+    }
+
     const check_shapes& packed() const
     {
         if(!this->all_of([](const shape& s) { return s.packed(); }))

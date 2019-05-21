@@ -10,6 +10,7 @@
 #include <migraphx/type_name.hpp>
 #include <migraphx/verify_args.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/quantization.hpp>
 
 #include <miopen/miopen.h>
 
@@ -3359,5 +3360,71 @@ struct test_logsoftmax_1 : verify_program<test_logsoftmax_1<Axis>>
 
 template struct test_logsoftmax_1<0>;
 template struct test_logsoftmax_1<1>;
+
+struct test_fp32_fp16_lall : verify_program<test_fp32_fp16_lall>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+        std::vector<float> data(2 * 3);
+        std::iota(data.begin(), data.end(), 1.0f);
+        auto l1 = p.add_literal(migraphx::literal(s, data));
+        auto l2 = p.add_parameter("p2", s);
+        p.add_instruction(migraphx::op::add{}, l1, l2);
+        migraphx::quantize(p, {"all"});
+        return p;
+    };
+};
+
+struct test_fp32_fp16_ladd : verify_program<test_fp32_fp16_ladd>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+        std::vector<float> data(2 * 3);
+        std::iota(data.begin(), data.end(), 1.0f);
+        auto l1 = p.add_literal(migraphx::literal(s, data));
+        auto l2 = p.add_parameter("p2", s);
+        p.add_instruction(migraphx::op::add{}, l1, l2);
+        migraphx::quantize(p, {"add"});
+        return p;
+    };
+};
+
+struct test_fp32_fp16_add : verify_program<test_fp32_fp16_add>
+{
+    migraphx::program create_program()
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+        auto p1   = p.add_parameter("x", s);
+        auto p2   = p.add_parameter("y", s);
+        auto sum  = p.add_instruction(migraphx::op::add{}, p1, p2);
+        auto diff = p.add_instruction(migraphx::op::sub{}, sum, p2);
+        p.add_instruction(migraphx::op::add{}, diff, p1);
+        migraphx::quantize(p, {"add"});
+
+        return p;
+    };
+};
+
+struct test_fp32_fp16_sub : verify_program<test_fp32_fp16_sub>
+{
+    migraphx::program create_program()
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+        auto p1   = p.add_parameter("x", s);
+        auto p2   = p.add_parameter("y", s);
+        auto sum  = p.add_instruction(migraphx::op::add{}, p1, p2);
+        auto diff = p.add_instruction(migraphx::op::sub{}, sum, p2);
+        p.add_instruction(migraphx::op::add{}, diff, p1);
+        migraphx::quantize(p, {"sub"});
+
+        return p;
+    };
+};
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

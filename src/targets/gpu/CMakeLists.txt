@@ -27,6 +27,7 @@ add_library(migraphx_device
     device/add_relu.cpp
     device/contiguous.cpp
     device/logsoftmax.cpp
+    device/convert.cpp
     device/mul.cpp
     device/concat.cpp
     device/pad.cpp

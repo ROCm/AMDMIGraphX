@@ -24,11 +24,12 @@ struct binary : op_name<Derived>
             return {s0.type(), s0.lens()};
         }
     }
+
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {
-            if(input1.get_shape().standard() and input2.get_shape().standard())
+            if(input1.get_shape().packed() and input2.get_shape().packed())
             {
                 std::transform(input1.begin(),
                                input1.end(),
@@ -44,6 +45,7 @@ struct binary : op_name<Derived>
                 });
             }
         });
+
         return result;
     }
 };

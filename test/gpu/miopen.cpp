@@ -1359,22 +1359,6 @@ struct test_contiguous : verify_program<test_contiguous>
     }
 };
 
-struct test_eliminate_contiguous : verify_program<test_eliminate_contiguous>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
-        auto seq = p.add_parameter("seq", s);
-        std::vector<int64_t> perm{0, 2, 1, 3};
-        auto tran_seq = p.add_instruction(migraphx::op::transpose{perm}, seq);
-        std::vector<int64_t> out_shape{0, 0, -1};
-        p.add_instruction(migraphx::op::reshape{out_shape}, tran_seq);
-
-        return p;
-    }
-};
-
 struct test_transpose : verify_program<test_transpose>
 {
     migraphx::program create_program() const

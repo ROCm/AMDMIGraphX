@@ -481,13 +481,14 @@ TEST_CASE(debug_print_test)
 {
     migraphx::program p;
     auto one = p.add_literal(1);
+    std::vector<migraphx::instruction_ref> onev = {one};
 
     migraphx::program p2;
     auto one2 = p2.add_literal(1);
 
     auto program_out = migraphx::trim(capture_output([&] { p.debug_print(); }));
     auto ins_out     = migraphx::trim(capture_output([&] { p.debug_print(one); }));
-    auto inss_out    = migraphx::trim(capture_output([&] { p.debug_print({one}); }));
+    auto inss_out    = migraphx::trim(capture_output([&] { p.debug_print(onev); }));
     auto end_out     = migraphx::trim(capture_output([&] { p.debug_print(p.end()); }));
     auto p2_ins_out  = migraphx::trim(capture_output([&] { p.debug_print(one2); }));
 

@@ -1,39 +1,63 @@
-#include <migraphx/gpu/device/convert.hpp>
-#include <migraphx/gpu/device/nary.hpp>
+#ifndef MIGRAPHX_GUARD_OPERATORS_CONVERT_HPP
+#define MIGRAPHX_GUARD_OPERATORS_CONVERT_HPP
+
+#include <array>
+#include <migraphx/op/unary.hpp>
+#include <migraphx/operation.hpp>
+#include <migraphx/check_shapes.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/streamutils.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/shape_for_each.hpp>
+#include <migraphx/config.hpp>
+#include <cmath>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace op {
 
-void convert(hipStream_t stream,
-             const argument& result,
-             const argument& arg,
-             float scale,
-             float shift,
-             shape::type_t target_type)
+struct convert : unary<convert>
 {
-    result.visit([&](auto output) {
-        arg.visit([&](auto input) {
-            const auto* input_ptr = device_cast(input.data());
-            auto* output_ptr      = device_cast(output.data());
+    shape::type_t target_type = shape::half_type;
+    float scale               = 1.0f;
+    float shift               = 0.0f;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(
+            f(self.target_type, "target_type"), f(self.scale, "scale"), f(self.shift, "shift"));
+    }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        return {target_type, inputs.at(0).lens(), inputs.at(0).strides()};
+    }
+
+    auto apply() const
+    {
+        return [&](auto x) {
+            float res = scale * x + shift;
             if(target_type == shape::int8_type)
             {
-                gs_launch(stream, result.get_shape().elements())([=](auto i) {
-                    output_ptr[i] =
-                        std::min<int8_t>(std::max<float>(-128, input_ptr[i] * scale + shift), 127);
-                });
+                res = res + 0.5f;
+                res = res > 127.0 ? 127.0 : res;
+                res = res < -128.0 ? -128.0 : res;
             }
-            else
-            {
-                gs_launch(stream, result.get_shape().elements())(
-                    [=](auto i) { output_ptr[i] = input_ptr[i] * scale + shift; });
-            }
-        });
-    });
-}
 
-} // namespace device
-} // namespace gpu
+            return res;
+        };
+    }
+
+    convert(shape::type_t t) : target_type{t} {}
+    convert(shape::type_t t, float sle, float sft) : target_type{t}, scale{sle}, shift{sft} {}
+    convert() {}
+};
+
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

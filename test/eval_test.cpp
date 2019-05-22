@@ -2,6 +2,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/stringutils.hpp>
 #include <sstream>
 #include "test.hpp"
 #include <basic_ops.hpp>
@@ -181,6 +182,24 @@ TEST_CASE(param_error_test)
         "Parameter not found: y"));
 }
 
+TEST_CASE(param_error_shape_test)
+{
+    migraphx::program p;
+
+    auto x = p.add_parameter("x", {migraphx::shape::int32_type, {1, 1}});
+    auto y = p.add_parameter("y", {migraphx::shape::int32_type, {1, 1}});
+
+    p.add_instruction(sum_op{}, x, y);
+    EXPECT(test::throws<migraphx::exception>(
+        [&] {
+            p.eval({
+                {"x", migraphx::literal{1}.get_argument()},
+                {"y", migraphx::literal{{migraphx::shape::int32_type, {1, 1}}, {2}}.get_argument()},
+            });
+        },
+        "Incorrect shape {int32_type, {1}, {0}} for parameter: x"));
+}
+
 TEST_CASE(get_param1)
 {
     migraphx::program p;
@@ -285,7 +304,7 @@ TEST_CASE(replace_op_recompute_shape_throw)
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
-    EXPECT(test::throws([&] { sum->replace(unary_pass_op{}); }));
+    EXPECT(test::throws<migraphx::exception>([&] { sum->replace(unary_pass_op{}); }));
 }
 
 TEST_CASE(insert_replace_test)
@@ -377,6 +396,16 @@ TEST_CASE(double_invert_target_test)
     EXPECT(result != migraphx::literal{4});
 }
 
+TEST_CASE(reverse_target_test)
+{
+    migraphx::program p;
+
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    p.add_instruction(sum_op{}, one, two);
+    EXPECT(test::throws<migraphx::exception>([&]{ p.compile(reverse_target{}); }));
+}
+
 // Check that the program doesnt modify the context directly, and only the operators modify the
 // context
 TEST_CASE(eval_context1)
@@ -423,6 +452,51 @@ TEST_CASE(eval_context3)
     p.eval({});
     EXPECT(is_shared(ctx, p.get_context()));
     EXPECT(not is_shared(t.ctx, p.get_context()));
+}
+
+struct cout_redirect {
+    cout_redirect()=delete;
+    cout_redirect(const cout_redirect&)=delete;
+    template<class T>
+    cout_redirect(T& stream)
+    : old(std::cout.rdbuf(stream.rdbuf()))
+    {}
+    ~cout_redirect()
+    {
+        std::cout.rdbuf(old);
+    }
+
+private:
+    std::streambuf * old;
+};
+
+template<class F>
+std::string capture_output(F f)
+{
+    std::stringstream ss;
+    cout_redirect cr{ss};
+    f();
+    return ss.str();
+}
+
+TEST_CASE(debug_print_test)
+{
+    migraphx::program p;
+    auto one = p.add_literal(1);
+
+    migraphx::program p2;
+    auto one2 = p2.add_literal(1);
+
+    auto program_out = migraphx::trim(capture_output([&]{ p.debug_print(); }));
+    auto ins_out = migraphx::trim(capture_output([&]{ p.debug_print(one); }));
+    auto inss_out = migraphx::trim(capture_output([&]{ p.debug_print({one}); }));
+    auto end_out = migraphx::trim(capture_output([&]{ p.debug_print(p.end()); }));
+    auto p2_ins_out = migraphx::trim(capture_output([&]{ p.debug_print(one2); }));
+
+    EXPECT(program_out == ins_out);
+    EXPECT(inss_out == ins_out);
+    EXPECT(end_out == "End instruction");
+    EXPECT(p2_ins_out == "Instruction not part of program");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

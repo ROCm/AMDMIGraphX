@@ -67,13 +67,6 @@ void eliminate_contiguous::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
     {
-        // skip the reshape operator for now, since there is a bug
-        // for the transpose followed by a reshape
-        if(ins->name() == "reshape")
-        {
-            continue;
-        }
-
         // Make a copy so we can modify it while we iterate
         auto args = ins->inputs();
         for(auto arg : ins->inputs())

@@ -19,6 +19,8 @@ bool enabled(const char* name);
 bool disabled(const char* name);
 std::vector<std::string> env(const char* name);
 
+std::size_t value_of(const char* name);
+
 template <class T>
 bool enabled(T)
 {
@@ -30,6 +32,13 @@ template <class T>
 bool disabled(T)
 {
     static const bool result = disabled(T::value());
+    return result;
+}
+
+template <class T>
+std::size_t value_of(T)
+{
+    static const std::size_t result = value_of(T::value());
     return result;
 }
 

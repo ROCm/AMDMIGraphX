@@ -43,6 +43,19 @@ inline std::string join_strings(Strings strings, const std::string& delim)
     });
 }
 
+template<class F>
+std::string trim(const std::string &s, F f)
+{
+   auto start = std::find_if_not(s.begin(), s.end(), f);
+   auto last = std::find_if_not(s.rbegin(), std::string::const_reverse_iterator(start), f).base();
+   return std::string(start, last);
+}
+
+inline std::string trim(const std::string &s)
+{
+    return trim(s, [](int c){ return std::isspace(c); });
+}
+
 template <class F>
 inline std::string transform_string(std::string s, F f)
 {

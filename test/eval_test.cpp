@@ -480,7 +480,7 @@ std::string capture_output(F f)
 TEST_CASE(debug_print_test)
 {
     migraphx::program p;
-    auto one = p.add_literal(1);
+    auto one                                    = p.add_literal(1);
     std::vector<migraphx::instruction_ref> onev = {one};
 
     migraphx::program p2;

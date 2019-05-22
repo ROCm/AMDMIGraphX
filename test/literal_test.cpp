@@ -67,10 +67,10 @@ TEST_CASE(literal_visit)
     migraphx::literal y{1};
     bool visited = false;
     x.visit([&](auto i) {
-    y.visit([&](auto j) {
-        visited = true;
-        EXPECT(i == j);
-    });
+        y.visit([&](auto j) {
+            visited = true;
+            EXPECT(i == j);
+        });
     });
     EXPECT(visited);
 }
@@ -94,10 +94,10 @@ TEST_CASE(literal_visit_mismatch_shape)
     migraphx::literal y{s, {1, 2, 3}};
     bool visited = false;
     x.visit([&](auto i) {
-    y.visit([&](auto j) {
-        visited = true;
-        EXPECT(i != j);
-    });
+        y.visit([&](auto j) {
+            visited = true;
+            EXPECT(i != j);
+        });
     });
     EXPECT(visited);
 }
@@ -108,14 +108,15 @@ TEST_CASE(literal_visit_all_mismatch_type)
     migraphx::literal x{s1, {1}};
     migraphx::shape s2{migraphx::shape::int8_type, {1}};
     migraphx::literal y{s2, {1}};
-    EXPECT(test::throws<migraphx::exception>([&] { migraphx::visit_all(x, y)([&](auto, auto) {}); }));
+    EXPECT(
+        test::throws<migraphx::exception>([&] { migraphx::visit_all(x, y)([&](auto, auto) {}); }));
 }
 
 TEST_CASE(literal_visit_empty)
 {
     migraphx::literal x{};
-    EXPECT(test::throws([&]{ x.visit([](auto){}); }));
-    EXPECT(test::throws([&]{ x.visit_at([](auto){}); }));
+    EXPECT(test::throws([&] { x.visit([](auto) {}); }));
+    EXPECT(test::throws([&] { x.visit_at([](auto) {}); }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -350,7 +350,7 @@ void horizontal_fusion_impl::concat(
         ins0->set_shape({ins0->get_shape().type(), new_lens});
         if(ins0->name() == "broadcast")
         {
-            // workaround for a bad practice: broadcast has a broadcast_shape field.
+            // workaround for a bad practice: broadcast has a broadcast_lens field.
             uint64_t ax  = (any_cast<op::broadcast>(ins0->get_operator())).axis;
             operation op = op::broadcast{ax, ins0->get_shape().lens()};
             std::vector<shape> input_shapes;

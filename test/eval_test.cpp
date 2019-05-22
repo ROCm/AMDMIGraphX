@@ -263,6 +263,31 @@ TEST_CASE(replace_ins_test2)
     EXPECT(result != migraphx::literal{3});
 }
 
+TEST_CASE(replace_op_test)
+{
+    migraphx::program p;
+
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum = p.add_instruction(sum_op{}, two, one);
+    sum->replace(minus_op{});
+    EXPECT(bool{p.validate() == p.end()});
+
+    auto result = p.eval({});
+    EXPECT(result == migraphx::literal{1});
+    EXPECT(result != migraphx::literal{3});
+}
+
+TEST_CASE(replace_op_recompute_shape_throw)
+{
+    migraphx::program p;
+
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum = p.add_instruction(sum_op{}, one, two);
+    EXPECT(test::throws([&] { sum->replace(unary_pass_op{}); }));
+}
+
 TEST_CASE(insert_replace_test)
 {
     migraphx::program p;

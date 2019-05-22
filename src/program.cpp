@@ -437,13 +437,20 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
 #else
     auto check_context = [](auto f) { return f(); };
 #endif
-    if(enabled(MIGRAPHX_TRACE_EVAL{}))
+
+    auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
+
+    if(trace_level > 0)
     {
         return generic_eval(*this, ctx, std::move(params), [&](auto& ins, auto f) {
             ctx.finish();
             std::cout << "Run instruction: ";
             this->debug_print(ins);
-            return check_context(f);
+            auto result = check_context(f);
+            ctx.finish();
+            if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load")
+                std::cout << "Ouput: " << result << std::endl;
+            return result;
         });
     }
     else

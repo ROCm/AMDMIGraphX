@@ -383,7 +383,7 @@ int horizontal_fusion_impl::find_unique_axis(instruction_ref ins, instruction_re
 
 // find concat axis for ins.
 int horizontal_fusion_impl::find_axis(instruction_ref ins,
-                                      std::unordered_map<instruction_ref, bool>& is_common)
+                                      const std::unordered_map<instruction_ref, bool>& is_common)
 {
     int axis = -1;
     for(auto&& input : ins->inputs())
@@ -403,7 +403,7 @@ int horizontal_fusion_impl::find_axis(instruction_ref ins,
 }
 
 // remove instructions in given vector except the first one.
-void horizontal_fusion_impl::remove_redundant_roots(std::vector<instruction_ref>& base_instrs)
+void horizontal_fusion_impl::remove_redundant_roots(const std::vector<instruction_ref>& base_instrs)
 {
     instruction_ref root_ins = base_instrs.at(0);
     for(unsigned long ndx = 1; ndx < base_instrs.size(); ndx++)
@@ -421,7 +421,8 @@ void horizontal_fusion_impl::update_hash_tree(unsigned hash_id)
 {
     unsigned first = *(hash_instrs[hash_id].begin());
     hash_instrs[hash_id].clear();
-    hash_instrs[hash_id].insert(first);
+    //    hash_instrs[hash_id].insert(first);
+    hash_instrs[hash_id] = {first};
 }
 
 instruction_ref horizontal_fusion_impl::break_split(int enum_ndx, instruction_ref split_ins)
@@ -464,9 +465,8 @@ bool horizontal_fusion_impl::has_unique_output(const std::vector<instruction_ref
     {
         for(auto&& output : ins->outputs())
         {
-            if(seen.find(output) != seen.end())
+            if(not seen.emplace(output, true).second)
                 return false;
-            seen[output] = true;
         }
     }
     return true;
@@ -498,10 +498,10 @@ std::vector<unsigned> horizontal_fusion_impl::find_cluster(unsigned id)
 }
 
 void horizontal_fusion_impl::transform_layers(
-    std::vector<std::vector<instruction_ref>>& all_inputs,
-    std::unordered_map<instruction_ref, instruction_ref>& root,
+    const std::vector<std::vector<instruction_ref>>& all_inputs,
+    const std::unordered_map<instruction_ref, instruction_ref>& root,
     int axis,
-    std::vector<instruction_ref>& base_instrs)
+    const std::vector<instruction_ref>& base_instrs)
 {
     std::vector<instruction_ref> input0 = all_inputs.at(0);
     // concat inputs.
@@ -571,9 +571,9 @@ bool horizontal_fusion_impl::collect_inputs(
 
 void horizontal_fusion_impl::transform_output(
     unsigned last_hash_id,
-    std::unordered_map<instruction_ref, int>& split_axis,
-    std::unordered_map<instruction_ref, std::vector<std::vector<std::size_t>>>& orig_dims,
-    std::unordered_map<instruction_ref, std::vector<int>>& orig_clusters)
+    const std::unordered_map<instruction_ref, int>& split_axis,
+    const std::unordered_map<instruction_ref, std::vector<std::vector<std::size_t>>>& orig_dims,
+    const std::unordered_map<instruction_ref, std::vector<int>>& orig_clusters)
 {
 
     std::vector<instruction_ref> base_instrs = get_instrs(last_hash_id);
@@ -583,17 +583,17 @@ void horizontal_fusion_impl::transform_output(
     if(split_axis.find(last_ins) == split_axis.end())
         MIGRAPHX_THROW("Split axis not found");
 
-    int axis = split_axis[last_ins];
+    int axis = split_axis.find(last_ins)->second;
     std::vector<int> slice_dims;
-    std::transform(orig_dims[last_ins].begin(),
-                   orig_dims[last_ins].end(),
+    std::transform(orig_dims.find(last_ins)->second.begin(),
+                   orig_dims.find(last_ins)->second.end(),
                    std::back_inserter(slice_dims),
                    [&](auto&& d) -> int { return d.at(axis); });
 
     std::vector<instruction_ref> outputs;
     std::unordered_map<int, bool> enum2_concat;
     int enum_output           = 0;
-    std::vector<int> clusters = orig_clusters[last_ins];
+    std::vector<int> clusters = orig_clusters.find(last_ins)->second;
     if(clusters.size() != last_ins->outputs().size())
         MIGRAPHX_THROW("Unmatched output size");
 
@@ -612,7 +612,7 @@ void horizontal_fusion_impl::transform_output(
         last_ins);
     unsigned offset                            = 0;
     shape s                                    = last_ins->get_shape();
-    std::vector<std::vector<std::size_t>> dims = orig_dims[last_ins];
+    std::vector<std::vector<std::size_t>> dims = orig_dims.find(last_ins)->second;
     std::vector<unsigned> offsets;
 
     for(auto&& dim : dims)
@@ -758,16 +758,19 @@ horizontal_fusion_impl::walk(instruction_ref ins,
         if((top->inputs().size() > 1) || (top->outputs().size() > 1) ||
            (top->inputs().empty() && (top->name() != "@literal")))
         {
+            // Only seach for single-source single destination nodes and leaf nodes are literals.
             ret.clear();
             return ret;
         }
         else if(top->inputs().empty() || (visited.find(top) != visited.end()))
         {
+            // Collect literal nodes and already marked nodes.
             ret.push_back(top);
             stk.pop();
         }
         else
         {
+            // Mark current node and walk its input.
             instruction_ref input = top->inputs().at(0);
             stk.push(input);
             visited[top] = true;

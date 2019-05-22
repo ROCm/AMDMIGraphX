@@ -113,15 +113,15 @@ struct horizontal_fusion_impl
                         std::unordered_map<instruction_ref, instruction_ref>&,
                         std::unordered_map<instruction_ref, int>&);
     void transform();
-    void transform_layers(std::vector<std::vector<instruction_ref>>&,
-                          std::unordered_map<instruction_ref, instruction_ref>&,
+    void transform_layers(const std::vector<std::vector<instruction_ref>>&,
+                          const std::unordered_map<instruction_ref, instruction_ref>&,
                           int,
-                          std::vector<instruction_ref>&);
-    void
-    transform_output(unsigned,
-                     std::unordered_map<instruction_ref, int>&,
-                     std::unordered_map<instruction_ref, std::vector<std::vector<std::size_t>>>&,
-                     std::unordered_map<instruction_ref, std::vector<int>>&);
+                          const std::vector<instruction_ref>&);
+    void transform_output(
+        unsigned,
+        const std::unordered_map<instruction_ref, int>&,
+        const std::unordered_map<instruction_ref, std::vector<std::vector<std::size_t>>>&,
+        const std::unordered_map<instruction_ref, std::vector<int>>&);
 
     std::vector<instruction_ref> get_instrs(unsigned hash_id)
     {
@@ -142,7 +142,7 @@ struct horizontal_fusion_impl
     void concat(const std::vector<instruction_ref>&,
                 const std::unordered_map<instruction_ref, instruction_ref>&,
                 int);
-    int find_axis(instruction_ref, std::unordered_map<instruction_ref, bool>&);
+    int find_axis(instruction_ref, const std::unordered_map<instruction_ref, bool>&);
     int find_axis(instruction_ref, int dim);
     int find_axis(instruction_ref, instruction_ref, int);
     int find_unique_axis(instruction_ref, instruction_ref);
@@ -151,7 +151,7 @@ struct horizontal_fusion_impl
     bool is_conv(instruction_ref);
     bool is_concat(instruction_ref);
     bool has_unique_output(const std::vector<instruction_ref>&);
-    void remove_redundant_roots(std::vector<instruction_ref>&);
+    void remove_redundant_roots(const std::vector<instruction_ref>&);
     void update_hash_tree(unsigned hash_id);
     int get_channel_axis() { return 1; }
     int get_conv_output_axis() { return 0; }

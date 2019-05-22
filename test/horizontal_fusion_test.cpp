@@ -86,6 +86,14 @@ TEST_CASE(test1)
     EXPECT(std::count_if(p.begin(), p.end(), [](const migraphx::instruction& ins) {
                return ins.name() == "load";
            }) == 2);
+    migraphx::instruction& instr =
+        (*std::find_if(p.begin(), p.end(), [](const migraphx::instruction& ins) {
+            return ins.name() == "convolution";
+        }));
+    auto lens = instr.get_shape().lens();
+    EXPECT((lens.at(0) == 1) && (lens.at(1) == 176) && (lens.at(2) == 35) && (lens.at(3) == 35));
+    lens = instr.inputs().at(1)->get_shape().lens();
+    EXPECT((lens.at(0) == 176) && (lens.at(1) == 192) && (lens.at(2) == 1) && (lens.at(3) == 1));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

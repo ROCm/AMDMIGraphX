@@ -1574,7 +1574,7 @@ TEST_CASE(clip_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(SPLIT_TEST)
+TEST_CASE(horizontal_split_test)
 {
     {
         migraphx::program p;

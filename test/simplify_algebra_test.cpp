@@ -121,14 +121,14 @@ TEST_CASE(simplify_add_broadcast1)
 
     migraphx::program p2;
     {
-        auto x    = p2.add_parameter("x", outer);
-        auto y    = p2.add_parameter("y", outer);
-        auto one  = p2.add_literal({inner, {1, 1}});
-        auto two  = p2.add_literal({inner, {2, 2}});
-        auto sum1 = p2.add_instruction(migraphx::op::add{}, one, two);
+        auto x     = p2.add_parameter("x", outer);
+        auto y     = p2.add_parameter("y", outer);
+        auto one   = p2.add_literal({inner, {1, 1}});
+        auto two   = p2.add_literal({inner, {2, 2}});
+        auto sum1  = p2.add_instruction(migraphx::op::add{}, one, two);
         auto sum1b = p2.add_instruction(b, sum1);
-        auto sum2 = p2.add_instruction(migraphx::op::add{}, x, y);
-        auto sum3 = p2.add_instruction(migraphx::op::add{}, sum2, sum1b);
+        auto sum2  = p2.add_instruction(migraphx::op::add{}, x, y);
+        auto sum3  = p2.add_instruction(migraphx::op::add{}, sum2, sum1b);
         p2.add_instruction(pass_op{}, sum3);
     }
     EXPECT(p1 == p2);

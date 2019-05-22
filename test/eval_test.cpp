@@ -403,7 +403,7 @@ TEST_CASE(reverse_target_test)
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     p.add_instruction(sum_op{}, one, two);
-    EXPECT(test::throws<migraphx::exception>([&]{ p.compile(reverse_target{}); }));
+    EXPECT(test::throws<migraphx::exception>([&] { p.compile(reverse_target{}); }));
 }
 
 // Check that the program doesnt modify the context directly, and only the operators modify the
@@ -454,23 +454,21 @@ TEST_CASE(eval_context3)
     EXPECT(not is_shared(t.ctx, p.get_context()));
 }
 
-struct cout_redirect {
-    cout_redirect()=delete;
-    cout_redirect(const cout_redirect&)=delete;
-    template<class T>
-    cout_redirect(T& stream)
-    : old(std::cout.rdbuf(stream.rdbuf()))
-    {}
-    ~cout_redirect()
+struct cout_redirect
+{
+    cout_redirect()                     = delete;
+    cout_redirect(const cout_redirect&) = delete;
+    template <class T>
+    cout_redirect(T& stream) : old(std::cout.rdbuf(stream.rdbuf()))
     {
-        std::cout.rdbuf(old);
     }
+    ~cout_redirect() { std::cout.rdbuf(old); }
 
-private:
-    std::streambuf * old;
+    private:
+    std::streambuf* old;
 };
 
-template<class F>
+template <class F>
 std::string capture_output(F f)
 {
     std::stringstream ss;
@@ -487,11 +485,11 @@ TEST_CASE(debug_print_test)
     migraphx::program p2;
     auto one2 = p2.add_literal(1);
 
-    auto program_out = migraphx::trim(capture_output([&]{ p.debug_print(); }));
-    auto ins_out = migraphx::trim(capture_output([&]{ p.debug_print(one); }));
-    auto inss_out = migraphx::trim(capture_output([&]{ p.debug_print({one}); }));
-    auto end_out = migraphx::trim(capture_output([&]{ p.debug_print(p.end()); }));
-    auto p2_ins_out = migraphx::trim(capture_output([&]{ p.debug_print(one2); }));
+    auto program_out = migraphx::trim(capture_output([&] { p.debug_print(); }));
+    auto ins_out     = migraphx::trim(capture_output([&] { p.debug_print(one); }));
+    auto inss_out    = migraphx::trim(capture_output([&] { p.debug_print({one}); }));
+    auto end_out     = migraphx::trim(capture_output([&] { p.debug_print(p.end()); }));
+    auto p2_ins_out  = migraphx::trim(capture_output([&] { p.debug_print(one2); }));
 
     EXPECT(program_out == ins_out);
     EXPECT(inss_out == ins_out);

@@ -13,9 +13,9 @@ namespace gpu {
 namespace device {
 
 argument softmax(hipStream_t stream,
-                    const migraphx::shape& output_shape,
-                    std::vector<migraphx::argument> args,
-                    int axis)
+                 const migraphx::shape& output_shape,
+                 std::vector<migraphx::argument> args,
+                 int axis)
 {
     auto lens              = output_shape.lens();
     std::size_t batch_size = std::accumulate(
@@ -35,17 +35,17 @@ argument softmax(hipStream_t stream,
             auto batch_max = input_ptr[row_start];
             for(std::size_t j = 0; j < n_dims; ++j)
             {
-                auto ind  = row_start + j;
+                auto ind            = row_start + j;
                 auto hip_type_input = to_hip_type(input_ptr[ind]);
-                batch_max = std::max(to_hip_type(batch_max), hip_type_input);
-                output_ptr[ind] = ::exp(hip_type_input);
+                batch_max           = std::max(to_hip_type(batch_max), hip_type_input);
+                output_ptr[ind]     = ::exp(hip_type_input);
             }
 
             auto batch_sum = output_ptr[row_start];
             for(std::size_t j = 1; j < n_dims; ++j)
             {
                 auto ind = row_start + j;
-                batch_sum += output_ptr[ind];          
+                batch_sum += output_ptr[ind];
             }
 
             for(std::size_t j = 0; j < n_dims; ++j)
@@ -58,7 +58,6 @@ argument softmax(hipStream_t stream,
 
     return args.back();
 }
-
 
 } // namespace device
 } // namespace gpu

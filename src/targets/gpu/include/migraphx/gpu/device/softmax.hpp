@@ -11,9 +11,9 @@ namespace gpu {
 namespace device {
 
 argument softmax(hipStream_t stream,
-                    const migraphx::shape& output_shape,
-                    std::vector<migraphx::argument> args,
-                    int axis);
+                 const migraphx::shape& output_shape,
+                 std::vector<migraphx::argument> args,
+                 int axis);
 
 } // namespace device
 } // namespace gpu

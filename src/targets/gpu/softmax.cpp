@@ -12,8 +12,8 @@ shape hip_softmax::compute_shape(const std::vector<shape>& inputs) const
 }
 
 argument hip_softmax::compute(context& ctx,
-                                 const shape& output_shape,
-                                 const std::vector<argument>& args) const
+                              const shape& output_shape,
+                              const std::vector<argument>& args) const
 {
     return device::softmax(ctx.get_stream().get(), output_shape, args, 1);
 }

@@ -23,7 +23,7 @@ struct capture
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.ins_index, "instruction_index"));
+        return pack(f(self.ins_index, "ins_index"));
     }
 
     std::string name() const { return "capture"; }

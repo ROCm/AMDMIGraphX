@@ -33,6 +33,7 @@ add_library(migraphx_device
     device/pad.cpp
     device/gather.cpp
     device/sub.cpp
+    device/pack.cpp
     device/clip.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
@@ -48,8 +49,10 @@ add_library(migraphx_gpu
     target.cpp
     lowering.cpp
     gemm.cpp
+    quant_gemm.cpp
     pooling.cpp
     convolution.cpp
+    quant_convolution.cpp
     softmax.cpp
     logsoftmax.cpp
     contiguous.cpp
@@ -65,6 +68,7 @@ add_library(migraphx_gpu
     elu.cpp
     pad.cpp
     gather.cpp
+    convert.cpp
     lrn.cpp
     schedule_model.cpp
     adjust_allocation.cpp

@@ -9,32 +9,16 @@ static unsigned hash_id_bits = 16;
 static unsigned filter_bits  = 8;
 static unsigned kernel_bits  = 8;
 
-std::unordered_map<std::string, encoder> horizontal_fusion_impl::op_registry =
-    horizontal_fusion_impl::create_op_registery();
-std::unordered_map<std::string, int> horizontal_fusion_impl::op_flag =
-    horizontal_fusion_impl::create_op_flag();
-
-std::unordered_map<std::string, encoder> horizontal_fusion_impl::create_op_registery()
+const std::unordered_map<std::string, encoder>& horizontal_fusion_impl::get_op_registery()
 {
-    std::unordered_map<std::string, encoder> m;
-    m["gpu::convolution"]    = encode_conv_common;
-    m["gpu::conv_bias_relu"] = encode_conv_common;
-    m["hip::add_relu"]       = encode_common;
-    m["convolution"]         = encode_conv_common;
-    m["add"]                 = encode_common;
-    m["relu"]                = encode_common;
-    return m;
-}
-
-std::unordered_map<std::string, int> horizontal_fusion_impl::create_op_flag()
-{
-    std::unordered_map<std::string, int> m;
-    m["gpu::convolution"]    = 1;
-    m["gpu::conv_bias_relu"] = 1;
-    m["hip::add_relu"]       = 0;
-    m["convolution"]         = 1;
-    m["add"]                 = 0;
-    m["relu"]                = 0;
+    static std::unordered_map<std::string, encoder> m = {
+        {"gpu::convolution", encode_conv_common},
+        {"gpu::conv_bias_relu", encode_conv_common},
+        {"hip::add_relu", encode_common},
+        {"convolution", encode_conv_common},
+        {"add", encode_common},
+        {"relu", encode_common},
+    };
     return m;
 }
 
@@ -98,12 +82,7 @@ encode_info encode_conv_common(instruction_ref ins, ins2_val& instr2_value, unsi
     }
 }
 
-bool horizontal_fusion_impl::is_conv(instruction_ref ins)
-{
-    if(op_flag.find(ins->name()) == op_flag.end())
-        return false;
-    return (op_flag[ins->name()] == 1);
-}
+bool horizontal_fusion_impl::is_conv(instruction_ref ins) { return (ins->name() == "convolution"); }
 
 bool horizontal_fusion_impl::is_concat(instruction_ref ins) { return (ins->name() == "concat"); }
 
@@ -203,7 +182,7 @@ int horizontal_fusion_impl::find_axis(instruction_ref ins, int dim)
 {
     auto it = std::find(ins->get_shape().lens().begin(), ins->get_shape().lens().end(), dim);
     return (it != ins->get_shape().lens().end())
-               ? (std::distance(ins->get_shape().lens().begin(), it))
+               ? static_cast<int>(std::distance(ins->get_shape().lens().begin(), it))
                : -1;
 }
 

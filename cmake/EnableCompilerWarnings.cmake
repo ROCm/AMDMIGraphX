@@ -101,7 +101,6 @@ else()
                 -Wno-sign-conversion
                 -Wno-unused-command-line-argument
                 -Wno-weak-vtables
-                -Wno-global-constructors
             )
         else()
             list(APPEND CMAKE_COMPILER_WARNINGS

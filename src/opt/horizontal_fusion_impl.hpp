@@ -80,6 +80,7 @@ struct horizontal_fusion_impl
         hash_instrs.clear();
         values.reserve(p_program->size());
         opcode_table.clear();
+        op_registry = get_op_registery();
     }
     void run();
     void process(instruction_ref ins);
@@ -102,9 +103,6 @@ struct horizontal_fusion_impl
             opcode_table[str] = opcode_id++;
         return opcode_table[str];
     }
-
-    static std::unordered_map<std::string, encoder> create_op_registery();
-    static std::unordered_map<std::string, int> create_op_flag();
 
     bool collect_inputs(std::vector<std::vector<instruction_ref>>&,
                         int&,
@@ -156,6 +154,7 @@ struct horizontal_fusion_impl
     instruction_ref break_split(int, instruction_ref);
     static int get_channel_axis() { return 1; }
     static int get_conv_output_axis() { return 0; }
+    static const std::unordered_map<std::string, encoder>& get_op_registery();
 
 #ifdef MIGRAPHX_DEBUG_OPT
     void dump_program();
@@ -163,8 +162,7 @@ struct horizontal_fusion_impl
     void dump_hash_tree();
 #endif
     // Map an operation name to its encoder function.
-    static std::unordered_map<std::string, encoder> op_registry;
-    static std::unordered_map<std::string, int> op_flag;
+    std::unordered_map<std::string, encoder> op_registry;
 
     private:
     program* p_program;

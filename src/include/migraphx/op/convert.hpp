@@ -42,9 +42,10 @@ struct convert : unary<convert>
             float res = scale * x + shift;
             if(target_type == shape::int8_type)
             {
-                res = res + 0.5f;
-                res = res > 127.0 ? 127.0 : res;
-                res = res < -128.0 ? -128.0 : res;
+                int factor = (res > 0) ? 1 : -1;
+                res        = res + factor * 0.5f;
+                res        = res > 127.0 ? 127.0 : res;
+                res        = res < -128.0 ? -128.0 : res;
             }
 
             return res;

@@ -26,7 +26,7 @@ struct capture
         return pack(f(self.ins_index, "instruction_index"));
     }
 
-    std::string name() const { return "capputure"; }
+    std::string name() const { return "capture"; }
 
     shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
 

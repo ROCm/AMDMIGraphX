@@ -67,13 +67,16 @@ struct hip_tensor_descriptor
     {
         hip_index<NDim> result{};
         size_t tidx = idx;
+
         for(size_t is = 0; is < NDim; is++)
         {
             result[is] = tidx / strides[is];
             tidx       = tidx % strides[is];
         }
+
         return result;
     }
+
     __device__ __host__ size_t linear(hip_index<NDim> s) const
     {
         size_t idx = 0;

@@ -446,7 +446,7 @@ struct tf_parser
     {
         auto axes      = args[1]->eval().get<int32_t>().to_vector();
         bool keep_dims = attributes.at("keep_dims").b();
-        std::vector<int32_t> hw_axes{2, 3};
+        std::vector<int32_t> hw_axes{1, 2};
         // check if conditions for GlobalAvgPool are met
         auto lens = args[0]->get_shape().lens();
         if(axes == hw_axes and lens.size() == 4)

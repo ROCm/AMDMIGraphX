@@ -165,4 +165,52 @@ TEST_CASE(transpose_double_contiguous)
     EXPECT(p.has_instruction(t));
 }
 
+TEST_CASE(transpose_partial1)
+{
+    migraphx::program p;
+    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
+    auto x  = p.add_parameter("x", s);
+    auto t1  = p.add_instruction(migraphx::op::transpose{{1, 0, 2}}, x);
+    auto t2  = p.add_instruction(migraphx::op::transpose{{1, 2, 0}}, t1);
+    p.add_instruction(pass_op{}, t2);
+    auto out_shape = p.get_shape();
+    auto n         = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape() == out_shape);
+    EXPECT(std::distance(p.begin(), p.end()) == n - 1);
+}
+
+TEST_CASE(transpose_partial2)
+{
+    migraphx::program p;
+    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
+    auto x  = p.add_parameter("x", s);
+    auto t1  = p.add_instruction(migraphx::op::transpose{{1, 0, 2}}, x);
+    auto t2  = p.add_instruction(migraphx::op::transpose{{1, 2, 0}}, t1);
+    auto t3  = p.add_instruction(migraphx::op::transpose{{1, 0, 2}}, t2);
+    p.add_instruction(pass_op{}, t3);
+    auto out_shape = p.get_shape();
+    auto n         = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape() == out_shape);
+    EXPECT(std::distance(p.begin(), p.end()) == n - 2);
+}
+
+TEST_CASE(transpose_partial3)
+{
+    migraphx::program p;
+    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
+    auto x  = p.add_parameter("x", s);
+    auto t1  = p.add_instruction(migraphx::op::transpose{{1, 0, 2}}, x);
+    auto t2  = p.add_instruction(migraphx::op::transpose{{1, 2, 0}}, t1);
+    auto t3  = p.add_instruction(migraphx::op::transpose{{1, 0, 2}}, t2);
+    auto t4  = p.add_instruction(migraphx::op::transpose{{1, 0, 2}}, t3);
+    p.add_instruction(pass_op{}, t4);
+    auto out_shape = p.get_shape();
+    auto n         = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape() == out_shape);
+    EXPECT(std::distance(p.begin(), p.end()) == n - 3);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

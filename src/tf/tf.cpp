@@ -303,8 +303,8 @@ struct tf_parser
         size_t axis     = args[axis_idx]->eval().at<int64_t>();
         op::concat op{axis};
         // return only first N arguments (assuming last index is the axis value)
-        return to_nhwc(prog.add_instruction(
-            op, std::vector<instruction_ref>(args.begin(), args.begin() + args.size() - 1)));
+        return prog.add_instruction(
+            op, std::vector<instruction_ref>(args.begin(), args.begin() + args.size() - 1));
     }
 
     instruction_ref parse_constant(const std::string&,
@@ -660,7 +660,7 @@ struct tf_parser
                 reorder_data(dims);
             }
             shape s            = shape{shape_type, dims};
-            instructions[name] = prog.add_parameter(name, s);
+            instructions[name] = to_nhwc(prog.add_parameter(name, s));
         }
         for(auto&& p : nodes)
         {

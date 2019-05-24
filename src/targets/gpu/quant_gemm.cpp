@@ -57,8 +57,8 @@ shape miopen_quant_gemm::compute_shape(const std::vector<shape>& inputs) const
     std::vector<shape> input_shapes(inputs);
     input_shapes.pop_back();
     check_shapes{input_shapes}.not_broadcasted();
-    bool transa     = inputs[0].transposed();
-    bool transb     = inputs[1].transposed();
+    bool transa = inputs[0].transposed();
+    bool transb = inputs[1].transposed();
 
     if(!transb)
     {

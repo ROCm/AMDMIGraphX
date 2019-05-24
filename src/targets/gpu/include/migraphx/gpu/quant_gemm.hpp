@@ -14,7 +14,7 @@ struct miopen_quant_gemm
 {
     op::quant_dot op;
 
-        miopen_quant_gemm(op::quant_dot qop) : op(qop) {}
+    miopen_quant_gemm(op::quant_dot qop) : op(qop) {}
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -32,8 +32,8 @@ struct miopen_quant_gemm
     }
 
     private:
-        mutable argument arg_a;
-        mutable argument arg_b;
+    mutable argument arg_a;
+    mutable argument arg_b;
 };
 
 } // namespace gpu

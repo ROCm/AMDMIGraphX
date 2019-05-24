@@ -2,6 +2,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/op/as_shape.hpp>
+#include <migraphx/op/transpose.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <unordered_set>
@@ -40,6 +41,33 @@ instruction_ref find_transpose_input(instruction_ref ins)
     if(ins->inputs().front()->name() == "transpose")
         return ins->inputs().front();
     return ins;
+}
+
+auto get_transpose_dims(instruction_ref ins)
+{
+    return any_cast<const op::transpose&>(ins->get_operator()).dims;
+}
+
+std::vector<int64_t> reorder_dims(std::vector<int64_t> dims, std::vector<int64_t> permutation)
+{
+    std::vector<int64_t> result(dims.size());
+    assert(dims.size() == permutation.size());
+    for(std::size_t i = 0;i <dims.size();i++)
+    {
+        result[i]    = dims[permutation[i]];
+    }
+    return result;
+}
+
+bool is_no_transpose(const std::vector<int64_t>& dims)
+{
+    if (dims.empty())
+        return true;
+    if (dims.front() != 0)
+        return false;
+    return std::adjacent_find(dims.begin(), dims.end(), [](auto x, auto y) {
+        return (y - x) != 1;
+    }) == dims.end();
 }
 
 void simplify_reshapes::apply(program& p) const
@@ -89,14 +117,24 @@ void simplify_reshapes::apply(program& p) const
                 continue;
             auto x = ins;
             auto t = ins;
+            std::vector<std::int64_t> dims(ins->get_shape().lens().size());
+            std::iota(dims.begin(), dims.end(), 0);
             do
             {
+                dims = reorder_dims(get_transpose_dims(t), dims);
                 x = t;
                 t = find_transpose_input(x);
             } while(x != t and t->name() == "transpose");
             if(t == ins or t->name() != "transpose")
                 continue;
-            p.replace_instruction(ins, t->inputs().front());
+            if (is_no_transpose(dims))
+            {
+                p.replace_instruction(ins, t->inputs().front());
+            }
+            else
+            {
+                p.replace_instruction(ins, op::transpose{{dims}}, t->inputs().front());
+            }
         }
     }
 }

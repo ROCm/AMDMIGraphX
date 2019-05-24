@@ -167,7 +167,7 @@ struct tf_parser
         add_mem_op("MaxPool", &tf_parser::parse_pooling);
         add_mem_op("Mean", &tf_parser::parse_mean);
         add_mem_op("Pack", &tf_parser::parse_pack, false);
-        add_mem_op("Pad", &tf_parser::parse_pad, false);
+        add_mem_op("Pad", &tf_parser::parse_pad);
         add_mem_op("Reshape", &tf_parser::parse_reshape, false);
         add_mem_op("Softmax", &tf_parser::parse_softmax);
         add_mem_op("Squeeze", &tf_parser::parse_squeeze, false);
@@ -496,7 +496,7 @@ struct tf_parser
         // in tf, the paddings are arranged as a 2d shape (ndims, 2),
         // the last dim contains the left padding and right padding respectively
         std::vector<std::pair<int32_t, int32_t>> pad_per_dim(ndims);
-        auto tf_padding = args[1]->eval().get<int32_t>().to_vector();
+        auto tf_padding = parse_axes(args[1]->eval().get<int32_t>().to_vector());
         for(size_t i = 0; i < 2 * ndims; i += 2)
         {
             pad_per_dim[i / 2].first  = tf_padding[i];
@@ -512,7 +512,7 @@ struct tf_parser
             pads[i + ndims] = pad_per_dim[i].second;
         }
         op.pads = pads;
-        return to_nhwc(prog.add_instruction(op, args.front()));
+        return prog.add_instruction(op, args.front());
     }
 
     instruction_ref parse_pooling(const std::string& name,

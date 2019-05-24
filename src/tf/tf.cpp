@@ -161,7 +161,7 @@ struct tf_parser
         add_mem_op("ConcatV2", &tf_parser::parse_concat, false);
         add_mem_op("Const", &tf_parser::parse_constant);
         add_mem_op("Conv2D", &tf_parser::parse_conv);
-        add_mem_op("DepthwiseConv2dNative", &tf_parser::parse_depthwiseconv, false);
+        add_mem_op("DepthwiseConv2dNative", &tf_parser::parse_depthwiseconv);
         add_mem_op("FusedBatchNorm", &tf_parser::parse_batchnorm);
         add_mem_op("MatMul", &tf_parser::parse_matmul, false);
         add_mem_op("MaxPool", &tf_parser::parse_pooling);
@@ -396,7 +396,7 @@ struct tf_parser
             op.stride[0] = stride[2];
             op.stride[1] = stride[3];
         }
-        auto weights = to_kcxy(to_nchw(args[1]));
+        auto weights = to_kcxy(args[1]);
 
         std::vector<int64_t> new_weights_shape;
         copy(weights->get_shape().lens(), std::back_inserter(new_weights_shape));
@@ -409,8 +409,7 @@ struct tf_parser
         new_weights_shape[0] = out_channels;
         new_weights_shape[1] = 1;
         // Make sure weights are contiguous before doing reshape
-        auto cweights    = prog.add_instruction(op::contiguous{}, weights);
-        auto new_weights = prog.add_instruction(op::reshape{new_weights_shape}, cweights);
+        auto new_weights = prog.add_instruction(op::reshape{new_weights_shape}, make_contiguous(weights));
 
         return prog.add_instruction(op, {args[0], new_weights});
     }
@@ -444,9 +443,9 @@ struct tf_parser
     instruction_ref
     parse_mean(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        auto axes      = args[1]->eval().get<int32_t>().to_vector();
+        auto axes      = parse_axes(args[1]->eval().get<int32_t>().to_vector());
         bool keep_dims = attributes.at("keep_dims").b();
-        std::vector<int32_t> hw_axes{1, 2};
+        std::vector<int32_t> hw_axes{2, 3};
         // check if conditions for GlobalAvgPool are met
         auto lens = args[0]->get_shape().lens();
         if(axes == hw_axes and lens.size() == 4)

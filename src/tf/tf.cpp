@@ -318,7 +318,7 @@ struct tf_parser
 
         if(contains(attributes, "padding"))
         {
-            const std::string& pad_mode     = attributes.at("padding").s();
+            const std::string& pad_mode = attributes.at("padding").s();
             if(pad_mode.find("SAME") != std::string::npos)
             {
                 op.padding_mode = op::padding_mode_t::same;

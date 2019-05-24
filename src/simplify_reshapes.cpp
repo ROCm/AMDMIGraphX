@@ -52,22 +52,21 @@ std::vector<int64_t> reorder_dims(std::vector<int64_t> dims, std::vector<int64_t
 {
     std::vector<int64_t> result(dims.size());
     assert(dims.size() == permutation.size());
-    for(std::size_t i = 0;i <dims.size();i++)
+    for(std::size_t i = 0; i < dims.size(); i++)
     {
-        result[i]    = dims[permutation[i]];
+        result[i] = dims[permutation[i]];
     }
     return result;
 }
 
 bool is_no_transpose(const std::vector<int64_t>& dims)
 {
-    if (dims.empty())
+    if(dims.empty())
         return true;
-    if (dims.front() != 0)
+    if(dims.front() != 0)
         return false;
-    return std::adjacent_find(dims.begin(), dims.end(), [](auto x, auto y) {
-        return (y - x) != 1;
-    }) == dims.end();
+    return std::adjacent_find(
+               dims.begin(), dims.end(), [](auto x, auto y) { return (y - x) != 1; }) == dims.end();
 }
 
 void simplify_reshapes::apply(program& p) const
@@ -122,12 +121,12 @@ void simplify_reshapes::apply(program& p) const
             do
             {
                 dims = reorder_dims(get_transpose_dims(t), dims);
-                x = t;
-                t = find_transpose_input(x);
+                x    = t;
+                t    = find_transpose_input(x);
             } while(x != t and t->name() == "transpose");
             if(t == ins or t->name() != "transpose")
                 continue;
-            if (is_no_transpose(dims))
+            if(is_no_transpose(dims))
             {
                 p.replace_instruction(ins, t->inputs().front());
             }

@@ -35,8 +35,8 @@ argument softmax(hipStream_t stream,
             auto batch_max = input_ptr[row_start];
             for(std::size_t j = 1; j < n_dims; ++j)
             {
-                auto ind            = row_start + j;
-                batch_max           = std::max(to_hip_type(batch_max), to_hip_type(input_ptr[ind]));
+                auto ind  = row_start + j;
+                batch_max = std::max(to_hip_type(batch_max), to_hip_type(input_ptr[ind]));
             }
 
             for(std::size_t j = 0; j < n_dims; ++j)

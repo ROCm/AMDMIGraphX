@@ -33,7 +33,7 @@ struct miopen_quant_convolution
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
     shape compile(context& ctx, const shape& output_shape, std::vector<shape> inputs);
     void finalize(context& ctx, const shape& output_shape, std::vector<shape> inputs);
-    int output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const { return shapes.size() - 1; }
 
     private:
     shape pack_int8_shape(shape& s);

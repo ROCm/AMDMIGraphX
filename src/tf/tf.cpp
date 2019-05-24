@@ -311,7 +311,7 @@ struct tf_parser
                                    attribute_map attributes,
                                    const std::vector<instruction_ref>&)
     {
-        literal v       = parse_tensor(attributes.at("value").tensor());
+        literal v = parse_tensor(attributes.at("value").tensor());
         return prog.add_literal(v);
     }
 

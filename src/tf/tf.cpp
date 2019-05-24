@@ -1010,6 +1010,7 @@ program parse_tf(const std::string& name, bool is_nhwc)
 #else
     parser.parse_from(input);
 #endif
+    parser.to_nchw(std::prev(parser.prog.end()));
     return std::move(parser.prog);
 }
 

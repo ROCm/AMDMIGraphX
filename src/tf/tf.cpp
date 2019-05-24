@@ -36,7 +36,7 @@ struct tf_parser
 
     std::unordered_map<std::string, op_func> ops;
 
-    bool should_transpose(instruction_ref ins)
+    bool should_transpose(instruction_ref ins) const
     {
         return is_nhwc and ins->get_shape().lens().size() == 4;
     }
@@ -204,17 +204,17 @@ struct tf_parser
     template <class T>
     void add_binary_op(std::string name, T x)
     {
-        add_op(name, [this, x](const attribute_map& attributes, std::vector<instruction_ref> args) {
+        add_op(name, [this, x](const attribute_map&, std::vector<instruction_ref> args) {
             if(args.size() != 2)
                 MIGRAPHX_THROW("binary operators should have 2 operands");
-            if(contains(attributes, "data_format"))
-            {
-                // TODO
-                // if(is_nhwc)
-                // {
-                //     l0 = prog.add_instruction(op::transpose{{0, 3, 1, 2}}, args[1]);
-                // }
-            }
+            // TODO
+            // if(contains(attributes, "data_format"))
+            // {
+            //     if(is_nhwc)
+            //     {
+            //         l0 = prog.add_instruction(op::transpose{{0, 3, 1, 2}}, args[1]);
+            //     }
+            // }
             return add_broadcastable_binary_op(args[0], args[1], x);
         });
     }

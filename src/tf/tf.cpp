@@ -325,14 +325,6 @@ struct tf_parser
             if(pad_mode.find("SAME") != std::string::npos)
             {
                 op.padding_mode = op::padding_mode_t::same;
-                op.padding[0] =
-                    static_cast<size_t>(std::ceil(static_cast<double>(
-                                            -op.stride[0] + op.dilation[0] * (weight_h - 1) + 1)) /
-                                        2);
-                op.padding[1] =
-                    static_cast<size_t>(std::ceil(static_cast<double>(
-                                            -op.stride[1] + op.dilation[1] * (weight_w - 1) + 1)) /
-                                        2);
             }
             else if(pad_mode.find("VALID") != std::string::npos)
             {

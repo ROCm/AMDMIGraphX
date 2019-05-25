@@ -74,7 +74,7 @@ struct tf_parser
     {
         std::vector<instruction_ref> result(args.size());
         std::transform(
-            args.begin(), args.end(), result.begin(), [&](auto ins) { return to_nchw(ins); });
+            args.begin(), args.end(), result.begin(), [&](auto ins) { return this->to_nchw(ins); });
         return result;
     }
 

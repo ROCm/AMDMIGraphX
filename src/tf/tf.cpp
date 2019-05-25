@@ -181,7 +181,7 @@ struct tf_parser
         {
             ops.emplace(name,
                         op_func{[=](const attribute_map& attributes,
-                                    std::vector<instruction_ref> args) -> instruction_ref {
+                                    const std::vector<instruction_ref>& args) -> instruction_ref {
                             return to_nhwc(f(attributes, to_nchw(args)));
                         }});
         }

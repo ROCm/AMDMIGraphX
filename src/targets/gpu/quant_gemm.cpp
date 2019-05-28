@@ -64,7 +64,8 @@ shape miopen_quant_gemm::compute_shape(const std::vector<shape>& inputs) const
     {
         if(arg_b.empty())
         {
-            arg_b = allocate_gpu(inputs[1]);
+            auto *p_this = const_cast<miopen_quant_gemm*>(this);
+            p_this->arg_b = allocate_gpu(inputs[1]);
         }
     }
 
@@ -72,7 +73,8 @@ shape miopen_quant_gemm::compute_shape(const std::vector<shape>& inputs) const
     {
         if(arg_a.empty())
         {
-            arg_a = allocate_gpu(inputs[0]);
+            auto *p_this = const_cast<miopen_quant_gemm*>(this);
+            p_this->arg_a = allocate_gpu(inputs[0]);
         }
     }
 

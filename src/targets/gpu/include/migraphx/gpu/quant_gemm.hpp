@@ -32,8 +32,8 @@ struct miopen_quant_gemm
     }
 
     private:
-    mutable argument arg_a;
-    mutable argument arg_b;
+    argument arg_a;
+    argument arg_b;
 };
 
 } // namespace gpu

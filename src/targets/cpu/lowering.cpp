@@ -232,9 +232,9 @@ struct cpu_quant_convolution
             auto wei_w = wei[3];
 
             par_dfor(output_shape.lens()[0],
-                        output_shape.lens()[1],
-                        output_shape.lens()[2],
-                        output_shape.lens()[3])(
+                     output_shape.lens()[1],
+                     output_shape.lens()[2],
+                     output_shape.lens()[3])(
                 [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
                     const auto start_x  = i * op.stride[0] - op.padding[0];
                     const auto start_y  = j * op.stride[1] - op.padding[1];

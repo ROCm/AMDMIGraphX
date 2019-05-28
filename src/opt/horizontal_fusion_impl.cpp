@@ -398,9 +398,7 @@ void horizontal_fusion_impl::remove_redundant_roots(const std::vector<instructio
 // update hash tree.
 void horizontal_fusion_impl::update_hash_tree(unsigned hash_id)
 {
-    unsigned first = *(hash_instrs[hash_id].begin());
-    hash_instrs[hash_id].clear();
-    //    hash_instrs[hash_id].insert(first);
+    unsigned first       = *(hash_instrs[hash_id].begin());
     hash_instrs[hash_id] = {first};
 }
 

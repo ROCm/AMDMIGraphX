@@ -517,40 +517,114 @@ struct cpu_unary
     }
 };
 
-struct softmax2d
+// struct softmax2d
+// {
+//     std::string name() const { return "cpu::softmax2d"; }
+//     shape compute_shape(const std::vector<shape>& inputs) const { return inputs.front(); }
+//     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+//     {
+//         argument result{output_shape};
+//         visit_all(result, args[0])([&](auto output, auto input) {
+//             using value_type = typename decltype(input)::value_type;
+//             auto nb          = input.get_shape().lens()[0];
+//             auto nc          = input.get_shape().lens()[1];
+//             auto nh          = input.get_shape().lens()[2];
+//             auto nw          = input.get_shape().lens()[3];
+//             dfor(nb, nh, nw)([&](std::size_t b, std::size_t i, std::size_t j) {
+//                 value_type cmax = std::numeric_limits<value_type>::lowest();
+//                 for(std::size_t c = 0; c < nc; c++)
+//                 {
+//                     cmax = std::max(cmax, input(b, c, i, j));
+//                 }
+//                 for(std::size_t c = 0; c < nc; c++)
+//                 {
+//                     output(b, c, i, j) = std::exp(input(b, c, i, j) - cmax);
+//                 }
+//                 value_type sum = value_type(0);
+//                 for(std::size_t c = 0; c < nc; c++)
+//                 {
+//                     sum += output(b, c, i, j);
+//                 }
+//                 for(std::size_t c = 0; c < nc; c++)
+//                 {
+//                     output(b, c, i, j) = output(b, c, i, j) / sum;
+//                 }
+//             });
+//         });
+//         return result;
+//     }
+// };
+
+struct cpu_softmax
 {
-    std::string name() const { return "cpu::softmax2d"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return inputs.front(); }
+    op::softmax op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
+    std::string name() const { return "cpu::softmax"; }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+
+    template <typename T>
+    std::size_t compute_batch_index(const T& idx, shape& batch_shape, int axis) const
+    {
+        if(axis == 0)
+        {
+            return 0;
+        }
+        else
+        {
+            std::vector<std::size_t> batch_idx(idx.begin(), idx.begin() + axis);
+            return batch_shape.index(batch_idx.begin(), batch_idx.end());
+        }
+    }
+
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
+        auto lens = output_shape.lens();
+        std::vector<std::size_t> batch_lens{};
+        if(op.axis == 0)
+        {
+            batch_lens.push_back(1);
+        }
+        else
+        {
+            batch_lens.insert(batch_lens.begin(), lens.begin(), lens.begin() + op.axis);
+        }
+        shape batch_shape{migraphx::shape::uint32_type, batch_lens};
         visit_all(result, args[0])([&](auto output, auto input) {
             using value_type = typename decltype(input)::value_type;
-            auto nb          = input.get_shape().lens()[0];
-            auto nc          = input.get_shape().lens()[1];
-            auto nh          = input.get_shape().lens()[2];
-            auto nw          = input.get_shape().lens()[3];
-            dfor(nb, nh, nw)([&](std::size_t b, std::size_t i, std::size_t j) {
-                value_type cmax = std::numeric_limits<value_type>::lowest();
-                for(std::size_t c = 0; c < nc; c++)
-                {
-                    cmax = std::max(cmax, input(b, c, i, j));
-                }
-                for(std::size_t c = 0; c < nc; c++)
-                {
-                    output(b, c, i, j) = std::exp(input(b, c, i, j) - cmax);
-                }
-                value_type sum = value_type(0);
-                for(std::size_t c = 0; c < nc; c++)
-                {
-                    sum += output(b, c, i, j);
-                }
-                for(std::size_t c = 0; c < nc; c++)
-                {
-                    output(b, c, i, j) = output(b, c, i, j) / sum;
-                }
+            std::vector<value_type> batch_max(batch_shape.elements(),
+                                              std::numeric_limits<value_type>::lowest());
+            shape_for_each(output_shape, [&](auto idx) {
+                auto index       = this->compute_batch_index(idx, batch_shape, op.axis);
+                batch_max[index] = std::max(batch_max[index], input(idx.begin(), idx.end()));
+            });
+
+            shape_for_each(output_shape, [&](auto idx) {
+                auto index = this->compute_batch_index(idx, batch_shape, op.axis);
+                output(idx.begin(), idx.end()) = input(idx.begin(), idx.end()) - batch_max[index];
+            });
+
+            std::vector<value_type> batch_sum(batch_shape.elements(), value_type(0));
+            shape_for_each(output_shape, [&](auto idx) {
+                auto index = this->compute_batch_index(idx, batch_shape, op.axis);
+                auto output_val = std::exp(output(idx.begin(), idx.end()));
+                output(idx.begin(), idx.end()) = output_val;
+                batch_sum[index] += output(idx.begin(), idx.end());
+            });
+
+
+            shape_for_each(output_shape, [&](auto idx) {
+                auto index = this->compute_batch_index(idx, batch_shape, op.axis);
+                output(idx.begin(), idx.end()) /= batch_sum[index];
             });
         });
+
         return result;
     }
 };
@@ -660,7 +734,7 @@ struct cpu_apply
         apply_map["logsoftmax"]  = extend_op<cpu_logsoftmax, op::logsoftmax>();
         apply_map["lrn"]         = extend_op<cpu_lrn, op::lrn>();
         apply_map["pad"]         = extend_op<cpu_pad, op::pad>();
-        apply_map["softmax"]     = simple_op<softmax2d>();
+        apply_map["softmax"]     = extend_op<cpu_softmax, op::softmax>();
     }
 
     void apply()

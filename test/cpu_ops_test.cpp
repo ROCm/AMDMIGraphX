@@ -929,6 +929,21 @@ TEST_CASE(maxpool_test)
     EXPECT(migraphx::verify_range(results_vector, c));
 }
 
+TEST_CASE(softmax_simple_test)
+{
+    migraphx::program p;
+    std::vector<float> a = { 0.25, 0.75 };
+    std::vector<float> s = { 0.377541, 0.622459 };
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 2}};
+    auto al = p.add_literal(migraphx::literal{a_shape, a});
+    p.add_instruction(migraphx::op::softmax{}, al);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(2);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, s));
+}
+
 TEST_CASE(softmax_test)
 {
     migraphx::program p;

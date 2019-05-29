@@ -1,4 +1,6 @@
 #include <migraphx/horizontal_fusion.hpp>
+#include <migraphx/propagate_constant.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/operators.hpp>
 #include <migraphx/program.hpp>
@@ -13,7 +15,9 @@ struct horizontal_fusion_target
     std::string name() const { return "horizontal fusion"; }
     std::vector<migraphx::pass> get_passes(migraphx::context&) const
     {
-        return {migraphx::horizontal_fusion{}};
+        return {migraphx::horizontal_fusion{},
+                migraphx::propagate_constant{},
+                migraphx::dead_code_elimination{}};
     }
     migraphx::context get_context() const { return {}; }
 };

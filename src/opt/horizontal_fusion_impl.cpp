@@ -276,53 +276,10 @@ void horizontal_fusion_impl::concat(
 
     if(ins0->name() == "@literal")
     {
-        // concat literals.
-        unsigned long long unit_slice   = 1;
-        int ndx                         = 0;
-        unsigned long long new_elements = 1;
 
-        for(auto&& len : s.lens())
-        {
-            if(ndx > axis)
-                unit_slice *= len;
-            if(ndx != axis)
-                new_elements *= len;
-            ndx++;
-        }
-        new_elements *= sum;
-        unsigned type_size             = s.type_size();
-        unsigned long long total_bytes = new_elements * type_size;
-        std::shared_ptr<char> input    = make_shared_array<char>(total_bytes);
-        std::vector<unsigned long long> bytes_per_slice;
-        unsigned long long unit_slice_bytes = unit_slice * type_size;
-
-        std::transform(instrs.begin(),
-                       instrs.end(),
-                       std::back_inserter(bytes_per_slice),
-                       [&](auto&& d) -> unsigned long long {
-                           return d->get_shape().lens().at(axis) * unit_slice_bytes;
-                       });
-
-        unsigned copy_bytes = 0;
-        int slice_ndx       = 0;
-        char* dst           = input.get();
-        while(copy_bytes < total_bytes)
-        {
-            unsigned ins_ndx = 0;
-            for(auto&& ins : instrs)
-            {
-                unsigned long long bytes = bytes_per_slice[ins_ndx];
-                const char* src          = &(ins->get_literal().data()[slice_ndx * bytes]);
-                std::copy(src, src + bytes, dst);
-                dst += bytes;
-                copy_bytes += bytes;
-                ins_ndx++;
-            }
-            slice_ndx++;
-        }
-        shape new_shape{s.type(), new_lens};
-        auto new_literal = p_program->add_literal(literal(new_shape, input.get()));
-        instruction::replace_argument(output, ins0, new_literal, false);
+        auto concat_ins = p_program->insert_instruction(
+            output, op::concat{static_cast<std::size_t>(axis)}, instrs);
+        instruction::replace_argument(output, ins0, concat_ins, false);
     }
     else
     {
@@ -501,7 +458,7 @@ void horizontal_fusion_impl::transform_layers(
         for(auto&& ins : input)
         {
             bool is_literal = (ins->name() == "@literal");
-            if((ndx == 0) && !is_literal)
+            if((ndx == 0) || is_literal)
                 continue;
             p_program->remove_instruction(ins);
         }

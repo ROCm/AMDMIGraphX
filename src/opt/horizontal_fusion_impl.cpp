@@ -1,5 +1,6 @@
 #include "horizontal_fusion_impl.hpp"
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -342,9 +343,8 @@ int horizontal_fusion_impl::find_axis(instruction_ref ins,
 void horizontal_fusion_impl::remove_redundant_roots(const std::vector<instruction_ref>& base_instrs)
 {
     instruction_ref root_ins = base_instrs.at(0);
-    for(unsigned long ndx = 1; ndx < base_instrs.size(); ndx++)
+    for(auto base : range(base_instrs.begin() + 1, base_instrs.end()))
     {
-        instruction_ref base                 = base_instrs.at(ndx);
         std::vector<instruction_ref> outputs = base->outputs();
         for(auto&& output : outputs)
             instruction::replace_argument(output, base, root_ins, false);

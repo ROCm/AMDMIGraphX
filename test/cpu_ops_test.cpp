@@ -936,11 +936,14 @@ TEST_CASE(softmax_simple_test)
     std::vector<float> s = {0.377541, 0.622459};
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 2}};
     auto al = p.add_literal(migraphx::literal{a_shape, a});
-    p.add_instruction(migraphx::op::softmax{}, al);
+    p.add_instruction(migraphx::op::softmax{1}, al);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
     std::vector<float> results_vector(2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    for (auto v : results_vector)
+        std::cout << v << "\t";
+    std::cout << std::endl;
     EXPECT(migraphx::verify_range(results_vector, s));
 }
 

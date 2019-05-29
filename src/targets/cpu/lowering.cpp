@@ -612,12 +612,11 @@ struct cpu_softmax
 
             std::vector<value_type> batch_sum(batch_shape.elements(), value_type(0));
             shape_for_each(output_shape, [&](auto idx) {
-                auto index = this->compute_batch_index(idx, batch_shape, op.axis);
+                auto index      = this->compute_batch_index(idx, batch_shape, op.axis);
                 auto output_val = std::exp(output(idx.begin(), idx.end()));
                 output(idx.begin(), idx.end()) = output_val;
                 batch_sum[index] += output(idx.begin(), idx.end());
             });
-
 
             shape_for_each(output_shape, [&](auto idx) {
                 auto index = this->compute_batch_index(idx, batch_shape, op.axis);

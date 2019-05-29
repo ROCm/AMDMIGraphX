@@ -941,7 +941,7 @@ TEST_CASE(softmax_simple_test)
     auto result = p.eval({});
     std::vector<float> results_vector(2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    for (auto v : results_vector)
+    for(auto v : results_vector)
         std::cout << v << "\t";
     std::cout << std::endl;
     EXPECT(migraphx::verify_range(results_vector, s));

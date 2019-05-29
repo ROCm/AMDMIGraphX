@@ -584,7 +584,8 @@ struct cpu_softmax
 
         visit_all(result, args[0])([&](auto output, auto input) {
             using value_type = typename decltype(input)::value_type;
-            std::vector<value_type> batch_max(batch_shape.elements(), std::numeric_limits<value_type>::lowest());
+            std::vector<value_type> batch_max(batch_shape.elements(),
+                                              std::numeric_limits<value_type>::lowest());
             shape_for_each(output_shape, [&](auto idx) {
                 auto index       = this->compute_batch_index(idx, batch_shape, op.axis);
                 batch_max[index] = std::max(batch_max[index], input(idx.begin(), idx.end()));
@@ -592,12 +593,13 @@ struct cpu_softmax
 
             shape_for_each(output_shape, [&](auto idx) {
                 auto index = this->compute_batch_index(idx, batch_shape, op.axis);
-                output(idx.begin(), idx.end()) = std::exp(input(idx.begin(), idx.end()) - batch_max[index]);
+                output(idx.begin(), idx.end()) =
+                    std::exp(input(idx.begin(), idx.end()) - batch_max[index]);
             });
 
             std::vector<value_type> batch_sum(batch_shape.elements(), value_type(0));
             shape_for_each(output_shape, [&](auto idx) {
-                auto index      = this->compute_batch_index(idx, batch_shape, op.axis);
+                auto index = this->compute_batch_index(idx, batch_shape, op.axis);
                 batch_sum[index] += output(idx.begin(), idx.end());
             });
 

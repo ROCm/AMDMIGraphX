@@ -15,7 +15,7 @@ argument hip_softmax::compute(context& ctx,
                               const shape& output_shape,
                               const std::vector<argument>& args) const
 {
-    return device::softmax(ctx.get_stream().get(), output_shape, args, 1);
+    return device::softmax(ctx.get_stream().get(), output_shape, args, op.axis);
 }
 
 } // namespace gpu

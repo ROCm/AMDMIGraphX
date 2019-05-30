@@ -517,44 +517,6 @@ struct cpu_unary
     }
 };
 
-// struct softmax2d
-// {
-//     std::string name() const { return "cpu::softmax2d"; }
-//     shape compute_shape(const std::vector<shape>& inputs) const { return inputs.front(); }
-//     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-//     {
-//         argument result{output_shape};
-//         visit_all(result, args[0])([&](auto output, auto input) {
-//             using value_type = typename decltype(input)::value_type;
-//             auto nb          = input.get_shape().lens()[0];
-//             auto nc          = input.get_shape().lens()[1];
-//             auto nh          = input.get_shape().lens()[2];
-//             auto nw          = input.get_shape().lens()[3];
-//             dfor(nb, nh, nw)([&](std::size_t b, std::size_t i, std::size_t j) {
-//                 value_type cmax = std::numeric_limits<value_type>::lowest();
-//                 for(std::size_t c = 0; c < nc; c++)
-//                 {
-//                     cmax = std::max(cmax, input(b, c, i, j));
-//                 }
-//                 for(std::size_t c = 0; c < nc; c++)
-//                 {
-//                     output(b, c, i, j) = std::exp(input(b, c, i, j) - cmax);
-//                 }
-//                 value_type sum = value_type(0);
-//                 for(std::size_t c = 0; c < nc; c++)
-//                 {
-//                     sum += output(b, c, i, j);
-//                 }
-//                 for(std::size_t c = 0; c < nc; c++)
-//                 {
-//                     output(b, c, i, j) = output(b, c, i, j) / sum;
-//                 }
-//             });
-//         });
-//         return result;
-//     }
-// };
-
 struct cpu_softmax
 {
     op::softmax op;

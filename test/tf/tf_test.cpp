@@ -181,7 +181,7 @@ TEST_CASE(mean_test)
     migraphx::op::pooling op;
     op.lengths = {16, 16};
     p.add_instruction(op, l0);
-    auto l3    = p.add_instruction(op, l0);
+    auto l3 = p.add_instruction(op, l0);
     p.add_instruction(migraphx::op::squeeze{{2, 3}}, l3);
     auto prog = migraphx::parse_tf("mean_test.pb", false);
 
@@ -198,7 +198,7 @@ TEST_CASE(mean_test_nhwc)
     migraphx::op::pooling op;
     op.lengths = {16, 16};
     p.add_instruction(op, l0);
-    auto l3    = p.add_instruction(op, l0);
+    auto l3 = p.add_instruction(op, l0);
     p.add_instruction(migraphx::op::squeeze{{2, 3}}, l3);
     auto prog = migraphx::parse_tf("mean_test_nhwc.pb", true);
 

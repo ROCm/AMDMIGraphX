@@ -25,7 +25,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct tf_parser
 {
     using attribute_map = std::unordered_map<std::string, tensorflow::AttrValue>;
-    using node_map      = std::unordered_map<std::string, tensorflow::NodeDef>;
+    using node_map      = std::map<std::string, tensorflow::NodeDef>;
     // using input_node_map = std::unordered_map<std::string, std::unordered_set<std::string>>;
     using op_func = std::function<instruction_ref(attribute_map, std::vector<instruction_ref>)>;
 

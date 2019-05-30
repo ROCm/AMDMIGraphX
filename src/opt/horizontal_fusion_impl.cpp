@@ -448,21 +448,17 @@ void horizontal_fusion_impl::transform_layers(
                        [&](auto&& d) -> instruction_ref { return d.at(ndx); });
         concat(instrs, root, axis);
     }
-
     remove_redundant_roots(base_instrs);
 
     // remove redundant inputs.
-    int ndx = 0;
-    for(auto&& input : all_inputs)
+    for(auto&& input : range(all_inputs.begin() + 1, all_inputs.end()))
     {
-        for(auto&& ins : input)
+        for(auto&& ins : range(input.rbegin(), input.rend()))
         {
-            bool is_literal = (ins->name() == "@literal");
-            if((ndx == 0) || is_literal)
+            if(ins->name() == "@literal")
                 continue;
             p_program->remove_instruction(ins);
         }
-        ndx++;
     }
 }
 

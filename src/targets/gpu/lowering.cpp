@@ -46,7 +46,7 @@
 #include <migraphx/gpu/gather.hpp>
 #include <migraphx/gpu/lrn.hpp>
 #include <migraphx/gpu/clip.hpp>
-#include <migraphx/gpu/split.hpp>
+#include <migraphx/gpu/horizontal_fusion_split.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>

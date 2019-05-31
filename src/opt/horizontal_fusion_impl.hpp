@@ -16,7 +16,7 @@ namespace migraphx {
 
 inline namespace MIGRAPHX_INLINE_NS {
 
-// #define MIGRAPHX_DEBUG_OPT
+//#define MIGRAPHX_DEBUG_OPT
 
 #ifdef MIGRAPHX_DEBUG_OPT
 #define MIGRAPHX_DEBUG(s) s
@@ -27,17 +27,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 // Nodes representing hashed instructions.
 struct hash_value
 {
-    enum hash_attr
-    {
-        root = 0,
-        fused
-    };
     unsigned id   = 0;
     int cur_point = 0;
-    unsigned mask = 0;
-    bool is_root() const { return (mask & (static_cast<unsigned>(1) << root)) != 0; }
-    bool is_fused() const { return (mask & (static_cast<unsigned>(1) << fused)) != 0; }
-    void set_root() { mask |= (static_cast<unsigned>(1) << root); }
 };
 
 using hash_value_ptr = hash_value*;

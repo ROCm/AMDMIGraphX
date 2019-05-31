@@ -167,8 +167,7 @@ void horizontal_fusion_impl::process(instruction_ref ins)
     if(hash_child)
     {
         // Create a value for this instruction.
-        hash_value& value = create_value(ins);
-        value.set_root();
+        create_value(ins);
         // Flag children to be hashed.
         for(auto&& output : ins->outputs())
         {

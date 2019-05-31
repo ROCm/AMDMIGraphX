@@ -569,33 +569,19 @@ struct cpu_logsoftmax
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
     template <typename T>
-    std::size_t compute_batch_index(const T& idx, shape& batch_shape, int axis) const
+    std::size_t compute_batch_index(T idx, const shape& batch_shape, int axis) const
     {
-        if(axis == 0)
-        {
-            return 0;
-        }
-        else
-        {
-            std::vector<std::size_t> batch_idx(idx.begin(), idx.begin() + axis);
-            return batch_shape.index(batch_idx.begin(), batch_idx.end());
-        }
+        idx[axis] = 0;
+        return batch_shape.index(idx);
     }
 
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        auto lens = output_shape.lens();
-        std::vector<std::size_t> batch_lens{};
-        if(op.axis == 0)
-        {
-            batch_lens.push_back(1);
-        }
-        else
-        {
-            batch_lens.insert(batch_lens.begin(), lens.begin(), lens.begin() + op.axis);
-        }
-        shape batch_shape{migraphx::shape::uint32_type, batch_lens};
+        auto batch_lens = output_shape.lens();
+        batch_lens[op.axis] = 1;
+        shape batch_shape{shape::int32_type, batch_lens};
+
         visit_all(result, args[0])([&](auto output, auto input) {
             using value_type = typename decltype(input)::value_type;
             std::vector<value_type> batch_max(batch_shape.elements(),

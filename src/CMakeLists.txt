@@ -27,6 +27,7 @@ add_library(migraphx
     opt/memory_coloring_impl.cpp
     opt/horizontal_fusion.cpp
     opt/horizontal_fusion_impl.cpp
+    opt/value_numbering.cpp
 )
 rocm_clang_tidy_check(migraphx)
 rocm_install_targets(

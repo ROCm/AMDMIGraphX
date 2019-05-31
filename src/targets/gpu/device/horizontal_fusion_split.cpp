@@ -1,7 +1,7 @@
 #include <hip/hip_runtime.h>
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/split.hpp>
+#include <migraphx/gpu/device/horizontal_fusion_split.hpp>
 #include <migraphx/gpu/device/tensor.hpp>
 #include <migraphx/gpu/device/types.hpp>
 #include <migraphx/gpu/device/launch.hpp>

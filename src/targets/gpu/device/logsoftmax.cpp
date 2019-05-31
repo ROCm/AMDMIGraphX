@@ -17,10 +17,10 @@ argument logsoftmax(hipStream_t stream,
                     int axis)
 {
 
-    auto lens              = output_shape.lens();
+    auto lens         = output_shape.lens();
     auto num_in_batch = lens[axis];
-    auto batch_lens = lens;
-    batch_lens[axis] = 1;
+    auto batch_lens   = lens;
+    batch_lens[axis]  = 1;
     migraphx::shape batch_shape{output_shape.type(), batch_lens};
 
     visit_all(args.back(), args.front())([&](auto output, auto input) {
@@ -33,21 +33,21 @@ argument logsoftmax(hipStream_t stream,
             // each thread is for one item in the batch
             gs_launch(stream, batch_shape.elements())([=](auto i) {
                 auto batch_idx = desc_batch.multi(i);
-                auto data_idx = batch_idx;
+                auto data_idx  = batch_idx;
 
                 // get max
                 auto batch_max = input_ptr[desc_data.linear(batch_idx)];
                 for(std::size_t j = 1; j < num_in_batch; ++j)
                 {
                     data_idx[axis] = j;
-                    size_t idx = desc_data.linear(data_idx);
-                    batch_max = std::max(to_hip_type(batch_max), to_hip_type(input_ptr[idx]));
+                    size_t idx     = desc_data.linear(data_idx);
+                    batch_max      = std::max(to_hip_type(batch_max), to_hip_type(input_ptr[idx]));
                 }
 
                 for(std::size_t j = 0; j < num_in_batch; ++j)
                 {
-                    data_idx[axis] = j;
-                    size_t idx = desc_data.linear(data_idx);
+                    data_idx[axis]  = j;
+                    size_t idx      = desc_data.linear(data_idx);
                     output_ptr[idx] = input_ptr[idx] - batch_max;
                 }
 
@@ -55,7 +55,7 @@ argument logsoftmax(hipStream_t stream,
                 for(std::size_t j = 1; j < num_in_batch; ++j)
                 {
                     data_idx[axis] = j;
-                    size_t idx = desc_data.linear(data_idx);
+                    size_t idx     = desc_data.linear(data_idx);
                     batch_sum += ::exp(to_hip_type(output_ptr[idx]));
                 }
                 batch_sum = ::log(to_hip_type(batch_sum));
@@ -63,7 +63,7 @@ argument logsoftmax(hipStream_t stream,
                 for(std::size_t j = 0; j < num_in_batch; ++j)
                 {
                     data_idx[axis] = j;
-                    size_t idx = desc_data.linear(data_idx);
+                    size_t idx     = desc_data.linear(data_idx);
                     output_ptr[idx] -= batch_sum;
                 }
             });

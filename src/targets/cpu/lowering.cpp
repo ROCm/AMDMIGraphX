@@ -578,7 +578,7 @@ struct cpu_logsoftmax
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        auto batch_lens = output_shape.lens();
+        auto batch_lens     = output_shape.lens();
         batch_lens[op.axis] = 1;
         shape batch_shape{shape::int32_type, batch_lens};
 

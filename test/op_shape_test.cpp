@@ -346,35 +346,27 @@ TEST_CASE(gather)
     }
 }
 
-template<class T>
+template <class T>
 void test_softmax_variations(T, bool is_logsoftmax)
 {
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
-                     T{0},
-                     input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}}, T{0}, input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
-                     T{1},
-                     input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}}, T{1}, input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
-                     T{2},
-                     input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}}, T{2}, input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
-                     T{3},
-                     input);
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}}, T{3}, input);
     }
 
     {
@@ -390,23 +382,15 @@ void test_softmax_variations(T, bool is_logsoftmax)
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
         if(is_logsoftmax)
-            expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
-                        T{4},
-                        input);
+            expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}}, T{4}, input);
         else
             throws_shape(T{4}, input);
     }
 }
 
-TEST_CASE(softmax)
-{
-    test_softmax_variations(migraphx::op::softmax{}, false);
-}
+TEST_CASE(softmax) { test_softmax_variations(migraphx::op::softmax{}, false); }
 
-TEST_CASE(logsoftmax)
-{
-    test_softmax_variations(migraphx::op::logsoftmax{}, true);
-}
+TEST_CASE(logsoftmax) { test_softmax_variations(migraphx::op::logsoftmax{}, true); }
 
 // 2 inputs arguments
 TEST_CASE(matmul)

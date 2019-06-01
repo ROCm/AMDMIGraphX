@@ -346,59 +346,66 @@ TEST_CASE(gather)
     }
 }
 
-TEST_CASE(logsoftmax)
+template<class T>
+void test_softmax_variations(T, bool is_logsoftmax)
 {
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        int axis = 0;
         expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
-                     migraphx::op::logsoftmax{axis},
+                     T{0},
                      input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        int axis = 1;
         expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
-                     migraphx::op::logsoftmax{axis},
+                     T{1},
                      input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        int axis = 2;
         expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
-                     migraphx::op::logsoftmax{axis},
+                     T{2},
                      input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        int axis = 3;
         expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
-                     migraphx::op::logsoftmax{axis},
+                     T{3},
                      input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        int axis = 4;
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
-                     migraphx::op::logsoftmax{axis},
-                     input);
+        throws_shape(T{5}, input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        int axis = 5;
-        throws_shape(migraphx::op::logsoftmax{axis}, input);
+        throws_shape(T{-1}, input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        int axis = -1;
-        throws_shape(migraphx::op::logsoftmax{axis}, input);
+        if(is_logsoftmax)
+            expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}},
+                        T{4},
+                        input);
+        else
+            throws_shape(T{4}, input);
     }
+}
+
+TEST_CASE(softmax)
+{
+    test_softmax_variations(migraphx::op::softmax{}, false);
+}
+
+TEST_CASE(logsoftmax)
+{
+    test_softmax_variations(migraphx::op::logsoftmax{}, true);
 }
 
 // 2 inputs arguments

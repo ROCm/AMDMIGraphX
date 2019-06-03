@@ -180,14 +180,14 @@ struct miopen_apply
             auto&& op      = any_cast<op::quant_dot>(ins->get_operator());
             auto inputs    = ins->inputs();
             auto in_shapes = to_shapes(inputs);
-            auto arg_a     = allocate_gpu(in_shapes[0]);
-            auto arg_b     = allocate_gpu(in_shapes[1]);
-
-            auto quant_dot = miopen_quant_gemm{op, arg_a, arg_b};
+            auto pack_a     = insert_allocation(ins, in_shapes[0], "pack_a");
+            auto pack_b     = insert_allocation(ins, in_shapes[1], "pack_b");
             auto output    = insert_allocation(ins, ins->get_shape());
+            inputs.push_back(pack_a);
+            inputs.push_back(pack_b);
             inputs.push_back(output);
 
-            return prog->replace_instruction(ins, quant_dot, inputs);
+            return prog->replace_instruction(ins, miopen_quant_gemm{op}, inputs);
         });
     }
 

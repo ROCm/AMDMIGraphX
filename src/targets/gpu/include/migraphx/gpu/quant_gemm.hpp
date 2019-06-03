@@ -13,8 +13,6 @@ struct context;
 struct miopen_quant_gemm
 {
     op::quant_dot op;
-    argument arg_a;
-    argument arg_b;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

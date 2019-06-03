@@ -13,7 +13,7 @@ namespace device {
 
 void pack_a(hipStream_t stream, const argument& result, const argument& arg)
 {
-    auto comp_shape  = arg.get_shape();
+    auto comp_shape    = arg.get_shape();
     auto out_lens      = comp_shape.lens();
     auto dim_0         = out_lens.size() - 2;
     auto dim_1         = out_lens.size() - 1;

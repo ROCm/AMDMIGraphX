@@ -177,11 +177,11 @@ struct miopen_apply
     void add_quant_dot_op()
     {
         apply_map.emplace("quant_dot", [=](instruction_ref ins) {
-            auto&& op = any_cast<op::quant_dot>(ins->get_operator());
-            auto inputs = ins->inputs();
+            auto&& op      = any_cast<op::quant_dot>(ins->get_operator());
+            auto inputs    = ins->inputs();
             auto in_shapes = to_shapes(inputs);
-            auto arg_a = allocate_gpu(in_shapes[0]);
-            auto arg_b = allocate_gpu(in_shapes[1]);
+            auto arg_a     = allocate_gpu(in_shapes[0]);
+            auto arg_b     = allocate_gpu(in_shapes[1]);
 
             auto quant_dot = miopen_quant_gemm{op, arg_a, arg_b};
             auto output    = insert_allocation(ins, ins->get_shape());

@@ -30,7 +30,6 @@ struct miopen_quant_gemm
     {
         return shapes.size() - 1;
     }
-
 };
 
 } // namespace gpu

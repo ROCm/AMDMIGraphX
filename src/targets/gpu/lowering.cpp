@@ -180,8 +180,8 @@ struct miopen_apply
             auto&& op      = any_cast<op::quant_dot>(ins->get_operator());
             auto inputs    = ins->inputs();
             auto in_shapes = to_shapes(inputs);
-            auto pack_a     = insert_allocation(ins, in_shapes[0], "pack_a");
-            auto pack_b     = insert_allocation(ins, in_shapes[1], "pack_b");
+            auto pack_a    = insert_allocation(ins, in_shapes[0], "pack_a");
+            auto pack_b    = insert_allocation(ins, in_shapes[1], "pack_b");
             auto output    = insert_allocation(ins, ins->get_shape());
             inputs.push_back(pack_a);
             inputs.push_back(pack_b);

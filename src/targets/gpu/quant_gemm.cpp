@@ -70,7 +70,7 @@ argument miopen_quant_gemm::compute(context& ctx,
     auto n_dim      = output_shape.lens().size();
     auto dim_1      = n_dim - 1;
     auto dim_0      = n_dim - 2;
-    auto arg_num = args.size();
+    auto arg_num    = args.size();
     rocblas_int lda = args[0].get_shape().strides()[transa ? dim_1 : dim_0];
     rocblas_int ldb = args[1].get_shape().strides()[transb ? dim_1 : dim_0];
     rocblas_int ldc = args[arg_num - 1].get_shape().strides()[dim_0];
@@ -121,7 +121,8 @@ argument miopen_quant_gemm::compute(context& ctx,
                                     m,
                                     k,
                                     &alpha_r,
-                                    (!transb) ? to_pointer(args[arg_num - 2]) : to_pointer(args.at(1)),
+                                    (!transb) ? to_pointer(args[arg_num - 2])
+                                              : to_pointer(args.at(1)),
                                     rocblas_datatype_i8_r,
                                     ldb,
                                     transa ? to_pointer(args[arg_num - 3]) : to_pointer(args.at(0)),

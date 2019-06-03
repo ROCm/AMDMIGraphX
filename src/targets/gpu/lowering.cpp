@@ -99,7 +99,6 @@ struct miopen_apply
         add_generic_op<hip_min>("min");
 
         add_extend_op<miopen_gemm, op::dot>("dot");
-        add_extend_op<miopen_quant_gemm, op::quant_dot>("quant_dot");
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
         add_extend_op<miopen_softmax, op::softmax>("softmax");
@@ -112,6 +111,7 @@ struct miopen_apply
         add_lrn_op();
         add_convolution_op();
         add_quant_convolution_op();
+        add_quant_dot_op();
         add_pooling_op();
         add_batch_norm_inference_op();
     }
@@ -171,6 +171,23 @@ struct miopen_apply
 
             return prog->replace_instruction(
                 ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
+        });
+    }
+
+    void add_quant_dot_op()
+    {
+        apply_map.emplace("quant_dot", [=](instruction_ref ins) {
+            auto&& op = any_cast<op::quant_dot>(ins->get_operator());
+            auto inputs = ins->inputs();
+            auto in_shapes = to_shapes(inputs);
+            auto arg_a = allocate_gpu(in_shapes[0]);
+            auto arg_b = allocate_gpu(in_shapes[1]);
+
+            auto quant_dot = miopen_quant_gemm{op, arg_a, arg_b};
+            auto output    = insert_allocation(ins, ins->get_shape());
+            inputs.push_back(output);
+
+            return prog->replace_instruction(ins, quant_dot, inputs);
         });
     }
 

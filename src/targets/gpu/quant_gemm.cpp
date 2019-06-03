@@ -57,26 +57,6 @@ shape miopen_quant_gemm::compute_shape(const std::vector<shape>& inputs) const
     std::vector<shape> input_shapes(inputs);
     input_shapes.pop_back();
     check_shapes{input_shapes}.not_broadcasted();
-    bool transa = inputs[0].transposed();
-    bool transb = inputs[1].transposed();
-
-    if(!transb)
-    {
-        if(arg_b.empty())
-        {
-            auto* p_this  = const_cast<miopen_quant_gemm*>(this);
-            p_this->arg_b = allocate_gpu(inputs[1]);
-        }
-    }
-
-    if(transa)
-    {
-        if(arg_a.empty())
-        {
-            auto* p_this  = const_cast<miopen_quant_gemm*>(this);
-            p_this->arg_a = allocate_gpu(inputs[0]);
-        }
-    }
 
     return op.compute_shape(input_shapes);
 }

@@ -347,7 +347,7 @@ TEST_CASE(gather)
 }
 
 template <class T>
-void test_softmax_variations(T, bool is_logsoftmax)
+void test_softmax_variations()
 {
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
@@ -371,26 +371,14 @@ void test_softmax_variations(T, bool is_logsoftmax)
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        throws_shape(T{5}, input);
-    }
-
-    {
-        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        throws_shape(T{-1}, input);
-    }
-
-    {
-        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        if(is_logsoftmax)
-            expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}}, T{4}, input);
-        else
-            throws_shape(T{4}, input);
+        int axis = 4;
+        throws_shape(T{axis}, input);
     }
 }
 
-TEST_CASE(softmax) { test_softmax_variations(migraphx::op::softmax{}, false); }
+TEST_CASE(softmax) { test_softmax_variations<migraphx::op::softmax>(); }
 
-TEST_CASE(logsoftmax) { test_softmax_variations(migraphx::op::logsoftmax{}, true); }
+TEST_CASE(logsoftmax) { test_softmax_variations<migraphx::op::logsoftmax>(); }
 
 // 2 inputs arguments
 TEST_CASE(matmul)

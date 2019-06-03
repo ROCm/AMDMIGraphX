@@ -85,9 +85,9 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
             offset += (element_size - (offset % element_size));
         conflict_queue.pop();
     }
-    // when int8 type is used, the offset could be any number 
+    // when int8 type is used, the offset could be any number
     // if not 4-byte aligned, miopen int8 convolution can crash
-    offset = (offset + 3) / 4 * 4;
+    offset         = (offset + 3) / 4 * 4;
     segment.offset = offset;
     MIGRAPHX_DEBUG(segment.dump());
     required_bytes = std::max(required_bytes, offset + segment.size);

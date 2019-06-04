@@ -1,6 +1,7 @@
 #include <migraphx/eliminate_allocation.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/check_shapes.hpp>
+#include <migraphx/argument.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -19,6 +20,13 @@ struct eliminate_allocation_target
 struct allocate
 {
     migraphx::shape s{};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::pack(f(self.s, "shape"));
+    }
+
     std::string name() const { return "allocate"; }
     migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
     {

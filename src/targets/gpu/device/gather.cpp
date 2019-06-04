@@ -16,20 +16,24 @@ argument gather(hipStream_t stream,
                 std::vector<migraphx::argument> args,
                 int axis)
 {
-    int axis_index = (axis < 0) ? (axis + output_shape.lens().size()) : axis;
+    auto axis_index = (axis < 0) ? (axis + args[0].get_shape().lens().size()) : axis;
     visit_all(args.back(), args[0])([&](auto output, auto input) {
         std::size_t nelements = output_shape.elements();
         args[1].visit([&](auto indices) {
-            visit_tensor_size(output_shape.lens().size(), [&](auto ndim) {
-                const auto* indices_ptr = device_cast(indices.data());
-                auto* outptr            = device_cast(output.data());
-                const auto* inptr       = device_cast(input.data());
-                hip_tensor_descriptor<ndim> desc_input(input.get_shape());
-                hip_tensor_descriptor<ndim> desc_output(output.get_shape());
-                gs_launch(stream, nelements)([=](auto i) {
-                    auto lens        = desc_output.multi(i);
-                    lens[axis_index] = indices_ptr[lens[axis_index]];
-                    outptr[i]        = inptr[desc_input.linear(lens)];
+            const auto* indices_ptr = device_cast(indices.data());
+            auto* out_ptr           = device_cast(output.data());
+            const auto* in_ptr      = device_cast(input.data());
+            auto& input_shape       = args[0].get_shape();
+            auto lens               = input_shape.lens();
+            lens[axis_index]        = args[1].get_shape().elements();
+            migraphx::shape out_comp_shape{output_shape.type(), lens};
+            visit_tensor_size(out_comp_shape.lens().size(), [&](auto n_out_dim) {
+                hip_tensor_descriptor<n_out_dim> desc_input(input_shape);
+                hip_tensor_descriptor<n_out_dim> desc_output(out_comp_shape);
+                gs_launch(stream, nelements)([=](auto ii) {
+                    auto in_idx        = desc_output.multi(ii);
+                    in_idx[axis_index] = indices_ptr[in_idx[axis_index]];
+                    out_ptr[ii]        = in_ptr[desc_input.linear(in_idx)];
                 });
             });
         });

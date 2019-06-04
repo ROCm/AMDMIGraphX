@@ -12,7 +12,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace detail {
 
 template <class String, class T>
-auto generic_find_impl(rank<2>, String&& s, const T& x) -> decltype(s.begin() + s.find(x), s.npos)
+auto generic_find_impl(rank<2>, String&& s, const T& x) -> decltype(s.npos, s.begin() + s.find(x))
 {
     auto index = s.find(x);
     if(index == s.npos)
@@ -69,6 +69,30 @@ template <class T, class Predicate>
 bool all_of(const std::initializer_list<T>& c, const Predicate& p)
 {
     return std::all_of(c.begin(), c.end(), p);
+}
+
+template <class C, class Predicate>
+bool any_of(const C& c, const Predicate& p)
+{
+    return std::any_of(c.begin(), c.end(), p);
+}
+
+template <class T, class Predicate>
+bool any_of(const std::initializer_list<T>& c, const Predicate& p)
+{
+    return std::any_of(c.begin(), c.end(), p);
+}
+
+template <class C, class Predicate>
+bool none_of(const C& c, const Predicate& p)
+{
+    return std::none_of(c.begin(), c.end(), p);
+}
+
+template <class T, class Predicate>
+bool none_of(const std::initializer_list<T>& c, const Predicate& p)
+{
+    return std::none_of(c.begin(), c.end(), p);
 }
 
 template <class Range, class Iterator>

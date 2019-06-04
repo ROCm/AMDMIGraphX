@@ -4,6 +4,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,16 +42,17 @@ void dead_code_elimination::apply(program& p) const
         // Skip the last instruction
         if(i == last)
             break;
-        // Skip instruction with empty shape as output unless its a builtin or undefined
-        if(i->get_shape().elements() == 0 and not(i->name().front() == '@') and
-           not(i->name() == "undefined"))
+        // Skip instruction with empty shape as output unless its a builtin or undefined or identity
+        if(i->get_shape().elements() == 0 and i->name().front() != '@' and
+           i->name() != "undefined" and i->name() != "identity")
             continue;
         assert(bidistance(p, i, last) > 0);
         fix([&](auto self, auto leaf) {
             assert(p.has_instruction(leaf));
             if(leaf->outputs().empty())
             {
-                auto args = leaf->inputs();
+                std::unordered_set<instruction_ref> args(leaf->inputs().begin(),
+                                                         leaf->inputs().end());
                 leaf->clear_arguments();
                 assert(bidistance(p, last, leaf) < 0);
                 assert(leaf != ins);

@@ -1,8 +1,6 @@
 #include <migraphx/gpu/convolution.hpp>
-#include <migraphx/operators.hpp>
-#include <migraphx/manage_ptr.hpp>
-#include <migraphx/gpu/miopen.hpp>
-#include <utility>
+#include <migraphx/gpu/context.hpp>
+#include <migraphx/generate.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -23,19 +21,21 @@ argument miopen_convolution::compute(context& ctx,
 
     float alpha = 1;
     float beta  = 0;
-    miopenConvolutionForward(ctx.get_stream().get_miopen(),
-                             &alpha,
-                             x_desc.get(),
-                             args[0].implicit(),
-                             w_desc.get(),
-                             args[1].implicit(),
-                             cd.get(),
-                             algo,
-                             &beta,
-                             y_desc.get(),
-                             args[3].implicit(),
-                             args[2].implicit(),
-                             args[2].get_shape().bytes());
+    auto status = miopenConvolutionForward(ctx.get_stream().get_miopen(),
+                                           &alpha,
+                                           x_desc.get(),
+                                           args[0].implicit(),
+                                           w_desc.get(),
+                                           args[1].implicit(),
+                                           cd.get(),
+                                           algo,
+                                           &beta,
+                                           y_desc.get(),
+                                           args[3].implicit(),
+                                           args[2].implicit(),
+                                           args[2].get_shape().bytes());
+    if(status != miopenStatusSuccess)
+        MIGRAPHX_THROW("Running convolution failed");
     return args[3];
 }
 
@@ -91,8 +91,11 @@ void miopen_convolution::finalize(context& ctx,
 {
     if(handle == ctx.get_stream().get_miopen())
         return;
-    // TODO: Check that workspace hasn't changed
-    compile(ctx, output_shape, std::move(inputs));
+    // Check that workspace hasn't changed
+    auto size = inputs.at(2).bytes();
+    auto ws   = compile(ctx, output_shape, std::move(inputs));
+    if(ws.bytes() > size)
+        MIGRAPHX_THROW("Workspace has changed during finalization.");
 }
 
 } // namespace gpu

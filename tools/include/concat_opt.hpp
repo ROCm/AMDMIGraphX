@@ -9,7 +9,7 @@
 #include <utility>
 
 #include <migraphx/operation.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/concat.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {

@@ -14,6 +14,13 @@ struct hip_load_literal
 {
     shape s;
     std::size_t n = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.s, "shape"), f(self.n, "id"));
+    }
+
     std::string name() const { return "hip::load_literal"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
@@ -37,8 +44,7 @@ void write_literals::apply(program& p) const
             {
                 literal l  = ins->get_literal();
                 auto pre   = p.add_literal(l);
-                auto s     = p.add_outline(l.get_shape());
-                auto alloc = p.insert_instruction(std::next(pre), hip_allocate{}, s);
+                auto alloc = p.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
                 p.replace_instruction(ins, hip_copy{}, pre, alloc);
             }
             else

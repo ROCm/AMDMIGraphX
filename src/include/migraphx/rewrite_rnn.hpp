@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 #include <migraphx/instruction_ref.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/operation.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -45,6 +45,18 @@ struct rewrite_rnn
                                           const operation& actv_func2) const;
 
     std::vector<operation> gru_actv_funcs(instruction_ref ins) const;
+
+    // for lstm operators
+    void apply_lstm(program& prog, instruction_ref ins) const;
+    std::vector<instruction_ref> lstm_cell(bool is_forward,
+                                           program& prog,
+                                           instruction_ref ins,
+                                           std::vector<instruction_ref> inputs,
+                                           const operation& actv_func1,
+                                           const operation& actv_func2,
+                                           const operation& actv_func3) const;
+
+    std::vector<operation> lstm_actv_funcs(instruction_ref ins) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

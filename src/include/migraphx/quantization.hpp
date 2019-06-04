@@ -17,7 +17,7 @@ void quantize(program& prog);
 
 void quantize_int8(program& prog,
                    const std::vector<std::string>& ins_names,
-                   std::vector<std::pair<float, float>>& int8_quant_params);
+                   const std::vector<std::pair<float, float>>& quant_params);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

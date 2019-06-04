@@ -71,7 +71,7 @@ argument miopen_quant_convolution::compute(context& ctx,
     }
 
     // Add a conversion from float to int32_t
-    device::convert(ctx.get_stream().get(), args[4], args[3]);
+    device::convert(ctx.get_stream().get(), args[4], args[3], 1.0f, 0.0f, shape::int32_type);
 
     return args[4];
 }

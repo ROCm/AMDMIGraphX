@@ -3516,7 +3516,6 @@ template struct test_logsoftmax<0>;
 template struct test_logsoftmax<1>;
 template struct test_logsoftmax<2>;
 template struct test_logsoftmax<3>;
-template struct test_logsoftmax<4>;
 
 template <int Axis>
 struct test_logsoftmax_1 : verify_program<test_logsoftmax_1<Axis>>
@@ -3533,7 +3532,6 @@ struct test_logsoftmax_1 : verify_program<test_logsoftmax_1<Axis>>
 };
 
 template struct test_logsoftmax_1<0>;
-template struct test_logsoftmax_1<1>;
 
 struct test_fp32_fp16_lall : verify_program<test_fp32_fp16_lall>
 {

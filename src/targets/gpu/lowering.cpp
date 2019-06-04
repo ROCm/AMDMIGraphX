@@ -21,6 +21,7 @@
 #include <migraphx/gpu/leaky_relu.hpp>
 #include <migraphx/gpu/elu.hpp>
 #include <migraphx/gpu/softmax.hpp>
+#include <migraphx/gpu/logsoftmax.hpp>
 #include <migraphx/gpu/add.hpp>
 #include <migraphx/gpu/sub.hpp>
 #include <migraphx/gpu/exp.hpp>
@@ -44,6 +45,8 @@
 #include <migraphx/gpu/pad.hpp>
 #include <migraphx/gpu/gather.hpp>
 #include <migraphx/gpu/lrn.hpp>
+#include <migraphx/gpu/convert.hpp>
+#include <migraphx/gpu/clip.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -97,8 +100,11 @@ struct miopen_apply
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
         add_extend_op<miopen_softmax, op::softmax>("softmax");
+        add_extend_op<hip_logsoftmax, op::logsoftmax>("logsoftmax");
         add_extend_op<hip_gather, op::gather>("gather");
         add_extend_op<hip_pad, op::pad>("pad");
+        add_extend_op<hip_convert, op::convert>("convert");
+        add_extend_op<hip_clip, op::clip>("clip");
 
         add_lrn_op();
         add_convolution_op();
@@ -127,8 +133,7 @@ struct miopen_apply
         }
         else
         {
-            auto is     = prog->add_outline(s);
-            auto result = prog->insert_instruction(ins, hip_allocate{std::move(tag)}, is);
+            auto result = prog->insert_instruction(ins, hip_allocate{s, std::move(tag)});
             return result;
         }
     }

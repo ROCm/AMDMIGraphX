@@ -1,8 +1,5 @@
 #include <migraphx/gpu/tanh.hpp>
-#include <migraphx/operators.hpp>
-#include <migraphx/manage_ptr.hpp>
-#include <migraphx/gpu/miopen.hpp>
-#include <utility>
+#include <migraphx/gpu/context.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -10,8 +7,8 @@ namespace gpu {
 
 shape miopen_tanh::compute_shape(const std::vector<shape>& inputs) const
 {
-    check_shapes{inputs, *this}.has(2).not_broadcasted();
-    return inputs.at(1);
+    check_shapes{inputs, *this}.has(2).packed();
+    return inputs.at(0);
 }
 
 argument miopen_tanh::compute(context& ctx,

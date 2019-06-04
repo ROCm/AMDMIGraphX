@@ -22,7 +22,7 @@ find_package(ROCM REQUIRED)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 0.1)
+rocm_setup_version(VERSION 0.2)
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 
@@ -39,6 +39,8 @@ else()
     set(MIGRAPHX_ENABLE_GPU Off CACHE BOOL "")
 endif()
 
+set(MIGRAPHX_ENABLE_TF Off CACHE BOOL "")
+
 add_compile_options(-std=c++14)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
@@ -54,6 +56,7 @@ rocm_enable_clang_tidy(
         -clang-diagnostic-extern-c-compat
         -clang-diagnostic-disabled-macro-expansion
         -clang-diagnostic-unused-command-line-argument
+        -cppcoreguidelines-explicit-virtual-functions
         -cppcoreguidelines-pro-bounds-array-to-pointer-decay
         -cppcoreguidelines-pro-bounds-constant-array-index
         -cppcoreguidelines-pro-bounds-pointer-arithmetic
@@ -81,6 +84,7 @@ rocm_enable_clang_tidy(
         -modernize-pass-by-value
         -modernize-use-default-member-init
         -modernize-use-transparent-functors
+        -performance-type-promotion-in-math-fn
         -readability-braces-around-statements
         -readability-else-after-return
         -readability-named-parameter
@@ -145,6 +149,7 @@ rocm_create_package(
     DESCRIPTION "AMD's graph optimizer"
     MAINTAINER "Paul Fultz II <paul.fultz@amd.com>"
     LDCONFIG
+    PTH
     DEPENDS miopen-hip rocblas hip_hcc half
 )
 

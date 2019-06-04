@@ -9,12 +9,16 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/tracer.hpp>
+#include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
 #include <algorithm>
 #include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
 
 struct program_impl;
 
@@ -26,8 +30,16 @@ const operation& get_operation(instruction_ref ins);
 struct program
 {
     program();
+
+    // move constructor
     program(program&&) noexcept;
-    program& operator=(program&&) noexcept;
+
+    // copy constructor
+    program(const program&);
+
+    // copy assignment operator
+    program& operator=(program);
+
     ~program() noexcept;
 
     using parameter_map = std::unordered_map<std::string, argument>;
@@ -104,12 +116,18 @@ struct program
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
     void debug_print(const std::vector<instruction_ref>& inss) const;
+    void print_graph(std::ostream& os) const;
 
     void dry_run(parameter_map params) const;
+
+    void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
     friend std::ostream& operator<<(std::ostream& os, const program& p);
     friend bool operator==(const program& x, const program& y);
     friend bool operator!=(const program& x, const program& y) { return !(x == y); }
+
+    private:
+    void assign(const program& p);
 
     private:
     std::unique_ptr<program_impl> impl;

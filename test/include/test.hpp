@@ -36,6 +36,18 @@ inline std::ostream& operator<<(std::ostream& s, std::nullptr_t)
     return s;
 }
 
+template <class T>
+inline std::ostream& operator<<(std::ostream& s, const std::vector<T>& v)
+{
+    s << "{ ";
+    for(auto&& x : v)
+    {
+        s << x << ", ";
+    }
+    s << "}";
+    return s;
+}
+
 template <class T, class U, class Operator>
 struct expression
 {
@@ -192,10 +204,10 @@ inline void add_test_case(std::string name, std::function<void()> f)
     get_test_cases().emplace_back(std::move(name), std::move(f));
 }
 
-struct auto_register
+struct auto_register_test_case
 {
     template <class F>
-    auto_register(const char* name, F f) noexcept
+    auto_register_test_case(const char* name, F f) noexcept
     {
         add_test_case(name, f);
     }
@@ -258,9 +270,9 @@ inline void run(int argc, const char* argv[])
 #define TEST_PRIMITIVE_CAT(x, ...) x##__VA_ARGS__
 
 // NOLINTNEXTLINE
-#define TEST_CASE_REGISTER(...)                                          \
-    static test::auto_register TEST_CAT(register_test_case_, __LINE__) = \
-        test::auto_register(#__VA_ARGS__, &__VA_ARGS__);
+#define TEST_CASE_REGISTER(...)                                                    \
+    static test::auto_register_test_case TEST_CAT(register_test_case_, __LINE__) = \
+        test::auto_register_test_case(#__VA_ARGS__, &__VA_ARGS__);
 
 // NOLINTNEXTLINE
 #define TEST_CASE(...)              \

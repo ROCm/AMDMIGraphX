@@ -1,5 +1,5 @@
 google/protobuf -DCMAKE_POSITION_INDEPENDENT_CODE=On
-RadeonOpenCompute/rocm-cmake@ac45c6e --build
+RadeonOpenCompute/rocm-cmake@42f6740 --build
 ROCmSoftwarePlatform/rocBLAS@30a992ae02fda568688bcd190edd5e277d6674d9
 ROCmSoftwarePlatform/MIOpen@1.7.0
 blaze,https://bitbucket.org/blaze-lib/blaze/get/f0755dea0e03.tar.gz -X header -DHEADER_DIR=blaze

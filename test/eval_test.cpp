@@ -128,7 +128,7 @@ TEST_CASE(print_test)
 {
     migraphx::program p;
 
-    auto x   = p.add_parameter("x", {migraphx::shape::int64_type});
+    auto x   = p.add_parameter("x", {migraphx::shape::int32_type});
     auto two = p.add_literal(2);
     p.add_instruction(sum_op{}, x, two);
 
@@ -142,8 +142,8 @@ TEST_CASE(param_test)
 {
     migraphx::program p;
 
-    auto x = p.add_parameter("x", {migraphx::shape::int64_type});
-    auto y = p.add_parameter("y", {migraphx::shape::int64_type});
+    auto x = p.add_parameter("x", {migraphx::shape::int32_type});
+    auto y = p.add_parameter("y", {migraphx::shape::int32_type});
 
     p.add_instruction(sum_op{}, x, y);
     auto result = p.eval(
@@ -156,8 +156,8 @@ TEST_CASE(param_error_test)
 {
     migraphx::program p;
 
-    auto x = p.add_parameter("x", {migraphx::shape::int64_type});
-    auto y = p.add_parameter("y", {migraphx::shape::int64_type});
+    auto x = p.add_parameter("x", {migraphx::shape::int32_type});
+    auto y = p.add_parameter("y", {migraphx::shape::int32_type});
 
     p.add_instruction(sum_op{}, x, y);
     EXPECT(test::throws<migraphx::exception>(
@@ -165,6 +165,22 @@ TEST_CASE(param_error_test)
             p.eval({{"x", migraphx::literal{1}.get_argument()}});
         },
         "Parameter not found: y"));
+}
+
+TEST_CASE(param_shape_error_test)
+{
+    migraphx::program p;
+
+    auto x = p.add_parameter("x", {migraphx::shape::int32_type, {1, 2}});
+    auto y = p.add_parameter("y", {migraphx::shape::int32_type, {1, 2}});
+
+    p.add_instruction(sum_op{}, x, y);
+    EXPECT(test::throws<migraphx::exception>(
+        [&] {
+            p.eval({{"x", migraphx::literal{1}.get_argument()},
+                    {"y", migraphx::literal{2}.get_argument()}});
+        },
+        "Incorrect shape"));
 }
 
 TEST_CASE(replace_test)

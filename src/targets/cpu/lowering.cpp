@@ -219,7 +219,7 @@ struct cpu_quant_convolution
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        auto output = result.get<float>();
+        auto output = result.get<int32_t>();
         visit_all(args[0], args[1])([&](auto input, auto weights) {
             auto in   = input.get_shape().lens();
             auto in_h = in[2];
@@ -240,7 +240,7 @@ struct cpu_quant_convolution
                     const auto start_y  = j * op.stride[1] - op.padding[1];
                     const auto group_id = w / (wei_n / op.group);
 
-                    float acc = 0;
+                    int32_t acc = 0;
                     dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t y) {
                         const auto in_x  = start_x + x;
                         const auto in_y  = start_y + y;

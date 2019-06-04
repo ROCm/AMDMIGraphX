@@ -21,7 +21,7 @@ argument miopen_quant_convolution::compute(context& ctx,
     auto w_desc      = make_tensor(args[1].get_shape());
     auto w_desc_vec4 = make_tensor(args[1].get_shape(), true);
     shape tmp_output_shape{shape::float_type, output_shape.lens()};
-    auto y_desc      = make_tensor(tmp_output_shape);
+    auto y_desc = make_tensor(tmp_output_shape);
 
     float alpha = 1;
     float beta  = 0;
@@ -72,7 +72,7 @@ argument miopen_quant_convolution::compute(context& ctx,
 
     // Add a conversion from float to int32_t
     device::convert(ctx.get_stream().get(), args[4], args[3]);
-    
+
     return args[4];
 }
 

@@ -1,4 +1,5 @@
 #include <migraphx/gpu/quant_convolution.hpp>
+#include <migraphx/gpu/device/convert.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/generate.hpp>
 
@@ -8,7 +9,7 @@ namespace gpu {
 
 shape miopen_quant_convolution::compute_shape(const std::vector<shape>& inputs) const
 {
-    check_shapes{inputs, *this}.has(4).standard();
+    check_shapes{inputs, *this}.has(5).standard();
     return op.compute_shape({inputs.at(0), inputs.at(1)});
 }
 argument miopen_quant_convolution::compute(context& ctx,
@@ -19,7 +20,8 @@ argument miopen_quant_convolution::compute(context& ctx,
     auto x_desc_vec4 = make_tensor(args[0].get_shape(), true);
     auto w_desc      = make_tensor(args[1].get_shape());
     auto w_desc_vec4 = make_tensor(args[1].get_shape(), true);
-    auto y_desc      = make_tensor(output_shape);
+    shape tmp_output_shape{shape::float_type, output_shape.lens()};
+    auto y_desc = make_tensor(tmp_output_shape);
 
     float alpha = 1;
     float beta  = 0;
@@ -67,7 +69,11 @@ argument miopen_quant_convolution::compute(context& ctx,
     {
         MIGRAPHX_THROW("QUANT_CONVOLUTION: run convolution forward failed");
     }
-    return args[3];
+
+    // Add a conversion from float to int32_t
+    device::convert(ctx.get_stream().get(), args[4], args[3]);
+
+    return args[4];
 }
 
 shape miopen_quant_convolution::compile(context& ctx,
@@ -77,7 +83,8 @@ shape miopen_quant_convolution::compile(context& ctx,
     shape workspace_shape{};
     auto x_desc = make_tensor(inputs[0], true);
     auto w_desc = make_tensor(inputs[1], true);
-    auto y_desc = make_tensor(output_shape);
+    shape tmp_output_shape{shape::float_type, output_shape.lens()};
+    auto y_desc = make_tensor(tmp_output_shape);
 
     std::size_t workspace_size = 0;
     miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),
@@ -90,7 +97,7 @@ shape miopen_quant_convolution::compile(context& ctx,
 
     arg_vec4_x     = to_gpu(generate_argument(pack_int8_shape(inputs[0])));
     arg_vec4_w     = to_gpu(generate_argument(pack_int8_shape(inputs[1])));
-    auto y         = allocate_gpu(output_shape);
+    auto y         = allocate_gpu(tmp_output_shape);
     auto workspace = allocate_gpu(workspace_shape);
 
     int algo_count = 1;

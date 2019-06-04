@@ -99,7 +99,6 @@ struct miopen_apply
         add_generic_op<hip_min>("min");
 
         add_extend_op<miopen_gemm, op::dot>("dot");
-        add_extend_op<miopen_quant_gemm, op::quant_dot>("quant_dot");
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
         add_extend_op<miopen_softmax, op::softmax>("softmax");
@@ -112,6 +111,7 @@ struct miopen_apply
         add_lrn_op();
         add_convolution_op();
         add_quant_convolution_op();
+        add_quant_dot_op();
         add_pooling_op();
         add_batch_norm_inference_op();
     }
@@ -167,10 +167,31 @@ struct miopen_apply
             auto ws   = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
 
             auto workspace = insert_allocation(ins, ws, "workspace");
-            auto output    = insert_allocation(ins, ins->get_shape());
+
+            // add a temp float output to store the miopen convolution output
+            shape tmp_output_shape{shape::float_type, ins->get_shape().lens()};
+            auto tmp_output = insert_allocation(ins, tmp_output_shape, "tmp_out");
+            auto output     = insert_allocation(ins, ins->get_shape());
 
             return prog->replace_instruction(
-                ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
+                ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, tmp_output, output);
+        });
+    }
+
+    void add_quant_dot_op()
+    {
+        apply_map.emplace("quant_dot", [=](instruction_ref ins) {
+            auto&& op      = any_cast<op::quant_dot>(ins->get_operator());
+            auto inputs    = ins->inputs();
+            auto in_shapes = to_shapes(inputs);
+            auto pack_a    = insert_allocation(ins, in_shapes[0], "pack_a");
+            auto pack_b    = insert_allocation(ins, in_shapes[1], "pack_b");
+            auto output    = insert_allocation(ins, ins->get_shape());
+            inputs.push_back(pack_a);
+            inputs.push_back(pack_b);
+            inputs.push_back(output);
+
+            return prog->replace_instruction(ins, miopen_quant_gemm{op}, inputs);
         });
     }
 

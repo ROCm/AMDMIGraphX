@@ -50,7 +50,7 @@ struct quant_convolution
         {
             MIGRAPHX_THROW("QUANT_CONVOLUTION: only accept input and weights of type int8_t");
         }
-        t = shape::float_type;
+        t = shape::int32_type;
 
         if(padding_mode == default_)
         {

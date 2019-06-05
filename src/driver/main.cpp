@@ -21,22 +21,23 @@ struct loader
         ap.add(type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
         ap.add(type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
         ap.add(is_nhwc, {"--nhwc"}, ap.help("Treat tensorflow format as nhwc"), ap.set_value(true));
-        ap.add(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
+        ap.add(
+            is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
     }
 
-    program load() 
+    program load()
     {
         program p;
-        if (type.empty())
+        if(type.empty())
         {
-            if (ends_with(file, ".onnx"))
+            if(ends_with(file, ".onnx"))
                 type = "onnx";
             else
                 type = "tf";
         }
-        if (type == "onnx")
+        if(type == "onnx")
             p = parse_onnx(file);
-        else if (type == "tf")
+        else if(type == "tf")
             p = parse_tf(file, is_nhwc);
         return p;
     }
@@ -45,10 +46,7 @@ struct loader
 struct read : command<read>
 {
     loader l;
-    void parse(argument_parser& ap)
-    {
-        l.parse(ap);
-    }
+    void parse(argument_parser& ap) { l.parse(ap); }
 
     void run()
     {

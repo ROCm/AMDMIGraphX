@@ -55,21 +55,21 @@ struct argument_parser
     {
         std::vector<std::string> flags;
         std::function<bool(argument_parser&, const std::vector<std::string>&)> action{};
-        std::string type = "";
-        std::string help = "";
+        std::string type    = "";
+        std::string help    = "";
         std::string metavar = "";
-        unsigned nargs = 1;
+        unsigned nargs      = 1;
     };
 
     template <class T, class... Fs>
     void add(T& x, std::vector<std::string> flags, Fs... fs)
     {
         arguments.push_back({flags, [&](auto&&, const std::vector<std::string>& params) {
-            if(params.empty())
-                throw std::runtime_error("Flag with no value.");
-            x = value_parser<T>::apply(params.back());
-            return false;
-        }});
+                                 if(params.empty())
+                                     throw std::runtime_error("Flag with no value.");
+                                 x = value_parser<T>::apply(params.back());
+                                 return false;
+                             }});
 
         argument& arg = arguments.back();
         arg.type      = migraphx::get_type_name<T>();
@@ -89,9 +89,7 @@ struct argument_parser
 
     static auto nargs(unsigned n = 1)
     {
-        return [=](auto&&, auto& arg) {
-            arg.nargs = n;
-        };
+        return [=](auto&&, auto& arg) { arg.nargs = n; };
     }
 
     template <class F>
@@ -109,7 +107,7 @@ struct argument_parser
     static auto do_action(F f)
     {
         return [=](auto&, auto& arg) {
-            arg.nargs = 0;
+            arg.nargs  = 0;
             arg.action = [&, f](auto& self, const std::vector<std::string>&) {
                 f(self);
                 return true;
@@ -135,7 +133,7 @@ struct argument_parser
             {
                 std::cout << std::endl;
                 std::string prefix = "    ";
-                if (arg.flags.empty())
+                if(arg.flags.empty())
                 {
                     std::cout << prefix;
                     std::cout << arg.metavar;
@@ -185,16 +183,14 @@ struct argument_parser
         std::unordered_map<std::string, unsigned> keywords;
         for(auto&& arg : arguments)
         {
-            for(auto&& flag:arg.flags)
+            for(auto&& flag : arg.flags)
                 keywords[flag] = arg.nargs + 1;
         }
-        auto arg_map = generic_parse(args, [&](std::string x) { 
-            return keywords[x]; 
-        });
+        auto arg_map = generic_parse(args, [&](std::string x) { return keywords[x]; });
         for(auto&& arg : arguments)
         {
             auto flags = arg.flags;
-            if (flags.empty())
+            if(flags.empty())
                 flags = {""};
             for(auto&& flag : arg.flags)
             {
@@ -223,18 +219,17 @@ struct argument_parser
             {
                 flag = x;
                 result[flag]; // Ensure the flag exists
-                if (k == 1)
+                if(k == 1)
                     flag = "";
-                else if (k == 2)
+                else if(k == 2)
                     clear = true;
                 else
                     clear = false;
-
             }
             else
             {
                 result[flag].push_back(x);
-                if (clear)
+                if(clear)
                     flag = "";
                 clear = false;
             }

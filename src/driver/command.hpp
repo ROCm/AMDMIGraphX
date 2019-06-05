@@ -26,15 +26,15 @@ std::string command_name()
     return name.substr(name.rfind("::") + 2);
 }
 
-template<class T>
-void run_command(std::vector<std::string> args, bool add_help=false)
+template <class T>
+void run_command(std::vector<std::string> args, bool add_help = false)
 {
     T x;
     argument_parser ap;
-    if (add_help)
+    if(add_help)
         ap.add(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help());
     x.parse(ap);
-    if (ap.parse(args))
+    if(ap.parse(args))
         return;
     x.run();
 }
@@ -43,9 +43,7 @@ template <class T>
 int auto_register_command()
 {
     auto& m              = get_commands();
-    m[command_name<T>()] = [](std::vector<std::string> args) {
-        run_command<T>(args, true);
-    };
+    m[command_name<T>()] = [](std::vector<std::string> args) { run_command<T>(args, true); };
     return 0;
 }
 

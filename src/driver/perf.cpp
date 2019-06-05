@@ -20,6 +20,8 @@ program::parameter_map create_param_map(const program& p, bool gpu)
         if(gpu)
             m[x.first] = gpu::to_gpu(generate_argument(x.second));
         else
+#else
+            (void)gpu;
 #endif
             m[x.first] = generate_argument(x.second);
     }

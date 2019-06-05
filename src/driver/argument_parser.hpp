@@ -192,7 +192,7 @@ struct argument_parser
             auto flags = arg.flags;
             if(flags.empty())
                 flags = {""};
-            for(auto&& flag : arg.flags)
+            for(auto&& flag : flags)
             {
                 if(arg_map.count(flag) > 0)
                 {

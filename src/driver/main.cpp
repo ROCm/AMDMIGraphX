@@ -1,5 +1,6 @@
 #include "argument_parser.hpp"
 #include "command.hpp"
+#include "verify.hpp"
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
@@ -14,6 +15,7 @@ struct loader
     std::string file;
     std::string type;
     bool is_nhwc = false;
+    unsigned trim = 0;
 
     void parse(argument_parser& ap)
     {
@@ -23,6 +25,7 @@ struct loader
         ap.add(is_nhwc, {"--nhwc"}, ap.help("Treat tensorflow format as nhwc"), ap.set_value(true));
         ap.add(
             is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
+        ap.add(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
     }
 
     program load()
@@ -35,10 +38,16 @@ struct loader
             else
                 type = "tf";
         }
+        std::cout << "Reading: " << file << std::endl;
         if(type == "onnx")
             p = parse_onnx(file);
         else if(type == "tf")
             p = parse_tf(file, is_nhwc);
+        if (trim > 0)
+        {
+            auto last           = std::prev(p.end(), trim);
+            p.remove_instructions(last, p.end());
+        }
         return p;
     }
 };
@@ -52,6 +61,40 @@ struct read : command<read>
     {
         auto p = l.load();
         std::cout << p << std::endl;
+    }
+};
+
+struct verify : command<verify>
+{
+    loader l;
+    double tolerance = 80;
+    bool per_instruction = false;
+    bool reduce = false;
+    void parse(argument_parser& ap) 
+    { 
+        l.parse(ap);
+        ap.add(tolerance, {"--tolerance"}, ap.help("Tolerance for errors"));
+        ap.add(per_instruction, {"-i", "--per-instruction"}, ap.help("Verify each instruction"), ap.set_value(true));
+        ap.add(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
+    }
+
+    void run()
+    {
+        auto p = l.load();
+        std::cout << p << std::endl;
+
+        if(per_instruction)
+        {
+            verify_instructions(p, tolerance);
+        }
+        else if(reduce)
+        {
+            verify_reduced_program(p, tolerance);
+        }
+        else
+        {
+            verify_program(l.file, p, tolerance);
+        }
     }
 };
 

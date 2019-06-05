@@ -125,10 +125,7 @@ struct verify : command<verify>
 struct compile : command<compile>
 {
     compiler c;
-    void parse(argument_parser& ap)
-    {
-        c.parse(ap);
-    }
+    void parse(argument_parser& ap) { c.parse(ap); }
 
     void run()
     {
@@ -141,10 +138,7 @@ struct compile : command<compile>
 struct run_cmd : command<run_cmd>
 {
     compiler c;
-    void parse(argument_parser& ap)
-    {
-        c.parse(ap);
-    }
+    void parse(argument_parser& ap) { c.parse(ap); }
 
     void run()
     {

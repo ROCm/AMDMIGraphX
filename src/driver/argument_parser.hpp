@@ -57,17 +57,19 @@ struct argument_parser
         std::function<bool(argument_parser&, const std::vector<std::string>&)> action{};
         std::string type = "";
         std::string help = "";
+        std::string metavar = "";
+        unsigned nargs = 1;
     };
 
     template <class T, class... Fs>
     void add(T& x, std::vector<std::string> flags, Fs... fs)
     {
-        arguments.emplace_back(flags, [&](auto&&, const std::vector<std::string>& params) {
+        arguments.push_back({flags, [&](auto&&, const std::vector<std::string>& params) {
             if(params.empty())
                 throw std::runtime_error("Flag with no value.");
             x = value_parser<T>::apply(params.back());
             return false;
-        });
+        }});
 
         argument& arg = arguments.back();
         arg.type      = migraphx::get_type_name<T>();
@@ -81,7 +83,15 @@ struct argument_parser
 
         argument& arg = arguments.back();
         arg.type      = "";
+        arg.nargs     = 0;
         migraphx::each_args([&](auto f) { f(x, arg); }, fs...);
+    }
+
+    static auto nargs(unsigned n = 1)
+    {
+        return [=](auto&&, auto& arg) {
+            arg.nargs = n;
+        };
     }
 
     template <class F>
@@ -99,6 +109,7 @@ struct argument_parser
     static auto do_action(F f)
     {
         return [=](auto&, auto& arg) {
+            arg.nargs = 0;
             arg.action = [&, f](auto& self, const std::vector<std::string>&) {
                 f(self);
                 return true;
@@ -106,7 +117,7 @@ struct argument_parser
         };
     }
 
-    static auto write_range()
+    static auto append()
     {
         return write_action([](auto&, auto& x, auto& params) {
             using type = typename decltype(params)::value_type;
@@ -124,6 +135,11 @@ struct argument_parser
             {
                 std::cout << std::endl;
                 std::string prefix = "    ";
+                if (arg.flags.empty())
+                {
+                    std::cout << prefix;
+                    std::cout << arg.metavar;
+                }
                 for(const std::string& a : arg.flags)
                 {
                     std::cout << prefix;
@@ -146,10 +162,16 @@ struct argument_parser
         return [=](auto&, auto& arg) { arg.help = help; };
     }
 
+    static auto metavar(std::string metavar)
+    {
+        return [=](auto&, auto& arg) { arg.metavar = metavar; };
+    }
+
     template <class T>
     static auto set_value(T value)
     {
         return [=](auto& x, auto& arg) {
+            arg.nargs  = 0;
             arg.type   = "";
             arg.action = [&, value](auto&, const std::vector<std::string>&) {
                 x = value;
@@ -158,25 +180,32 @@ struct argument_parser
         };
     }
 
-    void parse(std::vector<std::string> args)
+    bool parse(std::vector<std::string> args)
     {
-        std::set<std::string> keywords;
+        std::unordered_map<std::string, unsigned> keywords;
         for(auto&& arg : arguments)
         {
-            keywords.insert(arg.flags.begin(), arg.flags.end());
+            for(auto&& flag:arg.flags)
+                keywords[flag] = arg.nargs + 1;
         }
-        auto arg_map = generic_parse(args, [&](std::string x) { return (keywords.count(x) > 0); });
+        auto arg_map = generic_parse(args, [&](std::string x) { 
+            return keywords[x]; 
+        });
         for(auto&& arg : arguments)
         {
+            auto flags = arg.flags;
+            if (flags.empty())
+                flags = {""};
             for(auto&& flag : arg.flags)
             {
                 if(arg_map.count(flag) > 0)
                 {
                     if(arg.action(*this, arg_map[flag]))
-                        return;
+                        return true;
                 }
             }
         }
+        return false;
     }
 
     using string_map = std::unordered_map<std::string, std::vector<std::string>>;
@@ -186,16 +215,28 @@ struct argument_parser
         string_map result;
 
         std::string flag;
+        bool clear = false;
         for(auto&& x : as)
         {
-            if(is_keyword(x))
+            auto k = is_keyword(x);
+            if(k > 0)
             {
                 flag = x;
                 result[flag]; // Ensure the flag exists
+                if (k == 1)
+                    flag = "";
+                else if (k == 2)
+                    clear = true;
+                else
+                    clear = false;
+
             }
             else
             {
                 result[flag].push_back(x);
+                if (clear)
+                    flag = "";
+                clear = false;
             }
         }
         return result;

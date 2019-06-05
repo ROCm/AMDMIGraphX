@@ -32,7 +32,7 @@ void run_command(std::vector<std::string> args, bool add_help = false)
     T x;
     argument_parser ap;
     if(add_help)
-        ap.add(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help());
+        ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help());
     x.parse(ap);
     if(ap.parse(args))
         return;

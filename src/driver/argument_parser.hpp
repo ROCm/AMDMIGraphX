@@ -62,7 +62,7 @@ struct argument_parser
     };
 
     template <class T, class... Fs>
-    void add(T& x, std::vector<std::string> flags, Fs... fs)
+    void operator()(T& x, std::vector<std::string> flags, Fs... fs)
     {
         arguments.push_back({flags, [&](auto&&, const std::vector<std::string>& params) {
                                  if(params.empty())
@@ -77,7 +77,7 @@ struct argument_parser
     }
 
     template <class... Fs>
-    void add(std::nullptr_t x, std::vector<std::string> flags, Fs... fs)
+    void operator()(std::nullptr_t x, std::vector<std::string> flags, Fs... fs)
     {
         arguments.push_back({flags});
 

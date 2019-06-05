@@ -88,8 +88,7 @@ struct argument_parser
     static auto write_action(F f)
     {
         return [=](auto& x, auto& arg) {
-            arg.action = [&, f](auto& self, const std::vector<std::string>& params)
-            {
+            arg.action = [&, f](auto& self, const std::vector<std::string>& params) {
                 f(self, x, params);
                 return false;
             };
@@ -100,8 +99,7 @@ struct argument_parser
     static auto do_action(F f)
     {
         return [=](auto&, auto& arg) {
-            arg.action = [&, f](auto& self, const std::vector<std::string>&)
-            {
+            arg.action = [&, f](auto& self, const std::vector<std::string>&) {
                 f(self);
                 return true;
             };
@@ -138,7 +136,7 @@ struct argument_parser
                 std::cout << "        " << arg.help << std::endl;
             }
             std::cout << std::endl;
-            if (not msg.empty())
+            if(not msg.empty())
                 std::cout << msg << std::endl;
         });
     }
@@ -153,8 +151,7 @@ struct argument_parser
     {
         return [=](auto& x, auto& arg) {
             arg.type   = "";
-            arg.action = [&, value](auto&, const std::vector<std::string>&)
-            {
+            arg.action = [&, value](auto&, const std::vector<std::string>&) {
                 x = value;
                 return false;
             };

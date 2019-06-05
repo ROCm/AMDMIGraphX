@@ -6,7 +6,7 @@ struct main_command
     static std::string get_command_help()
     {
         std::string result = "Commands:\n";
-        for(const auto& p:migraphx::driver::get_commands())
+        for(const auto& p : migraphx::driver::get_commands())
             result += "    " + p.first + "\n";
         return result;
     }
@@ -18,23 +18,24 @@ struct main_command
     void run() {}
 };
 
-int main(int argc, const char* argv[]) {
+int main(int argc, const char* argv[])
+{
     std::vector<std::string> args(argv + 1, argv + argc);
-    if (args.empty())
+    if(args.empty())
         return 0;
     auto&& m = migraphx::driver::get_commands();
     auto cmd = args.front();
-    if (m.count(cmd) > 0) 
+    if(m.count(cmd) > 0)
     {
-        m.at(cmd)({args.begin()+1, args.end()});
+        m.at(cmd)({args.begin() + 1, args.end()});
     }
-    else 
+    else
     {
         migraphx::driver::argument_parser ap;
         main_command mc;
         mc.parse(ap);
         ap.parse(args);
-        mc.run();   
+        mc.run();
     }
     return 0;
 }

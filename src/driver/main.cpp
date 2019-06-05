@@ -14,7 +14,7 @@ struct loader
 {
     std::string file;
     std::string type;
-    bool is_nhwc = false;
+    bool is_nhwc  = false;
     unsigned trim = 0;
 
     void parse(argument_parser& ap)
@@ -43,9 +43,9 @@ struct loader
             p = parse_onnx(file);
         else if(type == "tf")
             p = parse_tf(file, is_nhwc);
-        if (trim > 0)
+        if(trim > 0)
         {
-            auto last           = std::prev(p.end(), trim);
+            auto last = std::prev(p.end(), trim);
             p.remove_instructions(last, p.end());
         }
         return p;
@@ -67,15 +67,19 @@ struct read : command<read>
 struct verify : command<verify>
 {
     loader l;
-    double tolerance = 80;
+    double tolerance     = 80;
     bool per_instruction = false;
-    bool reduce = false;
-    void parse(argument_parser& ap) 
-    { 
+    bool reduce          = false;
+    void parse(argument_parser& ap)
+    {
         l.parse(ap);
         ap.add(tolerance, {"--tolerance"}, ap.help("Tolerance for errors"));
-        ap.add(per_instruction, {"-i", "--per-instruction"}, ap.help("Verify each instruction"), ap.set_value(true));
-        ap.add(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
+        ap.add(per_instruction,
+               {"-i", "--per-instruction"},
+               ap.help("Verify each instruction"),
+               ap.set_value(true));
+        ap.add(
+            reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
     }
 
     void run()

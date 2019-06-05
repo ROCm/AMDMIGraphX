@@ -41,8 +41,7 @@ argument run_gpu(program p)
     program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
-        m[x.first] =
-            gpu::to_gpu(generate_argument(x.second, get_hash(x.first)));
+        m[x.first] = gpu::to_gpu(generate_argument(x.second, get_hash(x.first)));
     }
     auto out = gpu::from_gpu(p.eval(m));
     std::cout << p << std::endl;
@@ -81,8 +80,7 @@ void verify_instructions(const program& prog, double tolerance)
             if(arg->name() == "@literal")
                 inputs.push_back(p.add_literal(arg->get_literal()));
             else
-                inputs.push_back(
-                    p.add_parameter(std::to_string(inputs.size()), arg->get_shape()));
+                inputs.push_back(p.add_parameter(std::to_string(inputs.size()), arg->get_shape()));
         }
         p.add_instruction(ins.get_operator(), inputs);
         try
@@ -101,7 +99,7 @@ void verify_instructions(const program& prog, double tolerance)
 
 void verify_reduced(program p, int n, double tolerance)
 {
-    auto last           = std::prev(p.end(), n + 1);
+    auto last = std::prev(p.end(), n + 1);
     p.remove_instructions(last, p.end());
     std::cout << "Verify: " << std::endl;
     std::cout << p << std::endl;
@@ -110,7 +108,7 @@ void verify_reduced(program p, int n, double tolerance)
 
 void verify_reduced_program(program p, double tolerance)
 {
-    auto n              = std::distance(p.begin(), p.end());
+    auto n = std::distance(p.begin(), p.end());
     for(std::size_t i = 0; i < n; i++)
     {
         verify_reduced(p, i, tolerance);

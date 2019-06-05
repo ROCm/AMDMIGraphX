@@ -1,14 +1,25 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_ARGUMENT_PARSER_HPP
 #define MIGRAPHX_GUARD_RTGLIB_ARGUMENT_PARSER_HPP
 
+#include <algorithm>
+#include <functional>
+#include <iostream>
+#include <set>
 #include <string>
+#include <sstream>
 #include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
+#include <migraphx/config.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/type_name.hpp>
-#include <migraphx/each_args.hpp>
+#include <migraphx/functional.hpp>
+
+namespace migraphx {
+namespace driver {
+inline namespace MIGRAPHX_INLINE_NS {
 
 template <class T>
 struct value_parser
@@ -43,7 +54,7 @@ struct argument_parser
     struct argument
     {
         std::vector<std::string> flags;
-        std::function<bool(const std::vector<std::string>&)> action;
+        std::function<bool(argument_parser&, const std::vector<std::string>&)> action{};
         std::string type = "";
         std::string help = "";
     };
@@ -63,11 +74,21 @@ struct argument_parser
         migraphx::each_args([&](auto f) { f(x, arg); }, fs...);
     }
 
+    template <class... Fs>
+    void add(std::nullptr_t x, std::vector<std::string> flags, Fs... fs)
+    {
+        arguments.push_back({flags});
+
+        argument& arg = arguments.back();
+        arg.type      = "";
+        migraphx::each_args([&](auto f) { f(x, arg); }, fs...);
+    }
+
     template <class F>
     static auto write_action(F f)
     {
         return [=](auto& x, auto& arg) {
-            arg.action = [ f, &](auto& self, const std::vector<std::string>& params)
+            arg.action = [&, f](auto& self, const std::vector<std::string>& params)
             {
                 f(self, x, params);
                 return false;
@@ -79,7 +100,7 @@ struct argument_parser
     static auto do_action(F f)
     {
         return [=](auto&, auto& arg) {
-            arg.action = [ f, &](auto& self, const std::vector<std::string>&)
+            arg.action = [&, f](auto& self, const std::vector<std::string>&)
             {
                 f(self);
                 return true;
@@ -89,17 +110,18 @@ struct argument_parser
 
     static auto write_range()
     {
-        return write_action([](auto& self, auto& x, auto& params) {
-            std::transform(param.begin(),
+        return write_action([](auto&, auto& x, auto& params) {
+            using type = typename decltype(params)::value_type;
+            std::transform(params.begin(),
                            params.end(),
                            std::inserter(x, x.end()),
-                           [](std::string y) { return value_parser<T>::apply(params.back()); });
-        })
+                           [](std::string y) { return value_parser<type>::apply(y); });
+        });
     }
 
-    static auto show_help()
+    static auto show_help(std::string msg = "")
     {
-        return do_action([](auto& self) {
+        return do_action([=](auto& self) {
             for(auto&& arg : self.arguments)
             {
                 std::cout << std::endl;
@@ -116,6 +138,8 @@ struct argument_parser
                 std::cout << "        " << arg.help << std::endl;
             }
             std::cout << std::endl;
+            if (not msg.empty())
+                std::cout << msg << std::endl;
         });
     }
 
@@ -129,7 +153,7 @@ struct argument_parser
     {
         return [=](auto& x, auto& arg) {
             arg.type   = "";
-            arg.action = [ value, &](auto& self, const std::vector<std::string>& params)
+            arg.action = [&, value](auto&, const std::vector<std::string>&)
             {
                 x = value;
                 return false;
@@ -144,7 +168,7 @@ struct argument_parser
         {
             keywords.insert(arg.flags.begin(), arg.flags.end());
         }
-        auto arg_map = generic_parse(as, [&](std::string x) { return (keywords.count(x) > 0); });
+        auto arg_map = generic_parse(args, [&](std::string x) { return (keywords.count(x) > 0); });
         for(auto&& arg : arguments)
         {
             for(auto&& flag : arg.flags)
@@ -183,5 +207,9 @@ struct argument_parser
     private:
     std::vector<argument> arguments;
 };
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace driver
+} // namespace migraphx
 
 #endif

@@ -42,7 +42,7 @@ struct requires_enum
 #define MIGRAPHX_REQUIRES(...)                                             \
     typename migraphx::requires_enum<__LINE__>::e MIGRAPHX_REQUIRES_CAT(   \
         PrivateRequires, __LINE__) = migraphx::requires_enum<__LINE__>::a, \
-                         class     = typename std::enable_if<and_<__VA_ARGS__>{}>::type
+                         class     = typename std::enable_if<migraphx::and_<__VA_ARGS__>{}>::type
 #endif
 #endif
 

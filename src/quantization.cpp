@@ -260,96 +260,33 @@ void quantize_int8(program& prog,
                     prog.replace_instruction(ins, op::convert{orig_type}, quant_dot);
                 }
             }
-            // only alpha can be quantized, quantization of beta will cause
-            // big error, so we have to manually do the multiplication and
-            // addition
-            else if(fabs(new_alpha) >= threshold)
-            {
-                // truncate to the nearest integer
-                new_alpha           = new_alpha > 0.0 ? new_alpha + 0.5 : new_alpha - 0.5;
-                int32_t quant_alpha = static_cast<int32_t>(new_alpha);
-                int32_t quant_beta  = 0;
-                if(orig_type == shape::int32_type)
-                {
-                    if(inputs.size() == 2 or dot_op.beta == 0.0f)
-                    {
-                        prog.replace_instruction(
-                            ins, op::quant_dot{quant_alpha, quant_beta}, converted_inputs);
-                    }
-                    // if there are 3 inputs, we need to consider the third argument
-                    else
-                    {
-                        auto q_dot = prog.insert_instruction(
-                            ins, op::quant_dot{quant_alpha, quant_beta}, converted_inputs);
-                        std::vector<float> vec_beta(q_dot->get_shape().elements(), dot_op.beta);
-                        auto l_beta = prog.add_literal(literal{orig_type, vec_beta});
-                        auto beta_c =
-                            prog.insert_instruction(ins, op::mul{}, l_beta, inputs.back());
-                        prog.replace_instruction(ins, op::add{}, q_dot, beta_c);
-                    }
-                }
-                else
-                {
-                    if(inputs.size() == 2 or dot_op.beta == 0.0f)
-                    {
-                        auto q_dot = prog.insert_instruction(
-                            ins, op::quant_dot{quant_alpha, quant_beta}, converted_inputs);
-                        prog.replace_instruction(ins, op::convert{orig_type}, q_dot);
-                    }
-                    // if there are 3 inputs, we need to consider the third argument
-                    else
-                    {
-                        auto q_dot = prog.insert_instruction(
-                            ins, op::quant_dot{quant_alpha, quant_beta}, converted_inputs);
-                        auto oq_dot = prog.insert_instruction(ins, op::convert{orig_type}, q_dot);
-                        std::vector<float> vec_beta(q_dot->get_shape().elements(), dot_op.beta);
-                        auto l_beta = prog.add_literal(literal{oq_dot->get_shape(), vec_beta});
-                        auto beta_c =
-                            prog.insert_instruction(ins, op::mul{}, l_beta, inputs.back());
-                        prog.replace_instruction(ins, op::add{}, oq_dot, beta_c);
-                    }
-                }
-            }
+            // either alpha or beta cannot be quantized because of too big 
+            // relative rounding error
             else
             {
                 auto q_dot = prog.insert_instruction(ins, op::quant_dot{1, 0}, converted_inputs);
-                std::vector<float> vec_alpha(q_dot->get_shape().elements(), new_alpha);
-                if(orig_type == shape::int32_type)
+                if (inputs.size() == 3 and dot_op.beta != 0.0f)
                 {
-                    auto l_alpha = prog.add_literal(literal(ins->get_shape(), vec_alpha));
-                    if(converted_inputs.size() == 2 or dot_op.beta == 0.0f)
+                    auto alpha_ab = prog.insert_instruction(ins, op::convert{orig_type, new_alpha, 0.0f}, q_dot);
+                    auto c_shape = q_dot->get_shape();
+                    std::vector<float> vec_beta(c_shape.elements(), dot_op.beta);
+                    auto l_beta = prog.add_literal(literal({shape::float_type, c_shape.lens()}, vec_beta));
+                    instruction_ref beta_c{};
+                    if (orig_type != shape::float_type)
                     {
-                        prog.replace_instruction(ins, op::mul{}, l_alpha, q_dot);
+                        auto fp32_c = prog.insert_instruction(ins, op::convert{shape::float_type}, inputs.back());
+                        auto fp32_beta_c = prog.insert_instruction(ins, op::mul{}, l_beta, fp32_c);
+                        beta_c = prog.insert_instruction(ins, op::convert{orig_type}, fp32_beta_c);
                     }
-                    // case of 3 arguments
                     else
                     {
-                        std::vector<float> vec_beta(ins->get_shape().elements(), new_beta);
-                        auto l_beta   = prog.add_literal(literal(ins->get_shape(), vec_beta));
-                        auto alpha_ab = prog.insert_instruction(ins, op::mul{}, l_alpha, q_dot);
-                        auto beta_c =
-                            prog.insert_instruction(ins, op::mul{}, l_beta, inputs.back());
-                        prog.replace_instruction(ins, op::add{}, alpha_ab, beta_c);
+                        beta_c = prog.insert_instruction(ins, op::mul{}, l_beta, inputs.back());
                     }
+                    prog.replace_instruction(ins, op::add{}, alpha_ab, beta_c);
                 }
                 else
                 {
-                    auto oq_dot  = prog.insert_instruction(ins, op::convert{orig_type}, q_dot);
-                    auto l_alpha = prog.add_literal(literal(ins->get_shape(), vec_alpha));
-                    if(converted_inputs.size() == 2 or dot_op.beta == 0.0f)
-                    {
-                        prog.replace_instruction(ins, op::mul{}, l_alpha, oq_dot);
-                    }
-                    // case of 3 arguments
-                    else
-                    {
-                        std::vector<float> vec_beta(ins->get_shape().elements(), new_beta);
-                        auto l_beta   = prog.add_literal(literal(ins->get_shape(), vec_beta));
-                        auto alpha_ab = prog.insert_instruction(ins, op::mul{}, l_alpha, oq_dot);
-                        auto beta_c =
-                            prog.insert_instruction(ins, op::mul{}, l_beta, inputs.back());
-                        prog.replace_instruction(ins, op::add{}, alpha_ab, beta_c);
-                    }
+                    prog.replace_instruction(ins, op::convert{orig_type, new_alpha, 0.0f}, q_dot);
                 }
             }
         }

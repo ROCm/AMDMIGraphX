@@ -249,7 +249,8 @@ struct cpu_quant_convolution
                         const auto in_ch = group_id * wei_c + k;
                         if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
                         {
-                            acc += static_cast<int32_t>(input(o, in_ch, in_x, in_y)) * weights(w, k, x, y);
+                            acc += static_cast<int32_t>(input(o, in_ch, in_x, in_y)) *
+                                   weights(w, k, x, y);
                         }
                     });
                     output(o, w, i, j) = acc;

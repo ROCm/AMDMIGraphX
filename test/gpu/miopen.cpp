@@ -82,10 +82,6 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-// add an overload function for int type
-// to avoid overflow in test examples
-inline auto get_hash(const int& x) { return std::hash<int>{}(x) / 64; }
-
 void compile_check(migraphx::program& p, const migraphx::target& t)
 {
     auto name = t.name();

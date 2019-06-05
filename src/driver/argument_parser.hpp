@@ -27,7 +27,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 #define MIGRAPHX_DRIVER_STATIC static
 #endif
 
-
 template <class T>
 struct value_parser
 {

@@ -28,14 +28,13 @@ program::parameter_map create_param_map(const program& p, bool gpu)
 
 void compile_program(program& p, bool gpu)
 {
-    if (gpu)
+    if(gpu)
     {
 #ifdef HAVE_GPU
         p.compile(gpu::target{});
 #else
         MIGRAPHX_THROW("Gpu not supported.");
 #endif
-
     }
     else
     {

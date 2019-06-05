@@ -56,8 +56,8 @@ struct compiler
 {
     loader l;
     bool gpu = true;
-    void parse(argument_parser& ap) 
-    { 
+    void parse(argument_parser& ap)
+    {
         l.parse(ap);
         ap(gpu, {"--gpu"}, ap.help("Compile on the gpu"), ap.set_value(true));
         ap(gpu, {"--cpu"}, ap.help("Compile on the cpu"), ap.set_value(false));
@@ -70,10 +70,7 @@ struct compiler
         return p;
     }
 
-    auto params(const program& p)
-    {
-        return create_param_map(p, gpu);
-    }
+    auto params(const program& p) { return create_param_map(p, gpu); }
 };
 
 struct read : command<read>
@@ -129,8 +126,8 @@ struct perf : command<perf>
 {
     compiler c;
     unsigned n = 100;
-    void parse(argument_parser& ap) 
-    { 
+    void parse(argument_parser& ap)
+    {
         c.parse(ap);
         ap(n, {"--iterations", "-n"}, ap.help("Number of iterations to run for perf report"));
     }

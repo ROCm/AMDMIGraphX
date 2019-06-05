@@ -146,6 +146,7 @@ struct run_cmd : command<run_cmd>
         auto p = c.compile();
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
+        p.eval(m);
         std::cout << p << std::endl;
     }
 };
@@ -176,9 +177,9 @@ struct main_command
     static std::string get_command_help()
     {
         std::string result = "Commands:\n";
-        for(const auto& p : get_commands())
-            result += "    " + p.first + "\n";
-        return result;
+        return std::accumulate(get_commands().begin(), get_commands().end(), result, [](auto r, auto&& p) {
+            return r + "    " + p.first + "\n";
+        });
     }
     void parse(argument_parser& ap)
     {

@@ -1,6 +1,7 @@
 #include "argument_parser.hpp"
 #include "command.hpp"
 #include "verify.hpp"
+#include "perf.hpp"
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
@@ -51,6 +52,30 @@ struct loader
     }
 };
 
+struct compiler
+{
+    loader l;
+    bool gpu = true;
+    void parse(argument_parser& ap) 
+    { 
+        l.parse(ap);
+        ap(gpu, {"--gpu"}, ap.help("Compile on the gpu"), ap.set_value(true));
+        ap(gpu, {"--cpu"}, ap.help("Compile on the cpu"), ap.set_value(false));
+    }
+
+    program compile()
+    {
+        auto p = l.load();
+        compile_program(p, gpu);
+        return p;
+    }
+
+    auto params(const program& p)
+    {
+        return create_param_map(p, gpu);
+    }
+};
+
 struct read : command<read>
 {
     loader l;
@@ -97,6 +122,27 @@ struct verify : command<verify>
         {
             verify_program(l.file, p, tolerance);
         }
+    }
+};
+
+struct perf : command<perf>
+{
+    compiler c;
+    unsigned n = 100;
+    void parse(argument_parser& ap) 
+    { 
+        c.parse(ap);
+        ap(n, {"--iterations", "-n"}, ap.help("Number of iterations to run for perf report"));
+    }
+
+    void run()
+    {
+        std::cout << "Compiling ... " << std::endl;
+        auto p = c.compile();
+        std::cout << "Allocating params ... " << std::endl;
+        auto m = c.params(p);
+        std::cout << "Running performance report ... " << std::endl;
+        p.perf_report(std::cout, n, m);
     }
 };
 

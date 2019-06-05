@@ -278,21 +278,24 @@ void quantize_int8(program& prog,
                     prog.replace_instruction(ins, op::convert{orig_type}, quant_dot);
                 }
             }
-            // either alpha or beta cannot be quantized because of too big 
+            // either alpha or beta cannot be quantized because of too big
             // relative rounding error
             else
             {
                 auto q_dot = prog.insert_instruction(ins, op::quant_dot{1, 0}, converted_inputs);
-                if (inputs.size() == 3 and dot_op.beta != 0.0f)
+                if(inputs.size() == 3 and dot_op.beta != 0.0f)
                 {
-                    auto alpha_ab = prog.insert_instruction(ins, op::convert{orig_type, new_alpha, 0.0f}, q_dot);
+                    auto alpha_ab = prog.insert_instruction(
+                        ins, op::convert{orig_type, new_alpha, 0.0f}, q_dot);
                     auto c_shape = q_dot->get_shape();
                     std::vector<float> vec_beta(c_shape.elements(), dot_op.beta);
-                    auto l_beta = prog.add_literal(literal({shape::float_type, c_shape.lens()}, vec_beta));
+                    auto l_beta =
+                        prog.add_literal(literal({shape::float_type, c_shape.lens()}, vec_beta));
                     instruction_ref beta_c{};
-                    if (orig_type != shape::float_type)
+                    if(orig_type != shape::float_type)
                     {
-                        auto fp32_c = prog.insert_instruction(ins, op::convert{shape::float_type}, inputs.back());
+                        auto fp32_c = prog.insert_instruction(
+                            ins, op::convert{shape::float_type}, inputs.back());
                         auto fp32_beta_c = prog.insert_instruction(ins, op::mul{}, l_beta, fp32_c);
                         beta_c = prog.insert_instruction(ins, op::convert{orig_type}, fp32_beta_c);
                     }

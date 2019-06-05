@@ -177,9 +177,10 @@ struct main_command
     static std::string get_command_help()
     {
         std::string result = "Commands:\n";
-        return std::accumulate(get_commands().begin(), get_commands().end(), result, [](auto r, auto&& p) {
-            return r + "    " + p.first + "\n";
-        });
+        return std::accumulate(get_commands().begin(),
+                               get_commands().end(),
+                               result,
+                               [](auto r, auto&& p) { return r + "    " + p.first + "\n"; });
     }
     void parse(argument_parser& ap)
     {

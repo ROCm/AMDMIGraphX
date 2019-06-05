@@ -26,16 +26,25 @@ std::string command_name()
     return name.substr(name.rfind("::") + 2);
 }
 
+template<class T>
+void run_command(std::vector<std::string> args, bool add_help=false)
+{
+    T x;
+    argument_parser ap;
+    if (add_help)
+        ap.add(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help());
+    x.parse(ap);
+    if (ap.parse(args))
+        return;
+    x.run();
+}
+
 template <class T>
 int auto_register_command()
 {
     auto& m              = get_commands();
     m[command_name<T>()] = [](std::vector<std::string> args) {
-        T x;
-        argument_parser ap;
-        x.parse(ap);
-        ap.parse(args);
-        x.run();
+        run_command<T>(args, true);
     };
     return 0;
 }
@@ -49,6 +58,11 @@ struct command
     using static_register_type =
         std::integral_constant<decltype(&static_register), &static_register>;
 };
+
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wglobal-constructors"
+#endif
 
 template <class T>
 int command<T>::static_register = auto_register_command<T>(); // NOLINT

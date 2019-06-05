@@ -23,8 +23,7 @@ struct loader
         ap(type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
         ap(type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
         ap(is_nhwc, {"--nhwc"}, ap.help("Treat tensorflow format as nhwc"), ap.set_value(true));
-        ap(
-            is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
+        ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
     }
 
@@ -75,11 +74,10 @@ struct verify : command<verify>
         l.parse(ap);
         ap(tolerance, {"--tolerance"}, ap.help("Tolerance for errors"));
         ap(per_instruction,
-               {"-i", "--per-instruction"},
-               ap.help("Verify each instruction"),
-               ap.set_value(true));
-        ap(
-            reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
+           {"-i", "--per-instruction"},
+           ap.help("Verify each instruction"),
+           ap.set_value(true));
+        ap(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
     }
 
     void run()

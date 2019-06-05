@@ -22,6 +22,10 @@ void capture_arguments(program& prog,
                        std::function<void(std::size_t, std::vector<argument>)> func);
 void capture_arguments(program& prog, const std::vector<std::string>& ins_names);
 
+void quantize_int8(program& prog,
+                   const std::vector<std::string>& ins_names,
+                   const std::vector<std::pair<float, float>>& quant_params);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

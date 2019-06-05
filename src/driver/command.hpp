@@ -19,7 +19,7 @@ inline auto& get_commands()
     return m;
 }
 
-template<class T>
+template <class T>
 std::string command_name()
 {
     static const std::string& name = get_type_name<T>();
@@ -29,7 +29,7 @@ std::string command_name()
 template <class T>
 int auto_register_command()
 {
-    auto& m = get_commands();
+    auto& m              = get_commands();
     m[command_name<T>()] = [](std::vector<std::string> args) {
         T x;
         argument_parser ap;

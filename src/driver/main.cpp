@@ -194,7 +194,7 @@ struct main_command
 } // namespace driver
 } // namespace migraphx
 
-using namespace migraphx::driver;
+using namespace migraphx::driver; // NOLINT
 int main(int argc, const char* argv[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);

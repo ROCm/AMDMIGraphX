@@ -8,6 +8,7 @@
 #include <migraphx/stringutils.hpp>
 
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace migraphx {
@@ -47,7 +48,7 @@ void run_command(std::vector<std::string> args, bool add_help = false)
     if(add_help)
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help());
     x.parse(ap);
-    if(ap.parse(args))
+    if(ap.parse(std::move(args)))
         return;
     x.run();
 }

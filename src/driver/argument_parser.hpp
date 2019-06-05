@@ -21,6 +21,13 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
+#ifdef MIGRAPHX_USE_CLANG_TIDY
+#define MIGRAPHX_DRIVER_STATIC
+#else
+#define MIGRAPHX_DRIVER_STATIC static
+#endif
+
+
 template <class T>
 struct value_parser
 {
@@ -79,7 +86,7 @@ struct argument_parser
     template <class... Fs>
     void operator()(std::nullptr_t x, std::vector<std::string> flags, Fs... fs)
     {
-        arguments.push_back({flags});
+        arguments.push_back({std::move(flags)});
 
         argument& arg = arguments.back();
         arg.type      = "";
@@ -87,13 +94,13 @@ struct argument_parser
         migraphx::each_args([&](auto f) { f(x, arg); }, fs...);
     }
 
-    static auto nargs(unsigned n = 1)
+    MIGRAPHX_DRIVER_STATIC auto nargs(unsigned n = 1)
     {
         return [=](auto&&, auto& arg) { arg.nargs = n; };
     }
 
     template <class F>
-    static auto write_action(F f)
+    MIGRAPHX_DRIVER_STATIC auto write_action(F f)
     {
         return [=](auto& x, auto& arg) {
             arg.action = [&, f](auto& self, const std::vector<std::string>& params) {
@@ -104,7 +111,7 @@ struct argument_parser
     }
 
     template <class F>
-    static auto do_action(F f)
+    MIGRAPHX_DRIVER_STATIC auto do_action(F f)
     {
         return [=](auto&, auto& arg) {
             arg.nargs  = 0;
@@ -115,7 +122,7 @@ struct argument_parser
         };
     }
 
-    static auto append()
+    MIGRAPHX_DRIVER_STATIC auto append()
     {
         return write_action([](auto&, auto& x, auto& params) {
             using type = typename decltype(params)::value_type;
@@ -126,7 +133,7 @@ struct argument_parser
         });
     }
 
-    static auto show_help(std::string msg = "")
+    MIGRAPHX_DRIVER_STATIC auto show_help(const std::string& msg = "")
     {
         return do_action([=](auto& self) {
             for(auto&& arg : self.arguments)
@@ -155,18 +162,18 @@ struct argument_parser
         });
     }
 
-    static auto help(std::string help)
+    MIGRAPHX_DRIVER_STATIC auto help(std::string help)
     {
         return [=](auto&, auto& arg) { arg.help = help; };
     }
 
-    static auto metavar(std::string metavar)
+    MIGRAPHX_DRIVER_STATIC auto metavar(std::string metavar)
     {
         return [=](auto&, auto& arg) { arg.metavar = metavar; };
     }
 
     template <class T>
-    static auto set_value(T value)
+    MIGRAPHX_DRIVER_STATIC auto set_value(T value)
     {
         return [=](auto& x, auto& arg) {
             arg.nargs  = 0;
@@ -186,7 +193,7 @@ struct argument_parser
             for(auto&& flag : arg.flags)
                 keywords[flag] = arg.nargs + 1;
         }
-        auto arg_map = generic_parse(args, [&](std::string x) { return keywords[x]; });
+        auto arg_map = generic_parse(std::move(args), [&](std::string x) { return keywords[x]; });
         for(auto&& arg : arguments)
         {
             auto flags = arg.flags;

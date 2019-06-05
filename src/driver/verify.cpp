@@ -52,7 +52,7 @@ argument run_gpu(program p)
 #endif
 }
 
-void verify_program(const std::string& name, program p, double tolerance)
+void verify_program(const std::string& name, const program& p, double tolerance)
 {
     auto x = run_cpu(p);
     auto y = run_gpu(p);
@@ -106,7 +106,7 @@ void verify_reduced(program p, int n, double tolerance)
     verify_program(std::to_string(n), p, tolerance);
 }
 
-void verify_reduced_program(program p, double tolerance)
+void verify_reduced_program(const program& p, double tolerance)
 {
     auto n = std::distance(p.begin(), p.end());
     for(std::size_t i = 0; i < n; i++)

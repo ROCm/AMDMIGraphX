@@ -504,7 +504,5 @@ void capture_arguments(program& prog, const std::vector<std::string>& ins_names)
     capture_arguments(prog, ins_names, calc_quant_params);
 }
 
-
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

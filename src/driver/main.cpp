@@ -122,6 +122,40 @@ struct verify : command<verify>
     }
 };
 
+struct compile : command<compile>
+{
+    compiler c;
+    void parse(argument_parser& ap)
+    {
+        c.parse(ap);
+    }
+
+    void run()
+    {
+        std::cout << "Compiling ... " << std::endl;
+        auto p = c.compile();
+        std::cout << p << std::endl;
+    }
+};
+
+struct run_cmd : command<run_cmd>
+{
+    compiler c;
+    void parse(argument_parser& ap)
+    {
+        c.parse(ap);
+    }
+
+    void run()
+    {
+        std::cout << "Compiling ... " << std::endl;
+        auto p = c.compile();
+        std::cout << "Allocating params ... " << std::endl;
+        auto m = c.params(p);
+        std::cout << p << std::endl;
+    }
+};
+
 struct perf : command<perf>
 {
     compiler c;

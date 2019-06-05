@@ -5,6 +5,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/type_name.hpp>
+#include <migraphx/stringutils.hpp>
 
 #include <unordered_map>
 #include <vector>
@@ -20,10 +21,23 @@ inline auto& get_commands()
 }
 
 template <class T>
-std::string command_name()
+std::string compute_command_name()
 {
-    static const std::string& name = get_type_name<T>();
-    return name.substr(name.rfind("::") + 2);
+    static const std::string& tname = get_type_name<T>();
+    auto name = tname.substr(tname.rfind("::") + 2);
+    if (ends_with(name, "_command"))
+        name = name.substr(0, name.size()-8);
+    if (ends_with(name, "_cmd"))
+        name = name.substr(0, name.size()-4);
+    return name;
+}
+
+
+template <class T>
+const std::string& command_name()
+{
+    static const std::string& name = compute_command_name<T>();
+    return name;
 }
 
 template <class T>

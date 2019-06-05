@@ -193,6 +193,10 @@ PYBIND11_MODULE(migraphx, m)
               migraphx::quantize_int8(p, ins_names, quant_params);
           });
 
+    m.def("capture_arguments", [](migraphx::program& p, const std::vector<std::string>& ins_names) {
+        migraphx::capture_arguments(p, ins_names);
+    });
+
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);
     m.def("to_gpu", &migraphx::gpu::to_gpu, py::arg("arg"), py::arg("host") = false);

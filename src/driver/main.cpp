@@ -15,7 +15,7 @@ struct loader
 {
     std::string file;
     std::string type;
-    bool is_nhwc  = false;
+    bool is_nhwc  = true;
     unsigned trim = 0;
 
     void parse(argument_parser& ap)

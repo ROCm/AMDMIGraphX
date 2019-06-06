@@ -16,6 +16,7 @@
 #include <migraphx/requires.hpp>
 #include <migraphx/type_name.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 namespace driver {
@@ -64,6 +65,7 @@ struct argument_parser
         std::string type    = "";
         std::string help    = "";
         std::string metavar = "";
+        std::string default_value = "";
         unsigned nargs      = 1;
     };
 
@@ -79,6 +81,7 @@ struct argument_parser
 
         argument& arg = arguments.back();
         arg.type      = migraphx::get_type_name<T>();
+        arg.default_value = to_string(x);
         migraphx::each_args([&](auto f) { f(x, arg); }, fs...);
     }
 
@@ -150,8 +153,12 @@ struct argument_parser
                     std::cout << a;
                     prefix = ", ";
                 }
-                if(not arg.type.empty())
+                if(not arg.type.empty()) 
+                {
                     std::cout << " [" << arg.type << "]";
+                    if(not arg.default_value.empty()) 
+                        std::cout << " (Default: " << arg.default_value << ")";
+                }
                 std::cout << std::endl;
                 std::cout << "        " << arg.help << std::endl;
             }

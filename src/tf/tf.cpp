@@ -216,7 +216,7 @@ struct tf_parser
             //     }
             // }
             return add_broadcastable_binary_op(args[0], args[1], x);
-        });
+        }, false);
     }
 
     template <class T>

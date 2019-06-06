@@ -322,12 +322,12 @@ struct tf_parser
             const std::string& pad_mode = attributes.at("padding").s();
             if(pad_mode.find("SAME") != std::string::npos)
             {
-                op.padding_mode = op::padding_mode_t::same;
+                op.padding_mode                 = op::padding_mode_t::same;
                 std::vector<size_t> weight_dims = weights->get_shape().lens();
                 size_t weight_h                 = weight_dims[2];
                 size_t weight_w                 = weight_dims[3];
-                op.padding[0]   = calculate_padding(weight_h, op.dilation[0]);
-                op.padding[1]   = calculate_padding(weight_w, op.dilation[1]);
+                op.padding[0]                   = calculate_padding(weight_h, op.dilation[0]);
+                op.padding[1]                   = calculate_padding(weight_w, op.dilation[1]);
             }
             else if(pad_mode.find("VALID") != std::string::npos)
             {

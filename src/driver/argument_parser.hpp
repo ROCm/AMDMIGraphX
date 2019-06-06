@@ -62,11 +62,11 @@ struct argument_parser
     {
         std::vector<std::string> flags;
         std::function<bool(argument_parser&, const std::vector<std::string>&)> action{};
-        std::string type    = "";
-        std::string help    = "";
-        std::string metavar = "";
+        std::string type          = "";
+        std::string help          = "";
+        std::string metavar       = "";
         std::string default_value = "";
-        unsigned nargs      = 1;
+        unsigned nargs            = 1;
     };
 
     template <class T, class... Fs>
@@ -79,8 +79,8 @@ struct argument_parser
                                  return false;
                              }});
 
-        argument& arg = arguments.back();
-        arg.type      = migraphx::get_type_name<T>();
+        argument& arg     = arguments.back();
+        arg.type          = migraphx::get_type_name<T>();
         arg.default_value = to_string(x);
         migraphx::each_args([&](auto f) { f(x, arg); }, fs...);
     }
@@ -153,10 +153,10 @@ struct argument_parser
                     std::cout << a;
                     prefix = ", ";
                 }
-                if(not arg.type.empty()) 
+                if(not arg.type.empty())
                 {
                     std::cout << " [" << arg.type << "]";
-                    if(not arg.default_value.empty()) 
+                    if(not arg.default_value.empty())
                         std::cout << " (Default: " << arg.default_value << ")";
                 }
                 std::cout << std::endl;

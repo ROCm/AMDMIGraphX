@@ -109,6 +109,7 @@ TEST_CASE(conv_test)
 
     migraphx::op::convolution op;
     op.padding_mode = migraphx::op::padding_mode_t::same;
+    op.padding      = {1, 1};
     op.stride       = {1, 1};
     op.dilation     = {1, 1};
     auto l2         = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l1);
@@ -131,6 +132,7 @@ TEST_CASE(depthwiseconv_test)
 
     migraphx::op::convolution op;
     op.padding_mode = migraphx::op::padding_mode_t::same;
+    op.padding      = {1, 1};
     op.stride       = {1, 1};
     op.dilation     = {1, 1};
     op.group        = 3;

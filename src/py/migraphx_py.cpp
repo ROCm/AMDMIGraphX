@@ -202,9 +202,7 @@ PYBIND11_MODULE(migraphx, m)
         migraphx::capture_arguments(p, ins_names);
     });
 
-    m.def("capture_arguments", [](migraphx::program& p) {
-        migraphx::capture_arguments(p);
-    });
+    m.def("capture_arguments", [](migraphx::program& p) { migraphx::capture_arguments(p); });
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

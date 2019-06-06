@@ -9,8 +9,6 @@
 #include <migraphx/cpu/gemm.hpp>
 #include <unordered_map>
 #include <utility>
-#include <fstream>
-#include <iomanip>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -565,8 +563,7 @@ struct cpu_quant_gemm
         }
 
         // 2 input arguments
-        int32_t beta = 0;
-        migemm(result, arg_0, arg_1, op.alpha, beta);
+        migemm(result, arg_0, arg_1, op.alpha, int32_t{0});
 
         return result;
     }

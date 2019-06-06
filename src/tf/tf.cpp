@@ -17,6 +17,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/tf.hpp>
+#include <migraphx/pad_calc.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -321,7 +322,12 @@ struct tf_parser
             const std::string& pad_mode = attributes.at("padding").s();
             if(pad_mode.find("SAME") != std::string::npos)
             {
-                op.padding_mode = op::padding_mode_t::same;
+                op.padding_mode                 = op::padding_mode_t::same;
+                std::vector<size_t> weight_dims = weights->get_shape().lens();
+                size_t weight_h                 = weight_dims[2];
+                size_t weight_w                 = weight_dims[3];
+                op.padding[0]                   = calculate_padding(weight_h, op.dilation[0]);
+                op.padding[1]                   = calculate_padding(weight_w, op.dilation[1]);
             }
             else if(pad_mode.find("VALID") != std::string::npos)
             {
@@ -354,14 +360,7 @@ struct tf_parser
         op::convolution op;
         size_t num_channels = args[0]->get_shape().lens()[1];
         op.group            = num_channels;
-        if(contains(attributes, "padding"))
-        {
-            const std::string& pad_mode = attributes.at("padding").s();
-            if(pad_mode.find("SAME") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::same;
-            }
-        }
+
         if(contains(attributes, "strides"))
         {
             std::vector<size_t> stride;
@@ -374,6 +373,19 @@ struct tf_parser
             op.stride[0] = stride[2];
             op.stride[1] = stride[3];
         }
+        if(contains(attributes, "dilations"))
+        {
+            std::vector<size_t> dilation;
+            copy(attributes.at("dilations").list().i(), std::back_inserter(dilation));
+            reorder_data(dilation);
+            if(dilation.size() != 4)
+            {
+                MIGRAPHX_THROW("dilation should have 4 values");
+            }
+            op.dilation[0] = dilation[2];
+            op.dilation[1] = dilation[3];
+        }
+
         auto weights = args[1];
         // check if weights are from a constant
         if(weights->name() != "@param")
@@ -385,6 +397,24 @@ struct tf_parser
             else
             {
                 weights = prog.add_instruction(op::transpose{{3, 2, 0, 1}}, args[1]);
+            }
+        }
+
+        if(contains(attributes, "padding"))
+        {
+            const std::string& pad_mode     = attributes.at("padding").s();
+            std::vector<size_t> weight_dims = weights->get_shape().lens();
+            size_t weight_h                 = weight_dims[2];
+            size_t weight_w                 = weight_dims[3];
+            if(pad_mode.find("SAME") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::same;
+                op.padding[0]   = calculate_padding(weight_h, op.dilation[0]);
+                op.padding[1]   = calculate_padding(weight_w, op.dilation[1]);
+            }
+            else if(pad_mode.find("VALID") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::valid;
             }
         }
 
@@ -513,18 +543,6 @@ struct tf_parser
     {
         op::pooling op{starts_with(name, "Max") ? "max" : "average"};
 
-        if(contains(attributes, "padding"))
-        {
-            const std::string& pad_mode = attributes.at("padding").s();
-            if(pad_mode.find("SAME") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::same;
-            }
-            else if(pad_mode.find("VALID") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::valid;
-            }
-        }
         if(contains(attributes, "strides"))
         {
             std::vector<size_t> stride;
@@ -548,6 +566,20 @@ struct tf_parser
             }
             op.lengths[0] = ksize[2];
             op.lengths[1] = ksize[3];
+        }
+        if(contains(attributes, "padding"))
+        {
+            const std::string& pad_mode = attributes.at("padding").s();
+            if(pad_mode.find("SAME") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::same;
+                op.padding[0]   = calculate_padding(op.lengths[0], 1);
+                op.padding[1]   = calculate_padding(op.lengths[1], 1);
+            }
+            else if(pad_mode.find("VALID") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::valid;
+            }
         }
         return prog.add_instruction(op, args[0]);
     }

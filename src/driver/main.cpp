@@ -14,15 +14,15 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct loader
 {
     std::string file;
-    std::string type;
+    std::string file_type;
     bool is_nhwc  = true;
     unsigned trim = 0;
 
     void parse(argument_parser& ap)
     {
         ap(file, {}, ap.metavar("<input file>"));
-        ap(type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
-        ap(type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
+        ap(file_type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
+        ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
         ap(is_nhwc, {"--nhwc"}, ap.help("Treat tensorflow format as nhwc"), ap.set_value(true));
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
@@ -31,17 +31,17 @@ struct loader
     program load()
     {
         program p;
-        if(type.empty())
+        if(file_type.empty())
         {
             if(ends_with(file, ".onnx"))
-                type = "onnx";
-            else(ends_with(file, ".pb"))
-                type = "tf";
+                file_type = "onnx";
+            else
+                (ends_with(file, ".pb")) file_type = "tf";
         }
         std::cout << "Reading: " << file << std::endl;
-        if(type == "onnx")
+        if(file_type == "onnx")
             p = parse_onnx(file);
-        else if(type == "tf")
+        else if(file_type == "tf")
             p = parse_tf(file, is_nhwc);
         if(trim > 0)
         {

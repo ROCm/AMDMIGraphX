@@ -13,6 +13,9 @@ namespace device {
 void pack_a(hipStream_t stream, const argument& result, const argument& arg);
 
 void pack_b(hipStream_t stream, const argument& result, const argument& arg);
+
+void sync_stream(hipStream_t stream);
+
 } // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

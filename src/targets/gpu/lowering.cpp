@@ -101,7 +101,7 @@ struct miopen_apply
         add_extend_op<miopen_gemm, op::dot>("dot");
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
-        add_extend_op<miopen_softmax, op::softmax>("softmax");
+        add_extend_op<hip_softmax, op::softmax>("softmax");
         add_extend_op<hip_logsoftmax, op::logsoftmax>("logsoftmax");
         add_extend_op<hip_gather, op::gather>("gather");
         add_extend_op<hip_pad, op::pad>("pad");

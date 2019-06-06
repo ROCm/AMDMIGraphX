@@ -204,19 +204,21 @@ struct tf_parser
     template <class T>
     void add_binary_op(std::string name, T x)
     {
-        add_op(name, [this, x](const attribute_map&, std::vector<instruction_ref> args) {
-            if(args.size() != 2)
-                MIGRAPHX_THROW("binary operators should have 2 operands");
-            // TODO
-            // if(contains(attributes, "data_format"))
-            // {
-            //     if(is_nhwc)
-            //     {
-            //         l0 = prog.add_instruction(op::transpose{{0, 3, 1, 2}}, args[1]);
-            //     }
-            // }
-            return add_broadcastable_binary_op(args[0], args[1], x);
-        }, false);
+        add_op(name,
+               [this, x](const attribute_map&, std::vector<instruction_ref> args) {
+                   if(args.size() != 2)
+                       MIGRAPHX_THROW("binary operators should have 2 operands");
+                   // TODO
+                   // if(contains(attributes, "data_format"))
+                   // {
+                   //     if(is_nhwc)
+                   //     {
+                   //         l0 = prog.add_instruction(op::transpose{{0, 3, 1, 2}}, args[1]);
+                   //     }
+                   // }
+                   return add_broadcastable_binary_op(args[0], args[1], x);
+               },
+               false);
     }
 
     template <class T>

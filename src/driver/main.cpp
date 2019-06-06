@@ -35,7 +35,7 @@ struct loader
         {
             if(ends_with(file, ".onnx"))
                 type = "onnx";
-            else
+            else(ends_with(file, ".pb"))
                 type = "tf";
         }
         std::cout << "Reading: " << file << std::endl;

@@ -407,5 +407,11 @@ void capture_arguments(program& prog, const std::vector<std::string>& ins_names)
     capture_arguments(prog, ins_names, calc_quant_params);
 }
 
+void capture_arguments(program& prog)
+{
+    std::vector<std::string> ins_names = {"dot", "convolution"};
+    capture_arguments(prog, ins_names);
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

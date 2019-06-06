@@ -178,9 +178,9 @@ TEST_CASE(mean_test)
     p.add_literal(l);
     migraphx::op::pooling op;
     op.lengths = {16, 16};
-    auto l3    = p.add_instruction(op, l0);
-    p.add_instruction(migraphx::op::squeeze{{2, 3}}, l3);
     p.add_instruction(op, l0);
+    auto l3 = p.add_instruction(op, l0);
+    p.add_instruction(migraphx::op::squeeze{{2, 3}}, l3);
     auto prog = migraphx::parse_tf("mean_test.pb", false);
 
     EXPECT(p == prog);
@@ -195,9 +195,9 @@ TEST_CASE(mean_test_nhwc)
     p.add_literal(l);
     migraphx::op::pooling op;
     op.lengths = {16, 16};
-    auto l3    = p.add_instruction(op, l0);
-    p.add_instruction(migraphx::op::squeeze{{2, 3}}, l3);
     p.add_instruction(op, l0);
+    auto l3 = p.add_instruction(op, l0);
+    p.add_instruction(migraphx::op::squeeze{{2, 3}}, l3);
     auto prog = migraphx::parse_tf("mean_test_nhwc.pb", true);
 
     EXPECT(p == prog);
@@ -271,8 +271,8 @@ TEST_CASE(pooling_test)
     max_pool_op.stride       = {2, 2};
     avg_pool_op.lengths      = {2, 2};
     max_pool_op.lengths      = {2, 2};
-    p.add_instruction(max_pool_op, l0);
     p.add_instruction(avg_pool_op, l0);
+    p.add_instruction(max_pool_op, l0);
     auto prog = migraphx::parse_tf("pooling_test.pb", true);
 
     EXPECT(p == prog);

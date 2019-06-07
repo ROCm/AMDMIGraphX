@@ -569,13 +569,13 @@ struct test_sub2 : verify_program<test_sub2>
     }
 };
 
-struct test_softmax : verify_program<test_softmax>
+struct test_softmax1 : verify_program<test_softmax1>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {5, 3, 4, 2}});
-        p.add_instruction(migraphx::op::softmax{}, x);
+        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {5, 3, 3, 4}});
+        p.add_instruction(migraphx::op::softmax{0}, x);
         return p;
     }
 };
@@ -591,6 +591,25 @@ struct test_softmax2 : verify_program<test_softmax2>
         return p;
     }
 };
+
+template <int Axis>
+struct test_softmax : verify_program<test_softmax<Axis>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3, 4, 5, 6}};
+        auto param = p.add_parameter("0", s);
+        p.add_instruction(migraphx::op::softmax{Axis}, param);
+
+        return p;
+    }
+};
+
+template struct test_softmax<0>;
+template struct test_softmax<1>;
+template struct test_softmax<2>;
+template struct test_softmax<3>;
 
 struct test_conv : verify_program<test_conv>
 {
@@ -3326,7 +3345,6 @@ template struct test_logsoftmax<0>;
 template struct test_logsoftmax<1>;
 template struct test_logsoftmax<2>;
 template struct test_logsoftmax<3>;
-template struct test_logsoftmax<4>;
 
 template <int Axis>
 struct test_logsoftmax_1 : verify_program<test_logsoftmax_1<Axis>>
@@ -3343,7 +3361,6 @@ struct test_logsoftmax_1 : verify_program<test_logsoftmax_1<Axis>>
 };
 
 template struct test_logsoftmax_1<0>;
-template struct test_logsoftmax_1<1>;
 
 struct test_fp32_fp16_lall : verify_program<test_fp32_fp16_lall>
 {

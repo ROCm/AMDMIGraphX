@@ -1,4 +1,4 @@
-google/protobuf -DCMAKE_POSITION_INDEPENDENT_CODE=On
+google/protobuf@v3.8.0 -DCMAKE_POSITION_INDEPENDENT_CODE=On -X subdir -Dprotobuf_BUILD_TESTS=Off
 RadeonOpenCompute/rocm-cmake@42f6740 --build
 ROCmSoftwarePlatform/rocBLAS@30a992ae02fda568688bcd190edd5e277d6674d9
 ROCmSoftwarePlatform/MIOpen@1.8.0

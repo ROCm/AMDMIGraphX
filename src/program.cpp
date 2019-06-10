@@ -63,10 +63,15 @@ static void print_program(const program& p, F print_func)
 
     for(auto ins : iterator_for(p))
     {
-        std::string var_name = "@" + std::to_string(count);
+        std::string var_name;
         if(ins->name() == "@param")
         {
             var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
+        }
+        else
+        {
+            var_name = "@" + std::to_string(count);
+            count++;
         }
         names.emplace(ins, var_name);
 
@@ -78,8 +83,6 @@ static void print_program(const program& p, F print_func)
         }
 
         print_func(ins, names);
-
-        count++;
     }
 }
 
@@ -434,13 +437,20 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
 #else
     auto check_context = [](auto f) { return f(); };
 #endif
-    if(enabled(MIGRAPHX_TRACE_EVAL{}))
+
+    auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
+
+    if(trace_level > 0)
     {
         return generic_eval(*this, ctx, std::move(params), [&](auto& ins, auto f) {
             ctx.finish();
             std::cout << "Run instruction: ";
             this->debug_print(ins);
-            return check_context(f);
+            auto result = check_context(f);
+            ctx.finish();
+            if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load")
+                std::cout << "Ouput: " << result << std::endl;
+            return result;
         });
     }
     else

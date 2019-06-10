@@ -2,14 +2,12 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <migraphx/program.hpp>
+#include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/stringutils.hpp>
-#ifdef ENABLE_TF
 #include <migraphx/tf.hpp>
-#else
 #include <migraphx/onnx.hpp>
-#endif
 
 #ifdef HAVE_GPU
 #include <migraphx/gpu/target.hpp>
@@ -160,16 +158,13 @@ PYBIND11_MODULE(migraphx, m)
         .def("__ne__", std::not_equal_to<migraphx::program>{})
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
 
-#ifdef ENABLE_TF
     m.def("parse_tf",
           &migraphx::parse_tf,
           "Parse tf protobuf (default format is nhwc)",
           py::arg("filename"),
           py::arg("is_nhwc") = true);
-#else
     m.def("parse_onnx", &migraphx::parse_onnx);
 
-#endif
     m.def("get_target", [](const std::string& name) -> migraphx::target {
         if(name == "cpu")
             return migraphx::cpu::target{};
@@ -181,6 +176,10 @@ PYBIND11_MODULE(migraphx, m)
     });
 
     m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);
+    m.def("quantize", [](migraphx::program& p, std::vector<std::string>& ins_names) {
+        migraphx::quantize(p, ins_names);
+    });
+    m.def("quantize", [](migraphx::program& p) { migraphx::quantize(p, {"all"}); });
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

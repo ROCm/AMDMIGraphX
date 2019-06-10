@@ -44,8 +44,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     rm -rf /var/lib/apt/lists/*
 
 # Install cget
-# RUN pip install cget
-RUN pip install https://github.com/pfultz2/cget/archive/57b3289000fcdb3b7e424c60a35ea09bc44d8538.tar.gz
+RUN pip install cget
 
 # Install rclone
 RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
@@ -74,3 +73,8 @@ ENV LD_LIBRARY_PATH=$PREFIX/lib
 # Install doc requirements
 ADD doc/requirements.txt /doc-requirements.txt
 RUN pip install -r /doc-requirements.txt
+
+# Setup ubsan environment to printstacktrace
+RUN ln -s /usr/bin/llvm-symbolizer-5.0 /usr/local/bin/llvm-symbolizer
+ENV UBSAN_OPTIONS=print_stacktrace=1
+ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1

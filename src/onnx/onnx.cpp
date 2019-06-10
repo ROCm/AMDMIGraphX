@@ -63,6 +63,7 @@ struct onnx_parser
         add_variadic_op("Max", op::max{});
         add_variadic_op("Min", op::min{});
 
+        add_mem_op("Clip", &onnx_parser::parse_clip);
         add_mem_op("LRN", &onnx_parser::parse_lrn);
         add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
@@ -223,6 +224,22 @@ struct onnx_parser
                                        return add_broadcastable_binary_op(a, b, x);
                                    });
         });
+    }
+
+    instruction_ref parse_clip(const std::string&,
+                               const attribute_map& attributes,
+                               std::vector<instruction_ref> args)
+    {
+        op::clip op;
+        if(contains(attributes, "max"))
+        {
+            op.max_val = parse_value(attributes.at("max")).at<float>();
+        }
+        if(contains(attributes, "min"))
+        {
+            op.min_val = parse_value(attributes.at("min")).at<float>();
+        }
+        return prog.add_instruction(op, std::move(args));
     }
 
     instruction_ref

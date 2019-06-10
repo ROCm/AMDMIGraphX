@@ -17,6 +17,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/tf.hpp>
+#include <migraphx/pad_calc.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -24,7 +25,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct tf_parser
 {
     using attribute_map = std::unordered_map<std::string, tensorflow::AttrValue>;
-    using node_map      = std::unordered_map<std::string, tensorflow::NodeDef>;
+    using node_map      = std::map<std::string, tensorflow::NodeDef>;
     // using input_node_map = std::unordered_map<std::string, std::unordered_set<std::string>>;
     using op_func = std::function<instruction_ref(attribute_map, std::vector<instruction_ref>)>;
 
@@ -53,15 +54,16 @@ struct tf_parser
     template <class T>
     std::vector<T> parse_axes(std::vector<T> axes) const
     {
-        std::vector<T> new_axes;
         if(is_nhwc)
         {
+            std::vector<T> new_axes;
             std::transform(axes.begin(),
                            axes.end(),
                            std::back_inserter(new_axes),
                            [&](size_t axis) { return parse_axis(axis); });
+            return new_axes;
         }
-        return new_axes;
+        return axes;
     }
 
     // tf stores certain attributes such as strides, dilations, as a 4D input.
@@ -108,6 +110,7 @@ struct tf_parser
     {
         add_generic_op("Identity", op::identity{});
         add_generic_op("Relu", op::relu{});
+        add_generic_op("Relu6", op::clip{6.0, 0.0});
 
         add_binary_op("Add", op::add{});
         add_binary_op("Mul", op::mul{});
@@ -117,6 +120,7 @@ struct tf_parser
         add_mem_op("ConcatV2", &tf_parser::parse_concat);
         add_mem_op("Const", &tf_parser::parse_constant);
         add_mem_op("Conv2D", &tf_parser::parse_conv);
+        add_mem_op("DepthwiseConv2dNative", &tf_parser::parse_depthwiseconv);
         add_mem_op("FusedBatchNorm", &tf_parser::parse_batchnorm);
         add_mem_op("MatMul", &tf_parser::parse_matmul);
         add_mem_op("MaxPool", &tf_parser::parse_pooling);
@@ -274,29 +278,6 @@ struct tf_parser
     parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         op::convolution op;
-        if(contains(attributes, "padding"))
-        {
-            const std::string& pad_mode = attributes.at("padding").s();
-            if(pad_mode.find("SAME") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::same;
-            }
-            else if(pad_mode.find("EXPLICIT") != std::string::npos)
-            {
-                std::vector<size_t> padding;
-                copy(attributes.at("explicit_paddings").list().i(), std::back_inserter(padding));
-                if(padding.size() != 4)
-                {
-                    MIGRAPHX_THROW("padding should have 4 values");
-                }
-                if(padding[0] != padding[2] || padding[1] != padding[3])
-                {
-                    MIGRAPHX_THROW("migraphx does not support asymetric padding");
-                }
-                op.padding[0] = padding[0];
-                op.padding[1] = padding[1];
-            }
-        }
         if(contains(attributes, "strides"))
         {
             std::vector<size_t> stride;
@@ -336,7 +317,122 @@ struct tf_parser
             }
         }
 
+        if(contains(attributes, "padding"))
+        {
+            const std::string& pad_mode = attributes.at("padding").s();
+            if(pad_mode.find("SAME") != std::string::npos)
+            {
+                op.padding_mode                 = op::padding_mode_t::same;
+                std::vector<size_t> weight_dims = weights->get_shape().lens();
+                size_t weight_h                 = weight_dims[2];
+                size_t weight_w                 = weight_dims[3];
+                op.padding[0]                   = calculate_padding(weight_h, op.dilation[0]);
+                op.padding[1]                   = calculate_padding(weight_w, op.dilation[1]);
+            }
+            else if(pad_mode.find("VALID") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::valid;
+            }
+            else if(pad_mode.find("EXPLICIT") != std::string::npos)
+            {
+                std::vector<size_t> padding;
+                copy(attributes.at("explicit_paddings").list().i(), std::back_inserter(padding));
+                if(padding.size() != 4)
+                {
+                    MIGRAPHX_THROW("padding should have 4 values");
+                }
+                if(padding[0] != padding[2] || padding[1] != padding[3])
+                {
+                    MIGRAPHX_THROW("migraphx does not support asymetric padding");
+                }
+                op.padding[0] = padding[0];
+                op.padding[1] = padding[1];
+            }
+        }
+
         return prog.add_instruction(op, {args[0], weights});
+    }
+
+    instruction_ref parse_depthwiseconv(const std::string&,
+                                        attribute_map attributes,
+                                        std::vector<instruction_ref> args)
+    {
+        op::convolution op;
+        size_t num_channels = args[0]->get_shape().lens()[1];
+        op.group            = num_channels;
+
+        if(contains(attributes, "strides"))
+        {
+            std::vector<size_t> stride;
+            copy(attributes.at("strides").list().i(), std::back_inserter(stride));
+            reorder_data(stride);
+            if(stride.size() != 4)
+            {
+                MIGRAPHX_THROW("strides should have 4 values");
+            }
+            op.stride[0] = stride[2];
+            op.stride[1] = stride[3];
+        }
+        if(contains(attributes, "dilations"))
+        {
+            std::vector<size_t> dilation;
+            copy(attributes.at("dilations").list().i(), std::back_inserter(dilation));
+            reorder_data(dilation);
+            if(dilation.size() != 4)
+            {
+                MIGRAPHX_THROW("dilation should have 4 values");
+            }
+            op.dilation[0] = dilation[2];
+            op.dilation[1] = dilation[3];
+        }
+
+        auto weights = args[1];
+        // check if weights are from a constant
+        if(weights->name() != "@param")
+        {
+            if(is_nhwc)
+            {
+                weights = prog.add_instruction(op::transpose{{1, 3, 0, 2}}, args[1]);
+            }
+            else
+            {
+                weights = prog.add_instruction(op::transpose{{3, 2, 0, 1}}, args[1]);
+            }
+        }
+
+        if(contains(attributes, "padding"))
+        {
+            const std::string& pad_mode     = attributes.at("padding").s();
+            std::vector<size_t> weight_dims = weights->get_shape().lens();
+            size_t weight_h                 = weight_dims[2];
+            size_t weight_w                 = weight_dims[3];
+            if(pad_mode.find("SAME") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::same;
+                op.padding[0]   = calculate_padding(weight_h, op.dilation[0]);
+                op.padding[1]   = calculate_padding(weight_w, op.dilation[1]);
+            }
+            else if(pad_mode.find("VALID") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::valid;
+            }
+        }
+
+        std::vector<int64_t> new_weights_shape;
+        copy(weights->get_shape().lens(), std::back_inserter(new_weights_shape));
+
+        // weight format is (out_channels, in_channels, h, w), but in depthwise_conv,
+        // out_channels is equal to the multiplier. Adjust by inserting a reshape and
+        // setting in_channels to 1
+        int64_t multiplier   = new_weights_shape[0];
+        int64_t out_channels = num_channels * multiplier;
+        new_weights_shape[0] = out_channels;
+        new_weights_shape[1] = 1;
+        // Make sure weights are contiguous before doing reshape
+        auto cweights    = prog.add_instruction(op::contiguous{}, weights);
+        auto new_weights = prog.add_instruction(op::reshape{new_weights_shape}, cweights);
+
+        return prog.add_instruction(op, {args[0], new_weights});
     }
 
     instruction_ref
@@ -368,17 +464,21 @@ struct tf_parser
     instruction_ref
     parse_mean(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-
         auto axes      = parse_axes(args[1]->eval().get<int32_t>().to_vector());
         bool keep_dims = attributes.at("keep_dims").b();
         std::vector<int32_t> hw_axes{2, 3};
-        if(axes == hw_axes and keep_dims)
+        // check if conditions for GlobalAvgPool are met
+        auto lens = args[0]->get_shape().lens();
+        if(axes == hw_axes and lens.size() == 4)
         {
             op::pooling op{"average"};
-            std::vector<size_t> input_dims{args[0]->get_shape().lens()};
-            op.lengths[0] = input_dims[2];
-            op.lengths[1] = input_dims[3];
-            return prog.add_instruction(op, args.front());
+            op.lengths[0] = lens[2];
+            op.lengths[1] = lens[3];
+            auto l0       = prog.add_instruction(op, args.front());
+            if(keep_dims)
+                return l0;
+            return prog.add_instruction(
+                op::squeeze{std::vector<int64_t>(hw_axes.begin(), hw_axes.end())}, l0);
         }
         MIGRAPHX_THROW("MIGraphX does not support mean outside of GlobalAvgPool transformation");
     }
@@ -443,18 +543,6 @@ struct tf_parser
     {
         op::pooling op{starts_with(name, "Max") ? "max" : "average"};
 
-        if(contains(attributes, "padding"))
-        {
-            const std::string& pad_mode = attributes.at("padding").s();
-            if(pad_mode.find("SAME") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::same;
-            }
-            else if(pad_mode.find("VALID") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::valid;
-            }
-        }
         if(contains(attributes, "strides"))
         {
             std::vector<size_t> stride;
@@ -478,6 +566,20 @@ struct tf_parser
             }
             op.lengths[0] = ksize[2];
             op.lengths[1] = ksize[3];
+        }
+        if(contains(attributes, "padding"))
+        {
+            const std::string& pad_mode = attributes.at("padding").s();
+            if(pad_mode.find("SAME") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::same;
+                op.padding[0]   = calculate_padding(op.lengths[0], 1);
+                op.padding[1]   = calculate_padding(op.lengths[1], 1);
+            }
+            else if(pad_mode.find("VALID") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::valid;
+            }
         }
         return prog.add_instruction(op, args[0]);
     }

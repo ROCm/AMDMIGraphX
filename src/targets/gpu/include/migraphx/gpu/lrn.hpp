@@ -13,6 +13,13 @@ struct context;
 struct miopen_lrn
 {
     shared<lrn_descriptor> ldesc;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return gpu::reflect(self.ldesc.get(), f);
+    }
+
     std::string name() const { return "gpu::lrn"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument

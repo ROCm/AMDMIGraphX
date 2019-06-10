@@ -11,9 +11,11 @@
 #include <migraphx/op/batch_norm.hpp>
 #include <migraphx/op/binary.hpp>
 #include <migraphx/op/broadcast.hpp>
+#include <migraphx/op/clip.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/contiguous.hpp>
+#include <migraphx/op/convert.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/cosh.hpp>
 #include <migraphx/op/cos.hpp>

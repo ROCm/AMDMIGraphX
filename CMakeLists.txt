@@ -39,8 +39,6 @@ else()
     set(MIGRAPHX_ENABLE_GPU Off CACHE BOOL "")
 endif()
 
-set(MIGRAPHX_ENABLE_TF Off CACHE BOOL "")
-
 add_compile_options(-std=c++14)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)

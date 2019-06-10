@@ -12,12 +12,7 @@ if(MIGRAPHX_ENABLE_PYTHON)
         C_VISIBILITY_PRESET hidden
         CXX_VISIBILITY_PRESET hidden
     )
-    if(MIGRAPHX_ENABLE_TF)
-        target_link_libraries(migraphx_py PRIVATE migraphx migraphx_tf migraphx_cpu)
-        target_compile_definitions(migraphx_py PRIVATE -DENABLE_TF)
-    else()
-        target_link_libraries(migraphx_py PRIVATE migraphx migraphx_onnx migraphx_cpu)
-    endif()
+    target_link_libraries(migraphx_py PRIVATE migraphx migraphx_tf migraphx_onnx migraphx_cpu)
     if(MIGRAPHX_ENABLE_GPU)
         target_link_libraries(migraphx_py PRIVATE migraphx_gpu)
         target_compile_definitions(migraphx_py PRIVATE -DHAVE_GPU)

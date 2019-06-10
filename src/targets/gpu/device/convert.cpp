@@ -21,7 +21,7 @@ void convert(hipStream_t stream,
             {
                 gs_launch(stream, result.get_shape().elements())([=](auto i) {
                     float res     = input_ptr[i] * scale + shift;
-                    int factor    = (res > 0) ? 1 : -1;
+                    int factor    = (res >= 0.0f) ? 1 : -1;
                     output_ptr[i] = static_cast<int8_t>(
                         std::min<float>(std::max<float>(-128.0f, res + factor * 0.5), 127.0f));
                 });

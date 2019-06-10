@@ -327,9 +327,7 @@ void quantize_int8(program& prog,
                 ins,
                 op::quant_convolution{padding, stride, dilation, padding_mode, group},
                 converted_inputs);
-            auto fp_conv = prog.insert_instruction(
-                ins, op::convert{shape::float_type, adjust_factor, 0.0f}, quant_conv);
-            prog.replace_instruction(ins, op::convert{orig_type, 1.0f, 0.0f}, fp_conv);
+            prog.replace_instruction(ins, op::convert{orig_type, adjust_factor, 0.0f}, quant_conv);
         }
         else
         {

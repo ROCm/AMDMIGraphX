@@ -7,6 +7,7 @@
 #include <migraphx/op/mul.hpp>
 #include <migraphx/op/add.hpp>
 #include <migraphx/op/quant_dot.hpp>
+#include <migraphx/op/capture.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/multibroadcast.hpp>
@@ -123,6 +124,23 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
 void quantize(program& prog) { quantize(prog, {"all"}); }
 
 static std::vector<std::pair<float, float>> int8_quant_params;
+
+// function to compute the scale for each convert operator to convert to int8
+void calc_quant_params(std::size_t ins_index, std::vector<migraphx::argument> args)
+{
+    std::pair<float, float> param_pair{1.0f, 0.0f};
+
+    // scale and shift is need for only int8 type, and we do not
+    // consider shift, so set shift to 0
+    std::vector<float> vec_val;
+    args.front().visit([&](auto output) { vec_val.assign(output.begin(), output.end()); });
+    auto max_val     = *std::max_element(vec_val.begin(), vec_val.end());
+    auto min_val     = *std::min_element(vec_val.begin(), vec_val.end());
+    auto max_abs     = std::max(std::fabs(max_val), std::fabs(min_val));
+    param_pair.first = 127.0f / max_abs;
+
+    int8_quant_params[ins_index] = param_pair;
+};
 
 // int8 quantization is different from fp16 since int8 can only handle value
 // -128 ~ 127. To convert the float or double to int8, we need a scale and
@@ -309,9 +327,7 @@ void quantize_int8(program& prog,
                 ins,
                 op::quant_convolution{padding, stride, dilation, padding_mode, group},
                 converted_inputs);
-            auto fp_conv = prog.insert_instruction(
-                ins, op::convert{shape::float_type, adjust_factor, 0.0f}, quant_conv);
-            prog.replace_instruction(ins, op::convert{orig_type, 1.0f, 0.0f}, fp_conv);
+            prog.replace_instruction(ins, op::convert{orig_type, adjust_factor, 0.0f}, quant_conv);
         }
         else
         {
@@ -333,7 +349,66 @@ void quantize_int8(program& prog, const std::vector<std::string>& ins_names)
 void quantize_int8(program& prog)
 {
     std::vector<std::string> ins_names = {"dot", "convolution"};
-    quantize_int8(prog, ins_names);
+    quantize_int8(prog, ins_names, int8_quant_params);
+}
+
+// For the input of each input argument, we need to insert a
+// capture operator to compute the scale and shift
+void capture_arguments(program& prog,
+                       const std::vector<std::string>& ins_names,
+                       std::function<void(std::size_t, std::vector<argument>)> func)
+{
+    size_t num_quant_params = 0;
+    // the int8 quantization only support dot and convolution
+    std::vector<std::string> op_names = {"dot", "convolution", "quant_dot", "quant_convolution"};
+    if(!std::all_of(ins_names.begin(), ins_names.end(), [&](auto name) {
+           return std::find(op_names.begin(), op_names.end(), name) != op_names.end();
+       }))
+    {
+        MIGRAPHX_THROW("CAPTURE_ARGUMENTS: input operator is not supported");
+    }
+
+    std::unordered_map<instruction_ref, instruction_ref> ins_map;
+    for(auto ins : iterator_for(prog))
+    {
+        if(not contains(ins_names, ins->name()))
+        {
+            continue;
+        }
+
+        auto inputs = ins->inputs();
+        std::vector<instruction_ref> new_args;
+        for(auto input : inputs)
+        {
+            instruction_ref new_ins{};
+            if(ins_map.count(input) > 0)
+            {
+                new_ins = ins_map[input];
+            }
+            else
+            {
+                new_ins = prog.insert_instruction(
+                    std::next(input), op::capture{num_quant_params++, func}, input);
+                ins_map[input] = new_ins;
+            }
+            new_args.push_back(new_ins);
+        }
+        instruction::replace(ins, ins->get_operator(), ins->get_shape(), new_args);
+    }
+
+    // set one pair of parameter for each argument
+    int8_quant_params.resize(num_quant_params, std::make_pair(-1.0f, -1.0f));
+}
+
+void capture_arguments(program& prog, const std::vector<std::string>& ins_names)
+{
+    capture_arguments(prog, ins_names, calc_quant_params);
+}
+
+void capture_arguments(program& prog)
+{
+    std::vector<std::string> ins_names = {"dot", "convolution"};
+    capture_arguments(prog, ins_names);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

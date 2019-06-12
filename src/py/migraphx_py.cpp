@@ -6,11 +6,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/stringutils.hpp>
-#ifdef ENABLE_TF
 #include <migraphx/tf.hpp>
-#else
 #include <migraphx/onnx.hpp>
-#endif
 
 #ifdef HAVE_GPU
 #include <migraphx/gpu/target.hpp>
@@ -161,16 +158,13 @@ PYBIND11_MODULE(migraphx, m)
         .def("__ne__", std::not_equal_to<migraphx::program>{})
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
 
-#ifdef ENABLE_TF
     m.def("parse_tf",
           &migraphx::parse_tf,
           "Parse tf protobuf (default format is nhwc)",
           py::arg("filename"),
           py::arg("is_nhwc") = true);
-#else
     m.def("parse_onnx", &migraphx::parse_onnx);
 
-#endif
     m.def("get_target", [](const std::string& name) -> migraphx::target {
         if(name == "cpu")
             return migraphx::cpu::target{};

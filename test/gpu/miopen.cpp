@@ -2650,7 +2650,7 @@ struct test_lstm_forward_last : verify_program<test_lstm_forward_last>
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
         auto output = p.add_instruction(
-            migraphx::op::gru{hidden_size,
+            migraphx::op::lstm{hidden_size,
                               {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
                               migraphx::op::rnn_direction::forward,
                               clip},

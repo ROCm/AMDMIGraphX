@@ -109,6 +109,7 @@ TEST_CASE(conv_test)
 
     migraphx::op::convolution op;
     op.padding_mode = migraphx::op::padding_mode_t::same;
+    op.padding      = {1, 1};
     op.stride       = {1, 1};
     op.dilation     = {1, 1};
     auto l2         = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l1);
@@ -131,6 +132,7 @@ TEST_CASE(depthwiseconv_test)
 
     migraphx::op::convolution op;
     op.padding_mode = migraphx::op::padding_mode_t::same;
+    op.padding      = {1, 1};
     op.stride       = {1, 1};
     op.dilation     = {1, 1};
     op.group        = 3;
@@ -178,9 +180,9 @@ TEST_CASE(mean_test)
     p.add_literal(l);
     migraphx::op::pooling op;
     op.lengths = {16, 16};
-    auto l3    = p.add_instruction(op, l0);
-    p.add_instruction(migraphx::op::squeeze{{2, 3}}, l3);
     p.add_instruction(op, l0);
+    auto l3 = p.add_instruction(op, l0);
+    p.add_instruction(migraphx::op::squeeze{{2, 3}}, l3);
     auto prog = migraphx::parse_tf("mean_test.pb", false);
 
     EXPECT(p == prog);
@@ -195,9 +197,9 @@ TEST_CASE(mean_test_nhwc)
     p.add_literal(l);
     migraphx::op::pooling op;
     op.lengths = {16, 16};
-    auto l3    = p.add_instruction(op, l0);
-    p.add_instruction(migraphx::op::squeeze{{2, 3}}, l3);
     p.add_instruction(op, l0);
+    auto l3 = p.add_instruction(op, l0);
+    p.add_instruction(migraphx::op::squeeze{{2, 3}}, l3);
     auto prog = migraphx::parse_tf("mean_test_nhwc.pb", true);
 
     EXPECT(p == prog);
@@ -271,8 +273,8 @@ TEST_CASE(pooling_test)
     max_pool_op.stride       = {2, 2};
     avg_pool_op.lengths      = {2, 2};
     max_pool_op.lengths      = {2, 2};
-    p.add_instruction(max_pool_op, l0);
     p.add_instruction(avg_pool_op, l0);
+    p.add_instruction(max_pool_op, l0);
     auto prog = migraphx::parse_tf("pooling_test.pb", true);
 
     EXPECT(p == prog);

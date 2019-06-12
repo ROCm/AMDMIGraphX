@@ -70,7 +70,7 @@ struct argument_parser
     };
 
     template <class T, class... Fs>
-    void operator()(T& x, std::vector<std::string> flags, Fs... fs)
+    void operator()(T& x, const std::vector<std::string>& flags, Fs... fs)
     {
         arguments.push_back({flags, [&](auto&&, const std::vector<std::string>& params) {
                                  if(params.empty())
@@ -168,12 +168,12 @@ struct argument_parser
         });
     }
 
-    MIGRAPHX_DRIVER_STATIC auto help(std::string help)
+    MIGRAPHX_DRIVER_STATIC auto help(const std::string& help)
     {
         return [=](auto&, auto& arg) { arg.help = help; };
     }
 
-    MIGRAPHX_DRIVER_STATIC auto metavar(std::string metavar)
+    MIGRAPHX_DRIVER_STATIC auto metavar(const std::string& metavar)
     {
         return [=](auto&, auto& arg) { arg.metavar = metavar; };
     }
@@ -199,7 +199,7 @@ struct argument_parser
             for(auto&& flag : arg.flags)
                 keywords[flag] = arg.nargs + 1;
         }
-        auto arg_map = generic_parse(std::move(args), [&](std::string x) { return keywords[x]; });
+        auto arg_map = generic_parse(std::move(args), [&](const std::string& x) { return keywords[x]; });
         for(auto&& arg : arguments)
         {
             auto flags = arg.flags;

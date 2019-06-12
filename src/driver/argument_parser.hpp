@@ -199,7 +199,8 @@ struct argument_parser
             for(auto&& flag : arg.flags)
                 keywords[flag] = arg.nargs + 1;
         }
-        auto arg_map = generic_parse(std::move(args), [&](const std::string& x) { return keywords[x]; });
+        auto arg_map =
+            generic_parse(std::move(args), [&](const std::string& x) { return keywords[x]; });
         for(auto&& arg : arguments)
         {
             auto flags = arg.flags;

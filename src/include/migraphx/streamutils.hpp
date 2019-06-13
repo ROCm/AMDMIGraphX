@@ -42,7 +42,9 @@ template <class Range>
 auto stream_write_value_impl(rank<1>, std::ostream& os, const Range& r)
     -> decltype(r.begin(), r.end(), void())
 {
+    os << "{";
     os << stream_range(r);
+    os << "}";
 }
 
 template <class T>

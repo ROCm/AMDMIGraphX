@@ -2,6 +2,8 @@
 #define MIGRAPHX_GUARD_OPERATORS_PAD_CALC_HPP
 
 #include <utility>
+#include <cstdint>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

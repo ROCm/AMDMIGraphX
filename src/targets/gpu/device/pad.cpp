@@ -19,11 +19,12 @@ pad(hipStream_t stream, argument result, argument arg1, float value, std::vector
     //     visit_all(result)([&](auto output) {
     //             auto* outptr      = output.data();
     //                 gs_launch(stream, nelements)([=](auto i) {
-    //                     outptr[i] = std::numeric_limits<typename decltype(output)::value_type>::lowest();
+    //                     outptr[i] = std::numeric_limits<typename
+    //                     decltype(output)::value_type>::lowest();
     //                 });
     //             });
     // }
-    
+
     // else
     // {
     //     visit_all(result)([&](auto output) {

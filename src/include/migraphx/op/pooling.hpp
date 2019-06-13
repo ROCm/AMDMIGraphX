@@ -31,7 +31,7 @@ struct pooling
     {
         return pack(f(self.mode, "mode"),
                     f(self.padding, "padding"),
-                    f(self.padding, "padding_mode"),
+                    f(self.padding_mode, "padding_mode"),
                     f(self.stride, "stride"),
                     f(self.lengths, "lengths"));
     }

@@ -1573,6 +1573,26 @@ void manual_identity()
     std::cout << result << std::endl;
 }
 
+void pad_test()
+{
+    migraphx::program p;
+    std::vector<int8_t> data0 = {0, 1, 2, 3};
+    migraphx::shape s0{migraphx::shape::float_type, {2, 2}};
+    auto l0 = p.add_literal(migraphx::literal{s0, data0});
+    migraphx::op::pad op{};
+    op.value = std::numeric_limits<int8_t>::lowest();
+    op.pads = {0, 0, 1, 1};
+    p.add_instruction(op, l0);
+    p.compile(migraphx::gpu::target{});
+    migraphx::program::parameter_map m;
+    for(auto&& x : p.get_parameter_shapes())
+    {
+        m[x.first] = migraphx::gpu::to_gpu(migraphx::generate_argument(x.second));
+    }
+    auto result = migraphx::gpu::from_gpu(p.eval(m));
+    std::cout << result << std::endl;
+}
+
 void manual_test_concat_relu()
 {
     migraphx::program p;

@@ -1581,7 +1581,7 @@ void pad_test()
     auto l0 = p.add_literal(migraphx::literal{s0, data0});
     migraphx::op::pad op{};
     op.value = std::numeric_limits<int8_t>::lowest();
-    op.pads = {0, 0, 1, 1};
+    op.pads  = {0, 0, 1, 1};
     p.add_instruction(op, l0);
     p.compile(migraphx::gpu::target{});
     migraphx::program::parameter_map m;

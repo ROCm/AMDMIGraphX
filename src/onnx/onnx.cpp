@@ -100,11 +100,11 @@ struct onnx_parser
 
     void init_actv_func()
     {
-        map_actv_funcs.insert(std::make_pair("tanh", op::tanh{}));
-        map_actv_funcs.insert(std::make_pair("relu", op::relu{}));
-        map_actv_funcs.insert(std::make_pair("sigmoid", op::sigmoid{}));
-        map_actv_funcs.insert(std::make_pair("leakyrelu", op::leaky_relu{}));
-        map_actv_funcs.insert(std::make_pair("elu", op::elu{}));
+        map_actv_funcs.insert(std::make_pair("Tanh", op::tanh{}));
+        map_actv_funcs.insert(std::make_pair("Relu", op::relu{}));
+        map_actv_funcs.insert(std::make_pair("Sigmoid", op::sigmoid{}));
+        map_actv_funcs.insert(std::make_pair("LeakyRelu", op::leaky_relu{}));
+        map_actv_funcs.insert(std::make_pair("Elu", op::elu{}));
     }
 
     template <class F>
@@ -863,7 +863,7 @@ struct onnx_parser
             dirct = op::rnn_direction::reverse;
         }
 
-        std::vector<std::string> vec_names{"tanh"};
+        std::vector<std::string> vec_names{"Tanh"};
         if(contains(attributes, "activations"))
         {
             auto names = attributes.at("activations").strings();
@@ -954,7 +954,7 @@ struct onnx_parser
             dirct = op::rnn_direction::reverse;
         }
 
-        std::vector<std::string> vec_names = {"sigmoid", "tanh"};
+        std::vector<std::string> vec_names = {"Sigmoid", "Tanh"};
         if(contains(attributes, "activations"))
         {
             auto names = attributes.at("activations").strings();
@@ -1081,7 +1081,7 @@ struct onnx_parser
             MIGRAPHX_THROW("LSTM: incorrect direction attribute");
         }
 
-        std::vector<std::string> vec_names = {"sigmoid", "tanh", "tanh"};
+        std::vector<std::string> vec_names = {"Sigmoid", "Tanh", "Tanh"};
         if(contains(attributes, "activations"))
         {
             auto names = attributes.at("activations").strings();

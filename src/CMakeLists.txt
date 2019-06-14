@@ -5,19 +5,23 @@ include(ROCMPackageConfigHelpers)
 add_library(migraphx 
     auto_contiguous.cpp
     common_subexpression_elimination.cpp
-    constant_propagate.cpp
+    propagate_constant.cpp
     dead_code_elimination.cpp
     eliminate_allocation.cpp
     eliminate_contiguous.cpp
     eliminate_concat.cpp
+    eliminate_identity.cpp
+    eliminate_pad.cpp
     fwd_conv_batchnorm_rewrite.cpp
     rewrite_rnn.cpp
     env.cpp
     generate.cpp
     instruction.cpp
     program.cpp
+    quantization.cpp
     shape.cpp
     schedule.cpp
+    pass_manager.cpp
     simplify_algebra.cpp
     simplify_reshapes.cpp
     opt/memory_coloring.cpp

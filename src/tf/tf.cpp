@@ -17,6 +17,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/tf.hpp>
+#include <migraphx/pad_calc.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -24,7 +25,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct tf_parser
 {
     using attribute_map = std::unordered_map<std::string, tensorflow::AttrValue>;
-    using node_map      = std::unordered_map<std::string, tensorflow::NodeDef>;
+    using node_map      = std::map<std::string, tensorflow::NodeDef>;
     // using input_node_map = std::unordered_map<std::string, std::unordered_set<std::string>>;
     using op_func = std::function<instruction_ref(attribute_map, std::vector<instruction_ref>)>;
 
@@ -53,15 +54,16 @@ struct tf_parser
     template <class T>
     std::vector<T> parse_axes(std::vector<T> axes) const
     {
-        std::vector<T> new_axes;
         if(is_nhwc)
         {
+            std::vector<T> new_axes;
             std::transform(axes.begin(),
                            axes.end(),
                            std::back_inserter(new_axes),
                            [&](size_t axis) { return parse_axis(axis); });
+            return new_axes;
         }
-        return new_axes;
+        return axes;
     }
 
     // tf stores certain attributes such as strides, dilations, as a 4D input.
@@ -108,21 +110,27 @@ struct tf_parser
     {
         add_generic_op("Identity", op::identity{});
         add_generic_op("Relu", op::relu{});
+        add_generic_op("Relu6", op::clip{6.0, 0.0});
 
         add_binary_op("Add", op::add{});
+        add_binary_op("Mul", op::mul{});
 
         add_mem_op("AvgPool", &tf_parser::parse_pooling);
         add_mem_op("BiasAdd", &tf_parser::parse_biasadd);
         add_mem_op("ConcatV2", &tf_parser::parse_concat);
         add_mem_op("Const", &tf_parser::parse_constant);
         add_mem_op("Conv2D", &tf_parser::parse_conv);
+        add_mem_op("DepthwiseConv2dNative", &tf_parser::parse_depthwiseconv);
         add_mem_op("FusedBatchNorm", &tf_parser::parse_batchnorm);
+        add_mem_op("MatMul", &tf_parser::parse_matmul);
         add_mem_op("MaxPool", &tf_parser::parse_pooling);
         add_mem_op("Mean", &tf_parser::parse_mean);
+        add_mem_op("Pack", &tf_parser::parse_pack);
         add_mem_op("Pad", &tf_parser::parse_pad);
         add_mem_op("Reshape", &tf_parser::parse_reshape);
         add_mem_op("Softmax", &tf_parser::parse_softmax);
         add_mem_op("Squeeze", &tf_parser::parse_squeeze);
+        add_mem_op("StridedSlice", &tf_parser::parse_stridedslice);
     }
 
     template <class F>
@@ -149,7 +157,7 @@ struct tf_parser
     template <class T>
     void add_binary_op(std::string name, T x)
     {
-        add_op(name, [this, x](attribute_map attributes, std::vector<instruction_ref> args) {
+        add_op(name, [this, x](const attribute_map& attributes, std::vector<instruction_ref> args) {
             if(args.size() != 2)
                 MIGRAPHX_THROW("binary operators should have 2 operands");
             auto l0 = args[1];
@@ -211,7 +219,7 @@ struct tf_parser
     template <class T>
     void add_generic_op(std::string name, T x)
     {
-        add_op(name, [this, x](attribute_map, std::vector<instruction_ref> args) {
+        add_op(name, [this, x](const attribute_map&, std::vector<instruction_ref> args) {
             return prog.add_instruction(x, args);
         });
     }
@@ -234,7 +242,7 @@ struct tf_parser
     parse_biasadd(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         uint64_t axis = 1; // assume output of previous layer is in NCHW (broadcast on channel)
-        auto l0       = prog.add_instruction(op::broadcast{axis, args[0]->get_shape()}, args[1]);
+        auto l0 = prog.add_instruction(op::broadcast{axis, args[0]->get_shape().lens()}, args[1]);
         return prog.add_instruction(op::add{}, args[0], l0);
     }
 
@@ -270,29 +278,6 @@ struct tf_parser
     parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         op::convolution op;
-        if(contains(attributes, "padding"))
-        {
-            const std::string& pad_mode = attributes.at("padding").s();
-            if(pad_mode.find("SAME") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::same;
-            }
-            else if(pad_mode.find("EXPLICIT") != std::string::npos)
-            {
-                std::vector<size_t> padding;
-                copy(attributes.at("explicit_paddings").list().i(), std::back_inserter(padding));
-                if(padding.size() != 4)
-                {
-                    MIGRAPHX_THROW("padding should have 4 values");
-                }
-                if(padding[0] != padding[2] || padding[1] != padding[3])
-                {
-                    MIGRAPHX_THROW("migraphx does not support asymetric padding");
-                }
-                op.padding[0] = padding[0];
-                op.padding[1] = padding[1];
-            }
-        }
         if(contains(attributes, "strides"))
         {
             std::vector<size_t> stride;
@@ -332,25 +317,197 @@ struct tf_parser
             }
         }
 
+        if(contains(attributes, "padding"))
+        {
+            const std::string& pad_mode = attributes.at("padding").s();
+            if(pad_mode.find("SAME") != std::string::npos)
+            {
+                op.padding_mode                 = op::padding_mode_t::same;
+                std::vector<size_t> weight_dims = weights->get_shape().lens();
+                size_t weight_h                 = weight_dims[2];
+                size_t weight_w                 = weight_dims[3];
+                op.padding[0]                   = calculate_padding(weight_h, op.dilation[0]);
+                op.padding[1]                   = calculate_padding(weight_w, op.dilation[1]);
+            }
+            else if(pad_mode.find("VALID") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::valid;
+            }
+            else if(pad_mode.find("EXPLICIT") != std::string::npos)
+            {
+                std::vector<size_t> padding;
+                copy(attributes.at("explicit_paddings").list().i(), std::back_inserter(padding));
+                if(padding.size() != 4)
+                {
+                    MIGRAPHX_THROW("padding should have 4 values");
+                }
+                if(padding[0] != padding[2] || padding[1] != padding[3])
+                {
+                    MIGRAPHX_THROW("migraphx does not support asymetric padding");
+                }
+                op.padding[0] = padding[0];
+                op.padding[1] = padding[1];
+            }
+        }
+
         return prog.add_instruction(op, {args[0], weights});
+    }
+
+    instruction_ref parse_depthwiseconv(const std::string&,
+                                        attribute_map attributes,
+                                        std::vector<instruction_ref> args)
+    {
+        op::convolution op;
+        size_t num_channels = args[0]->get_shape().lens()[1];
+        op.group            = num_channels;
+
+        if(contains(attributes, "strides"))
+        {
+            std::vector<size_t> stride;
+            copy(attributes.at("strides").list().i(), std::back_inserter(stride));
+            reorder_data(stride);
+            if(stride.size() != 4)
+            {
+                MIGRAPHX_THROW("strides should have 4 values");
+            }
+            op.stride[0] = stride[2];
+            op.stride[1] = stride[3];
+        }
+        if(contains(attributes, "dilations"))
+        {
+            std::vector<size_t> dilation;
+            copy(attributes.at("dilations").list().i(), std::back_inserter(dilation));
+            reorder_data(dilation);
+            if(dilation.size() != 4)
+            {
+                MIGRAPHX_THROW("dilation should have 4 values");
+            }
+            op.dilation[0] = dilation[2];
+            op.dilation[1] = dilation[3];
+        }
+
+        auto weights = args[1];
+        // check if weights are from a constant
+        if(weights->name() != "@param")
+        {
+            if(is_nhwc)
+            {
+                weights = prog.add_instruction(op::transpose{{1, 3, 0, 2}}, args[1]);
+            }
+            else
+            {
+                weights = prog.add_instruction(op::transpose{{3, 2, 0, 1}}, args[1]);
+            }
+        }
+
+        if(contains(attributes, "padding"))
+        {
+            const std::string& pad_mode     = attributes.at("padding").s();
+            std::vector<size_t> weight_dims = weights->get_shape().lens();
+            size_t weight_h                 = weight_dims[2];
+            size_t weight_w                 = weight_dims[3];
+            if(pad_mode.find("SAME") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::same;
+                op.padding[0]   = calculate_padding(weight_h, op.dilation[0]);
+                op.padding[1]   = calculate_padding(weight_w, op.dilation[1]);
+            }
+            else if(pad_mode.find("VALID") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::valid;
+            }
+        }
+
+        std::vector<int64_t> new_weights_shape;
+        copy(weights->get_shape().lens(), std::back_inserter(new_weights_shape));
+
+        // weight format is (out_channels, in_channels, h, w), but in depthwise_conv,
+        // out_channels is equal to the multiplier. Adjust by inserting a reshape and
+        // setting in_channels to 1
+        int64_t multiplier   = new_weights_shape[0];
+        int64_t out_channels = num_channels * multiplier;
+        new_weights_shape[0] = out_channels;
+        new_weights_shape[1] = 1;
+        // Make sure weights are contiguous before doing reshape
+        auto cweights    = prog.add_instruction(op::contiguous{}, weights);
+        auto new_weights = prog.add_instruction(op::reshape{new_weights_shape}, cweights);
+
+        return prog.add_instruction(op, {args[0], new_weights});
+    }
+
+    instruction_ref
+    parse_matmul(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        bool transa = false;
+        bool transb = false;
+
+        if(contains(attributes, "transpose_a"))
+        {
+            transa = attributes.at("transpose_a").b();
+        }
+        if(contains(attributes, "transpose_b"))
+        {
+            transb = attributes.at("transpose_a").b();
+        }
+
+        std::vector<int64_t> perm(args[0]->get_shape().lens().size());
+        std::iota(perm.begin(), perm.end(), int64_t{0});
+        // swap the last two elements
+        std::iter_swap(perm.end() - 1, perm.end() - 2);
+
+        auto l1 = (transa) ? prog.add_instruction(op::transpose{perm}, args[0]) : args[0];
+        auto l2 = (transb) ? prog.add_instruction(op::transpose{perm}, args[1]) : args[1];
+
+        return prog.add_instruction(op::dot{}, l1, l2);
     }
 
     instruction_ref
     parse_mean(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-
         auto axes      = parse_axes(args[1]->eval().get<int32_t>().to_vector());
         bool keep_dims = attributes.at("keep_dims").b();
         std::vector<int32_t> hw_axes{2, 3};
-        if(axes == hw_axes and keep_dims)
+        // check if conditions for GlobalAvgPool are met
+        auto lens = args[0]->get_shape().lens();
+        if(axes == hw_axes and lens.size() == 4)
         {
             op::pooling op{"average"};
-            std::vector<size_t> input_dims{args[0]->get_shape().lens()};
-            op.lengths[0] = input_dims[2];
-            op.lengths[1] = input_dims[3];
-            return prog.add_instruction(op, args.front());
+            op.lengths[0] = lens[2];
+            op.lengths[1] = lens[3];
+            auto l0       = prog.add_instruction(op, args.front());
+            if(keep_dims)
+                return l0;
+            return prog.add_instruction(
+                op::squeeze{std::vector<int64_t>(hw_axes.begin(), hw_axes.end())}, l0);
         }
         MIGRAPHX_THROW("MIGraphX does not support mean outside of GlobalAvgPool transformation");
+    }
+
+    instruction_ref parse_pack(const std::string&,
+                               const attribute_map& attributes,
+                               std::vector<instruction_ref> args)
+    {
+        // reinterpret as unsqueeze with concat
+        std::vector<instruction_ref> unsqueezed_args;
+        int64_t axis = 0;
+        if(contains(attributes, "axis"))
+            axis = attributes.at("axis").i();
+        size_t input_size = args.front()->get_shape().lens().size();
+        if(axis > input_size)
+        {
+            MIGRAPHX_THROW("TF_PARSER: axis value of " + to_string(axis) +
+                           " must be smaller than input size " + to_string(input_size));
+        }
+        // check if input arg needs axis to be converted to NCHW
+        if(input_size >= 4)
+            axis = parse_axis(axis);
+
+        std::transform(
+            args.begin(),
+            args.end(),
+            std::back_inserter(unsqueezed_args),
+            [&](instruction_ref arg) { return prog.add_instruction(op::unsqueeze{{axis}}, arg); });
+        return prog.add_instruction(op::concat{static_cast<size_t>(axis)}, unsqueezed_args);
     }
 
     instruction_ref
@@ -386,18 +543,6 @@ struct tf_parser
     {
         op::pooling op{starts_with(name, "Max") ? "max" : "average"};
 
-        if(contains(attributes, "padding"))
-        {
-            const std::string& pad_mode = attributes.at("padding").s();
-            if(pad_mode.find("SAME") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::same;
-            }
-            else if(pad_mode.find("VALID") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::valid;
-            }
-        }
         if(contains(attributes, "strides"))
         {
             std::vector<size_t> stride;
@@ -421,6 +566,20 @@ struct tf_parser
             }
             op.lengths[0] = ksize[2];
             op.lengths[1] = ksize[3];
+        }
+        if(contains(attributes, "padding"))
+        {
+            const std::string& pad_mode = attributes.at("padding").s();
+            if(pad_mode.find("SAME") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::same;
+                op.padding[0]   = calculate_padding(op.lengths[0], 1);
+                op.padding[1]   = calculate_padding(op.lengths[1], 1);
+            }
+            else if(pad_mode.find("VALID") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::valid;
+            }
         }
         return prog.add_instruction(op, args[0]);
     }
@@ -478,6 +637,46 @@ struct tf_parser
             }
         }
         return prog.add_instruction(op, args[0]);
+    }
+
+    instruction_ref parse_stridedslice(const std::string&,
+                                       const attribute_map& attributes,
+                                       std::vector<instruction_ref> args)
+    {
+        op::slice op;
+        auto starts     = args[1]->eval().get<int32_t>().to_vector();
+        auto ends       = args[2]->eval().get<int32_t>().to_vector();
+        size_t num_axes = args[0]->get_shape().lens().size();
+        if(num_axes >= 4)
+        {
+            reorder_data(starts);
+            reorder_data(ends);
+        }
+
+        op.starts = std::vector<int64_t>(starts.begin(), starts.end());
+        op.ends   = std::vector<int64_t>(ends.begin(), ends.end());
+        op.axes   = std::vector<int64_t>(num_axes);
+        std::iota(op.axes.begin(), op.axes.end(), 0);
+        uint32_t shrink_axis_mask = 0;
+        uint32_t bitwise_compare  = 1;
+        std::vector<int64_t> squeeze_axes;
+
+        if(contains(attributes, "shrink_axis_mask"))
+            shrink_axis_mask = static_cast<uint32_t>(attributes.at("shrink_axis_mask").i());
+
+        for(size_t i = 0; i < num_axes; i++)
+        {
+            // the LSB corresponds to axis 0 when determining which axes to squeeze
+            if(((shrink_axis_mask >> i) & bitwise_compare) == 1)
+                squeeze_axes.push_back(i);
+        }
+        if(num_axes >= 4)
+        {
+            squeeze_axes = parse_axes(squeeze_axes);
+        }
+
+        auto l0 = prog.add_instruction(op, args[0]);
+        return prog.add_instruction(op::squeeze{squeeze_axes}, l0);
     }
 
     void parse_graph(const tensorflow::GraphDef& graph)
@@ -644,10 +843,6 @@ struct tf_parser
     static literal parse_tensor(const tensorflow::TensorProto& t)
     {
         std::vector<size_t> dims = parse_dims(t.tensor_shape());
-        if(dims.empty())
-        {
-            dims = {1};
-        }
         size_t shape_size = std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<size_t>());
         if(!t.tensor_content().empty()) // has raw data
         {
@@ -658,17 +853,17 @@ struct tf_parser
             case tensorflow::DataType::DT_FLOAT:
                 return literal{{shape::float_type, dims}, s.data()};
             case tensorflow::DataType::DT_UINT8: throw std::runtime_error("");
-            case tensorflow::DataType::DT_INT8: return literal{{shape::int32_type, dims}, s.data()};
+            case tensorflow::DataType::DT_INT8: return literal{{shape::int8_type, dims}, s.data()};
             case tensorflow::DataType::DT_UINT16:
-                return literal{{shape::int32_type, dims}, s.data()};
+                return literal{{shape::uint16_type, dims}, s.data()};
             case tensorflow::DataType::DT_INT16:
-                return literal{{shape::int32_type, dims}, s.data()};
+                return literal{{shape::int16_type, dims}, s.data()};
             case tensorflow::DataType::DT_INT32:
                 return literal{{shape::int32_type, dims}, s.data()};
             case tensorflow::DataType::DT_INT64:
                 return literal{{shape::int64_type, dims}, s.data()};
             case tensorflow::DataType::DT_STRING: throw std::runtime_error("");
-            case tensorflow::DataType::DT_BOOL: return literal{{shape::int32_type, dims}, s.data()};
+            case tensorflow::DataType::DT_BOOL: return literal{{shape::int8_type, dims}, s.data()};
             case tensorflow::DataType::DT_HALF: return literal{{shape::half_type, dims}, s.data()};
             case tensorflow::DataType::DT_DOUBLE:
                 return literal{{shape::double_type, dims}, s.data()};
@@ -718,21 +913,23 @@ struct tf_parser
         {
         case tensorflow::DataType::DT_INVALID: throw std::runtime_error("");
         case tensorflow::DataType::DT_FLOAT:
-            return literal{{shape::float_type, dims}, get_data_vals(t.float_val(), shape_size)};
+            return create_literal(
+                shape::float_type, dims, get_data_vals(t.float_val(), shape_size));
         case tensorflow::DataType::DT_UINT8: throw std::runtime_error("");
         case tensorflow::DataType::DT_INT8:
-            return literal{{shape::int32_type, dims}, get_data_vals(t.int_val(), shape_size)};
+            return create_literal(shape::int8_type, dims, get_data_vals(t.int_val(), shape_size));
         case tensorflow::DataType::DT_UINT16:
-            return literal{{shape::int32_type, dims}, get_data_vals(t.int_val(), shape_size)};
+            return create_literal(shape::uint16_type, dims, get_data_vals(t.int_val(), shape_size));
         case tensorflow::DataType::DT_INT16:
-            return literal{{shape::int32_type, dims}, get_data_vals(t.int_val(), shape_size)};
+            return create_literal(shape::int16_type, dims, get_data_vals(t.int_val(), shape_size));
         case tensorflow::DataType::DT_INT32:
-            return literal{{shape::int32_type, dims}, get_data_vals(t.int_val(), shape_size)};
+            return create_literal(shape::int32_type, dims, get_data_vals(t.int_val(), shape_size));
         case tensorflow::DataType::DT_INT64:
-            return literal{{shape::int64_type, dims}, get_data_vals(t.int64_val(), shape_size)};
+            return create_literal(
+                shape::int64_type, dims, get_data_vals(t.int64_val(), shape_size));
         case tensorflow::DataType::DT_STRING: throw std::runtime_error("");
         case tensorflow::DataType::DT_BOOL:
-            return literal{{shape::int32_type, dims}, get_data_vals(t.bool_val(), shape_size)};
+            return create_literal(shape::int32_type, dims, get_data_vals(t.bool_val(), shape_size));
         case tensorflow::DataType::DT_HALF:
         {
             std::vector<int> data_int32 = get_data_vals(t.half_val(), shape_size);
@@ -742,7 +939,7 @@ struct tf_parser
                            data_uint16.end(),
                            std::back_inserter(data_half),
                            [](uint16_t raw_val) { return *reinterpret_cast<half*>(&raw_val); });
-            return literal{{shape::half_type, dims}, data_half};
+            return create_literal(shape::half_type, dims, data_half);
         }
         case tensorflow::DataType::DT_DOUBLE:
             return literal{{shape::double_type, dims}, get_data_vals(t.double_val(), shape_size)};
@@ -811,8 +1008,18 @@ struct tf_parser
         std::transform(input_dims.begin(),
                        input_dims.end(),
                        std::back_inserter(dims),
-                       [](tensorflow::TensorShapeProto_Dim dim) { return dim.size(); });
+                       [](const tensorflow::TensorShapeProto_Dim& dim) { return dim.size(); });
         return dims;
+    }
+
+    template <class T>
+    static literal
+    create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, std::vector<T> data)
+    {
+        // assume if explicit value is mentioned in protobuf and dim size <= 1, treat as scalar
+        if(dims.empty() or (dims.size() == 1 and dims.front() == 1))
+            return literal{{shape_type}, data};
+        return literal{{shape_type, dims}, data};
     }
 };
 

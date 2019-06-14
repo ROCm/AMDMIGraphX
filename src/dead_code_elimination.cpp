@@ -4,6 +4,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -50,7 +51,8 @@ void dead_code_elimination::apply(program& p) const
             assert(p.has_instruction(leaf));
             if(leaf->outputs().empty())
             {
-                auto args = leaf->inputs();
+                std::unordered_set<instruction_ref> args(leaf->inputs().begin(),
+                                                         leaf->inputs().end());
                 leaf->clear_arguments();
                 assert(bidistance(p, last, leaf) < 0);
                 assert(leaf != ins);

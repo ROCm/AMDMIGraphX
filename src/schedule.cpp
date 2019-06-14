@@ -1,7 +1,7 @@
 #include <migraphx/schedule.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/identity.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/functional.hpp>
@@ -341,6 +341,8 @@ struct stream_info
 
 void schedule::apply(program& p) const
 {
+    if(not enable)
+        return;
     stream_info si;
     auto last = std::prev(p.end());
     si.accumulate_weights(last, model);

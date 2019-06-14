@@ -27,11 +27,14 @@ add_library(migraphx_device
     device/add_relu.cpp
     device/contiguous.cpp
     device/logsoftmax.cpp
+    device/softmax.cpp
+    device/convert.cpp
     device/mul.cpp
     device/concat.cpp
     device/pad.cpp
     device/gather.cpp
     device/sub.cpp
+    device/clip.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_clang_tidy_check(migraphx_device)
@@ -65,6 +68,8 @@ add_library(migraphx_gpu
     gather.cpp
     lrn.cpp
     schedule_model.cpp
+    adjust_allocation.cpp
+    clip.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_clang_tidy_check(migraphx_gpu)

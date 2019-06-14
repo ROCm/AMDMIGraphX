@@ -1,13 +1,16 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_HIP_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_HIP_HPP
 
-#include <migraphx/operators.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/check_shapes.hpp>
 #include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+struct context;
 
 argument allocate_gpu(const shape& s, bool host = false);
 
@@ -25,6 +28,13 @@ struct hip_allocate
 {
     shape s;
     std::string tag{};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.s, "shape"), f(self.tag, "tag"));
+    }
+
     std::string name() const { return "hip::allocate"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
@@ -40,6 +50,13 @@ struct hip_allocate
 struct hip_sync
 {
     std::string tag{};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.tag, "tag"));
+    }
+
     std::string name() const { return "hip::sync"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
@@ -70,7 +87,7 @@ struct hip_write
     {
         return to_gpu(args.front());
     }
-    int output_alias(const std::vector<shape>&) const { return 0; }
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct hip_copy
@@ -86,7 +103,7 @@ struct hip_copy
         copy_to_gpu(args[0], args[1]);
         return args[1];
     }
-    int output_alias(const std::vector<shape>&) const { return 1; }
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 1; }
 };
 
 } // namespace gpu

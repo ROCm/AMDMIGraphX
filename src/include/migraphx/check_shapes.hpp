@@ -18,6 +18,11 @@ struct check_shapes
     {
     }
 
+    template <class Op>
+    check_shapes(const shape* b, const shape* e, const Op& op) : begin(b), end(e), name(op.name())
+    {
+    }
+
     check_shapes(const std::vector<shape>& s) : begin(s.data()), end(s.data() + s.size()) {}
 
     template <class Op>
@@ -98,6 +103,13 @@ struct check_shapes
         return *this;
     }
 
+    const check_shapes& standard_or_scalar() const
+    {
+        if(!this->all_of([](const shape& s) { return s.standard() or s.scalar(); }))
+            MIGRAPHX_THROW(prefix() + "Shapes are not a scalar or in standard layout");
+        return *this;
+    }
+
     const check_shapes& packed() const
     {
         if(!this->all_of([](const shape& s) { return s.packed(); }))
@@ -116,6 +128,13 @@ struct check_shapes
     {
         if(!this->all_of([](const shape& s) { return not s.broadcasted(); }))
             MIGRAPHX_THROW(prefix() + "Shapes are broadcasted");
+        return *this;
+    }
+
+    const check_shapes& elements(std::size_t n) const
+    {
+        if(!this->all_of([&](const shape& s) { return s.elements() == n; }))
+            MIGRAPHX_THROW(prefix() + "Wrong number of elements");
         return *this;
     }
 

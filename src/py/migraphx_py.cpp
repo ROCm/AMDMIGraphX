@@ -8,6 +8,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
+#include <migraphx/type_name.hpp>
 
 #ifdef HAVE_GPU
 #include <migraphx/gpu/target.hpp>
@@ -101,8 +102,13 @@ migraphx::shape to_shape(const py::buffer_info& info)
             t = as.type_enum();
             n = sizeof(as());
         }
-
     });
+
+    if (n == 0) 
+    {
+        MIGRAPHX_THROW("MIGRAPHX PYTHON: Unsupported data type" + info.format);
+    }
+
     auto strides = info.strides;
     std::transform(strides.begin(), strides.end(), strides.begin(), [&](auto i) -> std::size_t {
         return n > 0 ? i / n : 0;
@@ -134,6 +140,7 @@ PYBIND11_MODULE(migraphx, m)
         .def("__init__",
              [](migraphx::argument& x, py::buffer b) {
                  py::buffer_info info = b.request();
+                 auto s = to_shape(info);
                  new(&x) migraphx::argument(to_shape(info), info.ptr);
              })
         .def("get_shape", &migraphx::argument::get_shape)

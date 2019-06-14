@@ -104,7 +104,7 @@ migraphx::shape to_shape(const py::buffer_info& info)
         }
     });
 
-    if (n == 0) 
+    if(n == 0)
     {
         MIGRAPHX_THROW("MIGRAPHX PYTHON: Unsupported data type" + info.format);
     }
@@ -140,7 +140,7 @@ PYBIND11_MODULE(migraphx, m)
         .def("__init__",
              [](migraphx::argument& x, py::buffer b) {
                  py::buffer_info info = b.request();
-                 auto s = to_shape(info);
+                 auto s               = to_shape(info);
                  new(&x) migraphx::argument(to_shape(info), info.ptr);
              })
         .def("get_shape", &migraphx::argument::get_shape)

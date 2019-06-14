@@ -100,10 +100,16 @@ struct onnx_parser
 
     void init_actv_func()
     {
+        // Support name format of all lower case or the first letter capital
+        map_actv_funcs.insert(std::make_pair("tanh", op::tanh{}));
         map_actv_funcs.insert(std::make_pair("Tanh", op::tanh{}));
+        map_actv_funcs.insert(std::make_pair("relu", op::relu{}));
         map_actv_funcs.insert(std::make_pair("Relu", op::relu{}));
+        map_actv_funcs.insert(std::make_pair("sigmoid", op::sigmoid{}));
         map_actv_funcs.insert(std::make_pair("Sigmoid", op::sigmoid{}));
+        map_actv_funcs.insert(std::make_pair("leakyrelu", op::leaky_relu{}));
         map_actv_funcs.insert(std::make_pair("LeakyRelu", op::leaky_relu{}));
+        map_actv_funcs.insert(std::make_pair("elu", op::elu{}));
         map_actv_funcs.insert(std::make_pair("Elu", op::elu{}));
     }
 

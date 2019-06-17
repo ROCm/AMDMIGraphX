@@ -85,7 +85,7 @@ struct hip_array
     friend MIGRAPHX_DEVICE_CONSTEXPR hip_array operator*(const hip_array& x, const hip_array& y)
     {
         hip_array result;
-        for(std::size_t i = 0;i < N;i++)
+        for(std::size_t i = 0; i < N; i++)
             result[i] = x[i] * y[i];
         return result;
     }
@@ -167,15 +167,9 @@ struct hip_shape
         std::copy(s.strides().begin(), s.strides().end(), strides.begin());
     }
 
-    MIGRAPHX_DEVICE_CONSTEXPR std::size_t elements() const
-    {
-        return lens.product();
-    }
+    MIGRAPHX_DEVICE_CONSTEXPR std::size_t elements() const { return lens.product(); }
 
-    MIGRAPHX_DEVICE_CONSTEXPR std::size_t index(hip_index x) const
-    {
-        return x.dot(strides);
-    }
+    MIGRAPHX_DEVICE_CONSTEXPR std::size_t index(hip_index x) const { return x.dot(strides); }
 
     MIGRAPHX_DEVICE_CONSTEXPR std::size_t index(std::initializer_list<std::size_t> x) const
     {
@@ -199,7 +193,7 @@ struct hip_shape
                 const std::size_t k      = rank - j - 1;
                 const std::size_t stride = this->strides[k];
                 const std::size_t len    = this->lens[k];
-                const std::size_t slen    = s * len;
+                const std::size_t slen   = s * len;
                 const std::size_t idx    = (i % slen) / s;
                 result += stride * idx;
                 s = slen;
@@ -224,7 +218,7 @@ struct hip_shape
 template <class T, std::size_t N>
 struct hip_tensor_view
 {
-    using value_type = device_type<T>;
+    using value_type                      = device_type<T>;
     __device__ __host__ hip_tensor_view() = default;
     __host__ hip_tensor_view(tensor_view<T> x) : d(device_cast(x.data())), s(x.get_shape()) {}
 
@@ -234,8 +228,11 @@ struct hip_tensor_view
 
     MIGRAPHX_DEVICE_CONSTEXPR value_type* data() const { return d; }
 
-    template<class U>
-    MIGRAPHX_DEVICE_CONSTEXPR value_type& operator[](U i) const { return d[s.index(i)]; }
+    template <class U>
+    MIGRAPHX_DEVICE_CONSTEXPR value_type& operator[](U i) const
+    {
+        return d[s.index(i)];
+    }
 
     MIGRAPHX_DEVICE_CONSTEXPR value_type* begin() const { return d; }
 

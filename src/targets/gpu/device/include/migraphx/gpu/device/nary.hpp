@@ -43,7 +43,7 @@ auto nary_nonstandard_impl(hipStream_t stream, F f, argument result, Arguments..
     std::size_t nelements = result.get_shape().elements();
     hip_visit_all(result, args...)([&](auto output, auto... inputs) {
         gs_launch(stream, nelements)([=](auto i) {
-            auto idx = output.get_shape().multi(i);
+            auto idx  = output.get_shape().multi(i);
             output[i] = f(inputs[idx]...);
         });
     });
@@ -93,8 +93,8 @@ void trinary_broadcast_vec_impl(hipStream_t stream,
             // Process the data
             for(size_t i = idx.global; i < n; i += nglobal)
             {
-                auto bidx      = ((i * vec_size) % bdim_next_stride) / bdim_stride;
-                auto b         = bp[bidx];
+                auto bidx        = ((i * vec_size) % bdim_next_stride) / bdim_stride;
+                auto b           = bp[bidx];
                 vec<type, 4> x   = xp[i];
                 vec<type, 4> y   = yp[i];
                 vec<type, 4> out = outp[i];
@@ -198,8 +198,8 @@ void binary_broadcast_vec_impl(
             // Process the data
             for(size_t i = idx.global; i < n; i += nglobal)
             {
-                auto bidx      = ((i * vec_size) % bdim_next_stride) / bdim_stride;
-                auto b         = bp[bidx];
+                auto bidx        = ((i * vec_size) % bdim_next_stride) / bdim_stride;
+                auto b           = bp[bidx];
                 vec<type, 4> x   = xp[i];
                 vec<type, 4> out = outp[i];
                 for(std::size_t j = 0; j < vec_size; j++)
@@ -287,9 +287,7 @@ void nary_standard_impl(hipStream_t stream, F f, argument result, Arguments... a
 {
     std::size_t nelements = result.get_shape().elements();
     hip_visit_all(result, args...)([&](auto output, auto... inputs) {
-        gs_launch(stream, nelements)([=](auto i) {
-            output.data()[i] = f(inputs.data()[i]...);
-        });
+        gs_launch(stream, nelements)([=](auto i) { output.data()[i] = f(inputs.data()[i]...); });
     });
 }
 

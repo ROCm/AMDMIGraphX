@@ -5,6 +5,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/tensor_view.hpp>
+#include <migraphx/gpu/device/types.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -64,6 +65,30 @@ struct hip_array
 
     MIGRAPHX_DEVICE_CONSTEXPR T* end() { return d + size(); }
     MIGRAPHX_DEVICE_CONSTEXPR const T* end() const { return d + size(); }
+
+    MIGRAPHX_DEVICE_CONSTEXPR T dot(const hip_array& x) const
+    {
+        T result = 0;
+        for(std::size_t i = 0; i < N; i++)
+            result += x[i] * d[i];
+        return result;
+    }
+
+    MIGRAPHX_DEVICE_CONSTEXPR T product() const
+    {
+        T result = 1;
+        for(std::size_t i = 0; i < N; i++)
+            result *= d[i];
+        return result;
+    }
+
+    friend MIGRAPHX_DEVICE_CONSTEXPR hip_array operator*(const hip_array& x, const hip_array& y)
+    {
+        hip_array result;
+        for(std::size_t i = 0;i < N;i++)
+            result[i] = x[i] * y[i];
+        return result;
+    }
 };
 
 template <class T, std::size_t N>
@@ -130,12 +155,11 @@ struct hip_shape
     using hip_index                   = hip_array<std::size_t, N>;
     hip_array<std::size_t, N> lens    = {};
     hip_array<std::size_t, N> strides = {};
-    std::size_t elements              = 0;
     bool standard                     = false;
 
     __device__ __host__ hip_shape() = default;
 
-    hip_shape(const shape& s) : elements(s.elements()), standard(s.standard())
+    hip_shape(const shape& s) : standard(s.standard())
     {
         assert(s.lens().size() == N);
         assert(s.strides().size() == N);
@@ -143,12 +167,14 @@ struct hip_shape
         std::copy(s.strides().begin(), s.strides().end(), strides.begin());
     }
 
+    MIGRAPHX_DEVICE_CONSTEXPR std::size_t elements() const
+    {
+        return lens.product();
+    }
+
     MIGRAPHX_DEVICE_CONSTEXPR std::size_t index(hip_index x) const
     {
-        std::size_t idx = 0;
-        for(std::size_t i = 0; i < x.size(); i++)
-            idx += x[i] * strides[i];
-        return idx;
+        return x.dot(strides);
     }
 
     MIGRAPHX_DEVICE_CONSTEXPR std::size_t index(std::initializer_list<std::size_t> x) const
@@ -173,9 +199,10 @@ struct hip_shape
                 const std::size_t k      = rank - j - 1;
                 const std::size_t stride = this->strides[k];
                 const std::size_t len    = this->lens[k];
-                const std::size_t idx    = (i % (s * len)) / s;
+                const std::size_t slen    = s * len;
+                const std::size_t idx    = (i % slen) / s;
                 result += stride * idx;
-                s *= len;
+                s = slen;
             }
             return result;
         }
@@ -197,23 +224,25 @@ struct hip_shape
 template <class T, std::size_t N>
 struct hip_tensor_view
 {
+    using value_type = device_type<T>;
     __device__ __host__ hip_tensor_view() = default;
-    __device__ __host__ hip_tensor_view(tensor_view<T> x) : d(x.data()), s(x.get_shape()) {}
+    __host__ hip_tensor_view(tensor_view<T> x) : d(device_cast(x.data())), s(x.get_shape()) {}
 
     MIGRAPHX_DEVICE_CONSTEXPR const hip_shape<N>& get_shape() const { return s; }
 
-    MIGRAPHX_DEVICE_CONSTEXPR std::size_t size() const { return s.elements; }
+    MIGRAPHX_DEVICE_CONSTEXPR std::size_t size() const { return s.elements(); }
 
-    MIGRAPHX_DEVICE_CONSTEXPR T* data() const { return d; }
+    MIGRAPHX_DEVICE_CONSTEXPR value_type* data() const { return d; }
 
-    MIGRAPHX_DEVICE_CONSTEXPR T& operator[](std::size_t i) const { return d[s.index(i)]; }
+    template<class U>
+    MIGRAPHX_DEVICE_CONSTEXPR value_type& operator[](U i) const { return d[s.index(i)]; }
 
-    MIGRAPHX_DEVICE_CONSTEXPR T* begin() const { return d; }
+    MIGRAPHX_DEVICE_CONSTEXPR value_type* begin() const { return d; }
 
-    MIGRAPHX_DEVICE_CONSTEXPR T* end() const { return d + size(); }
+    MIGRAPHX_DEVICE_CONSTEXPR value_type* end() const { return d + size(); }
 
     private:
-    T* d = nullptr;
+    value_type* d = nullptr;
     hip_shape<N> s{};
 };
 

@@ -13,43 +13,38 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-template <class T>
-using vec4 = T __attribute__((ext_vector_type(4)));
+// template <class T>
+// using vec4 = T __attribute__((ext_vector_type(4)));
 
-template <class T>
-__device__ __host__ vec4<T>* as_vec4(T* x)
+template <class T, std::size_t N>
+using vec = T __attribute__((ext_vector_type(N)));
+
+template <std::size_t N, class T>
+__device__ __host__ vec<T, N>* as_vec(T* x)
 {
-    return reinterpret_cast<vec4<T>*>(x);
+    return reinterpret_cast<vec<T, N>*>(x);
 }
 
-template <class T>
-__device__ __host__ T* as_pointer(vec4<T>* x)
+template <std::size_t N, class T>
+__device__ __host__ T* as_pointer(vec<T, N>* x)
 {
     return reinterpret_cast<T*>(x);
 }
 
-template <class... Ts>
-auto pack_vec4(Ts... xs)
+template <std::size_t N, class... Ts>
+auto pack_vec(Ts... xs)
 {
-    return [=](auto f, std::size_t n) { return f(as_vec4(xs)[n]...); };
+    return [=](auto f, std::size_t n) { return f(as_vec<4>(xs)[n]...); };
 }
 
 template <class F, class... Arguments>
 auto nary_nonstandard_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
-    const auto& output_shape = result.get_shape();
-    visit_all(result, args...)([&](auto output, auto... inputs) {
-        visit_tensor_size(output_shape.lens().size(), [&](auto ndim) {
-            auto data = pack(std::make_pair(hip_tensor_descriptor<ndim>{inputs.get_shape()},
-                                            device_cast(inputs.data()))...);
-            hip_tensor_descriptor<ndim> out_desc(output_shape);
-            auto* outp = device_cast(output.data());
-            gs_launch(stream, output_shape.elements())([=](auto i) {
-                data([&](auto&&... ps) {
-                    auto outidx = out_desc.multi(i);
-                    outp[i]     = f(ps.second[ps.first.linear(outidx)]...);
-                });
-            });
+    std::size_t nelements = result.get_shape().elements();
+    hip_visit_all(result, args...)([&](auto output, auto... inputs) {
+        gs_launch(stream, nelements)([=](auto i) {
+            auto idx = output.get_shape().multi(i);
+            output[i] = f(inputs[idx]...);
         });
     });
 }
@@ -75,10 +70,10 @@ void trinary_broadcast_vec_impl(hipStream_t stream,
 
     visit_all(result, arg1, arg2, arg3)([&](auto output, auto input1, auto input2, auto input3) {
         using type = device_type<std::remove_cv_t<typename decltype(output)::value_type>>;
-        auto* xp   = as_vec4(device_cast(input1.data()));
-        auto* yp   = as_vec4(device_cast(input2.data()));
-        auto* zp   = as_vec4(device_cast(input3.data()));
-        auto* outp = as_vec4(device_cast(output.data()));
+        auto* xp   = as_vec<4>(device_cast(input1.data()));
+        auto* yp   = as_vec<4>(device_cast(input2.data()));
+        auto* zp   = as_vec<4>(device_cast(input3.data()));
+        auto* outp = as_vec<4>(device_cast(output.data()));
 
         const std::size_t vec_size     = 4;
         const std::size_t nlocal       = 1024;
@@ -87,7 +82,7 @@ void trinary_broadcast_vec_impl(hipStream_t stream,
         const std::size_t bdim_vec_len = bdim_len / vec_size;
 
         launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
-            MIGRAPHX_DEVICE_SHARED vec4<type> buffer[2048 / vec_size];
+            MIGRAPHX_DEVICE_SHARED vec<type, 4> buffer[2048 / vec_size];
             // Load bias into LDS
             for(size_t i = idx.local; i < bdim_vec_len; i += nlocal)
             {
@@ -100,9 +95,9 @@ void trinary_broadcast_vec_impl(hipStream_t stream,
             {
                 auto bidx      = ((i * vec_size) % bdim_next_stride) / bdim_stride;
                 auto b         = bp[bidx];
-                vec4<type> x   = xp[i];
-                vec4<type> y   = yp[i];
-                vec4<type> out = outp[i];
+                vec<type, 4> x   = xp[i];
+                vec<type, 4> y   = yp[i];
+                vec<type, 4> out = outp[i];
                 for(std::size_t j = 0; j < vec_size; j++)
                 {
                     out[j] = f(x[j], y[j], b);
@@ -181,9 +176,9 @@ void binary_broadcast_vec_impl(
 
     visit_all(result, arg1, arg2)([&](auto output, auto input1, auto input2) {
         using type = device_type<std::remove_cv_t<typename decltype(output)::value_type>>;
-        auto* xp   = as_vec4(device_cast(input1.data()));
-        auto* yp   = as_vec4(device_cast(input2.data()));
-        auto* outp = as_vec4(device_cast(output.data()));
+        auto* xp   = as_vec<4>(device_cast(input1.data()));
+        auto* yp   = as_vec<4>(device_cast(input2.data()));
+        auto* outp = as_vec<4>(device_cast(output.data()));
 
         const std::size_t vec_size     = 4;
         const std::size_t nlocal       = 1024;
@@ -192,7 +187,7 @@ void binary_broadcast_vec_impl(
         const std::size_t bdim_vec_len = bdim_len / vec_size;
 
         launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
-            MIGRAPHX_DEVICE_SHARED vec4<type> buffer[2048 / vec_size];
+            MIGRAPHX_DEVICE_SHARED vec<type, 4> buffer[2048 / vec_size];
             // Load bias into LDS
             for(size_t i = idx.local; i < bdim_vec_len; i += nlocal)
             {
@@ -205,8 +200,8 @@ void binary_broadcast_vec_impl(
             {
                 auto bidx      = ((i * vec_size) % bdim_next_stride) / bdim_stride;
                 auto b         = bp[bidx];
-                vec4<type> x   = xp[i];
-                vec4<type> out = outp[i];
+                vec<type, 4> x   = xp[i];
+                vec<type, 4> out = outp[i];
                 for(std::size_t j = 0; j < vec_size; j++)
                 {
                     out[j] = f(x[j], b);
@@ -270,10 +265,10 @@ void nary_standard_vec_impl(hipStream_t stream, F f, argument result, Arguments.
     visit_all(result, args...)([&](auto output, auto... inputs) {
         using type = device_type<std::remove_cv_t<typename decltype(output)::value_type>>;
         const std::size_t vec_size = 4;
-        auto data                  = pack_vec4(device_cast(inputs.data())...);
-        auto* outp                 = as_vec4(device_cast(output.data()));
+        auto data                  = pack_vec<4>(device_cast(inputs.data())...);
+        auto* outp                 = as_vec<4>(device_cast(output.data()));
         gs_launch(stream, output_shape.elements() / vec_size)([=](auto i) {
-            vec4<type> out = outp[i];
+            vec<type, 4> out = outp[i];
             data(
                 [&](auto... xs) {
                     for(std::size_t j = 0; j < vec_size; j++)
@@ -290,13 +285,11 @@ void nary_standard_vec_impl(hipStream_t stream, F f, argument result, Arguments.
 template <class F, class... Arguments>
 void nary_standard_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
-    // assert(x.get_shape().elements() == y.get_shape().elements());
-    const auto& output_shape = result.get_shape();
-    visit_all(result, args...)([&](auto output, auto... inputs) {
-        auto data  = pack(device_cast(inputs.data())...);
-        auto* outp = device_cast(output.data());
-        gs_launch(stream, output_shape.elements())(
-            [=](auto i) { data([&](auto... xps) { outp[i] = f(xps[i]...); }); });
+    std::size_t nelements = result.get_shape().elements();
+    hip_visit_all(result, args...)([&](auto output, auto... inputs) {
+        gs_launch(stream, nelements)([=](auto i) {
+            output.data()[i] = f(inputs.data()[i]...);
+        });
     });
 }
 

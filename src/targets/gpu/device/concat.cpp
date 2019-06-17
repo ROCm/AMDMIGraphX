@@ -9,7 +9,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-#if 1
+#if 0
 argument concat(hipStream_t stream,
                 const migraphx::shape&,
                 std::vector<migraphx::argument> args_vec,

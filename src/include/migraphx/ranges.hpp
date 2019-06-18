@@ -33,7 +33,9 @@ auto generic_find_impl(rank<0>, C&& c, const T& x)
     return std::find(c.begin(), c.end(), x);
 }
 
-struct empty {};
+struct empty
+{
+};
 
 } // namespace detail
 

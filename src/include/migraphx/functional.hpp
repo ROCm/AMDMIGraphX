@@ -15,7 +15,7 @@ struct swallow
     }
 };
 
-template<class T>
+template <class T>
 auto tuple_size(const T&)
 {
     return typename std::tuple_size<T>::type{};
@@ -161,38 +161,34 @@ auto index_of(T& x)
     return [&](auto&& y) { return x[y]; };
 }
 
-template<class T, class... Ts>
+template <class T, class... Ts>
 decltype(auto) front_args(T&& x, Ts&&...)
 {
     return static_cast<T&&>(x);
 }
 
-template<class... Ts>
+template <class... Ts>
 decltype(auto) back_args(Ts&&... xs)
 {
     return std::get<sizeof...(Ts) - 1>(std::tuple<Ts&&...>(static_cast<Ts&&>(xs)...));
 }
 
-template<class T, class... Ts>
+template <class T, class... Ts>
 auto pop_front_args(T&&, Ts&&... xs)
 {
-    return [&](auto f) {
-        f(static_cast<Ts&&>(xs)...);
-    };
+    return [&](auto f) { f(static_cast<Ts&&>(xs)...); };
 }
 
-template<class... Ts>
+template <class... Ts>
 auto pop_back_args(Ts&&... xs)
 {
     return [&](auto f) {
         using tuple_type = std::tuple<Ts&&...>;
-        auto t = tuple_type(static_cast<Ts&&>(xs)...);
-        sequence_c<sizeof...(Ts) - 1>([&](auto... is) { 
-            f(std::get<is>(static_cast<tuple_type&&>(t))...); 
-        });
+        auto t           = tuple_type(static_cast<Ts&&>(xs)...);
+        sequence_c<sizeof...(Ts) - 1>(
+            [&](auto... is) { f(std::get<is>(static_cast<tuple_type&&>(t))...); });
     };
 }
-
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

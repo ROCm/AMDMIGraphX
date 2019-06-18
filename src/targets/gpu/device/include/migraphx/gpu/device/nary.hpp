@@ -259,8 +259,7 @@ void binary_broadcast_impl(
 }
 
 template <class F, class... Arguments>
-void nary_broadcast_impl(
-    hipStream_t stream, F f, argument result, argument barg, Arguments... args)
+void nary_broadcast_impl(hipStream_t stream, F f, argument result, argument barg, Arguments... args)
 {
     const auto& output_shape = result.get_shape();
     const auto& b_shape      = barg.get_shape();
@@ -275,7 +274,7 @@ void nary_broadcast_impl(
 
     const std::size_t nlocal  = 1024;
     const std::size_t nglobal = 256 * nlocal;
-    std::size_t nelements = result.get_shape().elements();
+    std::size_t nelements     = result.get_shape().elements();
     hip_visit_all(result, barg, args...)([&](auto output, auto binput, auto... inputs) {
         using type = typename decltype(output)::value_type;
         launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
@@ -289,9 +288,9 @@ void nary_broadcast_impl(
             // Process the data
             for(size_t i = idx.global; i < nelements; i += nglobal)
             {
-                auto bidx = (i % bdim_next_stride) / bdim_stride;
-                auto b    = buffer[bidx];
-                output.data()[i]   = f(inputs.data()[i]..., b);
+                auto bidx        = (i % bdim_next_stride) / bdim_stride;
+                auto b           = buffer[bidx];
+                output.data()[i] = f(inputs.data()[i]..., b);
             }
         });
     });
@@ -363,20 +362,19 @@ auto nary(hipStream_t stream, argument result)
 }
 
 template <class... Arguments>
-auto
-nary(hipStream_t stream, argument result, Arguments... args)
+auto nary(hipStream_t stream, argument result, Arguments... args)
 {
 
     return [=](auto f) {
         auto barg = back_args(args...);
         pop_back_args(args...)([&](auto&&... args2) {
             auto bshape = barg.get_shape();
-            const bool standard = all_of({args2.get_shape()...}, [](const shape& s) { return s.standard(); });
-            const bool same_shapes =
-                all_of({args2.get_shape()...}, [&](const shape& s) { return s == result.get_shape(); });
+            const bool standard =
+                all_of({args2.get_shape()...}, [](const shape& s) { return s.standard(); });
+            const bool same_shapes = all_of(
+                {args2.get_shape()...}, [&](const shape& s) { return s == result.get_shape(); });
             // TODO: Check result and args shape is the same
-            if(standard and same_shapes and bshape.broadcasted() and
-               not bshape.scalar())
+            if(standard and same_shapes and bshape.broadcasted() and not bshape.scalar())
             {
                 auto not_zero       = [](auto x) { return x != 0; };
                 const auto& strides = bshape.strides();

@@ -537,7 +537,8 @@ struct onnx_parser
                 return prog.add_instruction(op::dot{alpha, beta}, l1, l2, l3);
             }
         }
-        return prog.add_instruction(op::dot{alpha}, l1, l2);
+
+        return prog.add_instruction(op::dot{alpha, beta}, l1, l2);
     }
 
     instruction_ref
@@ -869,7 +870,7 @@ struct onnx_parser
             dirct = op::rnn_direction::reverse;
         }
 
-        std::vector<std::string> vec_names{"Tanh"};
+        std::vector<std::string> vec_names{"tanh"};
         if(contains(attributes, "activations"))
         {
             auto names = attributes.at("activations").strings();
@@ -960,7 +961,7 @@ struct onnx_parser
             dirct = op::rnn_direction::reverse;
         }
 
-        std::vector<std::string> vec_names = {"Sigmoid", "Tanh"};
+        std::vector<std::string> vec_names = {"sigmoid", "tanh"};
         if(contains(attributes, "activations"))
         {
             auto names = attributes.at("activations").strings();
@@ -1087,7 +1088,7 @@ struct onnx_parser
             MIGRAPHX_THROW("LSTM: incorrect direction attribute");
         }
 
-        std::vector<std::string> vec_names = {"Sigmoid", "Tanh", "Tanh"};
+        std::vector<std::string> vec_names = {"sigmoid", "tanh", "tanh"};
         if(contains(attributes, "activations"))
         {
             auto names = attributes.at("activations").strings();

@@ -140,7 +140,6 @@ PYBIND11_MODULE(migraphx, m)
         .def("__init__",
              [](migraphx::argument& x, py::buffer b) {
                  py::buffer_info info = b.request();
-                 auto s               = to_shape(info);
                  new(&x) migraphx::argument(to_shape(info), info.ptr);
              })
         .def("get_shape", &migraphx::argument::get_shape)

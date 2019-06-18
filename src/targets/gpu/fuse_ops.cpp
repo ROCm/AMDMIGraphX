@@ -5,6 +5,7 @@
 #include <migraphx/gpu/device/add_relu.hpp>
 #include <migraphx/gpu/device/add.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/array.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -120,13 +121,6 @@ MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
     auto&& s = ins->get_shape();
     return s.broadcasted() and s.strides().size() == 4 and s.strides()[0] == 0 and
            s.strides()[1] != 0 and s.strides()[2] == 0 and s.strides()[3] == 0;
-}
-
-// TODO: Move to another header
-template <class T, class... Ts>
-std::array<T, sizeof...(Ts) + 1> make_array(T x, Ts... xs)
-{
-    return {std::move(x), std::move(static_cast<T>(xs))...};
 }
 
 MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)

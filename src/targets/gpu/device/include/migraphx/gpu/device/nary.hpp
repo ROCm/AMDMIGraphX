@@ -6,6 +6,7 @@
 #include <migraphx/gpu/device/types.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/array.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -258,6 +259,45 @@ void binary_broadcast_impl(
 }
 
 template <class F, class... Arguments>
+void nary_broadcast_impl(
+    hipStream_t stream, F f, argument result, argument barg, Arguments... args)
+{
+    const auto& output_shape = result.get_shape();
+    const auto& b_shape      = barg.get_shape();
+    auto bdim =
+        std::distance(b_shape.strides().begin(),
+                      std::find_if(b_shape.strides().begin(), b_shape.strides().end(), [](auto x) {
+                          return x != 0;
+                      }));
+    auto bdim_len         = output_shape.lens()[bdim];
+    auto bdim_stride      = output_shape.strides()[bdim];
+    auto bdim_next_stride = bdim_stride * bdim_len;
+
+    const std::size_t nlocal  = 1024;
+    const std::size_t nglobal = 256 * nlocal;
+    std::size_t nelements = result.get_shape().elements();
+    hip_visit_all(result, barg, args...)([&](auto output, auto binput, auto... inputs) {
+        using type = typename decltype(output)::value_type;
+        launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
+            MIGRAPHX_DEVICE_SHARED type buffer[2048];
+            // Load bias into LDS
+            for(size_t i = idx.local; i < bdim_len; i += nlocal)
+            {
+                buffer[i] = binput.data()[i];
+            }
+            __syncthreads();
+            // Process the data
+            for(size_t i = idx.global; i < nelements; i += nglobal)
+            {
+                auto bidx = (i % bdim_next_stride) / bdim_stride;
+                auto b    = buffer[bidx];
+                output.data()[i]   = f(inputs.data()[i]..., b);
+            }
+        });
+    });
+}
+
+template <class F, class... Arguments>
 void nary_standard_vec_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
     // assert(x.get_shape().elements() == y.get_shape().elements());
@@ -304,12 +344,6 @@ void nary_impl(hipStream_t stream, F f, argument result, Arguments... args)
         nary_nonstandard_impl(stream, f, result, args...);
 }
 
-template <class F>
-void nary_impl(hipStream_t stream, F f, argument result)
-{
-    nary_standard_impl(stream, f, result);
-}
-
 template <class... Arguments>
 auto nary_nonstandard(hipStream_t stream, argument result, Arguments... args)
 {
@@ -323,71 +357,49 @@ auto nary_standard(hipStream_t stream, argument result, Arguments... args)
 }
 
 template <class... Arguments>
-auto nary(hipStream_t stream, argument result, Arguments... args)
+auto nary(hipStream_t stream, argument result)
 {
-    return [=](auto f) { nary_impl(stream, f, result, args...); };
+    return [=](auto f) { nary_standard_impl(stream, f, result); };
 }
 
-inline auto
-nary(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2)
+template <class... Arguments>
+auto
+nary(hipStream_t stream, argument result, Arguments... args)
 {
-    return [=](auto f) {
-        // TODO: Check result and arg1 shape is the same
-        if(arg1.get_shape().standard() and arg2.get_shape().broadcasted() and
-           not arg2.get_shape().scalar())
-        {
-            auto not_zero       = [](auto x) { return x != 0; };
-            const auto& strides = arg2.get_shape().strides();
-            auto b_it           = std::find_if(strides.begin(), strides.end(), not_zero);
-            auto b_idx          = std::distance(strides.begin(), b_it);
-            auto b_len          = result.get_shape().lens()[b_idx];
-            auto b_stride       = result.get_shape().strides()[b_idx];
-            assert(arg2.get_shape().lens()[b_idx] == b_len);
-            if(b_len <= 2048 and std::none_of(std::next(b_it), strides.end(), not_zero))
-            {
-                const bool divisible_by_4 = (b_len % 4 == 0) and (b_stride % 4 == 0) and
-                                            (arg1.get_shape().elements() % 4 == 0);
-                if(divisible_by_4)
-                    binary_broadcast_vec_impl(stream, f, result, arg1, arg2);
-                else
-                    binary_broadcast_impl(stream, f, result, arg1, arg2);
-                return;
-            }
-        }
-        nary_impl(stream, f, result, arg1, arg2);
-    };
-}
 
-inline auto nary(hipStream_t stream,
-                 const argument& result,
-                 const argument& arg1,
-                 const argument& arg2,
-                 const argument& arg3)
-{
     return [=](auto f) {
-        // TODO: Check result and arg1 shape is the same
-        if(arg1.get_shape().standard() and arg2.get_shape().standard() and
-           arg3.get_shape().broadcasted())
-        {
-            auto not_zero       = [](auto x) { return x != 0; };
-            const auto& strides = arg3.get_shape().strides();
-            auto b_it           = std::find_if(strides.begin(), strides.end(), not_zero);
-            auto b_idx          = std::distance(strides.begin(), b_it);
-            auto b_len          = result.get_shape().lens()[b_idx];
-            auto b_stride       = result.get_shape().strides()[b_idx];
-            assert(arg3.get_shape().lens()[b_idx] == b_len);
-            if(b_len <= 2048 and std::none_of(std::next(b_it), strides.end(), not_zero))
+        auto barg = back_args(args...);
+        pop_back_args(args...)([&](auto&&... args2) {
+            auto bshape = barg.get_shape();
+            const bool standard = all_of({args2.get_shape()...}, [](const shape& s) { return s.standard(); });
+            const bool same_shapes =
+                all_of({args2.get_shape()...}, [&](const shape& s) { return s == result.get_shape(); });
+            // TODO: Check result and args shape is the same
+            if(standard and same_shapes and bshape.broadcasted() and
+               not bshape.scalar())
             {
-                const bool divisible_by_4 = (b_len % 4 == 0) and (b_stride % 4 == 0) and
-                                            (arg1.get_shape().elements() % 4 == 0);
-                if(divisible_by_4)
-                    trinary_broadcast_vec_impl(stream, f, result, arg1, arg2, arg3);
-                else
-                    trinary_broadcast_impl(stream, f, result, arg1, arg2, arg3);
-                return;
+                auto not_zero       = [](auto x) { return x != 0; };
+                const auto& strides = bshape.strides();
+                auto b_it           = std::find_if(strides.begin(), strides.end(), not_zero);
+                auto b_idx          = std::distance(strides.begin(), b_it);
+                auto b_len          = result.get_shape().lens()[b_idx];
+                auto b_stride       = result.get_shape().strides()[b_idx];
+                assert(bshape.lens()[b_idx] == b_len);
+                if(b_len <= 2048 and std::none_of(std::next(b_it), strides.end(), not_zero))
+                {
+                    nary_broadcast_impl(stream, f, result, barg, args2...);
+
+                    // const bool divisible_by_4 = (b_len % 4 == 0) and (b_stride % 4 == 0) and
+                    //                             (arg1.get_shape().elements() % 4 == 0);
+                    // if(divisible_by_4)
+                    //     binary_broadcast_vec_impl(stream, f, result, arg1, arg);
+                    // else
+                    //     binary_broadcast_impl(stream, f, result, arg1, arg);
+                    // return;
+                }
             }
-        }
-        nary_impl(stream, f, result, arg1, arg2, arg3);
+        });
+        nary_impl(stream, f, result, args...);
     };
 }
 

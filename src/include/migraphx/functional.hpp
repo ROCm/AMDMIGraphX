@@ -15,6 +15,12 @@ struct swallow
     }
 };
 
+template<class T>
+auto tuple_size(const T&)
+{
+    return typename std::tuple_size<T>::type{};
+}
+
 namespace detail {
 
 template <class R, class F>
@@ -83,6 +89,12 @@ constexpr auto sequence_c(F&& f)
     return detail::sequence_c_impl(f, detail::gens<N>{});
 }
 
+template <class IntegerConstant, class F>
+constexpr auto sequence(IntegerConstant ic, F&& f)
+{
+    return sequence_c<ic>(f);
+}
+
 template <class F, class... Ts>
 constexpr void each_args(F f, Ts&&... xs)
 {
@@ -95,9 +107,9 @@ constexpr void each_args(F)
 }
 
 template <class F, class T>
-auto unpack(F f, T& x)
+auto unpack(F f, T&& x)
 {
-    return sequence_c<std::tuple_size<T>{}>([&](auto... is) { f(std::get<is>(x)...); });
+    return sequence(tuple_size(x), [&](auto... is) { f(std::get<is>(static_cast<T&&>(x))...); });
 }
 
 /// Implements a fix-point combinator
@@ -148,6 +160,39 @@ auto index_of(T& x)
 {
     return [&](auto&& y) { return x[y]; };
 }
+
+template<class T, class... Ts>
+decltype(auto) front_args(T&& x, Ts&&...)
+{
+    return static_cast<T&&>(x);
+}
+
+template<class... Ts>
+decltype(auto) back_args(Ts&&... xs)
+{
+    return std::get<sizeof...(Ts) - 1>(std::tuple<Ts&&...>(static_cast<Ts&&>(xs)...));
+}
+
+template<class T, class... Ts>
+auto pop_front_args(T&&, Ts&&... xs)
+{
+    return [&](auto f) {
+        f(static_cast<Ts&&>(xs)...);
+    };
+}
+
+template<class... Ts>
+auto pop_back_args(Ts&&... xs)
+{
+    return [&](auto f) {
+        using tuple_type = std::tuple<Ts&&...>;
+        auto t = tuple_type(static_cast<Ts&&>(xs)...);
+        sequence_c<sizeof...(Ts) - 1>([&](auto... is) { 
+            f(std::get<is>(static_cast<tuple_type&&>(t))...); 
+        });
+    };
+}
+
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

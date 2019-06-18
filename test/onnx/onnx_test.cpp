@@ -566,7 +566,7 @@ TEST_CASE(gemm_test)
     auto t0    = p.add_instruction(migraphx::op::transpose{{1, 0}}, l0);
     auto t1    = p.add_instruction(migraphx::op::transpose{{1, 0}}, l1);
     auto alpha = 2.f;
-    auto beta  = 1.0f;
+    auto beta  = 2.0f;
     p.add_instruction(migraphx::op::dot{alpha, beta}, t0, t1);
     auto prog = migraphx::parse_onnx("gemm_test.onnx");
 

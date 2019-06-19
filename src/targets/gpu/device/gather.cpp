@@ -11,16 +11,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument gather(hipStream_t stream,
-                argument result,
-                argument arg1,
-                argument arg2,
-                int axis)
+argument gather(hipStream_t stream, argument result, argument arg1, argument arg2, int axis)
 {
-    auto axis_index = (axis < 0) ? (axis + arg1.get_shape().lens().size()) : axis;
-    auto& input_shape       = arg1.get_shape();
-    auto lens               = input_shape.lens();
-    lens[axis_index]        = arg2.get_shape().elements();
+    auto axis_index       = (axis < 0) ? (axis + arg1.get_shape().lens().size()) : axis;
+    auto& input_shape     = arg1.get_shape();
+    auto lens             = input_shape.lens();
+    lens[axis_index]      = arg2.get_shape().elements();
     std::size_t nelements = result.get_shape().elements();
     visit_all(result, arg1)([&](auto output, auto input) {
         arg2.visit([&](auto indices) {

@@ -398,7 +398,7 @@ auto nary(hipStream_t stream, argument result, Arguments... args)
 {
 
     return [=](auto f) {
-        auto barg = back_args(args...);
+        auto barg     = back_args(args...);
         bool fallback = pop_back_args(args...)([&](auto&&... args2) {
             auto bshape = barg.get_shape();
             const bool standard =
@@ -430,7 +430,7 @@ auto nary(hipStream_t stream, argument result, Arguments... args)
             }
             return true;
         });
-        if (fallback)
+        if(fallback)
             nary_impl(stream, f, result, args...);
     };
 }

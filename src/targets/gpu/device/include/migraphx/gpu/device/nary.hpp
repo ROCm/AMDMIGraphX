@@ -282,7 +282,7 @@ void nary_broadcast_vec_impl(
                     pack(inputs.data()[i]...)([&](auto... xs) __device__ {
                         for(std::size_t j = 0; j < vec_size; j++)
                         {
-                            output.data()[i][j] = f(xs[j]..., b);
+                            out[j] = f(xs[j]..., b);
                         }
                     });
                     output.data()[i] = out;
@@ -332,7 +332,6 @@ void nary_broadcast_impl(hipStream_t stream, F f, argument result, argument barg
 template <class F, class... Arguments>
 void nary_standard_vec_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
-    // assert(x.get_shape().elements() == y.get_shape().elements());
     const auto& output_shape = result.get_shape();
     visit_all(result, args...)([&](auto output, auto... inputs) {
         using type = device_type<std::remove_cv_t<typename decltype(output)::value_type>>;

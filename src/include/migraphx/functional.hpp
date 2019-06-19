@@ -185,8 +185,8 @@ auto pop_back_args(Ts&&... xs)
     return [&](auto f) {
         using tuple_type = std::tuple<Ts&&...>;
         auto t           = tuple_type(static_cast<Ts&&>(xs)...);
-        sequence_c<sizeof...(Ts) - 1>(
-            [&](auto... is) { f(std::get<is>(static_cast<tuple_type&&>(t))...); });
+        return sequence_c<sizeof...(Ts) - 1>(
+            [&](auto... is) { return f(std::get<is>(static_cast<tuple_type&&>(t))...); });
     };
 }
 

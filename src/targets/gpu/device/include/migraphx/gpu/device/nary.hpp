@@ -399,7 +399,7 @@ auto nary(hipStream_t stream, argument result, Arguments... args)
 
     return [=](auto f) {
         auto barg = back_args(args...);
-        pop_back_args(args...)([&](auto&&... args2) {
+        bool fallback = pop_back_args(args...)([&](auto&&... args2) {
             auto bshape = barg.get_shape();
             const bool standard =
                 all_of({args2.get_shape()...}, [](const shape& s) { return s.standard(); });
@@ -425,11 +425,13 @@ auto nary(hipStream_t stream, argument result, Arguments... args)
                         nary_broadcast_vec_impl(stream, f, result, barg, args2...);
                     else
                         nary_broadcast_impl(stream, f, result, barg, args2...);
-                    return;
+                    return false;
                 }
             }
+            return true;
         });
-        nary_impl(stream, f, result, args...);
+        if (fallback)
+            nary_impl(stream, f, result, args...);
     };
 }
 

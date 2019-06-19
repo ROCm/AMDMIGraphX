@@ -58,7 +58,6 @@ struct device_type<half>
     using type = gpu_half;
 };
 
-
 template <class T>
 struct host_type
 {

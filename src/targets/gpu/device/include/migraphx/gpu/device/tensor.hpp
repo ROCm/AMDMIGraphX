@@ -287,9 +287,7 @@ auto hip_vec_visit_all(T&& x, Ts&&... xs)
 template <class T, class... Ts>
 auto hip_pointer_visit_all(T&& x, Ts&&... xs)
 {
-    return [&](auto f) {
-        visit_all(x, xs...)([&](auto... vs) { f(device_cast(vs.data())...); });
-    };
+    return [&](auto f) { visit_all(x, xs...)([&](auto... vs) { f(device_cast(vs.data())...); }); };
 }
 
 template <std::size_t N, class T>

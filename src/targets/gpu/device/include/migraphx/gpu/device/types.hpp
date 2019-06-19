@@ -16,6 +16,27 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
+template <class T, std::size_t N>
+using vec = T __attribute__((ext_vector_type(N)));
+
+template <std::size_t N, class T>
+__device__ __host__ vec<T, N>* as_vec(T* x)
+{
+    return reinterpret_cast<vec<T, N>*>(x);
+}
+
+template <std::size_t N, class T>
+__device__ __host__ T* as_pointer(vec<T, N>* x)
+{
+    return reinterpret_cast<T*>(x);
+}
+
+template <std::size_t N, class... Ts>
+auto pack_vec(Ts... xs)
+{
+    return [=](auto f, std::size_t n) { return f(as_vec<N>(xs)[n]...); };
+}
+
 using gpu_half = __fp16;
 
 namespace detail {
@@ -25,11 +46,18 @@ struct device_type
     using type = T;
 };
 
+template <class T, std::size_t N>
+struct device_type<T __attribute__((ext_vector_type(N)))>
+{
+    using type = typename device_type<T>::type __attribute__((ext_vector_type(N)));
+};
+
 template <>
 struct device_type<half>
 {
     using type = gpu_half;
 };
+
 
 template <class T>
 struct host_type
@@ -38,7 +66,7 @@ struct host_type
 };
 
 template <>
-struct device_type<gpu_half>
+struct host_type<gpu_half>
 {
     using type = half;
 };

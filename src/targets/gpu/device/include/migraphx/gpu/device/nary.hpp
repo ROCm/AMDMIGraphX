@@ -14,28 +14,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-// template <class T>
-// using vec4 = T __attribute__((ext_vector_type(4)));
-
-template <class T, std::size_t N>
-using vec = T __attribute__((ext_vector_type(N)));
-
-template <std::size_t N, class T>
-__device__ __host__ vec<T, N>* as_vec(T* x)
+template <class... Ts>
+auto pack(Ts... xs) __device__
 {
-    return reinterpret_cast<vec<T, N>*>(x);
-}
-
-template <std::size_t N, class T>
-__device__ __host__ T* as_pointer(vec<T, N>* x)
-{
-    return reinterpret_cast<T*>(x);
-}
-
-template <std::size_t N, class... Ts>
-auto pack_vec(Ts... xs)
-{
-    return [=](auto f, std::size_t n) { return f(as_vec<4>(xs)[n]...); };
+    return [=](auto f) { return f(xs...); };
 }
 
 template <class F, class... Arguments>
@@ -259,6 +241,55 @@ void binary_broadcast_impl(
 }
 
 template <class F, class... Arguments>
+void nary_broadcast_vec_impl(hipStream_t stream, F f, argument result, argument barg, Arguments... args)
+{
+    const auto& output_shape = result.get_shape();
+    const auto& b_shape      = barg.get_shape();
+    auto bdim =
+        std::distance(b_shape.strides().begin(),
+                      std::find_if(b_shape.strides().begin(), b_shape.strides().end(), [](auto x) {
+                          return x != 0;
+                      }));
+    auto bdim_len         = output_shape.lens()[bdim];
+    auto bdim_stride      = output_shape.strides()[bdim];
+    auto bdim_next_stride = bdim_stride * bdim_len;
+
+    const std::size_t vec_size     = 4;
+    const std::size_t nlocal       = 1024;
+    const std::size_t nglobal      = 256 * nlocal;
+    const std::size_t bdim_vec_len = bdim_len / vec_size;
+    hip_vec_visit_all<vec_size>(result, barg, args...)([&](auto output, auto binput, auto... inputs) {
+        using type = typename decltype(output)::value_type;
+        const std::size_t nelements    = output.size() / vec_size;
+        launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
+
+            MIGRAPHX_DEVICE_SHARED type buffer[2048 / vec_size];
+            // Load bias into LDS
+            for(size_t i = idx.local; i < bdim_vec_len; i += nlocal)
+            {
+                buffer[i] = binput.data()[i];
+            }
+            __syncthreads();
+            auto* bp = as_pointer(buffer);
+            // Process the data
+            for(size_t i = idx.global; i < nelements; i += nglobal)
+            {
+                auto bidx        = ((i * vec_size) % bdim_next_stride) / bdim_stride;
+                auto b           = bp[bidx];
+                auto out = output.data()[i];
+                pack(inputs.data()[i]...)([&](auto... xs) __device__ {
+                    for(std::size_t j = 0; j < vec_size; j++)
+                    {
+                        output.data()[i][j] = f(xs[j]..., b);
+                    }
+                });
+                output.data()[i] = out;
+            }
+        });
+    });
+}
+
+template <class F, class... Arguments>
 void nary_broadcast_impl(hipStream_t stream, F f, argument result, argument barg, Arguments... args)
 {
     const auto& output_shape = result.get_shape();
@@ -385,15 +416,14 @@ auto nary(hipStream_t stream, argument result, Arguments... args)
                 assert(bshape.lens()[b_idx] == b_len);
                 if(b_len <= 2048 and std::none_of(std::next(b_it), strides.end(), not_zero))
                 {
-                    nary_broadcast_impl(stream, f, result, barg, args2...);
 
-                    // const bool divisible_by_4 = (b_len % 4 == 0) and (b_stride % 4 == 0) and
-                    //                             (arg1.get_shape().elements() % 4 == 0);
-                    // if(divisible_by_4)
-                    //     binary_broadcast_vec_impl(stream, f, result, arg1, arg);
-                    // else
-                    //     binary_broadcast_impl(stream, f, result, arg1, arg);
-                    // return;
+                    const bool divisible_by_4 = (b_len % 4 == 0) and (b_stride % 4 == 0) and
+                                                (front_args(args...).get_shape().elements() % 4 == 0);
+                    if(divisible_by_4)
+                        nary_broadcast_vec_impl(stream, f, result, barg, args2...);
+                    else
+                        nary_broadcast_impl(stream, f, result, barg, args2...);
+                    return;
                 }
             }
         });

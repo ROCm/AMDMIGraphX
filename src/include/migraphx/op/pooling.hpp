@@ -50,21 +50,21 @@ struct pooling
 
         // if(padding_mode == default_)
         // {
-            return {t,
-                    {
-                        input.lens()[0],
-                        input.lens()[1],
-                        std::size_t(std::max<std::ptrdiff_t>(
-                            1,
-                            floor_divide<std::ptrdiff_t>(
-                                input.lens()[2] + 2 * padding[0] - lengths[0], stride[0]) +
-                                1)),
-                        std::size_t(std::max<std::ptrdiff_t>(
-                            1,
-                            floor_divide<std::ptrdiff_t>(
-                                input.lens()[3] + 2 * padding[1] - lengths[1], stride[1]) +
-                                1)),
-                    }};
+        return {t,
+                {
+                    input.lens()[0],
+                    input.lens()[1],
+                    std::size_t(std::max<std::ptrdiff_t>(
+                        1,
+                        floor_divide<std::ptrdiff_t>(input.lens()[2] + 2 * padding[0] - lengths[0],
+                                                     stride[0]) +
+                            1)),
+                    std::size_t(std::max<std::ptrdiff_t>(
+                        1,
+                        floor_divide<std::ptrdiff_t>(input.lens()[3] + 2 * padding[1] - lengths[1],
+                                                     stride[1]) +
+                            1)),
+                }};
         // }
         // else if(padding_mode == same)
         // {
@@ -83,10 +83,12 @@ struct pooling
         //             input.lens()[1],
         //             std::size_t(std::max<std::ptrdiff_t>(
         //                 1,
-        //                 floor_divide<std::ptrdiff_t>(input.lens()[2] - lengths[0], stride[0]) + 1)),
+        //                 floor_divide<std::ptrdiff_t>(input.lens()[2] - lengths[0], stride[0]) +
+        //                 1)),
         //             std::size_t(std::max<std::ptrdiff_t>(
         //                 1,
-        //                 floor_divide<std::ptrdiff_t>(input.lens()[3] - lengths[1], stride[1]) + 1)),
+        //                 floor_divide<std::ptrdiff_t>(input.lens()[3] - lengths[1], stride[1]) +
+        //                 1)),
         //         }};
         // }
         // else

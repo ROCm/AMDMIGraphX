@@ -17,13 +17,13 @@ pad(hipStream_t stream, argument result, argument arg1, float value, std::vector
     std::size_t nelements = arg1.get_shape().elements();
     if(float_equal(value, std::numeric_limits<float>::lowest()))
     {
-        auto val =
-                device_cast(std::numeric_limits<decltype(value)>::lowest());         
+        auto val = device_cast(std::numeric_limits<decltype(value)>::lowest());
         nary(stream, result)([=] { return val; });
         // visit_all(result)([&](auto output) {
         //     auto* outptr = device_cast(output.data());
         //     auto val =
-        //         device_cast(std::numeric_limits<typename decltype(output)::value_type>::lowest());
+        //         device_cast(std::numeric_limits<typename
+        //         decltype(output)::value_type>::lowest());
 
         //     gs_launch(stream, nelements)([=](auto i) { outptr[i] = val; });
         // });

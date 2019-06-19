@@ -914,9 +914,9 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     if(bias != prog.end())
     {
 
-        auto sbias = prog.insert_instruction(ins, op::squeeze{{0}}, bias);
-        auto ub_wb = prog.insert_instruction(ins, op::slice{{0}, {0}, {4 * hs}}, sbias);
-        auto ub_rb = prog.insert_instruction(ins, op::slice{{0}, {4 * hs}, {8 * hs}}, sbias);
+        auto sbias  = prog.insert_instruction(ins, op::squeeze{{0}}, bias);
+        auto ub_wb  = prog.insert_instruction(ins, op::slice{{0}, {0}, {4 * hs}}, sbias);
+        auto ub_rb  = prog.insert_instruction(ins, op::slice{{0}, {4 * hs}, {8 * hs}}, sbias);
         auto ub_wrb = prog.insert_instruction(ins, op::add{}, ub_wb, ub_rb);
 
         wrb = prog.insert_instruction(
@@ -948,10 +948,10 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
 
         auto xt_tsw  = prog.insert_instruction(ins, op::dot{}, xt, tsw);
         auto sih_tsr = prog.insert_instruction(ins, op::dot{}, sih, tsr);
-        auto xt_sih       = prog.insert_instruction(ins, op::add{}, xt_tsw, sih_tsr);
+        auto xt_sih  = prog.insert_instruction(ins, op::add{}, xt_tsw, sih_tsr);
         if(bias != prog.end())
         {
-            xt_sih       = prog.insert_instruction(ins, op::add{}, xt_sih, wrb);
+            xt_sih = prog.insert_instruction(ins, op::add{}, xt_sih, wrb);
         }
 
         auto it_before_actv = prog.insert_instruction(ins, op::slice{{1}, {0}, {hs}}, xt_sih);

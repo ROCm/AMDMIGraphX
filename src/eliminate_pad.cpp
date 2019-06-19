@@ -44,8 +44,8 @@ void eliminate_pad::update_op(T,
     std::array<size_t, 2> new_pads{static_cast<size_t>(pads[2]), static_cast<size_t>(pads[3])};
 
     T op = any_cast<T>(ins->get_operator());
-    if(op.padding_mode != op::padding_mode_t::default_)
-        return;
+    // if(op.padding_mode != op::padding_mode_t::default_)
+    //     return;
     op.padding = new_pads;
 
     std::vector<instruction_ref> new_inputs{ins->inputs()};

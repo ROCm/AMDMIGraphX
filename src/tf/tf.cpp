@@ -323,7 +323,7 @@ struct tf_parser
             const std::string& pad_mode = attributes.at("padding").s();
             if(pad_mode.find("SAME") != std::string::npos)
             {
-                // op.padding_mode                 = op::padding_mode_t::same;
+                op.padding_mode                 = op::padding_mode_t::same;
                 std::vector<size_t> weight_dims = weights->get_shape().lens();
                 size_t weight_h                 = weight_dims[2];
                 size_t weight_w                 = weight_dims[3];
@@ -424,7 +424,7 @@ struct tf_parser
 
             if(pad_mode.find("SAME") != std::string::npos)
             {
-                // op.padding_mode = op::padding_mode_t::same;
+                op.padding_mode = op::padding_mode_t::same;
                 std::vector<size_t> weight_dims = weights->get_shape().lens();
                 size_t weight_h                 = weight_dims[2];
                 size_t weight_w                 = weight_dims[3];
@@ -609,17 +609,13 @@ struct tf_parser
             const std::string& pad_mode = attributes.at("padding").s();
             if(pad_mode.find("SAME") != std::string::npos)
             {
-                // op.padding_mode = op::padding_mode_t::same;
+                op.padding_mode = op::padding_mode_t::same;
                 auto input_dims = l0->get_shape().lens();
                 size_t input_h  = input_dims[2];
                 size_t input_w  = input_dims[3];
                 std::vector<int64_t> pads(input_dims.size());
                 calculate_padding(0, pads, input_h, op.stride[0], 1, op.lengths[0]);
                 calculate_padding(1, pads, input_w, op.stride[1], 1, op.lengths[1]);
-                // for(auto pad : pads)
-                // {
-                //     std::cout << pad << std::endl;
-                // }
 
                 if(pads[0] != pads[2] || pads[1] != pads[3])
                 {

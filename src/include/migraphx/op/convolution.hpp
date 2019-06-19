@@ -46,23 +46,23 @@ struct convolution
         auto t               = input.type();
         // if(padding_mode == default_)
         // {
-            return {t,
-                    {
-                        input.lens()[0],
-                        weights.lens()[0],
-                        std::size_t(std::max<std::ptrdiff_t>(
-                            1,
-                            (input.lens()[2] - (1 + dilation[0] * (weights.lens()[2] - 1)) +
-                             2 * padding[0]) /
-                                    stride[0] +
-                                1)),
-                        std::size_t(std::max<std::ptrdiff_t>(
-                            1,
-                            (input.lens()[3] - (1 + dilation[1] * (weights.lens()[3] - 1)) +
-                             2 * padding[1]) /
-                                    stride[1] +
-                                1)),
-                    }};
+        return {t,
+                {
+                    input.lens()[0],
+                    weights.lens()[0],
+                    std::size_t(std::max<std::ptrdiff_t>(
+                        1,
+                        (input.lens()[2] - (1 + dilation[0] * (weights.lens()[2] - 1)) +
+                         2 * padding[0]) /
+                                stride[0] +
+                            1)),
+                    std::size_t(std::max<std::ptrdiff_t>(
+                        1,
+                        (input.lens()[3] - (1 + dilation[1] * (weights.lens()[3] - 1)) +
+                         2 * padding[1]) /
+                                stride[1] +
+                            1)),
+                }};
         // }
         // else if(padding_mode == same)
         // {
@@ -83,7 +83,8 @@ struct convolution
         //          static_cast<std::size_t>(std::ceil(
         //              static_cast<double>(input.lens()[2] - weights.lens()[2] + 1) / stride[0])),
         //          static_cast<std::size_t>(std::ceil(
-        //              static_cast<double>(input.lens()[3] - weights.lens()[3] + 1) / stride[1]))}};
+        //              static_cast<double>(input.lens()[3] - weights.lens()[3] + 1) /
+        //              stride[1]))}};
         // }
         // else
         // {

@@ -44,8 +44,8 @@ struct convolution
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
         auto t               = input.type();
-        if(padding_mode == default_)
-        {
+        // if(padding_mode == default_)
+        // {
             return {t,
                     {
                         input.lens()[0],
@@ -63,32 +63,32 @@ struct convolution
                                     stride[1] +
                                 1)),
                     }};
-        }
-        else if(padding_mode == same)
-        {
-            return {t,
-                    {input.lens()[0],
-                     weights.lens()[0],
-                     static_cast<std::size_t>(
-                         std::ceil(static_cast<double>(input.lens()[2]) / stride[0])),
-                     static_cast<std::size_t>(
-                         std::ceil(static_cast<double>(input.lens()[3]) / stride[1]))}};
-        }
-        else if(padding_mode == valid)
-        {
-            return {
-                t,
-                {input.lens()[0],
-                 weights.lens()[0],
-                 static_cast<std::size_t>(std::ceil(
-                     static_cast<double>(input.lens()[2] - weights.lens()[2] + 1) / stride[0])),
-                 static_cast<std::size_t>(std::ceil(
-                     static_cast<double>(input.lens()[3] - weights.lens()[3] + 1) / stride[1]))}};
-        }
-        else
-        {
-            MIGRAPHX_THROW("Invalid padding mode");
-        }
+        // }
+        // else if(padding_mode == same)
+        // {
+        //     return {t,
+        //             {input.lens()[0],
+        //              weights.lens()[0],
+        //              static_cast<std::size_t>(
+        //                  std::ceil(static_cast<double>(input.lens()[2]) / stride[0])),
+        //              static_cast<std::size_t>(
+        //                  std::ceil(static_cast<double>(input.lens()[3]) / stride[1]))}};
+        // }
+        // else if(padding_mode == valid)
+        // {
+        //     return {
+        //         t,
+        //         {input.lens()[0],
+        //          weights.lens()[0],
+        //          static_cast<std::size_t>(std::ceil(
+        //              static_cast<double>(input.lens()[2] - weights.lens()[2] + 1) / stride[0])),
+        //          static_cast<std::size_t>(std::ceil(
+        //              static_cast<double>(input.lens()[3] - weights.lens()[3] + 1) / stride[1]))}};
+        // }
+        // else
+        // {
+        //     MIGRAPHX_THROW("Invalid padding mode");
+        // }
     }
 };
 

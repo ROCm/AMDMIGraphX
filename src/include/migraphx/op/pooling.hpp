@@ -48,8 +48,8 @@ struct pooling
         assert(lengths[0] <= (input.lens()[2] + 2 * padding[0]));
         assert(lengths[1] <= (input.lens()[3] + 2 * padding[1]));
 
-        if(padding_mode == default_)
-        {
+        // if(padding_mode == default_)
+        // {
             return {t,
                     {
                         input.lens()[0],
@@ -65,34 +65,34 @@ struct pooling
                                 input.lens()[3] + 2 * padding[1] - lengths[1], stride[1]) +
                                 1)),
                     }};
-        }
-        else if(padding_mode == same)
-        {
-            return {t,
-                    {input.lens()[0],
-                     input.lens()[1],
-                     ceil_divide<std::size_t>(input.lens()[2], stride[0]),
-                     ceil_divide<std::size_t>(input.lens()[3], stride[1])}};
-        }
-        else if(padding_mode == valid)
-        {
-            return {
-                t,
-                {
-                    input.lens()[0],
-                    input.lens()[1],
-                    std::size_t(std::max<std::ptrdiff_t>(
-                        1,
-                        floor_divide<std::ptrdiff_t>(input.lens()[2] - lengths[0], stride[0]) + 1)),
-                    std::size_t(std::max<std::ptrdiff_t>(
-                        1,
-                        floor_divide<std::ptrdiff_t>(input.lens()[3] - lengths[1], stride[1]) + 1)),
-                }};
-        }
-        else
-        {
-            MIGRAPHX_THROW("Invalid padding mode");
-        }
+        // }
+        // else if(padding_mode == same)
+        // {
+        //     return {t,
+        //             {input.lens()[0],
+        //              input.lens()[1],
+        //              ceil_divide<std::size_t>(input.lens()[2], stride[0]),
+        //              ceil_divide<std::size_t>(input.lens()[3], stride[1])}};
+        // }
+        // else if(padding_mode == valid)
+        // {
+        //     return {
+        //         t,
+        //         {
+        //             input.lens()[0],
+        //             input.lens()[1],
+        //             std::size_t(std::max<std::ptrdiff_t>(
+        //                 1,
+        //                 floor_divide<std::ptrdiff_t>(input.lens()[2] - lengths[0], stride[0]) + 1)),
+        //             std::size_t(std::max<std::ptrdiff_t>(
+        //                 1,
+        //                 floor_divide<std::ptrdiff_t>(input.lens()[3] - lengths[1], stride[1]) + 1)),
+        //         }};
+        // }
+        // else
+        // {
+        //     MIGRAPHX_THROW("Invalid padding mode");
+        // }
     }
 };
 

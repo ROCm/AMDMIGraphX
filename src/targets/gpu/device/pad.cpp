@@ -4,6 +4,7 @@
 #include <migraphx/gpu/device/pad.hpp>
 #include <migraphx/gpu/device/tensor.hpp>
 #include <migraphx/gpu/device/launch.hpp>
+#include <migraphx/float_equal.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -14,28 +15,30 @@ argument
 pad(hipStream_t stream, argument result, argument arg1, float value, std::vector<std::int64_t> pads)
 {
     std::size_t nelements = arg1.get_shape().elements();
-    // if(value == std::numeric_limits<float>::lowest())
-    // {
-    //     visit_all(result)([&](auto output) {
-    //             auto* outptr      = output.data();
-    //                 gs_launch(stream, nelements)([=](auto i) {
-    //                     outptr[i] = std::numeric_limits<typename
-    //                     decltype(output)::value_type>::lowest();
-    //                 });
-    //             });
-    // }
+    if(float_equal(value,std::numeric_limits<float>::lowest()))
+    {
+        visit_all(result)([&](auto output) {
+                auto* outptr      = device_cast(output.data());
+                auto val = device_cast(std::numeric_limits<typename
+                        decltype(output)::value_type>::lowest());
+                
+                    gs_launch(stream, nelements)([=](auto i) {
+                        outptr[i] = val;
+                    });
+                });
+    }
 
-    // else
-    // {
-    //     visit_all(result)([&](auto output) {
-    //             auto* outptr      = output.data();
-    //                 gs_launch(stream, nelements)([=](auto i) {
-    //                     outptr[i] = static_cast<typename decltype(output)::value_type>(value);
-    //                 });
-    //             });
-    // }
+    else
+    {
+        visit_all(result)([&](auto output) {
+                auto* outptr      = device_cast(output.data());
+                    gs_launch(stream, nelements)([=](auto i) {
+                        outptr[i] = value;
+                    });
+                });
+    }
 
-    nary(stream, result)([=] { return value; });
+    // nary(stream, result)([=] { return value; });
     visit_all(result, arg1)([&](auto output, auto input) {
         visit_tensor_size(result.get_shape().lens().size(), [&](auto ndim) {
             std::size_t offsets[ndim];

@@ -1,9 +1,8 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_NARY_HPP
 #define MIGRAPHX_GUARD_RTGLIB_DEVICE_NARY_HPP
 
-#include <migraphx/gpu/device/tensor.hpp>
 #include <migraphx/gpu/device/launch.hpp>
-#include <migraphx/gpu/device/types.hpp>
+#include <migraphx/gpu/device/visit.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/array.hpp>

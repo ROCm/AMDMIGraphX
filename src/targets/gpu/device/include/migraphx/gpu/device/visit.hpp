@@ -43,12 +43,9 @@ void visit_tensor_size(std::size_t n, F f)
     }
 }
 
-inline std::size_t tensor_size(const shape& x)
-{
-    return x.lens().size();
-}
+inline std::size_t tensor_size(const shape& x) { return x.lens().size(); }
 
-template<class T>
+template <class T>
 auto tensor_size(const T& x) -> decltype(x.get_shape().lens().size())
 {
     return x.get_shape().lens().size();
@@ -59,8 +56,7 @@ auto hip_visit_all(T&& x, Ts&&... xs)
 {
     return [&](auto f) {
         visit_tensor_size(tensor_size(x), [&](auto dim) {
-            visit_all(x,
-                      xs...)([&](auto... vs) { f(make_hip<dim>(device_cast(vs))...); });
+            visit_all(x, xs...)([&](auto... vs) { f(make_hip<dim>(device_cast(vs))...); });
         });
     };
 }
@@ -70,8 +66,8 @@ auto hip_vec_visit_all(T&& x, Ts&&... xs)
 {
     return [&](auto f) {
         visit_tensor_size(tensor_size(x), [&](auto dim) {
-            visit_all(x, xs...)(
-                [&](auto... vs) { f(make_hip<dim>(as_vec<N>(device_cast(vs)))...); });
+            visit_all(x,
+                      xs...)([&](auto... vs) { f(make_hip<dim>(as_vec<N>(device_cast(vs)))...); });
         });
     };
 }

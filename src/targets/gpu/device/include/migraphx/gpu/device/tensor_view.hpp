@@ -39,9 +39,9 @@ struct hip_tensor_view
 };
 
 template <std::size_t N, class T>
-hip_tensor_view<T, N> make_hip(tensor_view<T> x)
+hip_tensor_view<T, N> make_hip_view(const shape& s, T* x)
 {
-    return x;
+    return {x, s};
 }
 
 } // namespace device

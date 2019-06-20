@@ -19,7 +19,7 @@ rocm_install_targets(
 
 add_executable(read_onnx read_onnx.cpp)
 rocm_clang_tidy_check(read_onnx)
-target_link_libraries(read_onnx migraphx_onnx)
+target_link_libraries(read_onnx migraphx_cpu migraphx_onnx)
 
 
 if(MIGRAPHX_ENABLE_GPU)

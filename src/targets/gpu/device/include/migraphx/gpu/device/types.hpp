@@ -17,7 +17,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-
 template <class T, std::size_t N>
 using vec = T __attribute__((ext_vector_type(N)));
 

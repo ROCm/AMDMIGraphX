@@ -263,7 +263,8 @@ auto hip_visit_all(T&& x, Ts&&... xs)
 {
     return [&](auto f) {
         visit_tensor_size(x.get_shape().lens().size(), [&](auto dim) {
-            visit_all(x, xs...)([&](auto... vs) { f(make_hip_tensor_view<dim>(device_cast(vs))...); });
+            visit_all(x,
+                      xs...)([&](auto... vs) { f(make_hip_tensor_view<dim>(device_cast(vs))...); });
         });
     };
 }
@@ -273,7 +274,8 @@ auto hip_vec_visit_all(T&& x, Ts&&... xs)
 {
     return [&](auto f) {
         visit_tensor_size(x.get_shape().lens().size(), [&](auto dim) {
-            visit_all(x, xs...)([&](auto... vs) { f(make_hip_tensor_view<dim>(as_vec<N>(device_cast(vs)))...); });
+            visit_all(x, xs...)(
+                [&](auto... vs) { f(make_hip_tensor_view<dim>(as_vec<N>(device_cast(vs)))...); });
         });
     };
 }

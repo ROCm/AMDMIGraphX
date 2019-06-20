@@ -10,14 +10,22 @@
 
 #include <migraphx/half.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/tensor_view.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
+
 template <class T, std::size_t N>
 using vec = T __attribute__((ext_vector_type(N)));
+
+template <std::size_t N, class T>
+__device__ __host__ T* as_pointer(vec<T, N>* x)
+{
+    return reinterpret_cast<T*>(x);
+}
 
 template <std::size_t N, class T>
 __device__ __host__ vec<T, N>* as_vec(T* x)
@@ -26,9 +34,9 @@ __device__ __host__ vec<T, N>* as_vec(T* x)
 }
 
 template <std::size_t N, class T>
-__device__ __host__ T* as_pointer(vec<T, N>* x)
+tensor_view<vec<T, N>> as_vec(tensor_view<T> x)
 {
-    return reinterpret_cast<T*>(x);
+    return {x.get_shape(), as_vec<N>(x.data())};
 }
 
 template <std::size_t N, class... Ts>
@@ -47,9 +55,9 @@ struct device_type
 };
 
 template <class T, std::size_t N>
-struct device_type<T __attribute__((ext_vector_type(N)))>
+struct device_type<vec<T, N>>
 {
-    using type = typename device_type<T>::type __attribute__((ext_vector_type(N)));
+    using type = vec<typename device_type<T>::type, N>;
 };
 
 template <>
@@ -100,6 +108,12 @@ template <class T>
 device_type<T>* device_cast(T* x)
 {
     return reinterpret_cast<device_type<T>*>(x);
+}
+
+template <class T>
+tensor_view<device_type<T>> device_cast(tensor_view<T> x)
+{
+    return {x.get_shape(), reinterpret_cast<device_type<T>*>(x.data())};
 }
 
 template <class T>

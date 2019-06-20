@@ -8,6 +8,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_GPU_DEVICE_TYPES_HPP
 #define MIGRAPHX_GUARD_RTGLIB_GPU_DEVICE_TYPES_HPP
 
+#include <hip/hip_runtime.h>
 #include <migraphx/half.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/tensor_view.hpp>
@@ -16,6 +17,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
+
+#define MIGRAPHX_DEVICE_CONSTEXPR constexpr __device__ __host__
 
 template <class T, std::size_t N>
 using vec = T __attribute__((ext_vector_type(N)));
@@ -98,9 +101,9 @@ host_type<T>* host_cast(T* x)
 }
 
 template <class T>
-device_type<T> device_cast(T x)
+device_type<T> device_cast(const T& x)
 {
-    return reinterpret_cast<device_type<T>>(x);
+    return reinterpret_cast<const device_type<T>&>(x);
 }
 
 template <class T>

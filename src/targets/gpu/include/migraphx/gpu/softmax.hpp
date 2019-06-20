@@ -34,7 +34,7 @@ struct miopen_softmax
         return migraphx::reflect(self.op, f);
     }
 
-    std::string name() const { return "gpu::miopen_softmax"; }
+    std::string name() const { return "miopen::softmax"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;

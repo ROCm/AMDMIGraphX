@@ -8,11 +8,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-inline std::size_t calculate_padding(std::size_t weight_dim, std::size_t dilation)
-{
-    return (dilation * (weight_dim - 1)) / 2;
-}
-
 inline void calculate_padding(int64_t idx,
                               std::vector<int64_t>& pads,
                               int64_t input_dim,

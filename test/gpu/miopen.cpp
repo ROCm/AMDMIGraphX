@@ -1589,7 +1589,6 @@ void manual_identity()
     std::cout << result << std::endl;
 }
 
-
 void manual_test_concat_relu()
 {
     migraphx::program p;

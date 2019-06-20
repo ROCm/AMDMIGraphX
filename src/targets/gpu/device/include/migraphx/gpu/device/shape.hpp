@@ -76,7 +76,7 @@ struct hip_shape
 };
 
 template <std::size_t N>
-hip_shape<N> make_hip(const shape& x)
+hip_shape<N> make_hip_shape(const shape& x)
 {
     return x;
 }

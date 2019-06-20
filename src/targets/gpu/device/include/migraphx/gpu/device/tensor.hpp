@@ -217,9 +217,9 @@ struct hip_shape
 template <class T, std::size_t N>
 struct hip_tensor_view
 {
-    using value_type                      = device_type<T>;
+    using value_type                      = T;
     __device__ __host__ hip_tensor_view() = default;
-    __host__ hip_tensor_view(tensor_view<T> x) : d(device_cast(x.data())), s(x.get_shape()) {}
+    __host__ hip_tensor_view(tensor_view<T> x) : d(x.data()), s(x.get_shape()) {}
     __host__ hip_tensor_view(T* x, const shape& ss) : d(x), s(ss) {}
 
     MIGRAPHX_DEVICE_CONSTEXPR const hip_shape<N>& get_shape() const { return s; }
@@ -250,12 +250,6 @@ hip_tensor_view<T, N> make_hip_tensor_view(tensor_view<T> x)
 }
 
 template <std::size_t N, std::size_t M, class T>
-hip_tensor_view<vec<device_type<T>, M>, N> make_hip_vec_tensor_view(tensor_view<T> x)
-{
-    return {as_vec<M>(device_cast(x.data())), x.get_shape()};
-}
-
-template <std::size_t N, std::size_t M, class T>
 hip_vector<hip_tensor_view<T, N>, M> make_hip_tensor_views(const std::vector<tensor_view<T>>& x)
 {
     hip_vector<hip_tensor_view<T, N>, M> result(x.size());
@@ -269,7 +263,7 @@ auto hip_visit_all(T&& x, Ts&&... xs)
 {
     return [&](auto f) {
         visit_tensor_size(x.get_shape().lens().size(), [&](auto dim) {
-            visit_all(x, xs...)([&](auto... vs) { f(make_hip_tensor_view<dim>(vs)...); });
+            visit_all(x, xs...)([&](auto... vs) { f(make_hip_tensor_view<dim>(device_cast(vs))...); });
         });
     };
 }
@@ -279,7 +273,7 @@ auto hip_vec_visit_all(T&& x, Ts&&... xs)
 {
     return [&](auto f) {
         visit_tensor_size(x.get_shape().lens().size(), [&](auto dim) {
-            visit_all(x, xs...)([&](auto... vs) { f(make_hip_vec_tensor_view<dim, N>(vs)...); });
+            visit_all(x, xs...)([&](auto... vs) { f(make_hip_tensor_view<dim>(as_vec<N>(device_cast(vs)))...); });
         });
     };
 }

@@ -18,7 +18,7 @@ namespace op {
 
 struct argmax
 {
-    int axis = 0;
+    int axis      = 0;
     int keep_dims = 1;
 
     template <class Self, class F>
@@ -40,7 +40,7 @@ struct argmax
         }
 
         lens[axis] = 1;
-        if (!keep_dims)
+        if(!keep_dims)
         {
             lens.erase(lens.begin() + axis);
         }

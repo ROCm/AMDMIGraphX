@@ -44,8 +44,6 @@ hip_tensor_view<T, N> make_hip(tensor_view<T> x)
     return x;
 }
 
-
-
 } // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -655,17 +655,17 @@ struct cpu_argmax
         argument result{output_shape};
         result.visit([&](auto output) {
             args[0].visit([&](auto input) {
-                using value_type = batch_max(output_shape.elements(),
-                    std::numeric_limits<value_type>::lowest());
+                using value_type =
+                    batch_max(output_shape.elements(), std::numeric_limits<value_type>::lowest());
                 auto data_shape = args[0].get_shape();
                 shape_for_each(data_shape, [&](auto idx) {
                     auto data_index = data_shape.index(idx);
-                    idx[axis] = 0;
-                    auto out_index = data_shape.index(idx);
-                    if (batch_max[index] < input[data_index])
+                    idx[axis]       = 0;
+                    auto out_index  = data_shape.index(idx);
+                    if(batch_max[index] < input[data_index])
                     {
                         batch_max[index] = input[data_index];
-                        output[index] = static_cast<int64_t>(data_index);
+                        output[index]    = static_cast<int64_t>(data_index);
                     }
                 });
             });
@@ -693,17 +693,17 @@ struct cpu_argmin
         argument result{output_shape};
         result.visit([&](auto output) {
             args[0].visit([&](auto input) {
-                using value_type = batch_min(output_shape.elements(),
-                    std::numeric_limits<value_type>::max());
+                using value_type =
+                    batch_min(output_shape.elements(), std::numeric_limits<value_type>::max());
                 auto data_shape = args[0].get_shape();
                 shape_for_each(data_shape, [&](auto idx) {
                     auto data_index = data_shape.index(idx);
-                    idx[axis] = 0;
-                    auto out_index = data_shape.index(idx);
-                    if (batch_min[index] > input[data_index])
+                    idx[axis]       = 0;
+                    auto out_index  = data_shape.index(idx);
+                    if(batch_min[index] > input[data_index])
                     {
                         batch_min[index] = input[data_index];
-                        output[index] = static_cast<int64_t>(data_index);
+                        output[index]    = static_cast<int64_t>(data_index);
                     }
                 });
             });
@@ -732,8 +732,8 @@ struct cpu_apply
 
     void init()
     {
-        apply_map["argmax"]     = extend_op<cpu_argmax, op::argmax>();
-        apply_map["argmin"]     = extend_op<cpu_argmin, op::argmin>();
+        apply_map["argmax"] = extend_op<cpu_argmax, op::argmax>();
+        apply_map["argmin"] = extend_op<cpu_argmin, op::argmin>();
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["convolution"] = extend_op<cpu_convolution, op::convolution>();

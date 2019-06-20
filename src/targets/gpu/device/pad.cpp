@@ -16,8 +16,8 @@ pad(hipStream_t stream, argument result, argument arg1, float value, std::vector
 {
     std::size_t nelements = arg1.get_shape().elements();
     visit_all(result)([&](auto output) {
-        auto* outptr = device_cast(output.data());
-        using type = typename decltype(output)::value_type;
+        auto* outptr                 = device_cast(output.data());
+        using type                   = typename decltype(output)::value_type;
         device_type<type> device_val = value;
         if(float_equal(value, std::numeric_limits<float>::lowest()))
         {

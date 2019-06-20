@@ -62,7 +62,6 @@ struct convolution
                                 stride[1] +
                             1)),
                 }};
-
     }
 };
 

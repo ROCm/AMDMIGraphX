@@ -34,7 +34,8 @@ argument logsoftmax(hipStream_t stream,
             // opt 1, load all data to lds then use the same approach as
             // the current optimization
             const size_t block_size = 1024;
-            launch(stream, batch_shape.elements() * block_size, block_size) ([=] (auto idx) __device__ {
+            launch(
+                stream, batch_shape.elements() * block_size, block_size)([=](auto idx) __device__ {
                 size_t thr_idx = idx.local;
                 size_t blk_idx = idx.group;
                 // using type = typename decltype(input)::value_type;
@@ -44,24 +45,25 @@ argument logsoftmax(hipStream_t stream,
                 // done in lds
                 MIGRAPHX_DEVICE_SHARED type lds_data[block_size + 2];
                 auto batch_idx = desc_batch.multi(blk_idx);
-                auto data_idx = batch_idx;
+                auto data_idx  = batch_idx;
                 // load data to lds and compute the batch max
-                size_t item_num = num_in_batch;
+                size_t item_num      = num_in_batch;
                 lds_data[block_size] = input_ptr[0];
-                for (size_t i = thr_idx; i < num_in_batch; i += block_size)
+                for(size_t i = thr_idx; i < num_in_batch; i += block_size)
                 {
                     data_idx[axis] = i;
-                    lds_data[i] = input_ptr[desc_data.linear(data_idx)];
+                    lds_data[i]    = input_ptr[desc_data.linear(data_idx)];
 
                     __syncthreads();
 
                     // use thread 0 for batch_max
-                    if (thr_idx == 0)
+                    if(thr_idx == 0)
                     {
                         auto size = (item_num > block_size) ? block_size : item_num;
-                        for (size_t j = 0; j < size; j++)
+                        for(size_t j = 0; j < size; j++)
                         {
-                            lds_data[block_size] = ::max(to_hip_type(lds_data[block_size]), to_hip_type(lds_data[j]));
+                            lds_data[block_size] =
+                                ::max(to_hip_type(lds_data[block_size]), to_hip_type(lds_data[j]));
                         }
                         item_num -= block_size;
                     }
@@ -69,34 +71,36 @@ argument logsoftmax(hipStream_t stream,
                 }
 
                 const size_t block_size1 = block_size + 1;
-                lds_data[block_size1] = 0;
-                item_num = num_in_batch;
-                for (size_t i = thr_idx; i < num_in_batch; i += block_size)
+                lds_data[block_size1]    = 0;
+                item_num                 = num_in_batch;
+                for(size_t i = thr_idx; i < num_in_batch; i += block_size)
                 {
                     data_idx[axis] = i;
-                    lds_data[i] = input_ptr[desc_data.linear(data_idx)];
+                    lds_data[i]    = input_ptr[desc_data.linear(data_idx)];
 
                     __syncthreads();
 
                     // use thread 0 for batch_max
-                    if (thr_idx == 0)
+                    if(thr_idx == 0)
                     {
                         auto size = (item_num > block_size) ? block_size : item_num;
-                        for (size_t j = 0; j < size; j++)
+                        for(size_t j = 0; j < size; j++)
                         {
-                            lds_data[block_size1] += ::exp(to_hip_type(lds_data[j] - lds_data[block_size]));
+                            lds_data[block_size1] +=
+                                ::exp(to_hip_type(lds_data[j] - lds_data[block_size]));
                         }
                         item_num -= block_size;
                     }
                     __syncthreads();
                 }
 
-                auto log_batch_sum = ::log(to_hip_type(lds_data[block_size1])) + lds_data[block_size];
+                auto log_batch_sum =
+                    ::log(to_hip_type(lds_data[block_size1])) + lds_data[block_size];
                 item_num = num_in_batch;
-                for (size_t i = thr_idx; i < num_in_batch; i += block_size)
+                for(size_t i = thr_idx; i < num_in_batch; i += block_size)
                 {
-                    data_idx[axis] = i;
-                    size_t index = desc_data.linear(data_idx);
+                    data_idx[axis]    = i;
+                    size_t index      = desc_data.linear(data_idx);
                     output_ptr[index] = input_ptr[index] - log_batch_sum;
                 }
             });

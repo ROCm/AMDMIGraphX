@@ -10,10 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument logsoftmax(hipStream_t stream,
-                    argument result,
-                    argument arg,
-                    int axis);
+argument logsoftmax(hipStream_t stream, argument result, argument arg, int axis);
 
 } // namespace device
 } // namespace gpu

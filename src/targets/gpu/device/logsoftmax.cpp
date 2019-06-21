@@ -11,10 +11,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument logsoftmax(hipStream_t stream,
-                    argument result,
-                    argument arg,
-                    int axis)
+argument logsoftmax(hipStream_t stream, argument result, argument arg, int axis)
 {
 
     auto lens         = result.get_shape().lens();
@@ -40,7 +37,7 @@ argument logsoftmax(hipStream_t stream,
 
             for(std::size_t j = 0; j < num_in_batch; ++j)
             {
-                data_idx[axis]  = j;
+                data_idx[axis]   = j;
                 output[data_idx] = input[data_idx] - batch_max;
             }
 

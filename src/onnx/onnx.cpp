@@ -871,7 +871,9 @@ struct onnx_parser
             auto names = attributes.at("activations").strings();
             vec_names.clear();
             vec_names.resize(names.size());
-            std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) { return to_lower(name); } );
+            std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) {
+                return to_lower(name);
+            });
         }
 
         auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
@@ -962,7 +964,9 @@ struct onnx_parser
             auto names = attributes.at("activations").strings();
             vec_names.clear();
             vec_names.resize(names.size());
-            std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) { return to_lower(name); } );
+            std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) {
+                return to_lower(name);
+            });
         }
 
         // need 4 activation functions
@@ -1089,7 +1093,9 @@ struct onnx_parser
             auto names = attributes.at("activations").strings();
             vec_names.clear();
             vec_names.resize(names.size());
-            std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) { return to_lower(name); } );
+            std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) {
+                return to_lower(name);
+            });
         }
 
         // need 6 activation functions for bidirectional directions

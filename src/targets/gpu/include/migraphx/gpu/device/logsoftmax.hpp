@@ -11,8 +11,8 @@ namespace gpu {
 namespace device {
 
 argument logsoftmax(hipStream_t stream,
-                    const migraphx::shape& output_shape,
-                    std::vector<migraphx::argument> args,
+                    argument result,
+                    argument arg,
                     int axis);
 
 } // namespace device

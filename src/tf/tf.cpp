@@ -317,6 +317,7 @@ struct tf_parser
             }
         }
 
+        auto l0 = args[0];
         if(contains(attributes, "padding"))
         {
             const std::string& pad_mode = attributes.at("padding").s();
@@ -326,8 +327,24 @@ struct tf_parser
                 std::vector<size_t> weight_dims = weights->get_shape().lens();
                 size_t weight_h                 = weight_dims[2];
                 size_t weight_w                 = weight_dims[3];
-                op.padding[0]                   = calculate_padding(weight_h, op.dilation[0]);
-                op.padding[1]                   = calculate_padding(weight_w, op.dilation[1]);
+
+                auto input_dims = l0->get_shape().lens();
+                size_t input_h  = input_dims[2];
+                size_t input_w  = input_dims[3];
+                std::vector<int64_t> pads(input_dims.size());
+                calculate_padding(0, pads, input_h, op.stride[0], op.dilation[0], weight_h);
+                calculate_padding(1, pads, input_w, op.stride[1], op.dilation[1], weight_w);
+
+                if(pads[0] != pads[2] || pads[1] != pads[3])
+                {
+                    std::vector<int64_t> padding = {0, 0, pads[0], pads[1], 0, 0, pads[2], pads[3]};
+                    l0 = prog.add_instruction(migraphx::op::pad{padding}, l0);
+                }
+                else
+                {
+                    op.padding[0] = pads[0];
+                    op.padding[1] = pads[1];
+                }
             }
             else if(pad_mode.find("VALID") != std::string::npos)
             {
@@ -350,7 +367,7 @@ struct tf_parser
             }
         }
 
-        return prog.add_instruction(op, {args[0], weights});
+        return prog.add_instruction(op, {l0, weights});
     }
 
     instruction_ref parse_depthwiseconv(const std::string&,
@@ -400,17 +417,35 @@ struct tf_parser
             }
         }
 
+        auto l0 = args[0];
         if(contains(attributes, "padding"))
         {
-            const std::string& pad_mode     = attributes.at("padding").s();
-            std::vector<size_t> weight_dims = weights->get_shape().lens();
-            size_t weight_h                 = weight_dims[2];
-            size_t weight_w                 = weight_dims[3];
+            const std::string& pad_mode = attributes.at("padding").s();
+
             if(pad_mode.find("SAME") != std::string::npos)
             {
-                op.padding_mode = op::padding_mode_t::same;
-                op.padding[0]   = calculate_padding(weight_h, op.dilation[0]);
-                op.padding[1]   = calculate_padding(weight_w, op.dilation[1]);
+                op.padding_mode                 = op::padding_mode_t::same;
+                std::vector<size_t> weight_dims = weights->get_shape().lens();
+                size_t weight_h                 = weight_dims[2];
+                size_t weight_w                 = weight_dims[3];
+
+                auto input_dims = l0->get_shape().lens();
+                size_t input_h  = input_dims[2];
+                size_t input_w  = input_dims[3];
+                std::vector<int64_t> pads(input_dims.size());
+                calculate_padding(0, pads, input_h, op.stride[0], op.dilation[0], weight_h);
+                calculate_padding(1, pads, input_w, op.stride[1], op.dilation[1], weight_w);
+
+                if(pads[0] != pads[2] || pads[1] != pads[3])
+                {
+                    std::vector<int64_t> padding = {0, 0, pads[0], pads[1], 0, 0, pads[2], pads[3]};
+                    l0 = prog.add_instruction(migraphx::op::pad{padding}, l0);
+                }
+                else
+                {
+                    op.padding[0] = pads[0];
+                    op.padding[1] = pads[1];
+                }
             }
             else if(pad_mode.find("VALID") != std::string::npos)
             {
@@ -432,7 +467,7 @@ struct tf_parser
         auto cweights    = prog.add_instruction(op::contiguous{}, weights);
         auto new_weights = prog.add_instruction(op::reshape{new_weights_shape}, cweights);
 
-        return prog.add_instruction(op, {args[0], new_weights});
+        return prog.add_instruction(op, {l0, new_weights});
     }
 
     instruction_ref
@@ -567,21 +602,39 @@ struct tf_parser
             op.lengths[0] = ksize[2];
             op.lengths[1] = ksize[3];
         }
+
+        auto l0 = args[0];
         if(contains(attributes, "padding"))
         {
             const std::string& pad_mode = attributes.at("padding").s();
             if(pad_mode.find("SAME") != std::string::npos)
             {
                 op.padding_mode = op::padding_mode_t::same;
-                op.padding[0]   = calculate_padding(op.lengths[0], 1);
-                op.padding[1]   = calculate_padding(op.lengths[1], 1);
+                auto input_dims = l0->get_shape().lens();
+                size_t input_h  = input_dims[2];
+                size_t input_w  = input_dims[3];
+                std::vector<int64_t> pads(input_dims.size());
+                calculate_padding(0, pads, input_h, op.stride[0], 1, op.lengths[0]);
+                calculate_padding(1, pads, input_w, op.stride[1], 1, op.lengths[1]);
+
+                if(pads[0] != pads[2] || pads[1] != pads[3])
+                {
+                    std::vector<int64_t> padding = {0, 0, pads[0], pads[1], 0, 0, pads[2], pads[3]};
+                    l0                           = prog.add_instruction(
+                        migraphx::op::pad{padding, std::numeric_limits<float>::lowest()}, l0);
+                }
+                else
+                {
+                    op.padding[0] = pads[0];
+                    op.padding[1] = pads[1];
+                }
             }
             else if(pad_mode.find("VALID") != std::string::npos)
             {
                 op.padding_mode = op::padding_mode_t::valid;
             }
         }
-        return prog.add_instruction(op, args[0]);
+        return prog.add_instruction(op, l0);
     }
 
     instruction_ref

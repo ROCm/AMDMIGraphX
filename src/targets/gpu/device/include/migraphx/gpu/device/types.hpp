@@ -64,9 +64,9 @@ host_type<T>* host_cast(T* x)
 }
 
 template <class T>
-device_type<T> device_cast(T x)
+device_type<T> device_cast(const T& x)
 {
-    return reinterpret_cast<device_type<T>>(x);
+    return reinterpret_cast<const device_type<T>&>(x);
 }
 
 template <class T>

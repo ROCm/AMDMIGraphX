@@ -55,25 +55,28 @@ argument logsoftmax(hipStream_t stream,
 
                     __syncthreads();
 
-                    auto size = (item_num > block_size) ? block_size : item_num;
+                    auto size   = (item_num > block_size) ? block_size : item_num;
                     auto stride = (size + 1) / 2;
-                    while (true)
+                    while(true)
                     {
-                        if (thr_idx + stride < size)
+                        if(thr_idx + stride < size)
                         {
-                            lds_data[thr_idx] =
-                                ::max(to_hip_type(lds_data[thr_idx]), to_hip_type(lds_data[thr_idx + stride]));
+                            lds_data[thr_idx] = ::max(to_hip_type(lds_data[thr_idx]),
+                                                      to_hip_type(lds_data[thr_idx + stride]));
                         }
                         __syncthreads();
-                        size = stride;
+                        size   = stride;
                         stride = (stride + 1) / 2;
 
-                        if (size == 1) break;
+                        if(size == 1)
+                            break;
                     }
 
-                    if (thr_idx == 0)
+                    if(thr_idx == 0)
                     {
-                        lds_data[block_size] = (lds_data[0] < lds_data[block_size]) ? lds_data[block_size] : lds_data[0];
+                        lds_data[block_size] = (lds_data[0] < lds_data[block_size])
+                                                   ? lds_data[block_size]
+                                                   : lds_data[0];
                     }
                     __syncthreads();
 
@@ -87,25 +90,26 @@ argument logsoftmax(hipStream_t stream,
                 {
                     data_idx[axis] = i;
                     lds_data[i]    = input_ptr[desc_data.linear(data_idx)] - lds_data[block_size];
-                    lds_data[i] = ::exp(to_hip_type(lds_data[i]));
+                    lds_data[i]    = ::exp(to_hip_type(lds_data[i]));
 
                     __syncthreads();
 
-                    auto size = (item_num > block_size) ? block_size : item_num;
+                    auto size   = (item_num > block_size) ? block_size : item_num;
                     auto stride = (size + 1) / 2;
-                    while (true)
+                    while(true)
                     {
-                        if (thr_idx + stride < size)
+                        if(thr_idx + stride < size)
                         {
                             lds_data[thr_idx] += lds_data[thr_idx + stride];
                         }
                         __syncthreads();
-                        size = stride;
+                        size   = stride;
                         stride = (stride + 1) / 2;
-                        if (size == 1) break;
+                        if(size == 1)
+                            break;
                     }
 
-                    if (thr_idx == 0)
+                    if(thr_idx == 0)
                     {
                         lds_data[block_size1] += lds_data[0];
                     }

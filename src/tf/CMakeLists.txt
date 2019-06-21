@@ -31,7 +31,7 @@ rocm_install_targets(
 
 add_executable(read_tf read_tf.cpp)
 rocm_clang_tidy_check(read_tf)
-target_link_libraries(read_tf migraphx_tf)
+target_link_libraries(read_tf migraphx_tf migraphx_cpu)
 
 if(MIGRAPHX_ENABLE_GPU)
 add_executable(verify_tf verify_tf.cpp)

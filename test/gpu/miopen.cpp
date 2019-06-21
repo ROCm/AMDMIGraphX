@@ -1646,6 +1646,22 @@ struct test_pad : verify_program<test_pad>
     }
 };
 
+struct test_pad_int8 : verify_program<test_pad_int8>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        std::vector<int8_t> data0 = {0, 1, 2, 3};
+        migraphx::shape s0{migraphx::shape::float_type, {2, 2}};
+        auto l0 = p.add_literal(migraphx::literal{s0, data0});
+        migraphx::op::pad op{};
+        op.value = std::numeric_limits<int8_t>::lowest();
+        op.pads  = {0, 0, 1, 1};
+        p.add_instruction(op, l0);
+        return p;
+    }
+};
+
 struct test_pooling_autopad : verify_program<test_pooling_autopad>
 {
     migraphx::program create_program() const

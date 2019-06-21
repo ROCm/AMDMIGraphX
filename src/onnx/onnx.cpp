@@ -102,15 +102,10 @@ struct onnx_parser
     {
         // Support name format of all lower case or the first letter capital
         map_actv_funcs.insert(std::make_pair("tanh", op::tanh{}));
-        map_actv_funcs.insert(std::make_pair("Tanh", op::tanh{}));
         map_actv_funcs.insert(std::make_pair("relu", op::relu{}));
-        map_actv_funcs.insert(std::make_pair("Relu", op::relu{}));
         map_actv_funcs.insert(std::make_pair("sigmoid", op::sigmoid{}));
-        map_actv_funcs.insert(std::make_pair("Sigmoid", op::sigmoid{}));
         map_actv_funcs.insert(std::make_pair("leakyrelu", op::leaky_relu{}));
-        map_actv_funcs.insert(std::make_pair("LeakyRelu", op::leaky_relu{}));
         map_actv_funcs.insert(std::make_pair("elu", op::elu{}));
-        map_actv_funcs.insert(std::make_pair("Elu", op::elu{}));
     }
 
     template <class F>
@@ -876,7 +871,7 @@ struct onnx_parser
             auto names = attributes.at("activations").strings();
             vec_names.clear();
             vec_names.resize(names.size());
-            std::copy(names.begin(), names.end(), vec_names.begin());
+            std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) { return to_lower(name); } );
         }
 
         auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
@@ -967,7 +962,7 @@ struct onnx_parser
             auto names = attributes.at("activations").strings();
             vec_names.clear();
             vec_names.resize(names.size());
-            std::copy(names.begin(), names.end(), vec_names.begin());
+            std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) { return to_lower(name); } );
         }
 
         // need 4 activation functions
@@ -1094,7 +1089,7 @@ struct onnx_parser
             auto names = attributes.at("activations").strings();
             vec_names.clear();
             vec_names.resize(names.size());
-            std::copy(names.begin(), names.end(), vec_names.begin());
+            std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) { return to_lower(name); } );
         }
 
         // need 6 activation functions for bidirectional directions

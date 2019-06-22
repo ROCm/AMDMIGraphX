@@ -50,7 +50,7 @@ argument softmax(hipStream_t stream, argument result, argument arg, int axis)
 
             for(std::size_t j = 0; j < n_dims; ++j)
             {
-                data_idx[axis] = j;
+                data_idx[axis]   = j;
                 output[data_idx] = output[data_idx] / batch_sum;
             }
         });

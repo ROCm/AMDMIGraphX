@@ -13,6 +13,7 @@ template <class T, std::size_t N>
 struct hip_tensor_view
 {
     using value_type                      = T;
+    using hip_index                      = typename hip_shape<N>::hip_index;
     __device__ __host__ hip_tensor_view() = default;
     __host__ hip_tensor_view(tensor_view<T> x) : d(x.data()), s(x.get_shape()) {}
     __host__ hip_tensor_view(T* x, const shape& ss) : d(x), s(ss) {}

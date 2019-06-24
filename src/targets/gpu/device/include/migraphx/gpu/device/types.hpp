@@ -18,7 +18,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-#define MIGRAPHX_DEVICE_CONSTEXPR constexpr __device__ __host__
+#define MIGRAPHX_DEVICE_CONSTEXPR constexpr __device__ __host__ // NOLINT
 
 template <class T, std::size_t N>
 using vec = T __attribute__((ext_vector_type(N)));

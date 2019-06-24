@@ -24,7 +24,7 @@ struct hip_vector
 
     __device__ __host__ hip_vector(std::initializer_list<T> x)
     {
-        auto it = std::copy(x.begin(), x.end(), d);
+        std::copy(x.begin(), x.end(), d);
         len     = x.size();
     }
 

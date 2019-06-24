@@ -70,12 +70,10 @@ void nary_broadcast_vec_impl(
                     auto bidx = ((i * vec_size) % bdim_next_stride) / bdim_stride;
                     auto b    = bp[bidx];
                     auto out  = output.data()[i];
-                    pack(inputs.data()[i]...)([&](auto... xs) __device__ {
-                        for(std::size_t j = 0; j < vec_size; j++)
-                        {
-                            out[j] = f(xs[j]..., b);
-                        }
-                    });
+                    for(std::size_t j = 0; j < vec_size; j++)
+                    {
+                        out[j] = f(inputs.data()[i][j]..., b);
+                    }
                     output.data()[i] = out;
                 }
             });

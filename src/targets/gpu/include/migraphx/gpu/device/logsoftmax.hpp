@@ -10,9 +10,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument logsoftmax(hipStream_t stream,
-                    const migraphx::shape& output_shape,
-                    std::vector<migraphx::argument> args,
+void logsoftmax(hipStream_t stream,
+                    const argument& result,
+                    const argument& arg,
                     int axis);
 
 } // namespace device

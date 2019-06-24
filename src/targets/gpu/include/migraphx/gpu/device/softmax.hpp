@@ -10,10 +10,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument softmax(hipStream_t stream,
-                 const migraphx::shape& output_shape,
-                 std::vector<migraphx::argument> args,
-                 int axis);
+void softmax(hipStream_t stream,
+             const argument& result,
+             const argument& arg,
+             int axis);
 
 } // namespace device
 } // namespace gpu

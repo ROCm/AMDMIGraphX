@@ -16,14 +16,15 @@ pad(hipStream_t stream, argument result, argument arg1, float value, std::vector
 {
     std::size_t nelements = arg1.get_shape().elements();
     hip_visit_all(result, arg1)([&](auto output, auto input) {
-        using type                   = typename decltype(output)::value_type;
-        using hip_index             = typename decltype(output)::hip_index;
+        using type      = typename decltype(output)::value_type;
+        using hip_index = typename decltype(output)::hip_index;
         type device_val = value;
         if(float_equal(value, std::numeric_limits<float>::lowest()))
         {
             device_val = device_cast(std::numeric_limits<type>::lowest());
         }
-        gs_launch(stream, result.get_shape().elements())([=](auto i) { output.data()[i] = device_val; });
+        gs_launch(stream,
+                  result.get_shape().elements())([=](auto i) { output.data()[i] = device_val; });
 
         hip_index offsets;
         std::copy(pads.begin(), pads.begin() + offsets.size(), offsets.begin());
@@ -34,7 +35,7 @@ pad(hipStream_t stream, argument result, argument arg1, float value, std::vector
                 idx[j] += offsets[j];
             }
             output[idx] = input.data()[i];
-        });        
+        });
     });
     return result;
 }

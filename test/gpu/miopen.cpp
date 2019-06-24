@@ -598,7 +598,7 @@ struct test_softmax : verify_program<test_softmax<Axis>>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        migraphx::shape s{migraphx::shape::float_type, {3, 4, 5, 6}};
+        migraphx::shape s{migraphx::shape::float_type, {2080, 4, 1026, 6}};
         auto param = p.add_parameter("0", s);
         p.add_instruction(migraphx::op::softmax{Axis}, param);
 
@@ -3350,7 +3350,7 @@ struct test_logsoftmax : verify_program<test_logsoftmax<Axis>>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        migraphx::shape s{migraphx::shape::float_type, {3, 4, 5, 6}};
+        migraphx::shape s{migraphx::shape::float_type, {1025, 4, 1025, 6}};
         auto param = p.add_parameter("0", s);
         p.add_instruction(migraphx::op::logsoftmax{Axis}, param);
 

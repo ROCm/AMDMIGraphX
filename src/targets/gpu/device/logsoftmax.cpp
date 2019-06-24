@@ -18,7 +18,7 @@ argument logsoftmax(hipStream_t stream,
 {
 
     auto lens         = output_shape.lens();
-    auto num_in_batch = lens[axis];
+    auto n_dims = lens[axis];
     auto batch_lens   = lens;
     batch_lens[axis]  = 1;
     migraphx::shape batch_shape{output_shape.type(), batch_lens};
@@ -33,7 +33,13 @@ argument logsoftmax(hipStream_t stream,
             // use one block for items in one batch.
             // opt 1, load all data to lds then use the same approach as
             // the current optimization
-            const size_t block_size = 1024;
+            const size_t max_block_size = 1024;
+            size_t block_size = 1;
+            while (block_size < max_block_size and block_size < n_dim)
+            {
+                block_size *= 2;
+            }
+
             launch(
                 stream, batch_shape.elements() * block_size, block_size)([=](auto idx) __device__ {
                 size_t thr_idx = idx.local;
@@ -42,17 +48,20 @@ argument logsoftmax(hipStream_t stream,
 
                 // all data can be loaded to the lds once, so all operations are
                 // done in lds
-                MIGRAPHX_DEVICE_SHARED type lds_data[block_size + 2];
+                MIGRAPHX_DEVICE_SHARED type lds_data[max_block_size + 2];
                 auto batch_idx = desc_batch.multi(blk_idx);
                 auto data_idx  = batch_idx;
                 // load data to lds and compute the batch max
-                size_t item_num      = num_in_batch;
+                size_t item_num      = n_dims;
+                size_t thread_num = (n_dims + block_size - 1) / block_size * block_size;
                 lds_data[block_size] = input_ptr[0];
-                for(size_t i = thr_idx; i < num_in_batch; i += block_size)
+                for(size_t i = thr_idx; i < thread_num; i += block_size)
                 {
-                    data_idx[axis] = i;
-                    lds_data[i]    = input_ptr[desc_data.linear(data_idx)];
-
+                    if (i < n_dims)
+                    {
+                        data_idx[axis] = i;
+                        lds_data[thr_idx]    = input_ptr[desc_data.linear(data_idx)];
+                    }
                     __syncthreads();
 
                     auto size   = (item_num > block_size) ? block_size : item_num;
@@ -85,13 +94,16 @@ argument logsoftmax(hipStream_t stream,
 
                 const size_t block_size1 = block_size + 1;
                 lds_data[block_size1]    = 0;
-                item_num                 = num_in_batch;
-                for(size_t i = thr_idx; i < num_in_batch; i += block_size)
+                item_num                 = n_dims;
+                for(size_t i = thr_idx; i < thread_num; i += block_size)
                 {
-                    data_idx[axis] = i;
-                    lds_data[i]    = input_ptr[desc_data.linear(data_idx)] - lds_data[block_size];
-                    lds_data[i]    = ::exp(to_hip_type(lds_data[i]));
-
+                    if (i < n_dims)
+                    {
+                        data_idx[axis] = i;
+                        lds_data[thr_idx]    = input_ptr[desc_data.linear(data_idx)] - lds_data[block_size];
+                        lds_data[thr_idx]    = ::exp(to_hip_type(lds_data[thr_idx]));
+                    }
+                    
                     __syncthreads();
 
                     auto size   = (item_num > block_size) ? block_size : item_num;
@@ -120,8 +132,7 @@ argument logsoftmax(hipStream_t stream,
 
                 auto log_batch_sum =
                     ::log(to_hip_type(lds_data[block_size1])) + lds_data[block_size];
-                item_num = num_in_batch;
-                for(size_t i = thr_idx; i < num_in_batch; i += block_size)
+                for(size_t i = thr_idx; i < n_dims; i += block_size)
                 {
                     data_idx[axis]    = i;
                     size_t index      = desc_data.linear(data_idx);

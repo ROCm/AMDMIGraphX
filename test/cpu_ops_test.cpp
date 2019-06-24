@@ -1588,7 +1588,7 @@ TEST_CASE(reduce_sum_test0)
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0 = p.add_literal(input);
+    auto l0    = p.add_literal(input);
     p.add_instruction(migraphx::op::reduce_sum{{0}}, l0);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
@@ -1603,7 +1603,7 @@ TEST_CASE(reduce_sum_test1)
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0 = p.add_literal(input);
+    auto l0    = p.add_literal(input);
     p.add_instruction(migraphx::op::reduce_sum{{1}}, l0);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
@@ -1618,7 +1618,7 @@ TEST_CASE(reduce_sum_test2)
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0 = p.add_literal(input);
+    auto l0    = p.add_literal(input);
     p.add_instruction(migraphx::op::reduce_sum{{2}}, l0);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
@@ -1633,7 +1633,7 @@ TEST_CASE(reduce_sum_test02)
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0 = p.add_literal(input);
+    auto l0    = p.add_literal(input);
     p.add_instruction(migraphx::op::reduce_sum{{0, 2}}, l0);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
@@ -1648,7 +1648,7 @@ TEST_CASE(reduce_sum_test12)
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0 = p.add_literal(input);
+    auto l0    = p.add_literal(input);
     p.add_instruction(migraphx::op::reduce_sum{{1, 2}}, l0);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});

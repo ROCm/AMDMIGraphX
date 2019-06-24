@@ -26,9 +26,9 @@ struct reduce_sum
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        auto s = inputs.at(0);
+        auto s    = inputs.at(0);
         auto lens = s.lens();
-        for(auto axis:axes)
+        for(auto axis : axes)
             lens[axis] = 1;
         return {s.type(), lens};
     }
@@ -36,10 +36,10 @@ struct reduce_sum
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        visit_all(result, args[0])([&](auto output, auto input){
+        visit_all(result, args[0])([&](auto output, auto input) {
             shape_for_each(input.get_shape(), [&](auto&& in_idx) {
                 auto out_idx = in_idx;
-                for(auto axis:axes)
+                for(auto axis : axes)
                     out_idx[axis] = 0;
                 output(out_idx.begin(), out_idx.end()) += input(in_idx.begin(), in_idx.end());
             });

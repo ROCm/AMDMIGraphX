@@ -17,10 +17,10 @@ argument logsoftmax(hipStream_t stream,
                     int axis)
 {
 
-    auto lens         = output_shape.lens();
-    auto n_dims = lens[axis];
-    auto batch_lens   = lens;
-    batch_lens[axis]  = 1;
+    auto lens        = output_shape.lens();
+    auto n_dims      = lens[axis];
+    auto batch_lens  = lens;
+    batch_lens[axis] = 1;
     migraphx::shape batch_shape{output_shape.type(), batch_lens};
 
     visit_all(args.back(), args.front())([&](auto output, auto input) {
@@ -34,8 +34,8 @@ argument logsoftmax(hipStream_t stream,
             // opt 1, load all data to lds then use the same approach as
             // the current optimization
             const size_t max_block_size = 1024;
-            size_t block_size = 1;
-            while (block_size < max_block_size and block_size < n_dim)
+            size_t block_size           = 1;
+            while(block_size < max_block_size and block_size < n_dim)
             {
                 block_size *= 2;
             }
@@ -53,14 +53,14 @@ argument logsoftmax(hipStream_t stream,
                 auto data_idx  = batch_idx;
                 // load data to lds and compute the batch max
                 size_t item_num      = n_dims;
-                size_t thread_num = (n_dims + block_size - 1) / block_size * block_size;
+                size_t thread_num    = (n_dims + block_size - 1) / block_size * block_size;
                 lds_data[block_size] = input_ptr[0];
                 for(size_t i = thr_idx; i < thread_num; i += block_size)
                 {
-                    if (i < n_dims)
+                    if(i < n_dims)
                     {
-                        data_idx[axis] = i;
-                        lds_data[thr_idx]    = input_ptr[desc_data.linear(data_idx)];
+                        data_idx[axis]    = i;
+                        lds_data[thr_idx] = input_ptr[desc_data.linear(data_idx)];
                     }
                     __syncthreads();
 
@@ -97,13 +97,14 @@ argument logsoftmax(hipStream_t stream,
                 item_num                 = n_dims;
                 for(size_t i = thr_idx; i < thread_num; i += block_size)
                 {
-                    if (i < n_dims)
+                    if(i < n_dims)
                     {
                         data_idx[axis] = i;
-                        lds_data[thr_idx]    = input_ptr[desc_data.linear(data_idx)] - lds_data[block_size];
-                        lds_data[thr_idx]    = ::exp(to_hip_type(lds_data[thr_idx]));
+                        lds_data[thr_idx] =
+                            input_ptr[desc_data.linear(data_idx)] - lds_data[block_size];
+                        lds_data[thr_idx] = ::exp(to_hip_type(lds_data[thr_idx]));
                     }
-                    
+
                     __syncthreads();
 
                     auto size   = (item_num > block_size) ? block_size : item_num;

@@ -11,24 +11,24 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument logsoftmax(hipStream_t stream,
-                    const migraphx::shape& output_shape,
-                    std::vector<migraphx::argument> args,
+void logsoftmax(hipStream_t stream,
+                    const argument& result,
+                    const argument& arg,
                     int axis)
 {
 
-    auto lens        = output_shape.lens();
+    auto lens        = result.get_shape().lens();
     auto n_dims      = lens[axis];
     auto batch_lens  = lens;
     batch_lens[axis] = 1;
-    migraphx::shape batch_shape{output_shape.type(), batch_lens};
+    migraphx::shape batch_shape{result.get_shape().type(), batch_lens};
 
-    visit_all(args.back(), args.front())([&](auto output, auto input) {
+    visit_all(result, arg)([&](auto output, auto input) {
         const auto* input_ptr = device_cast(input.data());
         auto* output_ptr      = device_cast(output.data());
         visit_tensor_size(batch_shape.lens().size(), [&](auto n_dim) {
             hip_tensor_descriptor<n_dim> desc_batch(batch_shape);
-            hip_tensor_descriptor<n_dim> desc_data(output_shape);
+            hip_tensor_descriptor<n_dim> desc_data(result.get_shape());
 
             // use one block for items in one batch.
             // opt 1, load all data to lds then use the same approach as
@@ -142,8 +142,6 @@ argument logsoftmax(hipStream_t stream,
             });
         });
     });
-
-    return args.back();
 }
 
 } // namespace device

@@ -100,6 +100,7 @@ struct onnx_parser
 
     void init_actv_func()
     {
+        // Support name format of all lower case or the first letter capital
         map_actv_funcs.insert(std::make_pair("tanh", op::tanh{}));
         map_actv_funcs.insert(std::make_pair("relu", op::relu{}));
         map_actv_funcs.insert(std::make_pair("sigmoid", op::sigmoid{}));
@@ -352,7 +353,8 @@ struct onnx_parser
             {
                 // insert zeros for pad op (args[0] has 4 dims)
                 padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
-                l0      = prog.add_instruction(op::pad{padding}, l0);
+                l0 = prog.add_instruction(op::pad{padding, std::numeric_limits<float>::lowest()},
+                                          l0);
             }
             else
             {
@@ -870,7 +872,9 @@ struct onnx_parser
             auto names = attributes.at("activations").strings();
             vec_names.clear();
             vec_names.resize(names.size());
-            std::copy(names.begin(), names.end(), vec_names.begin());
+            std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) {
+                return to_lower(name);
+            });
         }
 
         auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
@@ -961,7 +965,9 @@ struct onnx_parser
             auto names = attributes.at("activations").strings();
             vec_names.clear();
             vec_names.resize(names.size());
-            std::copy(names.begin(), names.end(), vec_names.begin());
+            std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) {
+                return to_lower(name);
+            });
         }
 
         // need 4 activation functions
@@ -1088,7 +1094,9 @@ struct onnx_parser
             auto names = attributes.at("activations").strings();
             vec_names.clear();
             vec_names.resize(names.size());
-            std::copy(names.begin(), names.end(), vec_names.begin());
+            std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) {
+                return to_lower(name);
+            });
         }
 
         // need 6 activation functions for bidirectional directions

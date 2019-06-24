@@ -223,8 +223,9 @@ auto visit_all(const std::vector<T>& x)
         s.visit_type([&](auto as) {
             using type = typename decltype(as)::type;
             std::vector<tensor_view<type>> result;
-            for(const auto& y : x)
-                result.push_back(make_view(y.get_shape(), as.from(y.data())));
+            std::transform(x.begin(), x.end(), std::back_inserter(result), [&](const auto& y) {
+                return make_view(y.get_shape(), as.from(y.data()));
+            });
             v(result);
         });
     };

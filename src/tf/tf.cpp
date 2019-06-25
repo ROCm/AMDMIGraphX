@@ -37,7 +37,8 @@ struct tf_parser
 
     std::unordered_map<std::string, op_func> ops;
 
-    std::vector<size_t> parse_axes(const attribute_map& attributes, const std::string& s, const size_t& num_dims) const
+    std::vector<size_t>
+    parse_axes(const attribute_map& attributes, const std::string& s, const size_t& num_dims) const
     {
         auto attrs = attributes.at(s).list().i();
         std::vector<size_t> axes;
@@ -252,7 +253,8 @@ struct tf_parser
     {
         // get index for axis within args
         size_t axis_idx = attributes.at("N").i();
-        size_t axis     = parse_axis(args[axis_idx]->eval().at<int64_t>(), args[0]->get_shape().lens().size());
+        size_t axis =
+            parse_axis(args[axis_idx]->eval().at<int64_t>(), args[0]->get_shape().lens().size());
         op::concat op{axis};
         // return only first N arguments (assuming last index is the axis value)
         return prog.add_instruction(
@@ -471,14 +473,15 @@ struct tf_parser
         return prog.add_instruction(op, {l0, new_weights});
     }
 
-    instruction_ref parse_expanddims(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    instruction_ref
+    parse_expanddims(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         std::vector<size_t> input_dims = args[0]->get_shape().lens();
-        std::vector<int64_t> new_dims(input_dims.begin(), input_dims.end()); 
+        std::vector<int64_t> new_dims(input_dims.begin(), input_dims.end());
         size_t num_dims = input_dims.size();
-        int32_t dim = parse_axis(args[1]->eval().at<int32_t>(), num_dims);
-        
-        if (dim < 0)
+        int32_t dim     = parse_axis(args[1]->eval().at<int32_t>(), num_dims);
+
+        if(dim < 0)
         {
             new_dims.insert(new_dims.begin() + (num_dims + dim + 1), 1);
         }
@@ -696,7 +699,7 @@ struct tf_parser
     {
         op::squeeze op;
         auto input_dims = args[0]->get_shape().lens();
-        auto axes = parse_axes(attributes, "squeeze_dims", input_dims.size());
+        auto axes       = parse_axes(attributes, "squeeze_dims", input_dims.size());
         copy(axes, std::back_inserter(op.axes));
 
         if(op.axes.empty()) // no squeeze_dims provided, remove any dim that equals 1

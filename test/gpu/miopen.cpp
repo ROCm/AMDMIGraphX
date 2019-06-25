@@ -3445,4 +3445,16 @@ struct test_fp32_fp16_sub : verify_program<test_fp32_fp16_sub>
     };
 };
 
+struct test_reduce_sum : verify_program<test_reduce_sum>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3, 4, 8, 8}};
+        auto x    = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::reduce_sum{{1}}, x);
+        return p;
+    };
+};
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

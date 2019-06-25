@@ -106,8 +106,12 @@ inline __device__ void reduce_argmax(T* data_ptr,
 }
 
 template <class T>
-inline __device__ void
-reduce_argmin(T* data_ptr, int64_t* index_ptr, size_t block_size, size_t thr_idx, size_t item_num, size_t min_index)
+inline __device__ void reduce_argmin(T* data_ptr,
+                                     int64_t* index_ptr,
+                                     size_t block_size,
+                                     size_t thr_idx,
+                                     size_t item_num,
+                                     size_t min_index)
 {
     while(true)
     {

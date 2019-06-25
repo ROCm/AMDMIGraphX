@@ -35,13 +35,13 @@ inline auto launch(hipStream_t stream, std::size_t global, std::size_t local)
     };
 }
 
-template<class F>
+template <class F>
 __host__ __device__ auto gs_invoke(F&& f, std::size_t i, index idx) -> decltype(f(i, idx))
 {
     return f(i, idx);
 }
 
-template<class F>
+template <class F>
 __host__ __device__ auto gs_invoke(F&& f, std::size_t i, index) -> decltype(f(i))
 {
     return f(i);

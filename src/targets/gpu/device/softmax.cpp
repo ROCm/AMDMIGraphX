@@ -2,6 +2,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/gpu/device/softmax.hpp>
+#include <migraphx/gpu/device/reduce_opers.hpp>
 #include <migraphx/gpu/device/tensor.hpp>
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/types.hpp>
@@ -11,60 +12,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
-
-template <class T>
-__device__ void reduce_max(T* data_ptr, size_t block_size, size_t thr_idx, size_t item_num)
-{
-    auto stride = (item_num + 1) / 2;
-    while(true)
-    {
-        if(thr_idx + stride < item_num)
-        {
-            data_ptr[thr_idx] =
-                ::max(to_hip_type(data_ptr[thr_idx]), to_hip_type(data_ptr[thr_idx + stride]));
-        }
-        __syncthreads();
-        item_num = stride;
-        stride   = (stride + 1) / 2;
-
-        if(item_num == 1)
-            break;
-    }
-
-    if(thr_idx == 0)
-    {
-        data_ptr[block_size] =
-            (data_ptr[0] < data_ptr[block_size]) ? data_ptr[block_size] : data_ptr[0];
-    }
-
-    __syncthreads();
-}
-
-template <class T>
-__device__ void reduce_sum(T* data_ptr, size_t block_size, size_t thr_idx, size_t item_num)
-{
-    auto stride = (item_num + 1) / 2;
-    while(true)
-    {
-        if(thr_idx + stride < item_num)
-        {
-            data_ptr[thr_idx] += data_ptr[thr_idx + stride];
-        }
-        __syncthreads();
-        item_num = stride;
-        stride   = (stride + 1) / 2;
-
-        if(item_num == 1)
-            break;
-    }
-
-    if(thr_idx == 0)
-    {
-        data_ptr[block_size] += data_ptr[0];
-    }
-
-    __syncthreads();
-}
 
 void softmax(hipStream_t stream, const argument& result, const argument& arg, int axis)
 {
@@ -112,8 +59,8 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
 
                     __syncthreads();
 
-                    auto size = (remaining_item_num > block_size) ? block_size : remaining_item_num;
-                    reduce_max<type>(lds_data, block_size, thr_idx, size);
+                    auto item_num = (remaining_item_num > block_size) ? block_size : remaining_item_num;
+                    reduce_max<type>(lds_data, block_size, thr_idx, item_num);
 
                     remaining_item_num -= block_size;
                 }
@@ -134,8 +81,8 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
 
                     __syncthreads();
 
-                    auto size = (remaining_item_num > block_size) ? block_size : remaining_item_num;
-                    reduce_sum<type>(lds_data, block_size, thr_idx, size);
+                    auto item_num = (remaining_item_num > block_size) ? block_size : remaining_item_num;
+                    reduce_sum<type>(lds_data, block_size, thr_idx, item_num);
 
                     remaining_item_num -= block_size;
                 }

@@ -99,6 +99,8 @@ struct shape
     /// Map element index to space index
     std::size_t index(std::size_t i) const;
 
+    std::vector<std::size_t> multi(std::size_t i) const;
+
     /// Returns true if the shape is packed with no padding
     bool packed() const;
     /// Returns true is the shape has been transposed. That is the strides are not in descending

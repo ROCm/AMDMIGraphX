@@ -22,9 +22,7 @@ __device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
     using type = decltype(f(idx.local));
     MIGRAPHX_DEVICE_SHARED type buffer[N];
     type x = init;
-    idx.local_stride(n, [&](auto i) {
-        x = op(x, f(i));    
-    });
+    idx.local_stride(n, [&](auto i) { x = op(x, f(i)); });
     buffer[idx.local] = x;
     __syncthreads();
 
@@ -42,7 +40,7 @@ __device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
 
 constexpr std::size_t compute_block_size(std::size_t n, std::size_t max_block_size)
 {
-    size_t block_size           = 1;
+    size_t block_size = 1;
     while(block_size < max_block_size and block_size < n)
         block_size *= 2;
     return block_size;
@@ -69,7 +67,7 @@ void reduce_sum(hipStream_t stream, const argument& result, const argument& arg)
         auto relements = reduce_slice.elements();
 
         const std::size_t max_block_size = 1024;
-        const std::size_t block_size = compute_block_size(relements, max_block_size);
+        const std::size_t block_size     = compute_block_size(relements, max_block_size);
         gs_launch(stream, nelements * block_size, block_size)([=](auto i, auto idx) __device__ {
             auto base_idx = output.get_shape().multi(i / block_size);
             auto offset   = input.get_shape().index(base_idx);

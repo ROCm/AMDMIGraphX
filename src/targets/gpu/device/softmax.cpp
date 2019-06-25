@@ -83,9 +83,9 @@ void softmax(hipStream_t stream, argument result, argument arg, int axis)
 
             for(size_t i = thr_idx; i < batch_item_num; i += block_size)
             {
-                data_idx[axis] = i;
-                auto val       = input[data_idx] - batch_max;
-                output[data_idx]  = ::exp(to_hip_type(val)) / batch_sum;
+                data_idx[axis]   = i;
+                auto val         = input[data_idx] - batch_max;
+                output[data_idx] = ::exp(to_hip_type(val)) / batch_sum;
             }
         });
     });

@@ -83,8 +83,8 @@ void logsoftmax(hipStream_t stream, argument result, argument arg, int axis)
 
             for(size_t i = thr_idx; i < batch_item_num; i += block_size)
             {
-                data_idx[axis] = i;
-                output[data_idx]  = input[data_idx] - log_batch_sum;
+                data_idx[axis]   = i;
+                output[data_idx] = input[data_idx] - log_batch_sum;
             }
         });
     });

@@ -684,23 +684,46 @@ struct cpu_argmax
     std::string name() const { return "cpu::argmax"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
+    std::vector<size_t> compute_batch_indices(size_t idx, const shape& s) const
+    {
+        std::vector<std::size_t> indices(s.lens().size());
+        std::transform(s.strides().begin(),
+                       s.strides().end(),
+                       s.lens().begin(),
+                       indices.begin(),
+                       [&](std::size_t stride, std::size_t len) {
+                           assert(len > 0 and stride > 0);
+                           return (idx / stride) % len;
+                       });
+
+        return indices;
+    }
+
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
+        auto batch_lens      = args.front().get_shape().lens();
+        size_t batch_item_num = batch_lens[op.axis];
+        batch_lens[op.axis] = 1;
+        shape batch_shape{shape::int32_type, batch_lens};
+
         result.visit([&](auto output) {
             args[0].visit([&](auto input) {
-                using value_type =
-                    batch_max(output_shape.elements(), std::numeric_limits<value_type>::lowest());
-                auto data_shape = args[0].get_shape();
-                shape_for_each(data_shape, [&](auto idx) {
-                    auto data_index = data_shape.index(idx);
-                    idx[axis]       = 0;
-                    auto out_index  = data_shape.index(idx);
-                    if(batch_max[index] < input[data_index])
+                par_for(batch_shape.elements(), [&](auto i) {
+                    auto data_idx = this->compute_batch_indices(i, batch_shape);
+                    auto max_val = input[i];
+                    int64_t max_index = 0;
+                    for (size_t j = 1; j < batch_item_num; ++j)
                     {
-                        batch_max[index] = input[data_index];
-                        output[index]    = static_cast<int64_t>(data_index);
+                        data_idx[op.axis] = j;
+                        if (max_val < input(data_idx.begin(), data_idx.end()))
+                        {
+                            max_val = input(data_idx.begin(), data_idx.end());
+                            max_index = j;
+                        }
                     }
+
+                    output[i] = max_index;
                 });
             });
         });
@@ -722,23 +745,46 @@ struct cpu_argmin
     std::string name() const { return "cpu::argmin"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
+    std::vector<size_t> compute_batch_indices(size_t idx, const shape& s) const
+    {
+        std::vector<std::size_t> indices(s.lens().size());
+        std::transform(s.strides().begin(),
+                       s.strides().end(),
+                       s.lens().begin(),
+                       indices.begin(),
+                       [&](std::size_t stride, std::size_t len) {
+                           assert(len > 0 and stride > 0);
+                           return (idx / stride) % len;
+                       });
+
+        return indices;
+    }
+
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
+        auto batch_lens      = args.front().get_shape().lens();
+        size_t batch_item_num = batch_lens[op.axis];
+        batch_lens[op.axis] = 1;
+        shape batch_shape{shape::int32_type, batch_lens};
+
         result.visit([&](auto output) {
             args[0].visit([&](auto input) {
-                using value_type =
-                    batch_min(output_shape.elements(), std::numeric_limits<value_type>::max());
-                auto data_shape = args[0].get_shape();
-                shape_for_each(data_shape, [&](auto idx) {
-                    auto data_index = data_shape.index(idx);
-                    idx[axis]       = 0;
-                    auto out_index  = data_shape.index(idx);
-                    if(batch_min[index] > input[data_index])
+                par_for(batch_shape.elements(), [&](auto i) {
+                    auto data_idx = this->compute_batch_indices(i, batch_shape);
+                    auto min_val = input[i];
+                    int64_t min_index = 0;
+                    for (size_t j = 1; j < batch_item_num; ++j)
                     {
-                        batch_min[index] = input[data_index];
-                        output[index]    = static_cast<int64_t>(data_index);
+                        data_idx[op.axis] = j;
+                        if (min_val > input(data_idx.begin(), data_idx.end()))
+                        {
+                            min_val = input(data_idx.begin(), data_idx.end());
+                            min_index = j;
+                        }
                     }
+
+                    output[i] = min_index;
                 });
             });
         });

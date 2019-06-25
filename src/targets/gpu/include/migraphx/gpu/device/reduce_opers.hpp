@@ -11,7 +11,7 @@ namespace gpu {
 namespace device {
 
 template <class T>
-__device__ void reduce_max(T* data_ptr, size_t block_size, size_t thr_idx, size_t item_num)
+inline __device__ void reduce_max(T* data_ptr, size_t block_size, size_t thr_idx, size_t item_num)
 {
     auto stride = (item_num + 1) / 2;
     while(true)
@@ -39,7 +39,7 @@ __device__ void reduce_max(T* data_ptr, size_t block_size, size_t thr_idx, size_
 }
 
 template <class T>
-__device__ void reduce_sum(T* data_ptr, size_t block_size, size_t thr_idx, size_t item_num)
+inline __device__ void reduce_sum(T* data_ptr, size_t block_size, size_t thr_idx, size_t item_num)
 {
     auto stride = (item_num + 1) / 2;
     while(true)

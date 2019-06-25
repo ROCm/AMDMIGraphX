@@ -11,6 +11,8 @@
 #include <migraphx/gpu/device/contiguous.hpp>
 #include <migraphx/gpu/device/add.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/gpu/argmax.hpp>
+#include <migraphx/gpu/argmin.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>

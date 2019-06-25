@@ -55,7 +55,7 @@ void argmin(hipStream_t stream, const argument& result, const argument& arg, int
                 __syncthreads();
 
                 auto item_num = (remaining_item_num > block_size) ? block_size : remaining_item_num;
-                reduce_argmin(lds_data, lds_index, block_size, thr_idx, size, max_block_size);
+                reduce_argmin(lds_data, lds_index, block_size, thr_idx, item_num, max_block_size);
 
                 remaining_item_num -= block_size;
             }
@@ -66,8 +66,6 @@ void argmin(hipStream_t stream, const argument& result, const argument& arg, int
             }
         });
     });
-
-    return args.back();
 }
 
 } // namespace device

@@ -41,7 +41,7 @@ void softmax(hipStream_t stream, argument result, argument arg, int axis)
             // load data to lds and compute the batch max
             size_t remaining_item_num = batch_item_num;
             size_t round_item_num     = (batch_item_num + block_size - 1) / block_size * block_size;
-            lds_data[block_size]      = input[0];
+            lds_data[max_block_size]      = input[0];
             for(size_t i = thr_idx; i < round_item_num; i += block_size)
             {
                 if(i < batch_item_num)
@@ -53,15 +53,15 @@ void softmax(hipStream_t stream, argument result, argument arg, int axis)
                 __syncthreads();
 
                 auto item_num = (remaining_item_num > block_size) ? block_size : remaining_item_num;
-                reduce_max(lds_data, block_size, thr_idx, item_num);
+                reduce_max(lds_data, block_size, thr_idx, item_num, max_block_size);
 
                 remaining_item_num -= block_size;
             }
 
-            auto batch_max = lds_data[block_size];
+            auto batch_max = lds_data[max_block_size];
             __syncthreads();
 
-            lds_data[block_size] = 0;
+            lds_data[max_block_size] = 0;
             remaining_item_num   = batch_item_num;
             for(size_t i = thr_idx; i < round_item_num; i += block_size)
             {
@@ -75,11 +75,11 @@ void softmax(hipStream_t stream, argument result, argument arg, int axis)
                 __syncthreads();
 
                 auto item_num = (remaining_item_num > block_size) ? block_size : remaining_item_num;
-                reduce_sum(lds_data, block_size, thr_idx, item_num);
+                reduce_sum(lds_data, block_size, thr_idx, item_num, max_block_size);
 
                 remaining_item_num -= block_size;
             }
-            auto batch_sum = lds_data[block_size];
+            auto batch_sum = lds_data[max_block_size];
 
             for(size_t i = thr_idx; i < batch_item_num; i += block_size)
             {

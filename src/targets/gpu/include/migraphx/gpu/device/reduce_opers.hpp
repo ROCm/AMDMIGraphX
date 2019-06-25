@@ -70,4 +70,3 @@ __device__ void reduce_sum(T* data_ptr, size_t block_size, size_t thr_idx, size_
 } // namespace migraphx
 
 #endif
-

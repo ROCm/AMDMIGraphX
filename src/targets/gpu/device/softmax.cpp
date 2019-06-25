@@ -59,7 +59,8 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
 
                     __syncthreads();
 
-                    auto item_num = (remaining_item_num > block_size) ? block_size : remaining_item_num;
+                    auto item_num =
+                        (remaining_item_num > block_size) ? block_size : remaining_item_num;
                     reduce_max<type>(lds_data, block_size, thr_idx, item_num);
 
                     remaining_item_num -= block_size;
@@ -81,7 +82,8 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
 
                     __syncthreads();
 
-                    auto item_num = (remaining_item_num > block_size) ? block_size : remaining_item_num;
+                    auto item_num =
+                        (remaining_item_num > block_size) ? block_size : remaining_item_num;
                     reduce_sum<type>(lds_data, block_size, thr_idx, item_num);
 
                     remaining_item_num -= block_size;

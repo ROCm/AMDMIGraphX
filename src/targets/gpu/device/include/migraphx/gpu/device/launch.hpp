@@ -14,6 +14,36 @@ struct index
     std::size_t global;
     std::size_t local;
     std::size_t group;
+
+    __device__ std::size_t nglobal() const
+    {
+        return blockDim.x * gridDim.x;
+    }
+
+    __device__ std::size_t nlocal() const
+    {
+        return blockDim.x;
+    }
+
+    template<class F>
+    __device__ void global_stride(std::size_t n, F f) const
+    {
+        const auto stride = nglobal();
+        for(std::size_t i = global; i < n; i += stride)
+        {
+            f(i);
+        }
+    }
+
+    template<class F>
+    __device__ void local_stride(std::size_t n, F f) const
+    {
+        const auto stride = nlocal();
+        for(std::size_t i = local; i < n; i += stride)
+        {
+            f(i);
+        }
+    }
 };
 
 template <class F>
@@ -54,10 +84,9 @@ inline auto gs_launch(hipStream_t stream, std::size_t n, std::size_t local = 102
 
     return [=](auto f) {
         launch(stream, nglobal, local)([=](auto idx) {
-            for(size_t i = idx.global; i < n; i += nglobal)
-            {
+            idx.global_stride(n, [&](auto i) {
                 gs_invoke(f, i, idx);
-            }
+            });
         });
     };
 }

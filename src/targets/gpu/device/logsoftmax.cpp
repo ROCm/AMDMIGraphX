@@ -15,10 +15,10 @@ namespace device {
 void logsoftmax(hipStream_t stream, const argument& result, const argument& arg, int axis)
 {
 
-    auto lens        = result.get_shape().lens();
-    auto batch_item_num      = lens[axis];
-    auto batch_lens  = lens;
-    batch_lens[axis] = 1;
+    auto lens           = result.get_shape().lens();
+    auto batch_item_num = lens[axis];
+    auto batch_lens     = lens;
+    batch_lens[axis]    = 1;
     migraphx::shape batch_shape{result.get_shape().type(), batch_lens};
 
     visit_all(result, arg)([&](auto output, auto input) {
@@ -46,7 +46,7 @@ void logsoftmax(hipStream_t stream, const argument& result, const argument& arg,
                 auto batch_idx = desc_batch.multi(blk_idx);
                 auto data_idx  = batch_idx;
                 // load data to lds and compute the batch max
-                size_t remaining_item_num      = batch_item_num;
+                size_t remaining_item_num = batch_item_num;
                 size_t thread_num    = (batch_item_num + block_size - 1) / block_size * block_size;
                 lds_data[block_size] = input_ptr[0];
                 for(size_t i = thr_idx; i < thread_num; i += block_size)
@@ -58,7 +58,8 @@ void logsoftmax(hipStream_t stream, const argument& result, const argument& arg,
                     }
                     __syncthreads();
 
-                    auto item_num   = (remaining_item_num > block_size) ? block_size : remaining_item_num;
+                    auto item_num =
+                        (remaining_item_num > block_size) ? block_size : remaining_item_num;
                     reduce_max(lds_data, block_size, thr_idx, item_num);
 
                     remaining_item_num -= block_size;
@@ -67,28 +68,27 @@ void logsoftmax(hipStream_t stream, const argument& result, const argument& arg,
                 auto batch_max = lds_data[block_size];
                 __syncthreads();
 
-                lds_data[block_size]    = 0;
-                remaining_item_num                 = batch_item_num;
+                lds_data[block_size] = 0;
+                remaining_item_num   = batch_item_num;
                 for(size_t i = thr_idx; i < thread_num; i += block_size)
                 {
                     if(i < batch_item_num)
                     {
-                        data_idx[axis] = i;
-                        lds_data[thr_idx] =
-                            input_ptr[desc_data.linear(data_idx)] - batch_max;
+                        data_idx[axis]    = i;
+                        lds_data[thr_idx] = input_ptr[desc_data.linear(data_idx)] - batch_max;
                         lds_data[thr_idx] = ::exp(to_hip_type(lds_data[thr_idx]));
                     }
 
                     __syncthreads();
 
-                    auto item_num   = (remaining_item_num > block_size) ? block_size : remaining_item_num;
+                    auto item_num =
+                        (remaining_item_num > block_size) ? block_size : remaining_item_num;
                     reduce_sum(lds_data, block_size, thr_idx, item_num);
 
                     remaining_item_num -= block_size;
                 }
 
-                auto log_batch_sum =
-                    ::log(to_hip_type(lds_data[block_size])) + batch_max;
+                auto log_batch_sum = ::log(to_hip_type(lds_data[block_size])) + batch_max;
 
                 for(size_t i = thr_idx; i < batch_item_num; i += block_size)
                 {

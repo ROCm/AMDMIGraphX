@@ -11,7 +11,7 @@ namespace gpu {
 namespace device {
 
 template <class T>
-inline __device__ void reduce_max(T* data_ptr, size_t block_size, size_t thr_idx, size_t item_num)
+inline __device__ void reduce_max(T* data_ptr, size_t block_size, size_t thr_idx, size_t item_num, size_t max_index)
 {
     while(true)
     {
@@ -30,15 +30,42 @@ inline __device__ void reduce_max(T* data_ptr, size_t block_size, size_t thr_idx
 
     if(thr_idx == 0)
     {
-        data_ptr[block_size] =
-            (data_ptr[0] < data_ptr[block_size]) ? data_ptr[block_size] : data_ptr[0];
+        data_ptr[max_index] =
+            (data_ptr[0] < data_ptr[max_index]) ? data_ptr[max_index] : data_ptr[0];
     }
 
     __syncthreads();
 }
 
 template <class T>
-inline __device__ void reduce_sum(T* data_ptr, size_t block_size, size_t thr_idx, size_t item_num)
+inline __device__ void reduce_min(T* data_ptr, size_t block_size, size_t thr_idx, size_t item_num, size_t min_index)
+{
+    while(true)
+    {
+        auto stride = (item_num + 1) / 2;
+        auto size   = item_num / 2;
+        for(size_t i = thr_idx; i < size; i += block_size)
+        {
+            data_ptr[i] = ::min(to_hip_type(data_ptr[i]), to_hip_type(data_ptr[i + stride]));
+        }
+        __syncthreads();
+        item_num = stride;
+
+        if(item_num == 1)
+            break;
+    }
+
+    if(thr_idx == 0)
+    {
+        data_ptr[min_index] =
+            (data_ptr[0] > data_ptr[min_index]) ? data_ptr[min_index] : data_ptr[0];
+    }
+
+    __syncthreads();
+}
+
+template <class T>
+inline __device__ void reduce_sum(T* data_ptr, size_t block_size, size_t thr_idx, size_t item_num, size_t sum_index)
 {
     while(true)
     {
@@ -57,7 +84,7 @@ inline __device__ void reduce_sum(T* data_ptr, size_t block_size, size_t thr_idx
 
     if(thr_idx == 0)
     {
-        data_ptr[block_size] += data_ptr[0];
+        data_ptr[sum_index] += data_ptr[0];
     }
 
     __syncthreads();

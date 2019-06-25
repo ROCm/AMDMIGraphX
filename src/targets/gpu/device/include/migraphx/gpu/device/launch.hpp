@@ -35,6 +35,18 @@ inline auto launch(hipStream_t stream, std::size_t global, std::size_t local)
     };
 }
 
+template<class F>
+__host__ __device__ auto gs_invoke(F&& f, std::size_t i, index idx) -> decltype(f(i, idx))
+{
+    return f(i, idx);
+}
+
+template<class F>
+__host__ __device__ auto gs_invoke(F&& f, std::size_t i, index) -> decltype(f(i))
+{
+    return f(i);
+}
+
 inline auto gs_launch(hipStream_t stream, std::size_t n, std::size_t local = 1024)
 {
     std::size_t groups  = 1 + n / local;
@@ -44,7 +56,7 @@ inline auto gs_launch(hipStream_t stream, std::size_t n, std::size_t local = 102
         launch(stream, nglobal, local)([=](auto idx) {
             for(size_t i = idx.global; i < n; i += nglobal)
             {
-                f(i);
+                gs_invoke(f, i, idx);
             }
         });
     };

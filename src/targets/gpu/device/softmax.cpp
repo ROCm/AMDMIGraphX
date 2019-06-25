@@ -13,7 +13,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void softmax(hipStream_t stream, argument result, argument arg, int axis)
+void softmax(hipStream_t stream, const argument& result, const argument& arg, int axis)
 {
     auto lens             = result.get_shape().lens();
     auto batch_lens       = lens;

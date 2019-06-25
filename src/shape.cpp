@@ -145,13 +145,13 @@ std::vector<std::size_t> shape::multi(std::size_t i) const
 
     std::vector<std::size_t> indices(lens().size());
     std::transform(strides().begin(),
-                    strides().end(),
-                    lens().begin(),
-                    indices.begin(),
-                    [&](std::size_t stride, std::size_t len) {
-                        assert(len > 0 and stride > 0);
-                        return (i / stride) % len;
-                    });
+                   strides().end(),
+                   lens().begin(),
+                   indices.begin(),
+                   [&](std::size_t stride, std::size_t len) {
+                       assert(len > 0 and stride > 0);
+                       return (i / stride) % len;
+                   });
 
     return indices;
 }

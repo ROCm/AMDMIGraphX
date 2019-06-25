@@ -13,8 +13,7 @@ namespace gpu {
 namespace device {
 
 template <class T>
-__device__ void
-reduce_max(T* data_ptr, size_t block_size, size_t thr_idx, size_t item_num)
+__device__ void reduce_max(T* data_ptr, size_t block_size, size_t thr_idx, size_t item_num)
 {
     auto stride = (item_num + 1) / 2;
     while(true)
@@ -42,8 +41,7 @@ reduce_max(T* data_ptr, size_t block_size, size_t thr_idx, size_t item_num)
 }
 
 template <class T>
-__device__ void
-reduce_sum(T* data_ptr, size_t block_size, size_t thr_idx, size_t item_num)
+__device__ void reduce_sum(T* data_ptr, size_t block_size, size_t thr_idx, size_t item_num)
 {
     auto stride = (item_num + 1) / 2;
     while(true)
@@ -70,10 +68,10 @@ reduce_sum(T* data_ptr, size_t block_size, size_t thr_idx, size_t item_num)
 
 void softmax(hipStream_t stream, const argument& result, const argument& arg, int axis)
 {
-    auto lens        = result.get_shape().lens();
-    auto batch_lens  = lens;
-    size_t batch_item_num    = lens[axis];
-    batch_lens[axis] = 1;
+    auto lens             = result.get_shape().lens();
+    auto batch_lens       = lens;
+    size_t batch_item_num = lens[axis];
+    batch_lens[axis]      = 1;
     migraphx::shape batch_shape{result.get_shape().type(), batch_lens};
 
     visit_all(result, arg)([&](auto output, auto input) {
@@ -101,9 +99,9 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
                 auto batch_idx = desc_batch.multi(blk_idx);
                 auto data_idx  = batch_idx;
                 // load data to lds and compute the batch max
-                size_t remaining_item_num          = batch_item_num;
-                size_t round_item_num        = (batch_item_num + block_size - 1) / block_size * block_size;
-                lds_data[block_size]     = input_ptr[0];
+                size_t remaining_item_num = batch_item_num;
+                size_t round_item_num = (batch_item_num + block_size - 1) / block_size * block_size;
+                lds_data[block_size]  = input_ptr[0];
                 for(size_t i = thr_idx; i < round_item_num; i += block_size)
                 {
                     if(i < batch_item_num)
@@ -124,14 +122,13 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
                 __syncthreads();
 
                 lds_data[block_size] = 0;
-                remaining_item_num = batch_item_num;
+                remaining_item_num   = batch_item_num;
                 for(size_t i = thr_idx; i < round_item_num; i += block_size)
                 {
                     if(i < batch_item_num)
                     {
-                        data_idx[axis] = i;
-                        lds_data[thr_idx] =
-                            input_ptr[desc_data.linear(data_idx)] - batch_max;
+                        data_idx[axis]    = i;
+                        lds_data[thr_idx] = input_ptr[desc_data.linear(data_idx)] - batch_max;
                         lds_data[thr_idx] = ::exp(to_hip_type(lds_data[thr_idx]));
                     }
 

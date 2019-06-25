@@ -31,7 +31,7 @@ void logsoftmax(hipStream_t stream, const argument& result, const argument& arg,
             // use one block for items in one batch.
             const size_t max_block_size = 1024;
             size_t block_size           = 1;
-            while(block_size < max_block_size and block_size < n_dim)
+            while(block_size < max_block_size and block_size < batch_item_num)
             {
                 block_size *= 2;
             }

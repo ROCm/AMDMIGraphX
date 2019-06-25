@@ -559,7 +559,7 @@ struct cpu_softmax
                                               std::numeric_limits<value_type>::lowest());
             std::vector<value_type> batch_sum(batch_shape.elements(), value_type(0));
             par_for(batch_shape.elements(), [&](auto i) {
-                auto idx = compute_batch_indices(i, batch_shape);
+                auto idx = this->compute_batch_indices(i, batch_shape);
 
                 for(size_t j = 0; j < n_dims; ++j)
                 {
@@ -637,7 +637,7 @@ struct cpu_logsoftmax
             std::vector<value_type> batch_sum(batch_shape.elements(), value_type(0));
 
             par_for(batch_shape.elements(), [&](auto i) {
-                auto idx = compute_batch_indices(i, batch_shape);
+                auto idx = this->compute_batch_indices(i, batch_shape);
                 for(size_t j = 0; j < n_dims; ++j)
                 {
                     idx[op.axis] = j;

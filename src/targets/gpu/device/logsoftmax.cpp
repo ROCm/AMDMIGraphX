@@ -47,8 +47,8 @@ void logsoftmax(hipStream_t stream, const argument& result, const argument& arg,
                 auto data_idx  = batch_idx;
                 // load data to lds and compute the batch max
                 size_t remaining_item_num = batch_item_num;
-                size_t round_item_num    = (batch_item_num + block_size - 1) / block_size * block_size;
-                lds_data[block_size] = input_ptr[0];
+                size_t round_item_num = (batch_item_num + block_size - 1) / block_size * block_size;
+                lds_data[block_size]  = input_ptr[0];
                 for(size_t i = thr_idx; i < round_item_num; i += block_size)
                 {
                     if(i < batch_item_num)

@@ -348,7 +348,7 @@ struct tf_parser
         }
 
         auto weights = to_kcxy(args[1]);
-        auto l0 = args[0];
+        auto l0      = args[0];
         if(contains(attributes, "padding"))
         {
             const std::string& pad_mode = attributes.at("padding").s();

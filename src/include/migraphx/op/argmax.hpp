@@ -40,7 +40,7 @@ struct argmax
         }
 
         lens[axis] = 1;
-        if(!keep_dims)
+        if(keep_dims == 0)
         {
             lens.erase(lens.begin() + axis);
         }

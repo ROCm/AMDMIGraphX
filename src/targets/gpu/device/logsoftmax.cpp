@@ -53,7 +53,9 @@ void logsoftmax(hipStream_t stream, const argument& result, const argument& arg,
                 __syncthreads();
 
                 auto item_num = (remaining_item_num > block_size) ? block_size : remaining_item_num;
-                reduce_max(lds_data, block_size, thr_idx, item_num, max_block_size);
+                // reduce_max(lds_data, block_size, thr_idx, item_num, max_block_size);
+                block_reduce<type, max_op<type>>(
+                    lds_data, max_op<type>{}, block_size, thr_idx, item_num, max_block_size);
 
                 remaining_item_num -= block_size;
             }
@@ -75,7 +77,9 @@ void logsoftmax(hipStream_t stream, const argument& result, const argument& arg,
                 __syncthreads();
 
                 auto item_num = (remaining_item_num > block_size) ? block_size : remaining_item_num;
-                reduce_sum(lds_data, block_size, thr_idx, item_num, max_block_size);
+                // reduce_sum(lds_data, block_size, thr_idx, item_num, max_block_size);
+                block_reduce<type, sum_op<type>>(
+                    lds_data, sum_op<type>{}, block_size, thr_idx, item_num, max_block_size);
 
                 remaining_item_num -= block_size;
             }

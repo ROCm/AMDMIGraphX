@@ -569,7 +569,7 @@ struct tf_parser
         // in tf, the paddings are arranged as a 2d shape (ndims, 2),
         // the last dim contains the left padding and right padding respectively
         std::vector<std::pair<int32_t, int32_t>> pad_per_dim(ndims);
-        auto tf_padding = parse_axes(args[1]->eval().get<int32_t>().to_vector());
+        auto tf_padding = args[1]->eval().get<int32_t>().to_vector();
         for(size_t i = 0; i < 2 * ndims; i += 2)
         {
             pad_per_dim[i / 2].first  = tf_padding[i];

@@ -269,8 +269,8 @@ struct onnx_parser
     }
 
     instruction_ref parse_argmax(const std::string&,
-                                     const attribute_map& attributes,
-                                     std::vector<instruction_ref> args)
+                                 const attribute_map& attributes,
+                                 std::vector<instruction_ref> args)
     {
         int axis = 0;
         if(contains(attributes, "axis"))
@@ -282,8 +282,8 @@ struct onnx_parser
     }
 
     instruction_ref parse_argmin(const std::string&,
-                                     const attribute_map& attributes,
-                                     std::vector<instruction_ref> args)
+                                 const attribute_map& attributes,
+                                 std::vector<instruction_ref> args)
     {
         int axis = 0;
         if(contains(attributes, "axis"))
@@ -293,7 +293,6 @@ struct onnx_parser
 
         return prog.add_instruction(op::argmin{axis}, std::move(args));
     }
-
 
     instruction_ref
     parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)

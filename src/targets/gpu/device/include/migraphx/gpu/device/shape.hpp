@@ -77,11 +77,11 @@ struct hip_shape
     MIGRAPHX_DEVICE_CONSTEXPR hip_index carry(hip_index result) const
     {
         std::ptrdiff_t rem = 0;
-        for(std::ptrdiff_t i = result.size()-1; i >= 0; i--)
+        for(std::ptrdiff_t i = result.size() - 1; i >= 0; i--)
         {
             auto z = result[i] + rem;
-            rem = z - std::ptrdiff_t(lens[i]) + 1;
-            if (rem > 0)
+            rem    = z - std::ptrdiff_t(lens[i]) + 1;
+            if(rem > 0)
                 z -= rem;
             else
                 rem = 0;

@@ -63,6 +63,8 @@ struct onnx_parser
         add_variadic_op("Max", op::max{});
         add_variadic_op("Min", op::min{});
 
+        add_mem_op("ArgMax", &onnx_parser::parse_argmax);
+        add_mem_op("ArgMin", &onnx_parser::parse_argmin);
         add_mem_op("Clip", &onnx_parser::parse_clip);
         add_mem_op("LRN", &onnx_parser::parse_lrn);
         add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
@@ -265,6 +267,33 @@ struct onnx_parser
 
         return prog.add_instruction(op::logsoftmax{axis}, std::move(args));
     }
+
+    instruction_ref parse_argmax(const std::string&,
+                                     const attribute_map& attributes,
+                                     std::vector<instruction_ref> args)
+    {
+        int axis = 0;
+        if(contains(attributes, "axis"))
+        {
+            axis = parse_value(attributes.at("axis")).at<int>();
+        }
+
+        return prog.add_instruction(op::argmax{axis}, std::move(args));
+    }
+
+    instruction_ref parse_argmin(const std::string&,
+                                     const attribute_map& attributes,
+                                     std::vector<instruction_ref> args)
+    {
+        int axis = 0;
+        if(contains(attributes, "axis"))
+        {
+            axis = parse_value(attributes.at("axis")).at<int>();
+        }
+
+        return prog.add_instruction(op::argmin{axis}, std::move(args));
+    }
+
 
     instruction_ref
     parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)

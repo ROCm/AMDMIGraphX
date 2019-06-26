@@ -212,6 +212,25 @@ auto visit_all(T&& x, Ts&&... xs)
     };
 }
 
+template <class T>
+auto visit_all(const std::vector<T>& x)
+{
+    auto&& s = x.front().get_shape();
+    if(!std::all_of(
+           x.begin(), x.end(), [&](const T& y) { return y.get_shape().type() == s.type(); }))
+        MIGRAPHX_THROW("Types must be the same");
+    return [&](auto v) {
+        s.visit_type([&](auto as) {
+            using type = typename decltype(as)::type;
+            std::vector<tensor_view<type>> result;
+            std::transform(x.begin(), x.end(), std::back_inserter(result), [&](const auto& y) {
+                return make_view(y.get_shape(), as.from(y.data()));
+            });
+            v(result);
+        });
+    };
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

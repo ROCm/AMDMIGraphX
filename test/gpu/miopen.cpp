@@ -569,13 +569,13 @@ struct test_sub2 : verify_program<test_sub2>
     }
 };
 
-struct test_softmax : verify_program<test_softmax>
+struct test_softmax1 : verify_program<test_softmax1>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {5, 3, 4, 2}});
-        p.add_instruction(migraphx::op::softmax{}, x);
+        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {5, 3, 3, 4}});
+        p.add_instruction(migraphx::op::softmax{0}, x);
         return p;
     }
 };
@@ -591,6 +591,25 @@ struct test_softmax2 : verify_program<test_softmax2>
         return p;
     }
 };
+
+template <int Axis>
+struct test_softmax : verify_program<test_softmax<Axis>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3, 4, 5, 6}};
+        auto param = p.add_parameter("0", s);
+        p.add_instruction(migraphx::op::softmax{Axis}, param);
+
+        return p;
+    }
+};
+
+template struct test_softmax<0>;
+template struct test_softmax<1>;
+template struct test_softmax<2>;
+template struct test_softmax<3>;
 
 struct test_conv : verify_program<test_conv>
 {
@@ -1437,6 +1456,22 @@ struct test_pad : verify_program<test_pad>
         p.add_instruction(migraphx::op::pad{pads1}, l0);
         p.add_instruction(migraphx::op::pad{pads2}, l0);
         p.add_instruction(migraphx::op::pad{pads3}, l0);
+        return p;
+    }
+};
+
+struct test_pad_int8 : verify_program<test_pad_int8>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        std::vector<int8_t> data0 = {0, 1, 2, 3};
+        migraphx::shape s0{migraphx::shape::float_type, {2, 2}};
+        auto l0 = p.add_literal(migraphx::literal{s0, data0});
+        migraphx::op::pad op{};
+        op.value = std::numeric_limits<int8_t>::lowest();
+        op.pads  = {0, 0, 1, 1};
+        p.add_instruction(op, l0);
         return p;
     }
 };
@@ -2631,10 +2666,11 @@ struct test_lstm_forward_last : verify_program<test_lstm_forward_last>
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
         auto output = p.add_instruction(
-            migraphx::op::gru{hidden_size,
-                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
-                              migraphx::op::rnn_direction::forward,
-                              clip},
+            migraphx::op::lstm{
+                hidden_size,
+                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
+                migraphx::op::rnn_direction::forward,
+                clip},
             seq,
             w,
             r,
@@ -3326,7 +3362,6 @@ template struct test_logsoftmax<0>;
 template struct test_logsoftmax<1>;
 template struct test_logsoftmax<2>;
 template struct test_logsoftmax<3>;
-template struct test_logsoftmax<4>;
 
 template <int Axis>
 struct test_logsoftmax_1 : verify_program<test_logsoftmax_1<Axis>>
@@ -3343,7 +3378,6 @@ struct test_logsoftmax_1 : verify_program<test_logsoftmax_1<Axis>>
 };
 
 template struct test_logsoftmax_1<0>;
-template struct test_logsoftmax_1<1>;
 
 struct test_fp32_fp16_lall : verify_program<test_fp32_fp16_lall>
 {

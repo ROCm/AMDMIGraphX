@@ -70,7 +70,7 @@ void reduce_sum(hipStream_t stream, const argument& result, const argument& arg)
         const std::size_t block_size     = compute_block_size(relements, max_block_size);
         gs_launch(stream, nelements * block_size, block_size)([=](auto i, auto idx) __device__ {
             const auto out_idx = i / block_size;
-            auto base_idx = output.get_shape().multi(out_idx);
+            auto base_idx      = output.get_shape().multi(out_idx);
             auto r = block_reduce<max_block_size>(idx, sum{}, 0, relements, [&](auto j) __device__ {
                 auto reduce_idx = reduce_shape.multi(j);
                 return input[reduce_idx + base_idx];

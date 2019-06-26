@@ -359,4 +359,14 @@ TEST_CASE(stridedslice_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(tanh_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    p.add_instruction(migraphx::op::tanh{}, l0);
+    auto prog = migraphx::parse_tf("tanh_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

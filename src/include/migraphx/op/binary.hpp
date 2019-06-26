@@ -28,8 +28,10 @@ struct binary : op_name<Derived>
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
+        auto s1 = args[0].get_shape();
+        auto s2 = args[1].get_shape();
         visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {
-            if(input1.get_shape().packed() and input2.get_shape().packed())
+            if(s1 == s2 and input1.get_shape().packed() and input2.get_shape().packed())
             {
                 std::transform(input1.begin(),
                                input1.end(),

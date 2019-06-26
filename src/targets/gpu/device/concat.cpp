@@ -10,22 +10,20 @@ namespace gpu {
 namespace device {
 
 argument concat(hipStream_t stream,
-                const migraphx::shape& output_shape,
+                const migraphx::shape&,
                 std::vector<migraphx::argument> args,
                 std::vector<std::size_t> offsets)
 {
-    for(std::size_t l = 0; l < args.size() - 1; l++)
+    auto ninputs = args.size() - 1;
+    for(std::size_t j = 0; j < ninputs; j++)
     {
-        auto argl             = args[l];
-        std::size_t nelements = argl.get_shape().elements();
-        visit_all(args.back(), argl)([&](auto output, auto input) {
-            visit_tensor_size(output_shape.lens().size(), [&](auto ndim) {
-                auto* outptr      = output.data() + offsets[l];
-                const auto* inptr = input.data();
-                hip_tensor_descriptor<ndim> desc_input(input.get_shape());
-                hip_tensor_descriptor<ndim> desc_output(output.get_shape());
-                gs_launch(stream, nelements)(
-                    [=](auto i) { outptr[desc_output.linear(desc_input.multi(i))] = inptr[i]; });
+        auto&& arg            = args[j];
+        std::size_t nelements = arg.get_shape().elements();
+        auto offset           = offsets[j];
+        hip_visit_all(args.back(), arg)([&](auto output, auto input) {
+            gs_launch(stream, nelements)([=](auto i) {
+                auto idx                    = output.get_shape().index(input.get_shape().multi(i));
+                output.data()[idx + offset] = input.data()[i];
             });
         });
     }

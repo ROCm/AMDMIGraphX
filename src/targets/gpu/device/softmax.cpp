@@ -55,6 +55,7 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
 
                 auto item_num = (remaining_item_num > block_size) ? block_size : remaining_item_num;
                 reduce_max(lds_data, block_size, thr_idx, item_num, max_block_size);
+                reduce_max(lds_data, block_size, thr_idx, item_num, max_block_size);
 
                 remaining_item_num -= block_size;
             }

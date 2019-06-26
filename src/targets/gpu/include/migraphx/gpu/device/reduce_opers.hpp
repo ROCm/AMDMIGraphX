@@ -34,7 +34,7 @@ inline __device__ void block_reduce(T* data_ptr,
                                     std::size_t block_size,
                                     std::size_t thr_idx,
                                     std::size_t item_num,
-                                    std::size_t max_index)
+                                    std::size_t output_index)
 {
     while(true)
     {
@@ -54,9 +54,7 @@ inline __device__ void block_reduce(T* data_ptr,
 
     if(thr_idx == 0)
     {
-        // data_ptr[max_index] =
-        //     (data_ptr[0] < data_ptr[max_index]) ? data_ptr[max_index] : data_ptr[0];
-        data_ptr[max_index] = op(data_ptr[max_index], data_ptr[0]);
+        data_ptr[output_index] = op(data_ptr[output_index], data_ptr[0]);
     }
 
     __syncthreads();

@@ -279,7 +279,7 @@ struct onnx_parser
         }
 
         int keep_dims = 1;
-        if (contains(attributes, "keepdims"))
+        if(contains(attributes, "keepdims"))
         {
             keep_dims = parse_value(attributes.at("keepdims")).at<int>();
         }
@@ -298,7 +298,7 @@ struct onnx_parser
         }
 
         int keep_dims = 1;
-        if (contains(attributes, "keepdims"))
+        if(contains(attributes, "keepdims"))
         {
             keep_dims = parse_value(attributes.at("keepdims")).at<int>();
         }

@@ -278,7 +278,13 @@ struct onnx_parser
             axis = parse_value(attributes.at("axis")).at<int>();
         }
 
-        return prog.add_instruction(op::argmax{axis}, std::move(args));
+        int keep_dims = 1;
+        if (contains(attributes, "keepdims"))
+        {
+            keep_dims = parse_value(attributes.at("keepdims")).at<int>();
+        }
+
+        return prog.add_instruction(op::argmax{axis, keep_dims}, std::move(args));
     }
 
     instruction_ref parse_argmin(const std::string&,
@@ -291,7 +297,13 @@ struct onnx_parser
             axis = parse_value(attributes.at("axis")).at<int>();
         }
 
-        return prog.add_instruction(op::argmin{axis}, std::move(args));
+        int keep_dims = 1;
+        if (contains(attributes, "keepdims"))
+        {
+            keep_dims = parse_value(attributes.at("keepdims")).at<int>();
+        }
+
+        return prog.add_instruction(op::argmin{axis, keep_dims}, std::move(args));
     }
 
     instruction_ref

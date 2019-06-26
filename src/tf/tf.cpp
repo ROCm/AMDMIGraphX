@@ -115,6 +115,7 @@ struct tf_parser
 
         add_binary_op("Add", op::add{});
         add_binary_op("Mul", op::mul{});
+        add_binary_op("Sub", op::sub{});
 
         add_mem_op("AvgPool", &tf_parser::parse_pooling);
         add_mem_op("BiasAdd", &tf_parser::parse_biasadd);

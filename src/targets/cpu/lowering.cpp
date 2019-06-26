@@ -654,9 +654,9 @@ struct cpu_argmax
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        auto batch_lens       = args.front().get_shape().lens();
+        auto batch_lens            = args.front().get_shape().lens();
         std::size_t batch_item_num = batch_lens[op.axis];
-        batch_lens[op.axis]   = 1;
+        batch_lens[op.axis]        = 1;
         shape batch_shape{shape::int32_type, batch_lens};
 
         result.visit([&](auto output) {
@@ -700,9 +700,9 @@ struct cpu_argmin
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        auto batch_lens       = args.front().get_shape().lens();
+        auto batch_lens            = args.front().get_shape().lens();
         std::size_t batch_item_num = batch_lens[op.axis];
-        batch_lens[op.axis]   = 1;
+        batch_lens[op.axis]        = 1;
         shape batch_shape{shape::int32_type, batch_lens};
 
         result.visit([&](auto output) {

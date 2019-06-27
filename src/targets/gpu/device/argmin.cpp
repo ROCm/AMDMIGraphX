@@ -5,51 +5,13 @@
 #include <migraphx/gpu/device/tensor.hpp>
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/types.hpp>
+#include <migraphx/gpu/device/reduce_opers.hpp>
 #include <migraphx/gpu/hip.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
-
-template <class T>
-inline __device__ void reduce_argmin(T* data_ptr,
-                                     int64_t* index_ptr,
-                                     std::size_t block_size,
-                                     std::size_t thr_idx,
-                                     std::size_t item_num,
-                                     std::size_t min_index)
-{
-    while(true)
-    {
-        auto stride = (item_num + 1) / 2;
-        auto size   = item_num / 2;
-        for(std::size_t i = thr_idx; i < size; i += block_size)
-        {
-            if(data_ptr[i] > data_ptr[i + stride])
-            {
-                data_ptr[i]  = data_ptr[i + stride];
-                index_ptr[i] = index_ptr[i + stride];
-            }
-        }
-        __syncthreads();
-        item_num = stride;
-
-        if(item_num == 1)
-            break;
-    }
-
-    if(thr_idx == 0)
-    {
-        if(data_ptr[min_index] > data_ptr[0])
-        {
-            data_ptr[min_index]  = data_ptr[0];
-            index_ptr[min_index] = index_ptr[0];
-        }
-    }
-
-    __syncthreads();
-}
 
 void argmin(hipStream_t stream, const argument& result, const argument& arg, int axis)
 {
@@ -96,7 +58,8 @@ void argmin(hipStream_t stream, const argument& result, const argument& arg, int
                 __syncthreads();
 
                 auto item_num = (remaining_item_num > block_size) ? block_size : remaining_item_num;
-                reduce_argmin(lds_data, lds_index, block_size, thr_idx, item_num, max_block_size);
+                block_reduce_pair<type, pair_min_op<type, int64_t>>(lds_data, lds_index, pair_min_op<type, int64_t>{}, 
+                    block_size, thr_idx, item_num, max_block_size);
 
                 remaining_item_num -= block_size;
             }

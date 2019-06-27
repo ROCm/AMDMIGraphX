@@ -48,7 +48,7 @@ struct min
 
 struct lowest
 {
-    template<class T>
+    template <class T>
     operator T() const
     {
         return device_cast(std::numeric_limits<host_type<T>>::lowest());
@@ -57,7 +57,7 @@ struct lowest
 
 struct highest
 {
-    template<class T>
+    template <class T>
     operator T() const
     {
         return device_cast(std::numeric_limits<host_type<T>>::max());
@@ -164,7 +164,7 @@ __device__ void dpp_reduce(float& x, sum)
 template <std::size_t N, class Op, class T, class F>
 __device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
 {
-    using type                  = decltype(f(idx.local));
+    using type = decltype(f(idx.local));
     MIGRAPHX_DEVICE_SHARED type buffer[N / 64];
     type x = init;
     idx.local_stride(n, [&](auto i) { x = op(x, f(i)); });
@@ -193,8 +193,14 @@ constexpr std::size_t compute_block_size(std::size_t n, std::size_t max_block_si
     return block_size;
 }
 
-template<class Op, class T, class Input, class Output>
-void reduce(hipStream_t stream, const argument& result, const argument& arg, Op op, T init, Input read_input, Output read_output)
+template <class Op, class T, class Input, class Output>
+void reduce(hipStream_t stream,
+            const argument& result,
+            const argument& arg,
+            Op op,
+            T init,
+            Input read_input,
+            Output read_output)
 {
     auto&& output_shape = result.get_shape();
     auto&& input_shape  = arg.get_shape();

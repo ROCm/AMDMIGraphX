@@ -76,12 +76,12 @@ struct pair_min_op
 
 template <class T, class Op>
 inline __device__ void block_reduce_pair(T* data_ptr,
-                                     int64_t* index_ptr,
-                                     Op op,
-                                     std::size_t block_size,
-                                     std::size_t thr_idx,
-                                     std::size_t item_num,
-                                     std::size_t output_index)
+                                         int64_t* index_ptr,
+                                         Op op,
+                                         std::size_t block_size,
+                                         std::size_t thr_idx,
+                                         std::size_t item_num,
+                                         std::size_t output_index)
 {
     while(true)
     {
@@ -89,8 +89,9 @@ inline __device__ void block_reduce_pair(T* data_ptr,
         auto size   = item_num / 2;
         for(std::size_t i = thr_idx; i < size; i += block_size)
         {
-            auto output = op({data_ptr[i], index_ptr[i]}, {data_ptr[i + stride], index_ptr[i + stride]});
-            data_ptr[i] = output.first;
+            auto output =
+                op({data_ptr[i], index_ptr[i]}, {data_ptr[i + stride], index_ptr[i + stride]});
+            data_ptr[i]  = output.first;
             index_ptr[i] = output.second;
         }
         __syncthreads();
@@ -102,7 +103,8 @@ inline __device__ void block_reduce_pair(T* data_ptr,
 
     if(thr_idx == 0)
     {
-        auto output = op({data_ptr[output_index], index_ptr[output_index]}, {data_ptr[0], index_ptr[0]});
+        auto output =
+            op({data_ptr[output_index], index_ptr[output_index]}, {data_ptr[0], index_ptr[0]});
         data_ptr[output_index]  = output.first;
         index_ptr[output_index] = output.second;
     }

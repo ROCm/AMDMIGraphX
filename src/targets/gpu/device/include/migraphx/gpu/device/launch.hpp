@@ -12,8 +12,8 @@ namespace device {
 struct index
 {
     std::size_t global = 0;
-    std::size_t local = 0;
-    std::size_t group = 0;
+    std::size_t local  = 0;
+    std::size_t group  = 0;
 
     __device__ std::size_t nglobal() const { return blockDim.x * gridDim.x; } // NOLINT
 

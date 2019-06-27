@@ -82,7 +82,7 @@ void argmax(hipStream_t stream, const argument& result, const argument& arg, int
             // load data to lds_data
             size_t round_item_num     = (batch_item_num + block_size - 1) / block_size * block_size;
             size_t remaining_item_num = batch_item_num;
-            data_idx[axis] = 0;
+            data_idx[axis]            = 0;
             lds_data[max_block_size]  = input[arg_s.index(data_idx)];
             lds_index[max_block_size] = 0;
             for(size_t i = thr_idx; i < round_item_num; i += block_size)

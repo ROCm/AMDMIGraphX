@@ -64,14 +64,25 @@ template <class T, class F>
 struct pair_max_op
 {
     using type = std::pair<T, F>;
-    type operator()(type x, type y) const { return (x.first > y.first) ? x : y; }
+    // This implementation is to ensure when multiple values
+    // are of max, the min index is returned
+    type operator()(type x, type y) const { 
+        if (x.first > y.first)
+            return x;
+        else if (x.first < y.first)
+            return y;
+        else
+        {
+            return (x.second < y.second) ? x : y;
+        }
+    }
 };
 
 template <class T, class F>
 struct pair_min_op
 {
     using type = std::pair<T, F>;
-    type operator()(type x, type y) const { return (x.first < y.first) ? x : y; }
+    type operator()(type x, type y) const { return (x < y) ? x : y; }
 };
 
 template <class T, class Op>

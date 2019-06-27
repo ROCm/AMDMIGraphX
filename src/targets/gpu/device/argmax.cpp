@@ -58,8 +58,13 @@ void argmax(hipStream_t stream, const argument& result, const argument& arg, int
                 __syncthreads();
 
                 auto item_num = (remaining_item_num > block_size) ? block_size : remaining_item_num;
-                block_reduce_pair<type, pair_max_op<type, int64_t>>(lds_data, lds_index, pair_max_op<type, int64_t>{}, 
-                    block_size, thr_idx, item_num, max_block_size);
+                block_reduce_pair<type, pair_max_op<type, int64_t>>(lds_data,
+                                                                    lds_index,
+                                                                    pair_max_op<type, int64_t>{},
+                                                                    block_size,
+                                                                    thr_idx,
+                                                                    item_num,
+                                                                    max_block_size);
 
                 remaining_item_num -= block_size;
             }

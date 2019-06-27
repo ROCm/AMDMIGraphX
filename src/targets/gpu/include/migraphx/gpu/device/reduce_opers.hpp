@@ -66,10 +66,11 @@ struct pair_max_op
     using type = std::pair<T, F>;
     // This implementation is to ensure when multiple values
     // are of max, the min index is returned
-    type operator()(type x, type y) const { 
-        if (x.first > y.first)
+    type operator()(type x, type y) const
+    {
+        if(x.first > y.first)
             return x;
-        else if (x.first < y.first)
+        else if(x.first < y.first)
             return y;
         else
         {

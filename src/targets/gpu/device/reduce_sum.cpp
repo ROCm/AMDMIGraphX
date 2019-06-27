@@ -40,29 +40,25 @@ __device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
     return buffer[0];
 }
 #else
-constexpr unsigned int dpp_row_shr(unsigned int x)
-{
-    return 0x110 | x;
-}
+constexpr unsigned int dpp_row_shr(unsigned int x) { return 0x110 | x; }
 
 constexpr unsigned int dpp_row_bcast(unsigned int x)
 {
     unsigned int y = 0;
     switch(x)
     {
-        case 15:
-            y = 0x142;
-            break;
-        case 31:
-            y = 0x143;
-            break;
-        default:
-            throw std::runtime_error("Unknown bcast");
+    case 15: y = 0x142; break;
+    case 31: y = 0x143; break;
+    default: throw std::runtime_error("Unknown bcast");
     }
     return y;
 }
 
-template<unsigned int DppCtrl, unsigned int RowMask = 0xf, unsigned int BankMask = 0xf, bool BoundCtrl= false, class T>
+template <unsigned int DppCtrl,
+          unsigned int RowMask  = 0xf,
+          unsigned int BankMask = 0xf,
+          bool BoundCtrl        = false,
+          class T>
 __device__ T dpp_mov(T& x)
 {
     static const std::size_t n = sizeof(T) < 4 ? 1 : sizeof(T) / 4;
@@ -74,29 +70,29 @@ __device__ T dpp_mov(T& x)
     type output;
     type input;
     input.data = x;
-    for(std::size_t i = 0; i < n;i++)
+    for(std::size_t i = 0; i < n; i++)
     {
         output.reg[i] = __llvm_amdgcn_move_dpp(input.reg[i], DppCtrl, RowMask, BankMask, BoundCtrl);
     }
     return output.data;
 }
 
-template<class T, class Op>
+template <class T, class Op>
 __device__ void dpp_reduce(T& in, Op op)
 {
     T out;
     out = dpp_mov<dpp_row_shr(1)>(in);
-    in = op(in, out);
+    in  = op(in, out);
     out = dpp_mov<dpp_row_shr(2)>(in);
-    in = op(in, out);
+    in  = op(in, out);
     out = dpp_mov<dpp_row_shr(4), 0xf, 0xe>(in);
-    in = op(in, out);
+    in  = op(in, out);
     out = dpp_mov<dpp_row_shr(8), 0xf, 0xc>(in);
-    in = op(in, out);
+    in  = op(in, out);
     out = dpp_mov<dpp_row_bcast(15), 0xa>(in);
-    in = op(in, out);
+    in  = op(in, out);
     out = dpp_mov<dpp_row_bcast(31), 0xc>(in);
-    in = op(in, out);
+    in  = op(in, out);
 }
 
 __device__ void dpp_reduce(float& x, sum)
@@ -121,13 +117,13 @@ __device__ void dpp_reduce(float& x, sum)
 template <std::size_t N, class Op, class T, class F>
 __device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
 {
-    using type = decltype(f(idx.local));
+    using type                  = decltype(f(idx.local));
     const auto std::size_t wave = 64;
-    MIGRAPHX_DEVICE_SHARED type buffer[N/64];
+    MIGRAPHX_DEVICE_SHARED type buffer[N / 64];
     type x = init;
     idx.local_stride(n, [&](auto i) { x = op(x, f(i)); });
     dpp_reduce(x, op);
-    
+
     const auto ldsidx = idx.local / 64;
     if((idx.local % 64) == 63)
     {
@@ -136,7 +132,7 @@ __device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
     __syncthreads();
 
     type y = 0;
-    for(std::size_t i = 0; i < idx.nlocal()/64;i++)
+    for(std::size_t i = 0; i < idx.nlocal() / 64; i++)
     {
         y += buffer[i];
     }

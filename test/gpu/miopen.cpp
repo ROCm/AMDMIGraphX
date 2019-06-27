@@ -617,7 +617,7 @@ struct test_arg_ops : verify_program<test_arg_ops<T, Axis, KeepDims>>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        migraphx::shape s{migraphx::shape::float_type, {2047, 2, 1025, 4}};
+        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
         auto param = p.add_parameter("data", s);
         p.add_instruction(T{Axis, KeepDims}, param);
 

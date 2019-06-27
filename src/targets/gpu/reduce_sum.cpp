@@ -12,7 +12,8 @@ shape hip_reduce_sum::compute_shape(std::vector<shape> inputs) const
     return op.compute_shape(inputs);
 }
 
-argument hip_reduce_sum::compute(context& ctx, const shape&, const std::vector<argument>& args) const
+argument
+hip_reduce_sum::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
     device::reduce_sum(ctx.get_stream().get(), args.back(), args.front());
     return args.back();

@@ -11,13 +11,13 @@ namespace device {
 
 struct index
 {
-    std::size_t global;
-    std::size_t local;
-    std::size_t group;
+    std::size_t global = 0;
+    std::size_t local = 0;
+    std::size_t group = 0;
 
-    __device__ std::size_t nglobal() const { return blockDim.x * gridDim.x; }
+    __device__ std::size_t nglobal() const { return blockDim.x * gridDim.x; } // NOLINT
 
-    __device__ std::size_t nlocal() const { return blockDim.x; }
+    __device__ std::size_t nlocal() const { return blockDim.x; } // NOLINT
 
     template <class F>
     __device__ void global_stride(std::size_t n, F f) const

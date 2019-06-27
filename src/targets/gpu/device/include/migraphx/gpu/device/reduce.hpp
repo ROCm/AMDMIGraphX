@@ -87,7 +87,7 @@ __device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
     return buffer[0];
 }
 #else
-constexpr unsigned int dpp_row_shr(unsigned int x) { return 0x110 | x; }
+constexpr unsigned int dpp_row_shr(unsigned int x) { return 0x110u | x; }
 
 constexpr unsigned int dpp_row_bcast(unsigned int x)
 {
@@ -114,8 +114,9 @@ __device__ T dpp_mov(T& x)
         uint32_t reg[n];
         T data;
     };
-    type output;
-    type input;
+    type output{};
+    type input{};
+    // cppcheck-suppress unreadVariable
     input.data = x;
     for(std::size_t i = 0; i < n; i++)
     {
@@ -142,8 +143,11 @@ __device__ void dpp_reduce(T& in, Op op)
     in  = op(in, out);
 }
 
-__device__ void dpp_reduce(float& x, sum)
+__device__ inline void dpp_reduce(float& x, sum)
 {
+#ifdef MIGRAPHX_USE_CLANG_TIDY
+    (void)x;
+#else
     __asm__ volatile("s_nop 4\n"
                      "v_add_f32 %0 %0 %0 row_shr:1\n"
                      "s_nop 1\n"
@@ -159,6 +163,7 @@ __device__ void dpp_reduce(float& x, sum)
                      "s_nop 1\n"
                      : "=v"(x)
                      : "0"(x));
+#endif
 }
 
 template <std::size_t N, class Op, class T, class F>

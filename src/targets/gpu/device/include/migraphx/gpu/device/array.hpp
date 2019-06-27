@@ -53,7 +53,7 @@ struct hip_array
 
     friend MIGRAPHX_DEVICE_CONSTEXPR hip_array operator+(const hip_array& x, const hip_array& y)
     {
-        hip_array result;
+        hip_array result{};
         for(std::size_t i = 0; i < N; i++)
             result[i] = x[i] + y[i];
         return result;

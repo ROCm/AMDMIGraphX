@@ -80,7 +80,7 @@ __device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
         const std::size_t index = 2 * s * idx.local;
         if(index + s < idx.nlocal())
         {
-            buffer[index + s] = op(buffer[index], buffer[index + s]);
+            buffer[index] = op(buffer[index], buffer[index + s]);
         }
         __syncthreads();
     }

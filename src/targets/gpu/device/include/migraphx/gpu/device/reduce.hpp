@@ -78,9 +78,9 @@ __device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
     for(std::size_t s = 1; s < idx.nlocal(); s *= 2)
     {
         const std::size_t index = 2 * s * idx.local;
-        if(index < idx.nlocal())
+        if(index + s < idx.nlocal())
         {
-            buffer[index + s] = op(buffer[index], buffer[index + s]);
+            buffer[index] = op(buffer[index], buffer[index + s]);
         }
         __syncthreads();
     }

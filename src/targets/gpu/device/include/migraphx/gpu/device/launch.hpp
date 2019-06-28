@@ -73,7 +73,7 @@ __host__ __device__ auto gs_invoke(F&& f, std::size_t i, index) -> decltype(f(i)
 
 inline auto gs_launch(hipStream_t stream, std::size_t n, std::size_t local = 1024)
 {
-    std::size_t groups  = 1 + n / local;
+    std::size_t groups  = (n + local - 1) / local;
     std::size_t nglobal = std::min<std::size_t>(256, groups) * local;
 
     return [=](auto f) {

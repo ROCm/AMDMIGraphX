@@ -78,7 +78,7 @@ __device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
     for(std::size_t s = 1; s < idx.nlocal(); s *= 2)
     {
         const std::size_t index = 2 * s * idx.local;
-        if(index < idx.nlocal())
+        if(index + s < idx.nlocal())
         {
             buffer[index] = op(buffer[index], buffer[index + s]);
         }
@@ -167,7 +167,7 @@ __device__ inline void dpp_reduce(float& x, sum)
 }
 
 template <std::size_t N, class Op, class T, class F>
-__device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
+__device__ auto  block_reduce(index idx, Op op, T init, std::size_t n, F f) 
 {
     using type = decltype(f(idx.local));
     MIGRAPHX_DEVICE_SHARED type buffer[N / 64];
@@ -185,7 +185,7 @@ __device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
     type y = 0;
     for(std::size_t i = 0; i < idx.nlocal() / 64; i++)
     {
-        y += buffer[i];
+        y = op(y, buffer[i]);
     }
     return y;
 }

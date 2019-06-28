@@ -3450,7 +3450,7 @@ struct test_reduce_sum : verify_program<test_reduce_sum>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        migraphx::shape s{migraphx::shape::float_type, {3, 4, 8, 8}};
+        migraphx::shape s{migraphx::shape::float_type, {3, 1026, 4, 3}};
         auto x = p.add_parameter("x", s);
         p.add_instruction(migraphx::op::reduce_sum{{1}}, x);
         return p;

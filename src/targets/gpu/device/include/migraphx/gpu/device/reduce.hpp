@@ -167,7 +167,7 @@ __device__ inline void dpp_reduce(float& x, sum)
 }
 
 template <std::size_t N, class Op, class T, class F>
-__device__ auto  block_reduce(index idx, Op op, T init, std::size_t n, F f) 
+__device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
 {
     using type = decltype(f(idx.local));
     MIGRAPHX_DEVICE_SHARED type buffer[N / 64];

@@ -75,14 +75,12 @@ bool is_no_transpose(const std::vector<int64_t>& dims)
                dims.begin(), dims.end(), [](auto x, auto y) { return (y - x) != 1; }) == dims.end();
 }
 
-template<class Vector, class Op>
+template <class Vector, class Op>
 std::vector<int64_t> sort_permutation(const Vector& data, Op op)
 {
     std::vector<std::int64_t> result(data.size());
     std::iota(result.begin(), result.end(), 0);
-    std::sort(result.begin(), result.end(), [&](auto x, auto y) {
-        return op(data[x], data[y]);
-    });
+    std::sort(result.begin(), result.end(), [&](auto x, auto y) { return op(data[x], data[y]); });
     return result;
 }
 
@@ -159,28 +157,26 @@ void simplify_reshapes::apply(program& p) const
         }
         else if(ins->name() == "concat")
         {
-            if (ins->inputs().empty())
+            if(ins->inputs().empty())
                 continue;
             auto s = ins->inputs().front()->get_shape();
-            if (none_of(ins->inputs(), [&](auto i) {
-                return i->get_shape().transposed();
-            }) or none_of(ins->inputs(), [&](auto i) {
-                return i->get_shape() == s;
-            }))
+            if(none_of(ins->inputs(), [&](auto i) { return i->get_shape().transposed(); }) or
+               none_of(ins->inputs(), [&](auto i) { return i->get_shape() == s; }))
                 continue;
-            auto op = any_cast<op::concat>(ins->get_operator());
+            auto op          = any_cast<op::concat>(ins->get_operator());
             auto permutation = find_permutation(s);
             auto ipermutaion = invert_permutation(permutation);
-            op.axis = ipermutaion[op.axis];
+            op.axis          = ipermutaion[op.axis];
 
             std::vector<instruction_ref> inputs;
-            std::transform(ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&](auto i) {
-                return p.insert_instruction(ins, op::transpose{permutation}, i);
-            });
+            std::transform(
+                ins->inputs().begin(),
+                ins->inputs().end(),
+                std::back_inserter(inputs),
+                [&](auto i) { return p.insert_instruction(ins, op::transpose{permutation}, i); });
             auto concat = p.insert_instruction(ins, op, inputs);
-            auto t = p.insert_instruction(ins, op::transpose{ipermutaion}, concat);
+            auto t      = p.insert_instruction(ins, op::transpose{ipermutaion}, concat);
             p.replace_instruction(ins, t);
-
         }
     }
 }

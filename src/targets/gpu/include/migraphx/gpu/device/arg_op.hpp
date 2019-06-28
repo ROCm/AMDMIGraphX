@@ -41,12 +41,12 @@ struct pair_min
 
 template <class T, class Op>
 inline __device__ void block_reduce_arg(T* data_ptr,
-                                         int64_t* index_ptr,
-                                         Op op,
-                                         std::size_t block_size,
-                                         std::size_t thr_idx,
-                                         std::size_t item_num,
-                                         std::size_t output_index)
+                                        int64_t* index_ptr,
+                                        Op op,
+                                        std::size_t block_size,
+                                        std::size_t thr_idx,
+                                        std::size_t item_num,
+                                        std::size_t output_index)
 {
     while(true)
     {
@@ -77,8 +77,7 @@ inline __device__ void block_reduce_arg(T* data_ptr,
     __syncthreads();
 }
 
-
-template<class Op>
+template <class Op>
 void arg_op(Op op, hipStream_t stream, const argument& result, const argument& arg, int axis)
 {
     auto arg_shape        = arg.get_shape();
@@ -124,13 +123,8 @@ void arg_op(Op op, hipStream_t stream, const argument& result, const argument& a
                 __syncthreads();
 
                 auto item_num = (remaining_item_num > block_size) ? block_size : remaining_item_num;
-                block_reduce_arg<type, Op>(lds_data,
-                                           lds_index,
-                                           op,
-                                           block_size,
-                                           thr_idx,
-                                           item_num,
-                                           max_block_size);
+                block_reduce_arg<type, Op>(
+                    lds_data, lds_index, op, block_size, thr_idx, item_num, max_block_size);
 
                 remaining_item_num -= block_size;
             }
@@ -149,4 +143,3 @@ void arg_op(Op op, hipStream_t stream, const argument& result, const argument& a
 } // namespace migraphx
 
 #endif
-

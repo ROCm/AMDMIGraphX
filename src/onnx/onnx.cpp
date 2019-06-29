@@ -284,7 +284,7 @@ struct onnx_parser
             keep_dims = parse_value(attributes.at("keepdims")).at<int>();
         }
 
-        if (keep_dims == 0)
+        if(keep_dims == 0)
         {
             auto ins = prog.add_instruction(op::argmax{axis}, std::move(args));
             return prog.add_instruction(op::squeeze{{static_cast<int64_t>(axis)}}, ins);
@@ -311,7 +311,7 @@ struct onnx_parser
             keep_dims = parse_value(attributes.at("keepdims")).at<int>();
         }
 
-        if (keep_dims == 0)
+        if(keep_dims == 0)
         {
             auto ins = prog.add_instruction(op::argmin{axis}, std::move(args));
             return prog.add_instruction(op::squeeze{{static_cast<int64_t>(axis)}}, ins);

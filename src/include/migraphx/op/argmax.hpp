@@ -18,7 +18,7 @@ namespace op {
 
 struct argmax
 {
-    int axis      = 0;
+    int axis = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

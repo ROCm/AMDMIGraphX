@@ -611,31 +611,29 @@ template struct test_softmax<1>;
 template struct test_softmax<2>;
 template struct test_softmax<3>;
 
-template <class T, int Axis, int KeepDims>
-struct test_arg_ops : verify_program<test_arg_ops<T, Axis, KeepDims>>
+template <class T, int Axis>
+struct test_arg_ops : verify_program<test_arg_ops<T, Axis>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 1025}};
         auto param = p.add_parameter("data", s);
-        p.add_instruction(T{Axis, KeepDims}, param);
+        p.add_instruction(T{Axis}, param);
 
         return p;
     }
 };
 
-template struct test_arg_ops<migraphx::op::argmax, 0, 0>;
-template struct test_arg_ops<migraphx::op::argmax, 0, 1>;
-template struct test_arg_ops<migraphx::op::argmax, 1, 0>;
-template struct test_arg_ops<migraphx::op::argmax, 2, 1>;
-template struct test_arg_ops<migraphx::op::argmax, 3, 0>;
+template struct test_arg_ops<migraphx::op::argmax, 0>;
+template struct test_arg_ops<migraphx::op::argmax, 1>;
+template struct test_arg_ops<migraphx::op::argmax, 2>;
+template struct test_arg_ops<migraphx::op::argmax, 3>;
 
-template struct test_arg_ops<migraphx::op::argmin, 0, 0>;
-template struct test_arg_ops<migraphx::op::argmin, 0, 1>;
-template struct test_arg_ops<migraphx::op::argmin, 1, 1>;
-template struct test_arg_ops<migraphx::op::argmin, 2, 0>;
-template struct test_arg_ops<migraphx::op::argmin, 3, 1>;
+template struct test_arg_ops<migraphx::op::argmin, 0>;
+template struct test_arg_ops<migraphx::op::argmin, 1>;
+template struct test_arg_ops<migraphx::op::argmin, 2>;
+template struct test_arg_ops<migraphx::op::argmin, 3>;
 
 struct test_conv : verify_program<test_conv>
 {

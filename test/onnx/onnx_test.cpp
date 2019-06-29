@@ -788,7 +788,8 @@ TEST_CASE(argmax)
 {
     migraphx::program p;
     auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
-    p.add_instruction(migraphx::op::argmax{2, 0}, l0);
+    auto ins = p.add_instruction(migraphx::op::argmax{2}, l0);
+    p.add_instruction(migraphx::op::squeeze{{2}}, ins);
     auto prog = migraphx::parse_onnx("argmax_test.onnx");
 
     EXPECT(p == prog);
@@ -798,7 +799,8 @@ TEST_CASE(argmin)
 {
     migraphx::program p;
     auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
-    p.add_instruction(migraphx::op::argmin{3, 0}, l0);
+    auto ins = p.add_instruction(migraphx::op::argmin{3}, l0);
+    p.add_instruction(migraphx::op::squeeze{{3}}, ins);
     auto prog = migraphx::parse_onnx("argmin_test.onnx");
 
     EXPECT(p == prog);

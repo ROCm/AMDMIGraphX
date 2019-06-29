@@ -385,47 +385,27 @@ void test_argop_var()
 {
     {
         migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {1, 3, 4, 5}}, T{0, 1}, input);
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {1, 3, 4, 5}}, T{0}, input);
     }
 
     {
         migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 1, 4, 5}}, T{1, 1}, input);
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 1, 4, 5}}, T{1}, input);
     }
 
     {
         migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 1, 5}}, T{2, 1}, input);
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 1, 5}}, T{2}, input);
     }
 
     {
         migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 4, 1}}, T{3, 1}, input);
-    }
-
-    {
-        migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {3, 4, 5}}, T{0, 0}, input);
-    }
-
-    {
-        migraphx::shape input{migraphx::shape::int64_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 4, 5}}, T{1, 0}, input);
-    }
-
-    {
-        migraphx::shape input{migraphx::shape::int64_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 5}}, T{2, 0}, input);
-    }
-
-    {
-        migraphx::shape input{migraphx::shape::int64_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 4}}, T{3, 0}, input);
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 4, 1}}, T{3}, input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        throws_shape(T{4, 1}, input);
+        throws_shape(T{4}, input);
     }
 }
 

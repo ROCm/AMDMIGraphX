@@ -1135,8 +1135,7 @@ TEST_CASE(logsoftmax_test_axis_3)
     EXPECT(migraphx::verify_range(results_vector, s));
 }
 
-template <int KeepDims>
-void argmax_test_0()
+TEST_CASE(argmax_test_0)
 {
     migraphx::program p;
     std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
@@ -1145,7 +1144,7 @@ void argmax_test_0()
     std::vector<int64_t> res_gold = {0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1};
     migraphx::shape data_shape{migraphx::shape::float_type, {2, 3, 4}};
     auto dl = p.add_literal(migraphx::literal{data_shape, data});
-    p.add_instruction(migraphx::op::argmax{0, KeepDims}, dl);
+    p.add_instruction(migraphx::op::argmax{0}, dl);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
     std::vector<int64_t> result_vec;
@@ -1153,9 +1152,6 @@ void argmax_test_0()
 
     EXPECT(migraphx::verify_range(result_vec, res_gold));
 }
-
-TEST_CASE(argmax_test_00) { argmax_test_0<0>(); }
-TEST_CASE(argmax_test_01) { argmax_test_0<1>(); }
 
 TEST_CASE(argmax_test_1)
 {
@@ -1166,7 +1162,7 @@ TEST_CASE(argmax_test_1)
     std::vector<int64_t> res_gold = {0, 0, 2, 1, 2, 0, 0, 2};
     migraphx::shape data_shape{migraphx::shape::float_type, {2, 3, 4}};
     auto dl = p.add_literal(migraphx::literal{data_shape, data});
-    p.add_instruction(migraphx::op::argmax{1, 0}, dl);
+    p.add_instruction(migraphx::op::argmax{1}, dl);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
     std::vector<int64_t> result_vec;
@@ -1184,7 +1180,7 @@ TEST_CASE(argmax_test_2)
     std::vector<int64_t> res_gold = {1, 3, 2, 2, 2, 3};
     migraphx::shape data_shape{migraphx::shape::float_type, {2, 3, 4}};
     auto dl = p.add_literal(migraphx::literal{data_shape, data});
-    p.add_instruction(migraphx::op::argmax{2, 0}, dl);
+    p.add_instruction(migraphx::op::argmax{2}, dl);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
     std::vector<int64_t> result_vec;
@@ -1193,8 +1189,7 @@ TEST_CASE(argmax_test_2)
     EXPECT(migraphx::verify_range(result_vec, res_gold));
 }
 
-template <int KeepDims>
-void argmin_test_0()
+TEST_CASE(argmin_test_0)
 {
     migraphx::program p;
     std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
@@ -1203,7 +1198,7 @@ void argmin_test_0()
     std::vector<int64_t> res_gold = {1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0};
     migraphx::shape data_shape{migraphx::shape::float_type, {2, 3, 4}};
     auto dl = p.add_literal(migraphx::literal{data_shape, data});
-    p.add_instruction(migraphx::op::argmin{0, KeepDims}, dl);
+    p.add_instruction(migraphx::op::argmin{0}, dl);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
     std::vector<int64_t> result_vec;
@@ -1211,9 +1206,6 @@ void argmin_test_0()
 
     EXPECT(migraphx::verify_range(result_vec, res_gold));
 }
-
-TEST_CASE(argmin_test_00) { argmin_test_0<0>(); }
-TEST_CASE(argmin_test_01) { argmin_test_0<1>(); }
 
 TEST_CASE(argmin_test_1)
 {
@@ -1224,7 +1216,7 @@ TEST_CASE(argmin_test_1)
     std::vector<int64_t> res_gold = {2, 2, 0, 2, 0, 1, 2, 0};
     migraphx::shape data_shape{migraphx::shape::float_type, {2, 3, 4}};
     auto dl = p.add_literal(migraphx::literal{data_shape, data});
-    p.add_instruction(migraphx::op::argmin{1, 0}, dl);
+    p.add_instruction(migraphx::op::argmin{1}, dl);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
     std::vector<int64_t> result_vec;
@@ -1242,7 +1234,7 @@ TEST_CASE(argmin_test_2)
     std::vector<int64_t> res_gold = {2, 1, 0, 3, 3, 2};
     migraphx::shape data_shape{migraphx::shape::float_type, {2, 3, 4}};
     auto dl = p.add_literal(migraphx::literal{data_shape, data});
-    p.add_instruction(migraphx::op::argmin{2, 0}, dl);
+    p.add_instruction(migraphx::op::argmin{2}, dl);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
     std::vector<int64_t> result_vec;

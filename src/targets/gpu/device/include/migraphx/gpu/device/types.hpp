@@ -91,7 +91,7 @@ using device_type = typename detail::device_type<T>::type;
 template <class T>
 host_type<T> host_cast(T x)
 {
-    return reinterpret_cast<host_type<T>>(x);
+    return reinterpret_cast<const host_type<T>&>(x);
 }
 
 template <class T>

@@ -19,12 +19,11 @@ namespace op {
 struct argmax
 {
     int axis      = 0;
-    int keep_dims = 1;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"), f(self.keep_dims, "keep_dims"));
+        return pack(f(self.axis, "axis"));
     }
 
     std::string name() const { return "argmax"; }
@@ -40,10 +39,6 @@ struct argmax
         }
 
         lens[axis] = 1;
-        if(keep_dims == 0)
-        {
-            lens.erase(lens.begin() + axis);
-        }
 
         return {shape::int64_type, lens};
     }

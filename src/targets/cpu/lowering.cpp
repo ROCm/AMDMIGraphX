@@ -13,6 +13,8 @@
 #include <migraphx/op/pad.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/op/softmax.hpp>
+#include <migraphx/op/argmax.hpp>
+#include <migraphx/op/argmin.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/par_dfor.hpp>

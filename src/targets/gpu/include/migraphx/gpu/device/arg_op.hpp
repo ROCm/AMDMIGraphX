@@ -19,8 +19,6 @@ struct val_index
 {
     T val;
     int64_t index;
-
-    //  MIGRAPHX_DEVICE_CONSTEXPR val_index(T v, int64_t idx) : val(v), index(idx) { }
 };
 
 template <class T>

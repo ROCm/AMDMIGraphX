@@ -21,7 +21,7 @@ struct matcher_context
     std::unordered_map<std::string, instruction_ref> instructions;
     instruction_ref not_found() const { return last; }
 
-    template<class M>
+    template <class M>
     bool matched(M m, instruction_ref ins)
     {
         return m.match(*this, ins) != this->not_found();
@@ -240,7 +240,7 @@ void find_matches(program& p, Ms&&... ms)
     }
 }
 
-template<class Op, bool Start, bool Matches>
+template <class Op, bool Start, bool Matches>
 struct folder
 {
     template <class... Ts>
@@ -257,7 +257,7 @@ struct folder
         });
     }
 
-    template<class Selector>
+    template <class Selector>
     auto operator[](Selector select) const
     {
         return [=](auto... ms) {
@@ -266,8 +266,8 @@ struct folder
                 bool matches = Start;
                 select(start, [&](auto ins) {
                     matches = op(matches, fold([&](auto x, auto y) {
-                        return op(x, y.match(ctx, ins) == ctx.not_found());
-                    })(Start, ms...));
+                                     return op(x, y.match(ctx, ins) == ctx.not_found());
+                                 })(Start, ms...));
                 });
                 if(matches == Matches)
                     return start;
@@ -277,14 +277,14 @@ struct folder
     }
 };
 
-const constexpr auto all_of = folder<std::logical_and<bool>, true, true>{};
-const constexpr auto any_of = folder<std::logical_or<bool>, false, true>{};
+const constexpr auto all_of  = folder<std::logical_and<bool>, true, true>{};
+const constexpr auto any_of  = folder<std::logical_or<bool>, false, true>{};
 const constexpr auto none_of = folder<std::logical_or<bool>, false, false>{};
 
 inline auto inputs()
 {
     return [](auto ins, auto f) {
-        for(auto&& x:ins->inputs())
+        for(auto&& x : ins->inputs())
             f(x);
     };
 }
@@ -292,7 +292,7 @@ inline auto inputs()
 inline auto outputs()
 {
     return [](auto ins, auto f) {
-        for(auto&& x:ins->outputs())
+        for(auto&& x : ins->outputs())
             f(x);
     };
 }
@@ -312,12 +312,11 @@ MIGRAPHX_PRED_MATCHER(transpose_shape, instruction_ref ins)
 
 MIGRAPHX_PRED_MATCHER(same_shapes, instruction_ref ins)
 {
-    if (ins->inputs().empty())
+    if(ins->inputs().empty())
         return false;
     auto s = ins->inputs().front()->get_shape();
-    return std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto x) {
-        return x->get_shape() == s;
-    });
+    return std::all_of(
+        ins->inputs().begin(), ins->inputs().end(), [&](auto x) { return x->get_shape() == s; });
 }
 
 MIGRAPHX_BASIC_MATCHER(output, matcher_context& ctx, instruction_ref ins)
@@ -336,7 +335,7 @@ MIGRAPHX_BASIC_MATCHER(used_once, matcher_context& ctx, instruction_ref ins)
     return ctx.not_found();
 }
 
-template<class... Ms>
+template <class... Ms>
 auto skip_output(Ms... ms)
 {
     auto m = any_of(ms...);
@@ -345,10 +344,10 @@ auto skip_output(Ms... ms)
             if(ins->outputs().size() == 1)
             {
                 auto next = ins->outputs().front();
-                if (ctx.matched(m, next))
+                if(ctx.matched(m, next))
                 {
                     auto skipped_next = self(next);
-                    if (skipped_next != ctx.not_found())
+                    if(skipped_next != ctx.not_found())
                         return skipped_next;
                 }
                 return next;
@@ -366,8 +365,9 @@ inline auto name(std::string s)
 
 inline auto name(std::unordered_set<std::string> names)
 {
-    return make_basic_pred_matcher(
-        [ =, names = std::move(names) ](instruction_ref ins) { return names.count(ins->name()) > 0; });
+    return make_basic_pred_matcher([ =, names = std::move(names) ](instruction_ref ins) {
+        return names.count(ins->name()) > 0;
+    });
 }
 
 inline auto nargs(std::size_t n)

@@ -413,18 +413,18 @@ inline auto either_arg(std::size_t i, std::size_t j)
     };
 }
 
-template<class M>
+template <class M>
 auto same_shape(M m)
 {
     return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
         auto i = m.match(ctx, ins);
-        if (i != ctx.not_found() and i->get_shape() == ins->get_shape())
+        if(i != ctx.not_found() and i->get_shape() == ins->get_shape())
             return ins;
         return ctx.not_found();
     });
 }
 
-template<class... Ms>
+template <class... Ms>
 auto same_shape(Ms... ms)
 {
     return all_of(same_shape(ms)...);

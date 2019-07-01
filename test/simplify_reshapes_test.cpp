@@ -217,8 +217,8 @@ TEST_CASE(transpose_partial3)
 TEST_CASE(nop_transpose1)
 {
     migraphx::program p;
-    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
-    auto x  = p.add_parameter("x", s);
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
+    auto x = p.add_parameter("x", s);
     auto t = p.add_instruction(migraphx::op::transpose{{0, 1, 2}}, x);
     p.add_instruction(pass_op{}, t);
     auto out_shape = p.get_shape();
@@ -248,12 +248,12 @@ TEST_CASE(nop_transpose2)
 TEST_CASE(nop_transpose3)
 {
     migraphx::program p;
-    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
-    auto x  = p.add_parameter("x", s);
-    auto y  = p.add_parameter("y", s);
+    auto s      = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
+    auto x      = p.add_parameter("x", s);
+    auto y      = p.add_parameter("y", s);
     auto concat = p.add_instruction(migraphx::op::concat{3}, x, y);
-    auto t1 = p.add_instruction(migraphx::op::transpose{{0, 1, 2, 3}}, concat);
-    auto t2 = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, t1);
+    auto t1     = p.add_instruction(migraphx::op::transpose{{0, 1, 2, 3}}, concat);
+    auto t2     = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, t1);
     p.add_instruction(pass_op{}, t2);
     auto out_shape = p.get_shape();
     auto n         = std::distance(p.begin(), p.end());
@@ -265,27 +265,23 @@ TEST_CASE(nop_transpose3)
 TEST_CASE(concat_transpose1)
 {
     migraphx::program p;
-    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
-    auto x  = p.add_parameter("x", s);
-    auto y  = p.add_parameter("y", s);
-    auto xt = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
-    auto yt = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, y);
+    auto s      = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
+    auto x      = p.add_parameter("x", s);
+    auto y      = p.add_parameter("y", s);
+    auto xt     = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
+    auto yt     = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, y);
     auto concat = p.add_instruction(migraphx::op::concat{2}, xt, yt);
-    auto t = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, concat);
+    auto t      = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, concat);
     p.add_instruction(pass_op{}, t);
     auto out_shape = p.get_shape();
     auto n         = std::distance(p.begin(), p.end());
     p.compile(simplify_reshapes_target{});
     EXPECT(p.get_shape().lens() == out_shape.lens());
     EXPECT(std::distance(p.begin(), p.end()) == n - 3);
-    auto new_concat = std::find_if(p.begin(), p.end(), [](auto ins) {
-        return ins.name() == "concat";
-    });
+    auto new_concat =
+        std::find_if(p.begin(), p.end(), [](auto ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != p.end()});
     EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 3);
 }
 
-
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }
-

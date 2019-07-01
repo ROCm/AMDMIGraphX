@@ -129,9 +129,7 @@ struct find_nop_reshapes
         auto reshapes = reshaper_names();
         reshapes.insert("transpose");
         reshapes.insert("slice");
-        return match::name(reshapes)(
-            match::same_shape(match::arg(0))
-        );
+        return match::name(reshapes)(match::same_shape(match::arg(0)));
     }
 
     void apply(program& p, match::matcher_result mr) const
@@ -189,15 +187,15 @@ struct find_concat_transpose
         auto ins = mr.result;
         auto s   = ins->inputs().front()->get_shape();
         assert(s.transposed());
-        auto op          = any_cast<op::concat>(ins->get_operator());
-        auto permutation = find_permutation(s);
+        auto op           = any_cast<op::concat>(ins->get_operator());
+        auto permutation  = find_permutation(s);
         auto ipermutation = invert_permutation(permutation);
-        op.axis          = permutation[op.axis];
+        op.axis           = permutation[op.axis];
 
         std::vector<instruction_ref> inputs;
         std::transform(
             ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&](auto i) {
-                if (i->name() == "transpose" and i->inputs().front()->get_shape().standard())
+                if(i->name() == "transpose" and i->inputs().front()->get_shape().standard())
                     return i->inputs().front();
                 return p.insert_instruction(ins, op::transpose{permutation}, i);
             });
@@ -217,7 +215,12 @@ void simplify_reshapes::apply(program& p) const
         // Skip possible dead instructions
         if(ins->outputs().empty() and ins != end)
             continue;
-        match::find_matches(p, ins, find_nop_reshapes{}, find_reshaper{}, find_transpose{}, find_concat_transpose{});
+        match::find_matches(p,
+                            ins,
+                            find_nop_reshapes{},
+                            find_reshaper{},
+                            find_transpose{},
+                            find_concat_transpose{});
     }
 }
 

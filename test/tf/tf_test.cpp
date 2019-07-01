@@ -389,4 +389,25 @@ TEST_CASE(tanh_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(stridedslice_masks_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 10, 3, 3}});
+    std::size_t num_axes = 4;
+    migraphx::op::slice op;
+    op.starts = {0, 0, 1, 1};
+    op.ends   = {1, 10, 3, 3};
+    op.axes   = std::vector<int64_t>(num_axes);
+    std::iota(op.axes.begin(), op.axes.end(), 0);
+    // add literals for starts, ends, and strides in tf (NHWC format)
+    p.add_literal(migraphx::shape{migraphx::shape::int32_type, {4}}, std::vector<int>{0, 1, 1, 0});
+    p.add_literal(migraphx::shape{migraphx::shape::int32_type, {4}}, std::vector<int>{0, 0, 0, 0});
+    p.add_literal(migraphx::shape{migraphx::shape::int32_type, {4}}, std::vector<int>{1, 1, 1, 1});
+
+    p.add_instruction(op, l0);
+    auto prog = migraphx::parse_tf("stridedslice_masks_test.pb", true);
+
+    EXPECT(p == prog);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

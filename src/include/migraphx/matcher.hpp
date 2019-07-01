@@ -266,7 +266,7 @@ struct folder
                 bool matches = Start;
                 select(start, [&](auto ins) {
                     matches = op(matches, fold([&](auto x, auto y) {
-                                     return op(x, y.match(ctx, ins) == ctx.not_found());
+                                     return op(x, y.match(ctx, ins) != ctx.not_found());
                                  })(Start, ms...));
                 });
                 if(matches == Matches)
@@ -310,7 +310,7 @@ MIGRAPHX_PRED_MATCHER(transpose_shape, instruction_ref ins)
     return ins->get_shape().transposed();
 }
 
-MIGRAPHX_PRED_MATCHER(same_shapes, instruction_ref ins)
+MIGRAPHX_PRED_MATCHER(same_input_shapes, instruction_ref ins)
 {
     if(ins->inputs().empty())
         return false;
@@ -411,6 +411,23 @@ inline auto either_arg(std::size_t i, std::size_t j)
         return match::any_of(match::all_of(arg(i)(m1), arg(j)(m2)),
                              match::all_of(arg(j)(m1), arg(i)(m2)));
     };
+}
+
+template<class M>
+auto same_shape(M m)
+{
+    return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
+        auto i = m.match(ctx, ins);
+        if (i != ctx.not_found() and i->get_shape() == ins->get_shape())
+            return ins;
+        return ctx.not_found();
+    });
+}
+
+template<class... Ms>
+auto same_shape(Ms... ms)
+{
+    return all_of(same_shape(ms)...);
 }
 
 } // namespace match

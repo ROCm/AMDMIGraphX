@@ -6,12 +6,13 @@
 #include <migraphx/op/concat.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/matcher.hpp>
 #include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-bool is_reshaper(instruction_ref ins)
+const auto& reshaper_names()
 {
     // clang-format off
     static const std::unordered_set<std::string> names = {
@@ -21,16 +22,12 @@ bool is_reshaper(instruction_ref ins)
         "unsqueeze"
     };
     // clang-format on
-    return contains(names, ins->name());
+    return names;
 }
 
-bool is_transpose_output(instruction_ref ins)
+bool is_reshaper(instruction_ref ins)
 {
-    if(ins->outputs().size() != 1)
-        return false;
-    if(ins->outputs().front()->name() == "contiguous")
-        return is_transpose_output(ins->outputs().front());
-    return ins->outputs().front()->name() == "transpose";
+    return contains(reshaper_names(), ins->name());
 }
 
 instruction_ref find_transpose_input(instruction_ref ins)
@@ -89,6 +86,117 @@ std::vector<int64_t> find_permutation(const shape& s)
     return sort_permutation(s.strides(), std::greater<>{});
 }
 
+struct find_reshaper
+{
+    auto matcher() const
+    {
+        return match::name(reshaper_names())(match::any_of[match::outputs()](match::name(reshaper_names())));
+    }
+
+    void apply(program& p, match::matcher_result mr) const
+    {
+        auto ins = mr.result;
+        std::vector<instruction_ref> reshapes{ins};
+        while(is_reshaper(reshapes.back()))
+        {
+            assert(!reshapes.back()->inputs().empty());
+            assert(p.has_instruction(reshapes.back()->inputs().front()));
+            auto input = reshapes.back()->inputs().front();
+            reshapes.push_back(input);
+        }
+
+        std::pair<instruction_ref, instruction_ref> r{p.end(), p.end()};
+        for(auto start : iterator_for(reshapes))
+        {
+            auto last = std::find_if(reshapes.rbegin(), reshapes.rend(), [&](auto&& i) {
+                return i->get_shape() == (*start)->get_shape() and i != (*start);
+            });
+            if(last != reshapes.rend())
+            {
+                r = std::make_pair(*start, *last);
+                break;
+            }
+        }
+        if(r.first != r.second)
+        {
+            p.replace_instruction(r.first, r.second);
+        }
+    }
+};
+
+MIGRAPHX_PRED_MATCHER(is_transpose_output, instruction_ref start)
+{
+    return fix<bool>([&](auto self, auto ins) {
+        if(ins->outputs().size() != 1)
+            return false;
+        if(ins->outputs().front()->name() == "contiguous")
+            return self(ins->outputs().front());
+        return ins->outputs().front()->name() == "transpose";
+    })(start);
+}
+
+struct find_transpose
+{
+    auto matcher() const
+    {
+        return match::name("transpose")(match::none_of(match::skip_output(match::name("contiguous"))(match::name("transpose"))));
+    }
+
+    void apply(program& p, match::matcher_result mr) const
+    {
+        auto ins = mr.result;
+        auto x = ins;
+        auto t = ins;
+        std::vector<std::int64_t> dims(ins->get_shape().lens().size());
+        std::iota(dims.begin(), dims.end(), 0);
+        do
+        {
+            dims = reorder_dims(get_transpose_dims(t), dims);
+            x    = t;
+            t    = find_transpose_input(x);
+        } while(x != t and t->name() == "transpose");
+        if(t == ins or t->name() != "transpose")
+            return;
+        if(is_no_transpose(dims))
+        {
+            p.replace_instruction(ins, t->inputs().front());
+        }
+        else
+        {
+            p.replace_instruction(ins, op::transpose{{dims}}, t->inputs().front());
+        }
+    }
+};
+
+struct find_concat_transpose
+{
+    auto matcher() const
+    {
+        return match::name("concat")(match::same_shapes(), match::all_of[match::inputs()](match::transpose_shape()));
+    }
+
+    void apply(program& p, match::matcher_result mr) const
+    {
+        auto ins = mr.result;
+        auto s = ins->inputs().front()->get_shape();
+
+        auto op          = any_cast<op::concat>(ins->get_operator());
+        auto permutation = find_permutation(s);
+        auto ipermutaion = invert_permutation(permutation);
+        op.axis          = ipermutaion[op.axis];
+
+        std::vector<instruction_ref> inputs;
+        std::transform(
+            ins->inputs().begin(),
+            ins->inputs().end(),
+            std::back_inserter(inputs),
+            [&](auto i) { return p.insert_instruction(ins, op::transpose{permutation}, i); });
+        auto concat = p.insert_instruction(ins, op, inputs);
+        auto t      = p.insert_instruction(ins, op::transpose{ipermutaion}, concat);
+        p.replace_instruction(ins, t);
+    }
+};
+
 void simplify_reshapes::apply(program& p) const
 {
     auto end = std::prev(p.end());
@@ -99,85 +207,11 @@ void simplify_reshapes::apply(program& p) const
         // Skip possible dead instructions
         if(ins->outputs().empty() and ins != end)
             continue;
-        if(is_reshaper(ins))
-        {
-            if(std::any_of(ins->outputs().begin(), ins->outputs().end(), &is_reshaper))
-                continue;
-            // Gather reshapes
-            std::vector<instruction_ref> reshapes{ins};
-            while(is_reshaper(reshapes.back()))
-            {
-                assert(!reshapes.back()->inputs().empty());
-                assert(p.has_instruction(reshapes.back()->inputs().front()));
-                auto input = reshapes.back()->inputs().front();
-                reshapes.push_back(input);
-            }
-
-            std::pair<instruction_ref, instruction_ref> r{p.end(), p.end()};
-            for(auto start : iterator_for(reshapes))
-            {
-                auto last = std::find_if(reshapes.rbegin(), reshapes.rend(), [&](auto&& i) {
-                    return i->get_shape() == (*start)->get_shape() and i != (*start);
-                });
-                if(last != reshapes.rend())
-                {
-                    r = std::make_pair(*start, *last);
-                    break;
-                }
-            }
-            if(r.first != r.second)
-            {
-                p.replace_instruction(r.first, r.second);
-            }
-        }
-        else if(ins->name() == "transpose")
-        {
-            if(is_transpose_output(ins))
-                continue;
-            auto x = ins;
-            auto t = ins;
-            std::vector<std::int64_t> dims(ins->get_shape().lens().size());
-            std::iota(dims.begin(), dims.end(), 0);
-            do
-            {
-                dims = reorder_dims(get_transpose_dims(t), dims);
-                x    = t;
-                t    = find_transpose_input(x);
-            } while(x != t and t->name() == "transpose");
-            if(t == ins or t->name() != "transpose")
-                continue;
-            if(is_no_transpose(dims))
-            {
-                p.replace_instruction(ins, t->inputs().front());
-            }
-            else
-            {
-                p.replace_instruction(ins, op::transpose{{dims}}, t->inputs().front());
-            }
-        }
-        else if(ins->name() == "concat")
-        {
-            if(ins->inputs().empty())
-                continue;
-            auto s = ins->inputs().front()->get_shape();
-            if(none_of(ins->inputs(), [&](auto i) { return i->get_shape().transposed(); }) or
-               none_of(ins->inputs(), [&](auto i) { return i->get_shape() == s; }))
-                continue;
-            auto op          = any_cast<op::concat>(ins->get_operator());
-            auto permutation = find_permutation(s);
-            auto ipermutaion = invert_permutation(permutation);
-            op.axis          = ipermutaion[op.axis];
-
-            std::vector<instruction_ref> inputs;
-            std::transform(
-                ins->inputs().begin(),
-                ins->inputs().end(),
-                std::back_inserter(inputs),
-                [&](auto i) { return p.insert_instruction(ins, op::transpose{permutation}, i); });
-            auto concat = p.insert_instruction(ins, op, inputs);
-            auto t      = p.insert_instruction(ins, op::transpose{ipermutaion}, concat);
-            p.replace_instruction(ins, t);
-        }
+        match::find_matches(p, ins, 
+            find_reshaper{},
+            find_transpose{},
+            find_concat_transpose{}
+        );
     }
 }
 

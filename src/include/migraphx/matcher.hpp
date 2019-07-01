@@ -8,6 +8,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/config.hpp>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -19,6 +20,12 @@ struct matcher_context
     matcher_context(instruction_ref i) : last(i) {}
     std::unordered_map<std::string, instruction_ref> instructions;
     instruction_ref not_found() const { return last; }
+
+    template<class M>
+    bool matched(M m, instruction_ref ins)
+    {
+        return m.match(*this, ins) != this->not_found();
+    }
 
     private:
     instruction_ref last;
@@ -205,64 +212,89 @@ matcher_result match_instruction(program& p, instruction_ref ins, M&& m)
     return result;
 }
 
+/// Find matches for an instruction in the program
+template <class... Ms>
+void find_matches(program& p, instruction_ref ins, Ms&&... ms)
+{
+    bool match = false;
+    each_args(
+        [&](auto&& m) {
+            if(match)
+                return;
+            auto r = match_instruction(p, ins, m.matcher());
+            if(r.result == p.end())
+                return;
+            m.apply(p, r);
+            match = true;
+        },
+        ms...);
+}
+
 /// Find matches in a program
 template <class... Ms>
 void find_matches(program& p, Ms&&... ms)
 {
     for(auto ins : iterator_for(p))
     {
-        bool match = false;
-        each_args(
-            [&](auto&& m) {
-                if(match)
-                    return;
-                auto r = match_instruction(p, ins, m.matcher());
-                if(r.result == p.end())
-                    return;
-                m.apply(p, r);
-                match = true;
-            },
-            ms...);
+        find_matches(p, ins, ms...);
     }
 }
 
-template <class... Ts>
-auto all_of(Ts... ms)
+template<class Op, bool Start, bool Matches>
+struct folder
 {
-    return make_bf_matcher([=](matcher_context& ctx, instruction_ref ins) {
-        bool matches = fold([&](auto x, auto y) {
-            return x and y.match(ctx, ins) != ctx.not_found();
-        })(true, ms...);
-        if(matches)
-            return ins;
-        return ctx.not_found();
-    });
+    template <class... Ts>
+    auto operator()(Ts... ms) const
+    {
+        return make_bf_matcher([=](matcher_context& ctx, instruction_ref ins) {
+            Op op;
+            bool matches = fold([&](auto x, auto y) {
+                return op(x, y.match(ctx, ins) != ctx.not_found());
+            })(Start, ms...);
+            if(matches == Matches)
+                return ins;
+            return ctx.not_found();
+        });
+    }
+
+    template<class Selector>
+    auto operator[](Selector select) const
+    {
+        return [=](auto... ms) {
+            return make_bf_matcher([=](matcher_context& ctx, instruction_ref start) {
+                Op op;
+                bool matches = Start;
+                select(start, [&](auto ins) {
+                    matches = op(matches, fold([&](auto x, auto y) {
+                        return op(x, y.match(ctx, ins) == ctx.not_found());
+                    })(Start, ms...));
+                });
+                if(matches == Matches)
+                    return start;
+                return ctx.not_found();
+            });
+        };
+    }
+};
+
+const constexpr auto all_of = folder<std::logical_and<bool>, true, true>{};
+const constexpr auto any_of = folder<std::logical_or<bool>, false, true>{};
+const constexpr auto none_of = folder<std::logical_or<bool>, false, false>{};
+
+inline auto inputs()
+{
+    return [](auto ins, auto f) {
+        for(auto&& x:ins->inputs())
+            f(x);
+    };
 }
 
-template <class... Ts>
-auto none_of(Ts... ms)
+inline auto outputs()
 {
-    return make_bf_matcher([=](matcher_context& ctx, instruction_ref ins) {
-        bool matches = fold([&](auto x, auto y) {
-            return x and y.match(ctx, ins) == ctx.not_found();
-        })(true, ms...);
-        if(matches)
-            return ins;
-        return ctx.not_found();
-    });
-}
-
-template <class... Ts>
-auto any_of(Ts... ms)
-{
-    return make_bf_matcher([=](matcher_context& ctx, instruction_ref ins) {
-        bool matches = fold([&](auto x, auto y) {
-            return x or y.match(ctx, ins) != ctx.not_found();
-        })(false, ms...);
-        if(matches)
-            return ins;
-        return ctx.not_found();
-    });
+    return [](auto ins, auto f) {
+        for(auto&& x:ins->outputs())
+            f(x);
+    };
 }
 
 MIGRAPHX_PRED_MATCHER(any, instruction_ref) { return true; }
@@ -271,6 +303,21 @@ MIGRAPHX_PRED_MATCHER(standard_shape, instruction_ref ins) { return ins->get_sha
 MIGRAPHX_PRED_MATCHER(broadcast_shape, instruction_ref ins)
 {
     return ins->get_shape().broadcasted();
+}
+
+MIGRAPHX_PRED_MATCHER(transpose_shape, instruction_ref ins)
+{
+    return ins->get_shape().transposed();
+}
+
+MIGRAPHX_PRED_MATCHER(same_shapes, instruction_ref ins)
+{
+    if (ins->inputs().empty())
+        return false;
+    auto s = ins->inputs().front()->get_shape();
+    return std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto x) {
+        return x->get_shape() == s;
+    });
 }
 
 MIGRAPHX_BASIC_MATCHER(output, matcher_context& ctx, instruction_ref ins)
@@ -289,10 +336,38 @@ MIGRAPHX_BASIC_MATCHER(used_once, matcher_context& ctx, instruction_ref ins)
     return ctx.not_found();
 }
 
-inline auto name(std::string name)
+template<class... Ms>
+auto skip_output(Ms... ms)
+{
+    auto m = any_of(ms...);
+    return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref start) {
+        return fix<instruction_ref>([&](auto self, auto ins) {
+            if(ins->outputs().size() == 1)
+            {
+                auto next = ins->outputs().front();
+                if (ctx.matched(m, next))
+                {
+                    auto skipped_next = self(next);
+                    if (skipped_next != ctx.not_found())
+                        return skipped_next;
+                }
+                return next;
+            }
+            return ctx.not_found();
+        })(start);
+    });
+}
+
+inline auto name(std::string s)
 {
     return make_basic_pred_matcher(
-        [ =, name = std::move(name) ](instruction_ref ins) { return ins->name() == name; });
+        [ =, s = std::move(s) ](instruction_ref ins) { return ins->name() == s; });
+}
+
+inline auto name(std::unordered_set<std::string> names)
+{
+    return make_basic_pred_matcher(
+        [ =, names = std::move(names) ](instruction_ref ins) { return names.count(ins->name()) > 0; });
 }
 
 inline auto nargs(std::size_t n)

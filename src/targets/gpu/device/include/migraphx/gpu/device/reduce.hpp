@@ -182,7 +182,7 @@ __device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
     }
     __syncthreads();
 
-    type y = 0;
+    type y = init;
     for(std::size_t i = 0; i < idx.nlocal() / 64; i++)
     {
         y = op(y, buffer[i]);

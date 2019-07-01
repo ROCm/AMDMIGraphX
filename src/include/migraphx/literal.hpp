@@ -79,6 +79,7 @@ struct literal : raw_data<literal>
     template <class Iterator>
     void fill(Iterator start, Iterator end)
     {
+        assert(std::distance(start, end) == m_shape.elements());
         if(m_shape.standard())
         {
             m_shape.visit_type([&](auto as) { std::copy(start, end, as.from(buffer.get())); });

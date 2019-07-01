@@ -43,8 +43,7 @@ struct argmin
     }
 
     template <class T>
-    int64_t
-    calc_argmin(T& input, std::vector<std::size_t>& indices, size_t item_num) const
+    int64_t calc_argmin(T& input, std::vector<std::size_t>& indices, size_t item_num) const
     {
         auto min_val      = input(indices.begin(), indices.end());
         int64_t min_index = 0;

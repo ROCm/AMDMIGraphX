@@ -122,17 +122,6 @@ struct find_reshaper
     }
 };
 
-MIGRAPHX_PRED_MATCHER(is_transpose_output, instruction_ref start)
-{
-    return fix<bool>([&](auto self, auto ins) {
-        if(ins->outputs().size() != 1)
-            return false;
-        if(ins->outputs().front()->name() == "contiguous")
-            return self(ins->outputs().front());
-        return ins->outputs().front()->name() == "transpose";
-    })(start);
-}
-
 struct find_transpose
 {
     auto matcher() const

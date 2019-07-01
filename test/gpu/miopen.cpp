@@ -615,7 +615,6 @@ template struct test_softmax<1, migraphx::shape::half_type>;
 template struct test_softmax<2, migraphx::shape::half_type>;
 template struct test_softmax<3, migraphx::shape::half_type>;
 
-
 struct test_conv : verify_program<test_conv>
 {
     migraphx::program create_program() const
@@ -3389,7 +3388,6 @@ template struct test_logsoftmax<1, migraphx::shape::half_type>;
 template struct test_logsoftmax<0, migraphx::shape::half_type>;
 template struct test_logsoftmax<2, migraphx::shape::half_type>;
 template struct test_logsoftmax<3, migraphx::shape::half_type>;
-
 
 struct test_fp32_fp16_lall : verify_program<test_fp32_fp16_lall>
 {

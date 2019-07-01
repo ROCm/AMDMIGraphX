@@ -25,10 +25,7 @@ const auto& reshaper_names()
     return names;
 }
 
-bool is_reshaper(instruction_ref ins)
-{
-    return contains(reshaper_names(), ins->name());
-}
+bool is_reshaper(instruction_ref ins) { return contains(reshaper_names(), ins->name()); }
 
 instruction_ref find_transpose_input(instruction_ref ins)
 {
@@ -90,7 +87,8 @@ struct find_reshaper
 {
     auto matcher() const
     {
-        return match::name(reshaper_names())(match::any_of[match::outputs()](match::name(reshaper_names())));
+        return match::name(reshaper_names())(
+            match::any_of[match::outputs()](match::name(reshaper_names())));
     }
 
     void apply(program& p, match::matcher_result mr) const
@@ -139,14 +137,15 @@ struct find_transpose
 {
     auto matcher() const
     {
-        return match::name("transpose")(match::none_of(match::skip_output(match::name("contiguous"))(match::name("transpose"))));
+        return match::name("transpose")(match::none_of(
+            match::skip_output(match::name("contiguous"))(match::name("transpose"))));
     }
 
     void apply(program& p, match::matcher_result mr) const
     {
         auto ins = mr.result;
-        auto x = ins;
-        auto t = ins;
+        auto x   = ins;
+        auto t   = ins;
         std::vector<std::int64_t> dims(ins->get_shape().lens().size());
         std::iota(dims.begin(), dims.end(), 0);
         do
@@ -172,13 +171,14 @@ struct find_concat_transpose
 {
     auto matcher() const
     {
-        return match::name("concat")(match::same_shapes(), match::all_of[match::inputs()](match::transpose_shape()));
+        return match::name("concat")(match::same_shapes(),
+                                     match::all_of[match::inputs()](match::transpose_shape()));
     }
 
     void apply(program& p, match::matcher_result mr) const
     {
         auto ins = mr.result;
-        auto s = ins->inputs().front()->get_shape();
+        auto s   = ins->inputs().front()->get_shape();
 
         auto op          = any_cast<op::concat>(ins->get_operator());
         auto permutation = find_permutation(s);
@@ -187,10 +187,9 @@ struct find_concat_transpose
 
         std::vector<instruction_ref> inputs;
         std::transform(
-            ins->inputs().begin(),
-            ins->inputs().end(),
-            std::back_inserter(inputs),
-            [&](auto i) { return p.insert_instruction(ins, op::transpose{permutation}, i); });
+            ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&](auto i) {
+                return p.insert_instruction(ins, op::transpose{permutation}, i);
+            });
         auto concat = p.insert_instruction(ins, op, inputs);
         auto t      = p.insert_instruction(ins, op::transpose{ipermutaion}, concat);
         p.replace_instruction(ins, t);
@@ -207,11 +206,7 @@ void simplify_reshapes::apply(program& p) const
         // Skip possible dead instructions
         if(ins->outputs().empty() and ins != end)
             continue;
-        match::find_matches(p, ins, 
-            find_reshaper{},
-            find_transpose{},
-            find_concat_transpose{}
-        );
+        match::find_matches(p, ins, find_reshaper{}, find_transpose{}, find_concat_transpose{});
     }
 }
 

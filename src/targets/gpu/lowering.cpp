@@ -50,6 +50,7 @@
 #include <migraphx/gpu/convert.hpp>
 #include <migraphx/gpu/clip.hpp>
 #include <migraphx/gpu/reduce_sum.hpp>
+#include <migraphx/gpu/pow.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -98,6 +99,7 @@ struct miopen_apply
         add_generic_op<hip_mul>("mul");
         add_generic_op<hip_max>("max");
         add_generic_op<hip_min>("min");
+        add_generic_op<hip_pow>("pow");
 
         add_extend_op<miopen_gemm, op::dot>("dot");
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");

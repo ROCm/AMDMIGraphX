@@ -16,7 +16,7 @@ void argmax(hipStream_t stream, const argument& result, const argument& arg, int
 {
     arg.visit([&](auto input) {
         using type = device_type<std::remove_cv_t<typename decltype(input)::value_type>>;
-        arg_op<pair_max<type, int64_t>>(pair_max<type, int64_t>{}, stream, result, arg, axis);
+        arg_op<type, argmax_op<type>>(argmax_op<type>{}, stream, result, arg, axis);
     });
 }
 

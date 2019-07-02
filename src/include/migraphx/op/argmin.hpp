@@ -50,9 +50,10 @@ struct argmin
         for(std::size_t i = 1; i < item_num; ++i)
         {
             indices[axis] = i;
-            if(min_val > input(indices.begin(), indices.end()))
+            auto cur_val  = input(indices.begin(), indices.end());
+            if(min_val > cur_val)
             {
-                min_val   = input(indices.begin(), indices.end());
+                min_val   = cur_val;
                 min_index = i;
             }
         }

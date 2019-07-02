@@ -54,7 +54,6 @@ std::vector<int64_t> reorder_dims(std::vector<int64_t> dims, std::vector<int64_t
     return result;
 }
 
-
 bool is_no_transpose(const std::vector<int64_t>& dims)
 {
     if(dims.empty())
@@ -216,10 +215,12 @@ void simplify_reshapes::apply(program& p) const
         // Skip possible dead instructions
         if(ins->outputs().empty() and ins != end)
             continue;
-        match::find_matches(p, ins, find_nop_reshapes{}, find_reshaper{}, 
-            find_transpose{},
-                            find_concat_transpose{}
-        );
+        match::find_matches(p,
+                            ins,
+                            find_nop_reshapes{},
+                            find_reshaper{},
+                            find_transpose{},
+                            find_concat_transpose{});
     }
 }
 

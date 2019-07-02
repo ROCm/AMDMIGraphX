@@ -232,10 +232,12 @@ struct find_triadd
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto add_ins        = r.instructions["add"];
-        auto input_ins      = r.instructions["input"];
-        auto ins            = r.result;
-        auto args           = add_ins->inputs();
+        auto add_ins   = r.instructions["add"];
+        auto input_ins = r.instructions["input"];
+        auto ins       = r.result;
+        auto args      = add_ins->inputs();
+        assert(add_ins != input_ins);
+
         auto is_broadcasted = [](auto arg) { return arg->get_shape().broadcasted(); };
         if(std::count_if(args.begin(), args.end(), is_broadcasted) > 1)
             return;

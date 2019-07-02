@@ -62,6 +62,7 @@ struct onnx_parser
         add_variadic_op("Sum", op::add{});
         add_variadic_op("Max", op::max{});
         add_variadic_op("Min", op::min{});
+        add_variadic_op("Pow", op::pow{});
 
         add_mem_op("ArgMax", &onnx_parser::parse_argmax);
         add_mem_op("ArgMin", &onnx_parser::parse_argmin);
@@ -189,10 +190,6 @@ struct onnx_parser
                        s1.begin() + offset,
                        out_lens.begin() + offset,
                        [](auto a, auto b) {
-                           if(a != b and a != 1 and b != 1)
-                           {
-                               MIGRAPHX_THROW("COMPUTE_BROADCASTED_LEN: input shapes mismatch!");
-                           }
                            return std::max(a, b);
                        });
 

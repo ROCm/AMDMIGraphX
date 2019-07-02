@@ -219,8 +219,9 @@ void simplify_reshapes::apply(program& p) const
                             ins,
                             find_nop_reshapes{},
                             find_reshaper{},
-                            find_transpose{},
-                            find_concat_transpose{});
+                            find_transpose{}
+                            // find_concat_transpose{}
+                            );
     }
 }
 

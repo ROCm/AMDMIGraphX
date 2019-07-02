@@ -1279,8 +1279,9 @@ struct onnx_parser
         return {hidden_states, last_output, last_cell_output};
     }
 
-    instruction_ref
-    parse_reduce_sum(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_reduce_sum(const std::string&,
+                                     attribute_map attributes,
+                                     std::vector<instruction_ref> args)
     {
         std::size_t n_dim = args.front()->get_shape().lens().size();
 
@@ -1291,16 +1292,16 @@ struct onnx_parser
         {
             axes.clear();
             auto&& attr_axes = attributes["axes"].ints();
-            axes = std::vector<std::size_t>(attr_axes.begin(), attr_axes.end());
+            axes             = std::vector<std::size_t>(attr_axes.begin(), attr_axes.end());
         }
 
         int keep_dims = 1;
-        if (contains(attributes, "keepdims"))
+        if(contains(attributes, "keepdims"))
         {
             keep_dims = parse_value(attributes.at("keepdims")).at<int>();
         }
 
-        if (keep_dims == 1)
+        if(keep_dims == 1)
         {
             return prog.add_instruction(op::reduce_sum{axes}, std::move(args));
         }

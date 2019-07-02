@@ -240,17 +240,40 @@ void find_matches(program& p, Ms&&... ms)
     }
 }
 
+struct lazy_and
+{
+    template <class F, class G>
+    bool operator()(F f, G g) const
+    {
+        return f() and g();
+    }
+};
+
+struct lazy_or
+{
+    template <class F, class G>
+    bool operator()(F f, G g) const
+    {
+        return f() or g();
+    }
+};
+
 template <class Op, bool Start, bool Matches>
 struct folder
 {
+    template <class... Ms>
+    static bool fold_match(matcher_context& ctx, instruction_ref ins, Ms... ms)
+    {
+        Op op;
+        auto matched = [&](auto m) { return [&] { return ctx.matched(m, ins); }; };
+        return fold([&](auto x, auto y) { return op(always(x), matched(y)); })(Start, ms...);
+    }
+
     template <class... Ts>
     auto operator()(Ts... ms) const
     {
         return make_bf_matcher([=](matcher_context& ctx, instruction_ref ins) {
-            Op op;
-            bool matches = fold([&](auto x, auto y) {
-                return op(x, y.match(ctx, ins) != ctx.not_found());
-            })(Start, ms...);
+            bool matches = folder::fold_match(ctx, ins, ms...);
             if(matches == Matches)
                 return ins;
             return ctx.not_found();
@@ -265,9 +288,8 @@ struct folder
                 Op op;
                 bool matches = Start;
                 select(start, [&](auto ins) {
-                    matches = op(matches, fold([&](auto x, auto y) {
-                                     return op(x, y.match(ctx, ins) != ctx.not_found());
-                                 })(Start, ms...));
+                    auto fm = [&] { return folder::fold_match(ctx, ins, ms...); };
+                    matches = op(always(matches), fm);
                 });
                 if(matches == Matches)
                     return start;
@@ -277,9 +299,9 @@ struct folder
     }
 };
 
-const constexpr auto all_of  = folder<std::logical_and<bool>, true, true>{};
-const constexpr auto any_of  = folder<std::logical_or<bool>, false, true>{};
-const constexpr auto none_of = folder<std::logical_or<bool>, false, false>{};
+const constexpr auto all_of  = folder<lazy_and, true, true>{};
+const constexpr auto any_of  = folder<lazy_or, false, true>{};
+const constexpr auto none_of = folder<lazy_or, false, false>{};
 
 inline auto inputs()
 {

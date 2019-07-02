@@ -189,9 +189,7 @@ struct onnx_parser
                        s0.end(),
                        s1.begin() + offset,
                        out_lens.begin() + offset,
-                       [](auto a, auto b) {
-                           return std::max(a, b);
-                       });
+                       [](auto a, auto b) { return std::max(a, b); });
 
         return out_lens;
     }

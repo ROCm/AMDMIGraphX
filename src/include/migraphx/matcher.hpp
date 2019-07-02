@@ -242,7 +242,7 @@ void find_matches(program& p, Ms&&... ms)
 
 struct lazy_and
 {
-    template<class F, class G>
+    template <class F, class G>
     bool operator()(F f, G g) const
     {
         return f() and g();
@@ -251,7 +251,7 @@ struct lazy_and
 
 struct lazy_or
 {
-    template<class F, class G>
+    template <class F, class G>
     bool operator()(F f, G g) const
     {
         return f() or g();
@@ -266,12 +266,9 @@ struct folder
     {
         return make_bf_matcher([=](matcher_context& ctx, instruction_ref ins) {
             Op op;
-            auto matched = [&](auto m) {
-                return [&]{ return ctx.matched(m, ins); };
-            };
-            bool matches = fold([&](auto x, auto y) {
-                return op(always(x), matched(y));
-            })(Start, ms...);
+            auto matched = [&](auto m) { return [&] { return ctx.matched(m, ins); }; };
+            bool matches =
+                fold([&](auto x, auto y) { return op(always(x), matched(y)); })(Start, ms...);
             if(matches == Matches)
                 return ins;
             return ctx.not_found();
@@ -286,13 +283,10 @@ struct folder
                 Op op;
                 bool matches = Start;
                 select(start, [&](auto ins) {
-                    auto matched = [&](auto m) {
-                        return [&]{ return ctx.matched(m, ins); };
-                    };
+                    auto matched    = [&](auto m) { return [&] { return ctx.matched(m, ins); }; };
                     auto fold_match = [&] {
-                        return fold([&](auto x, auto y) {
-                                     return op(always(x), matched(y));
-                                 })(Start, ms...);
+                        return fold([&](auto x, auto y) { return op(always(x), matched(y)); })(
+                            Start, ms...);
                     };
                     matches = op(always(matches), fold_match);
                 });

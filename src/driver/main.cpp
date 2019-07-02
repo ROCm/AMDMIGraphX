@@ -58,19 +58,20 @@ struct loader
             auto last = std::prev(p.end(), trim);
             p.remove_instructions(last, p.end());
         }
-        if (optimize)
-            migraphx::run_passes(p, {
-                            migraphx::eliminate_identity{},
-                            migraphx::dead_code_elimination{},
-                            migraphx::simplify_algebra{},
-                            migraphx::dead_code_elimination{},
-                            migraphx::simplify_reshapes{},
-                            migraphx::dead_code_elimination{},
-                            migraphx::propagate_constant{},
-                            migraphx::dead_code_elimination{},
-                            migraphx::eliminate_pad{},
-                            migraphx::dead_code_elimination{},
-                          });
+        if(optimize)
+            migraphx::run_passes(p,
+                                 {
+                                     migraphx::eliminate_identity{},
+                                     migraphx::dead_code_elimination{},
+                                     migraphx::simplify_algebra{},
+                                     migraphx::dead_code_elimination{},
+                                     migraphx::simplify_reshapes{},
+                                     migraphx::dead_code_elimination{},
+                                     migraphx::propagate_constant{},
+                                     migraphx::dead_code_elimination{},
+                                     migraphx::eliminate_pad{},
+                                     migraphx::dead_code_elimination{},
+                                 });
         return p;
     }
 };

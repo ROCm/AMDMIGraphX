@@ -8,7 +8,8 @@ namespace device {
 
 void pow(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2)
 {
-    nary(stream, result, arg1, arg2)([](auto x, auto y) { return ::pow(to_hip_type(x), to_hip_type(y)); });
+    nary(stream, result, arg1, arg2)(
+        [](auto x, auto y) { return ::pow(to_hip_type(x), to_hip_type(y)); });
 }
 
 } // namespace device

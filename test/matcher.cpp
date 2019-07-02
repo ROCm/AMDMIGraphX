@@ -156,7 +156,7 @@ TEST_CASE(match_arg8)
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
     auto m = match::name("sum")(match::all_of(match::arg(0)(match::name("@literal")),
-                                match::arg(1)(match::name("@literal"))),
+                                              match::arg(1)(match::name("@literal"))),
                                 match::standard_shape());
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});

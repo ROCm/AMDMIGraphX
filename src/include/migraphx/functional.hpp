@@ -190,11 +190,11 @@ auto pop_back_args(Ts&&... xs)
     };
 }
 
-template<class T>
+template <class T>
 struct always_f
 {
     T x;
-    template<class... Ts>
+    template <class... Ts>
     constexpr T operator()(Ts&&...) const
     {
         return x;

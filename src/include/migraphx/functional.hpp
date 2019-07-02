@@ -190,7 +190,7 @@ auto pop_back_args(Ts&&... xs)
     };
 }
 
-template<class T>
+template <class T>
 auto always(T x)
 {
     return [=](auto&&...) { return x; };

@@ -45,9 +45,10 @@ struct argmax
         for(std::size_t i = 1; i < item_num; ++i)
         {
             indices[axis] = i;
-            if(max_val < input(indices.begin(), indices.end()))
+            auto cur_val  = input(indices.begin(), indices.end());
+            if(max_val < cur_val)
             {
-                max_val   = input(indices.begin(), indices.end());
+                max_val   = cur_val;
                 max_index = i;
             }
         }

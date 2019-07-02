@@ -40,7 +40,7 @@ struct multibroadcast
         }
 
         if(input.lens().size() > output_lens.size())
-        { 
+        {
             MIGRAPHX_THROW("MULTIBROADCAST: inputs dimensions should <= output size");
         }
 
@@ -49,9 +49,9 @@ struct multibroadcast
         {
             if(output_lens[i + offset] != input.lens()[i] and input.lens()[i] != 1)
             {
-                MIGRAPHX_THROW("MULTIBROADCAST: input shape {" + 
-                    to_string_range(input.lens()) + "} cannot be broadcasted to {" 
-                    + to_string_range(output_lens) + "}!");
+                MIGRAPHX_THROW("MULTIBROADCAST: input shape {" + to_string_range(input.lens()) +
+                               "} cannot be broadcasted to {" + to_string_range(output_lens) +
+                               "}!");
             }
         }
 

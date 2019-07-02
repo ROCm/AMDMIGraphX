@@ -54,10 +54,6 @@ std::vector<int64_t> reorder_dims(std::vector<int64_t> dims, std::vector<int64_t
     return result;
 }
 
-std::vector<int64_t> invert_permutation(const std::vector<int64_t>& permutation)
-{
-    return reorder_dims(permutation, permutation);
-}
 
 bool is_no_transpose(const std::vector<int64_t>& dims)
 {
@@ -76,6 +72,11 @@ std::vector<int64_t> sort_permutation(const Vector& data, Op op)
     std::iota(result.begin(), result.end(), 0);
     std::sort(result.begin(), result.end(), [&](auto x, auto y) { return op(data[x], data[y]); });
     return result;
+}
+
+std::vector<int64_t> invert_permutation(const std::vector<int64_t>& permutation)
+{
+    return sort_permutation(permutation, std::less<>{});
 }
 
 std::vector<int64_t> find_permutation(const shape& s)
@@ -189,7 +190,7 @@ struct find_concat_transpose
         auto op           = any_cast<op::concat>(ins->get_operator());
         auto permutation  = find_permutation(s);
         auto ipermutation = invert_permutation(permutation);
-        op.axis           = permutation[op.axis];
+        op.axis           = ipermutation[op.axis];
 
         std::vector<instruction_ref> inputs;
         std::transform(
@@ -199,7 +200,8 @@ struct find_concat_transpose
                 return p.insert_instruction(ins, op::transpose{permutation}, i);
             });
         auto concat = p.insert_instruction(ins, op, inputs);
-        auto t      = p.insert_instruction(ins, op::transpose{permutation}, concat);
+        auto t      = p.insert_instruction(ins, op::transpose{ipermutation}, concat);
+        assert(ins->get_shape().lens() == t->get_shape().lens());
         p.replace_instruction(ins, t);
     }
 };
@@ -214,8 +216,9 @@ void simplify_reshapes::apply(program& p) const
         // Skip possible dead instructions
         if(ins->outputs().empty() and ins != end)
             continue;
-        match::find_matches(p, ins, find_nop_reshapes{}, find_reshaper{}, find_transpose{}
-                            // find_concat_transpose{}
+        match::find_matches(p, ins, find_nop_reshapes{}, find_reshaper{}, 
+            find_transpose{},
+                            find_concat_transpose{}
         );
     }
 }

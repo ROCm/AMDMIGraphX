@@ -261,15 +261,13 @@ struct lazy_or
 template <class Op, bool Start, bool Matches>
 struct folder
 {
-    template<class... Ms>
+    template <class... Ms>
     static bool fold_match(matcher_context& ctx, instruction_ref ins, Ms... ms)
     {
         Op op;
         auto matched = [&](auto m) { return [&] { return ctx.matched(m, ins); }; };
-        return
-            fold([&](auto x, auto y) { return op(always(x), matched(y)); })(Start, ms...);
+        return fold([&](auto x, auto y) { return op(always(x), matched(y)); })(Start, ms...);
     }
-
 
     template <class... Ts>
     auto operator()(Ts... ms) const

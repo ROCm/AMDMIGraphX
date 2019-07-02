@@ -261,14 +261,21 @@ struct lazy_or
 template <class Op, bool Start, bool Matches>
 struct folder
 {
+    template<class... Ms>
+    static bool fold_match(matcher_context& ctx, instruction_ref ins, Ms... ms)
+    {
+        Op op;
+        auto matched = [&](auto m) { return [&] { return ctx.matched(m, ins); }; };
+        return
+            fold([&](auto x, auto y) { return op(always(x), matched(y)); })(Start, ms...);
+    }
+
+
     template <class... Ts>
     auto operator()(Ts... ms) const
     {
         return make_bf_matcher([=](matcher_context& ctx, instruction_ref ins) {
-            Op op;
-            auto matched = [&](auto m) { return [&] { return ctx.matched(m, ins); }; };
-            bool matches =
-                fold([&](auto x, auto y) { return op(always(x), matched(y)); })(Start, ms...);
+            bool matches = folder::fold_match(ctx, ins, ms...);
             if(matches == Matches)
                 return ins;
             return ctx.not_found();
@@ -283,12 +290,8 @@ struct folder
                 Op op;
                 bool matches = Start;
                 select(start, [&](auto ins) {
-                    auto matched    = [&](auto m) { return [&] { return ctx.matched(m, ins); }; };
-                    auto fold_match = [&] {
-                        return fold([&](auto x, auto y) { return op(always(x), matched(y)); })(
-                            Start, ms...);
-                    };
-                    matches = op(always(matches), fold_match);
+                    auto fm = [&] { return folder::fold_match(ctx, ins, ms...); };
+                    matches = op(always(matches), fm);
                 });
                 if(matches == Matches)
                     return start;

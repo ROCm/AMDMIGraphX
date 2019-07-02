@@ -189,12 +189,12 @@ struct onnx_parser
                        s1.begin() + offset,
                        out_lens.begin() + offset,
                        [](auto a, auto b) {
-                           if (a != b and a != 1 and b != 1)
+                           if(a != b and a != 1 and b != 1)
                            {
                                MIGRAPHX_THROW("COMPUTE_BROADCASTED_LEN: input shapes mismatch!");
                            }
-                           return std::max(a, b); 
-                        });
+                           return std::max(a, b);
+                       });
 
         return out_lens;
     }
@@ -900,13 +900,15 @@ struct onnx_parser
         }
     }
 
-    instruction_ref parse_constant_of_shape(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_constant_of_shape(const std::string&,
+                                            attribute_map attributes,
+                                            std::vector<instruction_ref> args)
     {
         literal l_val{};
-        if (contains(attributes, "value"))
+        if(contains(attributes, "value"))
         {
             l_val = parse_value(attributes.at("value"));
-            if (l_val.get_shape().elements() != 1)
+            if(l_val.get_shape().elements() != 1)
             {
                 MIGRAPHX_THROW("ConstantOfShape: attribute value can contain only 1 elements!");
             }
@@ -918,7 +920,7 @@ struct onnx_parser
 
         // input is empty, output is a scalar
         auto type = l_val.get_shape().type();
-        if (args.size() == 0)
+        if(args.size() == 0)
         {
             return prog.add_literal(literal({type, {1}, {0}}, l_val.data()));
         }
@@ -946,10 +948,11 @@ struct onnx_parser
         }
     }
 
-    instruction_ref parse_expand(const std::string&, attribute_map, std::vector<instruction_ref> args)
+    instruction_ref
+    parse_expand(const std::string&, attribute_map, std::vector<instruction_ref> args)
     {
-        auto in_lens = args[0]->get_shape().lens();
-        auto ex_lens = args[1]->get_shape().lens();
+        auto in_lens  = args[0]->get_shape().lens();
+        auto ex_lens  = args[1]->get_shape().lens();
         auto out_lens = compute_broadcasted_lens(in_lens, ex_lens);
 
         return prog.add_instruction(op::multibroadcast{out_lens}, std::move(args[0]));
@@ -1377,14 +1380,15 @@ struct onnx_parser
         }
     }
 
-    instruction_ref parse_cast(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    instruction_ref
+    parse_cast(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        if (!contains(attributes, "to"))
+        if(!contains(attributes, "to"))
         {
             MIGRAPHX_THROW("PARSE_CAST: missing to type attribute!");
         }
 
-        int to_type = parse_value(attributes.at("to")).at<int>();
+        int to_type        = parse_value(attributes.at("to")).at<int>();
         shape::type_t type = get_type(to_type);
         return prog.add_instruction(op::convert{type}, std::move(args));
     }

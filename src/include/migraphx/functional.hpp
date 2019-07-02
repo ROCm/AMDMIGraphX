@@ -190,6 +190,12 @@ auto pop_back_args(Ts&&... xs)
     };
 }
 
+template<class T>
+auto always(T x)
+{
+    return [=](auto&&...) { return x; };
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

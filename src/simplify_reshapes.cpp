@@ -162,7 +162,6 @@ struct find_transpose
         } while(x != t and t->name() == "transpose");
         if(t == ins or t->name() != "transpose")
             return;
-        p.debug_print();
         if(is_no_transpose(dims))
         {
             p.replace_instruction(ins, t->inputs().front());
@@ -219,8 +218,9 @@ void simplify_reshapes::apply(program& p) const
                             ins,
                             find_nop_reshapes{},
                             find_reshaper{},
-                            find_transpose{},
-                            find_concat_transpose{});
+                            find_transpose{}
+                            // find_concat_transpose{}
+        );
     }
 }
 

@@ -236,6 +236,8 @@ struct find_triadd
         auto input_ins      = r.instructions["input"];
         auto ins            = r.result;
         auto args           = add_ins->inputs();
+        assert(add_ins != input_ins);
+
         auto is_broadcasted = [](auto arg) { return arg->get_shape().broadcasted(); };
         if(std::count_if(args.begin(), args.end(), is_broadcasted) > 1)
             return;

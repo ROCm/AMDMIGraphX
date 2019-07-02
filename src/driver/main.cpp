@@ -7,6 +7,14 @@
 #include <migraphx/onnx.hpp>
 #include <migraphx/stringutils.hpp>
 
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/eliminate_identity.hpp>
+#include <migraphx/eliminate_pad.hpp>
+#include <migraphx/propagate_constant.hpp>
+#include <migraphx/simplify_algebra.hpp>
+#include <migraphx/simplify_reshapes.hpp>
+
 namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -17,6 +25,7 @@ struct loader
     std::string file_type;
     bool is_nhwc  = true;
     unsigned trim = 0;
+    bool optimize = false;
 
     void parse(argument_parser& ap)
     {
@@ -26,6 +35,7 @@ struct loader
         ap(is_nhwc, {"--nhwc"}, ap.help("Treat tensorflow format as nhwc"), ap.set_value(true));
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
+        ap(optimize, {"--optimize"}, ap.help("Optimize when reading"), ap.set_value(true));
     }
 
     program load()
@@ -48,6 +58,19 @@ struct loader
             auto last = std::prev(p.end(), trim);
             p.remove_instructions(last, p.end());
         }
+        if (optimize)
+            migraphx::run_passes(p, {
+                            migraphx::eliminate_identity{},
+                            migraphx::dead_code_elimination{},
+                            migraphx::simplify_algebra{},
+                            migraphx::dead_code_elimination{},
+                            migraphx::simplify_reshapes{},
+                            migraphx::dead_code_elimination{},
+                            migraphx::propagate_constant{},
+                            migraphx::dead_code_elimination{},
+                            migraphx::eliminate_pad{},
+                            migraphx::dead_code_elimination{},
+                          });
         return p;
     }
 };

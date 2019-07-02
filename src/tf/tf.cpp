@@ -715,10 +715,10 @@ struct tf_parser
                                        std::vector<instruction_ref> args)
     {
         op::slice op;
-        auto starts     = args[1]->eval().get<int32_t>().to_vector();
-        auto ends       = args[2]->eval().get<int32_t>().to_vector();
-        auto l0 = args[0];
-        size_t num_axes = l0->get_shape().lens().size();
+        auto starts              = args[1]->eval().get<int32_t>().to_vector();
+        auto ends                = args[2]->eval().get<int32_t>().to_vector();
+        auto l0                  = args[0];
+        size_t num_axes          = l0->get_shape().lens().size();
         std::vector<size_t> axes = l0->get_shape().lens();
 
         op.starts = std::vector<int64_t>(starts.begin(), starts.end());

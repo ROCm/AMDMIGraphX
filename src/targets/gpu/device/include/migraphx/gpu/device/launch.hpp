@@ -11,9 +11,33 @@ namespace device {
 
 struct index
 {
-    std::size_t global;
-    std::size_t local;
-    std::size_t group;
+    std::size_t global = 0;
+    std::size_t local  = 0;
+    std::size_t group  = 0;
+
+    __device__ std::size_t nglobal() const { return blockDim.x * gridDim.x; } // NOLINT
+
+    __device__ std::size_t nlocal() const { return blockDim.x; } // NOLINT
+
+    template <class F>
+    __device__ void global_stride(std::size_t n, F f) const
+    {
+        const auto stride = nglobal();
+        for(std::size_t i = global; i < n; i += stride)
+        {
+            f(i);
+        }
+    }
+
+    template <class F>
+    __device__ void local_stride(std::size_t n, F f) const
+    {
+        const auto stride = nlocal();
+        for(std::size_t i = local; i < n; i += stride)
+        {
+            f(i);
+        }
+    }
 };
 
 template <class F>
@@ -35,18 +59,26 @@ inline auto launch(hipStream_t stream, std::size_t global, std::size_t local)
     };
 }
 
+template <class F>
+__host__ __device__ auto gs_invoke(F&& f, std::size_t i, index idx) -> decltype(f(i, idx))
+{
+    return f(i, idx);
+}
+
+template <class F>
+__host__ __device__ auto gs_invoke(F&& f, std::size_t i, index) -> decltype(f(i))
+{
+    return f(i);
+}
+
 inline auto gs_launch(hipStream_t stream, std::size_t n, std::size_t local = 1024)
 {
     std::size_t groups  = 1 + n / local;
     std::size_t nglobal = std::min<std::size_t>(256, groups) * local;
 
     return [=](auto f) {
-        launch(stream, nglobal, local)([=](auto idx) {
-            for(size_t i = idx.global; i < n; i += nglobal)
-            {
-                f(i);
-            }
-        });
+        launch(stream, nglobal, local)(
+            [=](auto idx) { idx.global_stride(n, [&](auto i) { gs_invoke(f, i, idx); }); });
     };
 }
 

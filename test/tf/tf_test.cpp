@@ -384,4 +384,15 @@ TEST_CASE(sub_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(tanh_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
+    p.add_instruction(migraphx::op::sub{}, l0, l1);
+    auto prog = migraphx::parse_tf("sub_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

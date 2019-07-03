@@ -85,7 +85,7 @@ struct miopen_apply
         add_generic_op<hip_add>("add");
         add_generic_op<hip_sub>("sub");
         add_generic_op<hip_exp>("exp");
-        add_generic_op<hip_exp>("erf");
+        add_generic_op<hip_erf>("erf");
         add_generic_op<hip_log>("log");
         add_generic_op<hip_sin>("sin");
         add_generic_op<hip_cos>("cos");

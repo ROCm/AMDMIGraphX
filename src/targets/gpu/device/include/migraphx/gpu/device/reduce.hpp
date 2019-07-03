@@ -138,7 +138,7 @@ __device__ T dpp_mov(T& x)
 template <class T, class Op>
 __device__ void dpp_reduce(T& in, Op op)
 {
-    T out;
+    T out{};
     out = dpp_mov<dpp_row_shr(1)>(in);
     in  = op(in, out);
     out = dpp_mov<dpp_row_shr(2)>(in);

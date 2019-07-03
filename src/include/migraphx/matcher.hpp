@@ -272,9 +272,7 @@ struct match_fold_f
     template <class Pack>
     static bool fold_matchers_pack(matcher_context& ctx, instruction_ref ins, Pack p)
     {
-        return p([&](auto... ms) {
-            return match_fold_f::fold_matchers(ctx, ins, ms...);
-        });
+        return p([&](auto... ms) { return match_fold_f::fold_matchers(ctx, ins, ms...); });
     }
 
     template <class... Ts>
@@ -298,9 +296,7 @@ struct match_fold_f
                 Op op;
                 bool matches = Start;
                 select(start, [&](auto ins) {
-                    auto fm = [&] {
-                        return match_fold_f::fold_matchers_pack(ctx, ins, mpack);
-                    };
+                    auto fm = [&] { return match_fold_f::fold_matchers_pack(ctx, ins, mpack); };
                     matches = op(always(matches), fm);
                 });
                 if(matches == Matches)

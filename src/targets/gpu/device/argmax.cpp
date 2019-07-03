@@ -14,10 +14,7 @@ namespace device {
 
 void argmax(hipStream_t stream, const argument& result, const argument& arg, int axis)
 {
-    arg.visit([&](auto input) {
-        using type = device_type<std::remove_cv_t<typename decltype(input)::value_type>>;
-        arg_op<type, argmax_op<type>>(argmax_op<type>{}, stream, result, arg, axis);
-    });
+    arg_op(argmax_op{}, stream, result, arg, axis);
 }
 
 } // namespace device

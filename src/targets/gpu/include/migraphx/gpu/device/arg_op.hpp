@@ -21,9 +21,21 @@ struct val_index
     int64_t index;
 };
 
-template <class T>
+template<class T>
+MIGRAPHX_DEVICE_CONSTEXPR val_index<T> make_val_index(T v)
+{
+    return {v, -1};
+}
+
+template<class T>
+MIGRAPHX_DEVICE_CONSTEXPR val_index<T> make_val_index(T v, int64_t i)
+{
+    return {v, i};
+}
+
 struct argmax_op
 {
+    template <class T>
     MIGRAPHX_DEVICE_CONSTEXPR val_index<T> operator()(val_index<T> x, val_index<T> y) const
     {
         if(x.val > y.val)
@@ -36,12 +48,12 @@ struct argmax_op
         }
     }
 
-    MIGRAPHX_DEVICE_CONSTEXPR T init() const { return lowest(); }
+    MIGRAPHX_DEVICE_CONSTEXPR auto init() const { return lowest(); }
 };
 
-template <class T>
 struct argmin_op
 {
+    template <class T>
     MIGRAPHX_DEVICE_CONSTEXPR val_index<T> operator()(val_index<T> x, val_index<T> y) const
     {
         if(x.val < y.val)
@@ -54,10 +66,10 @@ struct argmin_op
         }
     }
 
-    MIGRAPHX_DEVICE_CONSTEXPR T init() const { return highest(); }
+    MIGRAPHX_DEVICE_CONSTEXPR auto init() const { return highest(); }
 };
 
-template <class T, class Op>
+template <class Op>
 void arg_op(Op op, hipStream_t stream, const argument& result, const argument& arg, int axis)
 {
     auto arg_shape        = arg.get_shape();
@@ -69,6 +81,7 @@ void arg_op(Op op, hipStream_t stream, const argument& result, const argument& a
 
     hip_visit_all(arg, arg_shape, batch_shape)([&](auto input, auto arg_s, auto batch_s) {
         auto output = device_cast(result.get<int64_t>().data());
+        using type = device_type<std::remove_cv_t<typename decltype(input)::value_type>>;
         // use one block for items in one batch.
         const size_t max_block_size  = 256;
         const std::size_t block_size = compute_block_size(batch_item_num, max_block_size);
@@ -76,14 +89,12 @@ void arg_op(Op op, hipStream_t stream, const argument& result, const argument& a
             [=](auto i, auto idx) __device__ {
                 auto batch_idx    = batch_s.multi(i / block_size);
                 auto data_idx     = batch_idx;
-                T init_val        = op.init();
-                val_index<T> init = {init_val, -1};
+                auto init = make_val_index<type>(op.init());
 
-                auto op_output = block_reduce<max_block_size, Op, val_index<T>>(
+                auto op_output = block_reduce<max_block_size>(
                     idx, op, init, batch_item_num, [&](auto j) __device__ {
                         data_idx[axis] = j;
-                        T val          = input[arg_s.index(data_idx)];
-                        return val_index<T>{val, static_cast<int64_t>(j)};
+                        return make_val_index(input[arg_s.index(data_idx)], j);
                     });
 
                 if(idx.local == 0)

@@ -25,6 +25,7 @@
 #include <migraphx/gpu/add.hpp>
 #include <migraphx/gpu/sub.hpp>
 #include <migraphx/gpu/exp.hpp>
+#include <migraphx/gpu/erf.hpp>
 #include <migraphx/gpu/log.hpp>
 #include <migraphx/gpu/sin.hpp>
 #include <migraphx/gpu/cos.hpp>
@@ -84,6 +85,7 @@ struct miopen_apply
         add_generic_op<hip_add>("add");
         add_generic_op<hip_sub>("sub");
         add_generic_op<hip_exp>("exp");
+        add_generic_op<hip_exp>("erf");
         add_generic_op<hip_log>("log");
         add_generic_op<hip_sin>("sin");
         add_generic_op<hip_cos>("cos");

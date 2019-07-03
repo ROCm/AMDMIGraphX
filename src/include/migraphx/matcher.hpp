@@ -290,7 +290,10 @@ struct folder
                 Op op;
                 bool matches = Start;
                 select(start, [&](auto ins) {
-                    auto fm = [&] { return mpack([&](auto... ms) { return folder::fold_match(ctx, ins, ms...); }); };
+                    auto fm = [&] {
+                        return mpack(
+                            [&](auto... ms) { return folder::fold_match(ctx, ins, ms...); });
+                    };
                     matches = op(always(matches), fm);
                 });
                 if(matches == Matches)

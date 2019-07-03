@@ -28,6 +28,16 @@ struct id
     }
 };
 
+struct scale
+{
+    float factor = 1.0f;
+    template <class T>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x) const
+    {
+        return static_cast<T>(x * factor);
+    }
+};
+
 struct max
 {
     template <class T, class U>

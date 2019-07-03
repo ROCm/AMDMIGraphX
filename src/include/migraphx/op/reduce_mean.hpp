@@ -34,20 +34,23 @@ struct reduce_mean
         return {s.type(), lens};
     }
 
-    template<class T>
-    void calc_mean(tensor_view<T>& input, shape& batch_shape, std::vector<std::size_t>& out_idx, tensor_view<T>& output) const
+    template <class T>
+    void calc_mean(tensor_view<T>& input,
+                   shape& batch_shape,
+                   std::vector<std::size_t>& out_idx,
+                   tensor_view<T>& output) const
     {
         auto data_idx = out_idx;
-        T val = T{0};
+        T val         = T{0};
         shape_for_each(batch_shape, [&](auto b_idx) {
-            for (auto axis : axes) 
+            for(auto axis : axes)
             {
                 data_idx[axis] = b_idx[axis];
             }
             val += input(data_idx.begin(), data_idx.end());
         });
 
-        output(out_idx.begin(), out_idx.end()) =  val / batch_shape.elements();
+        output(out_idx.begin(), out_idx.end()) = val / batch_shape.elements();
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
@@ -55,7 +58,8 @@ struct reduce_mean
         argument result{output_shape};
         auto arg_lens = args.front().get_shape().lens();
         std::vector<std::size_t> batch_lens(output_shape.lens().size(), 1);
-        for (auto axis : axes) {
+        for(auto axis : axes)
+        {
             batch_lens[axis] = arg_lens[axis];
         }
         shape batch_shape{output_shape.type(), batch_lens};

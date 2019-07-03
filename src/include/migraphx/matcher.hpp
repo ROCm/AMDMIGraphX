@@ -291,8 +291,9 @@ struct match_fold_f
                 bool matches = Start;
                 select(start, [&](auto ins) {
                     auto fm = [&] {
-                        return mpack(
-                            [&](auto... ms) { return match_fold_f::fold_matchers(ctx, ins, ms...); });
+                        return mpack([&](auto... ms) {
+                            return match_fold_f::fold_matchers(ctx, ins, ms...);
+                        });
                     };
                     matches = op(always(matches), fm);
                 });

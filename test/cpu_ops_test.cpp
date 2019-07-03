@@ -531,13 +531,14 @@ TEST_CASE(erf_test)
 {
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {4}};
-    auto l = p.add_literal(migraphx::literal{s, {0.73785057,  1.58165966, -0.43597795, -0.01677432}});
+    auto l =
+        p.add_literal(migraphx::literal{s, {0.73785057, 1.58165966, -0.43597795, -0.01677432}});
     p.add_instruction(migraphx::op::erf{}, l);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0.70327317,  0.97470088, -0.46247893, -0.01892602};
+    std::vector<float> gold = {0.70327317, 0.97470088, -0.46247893, -0.01892602};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 

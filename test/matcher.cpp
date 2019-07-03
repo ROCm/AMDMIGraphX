@@ -162,6 +162,43 @@ TEST_CASE(match_arg8)
     EXPECT(bool{r.result == sum});
 }
 
+TEST_CASE(match_nargs1)
+{
+    migraphx::program p;
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum = p.add_instruction(sum_op{}, one, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = match::name("sum")(match::nargs(2));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == sum});
+}
+
+TEST_CASE(match_nargs2)
+{
+    migraphx::program p;
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum = p.add_instruction(sum_op{}, one, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = match::name("sum")(match::nargs(2),
+                                match::standard_shape());
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == sum});
+}
+
+TEST_CASE(match_nargs3)
+{
+    migraphx::program p;
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum = p.add_instruction(sum_op{}, one, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = match::name("sum")(match::all_of(match::nargs(2)));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == sum});
+}
+
 TEST_CASE(match_args1)
 {
     migraphx::program p;
@@ -319,6 +356,19 @@ TEST_CASE(match_all_of2)
         match::all_of(match::arg(0)(match::name("sum")), match::arg(1)(match::name("@literal"))));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == p.end()});
+}
+
+TEST_CASE(match_all_of3)
+{
+    migraphx::program p;
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum = p.add_instruction(sum_op{}, one, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = match::name("sum")(match::all_of(match::all_of(match::arg(0)(match::name("@literal")),
+                                              match::arg(1)(match::name("@literal")))));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == sum});
 }
 
 TEST_CASE(match_any_of1)

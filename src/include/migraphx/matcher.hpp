@@ -283,12 +283,14 @@ struct folder
     template <class Selector>
     auto operator[](Selector select) const
     {
-        return [=](auto... ms) {
+        return [=](auto... mms) {
+            // Workaround ICE on gcc by packing matchers into an object
+            auto mpack = pack(mms...);
             return make_bf_matcher([=](matcher_context& ctx, instruction_ref start) {
                 Op op;
                 bool matches = Start;
                 select(start, [&](auto ins) {
-                    auto fm = [&] { return folder::fold_match(ctx, ins, ms...); };
+                    auto fm = [&] { return mpack([&](auto... ms) { return folder::fold_match(ctx, ins, ms...); }); };
                     matches = op(always(matches), fm);
                 });
                 if(matches == Matches)

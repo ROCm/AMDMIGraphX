@@ -70,7 +70,7 @@ struct argmin_op
 };
 
 template <class Op>
-void arg_op(Op op, hipStream_t stream, const argument& result, const argument& arg, int axis)
+void arg_op(Op op, hipStream_t stream, const argument& result, const argument& arg, int64_t axis)
 {
     auto arg_shape        = arg.get_shape();
     auto lens             = arg_shape.lens();

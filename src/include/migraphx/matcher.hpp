@@ -400,9 +400,7 @@ inline auto name(std::unordered_set<std::string> names)
 
 inline auto nargs(std::size_t n)
 {
-    return make_basic_pred_matcher([=](instruction_ref ins) { 
-        return ins->inputs().size() == n; 
-    });
+    return make_basic_pred_matcher([=](instruction_ref ins) { return ins->inputs().size() == n; });
 }
 
 inline auto arg(std::size_t i)

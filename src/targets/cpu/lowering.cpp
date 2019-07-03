@@ -650,44 +650,6 @@ struct cpu_logsoftmax
     }
 };
 
-struct cpu_argmax
-{
-    op::argmax op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "cpu::argmax"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-    {
-        return op.compute(output_shape, args);
-    }
-};
-
-struct cpu_argmin
-{
-    op::argmin op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "cpu::argmin"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-    {
-        return op.compute(output_shape, args);
-    }
-};
-
 struct cpu_apply
 {
     program* prog;
@@ -707,8 +669,6 @@ struct cpu_apply
 
     void init()
     {
-        apply_map["argmax"] = extend_op<cpu_argmax, op::argmax>();
-        apply_map["argmin"] = extend_op<cpu_argmin, op::argmin>();
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["convolution"] = extend_op<cpu_convolution, op::convolution>();

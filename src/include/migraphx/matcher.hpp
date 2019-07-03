@@ -265,7 +265,7 @@ struct match_fold_f
     static bool fold_matchers(matcher_context& ctx, instruction_ref ins, Ms... ms)
     {
         Op op;
-        auto matched = [&](auto m) { return [&] { return ctx.matched(m, ins); }; };
+        auto matched = [&](auto m) { return [=, &ctx] { return ctx.matched(m, ins); }; };
         return fold([&](auto x, auto y) { return op(always(x), matched(y)); })(Start, ms...);
     }
 
@@ -400,7 +400,9 @@ inline auto name(std::unordered_set<std::string> names)
 
 inline auto nargs(std::size_t n)
 {
-    return make_basic_pred_matcher([=](instruction_ref ins) { return ins->inputs().size() == n; });
+    return make_basic_pred_matcher([=](instruction_ref ins) { 
+        return ins->inputs().size() == n; 
+    });
 }
 
 inline auto arg(std::size_t i)

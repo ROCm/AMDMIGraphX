@@ -862,7 +862,7 @@ TEST_CASE(reducemean_test1)
 TEST_CASE(reducemean_test2)
 {
     migraphx::program p;
-    auto l0   = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
     p.add_instruction(migraphx::op::reduce_mean{{2}}, l0);
     auto prog = migraphx::parse_onnx("reducemean_test2.onnx");
 

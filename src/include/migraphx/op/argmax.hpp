@@ -12,7 +12,7 @@ namespace op {
 
 struct argmax
 {
-    int axis = 0;
+    int64_t axis = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -26,7 +26,7 @@ struct argmax
     {
         check_shapes{inputs, *this}.has(1).standard();
         auto lens = inputs[0].lens();
-        int n_dim = static_cast<int>(lens.size());
+        int64_t n_dim = static_cast<int64_t>(lens.size());
         if(axis >= n_dim || axis < 0)
         {
             MIGRAPHX_THROW("ARGMAX: axis is out of range.");

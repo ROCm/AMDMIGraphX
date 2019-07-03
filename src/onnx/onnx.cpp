@@ -273,10 +273,10 @@ struct onnx_parser
                                  const attribute_map& attributes,
                                  std::vector<instruction_ref> args)
     {
-        int axis = 0;
+        int64_t axis = 0;
         if(contains(attributes, "axis"))
         {
-            axis = parse_value(attributes.at("axis")).at<int>();
+            axis = static_cast<int64_t>(parse_value(attributes.at("axis")).at<int>());
         }
 
         int keep_dims = 1;
@@ -288,7 +288,7 @@ struct onnx_parser
         if(keep_dims == 0)
         {
             auto ins = prog.add_instruction(op::argmax{axis}, std::move(args));
-            return prog.add_instruction(op::squeeze{{static_cast<int64_t>(axis)}}, ins);
+            return prog.add_instruction(op::squeeze{{axis}}, ins);
         }
         else
         {
@@ -300,10 +300,10 @@ struct onnx_parser
                                  const attribute_map& attributes,
                                  std::vector<instruction_ref> args)
     {
-        int axis = 0;
+        int64_t axis = 0;
         if(contains(attributes, "axis"))
         {
-            axis = parse_value(attributes.at("axis")).at<int>();
+            axis = static_cast<int64_t>(parse_value(attributes.at("axis")).at<int>());
         }
 
         int keep_dims = 1;
@@ -315,7 +315,7 @@ struct onnx_parser
         if(keep_dims == 0)
         {
             auto ins = prog.add_instruction(op::argmin{axis}, std::move(args));
-            return prog.add_instruction(op::squeeze{{static_cast<int64_t>(axis)}}, ins);
+            return prog.add_instruction(op::squeeze{{axis}}, ins);
         }
         else
         {

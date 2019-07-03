@@ -1323,8 +1323,8 @@ struct onnx_parser
     }
 
     instruction_ref parse_reduce_mean(const std::string&,
-                                     attribute_map attributes,
-                                     std::vector<instruction_ref> args)
+                                      attribute_map attributes,
+                                      std::vector<instruction_ref> args)
     {
         std::size_t n_dim = args.front()->get_shape().lens().size();
 

@@ -269,6 +269,14 @@ struct match_fold_f
         return fold([&](auto x, auto y) { return op(always(x), matched(y)); })(Start, ms...);
     }
 
+    template <class Pack>
+    static bool fold_matchers_pack(matcher_context& ctx, instruction_ref ins, Pack p)
+    {
+        return p([&](auto... ms) {
+            return match_fold_f::fold_matchers(ctx, ins, ms...);
+        });
+    }
+
     template <class... Ts>
     auto operator()(Ts... ms) const
     {
@@ -283,17 +291,15 @@ struct match_fold_f
     template <class Selector>
     auto operator[](Selector select) const
     {
-        return [=](auto... mms) {
+        return [=](auto... ms) {
             // Workaround ICE on gcc by packing matchers into an object
-            auto mpack = pack(mms...);
+            auto mpack = pack(ms...);
             return make_bf_matcher([=](matcher_context& ctx, instruction_ref start) {
                 Op op;
                 bool matches = Start;
                 select(start, [&](auto ins) {
                     auto fm = [&] {
-                        return mpack([&](auto... ms) {
-                            return match_fold_f::fold_matchers(ctx, ins, ms...);
-                        });
+                        return match_fold_f::fold_matchers_pack(ctx, ins, mpack);
                     };
                     matches = op(always(matches), fm);
                 });

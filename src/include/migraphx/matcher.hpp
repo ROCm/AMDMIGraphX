@@ -259,10 +259,10 @@ struct lazy_or
 };
 
 template <class Op, bool Start, bool Matches>
-struct folder
+struct match_fold_f
 {
     template <class... Ms>
-    static bool fold_match(matcher_context& ctx, instruction_ref ins, Ms... ms)
+    static bool fold_matchers(matcher_context& ctx, instruction_ref ins, Ms... ms)
     {
         Op op;
         auto matched = [&](auto m) { return [&] { return ctx.matched(m, ins); }; };
@@ -273,7 +273,7 @@ struct folder
     auto operator()(Ts... ms) const
     {
         return make_bf_matcher([=](matcher_context& ctx, instruction_ref ins) {
-            bool matches = folder::fold_match(ctx, ins, ms...);
+            bool matches = match_fold_f::fold_matchers(ctx, ins, ms...);
             if(matches == Matches)
                 return ins;
             return ctx.not_found();
@@ -292,7 +292,7 @@ struct folder
                 select(start, [&](auto ins) {
                     auto fm = [&] {
                         return mpack(
-                            [&](auto... ms) { return folder::fold_match(ctx, ins, ms...); });
+                            [&](auto... ms) { return match_fold_f::fold_matchers(ctx, ins, ms...); });
                     };
                     matches = op(always(matches), fm);
                 });
@@ -304,9 +304,9 @@ struct folder
     }
 };
 
-const constexpr auto all_of  = folder<lazy_and, true, true>{};
-const constexpr auto any_of  = folder<lazy_or, false, true>{};
-const constexpr auto none_of = folder<lazy_or, false, false>{};
+const constexpr auto all_of  = match_fold_f<lazy_and, true, true>{};
+const constexpr auto any_of  = match_fold_f<lazy_or, false, true>{};
+const constexpr auto none_of = match_fold_f<lazy_or, false, false>{};
 
 inline auto inputs()
 {

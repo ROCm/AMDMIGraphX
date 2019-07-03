@@ -14,7 +14,7 @@ namespace op {
 
 struct reduce_mean
 {
-    std::vector<int> axes;
+    std::vector<int64_t> axes;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

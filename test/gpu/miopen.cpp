@@ -3535,5 +3535,4 @@ struct test_reduce_mean_half : verify_program<test_reduce_mean_half>
     };
 };
 
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

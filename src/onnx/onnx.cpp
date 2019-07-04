@@ -1295,13 +1295,13 @@ struct onnx_parser
         std::size_t n_dim = args.front()->get_shape().lens().size();
 
         // default to reduce over all dimensions
-        std::vector<std::size_t> axes(n_dim);
+        std::vector<int64_t> axes(n_dim);
         std::iota(axes.begin(), axes.end(), 0);
         if(contains(attributes, "axes"))
         {
             axes.clear();
             auto&& attr_axes = attributes["axes"].ints();
-            axes             = std::vector<std::size_t>(attr_axes.begin(), attr_axes.end());
+            axes             = std::vector<int64_t>(attr_axes.begin(), attr_axes.end());
         }
 
         int keep_dims = 1;
@@ -1317,8 +1317,7 @@ struct onnx_parser
         else
         {
             auto ins = prog.add_instruction(op::reduce_sum{axes}, std::move(args));
-            std::vector<int64_t> squeeze_axes{axes.begin(), axes.end()};
-            return prog.add_instruction(op::squeeze{squeeze_axes}, ins);
+            return prog.add_instruction(op::squeeze{axes}, ins);
         }
     }
 

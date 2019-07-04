@@ -14,7 +14,7 @@ namespace op {
 
 struct reduce_mean
 {
-    std::vector<int64_t> axes;
+    std::vector<int64_t> axes{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -30,7 +30,12 @@ struct reduce_mean
         auto s    = inputs.at(0);
         auto lens = s.lens();
         for(auto axis : axes)
+        {
+            if (axis < 0 or axis >= lens.size())
+                MIGRAPHX_THROW("REDUCE_MEAN: axis out of range");
             lens[axis] = 1;
+        }
+
         return {s.type(), lens};
     }
 

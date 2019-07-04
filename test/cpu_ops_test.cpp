@@ -1823,4 +1823,19 @@ TEST_CASE(reduce_mean_test12)
     EXPECT(results_vector == gold);
 }
 
+TEST_CASE(reduce_mean_int)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::int32_type, {3, 2, 2}};
+    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
+    auto l0    = p.add_literal(input);
+    p.add_instruction(migraphx::op::reduce_mean{{1, 2}}, l0);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<int> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<int> gold{2, 6, 10};
+    EXPECT(results_vector == gold);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -1823,5 +1823,4 @@ TEST_CASE(reduce_mean_test12)
     EXPECT(results_vector == gold);
 }
 
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

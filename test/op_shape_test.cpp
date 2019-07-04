@@ -394,22 +394,30 @@ TEST_CASE(test_argmax)
 {
     {
         migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {1, 3, 4, 5}}, migraphx::op::argmax{0}, input);
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {1, 3, 4, 5}},
+                     migraphx::op::argmax{0},
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 1, 4, 5}}, migraphx::op::argmax{1}, input);
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 1, 4, 5}},
+                     migraphx::op::argmax{1},
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 1, 5}}, migraphx::op::argmax{2}, input);
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 1, 5}},
+                     migraphx::op::argmax{2},
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 4, 1}}, migraphx::op::argmax{3}, input);
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 4, 1}},
+                     migraphx::op::argmax{3},
+                     input);
     }
 
     {
@@ -422,22 +430,30 @@ TEST_CASE(test_argmin)
 {
     {
         migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {1, 3, 4, 5}}, migraphx::op::argmin{0}, input);
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {1, 3, 4, 5}},
+                     migraphx::op::argmin{0},
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 1, 4, 5}}, migraphx::op::argmin{1}, input);
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 1, 4, 5}},
+                     migraphx::op::argmin{1},
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 1, 5}}, migraphx::op::argmin{2}, input);
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 1, 5}},
+                     migraphx::op::argmin{2},
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 4, 1}}, migraphx::op::argmin{3}, input);
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 4, 1}},
+                     migraphx::op::argmin{3},
+                     input);
     }
 
     {

@@ -30,11 +30,11 @@ struct id
 
 struct scale
 {
-    float factor = 1.0f;
+    size_t item_num = 1;
     template <class T>
     MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x) const
     {
-        return static_cast<T>(x * factor);
+        return static_cast<T>(x / item_num);
     }
 };
 

@@ -31,7 +31,7 @@ struct reduce_sum
         auto lens = s.lens();
         for(auto axis : axes)
         {
-            if (axis < 0 or axis >= lens.size())
+            if(axis < 0 or axis >= lens.size())
                 MIGRAPHX_THROW("REDUCE_SUM: axis out of range");
             lens[axis] = 1;
         }

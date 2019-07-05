@@ -544,9 +544,9 @@ struct onnx_parser
                                    attribute_map attributes,
                                    const std::vector<instruction_ref>&)
     {
-        literal v     = parse_value(attributes.at("value"));
+        literal v = parse_value(attributes.at("value"));
         // return empty literal
-        if (v.get_shape().elements() == 0)
+        if(v.get_shape().elements() == 0)
         {
             return prog.add_literal(literal{});
         }
@@ -938,7 +938,7 @@ struct onnx_parser
         {
             migraphx::shape s;
             // empty input tensor, output is a scalar
-            if (args[0]->get_shape().elements() == 0)
+            if(args[0]->get_shape().elements() == 0)
             {
                 s = migraphx::shape{type, {1}, {0}};
             }
@@ -970,9 +970,9 @@ struct onnx_parser
     instruction_ref
     parse_expand(const std::string&, attribute_map, std::vector<instruction_ref> args)
     {
-        auto in_lens  = args[0]->get_shape().lens();
+        auto in_lens             = args[0]->get_shape().lens();
         migraphx::argument arg_s = args[1]->eval();
-        if (arg_s.empty())
+        if(arg_s.empty())
         {
             MIGRAPHX_THROW("Parse Expand: cannot handle dynamic shape as input");
         }

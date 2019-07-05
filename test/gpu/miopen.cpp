@@ -255,6 +255,20 @@ struct test_log : verify_program<test_log>
     }
 };
 
+struct test_pow : verify_program<test_pow>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {6}};
+        std::vector<float> vec_e(s.elements(), 2.0f);
+        auto b = p.add_parameter("x", s);
+        auto e = p.add_literal(migraphx::literal(s, vec_e));
+        p.add_instruction(migraphx::op::pow{}, b, e);
+        return p;
+    }
+};
+
 struct test_sin : verify_program<test_sin>
 {
     migraphx::program create_program() const

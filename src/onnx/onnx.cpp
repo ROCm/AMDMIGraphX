@@ -58,11 +58,11 @@ struct onnx_parser
         add_binary_op("Div", op::div{});
         add_binary_op("Mul", op::mul{});
         add_binary_op("Sub", op::sub{});
+        add_binary_op("Pow", op::pow{});
 
         add_variadic_op("Sum", op::add{});
         add_variadic_op("Max", op::max{});
         add_variadic_op("Min", op::min{});
-        add_variadic_op("Pow", op::pow{});
 
         add_mem_op("ArgMax", &onnx_parser::parse_argmax);
         add_mem_op("ArgMin", &onnx_parser::parse_argmin);

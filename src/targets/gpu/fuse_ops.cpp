@@ -203,7 +203,8 @@ struct hip_add_relu
 void move_broadcasted_back(std::vector<instruction_ref>& args)
 {
     // Ensure the last arguments is the broadcasted one
-    auto it = std::find_if(args.begin(), args.end(), [](auto arg) { return arg->get_shape().broadcasted(); });
+    auto it = std::find_if(
+        args.begin(), args.end(), [](auto arg) { return arg->get_shape().broadcasted(); });
     if(it != args.end())
         std::swap(*it, *std::prev(args.end(), 2));
 }
@@ -211,7 +212,8 @@ void move_broadcasted_back(std::vector<instruction_ref>& args)
 void move_standard_front(std::vector<instruction_ref>& args)
 {
     // Ensure the first arguments is the standard one
-    auto it = std::find_if(args.begin(), args.end(), [](auto arg) { return arg->get_shape().standard(); });
+    auto it = std::find_if(
+        args.begin(), args.end(), [](auto arg) { return arg->get_shape().standard(); });
     if(it != args.end())
         std::swap(*it, args.front());
 }
@@ -220,8 +222,11 @@ struct find_add_relu
 {
     auto matcher() const
     {
-        return match::name("gpu::relu")(match::arg(0)(
-            match::any_of(match::name("gpu::add"), match::name("hip::triadd"), match::any_of[match::inputs()](match::standard_shape())).bind("add")));
+        return match::name("gpu::relu")(
+            match::arg(0)(match::any_of(match::name("gpu::add"),
+                                        match::name("hip::triadd"),
+                                        match::any_of[match::inputs()](match::standard_shape()))
+                              .bind("add")));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -245,8 +250,9 @@ struct find_triadd
 {
     auto matcher() const
     {
-        return match::name("gpu::add")(match::either_arg(0, 1)(match::name("gpu::add").bind("add"),
-                                                               match::any(match::any_of[match::inputs()](match::standard_shape())).bind("input")));
+        return match::name("gpu::add")(match::either_arg(0, 1)(
+            match::name("gpu::add").bind("add"),
+            match::any(match::any_of[match::inputs()](match::standard_shape())).bind("input")));
     }
 
     void apply(program& p, match::matcher_result r) const

@@ -545,6 +545,12 @@ struct onnx_parser
                                    const std::vector<instruction_ref>&)
     {
         literal v     = parse_value(attributes.at("value"));
+        // return empty literal
+        if (v.get_shape().elements() == 0)
+        {
+            return prog.add_literal(literal{});
+        }
+
         auto dim_size = attributes.at("value").t().dims_size();
         // if dim_size is 0, it is a scalar
         if(dim_size == 0)
@@ -923,21 +929,31 @@ struct onnx_parser
 
         // input is empty, output is a scalar
         auto type = l_val.get_shape().type();
+
         if(args.size() == 0)
         {
-            return prog.add_literal(literal({type, {1}, {0}}, l_val.data()));
+            MIGRAPHX_THROW("Parse ConstantOfShape : must have 1 input!");
         }
         else
         {
-            migraphx::argument in = args[0]->eval();
-            if(in.empty())
+            migraphx::shape s;
+            // empty input tensor, output is a scalar
+            if (args[0]->get_shape().elements() == 0)
             {
-                MIGRAPHX_THROW("ConstantOfShape: cannot handle dynamic shape as input");
+                s = migraphx::shape{type, {1}, {0}};
             }
+            else
+            {
+                migraphx::argument in = args[0]->eval();
+                if(in.empty())
+                {
+                    MIGRAPHX_THROW("Parse ConstantOfShape: cannot handle dynamic shape as input");
+                }
 
-            std::vector<std::size_t> dims;
-            in.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
-            migraphx::shape s(type, dims);
+                std::vector<std::size_t> dims;
+                in.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
+                s = migraphx::shape{type, dims};
+            }
 
             literal l_out;
             l_val.visit([&](auto val) {
@@ -955,8 +971,14 @@ struct onnx_parser
     parse_expand(const std::string&, attribute_map, std::vector<instruction_ref> args)
     {
         auto in_lens  = args[0]->get_shape().lens();
-        auto ex_lens  = args[1]->get_shape().lens();
-        auto out_lens = compute_broadcasted_lens(in_lens, ex_lens);
+        migraphx::argument arg_s = args[1]->eval();
+        if (arg_s.empty())
+        {
+            MIGRAPHX_THROW("Parse Expand: cannot handle dynamic shape as input");
+        }
+        std::vector<std::size_t> dims;
+        arg_s.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
+        auto out_lens = compute_broadcasted_lens(in_lens, dims);
 
         return prog.add_instruction(op::multibroadcast{out_lens}, std::move(args[0]));
     }

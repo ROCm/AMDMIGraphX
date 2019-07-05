@@ -6,10 +6,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void pow(hipStream_t stream, const argument& result, const argument& arg2, const argument& arg1)
+void pow(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2)
 {
     nary(stream, result, arg1, arg2)(
-        [](auto x, auto y) { return ::pow(to_hip_type(x), to_hip_type(y)); });
+        [](auto e, auto b) { return ::pow(to_hip_type(b), to_hip_type(e)); });
 }
 
 } // namespace device

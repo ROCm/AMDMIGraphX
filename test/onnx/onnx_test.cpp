@@ -884,6 +884,4 @@ TEST_CASE(pow_test)
     EXPECT(p == prog);
 }
 
-
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

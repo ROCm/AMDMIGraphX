@@ -428,8 +428,8 @@ void fuse_ops::apply(program& p) const
     // clang-format off
     match::find_matches(p, find_triadd{});
     match::find_matches(p, 
-        // find_conv_bias_relu{ctx},
-        // find_conv_bias{ctx},
+        find_conv_bias_relu{ctx},
+        find_conv_bias{ctx},
         find_add_relu{}
     );
     // clang-format on

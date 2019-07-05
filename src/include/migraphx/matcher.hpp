@@ -330,7 +330,10 @@ inline auto outputs()
 MIGRAPHX_PRED_MATCHER(any, instruction_ref) { return true; }
 MIGRAPHX_PRED_MATCHER(none, instruction_ref) { return false; }
 MIGRAPHX_PRED_MATCHER(standard_shape, instruction_ref ins) { return ins->get_shape().standard(); }
-MIGRAPHX_PRED_MATCHER(not_standard_shape, instruction_ref ins) { return not ins->get_shape().standard(); }
+MIGRAPHX_PRED_MATCHER(not_standard_shape, instruction_ref ins)
+{
+    return not ins->get_shape().standard();
+}
 MIGRAPHX_PRED_MATCHER(broadcast_shape, instruction_ref ins)
 {
     return ins->get_shape().broadcasted();

@@ -35,13 +35,27 @@ struct multibroadcast
         auto input = inputs.at(0);
 
         if(input.lens().empty())
-            MIGRAPHX_THROW("inputs dimensions should be > 0");
+        {
+            MIGRAPHX_THROW("MULTIBROADCAST: inputs dimensions should be > 0");
+        }
 
         if(input.lens().size() > output_lens.size())
-            MIGRAPHX_THROW("inputs dimensions should <= output size");
+        {
+            MIGRAPHX_THROW("MULTIBROADCAST: inputs dimensions should <= output size");
+        }
+
+        auto offset = output_lens.size() - input.lens().size();
+        for(std::ptrdiff_t i = input.lens().size() - 1; i >= 0; i--)
+        {
+            if(output_lens[i + offset] != input.lens()[i] and input.lens()[i] != 1)
+            {
+                MIGRAPHX_THROW("MULTIBROADCAST: input shape {" + to_string_range(input.lens()) +
+                               "} cannot be broadcasted to {" + to_string_range(output_lens) +
+                               "}!");
+            }
+        }
 
         std::vector<size_t> bcast_strides(output_lens.size(), 0);
-        auto offset = output_lens.size() - input.lens().size();
         for(std::ptrdiff_t i = input.lens().size() - 1; i >= 0; i--)
         {
             if(output_lens[i + offset] == input.lens()[i])

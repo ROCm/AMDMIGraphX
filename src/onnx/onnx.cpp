@@ -930,7 +930,7 @@ struct onnx_parser
         // input is empty, output is a scalar
         auto type = l_val.get_shape().type();
 
-        if(args.size() == 0)
+        if(args.empty())
         {
             MIGRAPHX_THROW("Parse ConstantOfShape : must have 1 input!");
         }
@@ -968,7 +968,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_expand(const std::string&, attribute_map, std::vector<instruction_ref> args)
+    parse_expand(const std::string&, const attribute_map, std::vector<instruction_ref> args)
     {
         auto in_lens             = args[0]->get_shape().lens();
         migraphx::argument arg_s = args[1]->eval();
@@ -980,7 +980,7 @@ struct onnx_parser
         arg_s.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
         auto out_lens = compute_broadcasted_lens(in_lens, dims);
 
-        return prog.add_instruction(op::multibroadcast{out_lens}, std::move(args[0]));
+        return prog.add_instruction(op::multibroadcast{out_lens}, args[0]);
     }
 
     std::vector<instruction_ref>

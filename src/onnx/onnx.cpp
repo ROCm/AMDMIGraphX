@@ -968,7 +968,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_expand(const std::string&, const attribute_map, std::vector<instruction_ref> args)
+    parse_expand(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         auto in_lens             = args[0]->get_shape().lens();
         migraphx::argument arg_s = args[1]->eval();

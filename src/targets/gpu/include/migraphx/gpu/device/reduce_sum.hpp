@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_LOGSOFTMAX_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_LOGSOFTMAX_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_REDUCE_SUM_HPP
+#define MIGRAPHX_GUARD_RTGLIB_DEVICE_REDUCE_SUM_HPP
 
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void logsoftmax(hipStream_t stream, const argument& result, const argument& arg, int axis);
+void reduce_sum(hipStream_t stream, const argument& result, const argument& arg);
 
 } // namespace device
 } // namespace gpu

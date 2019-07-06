@@ -182,7 +182,15 @@ struct onnx_parser
                        s0.end(),
                        s1.begin() + offset,
                        out_lens.begin() + offset,
-                       [](auto a, auto b) { return std::max(a, b); });
+                       [&](auto a, auto b) {
+                           if(a != b and a != 1 and b != 1)
+                           {
+                               MIGRAPHX_THROW("COMPUTE_BROADCASTLEN: shape {" +
+                                              to_string_range(s0) + "} and {" +
+                                              to_string_range(s1) + "} mismatch!");
+                           }
+                           return std::max(a, b);
+                       });
 
         return out_lens;
     }

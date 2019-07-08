@@ -1288,10 +1288,10 @@ struct onnx_parser
         return {hidden_states, last_output, last_cell_output};
     }
 
-    template<class T>
+    template <class T>
     instruction_ref parse_reduce_oper(const std::string&,
-                                     attribute_map attributes,
-                                     std::vector<instruction_ref> args)
+                                      attribute_map attributes,
+                                      std::vector<instruction_ref> args)
     {
         std::size_t n_dim = args.front()->get_shape().lens().size();
 

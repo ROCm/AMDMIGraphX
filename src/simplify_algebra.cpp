@@ -10,10 +10,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 auto lit_broadcast() { return match::any_of(match::is_constant(), match::name("broadcast")); }
-auto not_lit_broadcast()
-{
-    return match::none_of(match::is_constant(), match::name("broadcast"));
-}
+auto not_lit_broadcast() { return match::none_of(match::is_constant(), match::name("broadcast")); }
 auto op_lit_broadcast(std::string op, std::string x, std::string y)
 {
     return match::name(op)(match::either_arg(0, 1)(lit_broadcast().bind(std::move(x)),
@@ -26,7 +23,7 @@ struct find_mul_conv
     {
         return match::name("mul")(match::either_arg(0, 1)(
             match::name("convolution")(match::used_once(),
-                                match::args(match::any(), match::is_constant().bind("w")))
+                                       match::args(match::any(), match::is_constant().bind("w")))
                 .bind("conv"),
             match::name("broadcast").bind("a")));
     }

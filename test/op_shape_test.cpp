@@ -227,6 +227,16 @@ TEST_CASE(multibroadcast)
         migraphx::shape input{migraphx::shape::float_type, {}};
         throws_shape(migraphx::op::multibroadcast{lens}, input);
     }
+    {
+        std::vector<std::size_t> lens{2, 3, 4, 5};
+        migraphx::shape input{migraphx::shape::float_type, {3, 4}};
+        throws_shape(migraphx::op::multibroadcast{lens}, input);
+    }
+    {
+        std::vector<std::size_t> lens{2, 3, 4, 5};
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4}};
+        throws_shape(migraphx::op::multibroadcast{lens}, input);
+    }
 }
 
 TEST_CASE(broadcast)
@@ -379,6 +389,38 @@ void test_softmax_variations()
 TEST_CASE(softmax) { test_softmax_variations<migraphx::op::softmax>(); }
 
 TEST_CASE(logsoftmax) { test_softmax_variations<migraphx::op::logsoftmax>(); }
+
+template <class T>
+void test_argop_var()
+{
+    {
+        migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {1, 3, 4, 5}}, T{0}, input);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 1, 4, 5}}, T{1}, input);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 1, 5}}, T{2}, input);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 4, 1}}, T{3}, input);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        throws_shape(T{4}, input);
+    }
+}
+
+TEST_CASE(argmax) { test_argop_var<migraphx::op::argmax>(); }
+TEST_CASE(argmin) { test_argop_var<migraphx::op::argmin>(); }
 
 // 2 inputs arguments
 TEST_CASE(matmul)

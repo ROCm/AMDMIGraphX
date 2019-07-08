@@ -18,7 +18,8 @@ shape hip_logsoftmax::compute_shape(const std::vector<shape>& inputs) const
 argument
 hip_logsoftmax::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    return device::logsoftmax(ctx.get_stream().get(), args[1], args[0], op.axis);
+    device::logsoftmax(ctx.get_stream().get(), args.back(), args.front(), op.axis);
+    return args.back();
 }
 
 } // namespace gpu

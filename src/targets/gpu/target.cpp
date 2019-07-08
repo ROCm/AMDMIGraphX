@@ -37,6 +37,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
     return
     {
         dead_code_elimination{},
+        simplify_reshapes{},
+        dead_code_elimination{},
         eliminate_identity{},
         eliminate_pad{},
         dead_code_elimination{},
@@ -48,10 +50,10 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         //dead_code_elimination{},
         simplify_algebra{},
         dead_code_elimination{},
-        propagate_constant{},
-        dead_code_elimination{},
         auto_contiguous{},
         simplify_reshapes{},
+        dead_code_elimination{},
+        propagate_constant{},
         dead_code_elimination{},
         lowering{ctx},
         eliminate_concat{concat_gpu_optimization{}},

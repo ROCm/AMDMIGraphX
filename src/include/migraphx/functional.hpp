@@ -190,6 +190,23 @@ auto pop_back_args(Ts&&... xs)
     };
 }
 
+template <class T>
+struct always_f
+{
+    T x;
+    template <class... Ts>
+    constexpr T operator()(Ts&&...) const
+    {
+        return x;
+    }
+};
+
+template <class T>
+auto always(T x)
+{
+    return always_f<T>{x};
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

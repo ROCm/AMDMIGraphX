@@ -79,7 +79,8 @@ struct tf_parser
         return result;
     }
 
-    std::vector<size_t> parse_axes(const attribute_map& attributes, const std::string& s, const size_t& num_dims) const
+    std::vector<size_t>
+    parse_axes(const attribute_map& attributes, const std::string& s, const size_t& num_dims) const
     {
         auto attrs = attributes.at(s).list().i();
         std::vector<size_t> axes;
@@ -716,7 +717,7 @@ struct tf_parser
     {
         op::squeeze op;
         auto input_dims = args[0]->get_shape().lens();
-        auto axes = attributes.at("squeeze_dims").list().i();
+        auto axes       = attributes.at("squeeze_dims").list().i();
         copy(axes, std::back_inserter(op.axes));
 
         if(op.axes.empty()) // no squeeze_dims provided, remove any dim that equals 1

@@ -240,6 +240,25 @@ void find_matches(program& p, Ms&&... ms)
     }
 }
 
+template<class M>
+struct find_skip
+{
+    M m;
+    M matcher() const
+    {
+        return m;
+    }
+
+    void apply(program&, matcher_result) const
+    {}
+};
+
+template<class M>
+find_skip<M> make_find_skip(M m)
+{
+    return {m};
+}
+
 struct lazy_and
 {
     template <class F, class G>
@@ -311,6 +330,12 @@ const constexpr auto all_of  = match_fold_f<lazy_and, true, true>{};
 const constexpr auto any_of  = match_fold_f<lazy_or, false, true>{};
 const constexpr auto none_of = match_fold_f<lazy_or, false, false>{};
 
+template<class... Ms>
+auto skip_matches(Ms... ms)
+{
+    return make_find_skip(any_of(ms...));
+}
+
 inline auto inputs()
 {
     return [](auto ins, auto f) {
@@ -370,6 +395,13 @@ MIGRAPHX_BASIC_MATCHER(used_once, matcher_context& ctx, instruction_ref ins)
 }
 
 MIGRAPHX_PRED_MATCHER(is_constant, instruction_ref ins) { return ins->can_eval(); }
+
+MIGRAPHX_BASIC_MATCHER(is_unused, matcher_context& ctx, instruction_ref ins)
+{
+    if (ins->outputs().empty() and ins != std::prev(ctx.not_found()))
+        return ins;
+    return ctx.not_found();
+}
 
 template <class... Ms>
 auto skip_output(Ms... ms)

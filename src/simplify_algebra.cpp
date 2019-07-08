@@ -20,16 +20,15 @@ auto op_lit_broadcast(std::string op, std::string x, std::string y)
 auto conv_const_weights()
 {
     return match::name("convolution")(match::used_once(),
-                                       match::args(match::any(), match::is_constant().bind("w")));
+                                      match::args(match::any(), match::is_constant().bind("w")));
 }
 
 struct find_mul_conv
 {
     auto matcher() const
     {
-        return match::name("mul")(match::either_arg(0, 1)(
-            conv_const_weights().bind("conv"),
-            match::name("broadcast").bind("a")));
+        return match::name("mul")(match::either_arg(0, 1)(conv_const_weights().bind("conv"),
+                                                          match::name("broadcast").bind("a")));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -57,20 +56,21 @@ struct find_mul_add
     auto matcher() const
     {
         return match::name("mul")(match::either_arg(0, 1)(
-            match::name("add")(match::either_arg(0, 1)(match::any().bind("x"), match::any_of(conv_const_weights(), match::is_constant()).bind("y"))),
-            match::is_constant().bind("a")
-        ));
+            match::name("add")(match::either_arg(0, 1)(
+                match::any().bind("x"),
+                match::any_of(conv_const_weights(), match::is_constant()).bind("y"))),
+            match::is_constant().bind("a")));
     }
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto ins      = r.result;
+        auto ins   = r.result;
         auto a_ins = r.instructions["a"];
-        auto x_ins    = r.instructions["x"];
-        auto y_ins    = r.instructions["y"];
+        auto x_ins = r.instructions["x"];
+        auto y_ins = r.instructions["y"];
 
-        auto xa_ins = p.insert_instruction(ins, op::mul{}, x_ins, a_ins);
-        auto ya_ins = p.insert_instruction(ins, op::mul{}, y_ins, a_ins);
+        auto xa_ins    = p.insert_instruction(ins, op::mul{}, x_ins, a_ins);
+        auto ya_ins    = p.insert_instruction(ins, op::mul{}, y_ins, a_ins);
         auto sum_xa_ya = p.insert_instruction(ins, op::add{}, xa_ins, ya_ins);
         p.replace_instruction(ins, sum_xa_ya);
     }

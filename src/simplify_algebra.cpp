@@ -89,7 +89,9 @@ struct find_add_lit_broadcast
 
 void simplify_algebra::apply(program& p) const
 {
-    match::find_matches(p, find_add_lit_broadcast{}, find_mul_conv{});
+    // Run simplifications twice
+    for(int i=0;i<2;i++)
+        match::find_matches(p, find_add_lit_broadcast{}, find_mul_conv{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

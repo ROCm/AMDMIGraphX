@@ -58,7 +58,9 @@ struct find_mul_add
         return match::name("mul")(match::either_arg(0, 1)(
             match::name("add")(match::either_arg(0, 1)(
                 match::any().bind("x"),
-                match::any_of(conv_const_weights(), match::is_constant()).bind("y"))),
+                match::any_of(conv_const_weights(), match::is_constant()).bind("y")),
+                match::none_of(match::args(match::is_constant(), match::is_constant()))
+            ),
             match::is_constant().bind("a")));
     }
 
@@ -81,6 +83,26 @@ struct find_add_lit_broadcast
     auto matcher() const
     {
         return match::name("add")(
+            match::either_arg(0, 1)(op_lit_broadcast("add", "a", "x"), lit_broadcast().bind("b")));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+        auto a_ins = r.instructions["a"];
+        auto b_ins = r.instructions["b"];
+
+        auto sumab = p.insert_instruction(ins, op::add{}, a_ins, b_ins);
+        p.replace_instruction(ins, op::add{}, x_ins, sumab);
+    }
+};
+
+struct find_double_add_lit_broadcast
+{
+    auto matcher() const
+    {
+        return match::name("add")(
             match::args(op_lit_broadcast("add", "a", "x"), op_lit_broadcast("add", "b", "y")));
     }
 
@@ -92,11 +114,9 @@ struct find_add_lit_broadcast
         auto a_ins = r.instructions["a"];
         auto b_ins = r.instructions["b"];
 
-        if(a_ins->name() != b_ins->name())
-            return;
         instruction_ref sumab;
 
-        if(a_ins->name() == "broadcast")
+        if(a_ins->name() == "broadcast" and b_ins->name() == "broadcast")
         {
             if(a_ins->inputs().at(0)->get_shape() != b_ins->inputs().at(0)->get_shape())
                 return;
@@ -119,7 +139,7 @@ void simplify_algebra::apply(program& p) const
 {
     // Run simplifications multiple times
     for(int i = 0; i < 4; i++)
-        match::find_matches(p, find_add_lit_broadcast{}, find_mul_conv{}, find_mul_add{});
+        match::find_matches(p, match::skip_matches(match::is_unused(), match::is_constant()), find_double_add_lit_broadcast{}, find_add_lit_broadcast{}, find_mul_conv{}, find_mul_add{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

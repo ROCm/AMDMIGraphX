@@ -105,12 +105,13 @@ TEST_CASE(simplify_add3)
 TEST_CASE(simplify_mul_conv1)
 {
     migraphx::program p;
-    auto x    = p.add_parameter("x", {migraphx::shape::int32_type, {1, 128, 28, 28}});
-    auto w  = p.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256, 128, 3, 3}}));
-    auto conv = p.add_instruction(migraphx::op::convolution{{1, 1},{2, 2},{1, 1}}, x, w);
-    auto a  = p.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256}}));
-    auto b = p.add_instruction(migraphx::op::broadcast{1, {1, 256, 14, 14}}, a);
-    auto mul = p.add_instruction(migraphx::op::mul{}, conv, b);
+    auto x = p.add_parameter("x", {migraphx::shape::int32_type, {1, 128, 28, 28}});
+    auto w =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256, 128, 3, 3}}));
+    auto conv = p.add_instruction(migraphx::op::convolution{{1, 1}, {2, 2}, {1, 1}}, x, w);
+    auto a    = p.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256}}));
+    auto b    = p.add_instruction(migraphx::op::broadcast{1, {1, 256, 14, 14}}, a);
+    auto mul  = p.add_instruction(migraphx::op::mul{}, conv, b);
     p.add_instruction(pass_op{}, mul);
     EXPECT(conv->outputs().front()->name() == "mul");
     p.compile(simplify_algebra_target{});

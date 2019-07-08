@@ -1778,4 +1778,79 @@ TEST_CASE(reduce_sum_test12)
     EXPECT(results_vector == gold);
 }
 
+TEST_CASE(reduce_mean_test1)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
+    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
+    auto l0    = p.add_literal(input);
+    p.add_instruction(migraphx::op::reduce_mean{{1}}, l0);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{2, 3, 6, 7, 10, 11};
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(reduce_mean_test2)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
+    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
+    auto l0    = p.add_literal(input);
+    p.add_instruction(migraphx::op::reduce_mean{{2}}, l0);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{1.5f, 3.5f, 5.5f, 7.5f, 9.5f, 11.5f};
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(reduce_mean_test02)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
+    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
+    auto l0    = p.add_literal(input);
+    p.add_instruction(migraphx::op::reduce_mean{{0, 2}}, l0);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{5.5, 7.5};
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(reduce_mean_test12)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
+    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
+    auto l0    = p.add_literal(input);
+    p.add_instruction(migraphx::op::reduce_mean{{1, 2}}, l0);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{2.5f, 6.5f, 10.5f};
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(reduce_mean_int)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::int32_type, {3, 2, 2}};
+    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
+    auto l0    = p.add_literal(input);
+    p.add_instruction(migraphx::op::reduce_mean{{1, 2}}, l0);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<int> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<int> gold{2, 6, 10};
+    EXPECT(results_vector == gold);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -28,6 +28,16 @@ struct id
     }
 };
 
+struct scale
+{
+    size_t item_num = 1;
+    template <class T>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x) const
+    {
+        return static_cast<T>(x / item_num);
+    }
+};
+
 struct max
 {
     template <class T, class U>

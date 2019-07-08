@@ -115,7 +115,8 @@ TEST_CASE(simplify_mul_conv1)
     p.add_instruction(pass_op{}, mul);
     EXPECT(conv->outputs().front()->name() == "mul");
     p.compile(simplify_algebra_target{});
-    auto new_conv = std::find_if(p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; });
+    auto new_conv =
+        std::find_if(p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; });
     EXPECT(new_conv->outputs().front()->name() != "mul");
 }
 

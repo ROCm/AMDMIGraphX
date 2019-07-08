@@ -350,7 +350,7 @@ TEST_CASE(implicit_add_bcast_test)
 {
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
-    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 4}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 4, 1}});
     auto l2 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l0);
     auto l3 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l1);
     p.add_instruction(migraphx::op::add{}, l2, l3);
@@ -377,7 +377,7 @@ TEST_CASE(implicit_sub_bcast_test)
 {
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
-    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 4}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {4, 5}});
     auto l2 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l0);
     auto l3 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l1);
     p.add_instruction(migraphx::op::sub{}, l2, l3);
@@ -784,12 +784,66 @@ TEST_CASE(logsoftmax)
     EXPECT(p == prog);
 }
 
+TEST_CASE(argmax)
+{
+    migraphx::program p;
+    auto l0  = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto ins = p.add_instruction(migraphx::op::argmax{2}, l0);
+    p.add_instruction(migraphx::op::squeeze{{2}}, ins);
+    auto prog = migraphx::parse_onnx("argmax_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(argmin)
+{
+    migraphx::program p;
+    auto l0  = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto ins = p.add_instruction(migraphx::op::argmin{3}, l0);
+    p.add_instruction(migraphx::op::squeeze{{3}}, ins);
+    auto prog = migraphx::parse_onnx("argmin_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(no_pad_test)
 {
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 2}});
     p.add_instruction(migraphx::op::identity{}, l0);
     auto prog = migraphx::parse_onnx("no_pad_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(reducesum_test1)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto l1 = p.add_instruction(migraphx::op::reduce_sum{{2}}, l0);
+    p.add_instruction(migraphx::op::squeeze{{2}}, l1);
+    auto prog = migraphx::parse_onnx("reducesum_test1.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(reducesum_test2)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto l1 = p.add_instruction(migraphx::op::reduce_sum{{2, 3}}, l0);
+    p.add_instruction(migraphx::op::squeeze{{2, 3}}, l1);
+    auto prog = migraphx::parse_onnx("reducesum_test2.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(reducesum_test3)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    p.add_instruction(migraphx::op::reduce_sum{{2, 3}}, l0);
+    auto prog = migraphx::parse_onnx("reducesum_test3.onnx");
 
     EXPECT(p == prog);
 }

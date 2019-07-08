@@ -17,14 +17,18 @@ auto op_lit_broadcast(std::string op, std::string x, std::string y)
                                                    not_lit_broadcast().bind(std::move(y))));
 }
 
+auto conv_const_weights()
+{
+    return match::name("convolution")(match::used_once(),
+                                       match::args(match::any(), match::is_constant().bind("w")));
+}
+
 struct find_mul_conv
 {
     auto matcher() const
     {
         return match::name("mul")(match::either_arg(0, 1)(
-            match::name("convolution")(match::used_once(),
-                                       match::args(match::any(), match::is_constant().bind("w")))
-                .bind("conv"),
+            conv_const_weights().bind("conv"),
             match::name("broadcast").bind("a")));
     }
 
@@ -45,6 +49,30 @@ struct find_mul_conv
         auto new_conv = p.insert_instruction(
             ins, conv_ins->get_operator(), conv_ins->inputs().front(), new_mul);
         p.replace_instruction(ins, new_conv);
+    }
+};
+
+struct find_mul_add
+{
+    auto matcher() const
+    {
+        return match::name("mul")(match::either_arg(0, 1)(
+            match::name("add")(match::either_arg(0, 1)(match::any().bind("x"), match::any_of(conv_const_weights(), match::is_constant()).bind("y"))),
+            match::is_constant().bind("a")
+        ));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins      = r.result;
+        auto a_ins = r.instructions["a"];
+        auto x_ins    = r.instructions["x"];
+        auto y_ins    = r.instructions["y"];
+
+        auto xa_ins = p.insert_instruction(ins, op::mul{}, x_ins, a_ins);
+        auto ya_ins = p.insert_instruction(ins, op::mul{}, y_ins, a_ins);
+        auto sum_xa_ya = p.insert_instruction(ins, op::add{}, xa_ins, ya_ins);
+        p.replace_instruction(ins, sum_xa_ya);
     }
 };
 
@@ -89,9 +117,9 @@ struct find_add_lit_broadcast
 
 void simplify_algebra::apply(program& p) const
 {
-    // Run simplifications twice
-    for(int i = 0; i < 2; i++)
-        match::find_matches(p, find_add_lit_broadcast{}, find_mul_conv{});
+    // Run simplifications multiple times
+    for(int i = 0; i < 4; i++)
+        match::find_matches(p, find_add_lit_broadcast{}, find_mul_conv{}, find_mul_add{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

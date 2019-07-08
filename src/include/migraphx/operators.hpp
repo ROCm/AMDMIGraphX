@@ -24,6 +24,7 @@
 #include <migraphx/op/div.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/elu.hpp>
+#include <migraphx/op/erf.hpp>
 #include <migraphx/op/exp.hpp>
 #include <migraphx/op/flatten.hpp>
 #include <migraphx/op/gather.hpp>

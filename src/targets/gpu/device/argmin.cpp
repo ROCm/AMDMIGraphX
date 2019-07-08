@@ -12,12 +12,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void argmin(hipStream_t stream, const argument& result, const argument& arg, int axis)
+void argmin(hipStream_t stream, const argument& result, const argument& arg, int64_t axis)
 {
-    arg.visit([&](auto input) {
-        using type = device_type<std::remove_cv_t<typename decltype(input)::value_type>>;
-        arg_op<type, argmin_op<type>>(argmin_op<type>{}, stream, result, arg, axis);
-    });
+    arg_op(argmin_op{}, stream, result, arg, axis);
 }
 
 } // namespace device

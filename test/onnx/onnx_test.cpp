@@ -848,6 +848,27 @@ TEST_CASE(reducesum_test3)
     EXPECT(p == prog);
 }
 
+TEST_CASE(reducemean_test1)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto l1 = p.add_instruction(migraphx::op::reduce_mean{{2, 3}}, l0);
+    p.add_instruction(migraphx::op::squeeze{{2, 3}}, l1);
+    auto prog = migraphx::parse_onnx("reducemean_test1.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(reducemean_test2)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    p.add_instruction(migraphx::op::reduce_mean{{2}}, l0);
+    auto prog = migraphx::parse_onnx("reducemean_test2.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(clip_test)
 {
     migraphx::program p;

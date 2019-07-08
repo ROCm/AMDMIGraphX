@@ -200,12 +200,33 @@ struct hip_add_relu
     }
 };
 
+void move_broadcasted_back(std::vector<instruction_ref>& args)
+{
+    // Ensure the last arguments is the broadcasted one
+    auto it = std::find_if(
+        args.begin(), args.end(), [](auto arg) { return arg->get_shape().broadcasted(); });
+    if(it != args.end())
+        std::swap(*it, *std::prev(args.end(), 2));
+}
+
+void move_standard_front(std::vector<instruction_ref>& args)
+{
+    // Ensure the first arguments is the standard one
+    auto it = std::find_if(
+        args.begin(), args.end(), [](auto arg) { return arg->get_shape().standard(); });
+    if(it != args.end())
+        std::swap(*it, args.front());
+}
+
 struct find_add_relu
 {
     auto matcher() const
     {
-        return match::name("gpu::relu")(match::arg(0)(
-            match::any_of(match::name("gpu::add"), match::name("hip::triadd")).bind("add")));
+        return match::name("gpu::relu")(
+            match::arg(0)(match::any_of(match::name("gpu::add"),
+                                        match::name("hip::triadd"),
+                                        match::any_of[match::inputs()](match::standard_shape()))
+                              .bind("add")));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -213,6 +234,9 @@ struct find_add_relu
         auto add_ins = r.instructions["add"];
         auto ins     = r.result;
         auto args    = add_ins->inputs();
+        move_standard_front(args);
+        move_broadcasted_back(args);
+
         // Use the allocation from the relu operator
         args.back() = ins->inputs().back();
         if(add_ins->name() == "gpu::add")
@@ -226,8 +250,9 @@ struct find_triadd
 {
     auto matcher() const
     {
-        return match::name("gpu::add")(match::either_arg(0, 1)(match::name("gpu::add").bind("add"),
-                                                               match::any().bind("input")));
+        return match::name("gpu::add")(match::either_arg(0, 1)(
+            match::name("gpu::add").bind("add"),
+            match::any(match::any_of[match::inputs()](match::standard_shape())).bind("input")));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -242,10 +267,9 @@ struct find_triadd
         if(std::count_if(args.begin(), args.end(), is_broadcasted) > 1)
             return;
         args.insert(args.begin(), input_ins);
-        // Ensure the last arguments is the broadcasted one
-        auto it = std::find_if(args.begin(), args.end(), is_broadcasted);
-        if(it != args.end())
-            std::swap(*it, *std::prev(args.end(), 2));
+        move_standard_front(args);
+        move_broadcasted_back(args);
+
         args.back() = ins->inputs().back();
         p.replace_instruction(ins, hip_triadd{}, args);
     }
@@ -404,8 +428,8 @@ void fuse_ops::apply(program& p) const
     // clang-format off
     match::find_matches(p, find_triadd{});
     match::find_matches(p, 
-        // find_conv_bias_relu{ctx},
-        // find_conv_bias{ctx},
+        find_conv_bias_relu{ctx},
+        find_conv_bias{ctx},
         find_add_relu{}
     );
     // clang-format on

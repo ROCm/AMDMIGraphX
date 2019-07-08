@@ -11,6 +11,8 @@
 #include <migraphx/gpu/device/contiguous.hpp>
 #include <migraphx/gpu/device/add.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/gpu/argmax.hpp>
+#include <migraphx/gpu/argmin.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
@@ -102,6 +104,8 @@ struct miopen_apply
         add_extend_op<hip_concat, op::concat>("concat");
         add_extend_op<hip_softmax, op::softmax>("softmax");
         add_extend_op<hip_logsoftmax, op::logsoftmax>("logsoftmax");
+        add_extend_op<hip_argmax, op::argmax>("argmax");
+        add_extend_op<hip_argmin, op::argmin>("argmin");
         add_extend_op<hip_gather, op::gather>("gather");
         add_extend_op<hip_pad, op::pad>("pad");
         add_extend_op<hip_convert, op::convert>("convert");

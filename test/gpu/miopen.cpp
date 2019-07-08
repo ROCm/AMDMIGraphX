@@ -615,6 +615,30 @@ template struct test_softmax<1, migraphx::shape::half_type>;
 template struct test_softmax<2, migraphx::shape::half_type>;
 template struct test_softmax<3, migraphx::shape::half_type>;
 
+template <class T, int Axis>
+struct test_arg_ops : verify_program<test_arg_ops<T, Axis>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 1025}};
+        auto param = p.add_parameter("data", s);
+        p.add_instruction(T{Axis}, param);
+
+        return p;
+    }
+};
+
+template struct test_arg_ops<migraphx::op::argmax, 0>;
+template struct test_arg_ops<migraphx::op::argmax, 1>;
+template struct test_arg_ops<migraphx::op::argmax, 2>;
+template struct test_arg_ops<migraphx::op::argmax, 3>;
+
+template struct test_arg_ops<migraphx::op::argmin, 0>;
+template struct test_arg_ops<migraphx::op::argmin, 1>;
+template struct test_arg_ops<migraphx::op::argmin, 2>;
+template struct test_arg_ops<migraphx::op::argmin, 3>;
+
 struct test_conv : verify_program<test_conv>
 {
     migraphx::program create_program() const
@@ -3347,22 +3371,6 @@ struct test_lstm_bidirct_default_actv2 : verify_program<test_lstm_bidirct_defaul
         return p;
     }
 };
-
-template <int Axis>
-struct test_logsoftmax_1 : verify_program<test_logsoftmax_1<Axis>>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        migraphx::shape s{migraphx::shape::float_type, {3}};
-        auto param = p.add_parameter("0", s);
-        p.add_instruction(migraphx::op::logsoftmax{Axis}, param);
-
-        return p;
-    }
-};
-
-template struct test_logsoftmax_1<0>;
 
 template <int Axis, migraphx::shape::type_t T>
 struct test_logsoftmax : verify_program<test_logsoftmax<Axis, T>>

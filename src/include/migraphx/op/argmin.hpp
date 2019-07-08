@@ -1,15 +1,10 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_ARGMIN_HPP
 #define MIGRAPHX_GUARD_OPERATORS_ARGMIN_HPP
 
-//#include <array>
 #include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
-//#include <migraphx/stringutils.hpp>
-//#include <migraphx/literal.hpp>
 #include <migraphx/par_dfor.hpp>
 #include <migraphx/config.hpp>
-//#include <cmath>
-//#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -17,7 +12,7 @@ namespace op {
 
 struct argmin
 {
-    int axis = 0;
+    int64_t axis = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -30,8 +25,8 @@ struct argmin
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1).standard();
-        auto lens = inputs[0].lens();
-        int n_dim = static_cast<int>(lens.size());
+        auto lens     = inputs[0].lens();
+        int64_t n_dim = static_cast<int64_t>(lens.size());
         if(axis >= n_dim || axis < 0)
         {
             MIGRAPHX_THROW("ARGMIN: axis is out of range.");

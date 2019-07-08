@@ -369,6 +369,11 @@ MIGRAPHX_BASIC_MATCHER(used_once, matcher_context& ctx, instruction_ref ins)
     return ctx.not_found();
 }
 
+MIGRAPHX_PRED_MATCHER(is_constant, instruction_ref ins)
+{
+    return ins->can_eval();
+}
+
 template <class... Ms>
 auto skip_output(Ms... ms)
 {

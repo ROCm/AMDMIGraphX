@@ -225,7 +225,7 @@ struct find_add_relu
         return match::name("gpu::relu")(
             match::arg(0)(match::any_of(match::name("gpu::add"),
                                         match::name("hip::triadd"),
-                                        match::any_of[match::inputs()](match::standard_shape()))
+                                        match::any_of(match::name("@literal"), match::any_of[match::inputs()](match::standard_shape())))
                               .bind("add")));
     }
 
@@ -252,7 +252,7 @@ struct find_triadd
     {
         return match::name("gpu::add")(match::either_arg(0, 1)(
             match::name("gpu::add").bind("add"),
-            match::any(match::any_of[match::inputs()](match::standard_shape())).bind("input")));
+            match::any(match::any_of(match::name("@literal"), match::any_of[match::inputs()](match::standard_shape()))).bind("input")));
     }
 
     void apply(program& p, match::matcher_result r) const

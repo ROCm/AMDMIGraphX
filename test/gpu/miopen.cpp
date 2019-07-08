@@ -612,7 +612,7 @@ struct test_softmax : verify_program<test_softmax<Axis, T>>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        migraphx::shape s{migraphx::shape::float_type, {2, 4, 1026, 6}};
+        migraphx::shape s{T, {512, 4, 1067, 6}};
         auto param = p.add_parameter("0", s);
         p.add_instruction(migraphx::op::softmax{Axis}, param);
 

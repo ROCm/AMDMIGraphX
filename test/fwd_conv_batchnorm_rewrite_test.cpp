@@ -96,7 +96,7 @@ TEST_CASE(non_literal)
     migraphx::fwd_conv_batchnorm_rewrite opt;
     opt.apply(p2);
     EXPECT(any_of(p1, &is_batch_norm));
-    EXPECT(any_of(p2, &is_batch_norm));
+    EXPECT(none_of(p2, &is_batch_norm));
 }
 
 TEST_CASE(as_literal)

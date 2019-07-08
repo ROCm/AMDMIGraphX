@@ -37,6 +37,48 @@ struct tf_parser
 
     std::unordered_map<std::string, op_func> ops;
 
+    bool should_transpose(instruction_ref ins) const
+    {
+        return is_nhwc and ins->get_shape().lens().size() == 4;
+    }
+
+    instruction_ref to_nhwc(instruction_ref ins)
+    {
+        if(should_transpose(ins))
+            return prog.add_instruction(op::transpose{{0, 2, 3, 1}}, ins);
+        return ins;
+    }
+
+    instruction_ref to_nchw(instruction_ref ins)
+    {
+        if(should_transpose(ins))
+            return prog.add_instruction(op::transpose{{0, 3, 1, 2}}, ins);
+        return ins;
+    }
+
+    instruction_ref to_kcxy(instruction_ref ins)
+    {
+        if(should_transpose(ins))
+            return prog.add_instruction(op::transpose{{3, 2, 0, 1}}, ins);
+        return ins;
+    }
+
+    instruction_ref make_contiguous(instruction_ref ins)
+    {
+        if(ins->get_shape().standard())
+            return ins;
+        else
+            return prog.add_instruction(op::contiguous{}, ins);
+    }
+
+    std::vector<instruction_ref> to_nchw(const std::vector<instruction_ref>& args)
+    {
+        std::vector<instruction_ref> result(args.size());
+        std::transform(
+            args.begin(), args.end(), result.begin(), [&](auto ins) { return this->to_nchw(ins); });
+        return result;
+    }
+
     std::vector<size_t> parse_axes(const attribute_map& attributes, const std::string& s) const
     {
         auto attrs = attributes.at(s).list().i();
@@ -119,59 +161,67 @@ struct tf_parser
 
         add_mem_op("AvgPool", &tf_parser::parse_pooling);
         add_mem_op("BiasAdd", &tf_parser::parse_biasadd);
-        add_mem_op("ConcatV2", &tf_parser::parse_concat);
+        add_mem_op("ConcatV2", &tf_parser::parse_concat, false);
         add_mem_op("Const", &tf_parser::parse_constant);
         add_mem_op("Conv2D", &tf_parser::parse_conv);
         add_mem_op("DepthwiseConv2dNative", &tf_parser::parse_depthwiseconv);
         add_mem_op("FusedBatchNorm", &tf_parser::parse_batchnorm);
-        add_mem_op("MatMul", &tf_parser::parse_matmul);
+        add_mem_op("MatMul", &tf_parser::parse_matmul, false);
         add_mem_op("MaxPool", &tf_parser::parse_pooling);
         add_mem_op("Mean", &tf_parser::parse_mean);
-        add_mem_op("Pack", &tf_parser::parse_pack);
+        add_mem_op("Pack", &tf_parser::parse_pack, false);
         add_mem_op("Pad", &tf_parser::parse_pad);
-        add_mem_op("Reshape", &tf_parser::parse_reshape);
+        add_mem_op("Reshape", &tf_parser::parse_reshape, false);
         add_mem_op("Softmax", &tf_parser::parse_softmax);
-        add_mem_op("Squeeze", &tf_parser::parse_squeeze);
+        add_mem_op("Squeeze", &tf_parser::parse_squeeze, false);
         add_mem_op("StridedSlice", &tf_parser::parse_stridedslice);
     }
 
     template <class F>
-    void add_op(std::string name, F f)
+    void add_op(std::string name, F f, bool transpose = true)
     {
-        ops.emplace(name, f);
+        if(transpose)
+        {
+            ops.emplace(name,
+                        op_func{[=](const attribute_map& attributes,
+                                    const std::vector<instruction_ref>& args) -> instruction_ref {
+                            return to_nhwc(f(attributes, to_nchw(args)));
+                        }});
+        }
+        else
+        {
+            ops.emplace(name, f);
+        }
     }
 
-    // Multi output op
     template <class F>
-    void add_multi_op(std::string name, F f)
+    void add_mem_op(std::string name, F f, bool transpose = true)
     {
-        ops.emplace(name, f);
-    }
-
-    template <class F>
-    void add_mem_op(std::string name, F f)
-    {
-        add_op(name, [=](auto&&... xs) {
-            return std::mem_fn(f)(*this, name, std::forward<decltype(xs)>(xs)...);
-        });
+        add_op(name,
+               [=](auto&&... xs) {
+                   return std::mem_fn(f)(*this, name, std::forward<decltype(xs)>(xs)...);
+               },
+               transpose);
     }
 
     template <class T>
     void add_binary_op(std::string name, T x)
     {
-        add_op(name, [this, x](const attribute_map& attributes, std::vector<instruction_ref> args) {
-            if(args.size() != 2)
-                MIGRAPHX_THROW("binary operators should have 2 operands");
-            auto l0 = args[1];
-            if(contains(attributes, "data_format"))
-            {
-                if(is_nhwc)
-                {
-                    l0 = prog.add_instruction(op::transpose{{0, 3, 1, 2}}, args[1]);
-                }
-            }
-            return add_broadcastable_binary_op(args[0], l0, x);
-        });
+        add_op(name,
+               [this, x](const attribute_map&, std::vector<instruction_ref> args) {
+                   if(args.size() != 2)
+                       MIGRAPHX_THROW("binary operators should have 2 operands");
+                   // TODO
+                   // if(contains(attributes, "data_format"))
+                   // {
+                   //     if(is_nhwc)
+                   //     {
+                   //         l0 = prog.add_instruction(op::transpose{{0, 3, 1, 2}}, args[1]);
+                   //     }
+                   // }
+                   return add_broadcastable_binary_op(args[0], args[1], x);
+               },
+               false);
     }
 
     template <class T>
@@ -210,20 +260,22 @@ struct tf_parser
 
             auto l0 = prog.add_instruction(op::multibroadcast{output_lens}, arg0);
             auto l1 = prog.add_instruction(op::multibroadcast{output_lens}, arg1);
-            return prog.add_instruction(x, l0, l1);
+            return to_nhwc(prog.add_instruction(x, to_nchw(l0), to_nchw(l1)));
         }
         else
         {
-            return prog.add_instruction(x, {arg0, arg1});
+            return to_nhwc(prog.add_instruction(x, {to_nchw(arg0), to_nchw(arg1)}));
         }
     }
 
     template <class T>
-    void add_generic_op(std::string name, T x)
+    void add_generic_op(std::string name, T x, bool transpose = true)
     {
-        add_op(name, [this, x](const attribute_map&, std::vector<instruction_ref> args) {
-            return prog.add_instruction(x, args);
-        });
+        add_op(name,
+               [this, x](const attribute_map&, std::vector<instruction_ref> args) {
+                   return prog.add_instruction(x, args);
+               },
+               transpose);
     }
 
     instruction_ref
@@ -253,7 +305,7 @@ struct tf_parser
     {
         // get index for axis within args
         size_t axis_idx = attributes.at("N").i();
-        size_t axis     = parse_axis(args[axis_idx]->eval().at<int64_t>());
+        size_t axis     = args[axis_idx]->eval().at<int64_t>();
         op::concat op{axis};
         // return only first N arguments (assuming last index is the axis value)
         return prog.add_instruction(
@@ -264,16 +316,8 @@ struct tf_parser
                                    attribute_map attributes,
                                    const std::vector<instruction_ref>&)
     {
-        literal v       = parse_tensor(attributes.at("value").tensor());
-        auto l0         = prog.add_literal(v);
-        size_t num_axes = l0->get_shape().lens().size();
-        if(num_axes >= 4)
-        {
-            std::vector<int64_t> transpose_axes = get_axes(num_axes);
-            reorder_data(transpose_axes);
-            l0 = prog.add_instruction(op::transpose{transpose_axes}, l0);
-        }
-        return l0;
+        literal v = parse_tensor(attributes.at("value").tensor());
+        return prog.add_literal(v);
     }
 
     instruction_ref
@@ -304,22 +348,9 @@ struct tf_parser
             op.dilation[0] = dilation[2];
             op.dilation[1] = dilation[3];
         }
-        auto weights = args[1];
-        // check if weights are from a constant
 
-        if(weights->name() != "@param")
-        {
-            if(is_nhwc)
-            {
-                weights = prog.add_instruction(op::transpose{{1, 3, 0, 2}}, args[1]);
-            }
-            else
-            {
-                weights = prog.add_instruction(op::transpose{{3, 2, 0, 1}}, args[1]);
-            }
-        }
-
-        auto l0 = args[0];
+        auto weights = to_kcxy(args[1]);
+        auto l0      = args[0];
         if(contains(attributes, "padding"))
         {
             const std::string& pad_mode = attributes.at("padding").s();
@@ -368,8 +399,7 @@ struct tf_parser
                 op.padding[1] = padding[1];
             }
         }
-
-        return prog.add_instruction(op, {l0, weights});
+        return prog.add_instruction(op, {l0, to_kcxy(args[1])});
     }
 
     instruction_ref parse_depthwiseconv(const std::string&,
@@ -392,6 +422,8 @@ struct tf_parser
             op.stride[0] = stride[2];
             op.stride[1] = stride[3];
         }
+
+        auto weights = to_kcxy(args[1]);
         if(contains(attributes, "dilations"))
         {
             std::vector<size_t> dilation;
@@ -403,20 +435,6 @@ struct tf_parser
             }
             op.dilation[0] = dilation[2];
             op.dilation[1] = dilation[3];
-        }
-
-        auto weights = args[1];
-        // check if weights are from a constant
-        if(weights->name() != "@param")
-        {
-            if(is_nhwc)
-            {
-                weights = prog.add_instruction(op::transpose{{1, 3, 0, 2}}, args[1]);
-            }
-            else
-            {
-                weights = prog.add_instruction(op::transpose{{3, 2, 0, 1}}, args[1]);
-            }
         }
 
         auto l0 = args[0];
@@ -466,8 +484,8 @@ struct tf_parser
         new_weights_shape[0] = out_channels;
         new_weights_shape[1] = 1;
         // Make sure weights are contiguous before doing reshape
-        auto cweights    = prog.add_instruction(op::contiguous{}, weights);
-        auto new_weights = prog.add_instruction(op::reshape{new_weights_shape}, cweights);
+        auto new_weights =
+            prog.add_instruction(op::reshape{new_weights_shape}, make_contiguous(weights));
 
         return prog.add_instruction(op, {l0, new_weights});
     }
@@ -535,16 +553,14 @@ struct tf_parser
             MIGRAPHX_THROW("TF_PARSER: axis value of " + to_string(axis) +
                            " must be smaller than input size " + to_string(input_size));
         }
-        // check if input arg needs axis to be converted to NCHW
-        if(input_size >= 4)
-            axis = parse_axis(axis);
 
         std::transform(
             args.begin(),
             args.end(),
             std::back_inserter(unsqueezed_args),
             [&](instruction_ref arg) { return prog.add_instruction(op::unsqueeze{{axis}}, arg); });
-        return prog.add_instruction(op::concat{static_cast<size_t>(axis)}, unsqueezed_args);
+        return to_nhwc(
+            prog.add_instruction(op::concat{static_cast<size_t>(axis)}, unsqueezed_args));
     }
 
     instruction_ref
@@ -647,7 +663,7 @@ struct tf_parser
             MIGRAPHX_THROW("reshape needs 2 arguments (input, new_shape)");
         auto s = args[1]->eval();
         s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
-        return prog.add_instruction(op, args[0]);
+        return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
     void parse_from(std::istream& is)
@@ -678,7 +694,7 @@ struct tf_parser
                                   std::vector<instruction_ref> args)
     {
         op::squeeze op;
-        auto axes = parse_axes(attributes, "squeeze_dims");
+        auto axes = attributes.at("squeeze_dims").list().i();
         copy(axes, std::back_inserter(op.axes));
         auto args0_dims = args[0]->get_shape().lens();
         if(op.axes.empty()) // no squeeze_dims provided, remove any dim that equals 1
@@ -691,7 +707,7 @@ struct tf_parser
                 }
             }
         }
-        return prog.add_instruction(op, args[0]);
+        return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
     instruction_ref parse_stridedslice(const std::string&,
@@ -702,11 +718,6 @@ struct tf_parser
         auto starts     = args[1]->eval().get<int32_t>().to_vector();
         auto ends       = args[2]->eval().get<int32_t>().to_vector();
         size_t num_axes = args[0]->get_shape().lens().size();
-        if(num_axes >= 4)
-        {
-            reorder_data(starts);
-            reorder_data(ends);
-        }
 
         op.starts = std::vector<int64_t>(starts.begin(), starts.end());
         op.ends   = std::vector<int64_t>(ends.begin(), ends.end());
@@ -725,13 +736,9 @@ struct tf_parser
             if(((shrink_axis_mask >> i) & bitwise_compare) == 1)
                 squeeze_axes.push_back(i);
         }
-        if(num_axes >= 4)
-        {
-            squeeze_axes = parse_axes(squeeze_axes);
-        }
 
-        auto l0 = prog.add_instruction(op, args[0]);
-        return prog.add_instruction(op::squeeze{squeeze_axes}, l0);
+        auto l0 = prog.add_instruction(op, make_contiguous(args[0]));
+        return to_nhwc(prog.add_instruction(op::squeeze{squeeze_axes}, l0));
     }
 
     void parse_graph(const tensorflow::GraphDef& graph)
@@ -748,7 +755,7 @@ struct tf_parser
                 reorder_data(dims);
             }
             shape s            = shape{shape_type, dims};
-            instructions[name] = prog.add_parameter(name, s);
+            instructions[name] = to_nhwc(prog.add_parameter(name, s));
         }
         for(auto&& p : nodes)
         {
@@ -1098,6 +1105,7 @@ program parse_tf(const std::string& name, bool is_nhwc)
 #else
     parser.parse_from(input);
 #endif
+    parser.to_nchw(std::prev(parser.prog.end()));
     return std::move(parser.prog);
 }
 

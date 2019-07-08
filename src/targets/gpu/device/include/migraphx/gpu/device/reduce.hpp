@@ -28,7 +28,7 @@ struct id
     }
 };
 
-struct scale
+struct mean
 {
     size_t item_num = 1;
     template <class T>

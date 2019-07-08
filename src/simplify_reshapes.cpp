@@ -91,7 +91,7 @@ struct find_reshaper
             match::any_of[match::outputs()](match::name(reshaper_names())));
     }
 
-    void apply(program& p, match::matcher_result mr) const
+    void apply(program& p, const match::matcher_result& mr) const
     {
         auto ins = mr.result;
         std::vector<instruction_ref> reshapes{ins};
@@ -132,7 +132,7 @@ struct find_nop_reshapes
         return match::name(reshapes)(match::same_shape(match::arg(0)));
     }
 
-    void apply(program& p, match::matcher_result mr) const
+    void apply(program& p, const match::matcher_result& mr) const
     {
         auto ins = mr.result;
         p.replace_instruction(ins, ins->inputs().front());
@@ -147,7 +147,7 @@ struct find_transpose
             match::skip_output(match::name("contiguous"))(match::name("transpose"))));
     }
 
-    void apply(program& p, match::matcher_result mr) const
+    void apply(program& p, const match::matcher_result& mr) const
     {
         auto ins = mr.result;
         auto x   = ins;
@@ -181,7 +181,7 @@ struct find_concat_transpose
                                      match::all_of[match::inputs()](match::transpose_shape()));
     }
 
-    void apply(program& p, match::matcher_result mr) const
+    void apply(program& p, const match::matcher_result& mr) const
     {
         auto ins = mr.result;
         auto s   = ins->inputs().front()->get_shape();

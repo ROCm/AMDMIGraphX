@@ -8,6 +8,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/config.hpp>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -19,6 +20,12 @@ struct matcher_context
     matcher_context(instruction_ref i) : last(i) {}
     std::unordered_map<std::string, instruction_ref> instructions;
     instruction_ref not_found() const { return last; }
+
+    template <class M>
+    bool matched(M m, instruction_ref ins)
+    {
+        return m.match(*this, ins) != this->not_found();
+    }
 
     private:
     instruction_ref last;
@@ -205,72 +212,145 @@ matcher_result match_instruction(program& p, instruction_ref ins, M&& m)
     return result;
 }
 
+/// Find matches for an instruction in the program
+template <class... Ms>
+void find_matches(program& p, instruction_ref ins, Ms&&... ms)
+{
+    bool match = false;
+    each_args(
+        [&](auto&& m) {
+            if(match)
+                return;
+            auto r = match_instruction(p, ins, m.matcher());
+            if(r.result == p.end())
+                return;
+            m.apply(p, r);
+            match = true;
+        },
+        ms...);
+}
+
 /// Find matches in a program
 template <class... Ms>
 void find_matches(program& p, Ms&&... ms)
 {
     for(auto ins : iterator_for(p))
     {
-        bool match = false;
-        each_args(
-            [&](auto&& m) {
-                if(match)
-                    return;
-                auto r = match_instruction(p, ins, m.matcher());
-                if(r.result == p.end())
-                    return;
-                m.apply(p, r);
-                match = true;
-            },
-            ms...);
+        find_matches(p, ins, ms...);
     }
 }
 
-template <class... Ts>
-auto all_of(Ts... ms)
+struct lazy_and
 {
-    return make_bf_matcher([=](matcher_context& ctx, instruction_ref ins) {
-        bool matches = fold([&](auto x, auto y) {
-            return x and y.match(ctx, ins) != ctx.not_found();
-        })(true, ms...);
-        if(matches)
-            return ins;
-        return ctx.not_found();
-    });
+    template <class F, class G>
+    bool operator()(F f, G g) const
+    {
+        return f() and g();
+    }
+};
+
+struct lazy_or
+{
+    template <class F, class G>
+    bool operator()(F f, G g) const
+    {
+        return f() or g();
+    }
+};
+
+template <class Op, bool Start, bool Matches>
+struct match_fold_f
+{
+    template <class... Ms>
+    static bool fold_matchers(matcher_context& ctx, instruction_ref ins, Ms... ms)
+    {
+        Op op;
+        auto matched = [&](auto m) { return [=, &ctx] { return ctx.matched(m, ins); }; };
+        return fold([&](auto x, auto y) { return op(always(x), matched(y)); })(Start, ms...);
+    }
+
+    template <class Pack>
+    static bool fold_matchers_pack(matcher_context& ctx, instruction_ref ins, Pack p)
+    {
+        return p([&](auto... ms) { return match_fold_f::fold_matchers(ctx, ins, ms...); });
+    }
+
+    template <class... Ts>
+    auto operator()(Ts... ms) const
+    {
+        return make_bf_matcher([=](matcher_context& ctx, instruction_ref ins) {
+            bool matches = match_fold_f::fold_matchers(ctx, ins, ms...);
+            if(matches == Matches)
+                return ins;
+            return ctx.not_found();
+        });
+    }
+
+    template <class Selector>
+    auto operator[](Selector select) const
+    {
+        return [=](auto... ms) {
+            // Workaround ICE on gcc by packing matchers into an object
+            auto mpack = pack(ms...);
+            return make_bf_matcher([=](matcher_context& ctx, instruction_ref start) {
+                Op op;
+                bool matches = Start;
+                select(start, [&](auto ins) {
+                    auto fm = [&] { return match_fold_f::fold_matchers_pack(ctx, ins, mpack); };
+                    matches = op(always(matches), fm);
+                });
+                if(matches == Matches)
+                    return start;
+                return ctx.not_found();
+            });
+        };
+    }
+};
+
+const constexpr auto all_of  = match_fold_f<lazy_and, true, true>{};
+const constexpr auto any_of  = match_fold_f<lazy_or, false, true>{};
+const constexpr auto none_of = match_fold_f<lazy_or, false, false>{};
+
+inline auto inputs()
+{
+    return [](auto ins, auto f) {
+        for(auto&& x : ins->inputs())
+            f(x);
+    };
 }
 
-template <class... Ts>
-auto none_of(Ts... ms)
+inline auto outputs()
 {
-    return make_bf_matcher([=](matcher_context& ctx, instruction_ref ins) {
-        bool matches = fold([&](auto x, auto y) {
-            return x and y.match(ctx, ins) == ctx.not_found();
-        })(true, ms...);
-        if(matches)
-            return ins;
-        return ctx.not_found();
-    });
-}
-
-template <class... Ts>
-auto any_of(Ts... ms)
-{
-    return make_bf_matcher([=](matcher_context& ctx, instruction_ref ins) {
-        bool matches = fold([&](auto x, auto y) {
-            return x or y.match(ctx, ins) != ctx.not_found();
-        })(false, ms...);
-        if(matches)
-            return ins;
-        return ctx.not_found();
-    });
+    return [](auto ins, auto f) {
+        for(auto&& x : ins->outputs())
+            f(x);
+    };
 }
 
 MIGRAPHX_PRED_MATCHER(any, instruction_ref) { return true; }
 MIGRAPHX_PRED_MATCHER(none, instruction_ref) { return false; }
 MIGRAPHX_PRED_MATCHER(standard_shape, instruction_ref ins) { return ins->get_shape().standard(); }
+MIGRAPHX_PRED_MATCHER(not_standard_shape, instruction_ref ins)
+{
+    return not ins->get_shape().standard();
+}
 MIGRAPHX_PRED_MATCHER(broadcast_shape, instruction_ref ins)
 {
     return ins->get_shape().broadcasted();
+}
+
+MIGRAPHX_PRED_MATCHER(transpose_shape, instruction_ref ins)
+{
+    return ins->get_shape().transposed();
+}
+
+MIGRAPHX_PRED_MATCHER(same_input_shapes, instruction_ref ins)
+{
+    if(ins->inputs().empty())
+        return false;
+    auto s = ins->inputs().front()->get_shape();
+    return std::all_of(
+        ins->inputs().begin(), ins->inputs().end(), [&](auto x) { return x->get_shape() == s; });
 }
 
 MIGRAPHX_BASIC_MATCHER(output, matcher_context& ctx, instruction_ref ins)
@@ -289,10 +369,39 @@ MIGRAPHX_BASIC_MATCHER(used_once, matcher_context& ctx, instruction_ref ins)
     return ctx.not_found();
 }
 
-inline auto name(std::string name)
+template <class... Ms>
+auto skip_output(Ms... ms)
+{
+    auto m = any_of(ms...);
+    return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref start) {
+        return fix<instruction_ref>([&](auto self, auto ins) {
+            if(ins->outputs().size() == 1)
+            {
+                auto next = ins->outputs().front();
+                if(ctx.matched(m, next))
+                {
+                    auto skipped_next = self(next);
+                    if(skipped_next != ctx.not_found())
+                        return skipped_next;
+                }
+                return next;
+            }
+            return ctx.not_found();
+        })(start);
+    });
+}
+
+inline auto name(std::string s)
 {
     return make_basic_pred_matcher(
-        [ =, name = std::move(name) ](instruction_ref ins) { return ins->name() == name; });
+        [ =, s = std::move(s) ](instruction_ref ins) { return ins->name() == s; });
+}
+
+inline auto name(std::unordered_set<std::string> names)
+{
+    return make_basic_pred_matcher([ =, names = std::move(names) ](instruction_ref ins) {
+        return names.count(ins->name()) > 0;
+    });
 }
 
 inline auto nargs(std::size_t n)
@@ -336,6 +445,23 @@ inline auto either_arg(std::size_t i, std::size_t j)
         return match::any_of(match::all_of(arg(i)(m1), arg(j)(m2)),
                              match::all_of(arg(j)(m1), arg(i)(m2)));
     };
+}
+
+template <class M>
+auto same_shape(M m)
+{
+    return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
+        auto i = m.match(ctx, ins);
+        if(i != ctx.not_found() and i->get_shape() == ins->get_shape())
+            return ins;
+        return ctx.not_found();
+    });
+}
+
+template <class... Ms>
+auto same_shape(Ms... ms)
+{
+    return all_of(same_shape(ms)...);
 }
 
 } // namespace match

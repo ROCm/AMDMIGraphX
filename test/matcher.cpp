@@ -148,6 +148,56 @@ TEST_CASE(match_arg7)
     EXPECT(bool{r.result == sum});
 }
 
+TEST_CASE(match_arg8)
+{
+    migraphx::program p;
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum = p.add_instruction(sum_op{}, one, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = match::name("sum")(match::all_of(match::arg(0)(match::name("@literal")),
+                                              match::arg(1)(match::name("@literal"))),
+                                match::standard_shape());
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == sum});
+}
+
+TEST_CASE(match_nargs1)
+{
+    migraphx::program p;
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum = p.add_instruction(sum_op{}, one, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = match::name("sum")(match::nargs(2));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == sum});
+}
+
+TEST_CASE(match_nargs2)
+{
+    migraphx::program p;
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum = p.add_instruction(sum_op{}, one, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = match::name("sum")(match::nargs(2), match::standard_shape());
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == sum});
+}
+
+TEST_CASE(match_nargs3)
+{
+    migraphx::program p;
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum = p.add_instruction(sum_op{}, one, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = match::name("sum")(match::all_of(match::nargs(2)));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == sum});
+}
+
 TEST_CASE(match_args1)
 {
     migraphx::program p;
@@ -307,6 +357,19 @@ TEST_CASE(match_all_of2)
     EXPECT(bool{r.result == p.end()});
 }
 
+TEST_CASE(match_all_of3)
+{
+    migraphx::program p;
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
+    auto sum = p.add_instruction(sum_op{}, one, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = match::name("sum")(match::all_of(match::all_of(
+        match::arg(0)(match::name("@literal")), match::arg(1)(match::name("@literal")))));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == sum});
+}
+
 TEST_CASE(match_any_of1)
 {
     migraphx::program p;
@@ -357,6 +420,132 @@ TEST_CASE(match_none_of2)
                                                match::arg(1)(match::name("@literal"))));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == p.end()});
+}
+
+TEST_CASE(match_output1)
+{
+    migraphx::program p;
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto minus = p.add_instruction(minus_op{}, two, one);
+    auto sum   = p.add_instruction(sum_op{}, minus, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = match::name("minus")(match::output(match::name("sum")));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == minus});
+}
+
+TEST_CASE(match_output2)
+{
+    migraphx::program p;
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto minus = p.add_instruction(minus_op{}, two, one);
+    auto sum   = p.add_instruction(sum_op{}, minus, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = match::name("@literal")(match::output(match::name("sum")));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == p.end()});
+}
+
+TEST_CASE(match_skip_output1)
+{
+    migraphx::program p;
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto minus = p.add_instruction(minus_op{}, two, one);
+    auto sum   = p.add_instruction(sum_op{}, minus, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = match::name("minus")(match::skip_output(match::name("pass"))(match::name("sum")));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == minus});
+}
+
+TEST_CASE(match_skip_output2)
+{
+    migraphx::program p;
+    auto one        = p.add_literal(1);
+    auto two        = p.add_literal(2);
+    auto minus      = p.add_instruction(minus_op{}, two, one);
+    auto minus_pass = p.add_instruction(pass_op{}, minus);
+    auto sum        = p.add_instruction(sum_op{}, minus_pass, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = match::name("minus")(match::skip_output(match::name("pass"))(match::name("sum")));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == minus});
+}
+
+TEST_CASE(match_skip_output3)
+{
+    migraphx::program p;
+    auto one         = p.add_literal(1);
+    auto two         = p.add_literal(2);
+    auto minus       = p.add_instruction(minus_op{}, two, one);
+    auto minus_pass1 = p.add_instruction(pass_op{}, minus);
+    auto minus_pass2 = p.add_instruction(pass_op{}, minus_pass1);
+    auto minus_pass3 = p.add_instruction(pass_op{}, minus_pass2);
+    auto sum         = p.add_instruction(sum_op{}, minus_pass3, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = match::name("minus")(match::skip_output(match::name("pass"))(match::name("sum")));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == minus});
+}
+
+TEST_CASE(match_skip_output4)
+{
+    migraphx::program p;
+    auto one  = p.add_literal(1);
+    auto two  = p.add_literal(2);
+    auto pass = p.add_instruction(pass_op{}, one);
+    auto sum  = p.add_instruction(sum_op{}, pass, two);
+    p.add_instruction(pass_op{}, sum);
+    auto m = match::name("@literal")(match::skip_output(match::name("pass"))(match::name("sum")));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == two});
+}
+
+TEST_CASE(match_skip_output5)
+{
+    migraphx::program p;
+    auto one  = p.add_literal(1);
+    auto two  = p.add_literal(2);
+    auto pass = p.add_instruction(pass_op{}, one);
+    auto sum1 = p.add_instruction(sum_op{}, pass, two);
+    auto sum2 = p.add_instruction(sum_op{}, sum1, one);
+    auto sum3 = p.add_instruction(sum_op{}, sum2, two);
+    p.add_instruction(pass_op{}, sum3);
+    auto m = match::name("@literal")(match::skip_output(match::name("pass"))(match::name("sum")));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == p.end()});
+}
+
+TEST_CASE(match_skip_output6)
+{
+    migraphx::program p;
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto minus = p.add_instruction(minus_op{}, two, one);
+    auto sum1  = p.add_instruction(sum_op{}, minus, two);
+    auto sum2  = p.add_instruction(sum_op{}, sum1, one);
+    auto sum3  = p.add_instruction(sum_op{}, sum2, two);
+    p.add_instruction(pass_op{}, sum3);
+    auto m = match::name("minus")(match::skip_output(match::name("pass"))(match::name("sum")));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == minus});
+}
+
+TEST_CASE(match_skip_output7)
+{
+    migraphx::program p;
+    auto one    = p.add_literal(1);
+    auto two    = p.add_literal(2);
+    auto minus1 = p.add_instruction(minus_op{}, two, one);
+    auto minus2 = p.add_instruction(minus_op{}, two, minus1);
+    auto sum    = p.add_instruction(sum_op{}, one, minus2);
+    p.add_instruction(pass_op{}, sum);
+    auto m = match::name("minus")(match::skip_output(match::name("pass"))(match::name("minus")));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == minus1});
 }
 
 TEST_CASE(match_bind1)

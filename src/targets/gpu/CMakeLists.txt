@@ -12,9 +12,12 @@ endif()
 
 add_library(migraphx_device
     device/add.cpp
+    device/argmax.cpp
+    device/argmin.cpp
     device/max.cpp
     device/min.cpp
     device/exp.cpp
+    device/erf.cpp
     device/log.cpp
     device/sin.cpp
     device/cos.cpp
@@ -36,6 +39,7 @@ add_library(migraphx_device
     device/sub.cpp
     device/pack.cpp
     device/clip.cpp
+    device/reduce_sum.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_clang_tidy_check(migraphx_device)
@@ -44,6 +48,8 @@ target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURR
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
 
 add_library(migraphx_gpu
+    argmax.cpp
+    argmin.cpp
     eliminate_workspace.cpp
     fuse_ops.cpp
     hip.cpp
@@ -74,6 +80,7 @@ add_library(migraphx_gpu
     schedule_model.cpp
     adjust_allocation.cpp
     clip.cpp
+    reduce_sum.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_clang_tidy_check(migraphx_gpu)

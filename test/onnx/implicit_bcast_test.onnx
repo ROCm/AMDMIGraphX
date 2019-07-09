@@ -1,20 +1,21 @@
-implicit_bcast-example:q
-
+add2:u
+
 0
-12"Addtest-multi_bcastZ
+1out"Addsubtraction2Z
 0
 
 
 
 
-Z
-1
-
+Z
+1
+
 
-b
-2
+
+b
+out
 
 
 
 
-B
+B

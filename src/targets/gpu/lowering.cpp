@@ -11,6 +11,8 @@
 #include <migraphx/gpu/device/contiguous.hpp>
 #include <migraphx/gpu/device/add.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/gpu/argmax.hpp>
+#include <migraphx/gpu/argmin.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
@@ -26,6 +28,7 @@
 #include <migraphx/gpu/add.hpp>
 #include <migraphx/gpu/sub.hpp>
 #include <migraphx/gpu/exp.hpp>
+#include <migraphx/gpu/erf.hpp>
 #include <migraphx/gpu/log.hpp>
 #include <migraphx/gpu/sin.hpp>
 #include <migraphx/gpu/cos.hpp>
@@ -49,6 +52,7 @@
 #include <migraphx/gpu/lrn.hpp>
 #include <migraphx/gpu/convert.hpp>
 #include <migraphx/gpu/clip.hpp>
+#include <migraphx/gpu/reduce_sum.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -85,6 +89,7 @@ struct miopen_apply
         add_generic_op<hip_add>("add");
         add_generic_op<hip_sub>("sub");
         add_generic_op<hip_exp>("exp");
+        add_generic_op<hip_erf>("erf");
         add_generic_op<hip_log>("log");
         add_generic_op<hip_sin>("sin");
         add_generic_op<hip_cos>("cos");
@@ -103,10 +108,13 @@ struct miopen_apply
         add_extend_op<hip_concat, op::concat>("concat");
         add_extend_op<hip_softmax, op::softmax>("softmax");
         add_extend_op<hip_logsoftmax, op::logsoftmax>("logsoftmax");
+        add_extend_op<hip_argmax, op::argmax>("argmax");
+        add_extend_op<hip_argmin, op::argmin>("argmin");
         add_extend_op<hip_gather, op::gather>("gather");
         add_extend_op<hip_pad, op::pad>("pad");
         add_extend_op<hip_convert, op::convert>("convert");
         add_extend_op<hip_clip, op::clip>("clip");
+        add_extend_op<hip_reduce_sum, op::reduce_sum>("reduce_sum");
 
         add_lrn_op();
         add_convolution_op();

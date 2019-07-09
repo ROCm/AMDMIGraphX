@@ -5,6 +5,8 @@
 #include <migraphx/op/abs.hpp>
 #include <migraphx/op/acos.hpp>
 #include <migraphx/op/add.hpp>
+#include <migraphx/op/argmax.hpp>
+#include <migraphx/op/argmin.hpp>
 #include <migraphx/op/asin.hpp>
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/atan.hpp>
@@ -22,6 +24,7 @@
 #include <migraphx/op/div.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/elu.hpp>
+#include <migraphx/op/erf.hpp>
 #include <migraphx/op/exp.hpp>
 #include <migraphx/op/flatten.hpp>
 #include <migraphx/op/gather.hpp>
@@ -44,6 +47,7 @@
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/quant_dot.hpp>
+#include <migraphx/op/reduce_sum.hpp>
 #include <migraphx/op/relu.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/rnn.hpp>

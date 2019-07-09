@@ -83,23 +83,4 @@ TEST_CASE(rewrite_test_asymmetric)
         p.begin(), p.end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
 }
 
-TEST_CASE(rewrite_test_same_padding)
-{
-    migraphx::program p;
-    size_t img_dim[2] = {2, 2};
-    size_t channels   = 1;
-    std::vector<int32_t> input(channels * img_dim[0] * img_dim[1]);
-    std::iota(input.begin(), input.end(), 0);
-
-    migraphx::shape s_img{migraphx::shape::int32_type, {1, channels, img_dim[0], img_dim[1]}};
-    auto l_img      = p.add_literal(migraphx::literal{s_img, input});
-    auto padded_img = p.add_instruction(migraphx::op::pad{{0, 0, 1, 1, 0, 0, 1, 1}}, l_img);
-
-    create_conv(padded_img, channels, p, migraphx::op::padding_mode_t::same);
-
-    p.compile(eliminate_pad_target{});
-    EXPECT(std::any_of(
-        p.begin(), p.end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
-}
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -5,6 +5,7 @@
 #include <migraphx/gpu/device/add_relu.hpp>
 #include <migraphx/gpu/device/add.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/array.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -122,13 +123,6 @@ MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
            s.strides()[1] != 0 and s.strides()[2] == 0 and s.strides()[3] == 0;
 }
 
-// TODO: Move to another header
-template <class T, class... Ts>
-std::array<T, sizeof...(Ts) + 1> make_array(T x, Ts... xs)
-{
-    return {std::move(x), std::move(static_cast<T>(xs))...};
-}
-
 MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 {
     if(ins->name() != "gpu::convolution")
@@ -206,12 +200,33 @@ struct hip_add_relu
     }
 };
 
+void move_broadcasted_back(std::vector<instruction_ref>& args)
+{
+    // Ensure the last arguments is the broadcasted one
+    auto it = std::find_if(
+        args.begin(), args.end(), [](auto arg) { return arg->get_shape().broadcasted(); });
+    if(it != args.end())
+        std::swap(*it, *std::prev(args.end(), 2));
+}
+
+void move_standard_front(std::vector<instruction_ref>& args)
+{
+    // Ensure the first arguments is the standard one
+    auto it = std::find_if(
+        args.begin(), args.end(), [](auto arg) { return arg->get_shape().standard(); });
+    if(it != args.end())
+        std::swap(*it, args.front());
+}
+
 struct find_add_relu
 {
     auto matcher() const
     {
-        return match::name("gpu::relu")(match::arg(0)(
-            match::any_of(match::name("gpu::add"), match::name("hip::triadd")).bind("add")));
+        return match::name("gpu::relu")(
+            match::arg(0)(match::any_of(match::name("gpu::add"),
+                                        match::name("hip::triadd"),
+                                        match::any_of[match::inputs()](match::standard_shape()))
+                              .bind("add")));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -219,6 +234,9 @@ struct find_add_relu
         auto add_ins = r.instructions["add"];
         auto ins     = r.result;
         auto args    = add_ins->inputs();
+        move_standard_front(args);
+        move_broadcasted_back(args);
+
         // Use the allocation from the relu operator
         args.back() = ins->inputs().back();
         if(add_ins->name() == "gpu::add")
@@ -232,24 +250,26 @@ struct find_triadd
 {
     auto matcher() const
     {
-        return match::name("gpu::add")(match::either_arg(0, 1)(match::name("gpu::add").bind("add"),
-                                                               match::any().bind("input")));
+        return match::name("gpu::add")(match::either_arg(0, 1)(
+            match::name("gpu::add").bind("add"),
+            match::any(match::any_of[match::inputs()](match::standard_shape())).bind("input")));
     }
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto add_ins        = r.instructions["add"];
-        auto input_ins      = r.instructions["input"];
-        auto ins            = r.result;
-        auto args           = add_ins->inputs();
+        auto add_ins   = r.instructions["add"];
+        auto input_ins = r.instructions["input"];
+        auto ins       = r.result;
+        auto args      = add_ins->inputs();
+        assert(add_ins != input_ins);
+
         auto is_broadcasted = [](auto arg) { return arg->get_shape().broadcasted(); };
         if(std::count_if(args.begin(), args.end(), is_broadcasted) > 1)
             return;
         args.insert(args.begin(), input_ins);
-        // Ensure the last arguments is the broadcasted one
-        auto it = std::find_if(args.begin(), args.end(), is_broadcasted);
-        if(it != args.end())
-            std::swap(*it, *std::prev(args.end(), 2));
+        move_standard_front(args);
+        move_broadcasted_back(args);
+
         args.back() = ins->inputs().back();
         p.replace_instruction(ins, hip_triadd{}, args);
     }

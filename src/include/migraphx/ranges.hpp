@@ -33,6 +33,10 @@ auto generic_find_impl(rank<0>, C&& c, const T& x)
     return std::find(c.begin(), c.end(), x);
 }
 
+struct empty
+{
+};
+
 } // namespace detail
 
 template <class C, class T>
@@ -71,6 +75,12 @@ bool all_of(const std::initializer_list<T>& c, const Predicate& p)
     return std::all_of(c.begin(), c.end(), p);
 }
 
+template <class Predicate>
+bool all_of(detail::empty, const Predicate&)
+{
+    return true;
+}
+
 template <class C, class Predicate>
 bool any_of(const C& c, const Predicate& p)
 {
@@ -83,6 +93,12 @@ bool any_of(const std::initializer_list<T>& c, const Predicate& p)
     return std::any_of(c.begin(), c.end(), p);
 }
 
+template <class Predicate>
+bool any_of(detail::empty, const Predicate&)
+{
+    return false;
+}
+
 template <class C, class Predicate>
 bool none_of(const C& c, const Predicate& p)
 {
@@ -93,6 +109,12 @@ template <class T, class Predicate>
 bool none_of(const std::initializer_list<T>& c, const Predicate& p)
 {
     return std::none_of(c.begin(), c.end(), p);
+}
+
+template <class Predicate>
+bool none_of(detail::empty, const Predicate&)
+{
+    return true;
 }
 
 template <class Range, class Iterator>

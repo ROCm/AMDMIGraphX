@@ -27,35 +27,35 @@ struct reduce_mean
     std::vector<int64_t> tune_axes(std::size_t n_dim) const
     {
         auto tuned_axes = axes;
-        if (tuned_axes.empty())
+        if(tuned_axes.empty())
         {
             tuned_axes.resize(n_dim);
             std::iota(tuned_axes.begin(), tuned_axes.end(), 0);
         }
         else
         {
-            for (std::size_t i = 0; i < tuned_axes.size(); ++i)
+            for(std::size_t i = 0; i < tuned_axes.size(); ++i)
             {
                 int64_t s_dim = static_cast<int64_t>(n_dim);
-                if (tuned_axes[i] >= s_dim or tuned_axes[i] < -s_dim)
+                if(tuned_axes[i] >= s_dim or tuned_axes[i] < -s_dim)
                 {
                     MIGRAPHX_THROW("REDUCE_MEAN: axis out of range");
                 }
-                if (tuned_axes[i] < 0)
-                { 
+                if(tuned_axes[i] < 0)
+                {
                     tuned_axes[i] += n_dim;
                 }
             }
         }
-        
+
         return tuned_axes;
     }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        auto s    = inputs.at(0);
-        auto lens = s.lens();
+        auto s          = inputs.at(0);
+        auto lens       = s.lens();
         auto tuned_axes = tune_axes(lens.size());
         for(auto axis : tuned_axes)
         {
@@ -88,7 +88,7 @@ struct reduce_mean
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        auto arg_lens = args.front().get_shape().lens();
+        auto arg_lens   = args.front().get_shape().lens();
         auto tuned_axes = tune_axes(arg_lens.size());
         std::vector<std::size_t> batch_lens(output_shape.lens().size(), 1);
         for(auto axis : tuned_axes)

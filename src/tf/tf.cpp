@@ -80,7 +80,7 @@ struct tf_parser
     }
 
     std::vector<size_t>
-    parse_axes(const attribute_map& attributes, const std::string& s, const size_t& num_dims) const
+    parse_axes(const attribute_map& attributes, const std::string& s, const size_t num_dims) const
     {
         auto attrs = attributes.at(s).list().i();
         std::vector<size_t> axes;
@@ -95,7 +95,7 @@ struct tf_parser
     }
 
     template <class T>
-    std::vector<T> parse_axes(std::vector<T> axes, const size_t& num_dims) const
+    std::vector<T> parse_axes(std::vector<T> axes, const size_t num_dims) const
     {
         if(is_nhwc)
         {
@@ -125,7 +125,7 @@ struct tf_parser
     }
 
     template <class T>
-    T parse_axis(const T& dim, const size_t& num_dims) const
+    T parse_axis(const T& dim, const size_t num_dims) const
     {
         T new_dim = dim;
         if(is_nhwc and num_dims >= 4)
@@ -166,7 +166,7 @@ struct tf_parser
         add_mem_op("Const", &tf_parser::parse_constant);
         add_mem_op("Conv2D", &tf_parser::parse_conv);
         add_mem_op("DepthwiseConv2dNative", &tf_parser::parse_depthwiseconv);
-        add_mem_op("ExpandDims", &tf_parser::parse_expanddims);
+        add_mem_op("ExpandDims", &tf_parser::parse_expanddims, false);
         add_mem_op("FusedBatchNorm", &tf_parser::parse_batchnorm);
         add_mem_op("MatMul", &tf_parser::parse_matmul, false);
         add_mem_op("MaxPool", &tf_parser::parse_pooling);
@@ -498,7 +498,7 @@ struct tf_parser
         std::vector<size_t> input_dims = args[0]->get_shape().lens();
         std::vector<int64_t> new_dims(input_dims.begin(), input_dims.end());
         size_t num_dims = input_dims.size();
-        int32_t dim     = parse_axis(args[1]->eval().at<int32_t>(), num_dims);
+        int32_t dim     = args[1]->eval().at<int32_t>();
 
         if(dim < 0)
         {

@@ -164,8 +164,9 @@ TEST_CASE(expanddims_test)
     migraphx::program p;
 
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
+    p.add_literal(0);
     p.add_instruction(migraphx::op::reshape{{1, 2, 3, 4}}, l0);
-    auto prog = optimize_tf("expanddims_test.pb", true);
+    auto prog = optimize_tf("expanddims_test.pb", false);
 
     EXPECT(p == prog);
 }
@@ -176,8 +177,9 @@ TEST_CASE(expanddims_test_neg_dims)
     migraphx::program p;
 
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
+    p.add_literal(-1);
     p.add_instruction(migraphx::op::reshape{{2, 3, 4, 1}}, l0);
-    auto prog = optimize_tf("expanddims_neg_test.pb", true);
+    auto prog = optimize_tf("expanddims_neg_test.pb", false);
 
     EXPECT(p == prog);
 }

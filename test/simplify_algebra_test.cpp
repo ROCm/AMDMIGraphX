@@ -94,9 +94,9 @@ TEST_CASE(simplify_add3)
         auto x    = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto one  = p2.add_literal(1);
         auto two  = p2.add_literal(2);
-        auto sum1 = p2.add_instruction(migraphx::op::add{}, one, x);
-        auto sum2 = p2.add_instruction(migraphx::op::add{}, one, two);
-        auto sum3 = p2.add_instruction(migraphx::op::add{}, sum1, sum2);
+        auto sum1 = p2.add_instruction(migraphx::op::add{}, one, two);
+        auto sum2 = p2.add_instruction(migraphx::op::add{}, one, sum1);
+        auto sum3 = p2.add_instruction(migraphx::op::add{}, x, sum2);
         p2.add_instruction(pass_op{}, sum3);
     }
     EXPECT(p1 == p2);

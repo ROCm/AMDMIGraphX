@@ -73,8 +73,7 @@ struct find_mul_add
 
         auto xa_ins    = p.insert_instruction(ins, op::mul{}, x_ins, a_ins);
         auto ya_ins    = p.insert_instruction(ins, op::mul{}, y_ins, a_ins);
-        auto sum_xa_ya = p.insert_instruction(ins, op::add{}, xa_ins, ya_ins);
-        p.replace_instruction(ins, sum_xa_ya);
+        p.replace_instruction(ins, op::add{}, xa_ins, ya_ins);
     }
 };
 

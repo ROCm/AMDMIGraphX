@@ -390,6 +390,41 @@ MIGRAPHX_BASIC_MATCHER(used_once, matcher_context& ctx, instruction_ref ins)
     return ctx.not_found();
 }
 
+inline auto used_once_recursive(std::size_t depth)
+{
+    return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref start) {
+        // Used once
+        if(start->outputs().size() == 1)
+            return start;
+        // Unused
+        if(start->outputs().empty())
+        {
+            if(std::next(start) == ctx.not_found())
+                return start;
+            else
+                return ctx.not_found();
+        }
+        // Check for dead instructions
+        auto is_dead = fix<bool>([&](auto self, auto ins, auto n) {
+            if (n == 0)
+                return false;
+            if(ins->get_shape().elements() == 0)
+                return false;
+            if(ins->outputs().empty() and std::next(ins) != ctx.not_found())
+                return true;
+            return std::all_of(ins->outputs().begin(), ins->outputs().end(), [&](auto i) {
+                return self(i, n - 1);
+            });
+        });
+        auto dead = std::count_if(start->outputs().begin(), start->outputs().end(), [&](auto i) {
+            return is_dead(i, depth);
+        });
+        if(dead+1 == start->outputs().size())
+            return start;
+        return ctx.not_found();
+    });
+}
+
 MIGRAPHX_PRED_MATCHER(is_constant, instruction_ref ins) { return ins->can_eval(); }
 
 MIGRAPHX_BASIC_MATCHER(is_unused, matcher_context& ctx, instruction_ref ins)

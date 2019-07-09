@@ -19,7 +19,7 @@ auto op_lit_broadcast(std::string op, std::string x, std::string y)
 
 auto conv_const_weights()
 {
-    return match::name("convolution")(match::used_once(),
+    return match::name("convolution")(match::used_once_recursive(4),
                                       match::args(match::any(), match::is_constant().bind("w")));
 }
 

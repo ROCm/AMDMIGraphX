@@ -742,7 +742,8 @@ struct tf_parser
         return to_nhwc(prog.add_instruction(op::squeeze{squeeze_axes}, l0));
     }
 
-    instruction_ref parse_transpose(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    instruction_ref
+    parse_transpose(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         auto perm = args[1]->eval().get<int32_t>().to_vector();
         op::transpose op;

@@ -60,7 +60,8 @@ struct find_mul_add
                 match::either_arg(0, 1)(
                     match::any().bind("x"),
                     match::any_of(conv_const_weights(), match::is_constant()).bind("y")),
-                match::none_of(match::args(match::is_constant(), match::is_constant()))),
+                match::none_of(match::args(match::is_constant(), match::is_constant())),
+                match::used_once_recursive(4)),
             match::is_constant().bind("a")));
     }
 
@@ -137,7 +138,7 @@ struct find_double_add_lit_broadcast
 void simplify_algebra::apply(program& p) const
 {
     // Run simplifications multiple times
-    for(int i = 0; i < 4; i++)
+    for(int i = 0; i < 2; i++)
         match::find_matches(p,
                             match::skip_matches(match::is_unused(), match::is_constant()),
                             find_double_add_lit_broadcast{},

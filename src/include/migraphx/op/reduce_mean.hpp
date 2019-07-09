@@ -34,16 +34,16 @@ struct reduce_mean
         }
         else
         {
-            for(std::size_t i = 0; i < tuned_axes.size(); ++i)
+            for(auto& axis : tuned_axes)
             {
                 int64_t s_dim = static_cast<int64_t>(n_dim);
-                if(tuned_axes[i] >= s_dim or tuned_axes[i] < -s_dim)
+                if(axis >= s_dim or axis < -s_dim)
                 {
                     MIGRAPHX_THROW("REDUCE_MEAN: axis out of range");
                 }
-                if(tuned_axes[i] < 0)
+                if(axis < 0)
                 {
-                    tuned_axes[i] += n_dim;
+                    axis += n_dim;
                 }
             }
         }

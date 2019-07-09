@@ -53,6 +53,7 @@
 #include <migraphx/gpu/reduce_sum.hpp>
 #include <migraphx/gpu/pow.hpp>
 #include <migraphx/gpu/reduce_mean.hpp>
+#include <migraphx/gpu/sqrt.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -99,6 +100,7 @@ struct miopen_apply
         add_generic_op<hip_asin>("asin");
         add_generic_op<hip_acos>("acos");
         add_generic_op<hip_atan>("atan");
+        add_generic_op<hip_sqrt>("sqrt");
         add_generic_op<hip_mul>("mul");
         add_generic_op<hip_max>("max");
         add_generic_op<hip_min>("min");

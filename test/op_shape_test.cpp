@@ -464,7 +464,16 @@ TEST_CASE(test_argmin)
 
 template <class T>
 void test_reduce_ops()
-{
+{    
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}}, T{}, input);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}}, T{{0, 1, 2, 3}}, input);
+    }
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
         expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 1, 1}}, T{{2, 3}}, input);
@@ -472,6 +481,10 @@ void test_reduce_ops()
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
         expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 5}}, T{{0}}, input);
+    }
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 1}}, T{{-1}}, input);
     }
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};

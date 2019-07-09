@@ -2,6 +2,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/gpu/device/softmax.hpp>
+#include <migraphx/gpu/device/reduce.hpp>
 #include <migraphx/gpu/device/tensor.hpp>
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/types.hpp>
@@ -12,69 +13,44 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument softmax(hipStream_t stream,
-                 const migraphx::shape& output_shape,
-                 std::vector<migraphx::argument> args,
-                 int axis)
+void softmax(hipStream_t stream, const argument& result, const argument& arg, int axis)
 {
-    auto lens        = output_shape.lens();
-    auto batch_lens  = lens;
-    size_t n_dims    = lens[axis];
-    batch_lens[axis] = 1;
-    migraphx::shape batch_shape{shape::int32_type, batch_lens};
+    auto lens                  = result.get_shape().lens();
+    auto batch_lens            = lens;
+    std::size_t batch_item_num = lens[axis];
+    batch_lens[axis]           = 1;
+    migraphx::shape batch_shape{result.get_shape().type(), batch_lens};
 
-    visit_all(args.back(), args.front())([&](auto output, auto input) {
-        const auto* input_ptr = device_cast(input.data());
-        auto* output_ptr      = device_cast(output.data());
-        visit_tensor_size(batch_shape.lens().size(), [&](auto n_dim) {
-            hip_tensor_descriptor<n_dim> desc_batch(batch_shape);
-            hip_tensor_descriptor<n_dim> desc_data(output_shape);
+    hip_visit_all(result, arg, batch_shape)([&](auto output, auto input, auto batch) {
+        const std::size_t max_block_size = 256;
+        const std::size_t block_size     = compute_block_size(batch_item_num, max_block_size);
+        gs_launch(stream,
+                  batch_shape.elements() * block_size,
+                  block_size)([=](auto i, auto idx) __device__ {
+            auto data_idx = batch.multi(i / block_size);
+            using type    = device_type<std::remove_cv_t<typename decltype(input)::value_type>>;
+            type init     = lowest();
 
-            // each thread is for one item in the batch
-            gs_launch(stream, batch_shape.elements())([=](auto i) {
-                auto batch_idx = desc_batch.multi(i);
-                auto data_idx  = batch_idx;
-                // get max
-                auto batch_max = input_ptr[desc_data.linear(batch_idx)];
-                for(std::size_t j = 1; j < n_dims; ++j)
-                {
+            auto batch_max = block_reduce<max_block_size>(
+                idx, max{}, init, batch_item_num, [&](auto j) __device__ {
                     data_idx[axis] = j;
-                    batch_max      = std::max(to_hip_type(batch_max),
-                                         to_hip_type(input_ptr[desc_data.linear(data_idx)]));
-                }
+                    return input[data_idx];
+                });
 
-                for(std::size_t j = 0; j < n_dims; ++j)
-                {
-                    data_idx[axis]  = j;
-                    auto idx        = desc_data.linear(data_idx);
-                    output_ptr[idx] = input_ptr[idx] - batch_max;
-                }
-
-                for(std::size_t j = 0; j < n_dims; ++j)
-                {
-                    data_idx[axis]  = j;
-                    auto idx        = desc_data.linear(data_idx);
-                    output_ptr[idx] = exp(to_hip_type(output_ptr[idx]));
-                }
-
-                auto batch_sum = output_ptr[desc_data.linear(batch_idx)];
-                for(std::size_t j = 1; j < n_dims; ++j)
-                {
+            auto batch_sum =
+                block_reduce<max_block_size>(idx, sum{}, 0, batch_item_num, [&](auto j) __device__ {
                     data_idx[axis] = j;
-                    batch_sum += output_ptr[desc_data.linear(data_idx)];
-                }
+                    auto val       = input[data_idx] - batch_max;
+                    return ::exp(to_hip_type(val));
+                });
 
-                for(std::size_t j = 0; j < n_dims; ++j)
-                {
-                    data_idx[axis]  = j;
-                    auto idx        = desc_data.linear(data_idx);
-                    output_ptr[idx] = output_ptr[idx] / batch_sum;
-                }
+            idx.local_stride(batch_item_num, [&](auto j) {
+                data_idx[axis]   = j;
+                auto val         = input[data_idx] - batch_max;
+                output[data_idx] = ::exp(to_hip_type(val)) / batch_sum;
             });
         });
     });
-
-    return args.back();
 }
 
 } // namespace device

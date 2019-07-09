@@ -40,6 +40,7 @@ struct onnx_parser
         add_generic_op("Sigmoid", op::sigmoid{});
         add_generic_op("Abs", op::abs{});
         add_generic_op("Exp", op::exp{});
+        add_generic_op("Erf", op::erf{});
         add_generic_op("Log", op::log{});
         // disable dropout for inference
         add_generic_op("Dropout", op::identity{});

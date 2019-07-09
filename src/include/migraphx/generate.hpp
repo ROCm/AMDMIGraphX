@@ -82,15 +82,15 @@ std::vector<T> generate_tensor_data(const migraphx::shape& s, unsigned long seed
 {
     std::vector<T> result(s.elements());
     shape::type_t type = s.type();
-    if (type == shape::int64_type or type == shape::int32_type)
+    if(type == shape::int64_type or type == shape::int32_type)
     {
-        std::generate(result.begin(), result.end(), []{ return 1; });
+        std::generate(result.begin(), result.end(), [] { return 1; });
     }
     else
     {
-        std::generate(result.begin(), result.end(), xorshf96_generator<T>{seed});    
+        std::generate(result.begin(), result.end(), xorshf96_generator<T>{seed});
     }
-    
+
     // std::generate(result.begin(), result.end(), [&]{ return seed % 7; });
     // std::generate(result.begin(), result.end(), []{ return 1; });
     return result;

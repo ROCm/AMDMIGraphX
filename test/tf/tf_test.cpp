@@ -356,7 +356,7 @@ TEST_CASE(stopgradient_test)
     p.add_instruction(migraphx::op::identity{}, l0);
     auto prog = optimize_tf("stopgradient_test.pb", false);
 
-    EXPECT(p == prog);    
+    EXPECT(p == prog);
 }
 
 TEST_CASE(stridedslice_test)

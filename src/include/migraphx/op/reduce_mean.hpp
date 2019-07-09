@@ -14,7 +14,7 @@ namespace op {
 
 struct reduce_mean
 {
-    std::vector<std::size_t> axes{};
+    std::vector<std::int64_t> axes{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -24,15 +24,41 @@ struct reduce_mean
 
     std::string name() const { return "reduce_mean"; }
 
+    std::vector<int64_t> tune_axes(std::size_t n_dim) const
+    {
+        auto tuned_axes = axes;
+        if (tuned_axes.empty())
+        {
+            tuned_axes.resize(n_dim);
+            std::iota(tuned_axes.begin(), tuned_axes.end(), 0);
+        }
+        else
+        {
+            for (std::size_t i = 0; i < tuned_axes.size(); ++i)
+            {
+                int64_t s_dim = static_cast<int64_t>(n_dim);
+                if (tuned_axes[i] >= s_dim or tuned_axes[i] < -s_dim)
+                {
+                    MIGRAPHX_THROW("REDUCE_MEAN: axis out of range");
+                }
+                if (tuned_axes[i] < 0)
+                { 
+                    tuned_axes[i] += n_dim;
+                }
+            }
+        }
+        
+        return tuned_axes;
+    }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
         auto s    = inputs.at(0);
         auto lens = s.lens();
-        for(auto axis : axes)
+        auto tuned_axes = tune_axes(lens.size());
+        for(auto axis : tuned_axes)
         {
-            if(axis >= lens.size())
-                MIGRAPHX_THROW("REDUCE_MEAN: axis out of range");
             lens[axis] = 1;
         }
 
@@ -42,13 +68,14 @@ struct reduce_mean
     template <class T>
     void calc_mean(tensor_view<T>& input,
                    shape& batch_shape,
+                   std::vector<int64_t>& tuned_axes,
                    std::vector<std::size_t>& out_idx,
                    tensor_view<T>& output) const
     {
         auto data_idx = out_idx;
         T val         = T{0};
         shape_for_each(batch_shape, [&](auto b_idx) {
-            for(auto axis : axes)
+            for(auto axis : tuned_axes)
             {
                 data_idx[axis] = b_idx[axis];
             }
@@ -62,8 +89,9 @@ struct reduce_mean
     {
         argument result{output_shape};
         auto arg_lens = args.front().get_shape().lens();
+        auto tuned_axes = tune_axes(arg_lens.size());
         std::vector<std::size_t> batch_lens(output_shape.lens().size(), 1);
-        for(auto axis : axes)
+        for(auto axis : tuned_axes)
         {
             batch_lens[axis] = arg_lens[axis];
         }
@@ -71,7 +99,7 @@ struct reduce_mean
         visit_all(result, args[0])([&](auto output, auto input) {
             par_for(output_shape.elements(), [&](auto i) {
                 auto out_idx = output_shape.multi(i);
-                this->calc_mean(input, batch_shape, out_idx, output);
+                this->calc_mean(input, batch_shape, tuned_axes, out_idx, output);
             });
         });
 

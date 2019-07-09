@@ -1688,7 +1688,7 @@ TEST_CASE(clip_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(reduce_sum_test0)
+TEST_CASE(reduce_sum_axis0)
 {
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
@@ -1703,7 +1703,7 @@ TEST_CASE(reduce_sum_test0)
     EXPECT(results_vector == gold);
 }
 
-TEST_CASE(reduce_sum_test1)
+TEST_CASE(reduce_sum_axis1)
 {
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
@@ -1718,7 +1718,7 @@ TEST_CASE(reduce_sum_test1)
     EXPECT(results_vector == gold);
 }
 
-TEST_CASE(reduce_sum_test2)
+TEST_CASE(reduce_sum_axis2)
 {
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
@@ -1733,7 +1733,7 @@ TEST_CASE(reduce_sum_test2)
     EXPECT(results_vector == gold);
 }
 
-TEST_CASE(reduce_sum_test02)
+TEST_CASE(reduce_sum_axis02)
 {
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
@@ -1748,7 +1748,7 @@ TEST_CASE(reduce_sum_test02)
     EXPECT(results_vector == gold);
 }
 
-TEST_CASE(reduce_sum_test12)
+TEST_CASE(reduce_sum_axis12)
 {
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
@@ -1763,7 +1763,7 @@ TEST_CASE(reduce_sum_test12)
     EXPECT(results_vector == gold);
 }
 
-TEST_CASE(reduce_mean_test1)
+TEST_CASE(reduce_mean_axis1)
 {
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
@@ -1778,7 +1778,7 @@ TEST_CASE(reduce_mean_test1)
     EXPECT(results_vector == gold);
 }
 
-TEST_CASE(reduce_mean_test2)
+TEST_CASE(reduce_mean_axis2)
 {
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
@@ -1793,7 +1793,7 @@ TEST_CASE(reduce_mean_test2)
     EXPECT(results_vector == gold);
 }
 
-TEST_CASE(reduce_mean_test02)
+TEST_CASE(reduce_mean_axis02)
 {
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
@@ -1808,7 +1808,7 @@ TEST_CASE(reduce_mean_test02)
     EXPECT(results_vector == gold);
 }
 
-TEST_CASE(reduce_mean_test12)
+TEST_CASE(reduce_mean_axis12)
 {
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};

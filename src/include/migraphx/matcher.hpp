@@ -406,7 +406,7 @@ inline auto used_once_recursive(std::size_t depth)
         }
         // Check for dead instructions
         auto is_dead = fix<bool>([&](auto self, auto ins, auto n) {
-            if (n == 0)
+            if(n == 0)
                 return false;
             if(ins->get_shape().elements() == 0)
                 return false;
@@ -416,10 +416,10 @@ inline auto used_once_recursive(std::size_t depth)
                 return self(i, n - 1);
             });
         });
-        auto dead = std::count_if(start->outputs().begin(), start->outputs().end(), [&](auto i) {
+        auto dead    = std::count_if(start->outputs().begin(), start->outputs().end(), [&](auto i) {
             return is_dead(i, depth);
         });
-        if(dead+1 == start->outputs().size())
+        if(dead + 1 == start->outputs().size())
             return start;
         return ctx.not_found();
     });

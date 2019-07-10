@@ -13,8 +13,8 @@ auto lit_broadcast() { return match::any_of(match::is_constant(), match::name("b
 auto not_lit_broadcast() { return match::none_of(match::is_constant(), match::name("broadcast")); }
 auto op_lit_broadcast(std::string op, std::string x, std::string y)
 {
-    return match::name(std::move(op))(match::either_arg(0, 1)(lit_broadcast().bind(std::move(x)),
-                                                   not_lit_broadcast().bind(std::move(y))));
+    return match::name(std::move(op))(match::either_arg(0, 1)(
+        lit_broadcast().bind(std::move(x)), not_lit_broadcast().bind(std::move(y))));
 }
 
 auto conv_const_weights()

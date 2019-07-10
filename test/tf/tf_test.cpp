@@ -326,6 +326,16 @@ TEST_CASE(reshape_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(rsqrt_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    p.add_instruction(migraphx::op::rsqrt{}, l0);
+    auto prog = optimize_tf("rsqrt_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(softmax_test)
 {
     migraphx::program p;

@@ -12,9 +12,12 @@ endif()
 
 add_library(migraphx_device
     device/add.cpp
+    device/argmax.cpp
+    device/argmin.cpp
     device/max.cpp
     device/min.cpp
     device/exp.cpp
+    device/erf.cpp
     device/log.cpp
     device/sin.cpp
     device/cos.cpp
@@ -44,6 +47,8 @@ target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURR
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
 
 add_library(migraphx_gpu
+    argmax.cpp
+    argmin.cpp
     eliminate_workspace.cpp
     fuse_ops.cpp
     hip.cpp

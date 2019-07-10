@@ -40,6 +40,7 @@ struct onnx_parser
         add_generic_op("Sigmoid", op::sigmoid{});
         add_generic_op("Abs", op::abs{});
         add_generic_op("Exp", op::exp{});
+        add_generic_op("Erf", op::erf{});
         add_generic_op("Log", op::log{});
         // disable dropout for inference
         add_generic_op("Dropout", op::identity{});
@@ -63,6 +64,8 @@ struct onnx_parser
         add_variadic_op("Max", op::max{});
         add_variadic_op("Min", op::min{});
 
+        add_mem_op("ArgMax", &onnx_parser::parse_argmax);
+        add_mem_op("ArgMin", &onnx_parser::parse_argmin);
         add_mem_op("Clip", &onnx_parser::parse_clip);
         add_mem_op("LRN", &onnx_parser::parse_lrn);
         add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
@@ -93,6 +96,7 @@ struct onnx_parser
         add_mem_op("GRU", &onnx_parser::parse_gru);
         add_mem_op("LSTM", &onnx_parser::parse_lstm);
         add_mem_op("Pad", &onnx_parser::parse_pad);
+        add_mem_op("ReduceSum", &onnx_parser::parse_reduce_sum);
 
         // init the activation function map
         init_actv_func();
@@ -272,6 +276,60 @@ struct onnx_parser
         }
 
         return prog.add_instruction(op::logsoftmax{axis}, std::move(args));
+    }
+
+    instruction_ref parse_argmax(const std::string&,
+                                 const attribute_map& attributes,
+                                 std::vector<instruction_ref> args)
+    {
+        int64_t axis = 0;
+        if(contains(attributes, "axis"))
+        {
+            axis = static_cast<int64_t>(parse_value(attributes.at("axis")).at<int>());
+        }
+
+        int keep_dims = 1;
+        if(contains(attributes, "keepdims"))
+        {
+            keep_dims = parse_value(attributes.at("keepdims")).at<int>();
+        }
+
+        if(keep_dims == 0)
+        {
+            auto ins = prog.add_instruction(op::argmax{axis}, std::move(args));
+            return prog.add_instruction(op::squeeze{{axis}}, ins);
+        }
+        else
+        {
+            return prog.add_instruction(op::argmax{axis}, std::move(args));
+        }
+    }
+
+    instruction_ref parse_argmin(const std::string&,
+                                 const attribute_map& attributes,
+                                 std::vector<instruction_ref> args)
+    {
+        int64_t axis = 0;
+        if(contains(attributes, "axis"))
+        {
+            axis = static_cast<int64_t>(parse_value(attributes.at("axis")).at<int>());
+        }
+
+        int keep_dims = 1;
+        if(contains(attributes, "keepdims"))
+        {
+            keep_dims = parse_value(attributes.at("keepdims")).at<int>();
+        }
+
+        if(keep_dims == 0)
+        {
+            auto ins = prog.add_instruction(op::argmin{axis}, std::move(args));
+            return prog.add_instruction(op::squeeze{{axis}}, ins);
+        }
+        else
+        {
+            return prog.add_instruction(op::argmin{axis}, std::move(args));
+        }
     }
 
     instruction_ref
@@ -1228,6 +1286,40 @@ struct onnx_parser
         auto last_cell_output = prog.add_instruction(op::lstm_last_cell_output{}, hidden_states);
 
         return {hidden_states, last_output, last_cell_output};
+    }
+
+    instruction_ref parse_reduce_sum(const std::string&,
+                                     attribute_map attributes,
+                                     std::vector<instruction_ref> args)
+    {
+        std::size_t n_dim = args.front()->get_shape().lens().size();
+
+        // default to reduce over all dimensions
+        std::vector<std::size_t> axes(n_dim);
+        std::iota(axes.begin(), axes.end(), 0);
+        if(contains(attributes, "axes"))
+        {
+            axes.clear();
+            auto&& attr_axes = attributes["axes"].ints();
+            axes             = std::vector<std::size_t>(attr_axes.begin(), attr_axes.end());
+        }
+
+        int keep_dims = 1;
+        if(contains(attributes, "keepdims"))
+        {
+            keep_dims = parse_value(attributes.at("keepdims")).at<int>();
+        }
+
+        if(keep_dims == 1)
+        {
+            return prog.add_instruction(op::reduce_sum{axes}, std::move(args));
+        }
+        else
+        {
+            auto ins = prog.add_instruction(op::reduce_sum{axes}, std::move(args));
+            std::vector<int64_t> squeeze_axes{axes.begin(), axes.end()};
+            return prog.add_instruction(op::squeeze{squeeze_axes}, ins);
+        }
     }
 
     void parse_from(std::istream& is)

@@ -30,7 +30,7 @@ struct multibroadcast
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1);
+        check_shapes{inputs, *this}.has(1).standard();
         auto t     = inputs.at(0).type();
         auto input = inputs.at(0);
 

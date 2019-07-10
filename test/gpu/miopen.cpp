@@ -3511,4 +3511,17 @@ struct test_reduce_sum_half : verify_program<test_reduce_sum_half>
     };
 };
 
+struct test_rsqrt : verify_program<test_rsqrt>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {1, 3, 16, 16}};
+        auto x = p.add_parameter("x", s);
+        auto l0 = p.add_instruction(migraphx::op::clip{std::numeric_limits<float>::max(), 1.0}, x);
+        p.add_instruction(migraphx::op::rsqrt{}, l0);
+        return p;
+    };
+};
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

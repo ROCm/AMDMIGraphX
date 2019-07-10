@@ -1778,4 +1778,18 @@ TEST_CASE(reduce_sum_test12)
     EXPECT(results_vector == gold);
 }
 
+TEST_CASE(rsqrt_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto l = p.add_literal(migraphx::literal{s, {4.0, 16.0, 64.0}});
+    p.add_instruction(migraphx::op::rsqrt{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {0.5, 0.25, 0.125};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

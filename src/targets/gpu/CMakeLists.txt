@@ -17,6 +17,7 @@ add_library(migraphx_device
     device/max.cpp
     device/min.cpp
     device/exp.cpp
+    device/erf.cpp
     device/log.cpp
     device/sin.cpp
     device/cos.cpp
@@ -36,9 +37,11 @@ add_library(migraphx_device
     device/pad.cpp
     device/gather.cpp
     device/sub.cpp
+    device/div.cpp
     device/clip.cpp
     device/reduce_sum.cpp
     device/pow.cpp
+    device/reduce_mean.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_clang_tidy_check(migraphx_device)
@@ -77,6 +80,7 @@ add_library(migraphx_gpu
     adjust_allocation.cpp
     clip.cpp
     reduce_sum.cpp
+    reduce_mean.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_clang_tidy_check(migraphx_gpu)

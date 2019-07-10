@@ -40,6 +40,7 @@ add_library(migraphx_device
     device/clip.cpp
     device/reduce_sum.cpp
     device/rsqrt.cpp
+    device/reduce_mean.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_clang_tidy_check(migraphx_device)
@@ -78,6 +79,7 @@ add_library(migraphx_gpu
     adjust_allocation.cpp
     clip.cpp
     reduce_sum.cpp
+    reduce_mean.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_clang_tidy_check(migraphx_gpu)

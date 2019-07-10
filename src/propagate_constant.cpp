@@ -10,8 +10,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 bool skip_propogate(instruction_ref ins)
 {
-    if(ins->name() == "@literal")
-        return true;
+    if(ins->name() == "contiguous")
+        return skip_propogate(ins->inputs().front());
     auto&& s = ins->get_shape();
     if(s.broadcasted() and not s.scalar())
         return true;
@@ -33,7 +33,7 @@ void propagate_constant::apply(program& p) const
                                                          ins->outputs().end());
             for(auto child : children)
             {
-                if(skip_propogate(child))
+                if(child->name() == "@literal" or skip_propogate(child))
                 {
                     self(child);
                     continue;

@@ -14,7 +14,7 @@
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/common_subexpression_elimination.hpp>
-#include <migraphx/fwd_conv_batchnorm_rewrite.hpp>
+#include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/eliminate_identity.hpp>
@@ -42,7 +42,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         eliminate_identity{},
         eliminate_pad{},
         dead_code_elimination{},
-        fwd_conv_batchnorm_rewrite{},
+        rewrite_batchnorm{},
         dead_code_elimination{},
         rewrite_rnn{},
         dead_code_elimination{},

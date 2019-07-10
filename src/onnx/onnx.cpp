@@ -846,10 +846,6 @@ struct onnx_parser
             auto&& perm_vals = attributes["perm"].ints();
             perm             = std::vector<int64_t>(perm_vals.begin(), perm_vals.end());
         }
-        if(!args.front()->get_shape().standard())
-        {
-            args.front() = prog.add_instruction(migraphx::op::contiguous{}, args.front());
-        }
         return prog.add_instruction(migraphx::op::transpose{perm}, args.front());
     }
 

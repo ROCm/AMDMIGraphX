@@ -29,7 +29,7 @@ struct transpose
     std::string name() const { return "transpose"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1).standard();
+        check_shapes{inputs, *this}.has(1);
         auto input         = inputs.at(0);
         auto input_lens    = input.lens();
         auto input_strides = input.strides();

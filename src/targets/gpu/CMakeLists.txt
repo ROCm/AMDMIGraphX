@@ -40,6 +40,7 @@ add_library(migraphx_device
     device/clip.cpp
     device/reduce_sum.cpp
     device/reduce_mean.cpp
+    device/sqdiff.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_clang_tidy_check(migraphx_device)

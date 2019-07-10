@@ -1853,4 +1853,19 @@ TEST_CASE(reduce_mean_int)
     EXPECT(results_vector == gold);
 }
 
+TEST_CASE(sqdiff_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto l1 = p.add_literal(migraphx::literal{s, {-1, 0, 1}});
+    auto l2 = p.add_literal(migraphx::literal{s, {1, 2, 3}});
+    p.add_instruction(migraphx::op::sqdiff{}, l1, l2);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {4, 4, 4};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

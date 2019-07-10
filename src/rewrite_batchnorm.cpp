@@ -1,4 +1,4 @@
-#include <migraphx/fwd_conv_batchnorm_rewrite.hpp>
+#include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/op/batch_norm.hpp>
@@ -12,7 +12,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void fwd_conv_batchnorm_rewrite::apply(program& p) const
+void rewrite_batchnorm::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
     {

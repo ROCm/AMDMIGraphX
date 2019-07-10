@@ -214,8 +214,17 @@ struct onnx_parser
             auto s0       = arg0->get_shape().lens();
             auto s1       = arg1->get_shape().lens();
             auto out_lens = compute_broadcasted_lens(s0, s1);
-            auto l0       = prog.add_instruction(op::multibroadcast{out_lens}, arg0);
-            auto l1       = prog.add_instruction(op::multibroadcast{out_lens}, arg1);
+            if(!arg0->get_shape().standard())
+            {
+                arg0 = prog.add_instruction(op::contiguous{}, arg0);
+            }
+            if(!arg1->get_shape().standard())
+            {
+                arg1 = prog.add_instruction(op::contiguous{}, arg1);
+            }
+
+            auto l0 = prog.add_instruction(op::multibroadcast{out_lens}, arg0);
+            auto l1 = prog.add_instruction(op::multibroadcast{out_lens}, arg1);
             return prog.add_instruction(x, l0, l1);
         }
         else
@@ -634,6 +643,10 @@ struct onnx_parser
                 auto l3_lens    = l3->get_shape().lens();
                 if(!std::equal(out_lens.begin(), out_lens.end(), l3_lens.begin(), l3_lens.end()))
                 {
+                    if(!args[2]->get_shape().standard())
+                    {
+                        args[2] = prog.add_instruction(op::contiguous{}, args[2]);
+                    }
                     l3 = prog.add_instruction(op::multibroadcast{out_lens}, args[2]);
                 }
                 return prog.add_instruction(op::dot{alpha, beta}, l1, l2, l3);
@@ -683,14 +696,30 @@ struct onnx_parser
             l1_broadcasted_lens.insert(l1_broadcasted_lens.end(), l1_it, l1_lens.end());
             if(l0_lens != l0_broadcasted_lens)
             {
+                if(!l0->get_shape().standard())
+                {
+                    l0 = prog.add_instruction(op::contiguous{}, l0);
+                }
                 bl0 = prog.add_instruction(op::multibroadcast{l0_broadcasted_lens}, l0);
             }
             if(l1_lens != l1_broadcasted_lens)
             {
+                if(!l1->get_shape().standard())
+                {
+                    l1 = prog.add_instruction(op::contiguous{}, l1);
+                }
                 bl1 = prog.add_instruction(op::multibroadcast{l1_broadcasted_lens}, l1);
             }
         }
 
+        if(!bl1->get_shape().standard())
+        {
+            bl1 = prog.add_instruction(op::contiguous{}, bl1);
+        }
+        if(!bl0->get_shape().standard())
+        {
+            bl0 = prog.add_instruction(op::contiguous{}, bl0);
+        }
         auto dot_res     = prog.add_instruction(op::dot{1.0f, 0.0f}, bl0, bl1);
         int64_t num_axis = static_cast<int64_t>(dot_res->get_shape().lens().size());
         if(is_a_prepended)
@@ -816,6 +845,10 @@ struct onnx_parser
         {
             auto&& perm_vals = attributes["perm"].ints();
             perm             = std::vector<int64_t>(perm_vals.begin(), perm_vals.end());
+        }
+        if(!args.front()->get_shape().standard())
+        {
+            args.front() = prog.add_instruction(migraphx::op::contiguous{}, args.front());
         }
         return prog.add_instruction(migraphx::op::transpose{perm}, args.front());
     }
@@ -1011,6 +1044,10 @@ struct onnx_parser
         arg_s.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
         auto out_lens = compute_broadcasted_lens(in_lens, dims);
 
+        if(!args[0]->get_shape().standard())
+        {
+            args[0] = prog.add_instruction(op::contiguous{}, args[0]);
+        }
         return prog.add_instruction(op::multibroadcast{out_lens}, args[0]);
     }
 

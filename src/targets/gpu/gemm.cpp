@@ -170,7 +170,7 @@ rocblas_half to_rocblas_type(half x) { return reinterpret_cast<const rocblas_hal
 shape miopen_gemm::compute_shape(const std::vector<shape>& inputs) const
 {
     std::vector<shape> input_shapes(inputs.begin(), inputs.begin() + inputs.size() - 1);
-    check_shapes{input_shapes}.not_broadcasted();
+    check_shapes{input_shapes}.standard();
     return op.compute_shape(input_shapes);
 }
 

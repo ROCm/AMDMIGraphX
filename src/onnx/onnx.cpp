@@ -96,7 +96,8 @@ struct onnx_parser
         add_mem_op("GRU", &onnx_parser::parse_gru);
         add_mem_op("LSTM", &onnx_parser::parse_lstm);
         add_mem_op("Pad", &onnx_parser::parse_pad);
-        add_mem_op("ReduceSum", &onnx_parser::parse_reduce_sum);
+        add_mem_op("ReduceSum", &onnx_parser::parse_reduce_oper<op::reduce_sum>);
+        add_mem_op("ReduceMean", &onnx_parser::parse_reduce_oper<op::reduce_mean>);
 
         // init the activation function map
         init_actv_func();
@@ -1288,20 +1289,21 @@ struct onnx_parser
         return {hidden_states, last_output, last_cell_output};
     }
 
-    instruction_ref parse_reduce_sum(const std::string&,
-                                     attribute_map attributes,
-                                     std::vector<instruction_ref> args)
+    template <class T>
+    instruction_ref parse_reduce_oper(const std::string&,
+                                      attribute_map attributes,
+                                      std::vector<instruction_ref> args)
     {
         std::size_t n_dim = args.front()->get_shape().lens().size();
 
         // default to reduce over all dimensions
-        std::vector<std::size_t> axes(n_dim);
+        std::vector<int64_t> axes(n_dim);
         std::iota(axes.begin(), axes.end(), 0);
         if(contains(attributes, "axes"))
         {
             axes.clear();
             auto&& attr_axes = attributes["axes"].ints();
-            axes             = std::vector<std::size_t>(attr_axes.begin(), attr_axes.end());
+            axes             = std::vector<int64_t>(attr_axes.begin(), attr_axes.end());
         }
 
         int keep_dims = 1;
@@ -1312,13 +1314,12 @@ struct onnx_parser
 
         if(keep_dims == 1)
         {
-            return prog.add_instruction(op::reduce_sum{axes}, std::move(args));
+            return prog.add_instruction(T{axes}, std::move(args));
         }
         else
         {
-            auto ins = prog.add_instruction(op::reduce_sum{axes}, std::move(args));
-            std::vector<int64_t> squeeze_axes{axes.begin(), axes.end()};
-            return prog.add_instruction(op::squeeze{squeeze_axes}, ins);
+            auto ins = prog.add_instruction(T{axes}, std::move(args));
+            return prog.add_instruction(op::squeeze{axes}, ins);
         }
     }
 

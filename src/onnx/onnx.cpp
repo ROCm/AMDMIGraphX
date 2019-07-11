@@ -691,14 +691,6 @@ struct onnx_parser
             }
         }
 
-        if(!bl1->get_shape().standard())
-        {
-            bl1 = prog.add_instruction(op::contiguous{}, bl1);
-        }
-        if(!bl0->get_shape().standard())
-        {
-            bl0 = prog.add_instruction(op::contiguous{}, bl0);
-        }
         auto dot_res     = prog.add_instruction(op::dot{1.0f, 0.0f}, bl0, bl1);
         int64_t num_axis = static_cast<int64_t>(dot_res->get_shape().lens().size());
         if(is_a_prepended)

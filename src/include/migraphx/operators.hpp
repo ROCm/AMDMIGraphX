@@ -46,6 +46,7 @@
 #include <migraphx/op/pad.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/op/reduce_sum.hpp>
+#include <migraphx/op/reduce_mean.hpp>
 #include <migraphx/op/relu.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/rnn.hpp>

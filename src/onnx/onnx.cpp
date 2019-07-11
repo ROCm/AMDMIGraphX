@@ -1493,8 +1493,10 @@ struct onnx_parser
             switch(t.data_type())
             {
             case onnx::TensorProto::FLOAT: return create_literal(shape::float_type, dims, s.data());
-            case onnx::TensorProto::FLOAT16: return create_literal(shape::half_type, dims, s.data());
-            case onnx::TensorProto::DOUBLE: return create_literal(shape::double_type, dims, s.data());
+            case onnx::TensorProto::FLOAT16:
+                return create_literal(shape::half_type, dims, s.data());
+            case onnx::TensorProto::DOUBLE:
+                return create_literal(shape::double_type, dims, s.data());
             case onnx::TensorProto::INT64: return create_literal(shape::int64_type, dims, s.data());
             case onnx::TensorProto::INT8:
             case onnx::TensorProto::UINT16:
@@ -1517,10 +1519,14 @@ struct onnx_parser
         case onnx::TensorProto::UINT16:
         case onnx::TensorProto::INT16:
         case onnx::TensorProto::INT32:
-        case onnx::TensorProto::BOOL: return create_literal(shape::int32_type, dims, t.int32_data());
-        case onnx::TensorProto::INT64: return create_literal(shape::int64_type, dims, t.int64_data());
-        case onnx::TensorProto::DOUBLE: return create_literal(shape::double_type, dims, t.double_data());
-        case onnx::TensorProto::FLOAT: return create_literal(shape::float_type, dims, t.float_data());
+        case onnx::TensorProto::BOOL:
+            return create_literal(shape::int32_type, dims, t.int32_data());
+        case onnx::TensorProto::INT64:
+            return create_literal(shape::int64_type, dims, t.int64_data());
+        case onnx::TensorProto::DOUBLE:
+            return create_literal(shape::double_type, dims, t.double_data());
+        case onnx::TensorProto::FLOAT:
+            return create_literal(shape::float_type, dims, t.float_data());
         case onnx::TensorProto::FLOAT16:
         {
             std::vector<uint16_t> data_uint16(t.int32_data().begin(), t.int32_data().end());
@@ -1579,7 +1585,8 @@ struct onnx_parser
         case onnx::TensorProto::BOOL:
         case onnx::TensorProto::UNDEFINED:
         case onnx::TensorProto::COMPLEX64:
-        case onnx::TensorProto::COMPLEX128: break; // throw std::runtime_error("Unsupported type");
+        case onnx::TensorProto::COMPLEX128:
+            break; // throw std::runtime_error("Unsupported type");
         }
         std::vector<std::size_t> dims;
         auto&& tensor_dims = t.tensor_type().shape().dim();

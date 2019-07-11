@@ -840,9 +840,7 @@ struct tf_parser
         case tensorflow::DataType::DT_UINT16: shape_type = shape::uint16_type; break;
         case tensorflow::DataType::DT_HALF: shape_type = shape::half_type; break;
         case tensorflow::DataType::DT_UINT32: shape_type = shape::uint32_type; break;
-        case tensorflow::DataType::DT_UINT64:
-            shape_type = shape::uint64_type;
-            break;
+        case tensorflow::DataType::DT_UINT64: shape_type = shape::uint64_type; break;
 
         case tensorflow::DataType::DT_INVALID:
         case tensorflow::DataType::DT_UINT8:
@@ -882,7 +880,7 @@ struct tf_parser
         case tensorflow::DataType::DT_VARIANT_REF:
         case tensorflow::DataType::DT_UINT32_REF:
         case tensorflow::DataType::DT_UINT64_REF:
-        case tensorflow::DataType::DataType_INT_MAX_SENTINEL_DO_NOT_USE_:\
+        case tensorflow::DataType::DataType_INT_MAX_SENTINEL_DO_NOT_USE_:
         case tensorflow::DataType::DataType_INT_MIN_SENTINEL_DO_NOT_USE_: break;
         }
         return shape_type;
@@ -1025,7 +1023,8 @@ struct tf_parser
         case tensorflow::DataType::DT_UINT32_REF:
         case tensorflow::DataType::DT_UINT64_REF:
         case tensorflow::DataType::DataType_INT_MAX_SENTINEL_DO_NOT_USE_:
-        case tensorflow::DataType::DataType_INT_MIN_SENTINEL_DO_NOT_USE_: throw std::runtime_error("");
+        case tensorflow::DataType::DataType_INT_MIN_SENTINEL_DO_NOT_USE_:
+            throw std::runtime_error("");
         }
         MIGRAPHX_THROW("Invalid tensor type");
     }

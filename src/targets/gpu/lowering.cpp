@@ -52,8 +52,8 @@
 #include <migraphx/gpu/convert.hpp>
 #include <migraphx/gpu/clip.hpp>
 #include <migraphx/gpu/reduce_sum.hpp>
-#include <migraphx/gpu/pow.hpp>
 #include <migraphx/gpu/reduce_mean.hpp>
+#include <migraphx/gpu/pow.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>

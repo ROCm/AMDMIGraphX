@@ -59,6 +59,7 @@ struct onnx_parser
         add_binary_op("Div", op::div{});
         add_binary_op("Mul", op::mul{});
         add_binary_op("Sub", op::sub{});
+        add_binary_op("Pow", op::pow{});
 
         add_variadic_op("Sum", op::add{});
         add_variadic_op("Max", op::max{});

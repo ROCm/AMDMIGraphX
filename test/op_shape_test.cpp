@@ -94,16 +94,6 @@ TEST_CASE(quant_convolution_shape)
     throws_shape(migraphx::op::quant_convolution{}, input3, weights);
     throws_shape(migraphx::op::quant_convolution{}, input, weight3);
     throws_shape(migraphx::op::quant_convolution{}, input3, weight3);
-
-    migraphx::shape output_same_mode{migraphx::shape::int32_type, {4, 4, 3, 3}};
-    expect_shape(output_same_mode,
-                 migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}, migraphx::op::same},
-                 input,
-                 weights);
-    expect_shape(output,
-                 migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}, migraphx::op::valid},
-                 input,
-                 weights);
 }
 
 TEST_CASE(transpose_shape)

@@ -48,6 +48,7 @@
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/op/reduce_sum.hpp>
+#include <migraphx/op/reduce_mean.hpp>
 #include <migraphx/op/relu.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/rnn.hpp>

@@ -177,14 +177,10 @@ struct miopen_apply
             auto ws   = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
 
             auto workspace = insert_allocation(ins, ws, "workspace");
-
-            // add a temp float output to store the miopen convolution output
-            shape tmp_output_shape{shape::float_type, ins->get_shape().lens()};
-            auto tmp_output = insert_allocation(ins, tmp_output_shape, "tmp_out");
             auto output     = insert_allocation(ins, ins->get_shape());
 
             return prog->replace_instruction(
-                ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, tmp_output, output);
+                ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
         });
     }
 

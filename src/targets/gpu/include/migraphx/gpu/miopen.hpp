@@ -49,6 +49,8 @@ inline tensor_descriptor make_tensor(const migraphx::shape& s, bool pack = false
         d = miopenFloat;
     else if(s.type() == shape::half_type)
         d = miopenHalf;
+    else if(s.type() == shape::int32_type)
+        d = miopenInt32;
     else if(s.type() == shape::int8_type)
     {
         if(pack)

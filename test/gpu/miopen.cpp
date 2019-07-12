@@ -3697,4 +3697,40 @@ struct test_reduce_sum_half : verify_program<test_reduce_sum_half>
     };
 };
 
+struct test_reduce_mean : verify_program<test_reduce_mean>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3, 9, 4, 3}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::reduce_mean{{1}}, x);
+        return p;
+    };
+};
+
+struct test_reduce_mean_int : verify_program<test_reduce_mean_int>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::int32_type, {3, 1024, 8, 8}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::reduce_mean{{1}}, x);
+        return p;
+    };
+};
+
+struct test_reduce_mean_half : verify_program<test_reduce_mean_half>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::half_type, {3, 1024, 8, 8}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::reduce_mean{{2}}, x);
+        return p;
+    };
+};
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

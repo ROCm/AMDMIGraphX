@@ -410,37 +410,111 @@ TEST_CASE(softmax) { test_softmax_variations<migraphx::op::softmax>(); }
 
 TEST_CASE(logsoftmax) { test_softmax_variations<migraphx::op::logsoftmax>(); }
 
-template <class T>
-void test_argop_var()
+TEST_CASE(test_argmax)
 {
     {
         migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {1, 3, 4, 5}}, T{0}, input);
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {1, 3, 4, 5}},
+                     migraphx::op::argmax{0},
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 1, 4, 5}}, T{1}, input);
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 1, 4, 5}},
+                     migraphx::op::argmax{1},
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 1, 5}}, T{2}, input);
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 1, 5}},
+                     migraphx::op::argmax{2},
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 4, 1}}, T{3}, input);
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 4, 1}},
+                     migraphx::op::argmax{3},
+                     input);
     }
 
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        throws_shape(T{4}, input);
+        throws_shape(migraphx::op::argmax{4}, input);
     }
 }
 
-TEST_CASE(argmax) { test_argop_var<migraphx::op::argmax>(); }
-TEST_CASE(argmin) { test_argop_var<migraphx::op::argmin>(); }
+TEST_CASE(test_argmin)
+{
+    {
+        migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {1, 3, 4, 5}},
+                     migraphx::op::argmin{0},
+                     input);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 1, 4, 5}},
+                     migraphx::op::argmin{1},
+                     input);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 1, 5}},
+                     migraphx::op::argmin{2},
+                     input);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::half_type, {2, 3, 4, 5}};
+        expect_shape(migraphx::shape{migraphx::shape::int64_type, {2, 3, 4, 1}},
+                     migraphx::op::argmin{3},
+                     input);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        throws_shape(migraphx::op::argmin{4}, input);
+    }
+}
+
+template <class T>
+void test_reduce_ops()
+{
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}}, T{}, input);
+    }
+
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        expect_shape(
+            migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}}, T{{0, 1, 2, 3}}, input);
+    }
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 1, 1}}, T{{2, 3}}, input);
+    }
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 3, 4, 5}}, T{{0}}, input);
+    }
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 1}}, T{{-1}}, input);
+    }
+    {
+        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+        throws_shape(T{{4}}, input);
+    }
+}
+
+TEST_CASE(reduce_sum) { test_reduce_ops<migraphx::op::reduce_sum>(); }
+TEST_CASE(reduce_mean) { test_reduce_ops<migraphx::op::reduce_mean>(); }
 
 // 2 inputs arguments
 TEST_CASE(matmul)

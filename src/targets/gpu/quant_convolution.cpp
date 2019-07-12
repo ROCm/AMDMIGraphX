@@ -20,7 +20,7 @@ argument miopen_quant_convolution::compute(context& ctx,
     auto x_desc_vec4 = make_tensor(args[0].get_shape(), true);
     auto w_desc      = make_tensor(args[1].get_shape());
     auto w_desc_vec4 = make_tensor(args[1].get_shape(), true);
-    auto y_desc = make_tensor(output_shape);
+    auto y_desc      = make_tensor(output_shape);
 
     float alpha = 1;
     float beta  = 0;

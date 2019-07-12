@@ -177,7 +177,7 @@ struct miopen_apply
             auto ws   = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
 
             auto workspace = insert_allocation(ins, ws, "workspace");
-            auto output     = insert_allocation(ins, ins->get_shape());
+            auto output    = insert_allocation(ins, ins->get_shape());
 
             return prog->replace_instruction(
                 ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);

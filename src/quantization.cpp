@@ -384,8 +384,7 @@ void capture_arguments(program& prog,
 
 void capture_arguments(program& prog, const std::vector<std::string>& ins_names)
 {
-    auto calc_quant_params = [&](std::size_t ins_index, std::vector<migraphx::argument> args)
-    {
+    auto calc_quant_params = [&](std::size_t ins_index, std::vector<migraphx::argument> args) {
         std::pair<float, float> param_pair{1.0f, 0.0f};
 
         // scale and shift is need for only int8 type, and we do not
@@ -399,7 +398,6 @@ void capture_arguments(program& prog, const std::vector<std::string>& ins_names)
 
         prog.int8_quant_params[ins_index] = param_pair;
     };
-
 
     capture_arguments(prog, ins_names, calc_quant_params);
 }

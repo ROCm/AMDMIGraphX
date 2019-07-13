@@ -126,6 +126,8 @@ struct program
     friend bool operator==(const program& x, const program& y);
     friend bool operator!=(const program& x, const program& y) { return !(x == y); }
 
+    std::vector<std::pair<float, float>> int8_quant_params;
+
     private:
     void assign(const program& p);
 

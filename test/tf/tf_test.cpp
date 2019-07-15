@@ -374,6 +374,16 @@ TEST_CASE(squeeze_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(stopgradient_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    p.add_instruction(migraphx::op::identity{}, l0);
+    auto prog = optimize_tf("stopgradient_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(stridedslice_test)
 {
     migraphx::program p;

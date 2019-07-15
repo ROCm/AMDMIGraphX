@@ -20,6 +20,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     clang-format-5.0 \
     clang-tidy-5.0 \
     cmake \
+    comgr \
     curl \
     doxygen \
     g++-7 \

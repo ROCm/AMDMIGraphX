@@ -324,13 +324,13 @@ void quantize_int8(program& prog,
 
 void quantize_int8(program& prog, const std::vector<std::string>& ins_names)
 {
-    quantize_int8(prog, ins_names, prog.int8_quant_params);
+    quantize_int8(prog, ins_names, *prog.int8_quant_params);
 }
 
 void quantize_int8(program& prog)
 {
     std::vector<std::string> ins_names = {"dot", "convolution"};
-    quantize_int8(prog, ins_names, prog.int8_quant_params);
+    quantize_int8(prog, ins_names);
 }
 
 // For the input of each input argument, we need to insert a
@@ -379,7 +379,7 @@ void capture_arguments(program& prog,
     }
 
     // set one pair of parameter for each argument
-    prog.int8_quant_params.resize(num_quant_params, std::make_pair(-1.0f, -1.0f));
+    prog.int8_quant_params->resize(num_quant_params, std::make_pair(-1.0f, -1.0f));
 }
 
 void capture_arguments(program& prog, const std::vector<std::string>& ins_names)
@@ -394,9 +394,9 @@ void capture_arguments(program& prog, const std::vector<std::string>& ins_names)
         auto max_val     = *std::max_element(vec_val.begin(), vec_val.end());
         auto min_val     = *std::min_element(vec_val.begin(), vec_val.end());
         auto max_abs     = std::max(std::fabs(max_val), std::fabs(min_val));
-        param_pair.first = 127.0f / max_abs;
 
-        prog.int8_quant_params[ins_index] = param_pair;
+        param_pair.first = 127.0f / max_abs;
+        (*prog.int8_quant_params)[ins_index] = param_pair;
     };
 
     capture_arguments(prog, ins_names, calc_quant_params);

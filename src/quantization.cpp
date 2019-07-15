@@ -391,11 +391,11 @@ void capture_arguments(program& prog, const std::vector<std::string>& ins_names)
         // consider shift, so set shift to 0
         std::vector<float> vec_val;
         args.front().visit([&](auto output) { vec_val.assign(output.begin(), output.end()); });
-        auto max_val     = *std::max_element(vec_val.begin(), vec_val.end());
-        auto min_val     = *std::min_element(vec_val.begin(), vec_val.end());
-        auto max_abs     = std::max(std::fabs(max_val), std::fabs(min_val));
+        auto max_val = *std::max_element(vec_val.begin(), vec_val.end());
+        auto min_val = *std::min_element(vec_val.begin(), vec_val.end());
+        auto max_abs = std::max(std::fabs(max_val), std::fabs(min_val));
 
-        param_pair.first = 127.0f / max_abs;
+        param_pair.first                     = 127.0f / max_abs;
         (*prog.int8_quant_params)[ins_index] = param_pair;
     };
 

@@ -112,7 +112,7 @@ void program::assign(const program& p)
     {
         impl->instructions.clear();
     }
-    impl->ctx = p.impl->ctx;
+    impl->ctx         = p.impl->ctx;
     int8_quant_params = p.int8_quant_params;
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;

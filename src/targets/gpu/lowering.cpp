@@ -26,6 +26,7 @@
 #include <migraphx/gpu/logsoftmax.hpp>
 #include <migraphx/gpu/add.hpp>
 #include <migraphx/gpu/sub.hpp>
+#include <migraphx/gpu/div.hpp>
 #include <migraphx/gpu/exp.hpp>
 #include <migraphx/gpu/erf.hpp>
 #include <migraphx/gpu/log.hpp>
@@ -100,6 +101,7 @@ struct miopen_apply
         add_generic_op<hip_acos>("acos");
         add_generic_op<hip_atan>("atan");
         add_generic_op<hip_mul>("mul");
+        add_generic_op<hip_div>("div");
         add_generic_op<hip_max>("max");
         add_generic_op<hip_min>("min");
         add_generic_op<hip_rsqrt>("rsqrt");

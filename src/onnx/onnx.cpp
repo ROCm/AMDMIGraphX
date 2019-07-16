@@ -1726,7 +1726,7 @@ struct onnx_parser
 
     void check_arg_empty(const argument& arg, const std::string& msg)
     {
-        if (arg.empty())
+        if(arg.empty())
         {
             MIGRAPHX_THROW(msg);
         }

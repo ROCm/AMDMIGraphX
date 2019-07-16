@@ -467,8 +467,7 @@ struct onnx_parser
         if(args.size() == 2)
         {
             auto s = args[1]->eval();
-            if(s.empty())
-                MIGRAPHX_THROW("Dynamic shape is not supported.");
+            check_arg_empty(s, "Reshape: dynamic shape is not supported");
             s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
         }
         return prog.add_instruction(op, args[0]);
@@ -881,10 +880,7 @@ struct onnx_parser
             }
 
             migraphx::argument in = args[0]->eval();
-            if(in.empty())
-            {
-                MIGRAPHX_THROW("ConstantFill: cannot handle dynamic shape as input");
-            }
+            check_arg_empty(in, "ConstantFill: dynamic shape is not supported");
 
             std::vector<std::size_t> dims;
             in.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
@@ -948,10 +944,7 @@ struct onnx_parser
             else
             {
                 migraphx::argument in = args[0]->eval();
-                if(in.empty())
-                {
-                    MIGRAPHX_THROW("Parse ConstantOfShape: cannot handle dynamic shape as input");
-                }
+                check_arg_empty(in, "ConstantOfShape: dynamic shape is not supported");
 
                 std::vector<std::size_t> dims;
                 in.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
@@ -975,10 +968,7 @@ struct onnx_parser
     {
         auto in_lens             = args[0]->get_shape().lens();
         migraphx::argument arg_s = args[1]->eval();
-        if(arg_s.empty())
-        {
-            MIGRAPHX_THROW("Parse Expand: cannot handle dynamic shape as input");
-        }
+        check_arg_empty(arg_s, "Expand: dynamic shape is not supported");
         std::vector<std::size_t> dims;
         arg_s.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
         auto out_lens = compute_broadcasted_lens(in_lens, dims);
@@ -1731,6 +1721,14 @@ struct onnx_parser
         {
             MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
         }
+        }
+    }
+
+    void check_arg_empty(const argument& arg, const std::string& msg)
+    {
+        if (arg.empty())
+        {
+            MIGRAPHX_THROW(msg);
         }
     }
 };

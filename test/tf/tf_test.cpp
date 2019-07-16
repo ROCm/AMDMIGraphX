@@ -374,6 +374,17 @@ TEST_CASE(softmax_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(sqdiff_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
+    p.add_instruction(migraphx::op::sqdiff{}, l0, l1);
+    auto prog = optimize_tf("sqdiff_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(squeeze_test)
 {
     migraphx::program p;

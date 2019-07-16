@@ -155,9 +155,11 @@ struct tf_parser
         add_generic_op("Relu", op::relu{});
         add_generic_op("Relu6", op::clip{6.0, 0.0});
         add_generic_op("Tanh", op::tanh{});
+        add_generic_op("StopGradient", op::identity{});
 
         add_binary_op("Add", op::add{});
         add_binary_op("Mul", op::mul{});
+        add_binary_op("SquaredDifference", op::sqdiff{});
         add_binary_op("Sub", op::sub{});
 
         add_mem_op("AvgPool", &tf_parser::parse_pooling);

@@ -202,6 +202,16 @@ TEST_CASE(erf_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(sqrt_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10, 15}});
+    p.add_instruction(migraphx::op::sqrt{}, input);
+
+    auto prog = migraphx::parse_onnx("sqrt_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(log_test)
 {
     migraphx::program p;

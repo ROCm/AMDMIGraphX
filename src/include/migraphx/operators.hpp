@@ -59,6 +59,7 @@
 #include <migraphx/op/sin.hpp>
 #include <migraphx/op/slice.hpp>
 #include <migraphx/op/softmax.hpp>
+#include <migraphx/op/sqrt.hpp>
 #include <migraphx/op/sqdiff.hpp>
 #include <migraphx/op/squeeze.hpp>
 #include <migraphx/op/sub.hpp>

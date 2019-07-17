@@ -48,7 +48,6 @@ struct dot
                            "} x {" + to_string_range(b.lens()) + "}");
         }
 
-        // dims for batch should be standard
         std::size_t dim_0 = a.lens().size() - 2;
         std::size_t dim_1 = a.lens().size() - 1;
         if(a.lens()[dim_1] != b.lens()[dim_0])

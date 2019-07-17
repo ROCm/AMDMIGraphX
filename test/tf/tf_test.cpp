@@ -354,7 +354,7 @@ TEST_CASE(reshape_test)
 TEST_CASE(softmax_test)
 {
     migraphx::program p;
-    auto l0   = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3}});
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3}});
     p.add_instruction(migraphx::op::softmax{1}, l0);
     auto prog = optimize_tf("softmax_test.pb", false);
 

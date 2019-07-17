@@ -703,8 +703,9 @@ struct tf_parser
         }
     }
 
-    instruction_ref
-    parse_softmax(const std::string&, const attribute_map& attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_softmax(const std::string&,
+                                  const attribute_map& attributes,
+                                  std::vector<instruction_ref> args)
     {
         int axis = 1;
         if(contains(attributes, "axis"))

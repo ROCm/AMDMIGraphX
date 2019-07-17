@@ -266,8 +266,7 @@ struct onnx_parser
     {
         auto dims = args.front()->get_shape().lens();
         auto r =
-            prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1]), 1, 1}},
-            args.front());
+            prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1]), 1, 1}}, args.front());
         auto s = prog.add_instruction(op::softmax{}, r);
         return prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1])}}, s);
     }

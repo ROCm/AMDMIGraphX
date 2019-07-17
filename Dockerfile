@@ -33,6 +33,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libncurses5-dev \
     libnuma-dev \
     libpthread-stubs0-dev \
+    libssl-dev \
     python \
     python-dev \
     python-pip \

@@ -188,8 +188,9 @@ TEST_CASE(gather_test)
 {
     migraphx::program p;
 
-    auto l0  = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 4}});
-    auto l1  = p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {2}}, {1, 1}});
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 4}});
+    auto l1 =
+        p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {2}}, {1, 1}});
     p.add_literal(1);
 
     int axis = 1;

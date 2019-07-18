@@ -353,8 +353,18 @@ TEST_CASE(pooling_test)
     avg_pool_op.lengths      = {2, 2};
     max_pool_op.lengths      = {2, 2};
     p.add_instruction(max_pool_op, l0);
-    // p.add_instruction(avg_pool_op, l0);
     auto prog = optimize_tf("pooling_test.pb", true);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(pow_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
+    p.add_instruction(migraphx::op::pow{}, l0, l1);
+    auto prog = optimize_tf("pow_test.pb", false);
 
     EXPECT(p == prog);
 }

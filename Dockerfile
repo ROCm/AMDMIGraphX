@@ -40,7 +40,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     rocm-device-libs \
     rocm-opencl \
     rocm-opencl-dev \
-    rocminfo \
     software-properties-common \
     wget \
     zlib1g-dev && \

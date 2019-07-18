@@ -351,6 +351,16 @@ TEST_CASE(reshape_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(rsqrt_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    p.add_instruction(migraphx::op::rsqrt{}, l0);
+    auto prog = optimize_tf("rsqrt_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(softmax_test)
 {
     migraphx::program p;
@@ -431,6 +441,18 @@ TEST_CASE(tanh_test)
     auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
     p.add_instruction(migraphx::op::sub{}, l0, l1);
     auto prog = migraphx::parse_tf("sub_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(transpose_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    migraphx::shape s0{migraphx::shape::int32_type, {4}};
+    p.add_literal(migraphx::literal{s0, {0, 2, 3, 1}});
+    p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, l0);
+    auto prog = optimize_tf("transpose_test.pb", false);
 
     EXPECT(p == prog);
 }

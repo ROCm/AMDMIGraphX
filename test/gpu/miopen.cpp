@@ -255,6 +255,19 @@ struct test_erf : verify_program<test_erf>
     }
 };
 
+struct test_sqrt : verify_program<test_sqrt>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 6}};
+        auto param     = p.add_parameter("x", s);
+        auto param_abs = p.add_instruction(migraphx::op::abs{}, param);
+        p.add_instruction(migraphx::op::sqrt{}, param_abs);
+        return p;
+    }
+};
+
 struct test_log : verify_program<test_log>
 {
     migraphx::program create_program() const
@@ -263,6 +276,20 @@ struct test_log : verify_program<test_log>
         migraphx::shape s{migraphx::shape::float_type, {6}};
         auto x = p.add_instruction(migraphx::op::abs{}, p.add_parameter("x", s));
         p.add_instruction(migraphx::op::log{}, x);
+        return p;
+    }
+};
+
+struct test_pow : verify_program<test_pow>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {6}};
+        std::vector<float> vec_e(s.elements(), 2.0f);
+        auto b = p.add_parameter("x", s);
+        auto e = p.add_literal(migraphx::literal(s, vec_e));
+        p.add_instruction(migraphx::op::pow{}, b, e);
         return p;
     }
 };

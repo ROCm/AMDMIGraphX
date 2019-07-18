@@ -45,6 +45,7 @@
 #include <migraphx/op/outline.hpp>
 #include <migraphx/op/pad.hpp>
 #include <migraphx/op/pooling.hpp>
+#include <migraphx/op/pow.hpp>
 #include <migraphx/op/reduce_sum.hpp>
 #include <migraphx/op/reduce_mean.hpp>
 #include <migraphx/op/relu.hpp>
@@ -59,6 +60,7 @@
 #include <migraphx/op/sin.hpp>
 #include <migraphx/op/slice.hpp>
 #include <migraphx/op/softmax.hpp>
+#include <migraphx/op/sqrt.hpp>
 #include <migraphx/op/sqdiff.hpp>
 #include <migraphx/op/squeeze.hpp>
 #include <migraphx/op/sub.hpp>

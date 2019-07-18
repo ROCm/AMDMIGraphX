@@ -931,7 +931,7 @@ struct onnx_parser
 
         if(args.empty())
         {
-            MIGRAPHX_THROW("Parse ConstantOfShape : must have 1 input!");
+            MIGRAPHX_THROW("ConstantOfShape : must have 1 input!");
         }
         else
         {
@@ -951,9 +951,15 @@ struct onnx_parser
                 s = migraphx::shape{type, dims};
             }
 
-            literal l_out;
+            literal l_out{};
             l_val.visit([&](auto val) {
+// this #ifdef is to avoid a false cppcheck error, will remove later
+// when a newer version of cppcheck is used
+#ifdef CPPCHECK
+                using type = float;
+#else
                 using type = std::remove_cv_t<typename decltype(val)::value_type>;
+#endif
                 // l_val contains only one element
                 std::vector<type> out_vec(s.elements(), *val.begin());
                 l_out = literal(s, out_vec);

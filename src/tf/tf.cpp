@@ -172,6 +172,7 @@ struct tf_parser
         add_mem_op("DepthwiseConv2dNative", &tf_parser::parse_depthwiseconv);
         add_mem_op("ExpandDims", &tf_parser::parse_expanddims, false);
         add_mem_op("FusedBatchNorm", &tf_parser::parse_batchnorm);
+        add_mem_op("GatherV2", &tf_parser::parse_gather, false);
         add_mem_op("MatMul", &tf_parser::parse_matmul, false);
         add_mem_op("MaxPool", &tf_parser::parse_pooling);
         add_mem_op("Mean", &tf_parser::parse_mean);
@@ -515,6 +516,14 @@ struct tf_parser
             new_dims.insert(new_dims.begin() + dim, 1);
         }
         return prog.add_instruction(op::reshape{new_dims}, args[0]);
+    }
+
+    instruction_ref
+    parse_gather(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    {
+        int axis = args[2]->eval().at<int32_t>();
+        op::gather op{axis};
+        return prog.add_instruction(op, {args[0], args[1]});
     }
 
     instruction_ref

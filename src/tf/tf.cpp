@@ -180,6 +180,7 @@ struct tf_parser
         add_mem_op("Softmax", &tf_parser::parse_softmax);
         add_mem_op("Squeeze", &tf_parser::parse_squeeze, false);
         add_mem_op("StridedSlice", &tf_parser::parse_stridedslice);
+        add_mem_op("Transpose", &tf_parser::parse_transpose, false);
     }
 
     template <class F>
@@ -772,6 +773,16 @@ struct tf_parser
 
         auto l0 = prog.add_instruction(op, make_contiguous(args[0]));
         return to_nhwc(prog.add_instruction(op::squeeze{squeeze_axes}, l0));
+    }
+
+    instruction_ref
+    parse_transpose(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    {
+        auto perm = args[1]->eval().get<int32_t>().to_vector();
+        op::transpose op;
+        op.dims = std::vector<int64_t>(perm.begin(), perm.end());
+
+        return prog.add_instruction(op, args.front());
     }
 
     void parse_graph(const tensorflow::GraphDef& graph)

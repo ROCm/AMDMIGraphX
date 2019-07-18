@@ -867,7 +867,7 @@ struct onnx_parser
         {
             dtype = parse_value(attributes.at("dtype")).at<int>();
         }
-        migraphx::shape::type_t type = get_type(dtype);
+        shape::type_t type = get_type(dtype);
 
         if(contains(attributes, "input_as_shape"))
         {

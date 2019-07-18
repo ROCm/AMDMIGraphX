@@ -736,12 +736,11 @@ struct tf_parser
         return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
-    instruction_ref parse_slice(const std::string&,
-                                       const attribute_map&,
-                                       std::vector<instruction_ref> args)
+    instruction_ref
+    parse_slice(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         op::slice op;
-        auto starts      = args[1]->eval().get<int32_t>().to_vector();
+        auto starts     = args[1]->eval().get<int32_t>().to_vector();
         auto size       = args[2]->eval().get<int32_t>().to_vector();
         auto axes       = args[0]->get_shape().lens();
         size_t num_axes = axes.size();

@@ -958,15 +958,9 @@ struct onnx_parser
 
             literal l_out{};
             l_val.visit([&](auto val) {
-// this #ifdef is to avoid a false cppcheck error, will remove later
-// when a newer version of cppcheck is used
-#ifdef CPPCHECK
-                using type = float;
-#else
-                using type = std::remove_cv_t<typename decltype(val)::value_type>;
-#endif
+                using val_type = std::remove_cv_t<typename decltype(val)::value_type>;
                 // l_val contains only one element
-                std::vector<type> out_vec(s.elements(), *val.begin());
+                std::vector<val_type> out_vec(s.elements(), *val.begin());
                 l_out = literal(s, out_vec);
             });
 

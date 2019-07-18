@@ -569,11 +569,11 @@ struct tf_parser
     {
         auto indices       = args[0]->eval().get<int32_t>().to_vector();
         int depth          = args[1]->eval().at<int32_t>();
-        int64_t axis           = -1;
+        int64_t axis       = -1;
         size_t num_indices = indices.size();
         float on_value     = args[2]->eval().at<float>();
         float off_value    = args[3]->eval().at<float>();
-        if (contains(attributes, "axis"))
+        if(contains(attributes, "axis"))
             axis = attributes.at("axis").i();
         if(axis == -1)
         {

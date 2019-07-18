@@ -597,7 +597,7 @@ struct tf_parser
     instruction_ref
     parse_onehot(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        auto indices       = args[0]->eval().get<int64_t>().to_vector();
+        auto indices       = args[0]->eval().get<int32_t>().to_vector();
         int depth          = args[1]->eval().at<int32_t>();
         int axis           = -1;
         size_t num_indices = indices.size();

@@ -52,6 +52,7 @@
 #include <migraphx/gpu/convert.hpp>
 #include <migraphx/gpu/clip.hpp>
 #include <migraphx/gpu/reduce_sum.hpp>
+#include <migraphx/gpu/rsqrt.hpp>
 #include <migraphx/gpu/sqrt.hpp>
 #include <migraphx/gpu/reduce_mean.hpp>
 #include <migraphx/gpu/pow.hpp>
@@ -107,8 +108,10 @@ struct miopen_apply
         add_generic_op<hip_div>("div");
         add_generic_op<hip_max>("max");
         add_generic_op<hip_min>("min");
+        add_generic_op<hip_rsqrt>("rsqrt");
         add_generic_op<hip_pow>("pow");
         add_generic_op<hip_sqdiff>("sqdiff");
+
         add_extend_op<miopen_gemm, op::dot>("dot");
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");

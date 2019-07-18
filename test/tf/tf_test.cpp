@@ -355,7 +355,7 @@ TEST_CASE(slice_test)
 {
     migraphx::program p;
     std::size_t num_axes = 2;
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {5,10}});
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {5, 10}});
     migraphx::shape s0{migraphx::shape::int32_type, {num_axes}};
     p.add_literal(migraphx::literal{s0, {1, 0}});
     p.add_literal(migraphx::literal{s0, {2, -1}});

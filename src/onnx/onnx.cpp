@@ -261,7 +261,7 @@ struct onnx_parser
         return prog.add_instruction(op, std::move(args));
     }
 
-    template<class Op>
+    template <class Op>
     instruction_ref parse_softmax(const std::string&,
                                   const attribute_map& attributes,
                                   std::vector<instruction_ref> args)

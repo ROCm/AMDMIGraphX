@@ -202,6 +202,16 @@ TEST_CASE(erf_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(sqrt_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10, 15}});
+    p.add_instruction(migraphx::op::sqrt{}, input);
+
+    auto prog = migraphx::parse_onnx("sqrt_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(log_test)
 {
     migraphx::program p;
@@ -885,6 +895,32 @@ TEST_CASE(clip_test)
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
     p.add_instruction(migraphx::op::clip{6.0, 0.0}, l0);
     auto prog = migraphx::parse_onnx("clip_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(implicit_pow_bcast_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 4, 1}});
+    auto l2 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l0);
+    auto l3 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l1);
+    p.add_instruction(migraphx::op::pow{}, l2, l3);
+
+    auto prog = migraphx::parse_onnx("pow_bcast_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(pow_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
+    p.add_instruction(migraphx::op::pow{}, l0, l1);
+
+    auto prog = migraphx::parse_onnx("pow_bcast_test1.onnx");
 
     EXPECT(p == prog);
 }

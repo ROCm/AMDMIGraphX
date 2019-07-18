@@ -361,7 +361,6 @@ TEST_CASE(rsqrt_test)
     EXPECT(p == prog);
 }
 
-
 TEST_CASE(slice_test)
 {
     migraphx::program p;

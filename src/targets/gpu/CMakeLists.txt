@@ -37,9 +37,14 @@ add_library(migraphx_device
     device/pad.cpp
     device/gather.cpp
     device/sub.cpp
+    device/div.cpp
     device/clip.cpp
     device/reduce_sum.cpp
+    device/rsqrt.cpp
+    device/sqrt.cpp
     device/reduce_mean.cpp
+    device/pow.cpp
+    device/sqdiff.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_clang_tidy_check(migraphx_device)

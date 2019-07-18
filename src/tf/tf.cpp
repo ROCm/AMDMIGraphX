@@ -567,23 +567,23 @@ struct tf_parser
     instruction_ref
     parse_onehot(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        auto indices = args[0]->eval().get<int64_t>().to_vector();
-        int depth = args[1]->eval().at<int32_t>();
-        int axis = -1;
+        auto indices       = args[0]->eval().get<int64_t>().to_vector();
+        int depth          = args[1]->eval().at<int32_t>();
+        int axis           = -1;
         size_t num_indices = indices.size();
-        float on_value = args[2]->eval().at<float>();
-        float off_value = args[3]->eval().at<float>();
-        if (contains(attributes, "axis"))
+        float on_value     = args[2]->eval().at<float>();
+        float off_value    = args[3]->eval().at<float>();
+        if(contains(attributes, "axis"))
             axis = attributes.at("axis").i();
         if(axis == -1)
         {
             shape s{shape::float_type, {num_indices, static_cast<size_t>(depth)}};
             std::vector<float> output(num_indices * depth);
             std::fill(output.begin(), output.end(), off_value);
-            for (size_t i = 0; i < num_indices; i++)
+            for(size_t i = 0; i < num_indices; i++)
             {
                 if(indices[i] >= 0 and indices[i] < num_indices)
-                    output[depth*i + indices[i]] = on_value;
+                    output[depth * i + indices[i]] = on_value;
             }
             return prog.add_literal(s, output);
         }

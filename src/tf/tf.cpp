@@ -721,13 +721,18 @@ struct tf_parser
                                   const attribute_map& attributes,
                                   std::vector<instruction_ref> args)
     {
-        int axis = 1;
+        int axis = -1;
+        auto num_dims = args[0]->get_shape().lens().size();
         if(contains(attributes, "axis"))
         {
             axis = static_cast<int>(attributes.at("axis").i());
         }
+        if(axis < 0)
+        {
+            axis += num_dims;
+        }
 
-        return prog.add_instruction(Op{axis}, std::move(args));
+        return prog.add_instruction(Op{axis}, make_contiguous(args[0]));
     }
 
     instruction_ref parse_squeeze(const std::string&,

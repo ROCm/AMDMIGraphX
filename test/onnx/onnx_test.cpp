@@ -447,6 +447,21 @@ TEST_CASE(reshape_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(reshape_non_standard)
+{
+    migraphx::program p;
+    migraphx::op::reshape op;
+    std::vector<int64_t> reshape_dims{4, 3, 2};
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
+    auto x = p.add_parameter("x", s);
+    auto tran_x = p.add_instruction(migraphx::op::transpose{{0, 2, 1}}, x);
+    auto cont_x = p.add_instruction(migraphx::op::contiguous{}, tran_x);
+    p.add_instruction(migraphx::op::reshape{{4, 3, 2}}, cont_x);
+    auto prog = migraphx::parse_onnx("reshape_non_standard.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(shape_test)
 {
     migraphx::program p;

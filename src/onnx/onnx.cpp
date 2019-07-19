@@ -275,7 +275,7 @@ struct onnx_parser
         return prog.add_instruction(Op{axis}, std::move(args));
     }
 
-    template<class Op>
+    template <class Op>
     instruction_ref parse_arg_op(const std::string&,
                                  const attribute_map& attributes,
                                  std::vector<instruction_ref> args)

@@ -48,6 +48,21 @@ TEST_CASE(add_bcast_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(batchmatmul_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 8, 4}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 4, 8}});
+
+    auto trans_l0 = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, l0);
+    auto trans_l1 = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, l1);
+
+    p.add_instruction(migraphx::op::dot{}, trans_l0, trans_l1);
+    auto prog = optimize_tf("batchmatmul_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(batchnorm_test)
 {
     float epsilon  = 1.001e-5f;

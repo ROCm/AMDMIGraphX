@@ -54,11 +54,13 @@ struct onnx_parser
         add_generic_op("Asin", op::asin{});
         add_generic_op("Acos", op::acos{});
         add_generic_op("Atan", op::atan{});
+        add_generic_op("Sqrt", op::sqrt{});
 
         add_binary_op("Add", op::add{});
         add_binary_op("Div", op::div{});
         add_binary_op("Mul", op::mul{});
         add_binary_op("Sub", op::sub{});
+        add_binary_op("Pow", op::pow{});
 
         add_variadic_op("Sum", op::add{});
         add_variadic_op("Max", op::max{});
@@ -66,11 +68,13 @@ struct onnx_parser
 
         add_mem_op("ArgMax", &onnx_parser::parse_argmax);
         add_mem_op("ArgMin", &onnx_parser::parse_argmin);
+        add_mem_op("Cast", &onnx_parser::parse_cast);
         add_mem_op("Clip", &onnx_parser::parse_clip);
         add_mem_op("LRN", &onnx_parser::parse_lrn);
         add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
         add_mem_op("Elu", &onnx_parser::parse_elu);
+        add_mem_op("Expand", &onnx_parser::parse_expand);
         add_mem_op("Constant", &onnx_parser::parse_constant);
         add_mem_op("Conv", &onnx_parser::parse_conv);
         add_mem_op("MaxPool", &onnx_parser::parse_pooling);
@@ -91,6 +95,7 @@ struct onnx_parser
         add_mem_op("Gather", &onnx_parser::parse_gather);
         add_mem_op("Shape", &onnx_parser::parse_shape);
         add_mem_op("ConstantFill", &onnx_parser::parse_constant_fill);
+        add_mem_op("ConstantOfShape", &onnx_parser::parse_constant_of_shape);
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
         add_mem_op("RNN", &onnx_parser::parse_rnn);
         add_mem_op("GRU", &onnx_parser::parse_gru);
@@ -462,8 +467,7 @@ struct onnx_parser
         if(args.size() == 2)
         {
             auto s = args[1]->eval();
-            if(s.empty())
-                MIGRAPHX_THROW("Dynamic shape is not supported.");
+            check_arg_empty(s, "Reshape: dynamic shape is not supported");
             s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
         }
         return prog.add_instruction(op, args[0]);
@@ -542,7 +546,13 @@ struct onnx_parser
                                    attribute_map attributes,
                                    const std::vector<instruction_ref>&)
     {
-        literal v     = parse_value(attributes.at("value"));
+        literal v = parse_value(attributes.at("value"));
+        // return empty literal
+        if(v.get_shape().elements() == 0)
+        {
+            return prog.add_literal(literal{});
+        }
+
         auto dim_size = attributes.at("value").t().dims_size();
         // if dim_size is 0, it is a scalar
         if(dim_size == 0)
@@ -870,10 +880,7 @@ struct onnx_parser
             }
 
             migraphx::argument in = args[0]->eval();
-            if(in.empty())
-            {
-                MIGRAPHX_THROW("ConstantFill: cannot handle dynamic shape as input");
-            }
+            check_arg_empty(in, "ConstantFill: dynamic shape is not supported");
 
             std::vector<std::size_t> dims;
             in.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
@@ -899,6 +906,74 @@ struct onnx_parser
         {
             MIGRAPHX_THROW("ConstantFill: wrong value of attribute input_as_shape");
         }
+    }
+
+    instruction_ref parse_constant_of_shape(const std::string&,
+                                            attribute_map attributes,
+                                            std::vector<instruction_ref> args)
+    {
+        literal l_val{};
+        if(contains(attributes, "value"))
+        {
+            l_val = parse_value(attributes.at("value"));
+            if(l_val.get_shape().elements() != 1)
+            {
+                MIGRAPHX_THROW("ConstantOfShape: attribute value can contain only 1 elements!");
+            }
+        }
+        else
+        {
+            l_val = literal({shape::float_type, {1}, {0}}, {0.0f});
+        }
+
+        // input is empty, output is a scalar
+        auto type = l_val.get_shape().type();
+
+        if(args.empty())
+        {
+            MIGRAPHX_THROW("ConstantOfShape : must have 1 input!");
+        }
+        else
+        {
+            migraphx::shape s;
+            // empty input tensor, output is a scalar
+            if(args[0]->get_shape().elements() == 0)
+            {
+                s = migraphx::shape{type, {1}, {0}};
+            }
+            else
+            {
+                migraphx::argument in = args[0]->eval();
+                check_arg_empty(in, "ConstantOfShape: dynamic shape is not supported");
+
+                std::vector<std::size_t> dims;
+                in.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
+                s = migraphx::shape{type, dims};
+            }
+
+            literal l_out{};
+            l_val.visit([&](auto val) {
+                using val_type = std::remove_cv_t<typename decltype(val)::value_type>;
+                // l_val contains only one element
+                std::vector<val_type> out_vec(s.elements(), *val.begin());
+                l_out = literal(s, out_vec);
+            });
+
+            return prog.add_literal(l_out);
+        }
+    }
+
+    instruction_ref
+    parse_expand(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    {
+        auto in_lens             = args[0]->get_shape().lens();
+        migraphx::argument arg_s = args[1]->eval();
+        check_arg_empty(arg_s, "Expand: dynamic shape is not supported");
+        std::vector<std::size_t> dims;
+        arg_s.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
+        auto out_lens = compute_broadcasted_lens(in_lens, dims);
+
+        return prog.add_instruction(op::multibroadcast{out_lens}, args[0]);
     }
 
     std::vector<instruction_ref>
@@ -1323,6 +1398,19 @@ struct onnx_parser
         }
     }
 
+    instruction_ref
+    parse_cast(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        if(!contains(attributes, "to"))
+        {
+            MIGRAPHX_THROW("PARSE_CAST: missing to type attribute!");
+        }
+
+        int to_type        = parse_value(attributes.at("to")).at<int>();
+        shape::type_t type = get_type(to_type);
+        return prog.add_instruction(op::convert{type}, std::move(args));
+    }
+
     void parse_from(std::istream& is)
     {
         onnx::ModelProto model;
@@ -1633,6 +1721,14 @@ struct onnx_parser
         {
             MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
         }
+        }
+    }
+
+    void check_arg_empty(const argument& arg, const std::string& msg)
+    {
+        if(arg.empty())
+        {
+            MIGRAPHX_THROW(msg);
         }
     }
 };

@@ -597,25 +597,27 @@ struct tf_parser
     instruction_ref
     parse_onehot(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        auto indices       = args[0]->eval().get<int32_t>().to_vector();
-        int depth          = args[1]->eval().at<int32_t>();
-        int64_t axis       = -1;
-        size_t num_indices = indices.size();
-        float on_value     = args[2]->eval().at<float>();
-        float off_value    = args[3]->eval().at<float>();
+        // auto indices       = args[0]->eval().get<int32_t>().to_vector();
+        size_t depth = static_cast<size_t>(args[1]->eval().at<int32_t>());
+
+        int64_t axis = -1;
+        // size_t num_indices = indices.size();
+        float on_value  = args[2]->eval().at<float>();
+        float off_value = args[3]->eval().at<float>();
+
+        std::vector<float> depth_input(depth * depth, off_value);
+        for(int i = 0; i < depth; i++)
+        {
+            depth_input[depth * i + i] = on_value;
+        }
+
         if(contains(attributes, "axis"))
             axis = attributes.at("axis").i();
         if(axis == -1)
         {
-            shape s{shape::float_type, {num_indices, static_cast<size_t>(depth)}};
-            std::vector<float> output(num_indices * depth);
-            std::fill(output.begin(), output.end(), off_value);
-            for(size_t i = 0; i < num_indices; i++)
-            {
-                if(indices[i] >= 0 and indices[i] < depth)
-                    output.at(depth * i + indices[i]) = on_value;
-            }
-            return prog.add_literal(s, output);
+            shape s{shape::float_type, {depth, depth}};
+            auto l0 = prog.add_literal({s, depth_input});
+            return prog.add_instruction(op::gather{0}, {l0, args[0]});
         }
         MIGRAPHX_THROW("MIGraphX does not support axis != -1");
     }

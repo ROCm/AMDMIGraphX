@@ -174,12 +174,12 @@ shape miopen_gemm::compute_shape(const std::vector<shape>& inputs) const
     auto a_strides = inputs[0].strides();
     if(a_strides.size() > 2)
     {
-        auto dim_1     = a_strides.size() - 1;
-        auto dim_0     = dim_1 - 1;
+        auto dim_1       = a_strides.size() - 1;
+        auto dim_0       = dim_1 - 1;
         auto matrix_size = std::max(a_strides[dim_0], a_strides[1]);
-        if (std::adjacent_find(a_strides.begin(), a_strides.begin() + dim_0, [&](auto i, auto j) {
-            return (i < j or i < matrix_size or j < matrix_size);
-        }) != a_strides.begin() + dim_0)
+        if(std::adjacent_find(a_strides.begin(), a_strides.begin() + dim_0, [&](auto i, auto j) {
+               return (i < j or i < matrix_size or j < matrix_size);
+           }) != a_strides.begin() + dim_0)
         {
             MIGRAPHX_THROW("DOT: batch size of a {" + to_string_range(a_strides) +
                            "} is transposed!");
@@ -189,12 +189,12 @@ shape miopen_gemm::compute_shape(const std::vector<shape>& inputs) const
     auto b_strides = inputs[1].strides();
     if(b_strides.size() > 2)
     {
-        auto dim_1     = b_strides.size() - 1;
-        auto dim_0     = dim_1 - 1;
+        auto dim_1       = b_strides.size() - 1;
+        auto dim_0       = dim_1 - 1;
         auto matrix_size = std::max(b_strides[dim_0], b_strides[1]);
-        if (std::adjacent_find(b_strides.begin(), b_strides.begin() + dim_0, [&](auto i, auto j) {
-            return (i < j or i < matrix_size or j < matrix_size);
-        }) != b_strides.begin() + dim_0)
+        if(std::adjacent_find(b_strides.begin(), b_strides.begin() + dim_0, [&](auto i, auto j) {
+               return (i < j or i < matrix_size or j < matrix_size);
+           }) != b_strides.begin() + dim_0)
         {
             MIGRAPHX_THROW("DOT: batch size of b {" + to_string_range(b_strides) +
                            "} is transposed!");

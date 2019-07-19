@@ -721,7 +721,7 @@ struct tf_parser
                                   const attribute_map& attributes,
                                   std::vector<instruction_ref> args)
     {
-        int axis = -1;
+        int axis      = -1;
         auto num_dims = args[0]->get_shape().lens().size();
         if(contains(attributes, "axis"))
         {

@@ -167,39 +167,27 @@ rb_type<T>* to_rocblas_type(T* x)
 
 rocblas_half to_rocblas_type(half x) { return reinterpret_cast<const rocblas_half&>(x); }
 
+void miopen_gemm::batch_not_transposed(const std::vector<std::size_t>& strides) const
+{
+    if(strides.size() <= 2)
+        return;
+    auto dim_0       = strides.size() - 2;
+    auto matrix_size = std::max(strides[dim_0], strides[dim_0 + 1]);
+    std::vector<std::size_t> batch(strides.begin(), strides.begin() + dim_0);
+    if(std::adjacent_find(batch.begin(), batch.end(), [&](auto i, auto j) {
+           return (i < j or i < matrix_size or j < matrix_size);
+       }) != batch.end())
+    {
+        MIGRAPHX_THROW("DOT: batch size {" + to_string_range(strides) + "} is transposed!");
+    }
+}
+
 shape miopen_gemm::compute_shape(const std::vector<shape>& inputs) const
 {
     std::vector<shape> input_shapes(inputs.begin(), inputs.begin() + inputs.size() - 1);
     check_shapes{input_shapes}.not_broadcasted();
-    auto a_strides = inputs[0].strides();
-    if(a_strides.size() > 2)
-    {
-        auto dim_1       = a_strides.size() - 1;
-        auto dim_0       = dim_1 - 1;
-        auto matrix_size = std::max(a_strides[dim_0], a_strides[1]);
-        if(std::adjacent_find(a_strides.begin(), a_strides.begin() + dim_0, [&](auto i, auto j) {
-               return (i < j or i < matrix_size or j < matrix_size);
-           }) != a_strides.begin() + dim_0)
-        {
-            MIGRAPHX_THROW("DOT: batch size of a {" + to_string_range(a_strides) +
-                           "} is transposed!");
-        }
-    }
-
-    auto b_strides = inputs[1].strides();
-    if(b_strides.size() > 2)
-    {
-        auto dim_1       = b_strides.size() - 1;
-        auto dim_0       = dim_1 - 1;
-        auto matrix_size = std::max(b_strides[dim_0], b_strides[1]);
-        if(std::adjacent_find(b_strides.begin(), b_strides.begin() + dim_0, [&](auto i, auto j) {
-               return (i < j or i < matrix_size or j < matrix_size);
-           }) != b_strides.begin() + dim_0)
-        {
-            MIGRAPHX_THROW("DOT: batch size of b {" + to_string_range(b_strides) +
-                           "} is transposed!");
-        }
-    }
+    batch_not_transposed(inputs[0].strides());
+    batch_not_transposed(inputs[1].strides());
 
     return op.compute_shape(input_shapes);
 }

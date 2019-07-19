@@ -66,8 +66,8 @@ struct onnx_parser
         add_variadic_op("Max", op::max{});
         add_variadic_op("Min", op::min{});
 
-        add_mem_op("ArgMax", &onnx_parser::parse_argmax);
-        add_mem_op("ArgMin", &onnx_parser::parse_argmin);
+        add_mem_op("ArgMax", &onnx_parser::parse_arg_op<op::argmax>);
+        add_mem_op("ArgMin", &onnx_parser::parse_arg_op<op::argmin>);
         add_mem_op("Cast", &onnx_parser::parse_cast);
         add_mem_op("Clip", &onnx_parser::parse_clip);
         add_mem_op("LRN", &onnx_parser::parse_lrn);
@@ -275,7 +275,8 @@ struct onnx_parser
         return prog.add_instruction(Op{axis}, std::move(args));
     }
 
-    instruction_ref parse_argmax(const std::string&,
+    template<class Op>
+    instruction_ref parse_arg_op(const std::string&,
                                  const attribute_map& attributes,
                                  std::vector<instruction_ref> args)
     {
@@ -293,39 +294,12 @@ struct onnx_parser
 
         if(keep_dims == 0)
         {
-            auto ins = prog.add_instruction(op::argmax{axis}, std::move(args));
+            auto ins = prog.add_instruction(Op{axis}, std::move(args));
             return prog.add_instruction(op::squeeze{{axis}}, ins);
         }
         else
         {
-            return prog.add_instruction(op::argmax{axis}, std::move(args));
-        }
-    }
-
-    instruction_ref parse_argmin(const std::string&,
-                                 const attribute_map& attributes,
-                                 std::vector<instruction_ref> args)
-    {
-        int64_t axis = 0;
-        if(contains(attributes, "axis"))
-        {
-            axis = static_cast<int64_t>(parse_value(attributes.at("axis")).at<int>());
-        }
-
-        int keep_dims = 1;
-        if(contains(attributes, "keepdims"))
-        {
-            keep_dims = parse_value(attributes.at("keepdims")).at<int>();
-        }
-
-        if(keep_dims == 0)
-        {
-            auto ins = prog.add_instruction(op::argmin{axis}, std::move(args));
-            return prog.add_instruction(op::squeeze{{axis}}, ins);
-        }
-        else
-        {
-            return prog.add_instruction(op::argmin{axis}, std::move(args));
+            return prog.add_instruction(Op{axis}, std::move(args));
         }
     }
 

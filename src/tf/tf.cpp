@@ -568,19 +568,19 @@ struct tf_parser
     parse_onehot(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         // auto indices       = args[0]->eval().get<int32_t>().to_vector();
-        size_t depth          = static_cast<size_t>(args[1]->eval().at<int32_t>());
-        
-        int64_t axis       = -1;
-        // size_t num_indices = indices.size();
-        float on_value     = args[2]->eval().at<float>();
-        float off_value    = args[3]->eval().at<float>();
+        size_t depth = static_cast<size_t>(args[1]->eval().at<int32_t>());
 
-        std::vector<float> depth_input(depth*depth, off_value);
+        int64_t axis = -1;
+        // size_t num_indices = indices.size();
+        float on_value  = args[2]->eval().at<float>();
+        float off_value = args[3]->eval().at<float>();
+
+        std::vector<float> depth_input(depth * depth, off_value);
         for(int i = 0; i < depth; i++)
         {
-            depth_input[depth*i + i] = on_value;
+            depth_input[depth * i + i] = on_value;
         }
-        
+
         if(contains(attributes, "axis"))
             axis = attributes.at("axis").i();
         if(axis == -1)

@@ -40,6 +40,7 @@ add_library(migraphx_device
     device/div.cpp
     device/clip.cpp
     device/reduce_sum.cpp
+    device/rsqrt.cpp
     device/sqrt.cpp
     device/reduce_mean.cpp
     device/pow.cpp

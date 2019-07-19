@@ -164,6 +164,7 @@ struct tf_parser
         add_binary_op("Sub", op::sub{});
 
         add_mem_op("AvgPool", &tf_parser::parse_pooling);
+        add_mem_op("BatchMatMul", &tf_parser::parse_matmul, false);
         add_mem_op("BiasAdd", &tf_parser::parse_biasadd);
         add_mem_op("ConcatV2", &tf_parser::parse_concat, false);
         add_mem_op("Const", &tf_parser::parse_constant);
@@ -528,6 +529,15 @@ struct tf_parser
         if(contains(attributes, "transpose_b"))
         {
             transb = attributes.at("transpose_a").b();
+        }
+
+        if(contains(attributes, "adj_x"))
+        {
+            transa = attributes.at("adj_x").b();
+        }
+        if(contains(attributes, "adj_y"))
+        {
+            transb = attributes.at("adj_y").b();
         }
 
         std::vector<int64_t> perm(args[0]->get_shape().lens().size());

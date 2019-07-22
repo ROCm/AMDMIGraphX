@@ -166,6 +166,7 @@ struct tf_parser
         add_mem_op("AvgPool", &tf_parser::parse_pooling);
         add_mem_op("BatchMatMul", &tf_parser::parse_matmul, false);
         add_mem_op("BiasAdd", &tf_parser::parse_biasadd);
+        add_mem_op("Cast", &tf_parser::parse_cast, false);
         add_mem_op("ConcatV2", &tf_parser::parse_concat, false);
         add_mem_op("Const", &tf_parser::parse_constant);
         add_mem_op("Conv2D", &tf_parser::parse_conv);
@@ -305,6 +306,13 @@ struct tf_parser
         uint64_t axis = 1; // assume output of previous layer is in NCHW (broadcast on channel)
         auto l0 = prog.add_instruction(op::broadcast{axis, args[0]->get_shape().lens()}, args[1]);
         return prog.add_instruction(op::add{}, args[0], l0);
+    }
+
+    instruction_ref
+    parse_cast(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        shape::type_t type = parse_type(attributes.at("DstT").type());
+        return prog.add_instruction(op::convert{type}, std::move(args));
     }
 
     instruction_ref

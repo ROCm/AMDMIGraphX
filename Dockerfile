@@ -20,6 +20,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     clang-format-5.0 \
     clang-tidy-5.0 \
     cmake \
+    comgr \
     curl \
     doxygen \
     g++-7 \
@@ -32,14 +33,16 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libncurses5-dev \
     libnuma-dev \
     libpthread-stubs0-dev \
+    libssl-dev \
     python \
     python-dev \
     python-pip \
+    rocm-device-libs \
     rocm-opencl \
     rocm-opencl-dev \
-    rocminfo \
     software-properties-common \
-    wget && \
+    wget \
+    zlib1g-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -50,7 +53,7 @@ RUN pip install cget
 RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
 
 # Install hcc
-RUN rclone -b roc-2.3.x -c fd93baed7dcc4fe8019b5fdc90213bfe7c298245 https://github.com/RadeonOpenCompute/hcc.git /hcc
+RUN rclone -b roc-2.6.x -c 0f4c96b7851af2663a7f3ac16ecfb76c7c78a5bf https://github.com/RadeonOpenCompute/hcc.git /hcc
 RUN cget -p $PREFIX install hcc,/hcc
 
 # Use hcc

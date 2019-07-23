@@ -160,6 +160,7 @@ struct tf_parser
 
         add_binary_op("Add", op::add{});
         add_binary_op("Mul", op::mul{});
+        add_binary_op("Pow", op::pow{});
         add_binary_op("SquaredDifference", op::sqdiff{});
         add_binary_op("Sub", op::sub{});
 

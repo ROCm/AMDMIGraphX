@@ -461,8 +461,16 @@ struct onnx_parser
         op::reshape op;
         if(args.size() == 1)
         {
-            literal s = parse_value(attributes.at("shape"));
-            s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
+            if(contains(attributes, "shape"))
+            {
+                literal s = parse_value(attributes.at("shape"));
+                s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
+            }
+            else
+            {
+                MIGRAPHX_THROW(
+                    "Parse_reshape: shape attribute is needed when only one argument is provided!");
+            }
         }
         if(args.size() == 2)
         {
@@ -470,6 +478,12 @@ struct onnx_parser
             check_arg_empty(s, "Reshape: dynamic shape is not supported");
             s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
         }
+
+        if(!args[0]->get_shape().standard())
+        {
+            args[0] = prog.add_instruction(op::contiguous{}, args[0]);
+        }
+
         return prog.add_instruction(op, args[0]);
     }
 
@@ -972,7 +986,6 @@ struct onnx_parser
         std::vector<std::size_t> dims;
         arg_s.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
         auto out_lens = compute_broadcasted_lens(in_lens, dims);
-
         return prog.add_instruction(op::multibroadcast{out_lens}, args[0]);
     }
 

@@ -48,6 +48,7 @@
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/quant_dot.hpp>
+#include <migraphx/op/pow.hpp>
 #include <migraphx/op/reduce_sum.hpp>
 #include <migraphx/op/reduce_mean.hpp>
 #include <migraphx/op/relu.hpp>
@@ -55,12 +56,15 @@
 #include <migraphx/op/rnn.hpp>
 #include <migraphx/op/rnn_last_cell_output.hpp>
 #include <migraphx/op/rnn_last_output.hpp>
+#include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/scalar.hpp>
 #include <migraphx/op/sigmoid.hpp>
 #include <migraphx/op/sinh.hpp>
 #include <migraphx/op/sin.hpp>
 #include <migraphx/op/slice.hpp>
 #include <migraphx/op/softmax.hpp>
+#include <migraphx/op/sqrt.hpp>
+#include <migraphx/op/sqdiff.hpp>
 #include <migraphx/op/squeeze.hpp>
 #include <migraphx/op/sub.hpp>
 #include <migraphx/op/tanh.hpp>

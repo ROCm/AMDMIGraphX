@@ -542,6 +542,21 @@ TEST_CASE(erf_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(sqrt_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    auto l = p.add_literal(
+        migraphx::literal{s, {1.02481645, 0.85643062, 0.03404123, 0.92791926, 0.10569184}});
+    p.add_instruction(migraphx::op::sqrt{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {1.01233218, 0.92543537, 0.18450265, 0.96328566, 0.32510282};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(log_test)
 {
     migraphx::program p;
@@ -553,6 +568,21 @@ TEST_CASE(log_test)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0.0f, 0.6931471806f, 1.0986122887f};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(pow_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto b = p.add_literal(migraphx::literal{s, {1, 2, 3}});
+    auto e = p.add_literal(migraphx::literal{s, {1, 2, 3}});
+    p.add_instruction(migraphx::op::pow{}, b, e);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {1.0f, 4.0f, 27.0f};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -1879,6 +1909,20 @@ TEST_CASE(reduce_sum_axis12)
     EXPECT(results_vector == gold);
 }
 
+TEST_CASE(rsqrt_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto l = p.add_literal(migraphx::literal{s, {4.0, 16.0, 64.0}});
+    p.add_instruction(migraphx::op::rsqrt{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {0.5, 0.25, 0.125};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(reduce_mean_axis1)
 {
     migraphx::program p;
@@ -1952,6 +1996,21 @@ TEST_CASE(reduce_mean_int)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<int> gold{2, 6, 10};
     EXPECT(results_vector == gold);
+}
+
+TEST_CASE(sqdiff_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto l1 = p.add_literal(migraphx::literal{s, {-1, 0, 1}});
+    auto l2 = p.add_literal(migraphx::literal{s, {1, 2, 3}});
+    p.add_instruction(migraphx::op::sqdiff{}, l1, l2);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {4, 4, 4};
+    EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -88,7 +88,7 @@ struct binary_device : oper<Derived>
 
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        F(ctx.get_stream().get(), args[2], args[1], args[0]);
+        F(ctx.get_stream().get(), args[2], args[0], args[1]);
         return args[2];
     }
 

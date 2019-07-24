@@ -202,6 +202,16 @@ TEST_CASE(erf_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(sqrt_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10, 15}});
+    p.add_instruction(migraphx::op::sqrt{}, input);
+
+    auto prog = migraphx::parse_onnx("sqrt_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(log_test)
 {
     migraphx::program p;
@@ -886,6 +896,106 @@ TEST_CASE(clip_test)
     p.add_instruction(migraphx::op::clip{6.0, 0.0}, l0);
     auto prog = migraphx::parse_onnx("clip_test.onnx");
 
+    EXPECT(p == prog);
+}
+
+TEST_CASE(implicit_pow_bcast_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 4, 1}});
+    auto l2 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l0);
+    auto l3 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l1);
+    p.add_instruction(migraphx::op::pow{}, l2, l3);
+
+    auto prog = migraphx::parse_onnx("pow_bcast_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(pow_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
+    p.add_instruction(migraphx::op::pow{}, l0, l1);
+
+    auto prog = migraphx::parse_onnx("pow_bcast_test1.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(cast_test)
+{
+    migraphx::program p;
+    auto l = p.add_parameter("x", migraphx::shape{migraphx::shape::half_type, {10}});
+    p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, l);
+
+    auto prog = migraphx::parse_onnx("cast_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(const_of_shape_float)
+{
+    migraphx::program p;
+    migraphx::shape ss(migraphx::shape::int32_type, {3});
+    p.add_literal(migraphx::literal(ss, {2, 3, 4}));
+    migraphx::shape s(migraphx::shape::float_type, {2, 3, 4});
+    std::vector<float> vec(s.elements(), 10.0f);
+    p.add_literal(migraphx::literal(s, vec));
+
+    auto prog = migraphx::parse_onnx("const_of_shape1.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(const_of_shape_int64)
+{
+    migraphx::program p;
+    migraphx::shape ss(migraphx::shape::int32_type, {3});
+    p.add_literal(migraphx::literal(ss, {2, 3, 4}));
+    migraphx::shape s(migraphx::shape::int64_type, {2, 3, 4});
+    std::vector<int64_t> vec(s.elements(), 10);
+    p.add_literal(migraphx::literal(s, vec));
+
+    auto prog = migraphx::parse_onnx("const_of_shape2.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(const_of_shape_no_value_attr)
+{
+    migraphx::program p;
+    migraphx::shape ss(migraphx::shape::int32_type, {3});
+    p.add_literal(migraphx::literal(ss, {2, 3, 4}));
+    migraphx::shape s(migraphx::shape::float_type, {2, 3, 4});
+    std::vector<float> vec(s.elements(), 0.0f);
+    p.add_literal(migraphx::literal(s, vec));
+
+    auto prog = migraphx::parse_onnx("const_of_shape3.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(const_of_shape_empty_input)
+{
+    migraphx::program p;
+    p.add_literal(migraphx::literal());
+    migraphx::shape s(migraphx::shape::int64_type, {1}, {0});
+    std::vector<int64_t> vec(s.elements(), 10);
+    p.add_literal(migraphx::literal(s, vec));
+
+    auto prog = migraphx::parse_onnx("const_of_shape4.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(expand_test)
+{
+    migraphx::program p;
+    migraphx::shape s(migraphx::shape::float_type, {3, 1, 1});
+    auto param = p.add_parameter("x", s);
+    migraphx::shape ss(migraphx::shape::int32_type, {4});
+    p.add_literal(migraphx::literal(ss, {2, 3, 4, 5}));
+    p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, param);
+
+    auto prog = migraphx::parse_onnx("expand_test.onnx");
     EXPECT(p == prog);
 }
 

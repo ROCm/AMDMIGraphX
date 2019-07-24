@@ -243,6 +243,31 @@ struct test_exp : verify_program<test_exp>
     }
 };
 
+struct test_erf : verify_program<test_erf>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 6}};
+        auto param = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::erf{}, param);
+        return p;
+    }
+};
+
+struct test_sqrt : verify_program<test_sqrt>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 6}};
+        auto param     = p.add_parameter("x", s);
+        auto param_abs = p.add_instruction(migraphx::op::abs{}, param);
+        p.add_instruction(migraphx::op::sqrt{}, param_abs);
+        return p;
+    }
+};
+
 struct test_log : verify_program<test_log>
 {
     migraphx::program create_program() const
@@ -251,6 +276,20 @@ struct test_log : verify_program<test_log>
         migraphx::shape s{migraphx::shape::float_type, {6}};
         auto x = p.add_instruction(migraphx::op::abs{}, p.add_parameter("x", s));
         p.add_instruction(migraphx::op::log{}, x);
+        return p;
+    }
+};
+
+struct test_pow : verify_program<test_pow>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {6}};
+        std::vector<float> vec_e(s.elements(), 2.0f);
+        auto b = p.add_parameter("x", s);
+        auto e = p.add_literal(migraphx::literal(s, vec_e));
+        p.add_instruction(migraphx::op::pow{}, b, e);
         return p;
     }
 };
@@ -565,6 +604,38 @@ struct test_sub2 : verify_program<test_sub2>
         auto zb   = p.add_instruction(migraphx::op::broadcast{1, s.lens()}, z);
         auto diff = p.add_instruction(migraphx::op::sub{}, x, y);
         p.add_instruction(migraphx::op::sub{}, diff, zb);
+        return p;
+    }
+};
+
+struct test_div : verify_program<test_div>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3}};
+        auto x    = p.add_parameter("x", s);
+        auto y    = p.add_parameter("y", s);
+        auto z    = p.add_parameter("z", s);
+        auto diff = p.add_instruction(migraphx::op::div{}, x, y);
+        p.add_instruction(migraphx::op::div{}, diff, z);
+        return p;
+    }
+};
+
+struct test_div2 : verify_program<test_div2>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+        migraphx::shape b{migraphx::shape::float_type, {3}};
+        auto x    = p.add_parameter("x", s);
+        auto y    = p.add_parameter("y", s);
+        auto z    = p.add_parameter("z", b);
+        auto zb   = p.add_instruction(migraphx::op::broadcast{1, s.lens()}, z);
+        auto diff = p.add_instruction(migraphx::op::div{}, x, y);
+        p.add_instruction(migraphx::op::div{}, diff, zb);
         return p;
     }
 };
@@ -3663,6 +3734,19 @@ struct test_reduce_sum_half : verify_program<test_reduce_sum_half>
         migraphx::shape s{migraphx::shape::half_type, {3, 4, 8, 8}};
         auto x = p.add_parameter("x", s);
         p.add_instruction(migraphx::op::reduce_sum{{1}}, x);
+        return p;
+    };
+};
+
+struct test_rsqrt : verify_program<test_rsqrt>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {1, 3, 16, 16}};
+        auto x  = p.add_parameter("x", s);
+        auto l0 = p.add_instruction(migraphx::op::clip{std::numeric_limits<float>::max(), 1.0}, x);
+        p.add_instruction(migraphx::op::rsqrt{}, l0);
         return p;
     };
 };

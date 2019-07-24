@@ -426,16 +426,8 @@ struct onnx_parser
         op::reshape op;
         if(args.size() == 1)
         {
-            if(contains(attributes, "shape"))
-            {
-                literal s = parse_value(attributes.at("shape"));
-                s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
-            }
-            else
-            {
-                MIGRAPHX_THROW(
-                    "Parse_reshape: shape attribute is needed when only one argument is provided!");
-            }
+            literal s = parse_value(attributes.at("shape"));
+            s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
         }
         if(args.size() == 2)
         {

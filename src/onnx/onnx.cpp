@@ -66,8 +66,8 @@ struct onnx_parser
         add_variadic_op("Max", op::max{});
         add_variadic_op("Min", op::min{});
 
-        add_mem_op("ArgMax", &onnx_parser::parse_argmax);
-        add_mem_op("ArgMin", &onnx_parser::parse_argmin);
+        add_mem_op("ArgMax", &onnx_parser::parse_arg_op<op::argmax>);
+        add_mem_op("ArgMin", &onnx_parser::parse_arg_op<op::argmin>);
         add_mem_op("Cast", &onnx_parser::parse_cast);
         add_mem_op("Clip", &onnx_parser::parse_clip);
         add_mem_op("LRN", &onnx_parser::parse_lrn);
@@ -86,8 +86,8 @@ struct onnx_parser
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
         add_mem_op("MatMul", &onnx_parser::parse_matmul);
         add_mem_op("BatchNormalization", &onnx_parser::parse_batchnorm);
-        add_mem_op("Softmax", &onnx_parser::parse_softmax);
-        add_mem_op("LogSoftmax", &onnx_parser::parse_logsoftmax);
+        add_mem_op("Softmax", &onnx_parser::parse_softmax<op::softmax>);
+        add_mem_op("LogSoftmax", &onnx_parser::parse_softmax<op::logsoftmax>);
         add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
         add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
         add_mem_op("Slice", &onnx_parser::parse_slice);
@@ -261,19 +261,10 @@ struct onnx_parser
         return prog.add_instruction(op, std::move(args));
     }
 
-    instruction_ref
-    parse_softmax(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
-    {
-        auto dims = args.front()->get_shape().lens();
-        auto r =
-            prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1]), 1, 1}}, args.front());
-        auto s = prog.add_instruction(op::softmax{}, r);
-        return prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1])}}, s);
-    }
-
-    instruction_ref parse_logsoftmax(const std::string&,
-                                     const attribute_map& attributes,
-                                     std::vector<instruction_ref> args)
+    template <class Op>
+    instruction_ref parse_softmax(const std::string&,
+                                  const attribute_map& attributes,
+                                  std::vector<instruction_ref> args)
     {
         int axis = 1;
         if(contains(attributes, "axis"))
@@ -281,10 +272,11 @@ struct onnx_parser
             axis = parse_value(attributes.at("axis")).at<int>();
         }
 
-        return prog.add_instruction(op::logsoftmax{axis}, std::move(args));
+        return prog.add_instruction(Op{axis}, std::move(args));
     }
 
-    instruction_ref parse_argmax(const std::string&,
+    template <class Op>
+    instruction_ref parse_arg_op(const std::string&,
                                  const attribute_map& attributes,
                                  std::vector<instruction_ref> args)
     {
@@ -302,39 +294,12 @@ struct onnx_parser
 
         if(keep_dims == 0)
         {
-            auto ins = prog.add_instruction(op::argmax{axis}, std::move(args));
+            auto ins = prog.add_instruction(Op{axis}, std::move(args));
             return prog.add_instruction(op::squeeze{{axis}}, ins);
         }
         else
         {
-            return prog.add_instruction(op::argmax{axis}, std::move(args));
-        }
-    }
-
-    instruction_ref parse_argmin(const std::string&,
-                                 const attribute_map& attributes,
-                                 std::vector<instruction_ref> args)
-    {
-        int64_t axis = 0;
-        if(contains(attributes, "axis"))
-        {
-            axis = static_cast<int64_t>(parse_value(attributes.at("axis")).at<int>());
-        }
-
-        int keep_dims = 1;
-        if(contains(attributes, "keepdims"))
-        {
-            keep_dims = parse_value(attributes.at("keepdims")).at<int>();
-        }
-
-        if(keep_dims == 0)
-        {
-            auto ins = prog.add_instruction(op::argmin{axis}, std::move(args));
-            return prog.add_instruction(op::squeeze{{axis}}, ins);
-        }
-        else
-        {
-            return prog.add_instruction(op::argmin{axis}, std::move(args));
+            return prog.add_instruction(Op{axis}, std::move(args));
         }
     }
 
@@ -461,16 +426,8 @@ struct onnx_parser
         op::reshape op;
         if(args.size() == 1)
         {
-            if(contains(attributes, "shape"))
-            {
-                literal s = parse_value(attributes.at("shape"));
-                s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
-            }
-            else
-            {
-                MIGRAPHX_THROW(
-                    "Parse_reshape: shape attribute is needed when only one argument is provided!");
-            }
+            literal s = parse_value(attributes.at("shape"));
+            s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
         }
         if(args.size() == 2)
         {
@@ -863,7 +820,7 @@ struct onnx_parser
         {
             dtype = parse_value(attributes.at("dtype")).at<int>();
         }
-        migraphx::shape::type_t type = get_type(dtype);
+        shape::type_t type = get_type(dtype);
 
         if(contains(attributes, "input_as_shape"))
         {

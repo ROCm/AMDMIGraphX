@@ -178,7 +178,7 @@ void miopen_gemm::batch_not_transposed(const std::vector<std::size_t>& strides) 
            return (i < j or i < matrix_size or j < matrix_size);
        }) != batch.end())
     {
-        MIGRAPHX_THROW("DOT: batch size of a {" + to_string_range(strides) + "} is transposed!");
+        MIGRAPHX_THROW("DOT: batch size {" + to_string_range(strides) + "} is transposed!");
     }
 }
 

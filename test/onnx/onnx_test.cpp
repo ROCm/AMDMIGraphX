@@ -423,9 +423,7 @@ TEST_CASE(softmax_test)
 {
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3}});
-    auto r  = p.add_instruction(migraphx::op::reshape{{1, 3, 1, 1}}, l0);
-    auto s  = p.add_instruction(migraphx::op::softmax{}, r);
-    p.add_instruction(migraphx::op::reshape{{1, 3}}, s);
+    p.add_instruction(migraphx::op::softmax{1}, l0);
     auto prog = migraphx::parse_onnx("softmax_test.onnx");
 
     EXPECT(p == prog);

@@ -119,9 +119,65 @@ void nary_broadcast_impl(hipStream_t stream, F f, argument result, argument barg
 }
 
 template <class F, class... Arguments>
+void nary_double_broadcast_vec_impl(
+    hipStream_t stream, F f, argument result, argument barg1, argument barg2, Arguments... args)
+{
+    assert(barg1.get_shape() == barg2.get_shape());
+    const auto& output_shape = result.get_shape();
+    const auto& b_shape      = barg1.get_shape();
+    auto bdim =
+        std::distance(b_shape.strides().begin(),
+                      std::find_if(b_shape.strides().begin(), b_shape.strides().end(), [](auto x) {
+                          return x != 0;
+                      }));
+    auto bdim_len         = output_shape.lens()[bdim];
+    auto bdim_stride      = output_shape.strides()[bdim];
+    auto bdim_next_stride = bdim_stride * bdim_len;
+
+    const std::size_t vec_size     = 4;
+    const std::size_t nlocal       = 1024;
+    const std::size_t nglobal      = 256 * nlocal;
+    const std::size_t bdim_vec_len = bdim_len / vec_size;
+    hip_vec_visit_all<vec_size>(result, barg1, barg2, args...)(
+        [&](auto output, auto binput1, auto binput2, auto... inputs) {
+            using type                  = typename decltype(output)::value_type;
+            const std::size_t nelements = output.size() / vec_size;
+            launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
+
+                MIGRAPHX_DEVICE_SHARED type buffer[2048 / vec_size];
+                // Load bias into LDS
+                for(size_t i = idx.local; i < bdim_vec_len; i += nlocal)
+                {
+                    buffer[i] = binput1.data()[i];
+                }
+                for(size_t i = idx.local; i < bdim_vec_len; i += nlocal)
+                {
+                    buffer[i + bdim_vec_len] = binput2.data()[i];
+                }
+                __syncthreads();
+                auto* bp = as_pointer(buffer);
+                // Process the data
+                for(size_t i = idx.global; i < nelements; i += nglobal)
+                {
+                    auto bidx = ((i * vec_size) % bdim_next_stride) / bdim_stride;
+                    auto b1    = bp[bidx];
+                    auto b2    = bp[bidx+bdim_vec_len];
+                    auto out  = output.data()[i];
+                    for(std::size_t j = 0; j < vec_size; j++)
+                    {
+                        out[j] = f(inputs.data()[i][j]..., b2, b1);
+                    }
+                    output.data()[i] = out;
+                }
+            });
+        });
+}
+
+template <class F, class... Arguments>
 void nary_double_broadcast_impl(
     hipStream_t stream, F f, argument result, argument barg1, argument barg2, Arguments... args)
 {
+    assert(barg1.get_shape() == barg2.get_shape());
     const auto& output_shape = result.get_shape();
     const auto& b_shape      = barg1.get_shape();
     auto bdim =
@@ -148,7 +204,7 @@ void nary_double_broadcast_impl(
                 }
                 for(size_t i = idx.local; i < bdim_len; i += nlocal)
                 {
-                    buffer[i + bdim_len] = binput2.data()[i + bdim_len];
+                    buffer[i + bdim_len] = binput2.data()[i];
                 }
                 __syncthreads();
                 // Process the data
@@ -157,7 +213,7 @@ void nary_double_broadcast_impl(
                     auto bidx        = (i % bdim_next_stride) / bdim_stride;
                     auto b1          = buffer[bidx];
                     auto b2          = buffer[bidx + bdim_len];
-                    output.data()[i] = f(inputs.data()[i]..., b1, b2);
+                    output.data()[i] = f(inputs.data()[i]..., b2, b1);
                 }
             });
         });
@@ -222,7 +278,7 @@ auto nary_standard(hipStream_t stream, argument result, Arguments... args)
 }
 
 template <class... Arguments>
-bool broadcastable(bool& divisible_by_4, argument result, argument barg, Arguments... args)
+bool broadcastable(bool& divisible_by_4, std::size_t max_size, argument result, argument barg, Arguments... args)
 {
     divisible_by_4 = false;
     auto bshape    = barg.get_shape();
@@ -240,7 +296,7 @@ bool broadcastable(bool& divisible_by_4, argument result, argument barg, Argumen
         auto b_len          = result.get_shape().lens()[b_idx];
         auto b_stride       = result.get_shape().strides()[b_idx];
         assert(bshape.lens()[b_idx] == b_len);
-        if(b_len <= 2048 and std::none_of(std::next(b_it), strides.end(), not_zero))
+        if(b_len <= max_size and std::none_of(std::next(b_it), strides.end(), not_zero))
         {
 
             divisible_by_4 = (b_len % 4 == 0) and (b_stride % 4 == 0) and
@@ -251,7 +307,7 @@ bool broadcastable(bool& divisible_by_4, argument result, argument barg, Argumen
     return false;
 }
 
-inline bool broadcastable(bool& divisible_by_4, argument, argument)
+inline bool broadcastable(bool& divisible_by_4, std::size_t, argument, argument)
 {
     divisible_by_4 = false;
     return false;
@@ -274,7 +330,7 @@ inline auto nary(hipStream_t stream, argument result, argument arg, argument bar
 {
     return [=](auto f) {
         bool divisible_by_4 = false;
-        if(broadcastable(divisible_by_4, result, barg, arg))
+        if(broadcastable(divisible_by_4, 2048, result, barg, arg))
         {
             if(divisible_by_4)
                 nary_broadcast_vec_impl(stream, f, result, barg, arg);
@@ -293,9 +349,24 @@ auto nary(hipStream_t stream, argument result, Arguments... args)
 {
     return [=](auto f) {
         auto barg1    = back_args(args...);
-        bool fallback = pop_back_args(args...)([&](auto&&... args2) {
+        bool fallback1 = pop_back_args(args...)([&](auto&&... args2) {
+            auto barg2    = back_args(args2...);
+            bool fallback2 = barg2.get_shape() == barg1.get_shape() and barg2.get_shape().broadcasted() and pop_back_args(args2...)([&](auto&&... args3) {
+                bool divisible_by_4 = false;
+                if(broadcastable(divisible_by_4, 1024, result, barg2, args3...))
+                {
+                    if(divisible_by_4)
+                        nary_double_broadcast_vec_impl(stream, f, result, barg1, barg2, args3...);
+                    else
+                        nary_double_broadcast_impl(stream, f, result, barg1, barg2, args3...);
+                    return false;
+                }
+                return true;
+            });
+            if (not fallback2)
+                return false;
             bool divisible_by_4 = false;
-            if(broadcastable(divisible_by_4, result, barg1, args2...))
+            if(broadcastable(divisible_by_4, 2048, result, barg1, args2...))
             {
                 if(divisible_by_4)
                     nary_broadcast_vec_impl(stream, f, result, barg1, args2...);
@@ -305,7 +376,7 @@ auto nary(hipStream_t stream, argument result, Arguments... args)
             }
             return true;
         });
-        if(fallback)
+        if(fallback1)
             nary_impl(stream, f, result, args...);
     };
 }

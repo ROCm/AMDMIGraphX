@@ -160,8 +160,8 @@ void nary_double_broadcast_vec_impl(
                 for(size_t i = idx.global; i < nelements; i += nglobal)
                 {
                     auto bidx = ((i * vec_size) % bdim_next_stride) / bdim_stride;
-                    auto b1    = bp[bidx];
-                    auto b2    = bp[bidx+bdim_vec_len];
+                    auto b1   = bp[bidx];
+                    auto b2   = bp[bidx + bdim_vec_len];
                     auto out  = output.data()[i];
                     for(std::size_t j = 0; j < vec_size; j++)
                     {
@@ -278,7 +278,8 @@ auto nary_standard(hipStream_t stream, argument result, Arguments... args)
 }
 
 template <class... Arguments>
-bool broadcastable(bool& divisible_by_4, std::size_t max_size, argument result, argument barg, Arguments... args)
+bool broadcastable(
+    bool& divisible_by_4, std::size_t max_size, argument result, argument barg, Arguments... args)
 {
     divisible_by_4 = false;
     auto bshape    = barg.get_shape();
@@ -348,22 +349,25 @@ template <class... Arguments>
 auto nary(hipStream_t stream, argument result, Arguments... args)
 {
     return [=](auto f) {
-        auto barg1    = back_args(args...);
+        auto barg1     = back_args(args...);
         bool fallback1 = pop_back_args(args...)([&](auto&&... args2) {
-            auto barg2    = back_args(args2...);
-            bool fallback2 = barg2.get_shape() == barg1.get_shape() and barg2.get_shape().broadcasted() and pop_back_args(args2...)([&](auto&&... args3) {
-                bool divisible_by_4 = false;
-                if(broadcastable(divisible_by_4, 1024, result, barg2, args3...))
-                {
-                    if(divisible_by_4)
-                        nary_double_broadcast_vec_impl(stream, f, result, barg1, barg2, args3...);
-                    else
-                        nary_double_broadcast_impl(stream, f, result, barg1, barg2, args3...);
-                    return false;
-                }
-                return true;
-            });
-            if (not fallback2)
+            auto barg2 = back_args(args2...);
+            bool fallback2 =
+                barg2.get_shape() == barg1.get_shape() and barg2.get_shape().broadcasted() and
+                pop_back_args(args2...)([&](auto&&... args3) {
+                    bool divisible_by_4 = false;
+                    if(broadcastable(divisible_by_4, 1024, result, barg2, args3...))
+                    {
+                        if(divisible_by_4)
+                            nary_double_broadcast_vec_impl(
+                                stream, f, result, barg1, barg2, args3...);
+                        else
+                            nary_double_broadcast_impl(stream, f, result, barg1, barg2, args3...);
+                        return false;
+                    }
+                    return true;
+                });
+            if(not fallback2)
                 return false;
             bool divisible_by_4 = false;
             if(broadcastable(divisible_by_4, 2048, result, barg1, args2...))

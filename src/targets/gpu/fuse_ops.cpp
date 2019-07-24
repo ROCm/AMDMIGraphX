@@ -2,6 +2,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/convolution.hpp>
+#include <migraphx/gpu/device/mul_add.hpp>
 #include <migraphx/gpu/device/add_relu.hpp>
 #include <migraphx/gpu/device/add.hpp>
 #include <migraphx/instruction.hpp>
@@ -200,21 +201,42 @@ struct hip_add_relu
     }
 };
 
+struct hip_mul_add
+{
+    std::string name() const { return "hip::mul_add"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(4);
+        return inputs.front();
+    }
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
+        device::mul_add(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
+        return args.at(3);
+    }
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+};
+
 void move_broadcasted_back(std::vector<instruction_ref>& args)
 {
     // Ensure the last arguments is the broadcasted one
+    auto last = std::prev(args.end());
     auto it = std::find_if(
-        args.begin(), args.end(), [](auto arg) { return arg->get_shape().broadcasted(); });
-    if(it != args.end())
-        std::swap(*it, *std::prev(args.end(), 2));
+        args.begin(), last, [](auto arg) { return arg->get_shape().broadcasted(); });
+    if(it != last)
+        std::swap(*it, *std::prev(last));
 }
 
 void move_standard_front(std::vector<instruction_ref>& args)
 {
     // Ensure the first arguments is the standard one
+    auto last = std::prev(args.end());
     auto it = std::find_if(
-        args.begin(), args.end(), [](auto arg) { return arg->get_shape().standard(); });
-    if(it != args.end())
+        args.begin(), last, [](auto arg) { return arg->get_shape().standard(); });
+    if(it != last)
         std::swap(*it, args.front());
 }
 
@@ -275,6 +297,32 @@ struct find_triadd
 
         args.back() = ins->inputs().back();
         p.replace_instruction(ins, hip_triadd{}, args);
+    }
+};
+
+struct find_mul_add
+{
+    auto matcher() const
+    {
+        return match::name("gpu::add")(match::either_arg(0, 1)(
+            match::name("gpu::mul").bind("mul"),
+            match::any().bind("b")));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto mul_ins   = r.instructions["mul"];
+        auto b_ins = r.instructions["b"];
+        auto ins       = r.result;
+        auto args      = mul_ins->inputs();
+        assert(mul_ins != b_ins);
+
+        move_standard_front(args);
+        move_broadcasted_back(args);
+        args.insert(std::prev(args.end()), b_ins);
+
+        args.back() = ins->inputs().back();
+        p.replace_instruction(ins, hip_mul_add{}, args);
     }
 };
 
@@ -433,7 +481,8 @@ void fuse_ops::apply(program& p) const
     match::find_matches(p, 
         find_conv_bias_relu{ctx},
         find_conv_bias{ctx},
-        find_add_relu{}
+        find_add_relu{},
+        find_mul_add{}
     );
     // clang-format on
 }

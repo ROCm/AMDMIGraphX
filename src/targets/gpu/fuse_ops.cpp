@@ -224,8 +224,8 @@ void move_broadcasted_back(std::vector<instruction_ref>& args)
 {
     // Ensure the last arguments is the broadcasted one
     auto last = std::prev(args.end());
-    auto it = std::find_if(
-        args.begin(), last, [](auto arg) { return arg->get_shape().broadcasted(); });
+    auto it =
+        std::find_if(args.begin(), last, [](auto arg) { return arg->get_shape().broadcasted(); });
     if(it != last)
         std::swap(*it, *std::prev(last));
 }
@@ -234,8 +234,8 @@ void move_standard_front(std::vector<instruction_ref>& args)
 {
     // Ensure the first arguments is the standard one
     auto last = std::prev(args.end());
-    auto it = std::find_if(
-        args.begin(), last, [](auto arg) { return arg->get_shape().standard(); });
+    auto it =
+        std::find_if(args.begin(), last, [](auto arg) { return arg->get_shape().standard(); });
     if(it != last)
         std::swap(*it, args.front());
 }
@@ -304,17 +304,16 @@ struct find_mul_add
 {
     auto matcher() const
     {
-        return match::name("gpu::add")(match::either_arg(0, 1)(
-            match::name("gpu::mul").bind("mul"),
-            match::any().bind("b")));
+        return match::name("gpu::add")(
+            match::either_arg(0, 1)(match::name("gpu::mul").bind("mul"), match::any().bind("b")));
     }
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto mul_ins   = r.instructions["mul"];
-        auto b_ins = r.instructions["b"];
-        auto ins       = r.result;
-        auto args      = mul_ins->inputs();
+        auto mul_ins = r.instructions["mul"];
+        auto b_ins   = r.instructions["b"];
+        auto ins     = r.result;
+        auto args    = mul_ins->inputs();
         assert(mul_ins != b_ins);
 
         move_standard_front(args);

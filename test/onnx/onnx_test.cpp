@@ -423,9 +423,7 @@ TEST_CASE(softmax_test)
 {
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3}});
-    auto r  = p.add_instruction(migraphx::op::reshape{{1, 3, 1, 1}}, l0);
-    auto s  = p.add_instruction(migraphx::op::softmax{}, r);
-    p.add_instruction(migraphx::op::reshape{{1, 3}}, s);
+    p.add_instruction(migraphx::op::softmax{1}, l0);
     auto prog = migraphx::parse_onnx("softmax_test.onnx");
 
     EXPECT(p == prog);
@@ -443,6 +441,21 @@ TEST_CASE(reshape_test)
     p.add_instruction(op, l0);
     p.add_instruction(op, l0);
     auto prog = migraphx::parse_onnx("reshape_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(reshape_non_standard)
+{
+    migraphx::program p;
+    migraphx::op::reshape op;
+    std::vector<int64_t> reshape_dims{4, 3, 2};
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
+    auto x      = p.add_parameter("x", s);
+    auto tran_x = p.add_instruction(migraphx::op::transpose{{0, 2, 1}}, x);
+    auto cont_x = p.add_instruction(migraphx::op::contiguous{}, tran_x);
+    p.add_instruction(migraphx::op::reshape{{4, 3, 2}}, cont_x);
+    auto prog = migraphx::parse_onnx("reshape_non_standard.onnx");
 
     EXPECT(p == prog);
 }

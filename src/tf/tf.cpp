@@ -151,7 +151,9 @@ struct tf_parser
 
     tf_parser()
     {
+        add_generic_op("All", op::identity{});
         add_generic_op("Identity", op::identity{});
+        add_generic_op("LessEqual", op::identity{});
         add_generic_op("Relu", op::relu{});
         add_generic_op("Relu6", op::clip{6.0, 0.0});
         add_generic_op("Rsqrt", op::rsqrt{});
@@ -941,10 +943,16 @@ struct tf_parser
         if(instructions.count(name) == 0)
         {
             auto&& node = nodes.at(name);
+            // assert ops ignored
+            if(node.op() == "Assert" or contains(name, "Assert"))
+                return;
             std::vector<instruction_ref> args;
 
             for(auto&& input : node.input())
             {
+                // control dependencies (signified by ^ before the name) are ignored
+                if(contains(input, "^"))
+                    continue;
                 if(nodes.count(input) > 0)
                 {
                     auto&& iname = get_name(nodes.at(input));

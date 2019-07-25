@@ -181,7 +181,7 @@ struct tf_parser
         add_mem_op("Pack", &tf_parser::parse_pack, false);
         add_mem_op("Pad", &tf_parser::parse_pad);
         add_mem_op("Reshape", &tf_parser::parse_reshape, false);
-        add_mem_op("Softmax", &tf_parser::parse_softmax);
+        add_mem_op("Softmax", &tf_parser::parse_softmax<op::softmax>);
         add_mem_op("Squeeze", &tf_parser::parse_squeeze, false);
         add_mem_op("StridedSlice", &tf_parser::parse_stridedslice);
         add_mem_op("Transpose", &tf_parser::parse_transpose, false);
@@ -733,14 +733,24 @@ struct tf_parser
         }
     }
 
-    instruction_ref
-    parse_softmax(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    // template to facilitate the logsoftmax later
+    template <class Op>
+    instruction_ref parse_softmax(const std::string&,
+                                  const attribute_map& attributes,
+                                  std::vector<instruction_ref> args)
     {
-        auto dims = args.front()->get_shape().lens();
-        auto r =
-            prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1]), 1, 1}}, args.front());
-        auto s = prog.add_instruction(op::softmax{}, r);
-        return prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1])}}, s);
+        int axis      = -1;
+        auto num_dims = args[0]->get_shape().lens().size();
+        if(contains(attributes, "axis"))
+        {
+            axis = static_cast<int>(attributes.at("axis").i());
+        }
+        if(axis < 0)
+        {
+            axis += num_dims;
+        }
+
+        return prog.add_instruction(Op{axis}, make_contiguous(args[0]));
     }
 
     instruction_ref parse_squeeze(const std::string&,

@@ -415,11 +415,8 @@ TEST_CASE(rsqrt_test)
 TEST_CASE(softmax_test)
 {
     migraphx::program p;
-    auto l0   = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3}});
-    auto dims = l0->get_shape().lens();
-    auto r    = p.add_instruction(migraphx::op::reshape{{long(dims[0]), long(dims[1]), 1, 1}}, l0);
-    auto s    = p.add_instruction(migraphx::op::softmax{}, r);
-    p.add_instruction(migraphx::op::reshape{{long(dims[0]), long(dims[1])}}, s);
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3}});
+    p.add_instruction(migraphx::op::softmax{1}, l0);
     auto prog = optimize_tf("softmax_test.pb", false);
 
     EXPECT(p == prog);

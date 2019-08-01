@@ -2038,7 +2038,7 @@ TEST_CASE(op_capture)
     capture_p.compile(migraphx::cpu::target{});
 
     auto cap_res = capture_p.eval({});
-    auto res = p.eval({});
+    auto res     = p.eval({});
 
     std::vector<float> vec, cap_vec;
     cap_res.visit([&](auto output) { cap_vec.assign(output.begin(), output.end()); });

@@ -230,7 +230,8 @@ struct hip_mul_add_relu
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        device::mul_add_relu(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
+        device::mul_add_relu(
+            ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
         return args.at(3);
     }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
@@ -354,8 +355,8 @@ struct find_mul_add_relu
     void apply(program& p, match::matcher_result r) const
     {
         auto mul_add_ins = r.instructions["mul_add"];
-        auto ins     = r.result;
-        auto args    = mul_add_ins->inputs();
+        auto ins         = r.result;
+        auto args        = mul_add_ins->inputs();
 
         // Use the allocation from the relu operator
         args.back() = ins->inputs().back();

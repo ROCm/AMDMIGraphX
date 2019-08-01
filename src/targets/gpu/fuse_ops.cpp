@@ -220,6 +220,25 @@ struct hip_mul_add
     }
 };
 
+struct hip_mul_add_relu
+{
+    std::string name() const { return "hip::mul_add_relu"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(4);
+        return inputs.front();
+    }
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
+        device::mul_add_relu(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
+        return args.at(3);
+    }
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+};
+
 void move_broadcasted_back(std::vector<instruction_ref>& args)
 {
     // Ensure the last arguments is the broadcasted one
@@ -322,6 +341,25 @@ struct find_mul_add
 
         args.back() = ins->inputs().back();
         p.replace_instruction(ins, hip_mul_add{}, args);
+    }
+};
+
+struct find_mul_add_relu
+{
+    auto matcher() const
+    {
+        return match::name("gpu::relu")(match::arg(0)(match::name("hip::mul_add").bind("mul_add")));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto mul_add_ins = r.instructions["mul_add"];
+        auto ins     = r.result;
+        auto args    = mul_add_ins->inputs();
+
+        // Use the allocation from the relu operator
+        args.back() = ins->inputs().back();
+        p.replace_instruction(ins, hip_mul_add_relu{}, args);
     }
 };
 
@@ -480,8 +518,9 @@ void fuse_ops::apply(program& p) const
     match::find_matches(p, 
         find_conv_bias_relu{ctx},
         find_conv_bias{ctx},
-        find_add_relu{},
-        find_mul_add{}
+        find_mul_add{},
+        find_mul_add_relu{},
+        find_add_relu{}
     );
     // clang-format on
 }

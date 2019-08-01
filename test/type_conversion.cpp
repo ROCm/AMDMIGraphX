@@ -230,15 +230,15 @@ TEST_CASE(op_capture)
         migraphx::shape s1{migraphx::shape::float_type, {3, 3}};
         migraphx::shape s2{migraphx::shape::float_type, {3, 6}};
 
-        auto p1 = p.add_parameter("x", s1);
-        auto p2 = p.add_parameter("y", s1);        
-        auto pb = p.add_parameter("b", s2);
-        auto pc = p.add_parameter("c", s2);
-        auto pa = p.add_instruction(migraphx::op::add{}, p1, p2);
+        auto p1  = p.add_parameter("x", s1);
+        auto p2  = p.add_parameter("y", s1);
+        auto pb  = p.add_parameter("b", s2);
+        auto pc  = p.add_parameter("c", s2);
+        auto pa  = p.add_instruction(migraphx::op::add{}, p1, p2);
         auto opb = p.insert_instruction(std::next(pb), migraphx::op::capture{1, test_func}, pb);
         auto opc = p.insert_instruction(std::next(pc), migraphx::op::capture{2, test_func}, pc);
         auto opa = p.add_instruction(migraphx::op::capture{0, test_func}, pa);
-        auto ps = p.add_instruction(migraphx::op::dot{}, opa, opb, opc);
+        auto ps  = p.add_instruction(migraphx::op::dot{}, opa, opb, opc);
         auto ops = p.add_instruction(migraphx::op::capture{3, test_func}, ps);
         p.add_instruction(migraphx::op::dot{}, opa, ops);
 
@@ -246,7 +246,7 @@ TEST_CASE(op_capture)
     };
 
     {
-        auto p = create_program_float();
+        auto p            = create_program_float();
         auto op_capture_p = create_program_op();
         migraphx::capture_arguments(p);
         EXPECT(p == op_capture_p);

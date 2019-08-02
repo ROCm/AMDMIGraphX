@@ -23,9 +23,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 instruction_ref insert_quant_ins(program& prog,
                                  instruction_ref& ins,
                                  shape::type_t type,
-                                 std::unordered_map<instruction_ref, instruction_ref>& map_ins,
-                                 float scale = 1.0f,
-                                 float shift = 0.0f)
+                                 std::unordered_map<instruction_ref, instruction_ref>& map_ins)
 {
     if(map_ins.count(ins) > 0)
     {
@@ -37,16 +35,11 @@ instruction_ref insert_quant_ins(program& prog,
         return ins;
     }
 
-    if(scale < 0.0f)
-    {
-        MIGRAPHX_THROW("INSERT_QUANT_INS: scale less than 0");
-    }
-
     assert(ins->get_shape().type() == shape::float_type ||
            ins->get_shape().type() == shape::double_type ||
            ins->get_shape().type() == shape::int32_type);
     instruction_ref quant_ins{};
-    quant_ins    = prog.insert_instruction(std::next(ins), op::convert{type, scale, shift}, ins);
+    quant_ins    = prog.insert_instruction(std::next(ins), op::convert{type}, ins);
     map_ins[ins] = quant_ins;
 
     return quant_ins;

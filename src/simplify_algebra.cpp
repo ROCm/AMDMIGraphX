@@ -138,7 +138,7 @@ struct find_double_add_lit_broadcast
 void simplify_algebra::apply(program& p) const
 {
     // Run simplifications multiple times
-    for(int i = 0; i < 2; i++)
+    for(int i = 0; i < 4; i++)
         match::find_matches(p,
                             match::skip_matches(match::is_unused(), match::is_constant()),
                             find_double_add_lit_broadcast{},

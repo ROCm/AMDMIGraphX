@@ -12,10 +12,10 @@ namespace gpu {
 namespace device {
 
 void mul_add(hipStream_t stream,
-              const argument& result,
-              const argument& arg1,
-              const argument& arg2,
-              const argument& arg3);
+             const argument& result,
+             const argument& arg1,
+             const argument& arg2,
+             const argument& arg3);
 
 } // namespace device
 } // namespace gpu

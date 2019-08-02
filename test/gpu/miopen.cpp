@@ -274,7 +274,7 @@ struct test_sign : verify_program<test_sign>
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::double_type, {2, 3, 4, 6}};
-        auto param     = p.add_parameter("x", s);
+        auto param = p.add_parameter("x", s);
         p.add_instruction(migraphx::op::sign{}, param);
         return p;
     }

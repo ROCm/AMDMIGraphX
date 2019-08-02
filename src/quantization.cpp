@@ -120,7 +120,7 @@ void quantize(program& prog) { quantize(prog, {"all"}); }
 // capture operator to compute the scale and shift
 void capture_arguments(program& prog,
                        const std::vector<std::string>& ins_names,
-                       std::function<void(std::size_t, std::vector<argument>)> func)
+                       const std::function<void(std::size_t, std::vector<argument>)>& func)
 {
 
     size_t num_quant_params = 0;

@@ -1912,4 +1912,24 @@ TEST_CASE(sqdiff_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(round_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {9}};
+    auto l = p.add_literal(
+        migraphx::literal{s, {1.1, 1.5, 1.6, -1.1, -1.5, -1.6, 0.0, 2.0, -2.0}});
+    p.add_instruction(migraphx::op::round{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    for (auto v : results_vector) {
+        std::cout << v << "\t";
+    }
+    std::cout << std::endl;
+    std::vector<float> gold = {1.0, 2.0, 2.0, -1.0, -2.0, -2.0, 0.0, 2.0, -2.0};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

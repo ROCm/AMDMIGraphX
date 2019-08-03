@@ -1022,5 +1022,4 @@ TEST_CASE(round_test)
     EXPECT(p == prog);
 }
 
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

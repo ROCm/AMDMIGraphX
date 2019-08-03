@@ -1012,4 +1012,15 @@ TEST_CASE(expand_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(round_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::double_type, {10, 5}});
+    p.add_instruction(migraphx::op::round{}, input);
+
+    auto prog = migraphx::parse_onnx("round_test.onnx");
+    EXPECT(p == prog);
+}
+
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -2041,7 +2041,7 @@ TEST_CASE(op_capture)
     auto cap_res = capture_p.eval({});
     auto res     = p.eval({});
 
-    std::vector<float> vec; 
+    std::vector<float> vec;
     std::vector<float> cap_vec;
     cap_res.visit([&](auto output) { cap_vec.assign(output.begin(), output.end()); });
     res.visit([&](auto output) { vec.assign(output.begin(), output.end()); });

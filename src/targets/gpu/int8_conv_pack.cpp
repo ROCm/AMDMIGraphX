@@ -12,7 +12,7 @@ shape miopen_int8_conv_pack::compute_shape(const std::vector<shape>& inputs) con
 }
 
 argument miopen_int8_conv_pack::compute(context& ctx,
-                                        const shape& output_shape,
+                                        const shape&,
                                         const std::vector<argument>& args) const
 {
     auto arg_desc      = make_tensor(args[0].get_shape());

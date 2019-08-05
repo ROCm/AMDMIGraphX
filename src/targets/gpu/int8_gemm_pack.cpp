@@ -12,9 +12,8 @@ shape hip_int8_gemm_pack_a::compute_shape(const std::vector<shape>& inputs) cons
     return inputs.at(0);
 }
 
-argument hip_int8_gemm_pack_a::compute(context& ctx,
-                                 const shape&,
-                                 const std::vector<argument>& args) const
+argument
+hip_int8_gemm_pack_a::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
     device::int8_gemm_pack_a(ctx.get_stream().get(), args[1], args[0]);
     return args[1];
@@ -26,9 +25,8 @@ shape hip_int8_gemm_pack_b::compute_shape(const std::vector<shape>& inputs) cons
     return inputs.at(0);
 }
 
-argument hip_int8_gemm_pack_b::compute(context& ctx,
-                                 const shape&,
-                                 const std::vector<argument>& args) const
+argument
+hip_int8_gemm_pack_b::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
     device::int8_gemm_pack_b(ctx.get_stream().get(), args[1], args[0]);
     return args[1];

@@ -61,8 +61,8 @@ shape rocblas_quant_gemm::compute_shape(const std::vector<shape>& inputs) const
 }
 
 argument rocblas_quant_gemm::compute(context& ctx,
-                                    const shape& output_shape,
-                                    const std::vector<argument>& args) const
+                                     const shape& output_shape,
+                                     const std::vector<argument>& args) const
 {
     bool transa     = args[0].get_shape().transposed();
     bool transb     = args[1].get_shape().transposed();

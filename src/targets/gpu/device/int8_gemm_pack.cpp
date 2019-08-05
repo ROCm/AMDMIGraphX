@@ -1,9 +1,9 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/pack.hpp>
-#include <migraphx/gpu/device/tensor.hpp>
+#include <migraphx/gpu/device/int8_gemm_pack.hpp>
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/types.hpp>
+#include <migraphx/gpu/device/tensor.hpp>
 #include <migraphx/gpu/hip.hpp>
 
 namespace migraphx {
@@ -11,7 +11,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void pack_a(hipStream_t stream, const argument& result, const argument& arg)
+void int8_gemm_pack_a(hipStream_t stream, const argument& result, const argument& arg)
 {
     auto comp_shape    = arg.get_shape();
     auto out_lens      = comp_shape.lens();
@@ -38,7 +38,7 @@ void pack_a(hipStream_t stream, const argument& result, const argument& arg)
     });
 }
 
-void pack_b(hipStream_t stream, const argument& result, const argument& arg)
+void int8_gemm_pack_b(hipStream_t stream, const argument& result, const argument& arg)
 {
     auto trans_shape = arg.get_shape();
     auto out_lens    = trans_shape.lens();

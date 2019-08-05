@@ -1,8 +1,9 @@
-#ifndef MIGRAPHX_GUARD_RTGLIB_QUANT_GEMM_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QUANT_GEMM_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_INT8_CONV_PACK_HPP
+#define MIGRAPHX_GUARD_RTGLIB_INT8_CONV_PACK_HPP
 
-#include <migraphx/shape.hpp>
 #include <migraphx/op/quant_dot.hpp>
+#include <migraphx/config.hpp>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -10,17 +11,9 @@ namespace gpu {
 
 struct context;
 
-struct rocblas_quant_gemm
+struct miopen_int8_conv_pack
 {
-    op::quant_dot op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "gpu::quant_gemm"; }
+    std::string name() const { return "gpu::int8_conv_pack"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;

@@ -37,7 +37,7 @@ add_library(migraphx_device
     device/pad.cpp
     device/gather.cpp
     device/sub.cpp
-    device/pack.cpp
+    device/int8_gemm_pack.cpp
     device/div.cpp
     device/clip.cpp
     device/reduce_sum.cpp
@@ -87,6 +87,8 @@ add_library(migraphx_gpu
     clip.cpp
     reduce_sum.cpp
     reduce_mean.cpp
+    int8_gemm_pack.cpp
+    int8_conv_pack.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_clang_tidy_check(migraphx_gpu)

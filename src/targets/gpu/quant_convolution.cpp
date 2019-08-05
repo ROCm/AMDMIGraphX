@@ -16,26 +16,26 @@ argument miopen_quant_convolution::compute(context& ctx,
                                            const shape& output_shape,
                                            const std::vector<argument>& args) const
 {
-    auto x_desc      = make_tensor(args[0].get_shape(), true);
-    auto w_desc      = make_tensor(args[1].get_shape(), true);
-    auto y_desc      = make_tensor(output_shape);
+    auto x_desc = make_tensor(args[0].get_shape(), true);
+    auto w_desc = make_tensor(args[1].get_shape(), true);
+    auto y_desc = make_tensor(output_shape);
 
     float alpha = 1;
     float beta  = 0;
 
     auto status = miopenConvolutionForward(ctx.get_stream().get_miopen(),
-                                      &alpha,
-                                      x_desc.get(),
-                                      args[0].implicit(),
-                                      w_desc.get(),
-                                      args[1].implicit(),
-                                      cd.get(),
-                                      algo,
-                                      &beta,
-                                      y_desc.get(),
-                                      args[3].implicit(),
-                                      args[2].implicit(),
-                                      args[2].get_shape().bytes());
+                                           &alpha,
+                                           x_desc.get(),
+                                           args[0].implicit(),
+                                           w_desc.get(),
+                                           args[1].implicit(),
+                                           cd.get(),
+                                           algo,
+                                           &beta,
+                                           y_desc.get(),
+                                           args[3].implicit(),
+                                           args[2].implicit(),
+                                           args[2].get_shape().bytes());
     if(status != miopenStatusSuccess)
     {
         MIGRAPHX_THROW("QUANT_CONVOLUTION: run convolution forward failed");
@@ -62,10 +62,10 @@ shape miopen_quant_convolution::compile(context& ctx,
                                              &workspace_size);
     workspace_shape = shape{shape::int8_type, {workspace_size}};
 
-    auto arg_vec4_x     = to_gpu(generate_argument(pack_int8_shape(inputs[0])));
-    auto arg_vec4_w     = to_gpu(generate_argument(pack_int8_shape(inputs[1])));
-    auto y         = allocate_gpu(output_shape);
-    auto workspace = allocate_gpu(workspace_shape);
+    auto arg_vec4_x = to_gpu(generate_argument(pack_int8_shape(inputs[0])));
+    auto arg_vec4_w = to_gpu(generate_argument(pack_int8_shape(inputs[1])));
+    auto y          = allocate_gpu(output_shape);
+    auto workspace  = allocate_gpu(workspace_shape);
 
     int algo_count = 1;
     miopenConvAlgoPerf_t perf;

@@ -133,7 +133,7 @@ struct miopen_apply
         add_lrn_op();
         add_convolution_op();
         add_quant_convolution_op();
-        //add_quant_dot_op();
+        // add_quant_dot_op();
         add_pooling_op();
         add_batch_norm_inference_op();
     }
@@ -187,12 +187,14 @@ struct miopen_apply
             auto conv = miopen_quant_convolution{op, make_conv(op)};
             auto ws   = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
 
-            auto args = ins->inputs();
+            auto args       = ins->inputs();
             auto arg_x_vec4 = insert_allocation(ins, conv.pack_int8_shape(args[0]->get_shape()));
-            auto arg_x_packed = prog->insert_instruction(ins, miopen_int8_conv_pack{}, {args[0], arg_x_vec4});
+            auto arg_x_packed =
+                prog->insert_instruction(ins, miopen_int8_conv_pack{}, {args[0], arg_x_vec4});
 
             auto arg_y_vec4 = insert_allocation(ins, conv.pack_int8_shape(args[1]->get_shape()));
-            auto arg_y_packed = prog->insert_instruction(ins, miopen_int8_conv_pack{}, {args[1], arg_y_vec4});
+            auto arg_y_packed =
+                prog->insert_instruction(ins, miopen_int8_conv_pack{}, {args[1], arg_y_vec4});
 
             auto workspace = insert_allocation(ins, ws, "workspace");
             auto output    = insert_allocation(ins, ins->get_shape());

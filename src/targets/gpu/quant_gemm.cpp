@@ -56,8 +56,25 @@ shape rocblas_quant_gemm::compute_shape(const std::vector<shape>& inputs) const
     std::vector<shape> in_shapes(inputs);
     in_shapes.pop_back();
     check_shapes{in_shapes}.not_broadcasted();
+    batch_not_transposed(inputs[0].strides());
+    batch_not_transposed(inputs[1].strides());
 
     return op.compute_shape(in_shapes);
+}
+
+void rocblas_quant_gemm::batch_not_transposed(const std::vector<std::size_t>& strides) const
+{
+    if(strides.size() <= 2)
+        return;
+    auto dim_0       = strides.size() - 2;
+    auto matrix_size = std::max(strides[dim_0], strides[dim_0 + 1]);
+    std::vector<std::size_t> batch(strides.begin(), strides.begin() + dim_0);
+    if(std::adjacent_find(batch.begin(), batch.end(), [&](auto i, auto j) {
+           return (i < j or i < matrix_size or j < matrix_size);
+       }) != batch.end())
+    {
+        MIGRAPHX_THROW("DOT: batch size {" + to_string_range(strides) + "} is transposed!");
+    }
 }
 
 argument rocblas_quant_gemm::compute(context& ctx,

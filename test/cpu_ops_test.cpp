@@ -2019,7 +2019,8 @@ TEST_CASE(op_capture)
     migraphx::program p;
     migraphx::shape s1{migraphx::shape::float_type, {3, 3}};
     migraphx::shape s2{migraphx::shape::float_type, {3, 6}};
-    std::vector<float> d1(s1.elements()), d2(s2.elements());
+    std::vector<float> d1(s1.elements());
+    std::vector<float> d2(s2.elements());
     std::iota(d1.begin(), d1.end(), 0.0f);
     std::iota(d2.begin(), d2.end(), 0.0f);
 
@@ -2040,7 +2041,8 @@ TEST_CASE(op_capture)
     auto cap_res = capture_p.eval({});
     auto res     = p.eval({});
 
-    std::vector<float> vec, cap_vec;
+    std::vector<float> vec;
+    std::vector<float> cap_vec;
     cap_res.visit([&](auto output) { cap_vec.assign(output.begin(), output.end()); });
     res.visit([&](auto output) { vec.assign(output.begin(), output.end()); });
 

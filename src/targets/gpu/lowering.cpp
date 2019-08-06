@@ -59,6 +59,7 @@
 #include <migraphx/gpu/reduce_mean.hpp>
 #include <migraphx/gpu/pow.hpp>
 #include <migraphx/gpu/sqdiff.hpp>
+#include <migraphx/gpu/int8_conv_pack.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -115,6 +116,7 @@ struct miopen_apply
         add_generic_op<hip_sqdiff>("sqdiff");
 
         add_extend_op<miopen_gemm, op::dot>("dot");
+        add_extend_op<rocblas_quant_gemm, op::quant_dot>("quant_dot");
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
         add_extend_op<hip_softmax, op::softmax>("softmax");
@@ -131,7 +133,7 @@ struct miopen_apply
         add_lrn_op();
         add_convolution_op();
         add_quant_convolution_op();
-        add_quant_dot_op();
+        // add_quant_dot_op();
         add_pooling_op();
         add_batch_norm_inference_op();
     }
@@ -182,32 +184,14 @@ struct miopen_apply
     {
         apply_map.emplace("quant_convolution", [=](instruction_ref ins) {
             auto&& op = any_cast<op::quant_convolution>(ins->get_operator());
-
             auto conv = miopen_quant_convolution{op, make_conv(op)};
             auto ws   = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
 
+            auto args      = ins->inputs();
             auto workspace = insert_allocation(ins, ws, "workspace");
             auto output    = insert_allocation(ins, ins->get_shape());
 
-            return prog->replace_instruction(
-                ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
-        });
-    }
-
-    void add_quant_dot_op()
-    {
-        apply_map.emplace("quant_dot", [=](instruction_ref ins) {
-            auto&& op      = any_cast<op::quant_dot>(ins->get_operator());
-            auto inputs    = ins->inputs();
-            auto in_shapes = to_shapes(inputs);
-            auto pack_a    = insert_allocation(ins, in_shapes[0], "pack_a");
-            auto pack_b    = insert_allocation(ins, in_shapes[1], "pack_b");
-            auto output    = insert_allocation(ins, ins->get_shape());
-            inputs.push_back(pack_a);
-            inputs.push_back(pack_b);
-            inputs.push_back(output);
-
-            return prog->replace_instruction(ins, miopen_quant_gemm{op}, inputs);
+            return prog->replace_instruction(ins, conv, args[0], args[1], workspace, output);
         });
     }
 

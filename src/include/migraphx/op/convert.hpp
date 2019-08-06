@@ -20,14 +20,11 @@ namespace op {
 struct convert : unary<convert>
 {
     shape::type_t target_type = shape::half_type;
-    float scale               = 1.0f;
-    float shift               = 0.0f;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.target_type, "target_type"), f(self.scale, "scale"), f(self.shift, "shift"));
+        return pack(f(self.target_type, "target_type"));
     }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -38,22 +35,10 @@ struct convert : unary<convert>
 
     auto apply() const
     {
-        return [&](auto x) {
-            float res = scale * x + shift;
-            if(target_type == shape::int8_type)
-            {
-                int factor = (res >= 0.0f) ? 1 : -1;
-                res        = res + factor * 0.5f;
-                res        = res > 127.0f ? 127.0f : res;
-                res        = res < -128.0f ? -128.0f : res;
-            }
-
-            return res;
-        };
+        return [](auto x) { return x; };
     }
 
     convert(shape::type_t t) : target_type{t} {}
-    convert(shape::type_t t, float sle, float sft) : target_type{t}, scale{sle}, shift{sft} {}
     convert() {}
 };
 

@@ -204,7 +204,7 @@ TEST_CASE(literal_add)
 
 TEST_CASE(op_capture)
 {
-    auto test_func = [&](std::size_t ins_index, std::vector<migraphx::argument> args) {
+    auto test_func = [&](std::size_t ins_index, const std::vector<migraphx::argument>& args) {
         (void)ins_index;
         (void)args;
     };

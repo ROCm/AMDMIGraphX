@@ -105,7 +105,7 @@ void miopen_quant_convolution::finalize(context& ctx,
         MIGRAPHX_THROW("Workspace has changed during finalization.");
 }
 
-shape miopen_quant_convolution::pack_int8_shape(const shape& s)
+shape miopen_quant_convolution::pack_int8_shape(const shape& s) const
 {
     if(s.type() != shape::int8_type)
     {

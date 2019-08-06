@@ -36,7 +36,8 @@ struct miopen_quant_convolution
         return shapes.size() - 1;
     }
 
-    shape pack_int8_shape(const shape& s);
+private:
+    shape pack_int8_shape(const shape& s) const;
 };
 
 } // namespace gpu

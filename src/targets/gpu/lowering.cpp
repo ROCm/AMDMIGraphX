@@ -32,6 +32,7 @@
 #include <migraphx/gpu/erf.hpp>
 #include <migraphx/gpu/log.hpp>
 #include <migraphx/gpu/sin.hpp>
+#include <migraphx/gpu/sign.hpp>
 #include <migraphx/gpu/cos.hpp>
 #include <migraphx/gpu/tan.hpp>
 #include <migraphx/gpu/sinh.hpp>
@@ -116,6 +117,7 @@ struct miopen_apply
         add_generic_op<hip_round>("round");
         add_generic_op<hip_pow>("pow");
         add_generic_op<hip_sqdiff>("sqdiff");
+        add_generic_op<hip_sign>("sign");
 
         add_extend_op<miopen_gemm, op::dot>("dot");
         add_extend_op<rocblas_quant_gemm, op::quant_dot>("quant_dot");

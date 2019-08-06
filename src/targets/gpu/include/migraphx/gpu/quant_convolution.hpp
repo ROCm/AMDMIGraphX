@@ -17,8 +17,6 @@ struct miopen_quant_convolution
     shared<convolution_descriptor> cd;
     miopenConvFwdAlgorithm_t algo{};
     miopenHandle_t handle = nullptr;
-    argument arg_vec4_x{};
-    argument arg_vec4_w{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -39,7 +37,7 @@ struct miopen_quant_convolution
     }
 
     private:
-    shape pack_int8_shape(shape& s);
+    shape pack_int8_shape(const shape& s) const;
 };
 
 } // namespace gpu

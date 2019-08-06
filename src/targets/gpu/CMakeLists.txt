@@ -84,6 +84,7 @@ add_library(migraphx_gpu
     lrn.cpp
     schedule_model.cpp
     adjust_allocation.cpp
+    pack_int8_args.cpp
     clip.cpp
     reduce_sum.cpp
     reduce_mean.cpp

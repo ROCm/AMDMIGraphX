@@ -187,12 +187,11 @@ struct miopen_apply
             auto conv = miopen_quant_convolution{op, make_conv(op)};
             auto ws   = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
 
-            auto args       = ins->inputs();
+            auto args      = ins->inputs();
             auto workspace = insert_allocation(ins, ws, "workspace");
             auto output    = insert_allocation(ins, ins->get_shape());
 
-            return prog->replace_instruction(
-                ins, conv, args[0], args[1], workspace, output);
+            return prog->replace_instruction(ins, conv, args[0], args[1], workspace, output);
         });
     }
 

@@ -54,7 +54,7 @@ rb_type<T>* to_rocblas_type(T* x)
 shape rocblas_quant_gemm::compute_shape(const std::vector<shape>& inputs) const
 {
     std::vector<shape> in_shapes(inputs);
-    in_shapes.erase(in_shapes.begin() + in_shapes.size() - 3, in_shapes.end());
+    in_shapes.pop_back();
     check_shapes{in_shapes}.not_broadcasted();
 
     return op.compute_shape(in_shapes);

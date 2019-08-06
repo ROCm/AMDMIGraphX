@@ -14,6 +14,7 @@ struct pack_int8_args
 {
     std::string name() const { return "gpu::pack_int8_args"; }
     void apply(program& p) const;
+    shape pack_int8_shape(const shape& s) const;
 };
 
 } // namespace gpu

@@ -39,12 +39,16 @@ void pack_int8_args::apply(program& p) const
         else if(ins->name() == "gpu::quant_convolution")
         {
             auto inputs = ins->inputs();
-            auto packed_x = p.insert_instruction(ins, hip_allocate{pack_int8_shape(inputs[0]->get_shape())});
-            auto output_x = p.insert_instruction(ins, miopen_int8_conv_pack{}, {inputs[0], packed_x});
+            auto packed_x =
+                p.insert_instruction(ins, hip_allocate{pack_int8_shape(inputs[0]->get_shape())});
+            auto output_x =
+                p.insert_instruction(ins, miopen_int8_conv_pack{}, {inputs[0], packed_x});
             instruction::replace_argument(ins, inputs[0], output_x);
 
-            auto packed_w = p.insert_instruction(ins, hip_allocate{pack_int8_shape(inputs[1]->get_shape())});
-            auto output_w = p.insert_instruction(ins, miopen_int8_conv_pack{}, {inputs[1], packed_w});
+            auto packed_w =
+                p.insert_instruction(ins, hip_allocate{pack_int8_shape(inputs[1]->get_shape())});
+            auto output_w =
+                p.insert_instruction(ins, miopen_int8_conv_pack{}, {inputs[1], packed_w});
             instruction::replace_argument(ins, inputs[1], output_w);
         }
     }
@@ -64,7 +68,6 @@ shape pack_int8_args::pack_int8_shape(const shape& s) const
 
     return {s.type(), lens, strides};
 }
-
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

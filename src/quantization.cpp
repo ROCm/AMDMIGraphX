@@ -257,9 +257,8 @@ void quantize_int8(program& prog,
                 auto q_dot = prog.insert_instruction(ins, op::quant_dot{1, 0}, converted_inputs);
                 if(inputs.size() == 3 and dot_op.beta != 0.0f)
                 {
-                    auto alpha_ab = prog.insert_instruction(
-                        ins, op::convert{orig_type}, q_dot);
-                    auto c_shape = q_dot->get_shape();
+                    auto alpha_ab = prog.insert_instruction(ins, op::convert{orig_type}, q_dot);
+                    auto c_shape  = q_dot->get_shape();
                     std::vector<float> vec_beta(c_shape.elements(), dot_op.beta);
                     auto l_beta =
                         prog.add_literal(literal({shape::float_type, c_shape.lens()}, vec_beta));

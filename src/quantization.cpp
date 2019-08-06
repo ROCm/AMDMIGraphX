@@ -258,7 +258,7 @@ void quantize_int8(program& prog,
                 if(inputs.size() == 3 and dot_op.beta != 0.0f)
                 {
                     auto alpha_ab = prog.insert_instruction(
-                        ins, op::convert{orig_type, new_alpha, 0.0f}, q_dot);
+                        ins, op::convert{orig_type}, q_dot);
                     auto c_shape = q_dot->get_shape();
                     std::vector<float> vec_beta(c_shape.elements(), dot_op.beta);
                     auto l_beta =
@@ -279,7 +279,7 @@ void quantize_int8(program& prog,
                 }
                 else
                 {
-                    prog.replace_instruction(ins, op::convert{orig_type, new_alpha, 0.0f}, q_dot);
+                    prog.replace_instruction(ins, op::convert{orig_type}, q_dot);
                 }
             }
         }
@@ -299,7 +299,7 @@ void quantize_int8(program& prog,
                 ins,
                 op::quant_convolution{padding, stride, dilation, padding_mode, group},
                 converted_inputs);
-            prog.replace_instruction(ins, op::convert{orig_type, adjust_factor, 0.0f}, quant_conv);
+            prog.replace_instruction(ins, op::convert{orig_type}, quant_conv);
         }
         else
         {

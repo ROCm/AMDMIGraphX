@@ -24,7 +24,7 @@ struct rocblas_quant_gemm
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    void batch_not_transposed(const std::vector<std::size_t>& strides) const;    
+    void batch_not_transposed(const std::vector<std::size_t>& strides) const;
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;

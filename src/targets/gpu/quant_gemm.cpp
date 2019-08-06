@@ -1,5 +1,4 @@
 #include <migraphx/gpu/quant_gemm.hpp>
-#include <migraphx/gpu/device/pack.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/generate.hpp>
 #include <fstream>
@@ -54,43 +53,46 @@ rb_type<T>* to_rocblas_type(T* x)
     return reinterpret_cast<rb_type<T>*>(x);
 }
 
-shape miopen_quant_gemm::compute_shape(const std::vector<shape>& inputs) const
+shape rocblas_quant_gemm::compute_shape(const std::vector<shape>& inputs) const
 {
     std::vector<shape> in_shapes(inputs);
-    in_shapes.erase(in_shapes.begin() + in_shapes.size() - 3, in_shapes.end());
+    in_shapes.pop_back();
     check_shapes{in_shapes}.not_broadcasted();
+    batch_not_transposed(inputs[0].strides());
+    batch_not_transposed(inputs[1].strides());
 
     return op.compute_shape(in_shapes);
 }
 
-argument miopen_quant_gemm::compute(context& ctx,
-                                    const shape& output_shape,
-                                    const std::vector<argument>& args) const
+void rocblas_quant_gemm::batch_not_transposed(const std::vector<std::size_t>& strides) const
+{
+    if(strides.size() <= 2)
+        return;
+    auto dim_0       = strides.size() - 2;
+    auto matrix_size = std::max(strides[dim_0], strides[dim_0 + 1]);
+    std::vector<std::size_t> batch(strides.begin(), strides.begin() + dim_0);
+    if(std::adjacent_find(batch.begin(), batch.end(), [&](auto i, auto j) {
+           return (i < j or i < matrix_size or j < matrix_size);
+       }) != batch.end())
+    {
+        MIGRAPHX_THROW("QUANT_DOT: batch size {" + to_string_range(strides) + "} is transposed!");
+    }
+}
+
+argument rocblas_quant_gemm::compute(context& ctx,
+                                     const shape& output_shape,
+                                     const std::vector<argument>& args) const
 {
     bool transa     = args[0].get_shape().transposed();
     bool transb     = args[1].get_shape().transposed();
     auto n_dim      = output_shape.lens().size();
     auto dim_1      = n_dim - 1;
     auto dim_0      = n_dim - 2;
-    auto arg_num    = args.size();
     rocblas_int lda = args[0].get_shape().strides()[transa ? dim_1 : dim_0];
     rocblas_int ldb = args[1].get_shape().strides()[transb ? dim_1 : dim_0];
-    rocblas_int ldc = args[arg_num - 1].get_shape().strides()[dim_0];
+    rocblas_int ldc = args[2].get_shape().strides()[dim_0];
 
-    if(!transb)
-    {
-        device::pack_a(ctx.get_stream().get(), args[arg_num - 2], args[1]);
-    }
-
-    // need to pack A in this scenario, use the algorithm to pack B in the
-    // comment of the API
-    if(transa)
-    {
-        device::pack_b(ctx.get_stream().get(), args[arg_num - 3], args[0]);
-    }
-    device::sync_stream(ctx.get_stream().get());
-
-    bool is_3inputs = (arg_num == 6);
+    bool is_3inputs = (args.size() == 4);
     int32_t beta    = 0;
     if(is_3inputs)
     {
@@ -124,18 +126,17 @@ argument miopen_quant_gemm::compute(context& ctx,
                                     m,
                                     k,
                                     &alpha_r,
-                                    (!transb) ? to_pointer(args[arg_num - 2])
-                                              : to_pointer(args.at(1)),
+                                    to_pointer(args.at(1)),
                                     rocblas_datatype_i8_r,
                                     ldb,
-                                    transa ? to_pointer(args[arg_num - 3]) : to_pointer(args.at(0)),
+                                    to_pointer(args.at(0)),
                                     rocblas_datatype_i8_r,
                                     lda,
                                     &beta_r,
                                     to_pointer(args[2]),
                                     rocblas_datatype_i32_r,
                                     ldc,
-                                    to_pointer(args[arg_num - 1]),
+                                    is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
                                     rocblas_datatype_i32_r,
                                     ldc,
                                     rocblas_datatype_i32_r,
@@ -155,11 +156,11 @@ argument miopen_quant_gemm::compute(context& ctx,
                 m,
                 k,
                 &alpha_r,
-                (!transb) ? to_pointer(args[arg_num - 2]) : to_pointer(args.at(1)),
+                to_pointer(args.at(1)),
                 rocblas_datatype_i8_r,
                 ldb,
                 k * n,
-                transa ? to_pointer(args[arg_num - 3]) : to_pointer(args.at(0)),
+                to_pointer(args.at(0)),
                 rocblas_datatype_i8_r,
                 lda,
                 m * k,
@@ -168,7 +169,7 @@ argument miopen_quant_gemm::compute(context& ctx,
                 rocblas_datatype_i32_r,
                 ldc,
                 m * n,
-                to_pointer(args[arg_num - 1]),
+                is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
                 rocblas_datatype_i32_r,
                 ldc,
                 m * n,
@@ -182,7 +183,7 @@ argument miopen_quant_gemm::compute(context& ctx,
         }
     });
 
-    return args[arg_num - 1];
+    return is_3inputs ? args[3] : args[2];
 }
 
 } // namespace gpu

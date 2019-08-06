@@ -73,7 +73,7 @@ void rocblas_quant_gemm::batch_not_transposed(const std::vector<std::size_t>& st
            return (i < j or i < matrix_size or j < matrix_size);
        }) != batch.end())
     {
-        MIGRAPHX_THROW("DOT: batch size {" + to_string_range(strides) + "} is transposed!");
+        MIGRAPHX_THROW("QUANT_DOT: batch size {" + to_string_range(strides) + "} is transposed!");
     }
 }
 

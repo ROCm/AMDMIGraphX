@@ -498,7 +498,7 @@ struct onnx_parser
     {
         op::slice op;
         std::vector<size_t> dims = args[0]->get_shape().lens();
-        size_t num_dims = dims.size();
+        size_t num_dims          = dims.size();
         if(contains(attributes, "axes"))
         {
             literal s = parse_value(attributes.at("axes"));
@@ -509,12 +509,12 @@ struct onnx_parser
             op.axes = std::vector<int64_t>(num_dims);
             std::iota(op.axes.begin(), op.axes.end(), 0);
         }
-        
+
         if(contains(attributes, "ends"))
         {
             literal s = parse_value(attributes.at("ends"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.ends)); });
-            for (size_t i = 0; i < num_dims; i++)
+            for(size_t i = 0; i < num_dims; i++)
             {
                 if(static_cast<size_t>(op.ends[i]) > dims[i])
                 {

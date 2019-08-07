@@ -15,8 +15,7 @@ argument pad(hipStream_t stream,
              argument result,
              argument arg1,
              float value,
-             std::vector<std::int64_t> pads
-             );
+             std::vector<std::int64_t> pads);
 
 } // namespace device
 } // namespace gpu

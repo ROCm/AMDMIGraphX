@@ -1,11 +1,13 @@
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/gpu/miopen.hpp>
+#include <migraphx/gpu/clip.hpp>
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/device/add_relu.hpp>
 #include <migraphx/gpu/device/add.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/array.hpp>
+#include <migraphx/op/clip.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -134,8 +136,6 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
     auto conv = any_cast<miopen_convolution>(ins->get_operator());
     if(conv.op.group > 1)
         return false;
-    if(conv.op.padding_mode != op::padding_mode_t::default_)
-        return false;
     if(wei.lens()[1] > 512 and conv.algo != miopenConvolutionFwdAlgoWinograd)
         return false;
     auto op = conv.op;
@@ -155,6 +155,58 @@ struct hip_triadd
     {
         device::add(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
         return args.at(3);
+    }
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+};
+
+struct hip_triadd_clip
+{
+    op::clip op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return op::clip::reflect(self.op, f);
+    }
+    std::string name() const { return "hip::triadd_clip"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(4);
+        return inputs.front();
+    }
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
+        device::add_clip(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2), op.max_val, op.min_val);
+        return args.at(3);
+    }
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+};
+
+struct hip_add_clip
+{
+    op::clip op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return op::clip::reflect(self.op, f);
+    }
+    std::string name() const { return "hip::add_clip"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(3);
+        return inputs.front();
+    }
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
+        device::add_clip(ctx.get_stream().get(), args.at(2), args.at(0), args.at(1), op.max_val, op.min_val);
+        return args.at(2);
     }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
@@ -217,6 +269,35 @@ void move_standard_front(std::vector<instruction_ref>& args)
     if(it != args.end())
         std::swap(*it, args.front());
 }
+
+struct find_add_clip
+{
+    auto matcher() const
+    {
+        return match::name("gpu::clip")(
+            match::arg(0)(match::any_of(match::name("gpu::add"),
+                                        match::name("hip::triadd"),
+                                        match::any_of[match::inputs()](match::standard_shape()))
+                              .bind("add")));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto add_ins = r.instructions["add"];
+        auto ins     = r.result;
+        auto&& op   = any_cast<gpu::hip_clip>(ins->get_operator()).op;
+        auto args    = add_ins->inputs();
+        move_standard_front(args);
+        move_broadcasted_back(args);
+
+        // Use the allocation from the relu operator
+        args.back() = ins->inputs().back();
+        if(add_ins->name() == "gpu::add")
+            p.replace_instruction(ins, hip_add_clip{op}, args);
+        else if(add_ins->name() == "hip::triadd")
+            p.replace_instruction(ins, hip_triadd_clip{op}, args);
+    }
+};
 
 struct find_add_relu
 {
@@ -430,6 +511,7 @@ void fuse_ops::apply(program& p) const
     match::find_matches(p, 
         find_conv_bias_relu{ctx},
         find_conv_bias{ctx},
+        find_add_clip{},
         find_add_relu{}
     );
     // clang-format on

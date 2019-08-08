@@ -103,7 +103,8 @@ static std::unordered_map<std::string, std::size_t> create_weight_map()
         {"gpu::pooling", 2},
         {"gpu::gemm", 2},
         {"gpu::concat", 1},
-        {"hip::add_relu", 2},
+        {"hip::add_clip", 2},
+        {"hip::add_relu", 2}
     };
 }
 

@@ -13,8 +13,9 @@ void add_clip(hipStream_t stream,
               const float max,
               const float min)
 {
-    nary(stream, result, arg1, arg2)(
-        [max, min](auto x, auto y) { return std::min<decltype(x + y)>(std::max<decltype(x)>(min, x + y), max); });
+    nary(stream, result, arg1, arg2)([max, min](auto x, auto y) {
+        return std::min<decltype(x + y)>(std::max<decltype(x)>(min, x + y), max);
+    });
 }
 
 void add_clip(hipStream_t stream,
@@ -25,8 +26,9 @@ void add_clip(hipStream_t stream,
               const float max,
               const float min)
 {
-    nary(stream, result, arg1, arg2, arg3)(
-        [max, min](auto x, auto y, auto z) { return std::min<decltype(x + y + z)>(std::max<decltype(x)>(min, x + y + z), max); });
+    nary(stream, result, arg1, arg2, arg3)([max, min](auto x, auto y, auto z) {
+        return std::min<decltype(x + y + z)>(std::max<decltype(x)>(min, x + y + z), max);
+    });
 }
 
 void add_relu(hipStream_t stream,

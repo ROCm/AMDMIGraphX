@@ -179,7 +179,13 @@ struct hip_triadd_clip
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        device::add_clip(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2), op.max_val, op.min_val);
+        device::add_clip(ctx.get_stream().get(),
+                         args.at(3),
+                         args.at(0),
+                         args.at(1),
+                         args.at(2),
+                         op.max_val,
+                         op.min_val);
         return args.at(3);
     }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
@@ -205,7 +211,8 @@ struct hip_add_clip
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        device::add_clip(ctx.get_stream().get(), args.at(2), args.at(0), args.at(1), op.max_val, op.min_val);
+        device::add_clip(
+            ctx.get_stream().get(), args.at(2), args.at(0), args.at(1), op.max_val, op.min_val);
         return args.at(2);
     }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
@@ -285,7 +292,7 @@ struct find_add_clip
     {
         auto add_ins = r.instructions["add"];
         auto ins     = r.result;
-        auto&& op   = any_cast<gpu::hip_clip>(ins->get_operator()).op;
+        auto&& op    = any_cast<gpu::hip_clip>(ins->get_operator()).op;
         auto args    = add_ins->inputs();
         move_standard_front(args);
         move_broadcasted_back(args);

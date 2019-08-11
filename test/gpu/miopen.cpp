@@ -268,6 +268,18 @@ struct test_sqrt : verify_program<test_sqrt>
     }
 };
 
+struct test_sign : verify_program<test_sign>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {2, 3, 4, 6}};
+        auto param = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::sign{}, param);
+        return p;
+    }
+};
+
 struct test_log : verify_program<test_log>
 {
     migraphx::program create_program() const

@@ -557,6 +557,21 @@ TEST_CASE(sqrt_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(sign_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    auto l = p.add_literal(
+        migraphx::literal{s, {1.02481645, 0.85643062, -0.03404123, -0.92791926, 0.0}});
+    p.add_instruction(migraphx::op::sign{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {1.0, 1.0, -1.0, -1.0, 0.0};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(log_test)
 {
     migraphx::program p;

@@ -2,6 +2,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/op/pooling.hpp>
+#include <migraphx/op/reshape.hpp>
 #include <migraphx/op/reduce_mean.hpp>
 #include <migraphx/program.hpp>
 
@@ -28,7 +29,11 @@ void rewrite_pooling::apply(program& prog) const
             continue;
         if(s.lens()[2] != op.lengths[0] and s.lens()[3] != op.lengths[1])
             continue;
-        prog.replace_instruction(ins, op::reduce_mean{{2, 3}}, ins->inputs().front());
+        std::int64_t n = s.lens()[0];
+        std::int64_t c = s.lens()[1];
+        auto reshape = prog.insert_instruction(ins, op::reshape{{n*c, -1}}, ins->inputs().front());
+        auto pooling = prog.insert_instruction(ins, op::reduce_mean{{1}}, reshape);
+        prog.replace_instruction(ins, op::reshape{{n, c, 1, 1}}, pooling);
     }
 }
 

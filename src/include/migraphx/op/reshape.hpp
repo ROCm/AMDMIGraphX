@@ -59,7 +59,7 @@ struct reshape
 
         shape s{inputs.front().type(), rdims};
         if(s.elements() != inputs.front().elements())
-            MIGRAPHX_THROW("Wrong number of elements for reshape");
+            MIGRAPHX_THROW("Wrong number of elements for reshape: reshape has " + std::to_string(s.elements()) + " elements whereas the input has " + std::to_string(inputs.front().elements()));
         return s;
     }
     argument compute(shape output_shape, std::vector<argument> args) const

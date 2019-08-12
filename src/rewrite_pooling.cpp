@@ -31,7 +31,8 @@ void rewrite_pooling::apply(program& prog) const
             continue;
         std::int64_t n = s.lens()[0];
         std::int64_t c = s.lens()[1];
-        auto reshape = prog.insert_instruction(ins, op::reshape{{n*c, -1}}, ins->inputs().front());
+        auto reshape =
+            prog.insert_instruction(ins, op::reshape{{n * c, -1}}, ins->inputs().front());
         auto pooling = prog.insert_instruction(ins, op::reduce_mean{{1}}, reshape);
         prog.replace_instruction(ins, op::reshape{{n, c, 1, 1}}, pooling);
     }

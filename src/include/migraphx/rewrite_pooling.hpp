@@ -16,7 +16,6 @@ struct rewrite_pooling
 {
     std::string name() const { return "rewrite_pooling"; }
     void apply(program& prog) const;
-
 };
 
 } // namespace MIGRAPHX_INLINE_NS

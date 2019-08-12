@@ -58,6 +58,7 @@
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/scalar.hpp>
 #include <migraphx/op/sigmoid.hpp>
+#include <migraphx/op/sign.hpp>
 #include <migraphx/op/sinh.hpp>
 #include <migraphx/op/sin.hpp>
 #include <migraphx/op/slice.hpp>

@@ -56,6 +56,7 @@ struct onnx_parser
         add_generic_op("Atan", op::atan{});
         add_generic_op("Sqrt", op::sqrt{});
         add_generic_op("Round", op::round{});
+        add_generic_op("Sign", op::sign{});
 
         add_binary_op("Add", op::add{});
         add_binary_op("Div", op::div{});

@@ -14,6 +14,7 @@ add_library(migraphx
     eliminate_pad.cpp
     rewrite_batchnorm.cpp
     rewrite_rnn.cpp
+    rewrite_pooling.cpp
     env.cpp
     generate.cpp
     instruction.cpp

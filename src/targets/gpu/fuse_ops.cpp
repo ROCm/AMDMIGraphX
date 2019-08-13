@@ -265,6 +265,7 @@ struct find_add_relu
     auto matcher() const
     {
         return match::name("gpu::relu")(match::arg(0)(
+            match::used_once(),
             match::any_of(match::name("gpu::add"),
                           match::name("hip::triadd"),
                           match::any_of(match::name("@literal"),
@@ -294,7 +295,7 @@ struct find_triadd
     auto matcher() const
     {
         return match::name("gpu::add")(match::either_arg(0, 1)(
-            match::name("gpu::add").bind("add"),
+            match::name("gpu::add")(match::used_once()).bind("add"),
             match::any(match::any_of(match::name("@literal"),
                                      match::any_of[match::inputs()](match::standard_shape())))
                 .bind("input")));
@@ -325,7 +326,7 @@ struct find_mul_add
     auto matcher() const
     {
         return match::name("gpu::add")(
-            match::either_arg(0, 1)(match::name("gpu::mul").bind("mul"), match::any().bind("b")));
+            match::either_arg(0, 1)(match::name("gpu::mul")(match::used_once()).bind("mul"), match::any().bind("b")));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -349,7 +350,7 @@ struct find_mul_add_relu
 {
     auto matcher() const
     {
-        return match::name("gpu::relu")(match::arg(0)(match::name("hip::mul_add").bind("mul_add")));
+        return match::name("gpu::relu")(match::arg(0)(match::name("hip::mul_add")(match::used_once()).bind("mul_add")));
     }
 
     void apply(program& p, match::matcher_result r) const

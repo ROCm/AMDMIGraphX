@@ -469,6 +469,12 @@ inline auto name(std::unordered_set<std::string> names)
     });
 }
 
+template<class... Ts>
+inline auto name(std::string s, Ts... xs)
+{
+    return name(std::unordered_set<std::string>{s, xs...});
+}
+
 inline auto nargs(std::size_t n)
 {
     return make_basic_pred_matcher([=](instruction_ref ins) { return ins->inputs().size() == n; });

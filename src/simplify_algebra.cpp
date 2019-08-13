@@ -1,4 +1,5 @@
 #include <migraphx/simplify_algebra.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/op/add.hpp>
 #include <migraphx/op/mul.hpp>
@@ -19,7 +20,7 @@ auto op_lit_broadcast(std::string op, std::string x, std::string y)
 
 auto conv_const_weights()
 {
-    return match::name("convolution")(match::used_once_recursive(4),
+    return match::name("convolution")(match::used_once(),
                                       match::args(match::any(), match::is_constant().bind("w")));
 }
 
@@ -61,7 +62,7 @@ struct find_mul_add
                     match::any().bind("x"),
                     match::any_of(conv_const_weights(), match::is_constant()).bind("y")),
                 match::none_of(match::args(match::is_constant(), match::is_constant())),
-                match::used_once_recursive(4)),
+                match::used_once()),
             match::is_constant().bind("a")));
     }
 
@@ -135,16 +136,43 @@ struct find_double_add_lit_broadcast
     }
 };
 
+struct find_inner_broadcast
+{
+    auto matcher() const
+    {
+        return match::name("mul", "add")(match::args(match::name("broadcast").bind("x"), match::name("broadcast").bind("y")));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+        auto y_ins = r.instructions["y"];
+
+        auto xbroadcast = any_cast<op::broadcast>(x_ins->get_operator());
+        auto ybroadcast = any_cast<op::broadcast>(y_ins->get_operator());
+
+        if (xbroadcast.axis != ybroadcast.axis)
+            return;
+
+        auto op = p.insert_instruction(ins, ins->get_operator(), x_ins->inputs().front(), y_ins->inputs().front());
+        p.replace_instruction(ins, xbroadcast, op);
+    }
+};
+
 void simplify_algebra::apply(program& p) const
 {
     // Run simplifications multiple times
     for(int i = 0; i < 4; i++)
+    {
         match::find_matches(p,
-                            match::skip_matches(match::is_unused(), match::is_constant()),
+                            find_inner_broadcast{},
                             find_double_add_lit_broadcast{},
                             find_add_lit_broadcast{},
                             find_mul_conv{},
                             find_mul_add{});
+        dead_code_elimination{}.apply(p);
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

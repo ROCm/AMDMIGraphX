@@ -734,6 +734,29 @@ struct tf_parser
         }
     }
 
+    instruction_ref
+    parse_slice(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    {
+        op::slice op;
+        auto starts     = args[1]->eval().get<int32_t>().to_vector();
+        auto size       = args[2]->eval().get<int32_t>().to_vector();
+        auto axes       = args[0]->get_shape().lens();
+        size_t num_axes = axes.size();
+
+        op.starts = std::vector<int64_t>(starts.begin(), starts.end());
+        op.ends   = std::vector<int64_t>(num_axes);
+        op.axes   = std::vector<int64_t>(num_axes);
+        std::iota(op.axes.begin(), op.axes.end(), 0);
+        for(size_t i = 0; i < num_axes; i++)
+        {
+            if(size[i] == -1)
+                op.ends[i] = axes[i];
+            else
+                op.ends[i] = starts[i] + size[i];
+        }
+        return prog.add_instruction(op, make_contiguous(args[0]));
+    }
+
     // template to facilitate the logsoftmax later
     template <class Op>
     instruction_ref parse_softmax(const std::string&,
@@ -772,29 +795,6 @@ struct tf_parser
                     op.axes.push_back(i);
                 }
             }
-        }
-        return prog.add_instruction(op, make_contiguous(args[0]));
-    }
-
-    instruction_ref
-    parse_slice(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
-    {
-        op::slice op;
-        auto starts     = args[1]->eval().get<int32_t>().to_vector();
-        auto size       = args[2]->eval().get<int32_t>().to_vector();
-        auto axes       = args[0]->get_shape().lens();
-        size_t num_axes = axes.size();
-
-        op.starts = std::vector<int64_t>(starts.begin(), starts.end());
-        op.ends   = std::vector<int64_t>(num_axes);
-        op.axes   = std::vector<int64_t>(num_axes);
-        std::iota(op.axes.begin(), op.axes.end(), 0);
-        for(size_t i = 0; i < num_axes; i++)
-        {
-            if(size[i] == -1)
-                op.ends[i] = axes[i];
-            else
-                op.ends[i] = starts[i] + size[i];
         }
         return prog.add_instruction(op, make_contiguous(args[0]));
     }

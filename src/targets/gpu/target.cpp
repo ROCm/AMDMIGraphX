@@ -16,6 +16,7 @@
 #include <migraphx/common_subexpression_elimination.hpp>
 #include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/rewrite_rnn.hpp>
+#include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
@@ -45,6 +46,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         rewrite_batchnorm{},
         dead_code_elimination{},
         rewrite_rnn{},
+        rewrite_pooling{},
         dead_code_elimination{},
         // common_subexpression_elimination{},
         // dead_code_elimination{},

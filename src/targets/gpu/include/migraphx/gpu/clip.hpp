@@ -20,7 +20,12 @@ struct hip_clip
         return migraphx::reflect(self.op, f);
     }
 
-    std::string name() const { return "gpu::clip"; }
+    std::string name() const 
+    { 
+        if (float_equal(op.min_val,0))
+            return "gpu::clipped_relu";
+        return "gpu::clip";
+    }
     shape compute_shape(std::vector<shape> inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;

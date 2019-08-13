@@ -325,8 +325,8 @@ struct find_mul_add
 {
     auto matcher() const
     {
-        return match::name("gpu::add")(
-            match::either_arg(0, 1)(match::name("gpu::mul")(match::used_once()).bind("mul"), match::any().bind("b")));
+        return match::name("gpu::add")(match::either_arg(0, 1)(
+            match::name("gpu::mul")(match::used_once()).bind("mul"), match::any().bind("b")));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -350,7 +350,8 @@ struct find_mul_add_relu
 {
     auto matcher() const
     {
-        return match::name("gpu::relu")(match::arg(0)(match::name("hip::mul_add")(match::used_once()).bind("mul_add")));
+        return match::name("gpu::relu")(
+            match::arg(0)(match::name("hip::mul_add")(match::used_once()).bind("mul_add")));
     }
 
     void apply(program& p, match::matcher_result r) const

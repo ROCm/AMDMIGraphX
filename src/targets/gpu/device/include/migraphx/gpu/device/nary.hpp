@@ -283,7 +283,7 @@ auto nary_standard(hipStream_t stream, argument result, Arguments... args)
 
 template <class... Arguments>
 bool broadcastable(
-    bool& divisible_by_4, std::size_t max_size, argument result, argument barg, Arguments... args)
+    bool& divisible_by_4, std::size_t max_size, const argument& result, const argument& barg, const Arguments&... args)
 {
     divisible_by_4 = false;
     auto bshape    = barg.get_shape();
@@ -312,7 +312,7 @@ bool broadcastable(
     return false;
 }
 
-inline bool broadcastable(bool& divisible_by_4, std::size_t, argument, argument)
+inline bool broadcastable(bool& divisible_by_4, std::size_t, const argument&, const argument&)
 {
     divisible_by_4 = false;
     return false;

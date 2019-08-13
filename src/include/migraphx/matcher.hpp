@@ -470,9 +470,9 @@ inline auto name(std::unordered_set<std::string> names)
 }
 
 template <class... Ts>
-inline auto name(std::string s, Ts... xs)
+inline auto name(std::string s, Ts... xs) // NOLINT
 {
-    return name(std::unordered_set<std::string>{s, xs...});
+    return name(std::unordered_set<std::string>{std::move(s), std::move(xs)...});
 }
 
 inline auto nargs(std::size_t n)

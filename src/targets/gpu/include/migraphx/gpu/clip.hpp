@@ -20,9 +20,9 @@ struct hip_clip
         return migraphx::reflect(self.op, f);
     }
 
-    std::string name() const 
-    { 
-        if (float_equal(op.min_val,0))
+    std::string name() const
+    {
+        if(float_equal(op.min_val, 0))
             return "gpu::clipped_relu";
         return "gpu::clip";
     }

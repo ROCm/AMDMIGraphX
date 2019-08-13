@@ -140,7 +140,8 @@ struct find_inner_broadcast
 {
     auto matcher() const
     {
-        return match::name("mul", "add")(match::args(match::name("broadcast").bind("x"), match::name("broadcast").bind("y")));
+        return match::name("mul", "add")(
+            match::args(match::name("broadcast").bind("x"), match::name("broadcast").bind("y")));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -152,10 +153,11 @@ struct find_inner_broadcast
         auto xbroadcast = any_cast<op::broadcast>(x_ins->get_operator());
         auto ybroadcast = any_cast<op::broadcast>(y_ins->get_operator());
 
-        if (xbroadcast.axis != ybroadcast.axis)
+        if(xbroadcast.axis != ybroadcast.axis)
             return;
 
-        auto op = p.insert_instruction(ins, ins->get_operator(), x_ins->inputs().front(), y_ins->inputs().front());
+        auto op = p.insert_instruction(
+            ins, ins->get_operator(), x_ins->inputs().front(), y_ins->inputs().front());
         p.replace_instruction(ins, xbroadcast, op);
     }
 };

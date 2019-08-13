@@ -469,7 +469,7 @@ inline auto name(std::unordered_set<std::string> names)
     });
 }
 
-template<class... Ts>
+template <class... Ts>
 inline auto name(std::string s, Ts... xs)
 {
     return name(std::unordered_set<std::string>{s, xs...});

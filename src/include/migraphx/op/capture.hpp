@@ -19,7 +19,7 @@ namespace op {
 struct capture
 {
     std::size_t ins_index;
-    std::function<void(std::size_t ins_index, std::vector<argument>)> f;
+    std::function<void(std::size_t ins_index, std::vector<argument>)> f{};
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
@@ -32,7 +32,15 @@ struct capture
 
     argument compute(const shape&, std::vector<argument> args) const
     {
-        f(ins_index, args);
+        if(f)
+        {
+            f(ins_index, args);
+        }
+        else
+        {
+            MIGRAPHX_THROW("CAPTURE: callback function is not callable!");
+        }
+
         return args.front();
     }
 };

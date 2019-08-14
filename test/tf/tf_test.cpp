@@ -100,6 +100,16 @@ TEST_CASE(biasadd_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(cast_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    p.add_instruction(migraphx::op::convert{migraphx::shape::int32_type}, l0);
+    auto prog = optimize_tf("cast_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(concat_test)
 {
     migraphx::program p;
@@ -114,16 +124,6 @@ TEST_CASE(concat_test)
 
     p.add_instruction(migraphx::op::concat{static_cast<std::size_t>(axis)}, l0, l1);
     auto prog = optimize_tf("concat_test.pb", false);
-
-    EXPECT(p == prog);
-}
-
-TEST_CASE(cast_test)
-{
-    migraphx::program p;
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    p.add_instruction(migraphx::op::convert{migraphx::shape::int32_type}, l0);
-    auto prog = optimize_tf("cast_test.pb", false);
 
     EXPECT(p == prog);
 }

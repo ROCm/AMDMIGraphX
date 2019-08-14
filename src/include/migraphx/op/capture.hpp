@@ -19,7 +19,7 @@ namespace op {
 struct capture
 {
     std::size_t ins_index;
-    std::function<void(std::size_t ins_index, std::vector<argument>)> f;
+    std::function<void(std::size_t ins_index, std::vector<argument>)> f{};
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {

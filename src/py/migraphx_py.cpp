@@ -196,6 +196,9 @@ PYBIND11_MODULE(migraphx, m)
              std::vector<std::pair<float, float>>& quant_params) {
               migraphx::quantize_int8(p, ins_names, quant_params);
           });
+    m.def("quantize_int8", [](migraphx::program& p, std::vector<std::string>& ins_names) {
+        migraphx::quantize_int8(p, ins_names);
+    });
     m.def("quantize_int8", [](migraphx::program& p) { migraphx::quantize_int8(p); });
 
     m.def("capture_arguments", [](migraphx::program& p, const std::vector<std::string>& ins_names) {

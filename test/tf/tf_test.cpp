@@ -534,7 +534,6 @@ TEST_CASE(tanh_test)
     EXPECT(p == prog);
 }
 
-
 TEST_CASE(transpose_test)
 {
     migraphx::program p;

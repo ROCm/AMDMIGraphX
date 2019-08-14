@@ -412,6 +412,26 @@ TEST_CASE(rsqrt_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(slice_test)
+{
+    migraphx::program p;
+    std::size_t num_axes = 2;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {5, 10}});
+    migraphx::shape s0{migraphx::shape::int32_type, {num_axes}};
+    p.add_literal(migraphx::literal{s0, {1, 0}});
+    p.add_literal(migraphx::literal{s0, {2, -1}});
+
+    migraphx::op::slice op;
+    op.starts = {1, 0};
+    op.ends   = {3, 10};
+    op.axes   = std::vector<int64_t>(num_axes);
+    std::iota(op.axes.begin(), op.axes.end(), 0);
+    p.add_instruction(op, l0);
+    auto prog = optimize_tf("slice_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(softmax_test)
 {
     migraphx::program p;

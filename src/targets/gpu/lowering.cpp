@@ -84,10 +84,8 @@ struct miopen_apply
     void init()
     {
         this->last = instruction::get_output_alias(std::prev(prog->end()));
-        add_miopen_simple_op<miopen_relu>("relu", make_relu);
         add_miopen_simple_op<miopen_sigmoid>("sigmoid", make_sigmoid);
         add_miopen_simple_op<miopen_abs>("abs", make_abs);
-        add_miopen_simple_op<miopen_tanh>("tanh", make_tanh);
 
         add_miopen_extend_op<miopen_leaky_relu, op::leaky_relu>("leaky_relu", make_leaky_relu);
         add_miopen_extend_op<miopen_elu, op::elu>("elu", make_elu);
@@ -102,6 +100,7 @@ struct miopen_apply
         add_generic_op<hip_tan>("tan");
         add_generic_op<hip_sinh>("sinh");
         add_generic_op<hip_cosh>("cosh");
+        add_generic_op<hip_tanh>("tanh");
         add_generic_op<hip_asin>("asin");
         add_generic_op<hip_acos>("acos");
         add_generic_op<hip_atan>("atan");
@@ -114,6 +113,7 @@ struct miopen_apply
         add_generic_op<hip_round>("round");
         add_generic_op<hip_pow>("pow");
         add_generic_op<hip_sqdiff>("sqdiff");
+        add_generic_op<hip_relu>("relu");
         add_generic_op<hip_sign>("sign");
 
         add_extend_op<miopen_gemm, op::dot>("dot");

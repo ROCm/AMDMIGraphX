@@ -77,7 +77,7 @@ instruction_ref insert_quant_ins(program& prog,
         auto rounded_ins = prog.insert_instruction(insert_loc, op::round{}, shifted_ins);
         auto clipped_ins =
             prog.insert_instruction(insert_loc, op::clip{127.0f, -128.0f}, rounded_ins);
-        quant_ins        = prog.insert_instruction(insert_loc, op::convert{type}, clipped_ins);
+        quant_ins = prog.insert_instruction(insert_loc, op::convert{type}, clipped_ins);
     }
     else
     {
@@ -299,7 +299,7 @@ void quantize_int8(program& prog,
             // relative rounding error
             else
             {
-                if (converted_inputs.size() == 3)
+                if(converted_inputs.size() == 3)
                 {
                     converted_inputs.pop_back();
                 }

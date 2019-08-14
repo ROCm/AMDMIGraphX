@@ -74,10 +74,10 @@ instruction_ref insert_quant_ins(program& prog,
             shifted_ins  = prog.insert_instruction(insert_loc, op::add{}, l_shift, float_ins);
         }
 
+        auto rounded_ins = prog.insert_instruction(insert_loc, op::round{}, shifted_ins);
         auto clipped_ins =
-            prog.insert_instruction(insert_loc, op::clip{127.0f, -128.0f}, shifted_ins);
-        auto rounded_ins = prog.insert_instruction(insert_loc, op::round{}, clipped_ins);
-        quant_ins        = prog.insert_instruction(insert_loc, op::convert{type}, rounded_ins);
+            prog.insert_instruction(insert_loc, op::clip{127.0f, -128.0f}, rounded_ins);
+        quant_ins        = prog.insert_instruction(insert_loc, op::convert{type}, clipped_ins);
     }
     else
     {
@@ -283,8 +283,7 @@ void quantize_int8(program& prog,
             {
                 int32_t quant_alpha = static_cast<int32_t>(new_alpha);
                 int32_t quant_beta  = static_cast<int32_t>(new_beta);
-                shape quant_shape   = compute_shape(op::quant_dot{1, 0}, converted_inputs);
-                if(quant_shape.type() == orig_type)
+                if(shape::int32_type == orig_type)
                 {
                     prog.replace_instruction(
                         ins, op::quant_dot{quant_alpha, quant_beta}, converted_inputs);
@@ -300,6 +299,10 @@ void quantize_int8(program& prog,
             // relative rounding error
             else
             {
+                if (converted_inputs.size() == 3)
+                {
+                    converted_inputs.pop_back();
+                }
                 auto q_dot   = prog.insert_instruction(ins, op::quant_dot{1, 0}, converted_inputs);
                 auto f_dot   = prog.insert_instruction(ins, op::convert{shape::float_type}, q_dot);
                 auto c_shape = q_dot->get_shape();

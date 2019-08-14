@@ -796,6 +796,25 @@ struct test_conv_relu_half : verify_program<test_conv_relu_half>
     }
 };
 
+struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto weights =
+            p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto l0 = migraphx::literal{migraphx::shape{migraphx::shape::float_type, {4}}, {2.0f, 2.0f, 2.0f, 2.0f}};
+        auto bias = p.add_literal(l0);
+        auto conv = p.add_instruction(migraphx::op::convolution{}, input, weights);
+        auto bcast_add = p.add_instruction(migraphx::op::broadcast{1, conv->get_shape().lens()}, bias);
+        auto bias_add = p.add_instruction(migraphx::op::add{}, conv, bcast_add);
+        p.add_instruction(migraphx::op::clip{6.0f, 0.0f}, bias_add);
+        return p;
+    }
+};
+
 struct test_add_relu : verify_program<test_add_relu>
 {
     migraphx::program create_program() const

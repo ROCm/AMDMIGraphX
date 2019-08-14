@@ -32,7 +32,15 @@ struct capture
 
     argument compute(const shape&, std::vector<argument> args) const
     {
-        f(ins_index, args);
+        if (f)
+        {
+            f(ins_index, args);
+        }
+        else
+        {
+            MIGRAPHX_THROW("CAPTURE: callback function is not callable!");
+        }
+        
         return args.front();
     }
 };

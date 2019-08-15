@@ -1011,7 +1011,7 @@ struct onnx_parser
         }
 
         std::vector<operation> vec_actv_funcs(vec_names.size());
-        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](auto& fn) {
+        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](const auto& fn) {
             return map_actv_funcs[fn];
         });
 
@@ -1127,7 +1127,7 @@ struct onnx_parser
         }
 
         std::vector<operation> vec_actv_funcs(vec_names.size());
-        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](auto& name) {
+        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](const auto& name) {
             return map_actv_funcs[name];
         });
 
@@ -1299,7 +1299,7 @@ struct onnx_parser
         }
 
         std::vector<operation> vec_actv_funcs(vec_names.size());
-        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](auto& name) {
+        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](const auto& name) {
             return map_actv_funcs[name];
         });
 

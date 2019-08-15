@@ -4,6 +4,8 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/op/contiguous.hpp>
+#include <migraphx/op/identity.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -81,6 +83,11 @@ void eliminate_contiguous::apply(program& p) const
                 if(try_compute_shape(ins, new_args))
                 {
                     instruction::replace_argument(ins, arg, prev);
+                }
+                else if (prev->can_eval())
+                {
+                    auto c = p.insert_instruction(arg, op::contiguous{}, prev);
+                    p.replace_instruction(arg, op::identity{}, c);
                 }
             }
         }

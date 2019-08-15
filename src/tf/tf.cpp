@@ -26,7 +26,6 @@ struct tf_parser
 {
     using attribute_map = std::unordered_map<std::string, tensorflow::AttrValue>;
     using node_map      = std::map<std::string, tensorflow::NodeDef>;
-    // using input_node_map = std::unordered_map<std::string, std::unordered_set<std::string>>;
     using op_func = std::function<instruction_ref(attribute_map, std::vector<instruction_ref>)>;
 
     node_map nodes;
@@ -577,33 +576,22 @@ struct tf_parser
     parse_mean(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         bool keep_dims = attributes.at("keep_dims").b();
-        // std::vector<int32_t> hw_axes{2, 3};
-        // check if conditions for GlobalAvgPool are met
         auto lens                       = args[0]->get_shape().lens();
         auto axes                       = args[1]->eval().get<int32_t>().to_vector();
         std::vector<int64_t> axes_int64 = std::vector<int64_t>(axes.begin(), axes.end());
 
-        // if(axes == hw_axes and lens.size() == 4)
-        // {
-        // op::pooling op{"average"};
-        // op.lengths[0] = lens[2];
-        // op.lengths[1] = lens[3];
         auto l0 = prog.add_instruction(op::reduce_mean{axes_int64}, args.front());
         if(keep_dims)
             return l0;
         return prog.add_instruction(op::squeeze{axes_int64}, l0);
-        // }
-        // MIGRAPHX_THROW("MIGraphX does not support mean outside of GlobalAvgPool transformation");
     }
 
     instruction_ref
     parse_onehot(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        // auto indices       = args[0]->eval().get<int32_t>().to_vector();
         size_t depth = static_cast<size_t>(args[1]->eval().at<int32_t>());
 
         int64_t axis = -1;
-        // size_t num_indices = indices.size();
         float on_value  = args[2]->eval().at<float>();
         float off_value = args[3]->eval().at<float>();
 

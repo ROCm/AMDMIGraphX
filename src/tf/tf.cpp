@@ -575,7 +575,7 @@ struct tf_parser
     instruction_ref
     parse_mean(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        bool keep_dims = attributes.at("keep_dims").b();
+        bool keep_dims                  = attributes.at("keep_dims").b();
         auto lens                       = args[0]->get_shape().lens();
         auto axes                       = args[1]->eval().get<int32_t>().to_vector();
         std::vector<int64_t> axes_int64 = std::vector<int64_t>(axes.begin(), axes.end());
@@ -591,7 +591,7 @@ struct tf_parser
     {
         size_t depth = static_cast<size_t>(args[1]->eval().at<int32_t>());
 
-        int64_t axis = -1;
+        int64_t axis    = -1;
         float on_value  = args[2]->eval().at<float>();
         float off_value = args[3]->eval().at<float>();
 

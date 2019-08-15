@@ -245,17 +245,17 @@ struct cpu_im2col
             const std::size_t& stride_h = op.stride[0];
             const std::size_t& stride_w = op.stride[1];
 
-            long kdiv2_h = kernel_h / 2;
-            long kdiv2_w = kernel_w / 2;
+            long kdiv2_h = long(kernel_h) / 2;
+            long kdiv2_w = long(kernel_w) / 2;
             // calculate output sizes
             const std::size_t col_height = (height - kernel_h + 2 * pad_h) / stride_h + 1;
             const std::size_t col_width  = (width - kernel_w + 2 * pad_w) / stride_w + 1;
             // account for padding for the starting position of the input pixels
-            long iinput = kdiv2_h - pad_h;
+            long iinput = kdiv2_h - long(pad_h);
             // loop over output pixels (ioutput, joutput)
             for(std::size_t ioutput = 0; ioutput < col_height; ioutput++, iinput += stride_h)
             {
-                long jinput = kdiv2_w - pad_w;
+                long jinput = kdiv2_w - long(pad_w);
                 for(std::size_t joutput = 0; joutput < col_width; joutput++, jinput += stride_w)
                 {
                     // compute linear index for output

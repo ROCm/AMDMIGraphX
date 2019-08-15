@@ -261,22 +261,22 @@ struct stream_info
     find_concurrent_instructions(program& p)
     {
         std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> result;
-        std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> merge_from;
+        std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> merge_to;
         result.reserve(p.size());
-        merge_from.reserve(p.size());
+        merge_to.reserve(p.size());
         for(auto ins : reverse_iterator_for(p))
         {
             for(auto&& arg : ins->outputs())
             {
                 if(is_merge_point(arg))
-                    merge_from[ins].insert(arg);
-                merge_from[ins].insert(merge_from[arg].begin(), merge_from[arg].end());
+                    merge_to[ins].insert(arg);
+                merge_to[ins].insert(merge_to[arg].begin(), merge_to[arg].end());
             }
 
             auto streams = this->get_streams(ins);
 
             // Collect concur instructions for each merge point.
-            for(auto& merge : merge_from[ins])
+            for(auto& merge : merge_to[ins])
             {
                 for(auto stream : streams)
                 {

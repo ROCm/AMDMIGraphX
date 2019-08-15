@@ -155,8 +155,8 @@ __device__ void dpp_reduce(T& in, Op op)
 
 __device__ inline void dpp_reduce(float& x, sum)
 {
-#ifdef MIGRAPHX_USE_CLANG_TIDY
-    (void)x;
+#if defined (MIGRAPHX_USE_CLANG_TIDY) || defined(CPPCHECK)
+    x = 1;
 #else
     __asm__ volatile("s_nop 4\n"
                      "v_add_f32 %0 %0 %0 row_shr:1\n"

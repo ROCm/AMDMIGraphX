@@ -241,7 +241,7 @@ instruction_ref program::remove_instructions(instruction_ref first, instruction_
     // TODO: Check every element
     assert(has_instruction(first));
     std::for_each(first, last, [&](instruction& ins) { ins.clear_arguments(); });
-    assert(std::all_of(first, last, [&](instruction& ins) { return ins.outputs().empty(); }));
+    assert(std::all_of(first, last, [&](const instruction& ins) { return ins.outputs().empty(); }));
     return impl->instructions.erase(first, last);
 }
 

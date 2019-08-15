@@ -197,19 +197,6 @@ argument miopen_gemm::compute(context& ctx,
                               const std::vector<argument>& args) const
 {
     bool is_3inputs = (args.size() == 4);
-    float beta      = 0.0f;
-    if(is_3inputs)
-    {
-        output_shape.visit_type([&](auto as) {
-            auto to_pointer = [&](auto&& arg) { return to_rocblas_type(as.from(arg.data())); };
-            hipMemcpyAsync(to_pointer(args[3]),
-                           to_pointer(args[2]),
-                           output_shape.bytes(),
-                           hipMemcpyDeviceToDevice,
-                           ctx.get_stream().get());
-        });
-        beta = op.beta;
-    }
 
     auto a_lens = args[0].get_shape().lens();
     auto b_lens = args[1].get_shape().lens();
@@ -218,7 +205,7 @@ argument miopen_gemm::compute(context& ctx,
         auto dim_1        = n_dim - 1;
         auto dim_0        = n_dim - 2;
         auto alpha_r      = to_rocblas_type(as(op.alpha));
-        auto beta_r       = to_rocblas_type(as(beta));
+        auto beta_r       = to_rocblas_type(as(op.beta));
         bool transa       = args[0].get_shape().transposed();
         bool transb       = args[1].get_shape().transposed();
         rocblas_int lda   = args[0].get_shape().strides()[transa ? dim_1 : dim_0];

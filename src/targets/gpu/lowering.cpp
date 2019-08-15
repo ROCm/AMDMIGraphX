@@ -114,7 +114,7 @@ struct miopen_apply
         add_generic_op<hip_relu>("relu");
         add_generic_op<hip_sign>("sign");
 
-        add_extend_op<miopen_gemm, op::dot>("dot");
+        // add_extend_op<miopen_gemm, op::dot>("dot");
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
         add_extend_op<hip_softmax, op::softmax>("softmax");
@@ -130,6 +130,7 @@ struct miopen_apply
 
         add_lrn_op();
         add_convolution_op();
+        add_gemm_op();
         add_pooling_op();
         add_batch_norm_inference_op();
     }
@@ -173,6 +174,25 @@ struct miopen_apply
 
             return prog->replace_instruction(
                 ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
+        });
+    }
+
+    void add_gemm_op()
+    {
+        apply_map.emplace("dot", [=](instruction_ref ins) {
+            auto&& op                         = any_cast<op::dot>(ins->get_operator());
+            std::vector<instruction_ref> refs = ins->inputs();
+            if(refs.size() == 3 and refs.back()->outputs().size() > 1)
+            {
+                auto copy_out = insert_allocation(refs.back(), refs.back()->get_shape());
+                auto copy =
+                    prog->insert_instruction(refs.back(), hip_copy{}, refs.back(), copy_out);
+                refs.back() = copy;
+            }
+            auto output = insert_allocation(ins, ins->get_shape());
+            refs.push_back(output);
+
+            return prog->replace_instruction(ins, miopen_gemm{op}, refs);
         });
     }
 

@@ -184,7 +184,7 @@ struct tf_parser
         add_mem_op("Pad", &tf_parser::parse_pad);
         add_mem_op("Reshape", &tf_parser::parse_reshape, false);
         add_mem_op("Slice", &tf_parser::parse_slice, false);
-        add_mem_op("Softmax", &tf_parser::parse_softmax<op::softmax>);
+        add_mem_op("Softmax", &tf_parser::parse_softmax<op::softmax>, false);
         add_mem_op("Squeeze", &tf_parser::parse_squeeze, false);
         add_mem_op("StridedSlice", &tf_parser::parse_stridedslice, false);
         add_mem_op("Transpose", &tf_parser::parse_transpose, false);

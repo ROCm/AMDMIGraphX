@@ -270,8 +270,8 @@ TEST_CASE(mean_test_nhwc)
     migraphx::program p;
     migraphx::literal l{migraphx::shape{migraphx::shape::int32_type, {2}}, {1, 2}};
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    auto l1 = p.add_instruction(migraphx::op::transpose{{0,2,3,1}}, l0);
-    auto l2 = p.add_instruction(migraphx::op::reduce_mean{{1,2}}, l1);
+    auto l1 = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, l0);
+    auto l2 = p.add_instruction(migraphx::op::reduce_mean{{1, 2}}, l1);
     p.add_instruction(migraphx::op::squeeze{{1, 2}}, l2);
     auto prog = optimize_tf("mean_test_nhwc.pb", true);
 
@@ -293,11 +293,13 @@ TEST_CASE(mul_test)
 TEST_CASE(onehot_test)
 {
     migraphx::program p;
-    auto l0 = p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {5}}, {1, 1, 1, 1, 1}});
+    auto l0 = p.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {5}}, {1, 1, 1, 1, 1}});
     p.add_literal(2);
     p.add_literal(1.0f);
     p.add_literal(0.0f);
-    auto l1 = p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2,2}}, {1, 0, 0, 1}});
+    auto l1 = p.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2, 2}}, {1, 0, 0, 1}});
     int axis = 0;
     p.add_instruction(migraphx::op::gather{axis}, l1, l0);
     auto prog = optimize_tf("onehot_test.pb", false);
@@ -489,7 +491,7 @@ TEST_CASE(stridedslice_test)
 {
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 10, 1, 1}});
-    auto l1 = p.add_instruction(migraphx::op::transpose{{0,2,3,1}}, l0);
+    auto l1 = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, l0);
     std::size_t num_axes = 4;
     migraphx::op::slice op;
     op.starts = {0, 0, 0, 0};
@@ -519,9 +521,9 @@ TEST_CASE(stridedslice_masks_test)
     p.add_literal(migraphx::shape{migraphx::shape::int32_type, {4}}, std::vector<int>{0, 0, 0, 0});
     p.add_literal(migraphx::shape{migraphx::shape::int32_type, {4}}, std::vector<int>{1, 1, 1, 1});
 
-    auto l1 = p.add_instruction(migraphx::op::transpose{{0,2,3,1}}, l0);
+    auto l1 = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, l0);
     auto l2 = p.add_instruction(op, l1);
-    p.add_instruction(migraphx::op::transpose{{0,3,1,2}}, l2);
+    p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l2);
     auto prog = migraphx::parse_tf("stridedslice_masks_test.pb", true);
 
     EXPECT(p == prog);

@@ -84,7 +84,7 @@ void eliminate_contiguous::apply(program& p) const
                 {
                     instruction::replace_argument(ins, arg, prev);
                 }
-                else if (prev->can_eval())
+                else if(prev->can_eval())
                 {
                     auto c = p.insert_instruction(arg, op::contiguous{}, prev);
                     p.replace_instruction(arg, op::identity{}, c);

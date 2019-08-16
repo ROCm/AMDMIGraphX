@@ -62,8 +62,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         dead_code_elimination{},
         eliminate_contiguous{},
         dead_code_elimination{},
-        propagate_constant{},
-        dead_code_elimination{},
         adjust_allocation{},
         dead_code_elimination{},
         fuse_ops{&ctx},

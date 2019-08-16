@@ -99,13 +99,14 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
             | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-5.0 -style=file {} | diff - {}\'
         '''
     }
-}, clang: rocmnode('vega') { cmake_build ->
+}, clang_debug: rocmnode('vega') { cmake_build ->
     stage('Clang Debug') {
-        // TODO: Enanle integer
+        // TODO: Enable integer
         def sanitizers = "undefined"
         def debug_flags = "-g -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
     }
+}, clang_release: rocmnode('vega') { cmake_build ->
     stage('Clang Release') {
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release")
     }

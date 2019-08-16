@@ -86,8 +86,11 @@ void eliminate_contiguous::apply(program& p) const
                 }
                 else if(prev->can_eval())
                 {
-                    auto c = p.insert_instruction(arg, op::contiguous{}, prev);
-                    p.replace_instruction(arg, op::identity{}, c);
+                    auto c = op::contiguous{};
+                    auto r = c.compute(c.compute_shape({prev->get_shape()}), {prev->eval()});
+
+                    auto l = p.add_literal(r.get_shape(), r.data());
+                    p.replace_instruction(arg, l);
                 }
             }
         }

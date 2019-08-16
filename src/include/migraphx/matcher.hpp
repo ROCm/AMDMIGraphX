@@ -353,14 +353,14 @@ MIGRAPHX_PRED_MATCHER(same_input_shapes, instruction_ref ins)
         ins->inputs().begin(), ins->inputs().end(), [&](auto x) { return x->get_shape() == s; });
 }
 
-MIGRAPHX_BASIC_MATCHER(output, matcher_context& ctx, instruction_ref ins)
+MIGRAPHX_BASIC_MATCHER(output, const matcher_context& ctx, instruction_ref ins)
 {
     if(ins->outputs().size() == 1)
         return ins->outputs().front();
     return ctx.not_found();
 }
 
-MIGRAPHX_BASIC_MATCHER(used_once, matcher_context& ctx, instruction_ref ins)
+MIGRAPHX_BASIC_MATCHER(used_once, const matcher_context& ctx, instruction_ref ins)
 {
     if(ins->outputs().size() == 1)
         return ins;
@@ -411,7 +411,7 @@ inline auto nargs(std::size_t n)
 
 inline auto arg(std::size_t i)
 {
-    return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
+    return make_basic_fun_matcher([=](const matcher_context& ctx, instruction_ref ins) {
         if(i < ins->inputs().size())
             return ins->inputs()[i];
         return ctx.not_found();

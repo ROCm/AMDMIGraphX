@@ -31,6 +31,7 @@ struct hip_tensor_descriptor
             result[is] = tidx / strides[is];
             tidx       = tidx % strides[is];
         }
+
         return result;
     }
     __device__ __host__ std::size_t linear(hip_tensor_index<NDim> s) const

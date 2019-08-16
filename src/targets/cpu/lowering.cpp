@@ -301,17 +301,17 @@ struct cpu_im2col
             const std::size_t& stride_h = op.stride[0];
             const std::size_t& stride_w = op.stride[1];
 
-            auto kdiv2_h = kernel_h / 2;
-            auto kdiv2_w = kernel_w / 2;
+            long kdiv2_h = long(kernel_h) / 2;
+            long kdiv2_w = long(kernel_w) / 2;
             // calculate output sizes
             const std::size_t col_height = (height - kernel_h + 2 * pad_h) / stride_h + 1;
             const std::size_t col_width  = (width - kernel_w + 2 * pad_w) / stride_w + 1;
             // account for padding for the starting position of the input pixels
-            std::size_t iinput = kdiv2_h - pad_h;
+            long iinput = kdiv2_h - long(pad_h);
             // loop over output pixels (ioutput, joutput)
             for(std::size_t ioutput = 0; ioutput < col_height; ioutput++, iinput += stride_h)
             {
-                std::size_t jinput = kdiv2_w - pad_w;
+                long jinput = kdiv2_w - long(pad_w);
                 for(std::size_t joutput = 0; joutput < col_width; joutput++, jinput += stride_w)
                 {
                     // compute linear index for output
@@ -320,8 +320,8 @@ struct cpu_im2col
                     dfor(channels,
                          kernel_h,
                          kernel_w)([&](std::size_t c, std::size_t koffset, std::size_t loffset) {
-                        auto idx    = iinput + koffset - kdiv2_h;
-                        auto jdx    = jinput + loffset - kdiv2_w;
+                        auto idx    = iinput + long(koffset) - kdiv2_h;
+                        auto jdx    = jinput + long(loffset) - kdiv2_w;
                         col(ldx, p) = ((idx >= 0) && (idx < height) && (jdx >= 0) && (jdx < width))
                                           ? input(0, c, idx, jdx)
                                           : 0;
@@ -589,7 +589,7 @@ struct leaky_relu_op
     std::string name() const { return "cpu::leaky_relu"; }
     auto fcn() const
     {
-        auto& a = op.alpha;
+        auto a = op.alpha;
         return [a](auto x) { return x > 0 ? x : x * a; };
     }
 };
@@ -600,7 +600,7 @@ struct elu_op
     std::string name() const { return "cpu::elu"; }
     auto fcn() const
     {
-        auto& a = op.alpha;
+        auto a = op.alpha;
         return [a](auto x) { return x > 0 ? x : a * std::expm1(x); };
     }
 };

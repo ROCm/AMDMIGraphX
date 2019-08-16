@@ -125,6 +125,8 @@ rocm_enable_cppcheck(
         functionConst:*program.*
         shadowFunction
         shadowVar
+        shadowVariable
+        unsafeClassDivZero
         definePrefix:*test/include/test.hpp
     FORCE
     INCONCLUSIVE

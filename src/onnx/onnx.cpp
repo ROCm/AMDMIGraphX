@@ -1012,9 +1012,10 @@ struct onnx_parser
         }
 
         std::vector<operation> vec_actv_funcs(vec_names.size());
-        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](auto& fn) {
-            return map_actv_funcs[fn];
-        });
+        std::transform(vec_names.begin(),
+                       vec_names.end(),
+                       vec_actv_funcs.begin(),
+                       [&](const auto& fn) { return map_actv_funcs[fn]; });
 
         // To be added later
         float clip = 0.0;
@@ -1128,9 +1129,10 @@ struct onnx_parser
         }
 
         std::vector<operation> vec_actv_funcs(vec_names.size());
-        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](auto& name) {
-            return map_actv_funcs[name];
-        });
+        std::transform(vec_names.begin(),
+                       vec_names.end(),
+                       vec_actv_funcs.begin(),
+                       [&](const auto& name) { return map_actv_funcs[name]; });
 
         float clip = 0.0;
         if(contains(attributes, "clip"))
@@ -1300,9 +1302,10 @@ struct onnx_parser
         }
 
         std::vector<operation> vec_actv_funcs(vec_names.size());
-        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](auto& name) {
-            return map_actv_funcs[name];
-        });
+        std::transform(vec_names.begin(),
+                       vec_names.end(),
+                       vec_actv_funcs.begin(),
+                       [&](const auto& name) { return map_actv_funcs[name]; });
 
         float clip = 0.0;
         if(contains(attributes, "clip"))

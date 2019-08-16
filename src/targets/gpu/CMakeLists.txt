@@ -24,9 +24,11 @@ add_library(migraphx_device
     device/tan.cpp
     device/sinh.cpp
     device/cosh.cpp
+    device/tanh.cpp
     device/asin.cpp
     device/acos.cpp
     device/atan.cpp
+    device/relu.cpp
     device/add_relu.cpp
     device/contiguous.cpp
     device/logsoftmax.cpp
@@ -71,9 +73,7 @@ add_library(migraphx_gpu
     logsoftmax.cpp
     contiguous.cpp
     concat.cpp
-    relu.cpp
     leaky_relu.cpp
-    tanh.cpp
     batchnorm.cpp
     write_literals.cpp
     rocblas.cpp

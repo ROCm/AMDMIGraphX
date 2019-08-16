@@ -101,7 +101,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     }
 }, clang_debug: rocmnode('vega') { cmake_build ->
     stage('Clang Debug') {
-        // TODO: Enanle integer
+        // TODO: Enable integer
         def sanitizers = "undefined"
         def debug_flags = "-g -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")

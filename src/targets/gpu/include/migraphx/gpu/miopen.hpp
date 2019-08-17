@@ -34,11 +34,11 @@ Result make_obj(F f, Ts... xs)
     auto status                = f(&x, xs...);
     Result r{x};
     if(status != miopenStatusSuccess)
-        MIGRAPHX_THROW("MIOpen call failed");
+        MIGRAPHX_THROW("MAKE_OBJ: MIOpen call failed");
     return r;
 }
 
-inline tensor_descriptor make_tensor(const migraphx::shape& s)
+inline tensor_descriptor make_tensor(const migraphx::shape& s, bool pack = false)
 {
     auto t = make_obj<tensor_descriptor>(&miopenCreateTensorDescriptor);
     // Convert to ints
@@ -49,13 +49,33 @@ inline tensor_descriptor make_tensor(const migraphx::shape& s)
         d = miopenFloat;
     else if(s.type() == shape::half_type)
         d = miopenHalf;
+    else if(s.type() == shape::int32_type)
+        d = miopenInt32;
+    else if(s.type() == shape::int8_type)
+    {
+        if(pack)
+        {
+            // update the lens and corresponding strides
+            d          = miopenInt8x4;
+            lens[1]    = ((lens[1] + 3) / 4) * 4;
+            strides[0] = strides[1] * lens[1];
+        }
+        else
+        {
+            d = miopenInt8;
+        }
+    }
     else
-        MIGRAPHX_THROW("Unsupported type");
+    {
+        MIGRAPHX_THROW("MAKE_TENSOR: unsupported type");
+    }
     miopenSetTensorDescriptor(t.get(), d, s.lens().size(), lens.data(), strides.data());
+
     return t;
 }
 
-inline convolution_descriptor make_conv(const migraphx::op::convolution& op)
+template <class T>
+inline convolution_descriptor make_conv(const T& op)
 {
     auto c = make_obj<convolution_descriptor>(&miopenCreateConvolutionDescriptor);
     miopenConvolutionMode_t c_mode = miopenConvolution;

@@ -107,7 +107,7 @@ struct memory_coloring_impl
         return ins->name() == "check_context";
     }
 
-    static bool is_disjoin(live_range& range1, live_range& range2)
+    static bool is_disjoin(const live_range& range1, const live_range& range2)
     {
         if((range1.size == 0) || (range2.size == 0))
             return false;

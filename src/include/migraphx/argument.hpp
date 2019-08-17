@@ -36,7 +36,7 @@ struct argument : raw_data<argument>
     }
 
     /// Provides a raw pointer to the data
-    std::function<char*()> data;
+    std::function<char*()> data = nullptr;
 
     /// Whether data is available
     bool empty() const { return not data; }

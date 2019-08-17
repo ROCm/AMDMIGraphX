@@ -4,7 +4,9 @@
 #include <migraphx/dfor.hpp>
 #include <migraphx/op/batch_norm.hpp>
 #include <migraphx/op/convolution.hpp>
+#include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/dot.hpp>
+#include <migraphx/op/quant_dot.hpp>
 #include <migraphx/op/elu.hpp>
 #include <migraphx/op/im2col.hpp>
 #include <migraphx/op/leaky_relu.hpp>
@@ -216,6 +218,60 @@ struct cpu_convolution
     }
 };
 
+struct cpu_quant_convolution
+{
+    op::quant_convolution op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
+    std::string name() const { return "cpu::quant_convolution"; }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        auto output = result.get<int32_t>();
+        visit_all(args[0], args[1])([&](auto input, auto weights) {
+            auto in   = input.get_shape().lens();
+            auto in_h = in[2];
+            auto in_w = in[3];
+
+            auto wei   = weights.get_shape().lens();
+            auto wei_n = wei[0];
+            auto wei_c = wei[1];
+            auto wei_h = wei[2];
+            auto wei_w = wei[3];
+
+            par_dfor(output_shape.lens()[0],
+                     output_shape.lens()[1],
+                     output_shape.lens()[2],
+                     output_shape.lens()[3])(
+                [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
+                    const auto start_x  = i * op.stride[0] - op.padding[0];
+                    const auto start_y  = j * op.stride[1] - op.padding[1];
+                    const auto group_id = w / (wei_n / op.group);
+
+                    int32_t acc = 0;
+                    dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t y) {
+                        const auto in_x  = start_x + x;
+                        const auto in_y  = start_y + y;
+                        const auto in_ch = group_id * wei_c + k;
+                        if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
+                        {
+                            acc += input(o, in_ch, in_x, in_y) * weights(w, k, x, y);
+                        }
+                    });
+                    output(o, w, i, j) = acc;
+                });
+        });
+
+        return result;
+    }
+};
+
 struct cpu_im2col
 {
     op::im2col op;
@@ -245,17 +301,17 @@ struct cpu_im2col
             const std::size_t& stride_h = op.stride[0];
             const std::size_t& stride_w = op.stride[1];
 
-            auto kdiv2_h = kernel_h / 2;
-            auto kdiv2_w = kernel_w / 2;
+            long kdiv2_h = long(kernel_h) / 2;
+            long kdiv2_w = long(kernel_w) / 2;
             // calculate output sizes
             const std::size_t col_height = (height - kernel_h + 2 * pad_h) / stride_h + 1;
             const std::size_t col_width  = (width - kernel_w + 2 * pad_w) / stride_w + 1;
             // account for padding for the starting position of the input pixels
-            std::size_t iinput = kdiv2_h - pad_h;
+            long iinput = kdiv2_h - long(pad_h);
             // loop over output pixels (ioutput, joutput)
             for(std::size_t ioutput = 0; ioutput < col_height; ioutput++, iinput += stride_h)
             {
-                std::size_t jinput = kdiv2_w - pad_w;
+                long jinput = kdiv2_w - long(pad_w);
                 for(std::size_t joutput = 0; joutput < col_width; joutput++, jinput += stride_w)
                 {
                     // compute linear index for output
@@ -264,8 +320,8 @@ struct cpu_im2col
                     dfor(channels,
                          kernel_h,
                          kernel_w)([&](std::size_t c, std::size_t koffset, std::size_t loffset) {
-                        auto idx    = iinput + koffset - kdiv2_h;
-                        auto jdx    = jinput + loffset - kdiv2_w;
+                        auto idx    = iinput + long(koffset) - kdiv2_h;
+                        auto jdx    = jinput + long(loffset) - kdiv2_w;
                         col(ldx, p) = ((idx >= 0) && (idx < height) && (jdx >= 0) && (jdx < width))
                                           ? input(0, c, idx, jdx)
                                           : 0;
@@ -433,7 +489,7 @@ struct cpu_gemm
     {
         argument result{output_shape};
         // 3 inputs, it is alpha * A * B + beta * C, then
-        // A and B are matrics, and C is broadcastable to A * B
+        // A and B are matrices, and C is of the same shape as A * B
         if(args.size() == 3)
         {
             // no need to consider the value of args[2]
@@ -460,13 +516,80 @@ struct cpu_gemm
     }
 };
 
+struct cpu_quant_gemm
+{
+    op::quant_dot op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
+    std::string name() const { return "cpu::quant_dot"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        if(inputs.size() == 3)
+        {
+            auto c_shape = inputs.at(2);
+            check_shapes{{c_shape}}.not_broadcasted();
+        }
+        return op.compute_shape(inputs);
+    }
+
+    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        // 3 inputs, it is alpha * A * B + beta * C, then
+        // A and B are matrices, and C is of the same shape to A * B
+
+        // first, convert the args[0] and args[1] from int8_t to int32_t
+        argument arg_0{{shape::int32_type, {args.at(0).get_shape().lens()}}};
+        argument arg_1{{shape::int32_type, {args.at(1).get_shape().lens()}}};
+        arg_0.visit([&](auto output) {
+            args.at(0).visit(
+                [&](auto input) { std::copy(input.begin(), input.end(), output.begin()); });
+        });
+
+        arg_1.visit([&](auto output) {
+            args.at(1).visit(
+                [&](auto input) { std::copy(input.begin(), input.end(), output.begin()); });
+        });
+
+        if(args.size() == 3)
+        {
+            // no need to consider the value of args[2]
+            if(op.beta == 0)
+            {
+                result.visit([&](auto output) { std::fill(output.begin(), output.end(), 0); });
+            }
+            else
+            {
+                visit_all(result, args[2])([&](auto output, auto input) {
+                    std::copy(input.begin(), input.end(), output.begin());
+                });
+            }
+
+            migemm(result, arg_0, arg_1, op.alpha, op.beta);
+
+            return result;
+        }
+
+        // 2 input arguments
+        int32_t beta = 0;
+        migemm(result, arg_0, arg_1, op.alpha, beta);
+
+        return result;
+    }
+};
+
 struct leaky_relu_op
 {
     op::leaky_relu op;
     std::string name() const { return "cpu::leaky_relu"; }
     auto fcn() const
     {
-        auto& a = op.alpha;
+        auto a = op.alpha;
         return [a](auto x) { return x > 0 ? x : x * a; };
     }
 };
@@ -477,7 +600,7 @@ struct elu_op
     std::string name() const { return "cpu::elu"; }
     auto fcn() const
     {
-        auto& a = op.alpha;
+        auto a = op.alpha;
         return [a](auto x) { return x > 0 ? x : a * std::expm1(x); };
     }
 };
@@ -671,15 +794,17 @@ struct cpu_apply
     {
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
-        apply_map["convolution"] = extend_op<cpu_convolution, op::convolution>();
-        apply_map["dot"]         = extend_op<cpu_gemm, op::dot>();
-        apply_map["elu"]         = extend_op<cpu_unary<elu_op>, op::elu>();
-        apply_map["im2col"]      = extend_op<cpu_im2col, op::im2col>();
-        apply_map["leaky_relu"]  = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
-        apply_map["logsoftmax"]  = extend_op<cpu_logsoftmax, op::logsoftmax>();
-        apply_map["lrn"]         = extend_op<cpu_lrn, op::lrn>();
-        apply_map["pad"]         = extend_op<cpu_pad, op::pad>();
-        apply_map["softmax"]     = extend_op<cpu_softmax, op::softmax>();
+        apply_map["convolution"]       = extend_op<cpu_convolution, op::convolution>();
+        apply_map["dot"]               = extend_op<cpu_gemm, op::dot>();
+        apply_map["quant_dot"]         = extend_op<cpu_quant_gemm, op::quant_dot>();
+        apply_map["quant_convolution"] = extend_op<cpu_quant_convolution, op::quant_convolution>();
+        apply_map["elu"]               = extend_op<cpu_unary<elu_op>, op::elu>();
+        apply_map["im2col"]            = extend_op<cpu_im2col, op::im2col>();
+        apply_map["leaky_relu"]        = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
+        apply_map["logsoftmax"]        = extend_op<cpu_logsoftmax, op::logsoftmax>();
+        apply_map["lrn"]               = extend_op<cpu_lrn, op::lrn>();
+        apply_map["pad"]               = extend_op<cpu_pad, op::pad>();
+        apply_map["softmax"]           = extend_op<cpu_softmax, op::softmax>();
     }
 
     void apply()

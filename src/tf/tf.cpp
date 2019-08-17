@@ -148,9 +148,9 @@ struct tf_parser
         return axes;
     }
 
-    std::vector<int64_t> get_axes_from_mask(const size_t num_axes,  const uint32_t mask)
+    std::vector<int64_t> get_axes_from_mask(const size_t num_axes, const uint32_t mask)
     {
-        uint32_t bitwise_compare  = 1;
+        uint32_t bitwise_compare = 1;
         std::vector<int64_t> axes;
         for(size_t i = 0; i < num_axes; i++)
         {
@@ -864,7 +864,7 @@ struct tf_parser
             shrink_axis_mask = static_cast<uint32_t>(attributes.at("shrink_axis_mask").i());
 
         std::vector<int64_t> begin_axes = get_axes_from_mask(num_axes, begin_mask);
-        std::vector<int64_t> end_axes = get_axes_from_mask(num_axes, end_mask);
+        std::vector<int64_t> end_axes   = get_axes_from_mask(num_axes, end_mask);
 
         for(size_t i = 0; i < num_axes; i++)
         {

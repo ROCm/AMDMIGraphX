@@ -490,6 +490,16 @@ struct onnx_parser
         {
             axis = parse_value(attributes.at("axis")).at<int>();
         }
+
+        if(!args[0]->get_shape().standard())
+        {
+            args[0] = prog.add_instruction(op::contiguous{}, args[0]);
+        }
+        if(!args[1]->get_shape().standard())
+        {
+            args[1] = prog.add_instruction(op::contiguous{}, args[1]);
+        }
+
         op::gather op{axis};
         return prog.add_instruction(op, std::move(args));
     }

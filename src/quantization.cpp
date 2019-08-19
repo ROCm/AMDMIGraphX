@@ -118,7 +118,7 @@ void quantize(program& prog) { quantize(prog, {"all"}); }
 
 // For the input of each input argument, we need to insert a
 // capture operator to compute the scale and shift
-void capture_arguments(program& prog,
+std::size_t capture_arguments(program& prog,
                        const std::vector<std::string>& ins_names,
                        const std::function<void(std::size_t, std::vector<argument>)>& func)
 {
@@ -161,14 +161,17 @@ void capture_arguments(program& prog,
         instruction::replace(ins, ins->get_operator(), ins->get_shape(), new_args);
     }
 
-    // set one pair of parameter for each argument
-    prog.int8_quant_params->resize(num_quant_params, std::make_pair(-1.0f, -1.0f));
+    return num_quant_params;
 }
 
-void capture_arguments(program& prog, const std::vector<std::string>& ins_names)
+std::shared_ptr<std::vector<std::pair<float, float>>> capture_arguments(program& prog, const std::vector<std::string>& ins_names)
 {
-    auto calc_quant_params = [&](std::size_t ins_index, std::vector<migraphx::argument> args) {
-        std::pair<float, float> param_pair{1.0f, 0.0f};
+    std::shared_ptr<std::vector<std::pair<float, float>>> int8_quant_params =
+        std::make_shared<std::vector<std::pair<float, float>>>();
+    std::shared_ptr<std::vector<float>> max_abs_vals = std::make_shared<std::vector<float>>();
+
+    auto calc_quant_params = [int8_quant_params, max_abs_vals](std::size_t ins_index, std::vector<migraphx::argument> args) {
+        std::pair<float, float> param_pair{64.0f, 0.0f};
 
         // scale and shift is need for only int8 type, and we do not
         // consider shift, so set shift to 0
@@ -177,18 +180,24 @@ void capture_arguments(program& prog, const std::vector<std::string>& ins_names)
         auto max_val = *std::max_element(vec_val.begin(), vec_val.end());
         auto min_val = *std::min_element(vec_val.begin(), vec_val.end());
         auto max_abs = std::max(std::fabs(max_val), std::fabs(min_val));
+        max_abs_vals->at(ins_index) = std::max(max_abs_vals->at(ins_index), max_abs);
 
-        param_pair.first                     = 127.0f / max_abs;
-        (*prog.int8_quant_params)[ins_index] = param_pair;
+        param_pair.first                     = 127.0f / max_abs_vals->at(ins_index);
+        int8_quant_params->at(ins_index) = param_pair;
     };
 
-    capture_arguments(prog, ins_names, calc_quant_params);
+    auto num_params = capture_arguments(prog, ins_names, calc_quant_params);
+
+    int8_quant_params->resize(num_params, std::make_pair<float, float>(64.0f, 0.0f));
+    max_abs_vals->resize(num_params, 0.0f);
+
+    return int8_quant_params;
 }
 
-void capture_arguments(program& prog)
+std::shared_ptr<std::vector<std::pair<float, float>>> capture_arguments(program& prog)
 {
     std::vector<std::string> ins_names = {"dot", "convolution"};
-    capture_arguments(prog, ins_names);
+    return capture_arguments(prog, ins_names);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -82,6 +82,7 @@ add_library(migraphx_gpu
     elu.cpp
     pad.cpp
     gather.cpp
+    convert.cpp
     lrn.cpp
     schedule_model.cpp
     adjust_allocation.cpp

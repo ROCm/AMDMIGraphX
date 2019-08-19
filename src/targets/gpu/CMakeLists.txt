@@ -24,9 +24,11 @@ add_library(migraphx_device
     device/tan.cpp
     device/sinh.cpp
     device/cosh.cpp
+    device/tanh.cpp
     device/asin.cpp
     device/acos.cpp
     device/atan.cpp
+    device/relu.cpp
     device/add_relu.cpp
     device/contiguous.cpp
     device/logsoftmax.cpp
@@ -37,6 +39,7 @@ add_library(migraphx_device
     device/pad.cpp
     device/gather.cpp
     device/sub.cpp
+    device/int8_gemm_pack.cpp
     device/div.cpp
     device/clip.cpp
     device/reduce_sum.cpp
@@ -45,6 +48,7 @@ add_library(migraphx_device
     device/reduce_mean.cpp
     device/pow.cpp
     device/sqdiff.cpp
+    device/sign.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_clang_tidy_check(migraphx_device)
@@ -61,15 +65,15 @@ add_library(migraphx_gpu
     target.cpp
     lowering.cpp
     gemm.cpp
+    quant_gemm.cpp
     pooling.cpp
     convolution.cpp
+    quant_convolution.cpp
     softmax.cpp
     logsoftmax.cpp
     contiguous.cpp
     concat.cpp
-    relu.cpp
     leaky_relu.cpp
-    tanh.cpp
     batchnorm.cpp
     write_literals.cpp
     rocblas.cpp
@@ -78,12 +82,16 @@ add_library(migraphx_gpu
     elu.cpp
     pad.cpp
     gather.cpp
+    convert.cpp
     lrn.cpp
     schedule_model.cpp
     adjust_allocation.cpp
+    pack_int8_args.cpp
     clip.cpp
     reduce_sum.cpp
     reduce_mean.cpp
+    int8_gemm_pack.cpp
+    int8_conv_pack.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_clang_tidy_check(migraphx_gpu)

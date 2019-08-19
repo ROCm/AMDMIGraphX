@@ -112,7 +112,8 @@ void program::assign(const program& p)
     {
         impl->instructions.clear();
     }
-    impl->ctx = p.impl->ctx;
+    impl->ctx         = p.impl->ctx;
+    int8_quant_params = p.int8_quant_params;
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
     for(auto ins : iterator_for(p))
@@ -241,7 +242,7 @@ instruction_ref program::remove_instructions(instruction_ref first, instruction_
     // TODO: Check every element
     assert(has_instruction(first));
     std::for_each(first, last, [&](instruction& ins) { ins.clear_arguments(); });
-    assert(std::all_of(first, last, [&](instruction& ins) { return ins.outputs().empty(); }));
+    assert(std::all_of(first, last, [&](const instruction& ins) { return ins.outputs().empty(); }));
     return impl->instructions.erase(first, last);
 }
 

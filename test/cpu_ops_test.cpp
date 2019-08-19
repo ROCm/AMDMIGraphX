@@ -5,6 +5,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/cpu/target.hpp>
+#include <migraphx/quantization.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/onnx.hpp>
 #include "test.hpp"
@@ -554,6 +555,21 @@ TEST_CASE(sqrt_test)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {1.01233218, 0.92543537, 0.18450265, 0.96328566, 0.32510282};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(sign_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    auto l = p.add_literal(
+        migraphx::literal{s, {1.02481645, 0.85643062, -0.03404123, -0.92791926, 0.0}});
+    p.add_instruction(migraphx::op::sign{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {1.0, 1.0, -1.0, -1.0, 0.0};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -1468,6 +1484,107 @@ TEST_CASE(conv2d_padding_stride_test)
     EXPECT(migraphx::verify_range(results_vector, s));
 }
 
+TEST_CASE(quant_conv2d_test)
+{
+    migraphx::program p;
+    migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
+    std::vector<int8_t> a(2 * 3 * 4 * 4);
+    std::iota(a.begin(), a.end(), 0);
+    auto al = p.add_literal(migraphx::literal{a_shape, a});
+
+    migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
+    std::vector<int8_t> c(2 * 3 * 3 * 3);
+    std::iota(c.begin(), c.end(), 0);
+    auto cl = p.add_literal(migraphx::literal{c_shape, c});
+
+    p.add_instruction(migraphx::op::quant_convolution{}, al, cl);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+
+    std::vector<int32_t> s = {10197,
+                              10548,
+                              11601,
+                              11952,
+                              25506,
+                              26586,
+                              29826,
+                              30906,
+                              27045,
+                              27396,
+                              28449,
+                              28800,
+                              77346,
+                              78426,
+                              81666,
+                              82746};
+
+    std::vector<int32_t> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, s));
+}
+
+TEST_CASE(quant_conv2d_padding_test)
+{
+    migraphx::program p;
+    migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
+    std::vector<int8_t> a(2 * 3 * 4 * 4);
+    std::iota(a.begin(), a.end(), 0);
+    auto al = p.add_literal(migraphx::literal{a_shape, a});
+    migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
+    std::vector<int8_t> c(2 * 3 * 3 * 3);
+    std::iota(c.begin(), c.end(), 0);
+    auto cl = p.add_literal(migraphx::literal{c_shape, c});
+    p.add_instruction(migraphx::op::quant_convolution{{{1, 1}}, {{1, 1}}}, al, cl);
+    p.compile(migraphx::cpu::target{});
+    auto result            = p.eval({});
+    std::vector<int32_t> s = {
+        4521,  6753,  7014,  4635,  6858,  10197, 10548, 6939,  7830,  11601, 11952, 7839,  5007,
+        7383,  7590,  4953,  10515, 15987, 16734, 11277, 16821, 25506, 26586, 17874, 19737, 29826,
+        30906, 20718, 13593, 20505, 21198, 14187, 13161, 19281, 19542, 12699, 18522, 27045, 27396,
+        17739, 19494, 28449, 28800, 18639, 11919, 17319, 17526, 11289, 34707, 51843, 52590, 34893,
+        51813, 77346, 78426, 52002, 54729, 81666, 82746, 54846, 36057, 53769, 54462, 36075};
+
+    std::vector<int32_t> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, s));
+}
+
+TEST_CASE(quant_conv2d_padding_stride_test)
+{
+    migraphx::program p;
+    migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
+    std::vector<int8_t> a(2 * 3 * 4 * 4);
+    std::iota(a.begin(), a.end(), 0);
+    auto al = p.add_literal(migraphx::literal{a_shape, a});
+    migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
+    std::vector<int8_t> c(2 * 3 * 3 * 3);
+    std::iota(c.begin(), c.end(), 0);
+    auto cl = p.add_literal(migraphx::literal{c_shape, c});
+    p.add_instruction(migraphx::op::quant_convolution{{{1, 1}}, {{2, 2}}}, al, cl);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+
+    std::vector<int32_t> s = {4521,
+                              7014,
+                              7830,
+                              11952,
+                              10515,
+                              16734,
+                              19737,
+                              30906,
+                              13161,
+                              19542,
+                              19494,
+                              28800,
+                              34707,
+                              52590,
+                              54729,
+                              82746};
+    std::vector<int32_t> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, s));
+}
+
 TEST_CASE(transpose_test)
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 2, 2, 3}};
@@ -1911,5 +2028,40 @@ TEST_CASE(sqdiff_test)
     std::vector<float> gold = {4, 4, 4};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
+
+TEST_CASE(op_capture)
+{
+    migraphx::program p;
+    migraphx::shape s1{migraphx::shape::float_type, {3, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 6}};
+    std::vector<float> d1(s1.elements());
+    std::vector<float> d2(s2.elements());
+    std::iota(d1.begin(), d1.end(), 0.0f);
+    std::iota(d2.begin(), d2.end(), 0.0f);
+
+    auto p1 = p.add_literal(s1, d1);
+    auto p2 = p.add_literal(s1, d1);
+    auto pb = p.add_literal(s2, d2);
+    auto pc = p.add_literal(s2, d2);
+    auto pa = p.add_instruction(migraphx::op::add{}, p1, p2);
+    auto ps = p.add_instruction(migraphx::op::dot{}, pa, pb, pc);
+    p.add_instruction(migraphx::op::dot{}, pa, ps);
+
+    migraphx::program capture_p = p;
+    migraphx::capture_arguments(capture_p);
+
+    p.compile(migraphx::cpu::target{});
+    capture_p.compile(migraphx::cpu::target{});
+
+    auto cap_res = capture_p.eval({});
+    auto res     = p.eval({});
+
+    std::vector<float> vec;
+    std::vector<float> cap_vec;
+    cap_res.visit([&](auto output) { cap_vec.assign(output.begin(), output.end()); });
+    res.visit([&](auto output) { vec.assign(output.begin(), output.end()); });
+
+    EXPECT(migraphx::verify_range(vec, cap_vec));
+};
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

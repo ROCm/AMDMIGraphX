@@ -13,6 +13,7 @@
 #include <migraphx/op/batch_norm.hpp>
 #include <migraphx/op/binary.hpp>
 #include <migraphx/op/broadcast.hpp>
+#include <migraphx/op/capture.hpp>
 #include <migraphx/op/clip.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/concat.hpp>
@@ -45,6 +46,8 @@
 #include <migraphx/op/outline.hpp>
 #include <migraphx/op/pad.hpp>
 #include <migraphx/op/pooling.hpp>
+#include <migraphx/op/quant_convolution.hpp>
+#include <migraphx/op/quant_dot.hpp>
 #include <migraphx/op/pow.hpp>
 #include <migraphx/op/reduce_sum.hpp>
 #include <migraphx/op/reduce_mean.hpp>
@@ -56,6 +59,7 @@
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/scalar.hpp>
 #include <migraphx/op/sigmoid.hpp>
+#include <migraphx/op/sign.hpp>
 #include <migraphx/op/sinh.hpp>
 #include <migraphx/op/sin.hpp>
 #include <migraphx/op/slice.hpp>

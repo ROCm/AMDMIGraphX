@@ -97,10 +97,10 @@ struct compiler
         return p;
     }
 
-    auto params(const program& p) 
+    auto params(const program& p)
     {
         program::parameter_map m;
-        for(auto&& s:fill1)
+        for(auto&& s : fill1)
             m[s] = fill_argument(p.get_parameter_shape(s), 1);
         fill_param_map(m, p, gpu);
         return m;

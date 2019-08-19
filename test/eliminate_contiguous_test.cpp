@@ -83,7 +83,7 @@ TEST_CASE(transpose_gemm)
 TEST_CASE(transpose_standard_op)
 {
     migraphx::program p;
-    auto l = p.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
+    auto l  = p.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
     auto t  = p.add_instruction(migraphx::op::transpose{{1, 0}}, l);
     auto c  = p.add_instruction(migraphx::op::contiguous{}, t);
     auto sn = p.add_instruction(migraphx::op::sin{}, c);

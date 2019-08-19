@@ -257,8 +257,9 @@ TEST_CASE(mean_test)
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
     p.add_literal(l);
     p.add_literal(l);
-    p.add_instruction(migraphx::op::reduce_mean{{2, 3}}, l0);
-    auto l3 = p.add_instruction(migraphx::op::reduce_mean{{2, 3}}, l0);
+    migraphx::op::reduce_mean op{{2, 3}};
+    p.add_instruction(op, l0);
+    auto l3 = p.add_instruction(op, l0);
     p.add_instruction(migraphx::op::squeeze{{2, 3}}, l3);
     auto prog = optimize_tf("mean_test.pb", false);
 
@@ -270,8 +271,9 @@ TEST_CASE(mean_test_nhwc)
     migraphx::program p;
     migraphx::literal l{migraphx::shape{migraphx::shape::int32_type, {2}}, {1, 2}};
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    auto l1 = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, l0);
-    auto l2 = p.add_instruction(migraphx::op::reduce_mean{{1, 2}}, l1);
+    auto l1 = p.add_instruction(migraphx::op::transpose{{0,2,3,1}}, l0);
+    migraphx::op::reduce_mean op{{1, 2}};
+    auto l2 = p.add_instruction(op, l1);
     p.add_instruction(migraphx::op::squeeze{{1, 2}}, l2);
     auto prog = optimize_tf("mean_test_nhwc.pb", true);
 

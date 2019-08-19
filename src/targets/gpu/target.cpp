@@ -16,11 +16,13 @@
 #include <migraphx/common_subexpression_elimination.hpp>
 #include <migraphx/fwd_conv_batchnorm_rewrite.hpp>
 #include <migraphx/rewrite_rnn.hpp>
+#include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/adjust_allocation.hpp>
+#include <migraphx/gpu/pack_int8_args.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/schedule.hpp>
 
@@ -45,6 +47,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         fwd_conv_batchnorm_rewrite{},
         dead_code_elimination{},
         rewrite_rnn{},
+        rewrite_pooling{},
         dead_code_elimination{},
         //common_subexpression_elimination{},
         //dead_code_elimination{},
@@ -61,6 +64,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         eliminate_contiguous{},
         dead_code_elimination{},
         adjust_allocation{},
+        dead_code_elimination{},
+        pack_int8_args{},
         dead_code_elimination{},
         fuse_ops{&ctx},
         dead_code_elimination{},

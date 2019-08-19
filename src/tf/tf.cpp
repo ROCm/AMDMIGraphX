@@ -592,13 +592,17 @@ struct tf_parser
     {
         bool keep_dims                  = attributes.at("keep_dims").b();
         auto lens                       = args[0]->get_shape().lens();
-        auto axes                       = args[1]->eval().get<int32_t>().to_vector();
-        std::vector<int64_t> axes_int64 = std::vector<int64_t>(axes.begin(), axes.end());
+        auto axes                       = args[1]->eval().get<int32_t>().to_vector<int64_t>();
 
-        auto l0 = prog.add_instruction(op::reduce_mean{axes_int64}, args.front());
         if(keep_dims)
-            return l0;
-        return prog.add_instruction(op::squeeze{axes_int64}, l0);
+        {
+            return prog.add_instruction(op::reduce_mean{axes}, args[0]);
+        }
+        else
+        {
+            auto ins = prog.add_instruction(op::reduce_mean{axes}, args[0]);
+            return prog.add_instruction(op::squeeze{axes}, ins);
+        }
     }
 
     instruction_ref

@@ -28,14 +28,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 #define MIGRAPHX_DRIVER_STATIC static
 #endif
 
-template<class T>
+template <class T>
 using bare = std::remove_cv_t<std::remove_reference_t<T>>;
 
 namespace detail {
 
 template <class T>
-auto is_container(int, T&& x)
-    -> decltype(x.insert(x.end(), *x.begin()), std::true_type{});
+auto is_container(int, T&& x) -> decltype(x.insert(x.end(), *x.begin()), std::true_type{});
 
 template <class T>
 std::false_type is_container(float, T&&);
@@ -49,8 +48,7 @@ struct is_container : decltype(detail::is_container(int(0), std::declval<T>()))
 
 template <class T>
 using is_multi_value =
-    std::integral_constant<bool,
-                           (is_container<T>{} and not std::is_convertible<T, std::string>{})>;
+    std::integral_constant<bool, (is_container<T>{} and not std::is_convertible<T, std::string>{})>;
 
 template <class T>
 struct value_parser
@@ -102,13 +100,13 @@ struct argument_parser
         unsigned nargs            = 1;
     };
 
-    template<class T, MIGRAPHX_REQUIRES(is_multi_value<T>{})>
+    template <class T, MIGRAPHX_REQUIRES(is_multi_value<T>{})>
     std::string as_string_value(const T& x)
     {
         return to_string_range(x);
     }
 
-    template<class T, MIGRAPHX_REQUIRES(not is_multi_value<T>{})>
+    template <class T, MIGRAPHX_REQUIRES(not is_multi_value<T>{})>
     std::string as_string_value(const T& x)
     {
         return to_string(x);

@@ -16,7 +16,7 @@ program::parameter_map fill_param_map(program::parameter_map& m, const program& 
     for(auto&& x : p.get_parameter_shapes())
     {
         argument& arg = m[x.first];
-        if (arg.empty())
+        if(arg.empty())
             arg = generate_argument(x.second);
 #ifdef HAVE_GPU
         if(gpu)

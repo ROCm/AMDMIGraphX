@@ -91,7 +91,7 @@ template <class T>
 std::vector<T> fill_tensor_data(const migraphx::shape& s, unsigned long value = 0)
 {
     std::vector<T> result(s.elements());
-    std::generate(result.begin(), result.end(), [=]{ return value; });
+    std::generate(result.begin(), result.end(), [=] { return value; });
     return result;
 }
 

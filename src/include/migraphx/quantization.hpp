@@ -15,6 +15,14 @@ struct program;
 void quantize(program& prog, const std::vector<std::string>& ins_names);
 void quantize(program& prog);
 
+// insert the capture operator for the inputs of each operator to be quantized
+// to int8
+void capture_arguments(program& prog,
+                       const std::vector<std::string>& ins_names,
+                       const std::function<void(std::size_t, std::vector<argument>)>& func);
+void capture_arguments(program& prog, const std::vector<std::string>& ins_names);
+void capture_arguments(program& prog);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

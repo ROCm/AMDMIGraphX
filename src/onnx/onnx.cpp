@@ -208,7 +208,7 @@ struct onnx_parser
 
     instruction_ref make_contiguous(instruction_ref ins)
     {
-        if (ins->get_shape().standard())
+        if(ins->get_shape().standard())
         {
             return ins;
         }

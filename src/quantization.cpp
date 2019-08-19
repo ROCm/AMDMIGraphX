@@ -119,8 +119,8 @@ void quantize(program& prog) { quantize(prog, {"all"}); }
 // For the input of each input argument, we need to insert a
 // capture operator to compute the scale and shift
 std::size_t capture_arguments(program& prog,
-                       const std::vector<std::string>& ins_names,
-                       const std::function<void(std::size_t, std::vector<argument>)>& func)
+                              const std::vector<std::string>& ins_names,
+                              const std::function<void(std::size_t, std::vector<argument>)>& func)
 {
 
     size_t num_quant_params = 0;
@@ -164,25 +164,27 @@ std::size_t capture_arguments(program& prog,
     return num_quant_params;
 }
 
-std::shared_ptr<std::vector<std::pair<float, float>>> capture_arguments(program& prog, const std::vector<std::string>& ins_names)
+std::shared_ptr<std::vector<std::pair<float, float>>>
+capture_arguments(program& prog, const std::vector<std::string>& ins_names)
 {
     std::shared_ptr<std::vector<std::pair<float, float>>> int8_quant_params =
         std::make_shared<std::vector<std::pair<float, float>>>();
     std::shared_ptr<std::vector<float>> max_abs_vals = std::make_shared<std::vector<float>>();
 
-    auto calc_quant_params = [int8_quant_params, max_abs_vals](std::size_t ins_index, std::vector<migraphx::argument> args) {
+    auto calc_quant_params = [int8_quant_params, max_abs_vals](
+                                 std::size_t ins_index, std::vector<migraphx::argument> args) {
         std::pair<float, float> param_pair{64.0f, 0.0f};
 
         // scale and shift is need for only int8 type, and we do not
         // consider shift, so set shift to 0
         std::vector<float> vec_val;
         args.front().visit([&](auto output) { vec_val.assign(output.begin(), output.end()); });
-        auto max_val = *std::max_element(vec_val.begin(), vec_val.end());
-        auto min_val = *std::min_element(vec_val.begin(), vec_val.end());
-        auto max_abs = std::max(std::fabs(max_val), std::fabs(min_val));
+        auto max_val                = *std::max_element(vec_val.begin(), vec_val.end());
+        auto min_val                = *std::min_element(vec_val.begin(), vec_val.end());
+        auto max_abs                = std::max(std::fabs(max_val), std::fabs(min_val));
         max_abs_vals->at(ins_index) = std::max(max_abs_vals->at(ins_index), max_abs);
 
-        param_pair.first                     = 127.0f / max_abs_vals->at(ins_index);
+        param_pair.first                 = 127.0f / max_abs_vals->at(ins_index);
         int8_quant_params->at(ins_index) = param_pair;
     };
 

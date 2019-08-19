@@ -8,6 +8,7 @@
 #include <migraphx/stringutils.hpp>
 
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
@@ -80,11 +81,13 @@ struct compiler
 {
     loader l;
     bool gpu = true;
+    std::vector<std::string> fill1;
     void parse(argument_parser& ap)
     {
         l.parse(ap);
         ap(gpu, {"--gpu"}, ap.help("Compile on the gpu"), ap.set_value(true));
         ap(gpu, {"--cpu"}, ap.help("Compile on the cpu"), ap.set_value(false));
+        ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append());
     }
 
     program compile()
@@ -94,7 +97,14 @@ struct compiler
         return p;
     }
 
-    auto params(const program& p) { return create_param_map(p, gpu); }
+    auto params(const program& p) 
+    {
+        program::parameter_map m;
+        for(auto&& s:fill1)
+            m[s] = fill_argument(p.get_parameter_shape(s), 1);
+        fill_param_map(m, p, gpu);
+        return m;
+    }
 };
 
 struct read : command<read>

@@ -11,6 +11,23 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
+program::parameter_map fill_param_map(program::parameter_map& m, const program& p, bool gpu)
+{
+    for(auto&& x : p.get_parameter_shapes())
+    {
+        argument& arg = m[x.first];
+        if (arg.empty())
+            arg = generate_argument(x.second);
+#ifdef HAVE_GPU
+        if(gpu)
+            arg = gpu::to_gpu(arg);
+#else
+        (void)gpu;
+#endif
+    }
+    return m;
+}
+
 program::parameter_map create_param_map(const program& p, bool gpu)
 {
     program::parameter_map m;

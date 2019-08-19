@@ -28,10 +28,34 @@ inline namespace MIGRAPHX_INLINE_NS {
 #define MIGRAPHX_DRIVER_STATIC static
 #endif
 
+template<class T>
+using bare = std::remove_cv_t<std::remove_reference_t<T>>;
+
+namespace detail {
+
+template <class T>
+auto is_container(int, T&& x)
+    -> decltype(x.insert(x.end(), *x.begin()), std::true_type{});
+
+template <class T>
+std::false_type is_container(float, T&&);
+
+} // namespace detail
+
+template <class T>
+struct is_container : decltype(detail::is_container(int(0), std::declval<T>()))
+{
+};
+
+template <class T>
+using is_multi_value =
+    std::integral_constant<bool,
+                           (is_container<T>{} and not std::is_convertible<T, std::string>{})>;
+
 template <class T>
 struct value_parser
 {
-    template <MIGRAPHX_REQUIRES(not std::is_enum<T>{})>
+    template <MIGRAPHX_REQUIRES(not std::is_enum<T>{} and not is_multi_value<T>{})>
     static T apply(const std::string& x)
     {
         T result;
@@ -43,7 +67,7 @@ struct value_parser
         return result;
     }
 
-    template <MIGRAPHX_REQUIRES(std::is_enum<T>{})>
+    template <MIGRAPHX_REQUIRES(std::is_enum<T>{} and not is_multi_value<T>{})>
     static T apply(const std::string& x)
     {
         std::ptrdiff_t i;
@@ -53,6 +77,15 @@ struct value_parser
         if(ss.fail())
             throw std::runtime_error("Failed to parse: " + x);
         return static_cast<T>(i);
+    }
+
+    template <MIGRAPHX_REQUIRES(is_multi_value<T>{} and not std::is_enum<T>{})>
+    static T apply(const std::string& x)
+    {
+        T result;
+        using value_type = typename T::value_type;
+        result.insert(result.end(), value_parser<value_type>::apply(x));
+        return result;
     }
 };
 
@@ -69,6 +102,18 @@ struct argument_parser
         unsigned nargs            = 1;
     };
 
+    template<class T, MIGRAPHX_REQUIRES(is_multi_value<T>{})>
+    std::string as_string_value(const T& x)
+    {
+        return to_string_range(x);
+    }
+
+    template<class T, MIGRAPHX_REQUIRES(not is_multi_value<T>{})>
+    std::string as_string_value(const T& x)
+    {
+        return to_string(x);
+    }
+
     template <class T, class... Fs>
     void operator()(T& x, const std::vector<std::string>& flags, Fs... fs)
     {
@@ -81,7 +126,7 @@ struct argument_parser
 
         argument& arg     = arguments.back();
         arg.type          = migraphx::get_type_name<T>();
-        arg.default_value = to_string(x);
+        arg.default_value = as_string_value(x);
         migraphx::each_args([&](auto f) { f(x, arg); }, fs...);
     }
 
@@ -127,7 +172,7 @@ struct argument_parser
     MIGRAPHX_DRIVER_STATIC auto append()
     {
         return write_action([](auto&, auto& x, auto& params) {
-            using type = typename decltype(params)::value_type;
+            using type = typename bare<decltype(params)>::value_type;
             std::transform(params.begin(),
                            params.end(),
                            std::inserter(x, x.end()),

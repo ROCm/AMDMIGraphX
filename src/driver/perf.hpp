@@ -7,6 +7,7 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
+program::parameter_map fill_param_map(program::parameter_map& m, const program& p, bool gpu);
 program::parameter_map create_param_map(const program& p, bool gpu = true);
 void compile_program(program& p, bool gpu = true);
 

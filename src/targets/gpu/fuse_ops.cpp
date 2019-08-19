@@ -135,8 +135,6 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
     auto conv = any_cast<miopen_convolution>(ins->get_operator());
     if(conv.op.group > 1)
         return false;
-    if(conv.op.padding_mode != op::padding_mode_t::default_)
-        return false;
     if(wei.lens()[1] > 512 and conv.algo != miopenConvolutionFwdAlgoWinograd)
         return false;
     auto op = conv.op;

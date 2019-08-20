@@ -282,14 +282,8 @@ void reduce(hipStream_t stream,
                   std::prev(output_shape.lens().end()),
                   input_shape.lens().begin()))
     {
-        reduce_standard_impl(stream,
-                             result,
-                             arg,
-                             op,
-                             init,
-                             read_input,
-                             read_output,
-                             input_shape.lens().back());
+        reduce_standard_impl(
+            stream, result, arg, op, init, read_input, read_output, input_shape.lens().back());
     }
     else
     {

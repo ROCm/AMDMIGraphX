@@ -3,8 +3,6 @@
 
 #include <migraphx/shape.hpp>
 #include <migraphx/op/convert.hpp>
-#include <migraphx/gpu/oper.hpp>
-#include <migraphx/gpu/device/convert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -12,7 +10,7 @@ namespace gpu {
 
 struct context;
 
-struct hip_convert : unary_device<hip_convert, device::convert>
+struct hip_convert
 {
     op::convert op;
 
@@ -22,13 +20,15 @@ struct hip_convert : unary_device<hip_convert, device::convert>
         return migraphx::reflect(self.op, f);
     }
 
-    hip_convert(op::convert oper) : op(oper) {}
+    std::string name() const { return "gpu::convert"; }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(std::vector<shape> inputs) const;
+
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const;
+
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
-        inputs.pop_back();
-        check_shapes{inputs}.packed();
-        return op.compute_shape(inputs);
+        return shapes.size() - 1;
     }
 };
 

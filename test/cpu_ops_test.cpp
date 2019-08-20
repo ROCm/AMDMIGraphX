@@ -5,6 +5,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/cpu/target.hpp>
+#include <migraphx/quantization.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/onnx.hpp>
 #include "test.hpp"
@@ -2027,5 +2028,40 @@ TEST_CASE(sqdiff_test)
     std::vector<float> gold = {4, 4, 4};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
+
+TEST_CASE(op_capture)
+{
+    migraphx::program p;
+    migraphx::shape s1{migraphx::shape::float_type, {3, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 6}};
+    std::vector<float> d1(s1.elements());
+    std::vector<float> d2(s2.elements());
+    std::iota(d1.begin(), d1.end(), 0.0f);
+    std::iota(d2.begin(), d2.end(), 0.0f);
+
+    auto p1 = p.add_literal(s1, d1);
+    auto p2 = p.add_literal(s1, d1);
+    auto pb = p.add_literal(s2, d2);
+    auto pc = p.add_literal(s2, d2);
+    auto pa = p.add_instruction(migraphx::op::add{}, p1, p2);
+    auto ps = p.add_instruction(migraphx::op::dot{}, pa, pb, pc);
+    p.add_instruction(migraphx::op::dot{}, pa, ps);
+
+    migraphx::program capture_p = p;
+    migraphx::capture_arguments(capture_p);
+
+    p.compile(migraphx::cpu::target{});
+    capture_p.compile(migraphx::cpu::target{});
+
+    auto cap_res = capture_p.eval({});
+    auto res     = p.eval({});
+
+    std::vector<float> vec;
+    std::vector<float> cap_vec;
+    cap_res.visit([&](auto output) { cap_vec.assign(output.begin(), output.end()); });
+    res.visit([&](auto output) { vec.assign(output.begin(), output.end()); });
+
+    EXPECT(migraphx::verify_range(vec, cap_vec));
+};
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

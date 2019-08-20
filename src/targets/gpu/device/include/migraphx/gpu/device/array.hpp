@@ -16,6 +16,12 @@ struct hip_array
     MIGRAPHX_DEVICE_CONSTEXPR T& operator[](std::size_t i) { return d[i]; }
     MIGRAPHX_DEVICE_CONSTEXPR const T& operator[](std::size_t i) const { return d[i]; }
 
+    MIGRAPHX_DEVICE_CONSTEXPR T& front() { return d[0]; }
+    MIGRAPHX_DEVICE_CONSTEXPR const T& front() const { return d[0]; }
+
+    MIGRAPHX_DEVICE_CONSTEXPR T& back() { return d[N - 1]; }
+    MIGRAPHX_DEVICE_CONSTEXPR const T& back() const { return d[N - 1]; }
+
     MIGRAPHX_DEVICE_CONSTEXPR T* data() { return d; }
     MIGRAPHX_DEVICE_CONSTEXPR const T* data() const { return d; }
 

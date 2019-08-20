@@ -392,7 +392,7 @@ MIGRAPHX_BASIC_MATCHER(used_once, const matcher_context& ctx, instruction_ref in
 
 inline auto used_once_recursive(std::size_t depth)
 {
-    return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref start) {
+    return make_basic_fun_matcher([=](const matcher_context& ctx, instruction_ref start) {
         // Used once
         if(start->outputs().size() == 1)
             return start;
@@ -427,7 +427,7 @@ inline auto used_once_recursive(std::size_t depth)
 
 MIGRAPHX_PRED_MATCHER(is_constant, instruction_ref ins) { return ins->can_eval(); }
 
-MIGRAPHX_BASIC_MATCHER(is_unused, matcher_context& ctx, instruction_ref ins)
+MIGRAPHX_BASIC_MATCHER(is_unused, const matcher_context& ctx, instruction_ref ins)
 {
     if(ins->outputs().empty() and ins != std::prev(ctx.not_found()))
         return ins;

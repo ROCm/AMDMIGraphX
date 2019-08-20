@@ -591,7 +591,6 @@ struct tf_parser
     parse_mean(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         bool keep_dims = attributes.at("keep_dims").b();
-        auto lens      = args[0]->get_shape().lens();
         auto axes      = args[1]->eval().get<int32_t>().to_vector<int64_t>();
 
         if(keep_dims)

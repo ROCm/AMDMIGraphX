@@ -282,10 +282,7 @@ void reduce(hipStream_t stream,
                   std::prev(output_shape.lens().end()),
                   input_shape.lens().begin()))
     {
-        std::size_t stride = std::accumulate(input_shape.strides().begin(),
-                                             input_shape.strides().end(),
-                                             1,
-                                             std::multiplies<size_t>());
+        std::size_t stride = input_shape.strides().at(input_shape.strides().size() - 2);
         reduce_standard_impl(stream,
                              result,
                              arg,

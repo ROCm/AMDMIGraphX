@@ -119,6 +119,20 @@ struct read : command<read>
     }
 };
 
+struct params : command<params>
+{
+    loader l;
+    void parse(argument_parser& ap) { l.parse(ap); }
+
+    void run()
+    {
+        auto p = l.load();
+        for(auto&& param:p.get_parameter_shapes())
+            std::cout << param.first << ": " << param.second << std::endl;
+
+    }
+};
+
 struct verify : command<verify>
 {
     loader l;

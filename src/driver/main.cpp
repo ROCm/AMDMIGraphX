@@ -127,9 +127,8 @@ struct params : command<params>
     void run()
     {
         auto p = l.load();
-        for(auto&& param:p.get_parameter_shapes())
+        for(auto&& param : p.get_parameter_shapes())
             std::cout << param.first << ": " << param.second << std::endl;
-
     }
 };
 

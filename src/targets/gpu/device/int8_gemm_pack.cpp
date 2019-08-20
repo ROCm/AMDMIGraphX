@@ -69,6 +69,8 @@ void int8_gemm_pack_b(hipStream_t stream, const argument& result, const argument
     });
 }
 
+void sync_stream(hipStream_t stream) { hipStreamSynchronize(stream); }
+
 } // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

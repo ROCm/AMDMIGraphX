@@ -261,7 +261,8 @@ struct cpu_quant_convolution
                         const auto in_ch = group_id * wei_c + k;
                         if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
                         {
-                            acc += input(o, in_ch, in_x, in_y) * weights(w, k, x, y);
+                            acc += static_cast<int32_t>(input(o, in_ch, in_x, in_y)) *
+                                   weights(w, k, x, y);
                         }
                     });
                     output(o, w, i, j) = acc;
@@ -576,8 +577,7 @@ struct cpu_quant_gemm
         }
 
         // 2 input arguments
-        int32_t beta = 0;
-        migemm(result, arg_0, arg_1, op.alpha, beta);
+        migemm(result, arg_0, arg_1, op.alpha, int32_t{0});
 
         return result;
     }

@@ -447,8 +447,7 @@ struct onnx_parser
             s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
         }
 
-        args[0] = make_contiguous(args[0]);
-        return prog.add_instruction(op, args[0]);
+        return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
     instruction_ref
@@ -496,11 +495,9 @@ struct onnx_parser
         {
             axis = parse_value(attributes.at("axis")).at<int>();
         }
-        args[0] = make_contiguous(args[0]);
-        args[1] = make_contiguous(args[1]);
 
         op::gather op{axis};
-        return prog.add_instruction(op, std::move(args));
+        return prog.add_instruction(op, make_contiguous(args[0]), make_contiguous(args[1]));
     }
 
     instruction_ref

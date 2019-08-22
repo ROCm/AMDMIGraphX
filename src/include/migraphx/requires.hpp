@@ -23,9 +23,10 @@ using bool_c = std::integral_constant<bool, B>;
 #ifdef CPPCHECK
 #define MIGRAPHX_REQUIRES(...) class = void
 #else
-#define MIGRAPHX_REQUIRES(...)                                                                 \
-    bool MIGRAPHX_REQUIRES_VAR()            = true,                                            \
-         typename std::enable_if<(MIGRAPHX_REQUIRES_VAR() && (migraphx::and_<__VA_ARGS__>{})), \
+#define MIGRAPHX_REQUIRES(...)                                           \
+    long MIGRAPHX_REQUIRES_VAR()            = __LINE__,                  \
+         typename std::enable_if<(MIGRAPHX_REQUIRES_VAR() == __LINE__ && \
+                                  (migraphx::and_<__VA_ARGS__>{})),      \
                                  int>::type = 0
 #endif
 

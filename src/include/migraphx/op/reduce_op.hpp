@@ -54,9 +54,7 @@ struct sum_op
 
     auto output()
     {
-        return [=](auto val) {
-            return val;
-        };
+        return [=](auto val) { return val; };
     }
 };
 
@@ -73,9 +71,7 @@ struct mean_op
 
     auto output()
     {
-        return [=](auto val) {
-            return val / elem_num;
-        };
+        return [=](auto val) { return val / elem_num; };
     }
 };
 
@@ -136,7 +132,7 @@ struct reduce_op : op_name<Derived>
                 shape& batch_shape,
                 std::vector<int64_t>& tuned_axes,
                 std::vector<std::size_t>& out_idx,
-                tensor_view<T>& output, 
+                tensor_view<T>& output,
                 Op op) const
     {
         auto data_idx = out_idx;
@@ -166,7 +162,8 @@ struct reduce_op : op_name<Derived>
         visit_all(result, args[0])([&](auto output, auto input) {
             par_for(output_shape.elements(), [&](auto i) {
                 auto out_idx = output_shape.multi(i);
-                this->reduce(input, batch_shape, tuned_axes, out_idx, output, Op{batch_shape.elements()});
+                this->reduce(
+                    input, batch_shape, tuned_axes, out_idx, output, Op{batch_shape.elements()});
             });
         });
 

@@ -9,9 +9,8 @@ namespace op {
 
 struct reduce_sum : reduce_op<reduce_sum, sum_op>
 {
-    reduce_sum() : reduce_op() { }
-    reduce_sum(std::vector<int64_t> ax) : reduce_op(ax) 
-    { }
+    reduce_sum() : reduce_op() {}
+    reduce_sum(std::vector<int64_t> ax) : reduce_op(ax) {}
 };
 
 } // namespace op

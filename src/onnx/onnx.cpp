@@ -313,7 +313,11 @@ struct onnx_parser
         {
             if(contains(attributes, "auto_pad"))
             {
-                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                auto s = attributes["auto_pad"].s();
+                if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
+                {
+                    MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                }
             }
             std::vector<std::int64_t> padding;
             copy(attributes["pads"].ints(), std::back_inserter(padding));

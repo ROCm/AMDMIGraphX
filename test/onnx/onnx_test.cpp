@@ -7,6 +7,11 @@
 #include <migraphx/onnx.hpp>
 #include "test.hpp"
 
+TEST_CASE(conv_autopad_fail_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("conv_autopad_fail_test.onnx"); }));
+}
+
 TEST_CASE(pytorch_conv_bias_test)
 {
     migraphx::program p;

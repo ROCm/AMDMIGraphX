@@ -471,10 +471,6 @@ def const_of_shape_int64_test():
     onnx.save(model_def, 'const_of_shape_int64_test.onnx')
 
 def const_of_shape_no_value_attr_test():
-    tensor_val = onnx.helper.make_tensor(
-        'value',
-        onnx.TensorProto.INT64, [1],[10]
-    )
     shape_val = np.array([2, 3, 4]).astype(np.int64)
     shape_ts = helper.make_tensor(
         name = 'shape_tensor',
@@ -505,6 +501,187 @@ def const_of_shape_no_value_attr_test():
 
     model_def = helper.make_model(graph_def, producer_name='constant-of-shape')
     onnx.save(model_def, 'const_of_shape_no_value_attr_test.onnx')
+
+def conv_bias_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1])
+    out = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1, 2, 28, 28])
+
+    node = onnx.helper.make_node(
+        'Conv',
+        inputs=['0', '1', '2'],
+        outputs=['3'],
+        dilations = [1, 1], 
+        strides = [1, 1]
+    )
+
+    graph_def = helper.make_graph(
+        [node],
+        'test_conv',
+        [x, y, z],
+        [out],
+    )
+
+    model_def = helper.make_model(graph_def, producer_name='conv-example')
+    onnx.save(model_def, 'conv_bias_test.onnx')
+
+def conv_bn_relu_maxpool_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1])
+    m = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1])
+    n = helper.make_tensor_value_info('4', TensorProto.FLOAT, [1])
+    k = helper.make_tensor_value_info('5', TensorProto.FLOAT, [1])
+    l = helper.make_tensor_value_info('6', TensorProto.FLOAT, [1])
+    out = helper.make_tensor_value_info('10', TensorProto.FLOAT, [1, 1, 14, 14])
+
+    node0 = onnx.helper.make_node(
+        'Conv',
+        inputs=['0', '1', '2'],
+        outputs=['7'],
+        dilations = [1, 1], 
+        strides = [1, 1],
+        pads = [0, 0, 0, 0]
+    )
+
+    node1 = onnx.helper.make_node(
+        'BatchNormalization',
+        inputs=['7', '3', '4', '5', '6'],
+        outputs=['8'],
+        epsilon = 9.99999974737875e-06, 
+        momentum = 0.899999976158142
+    )
+
+    node2 = onnx.helper.make_node(
+        'Relu',
+        inputs=['8'],
+        outputs=['9']
+    )
+    node3 = onnx.helper.make_node(
+        'MaxPool',
+        inputs=['9'],
+        outputs=['10'],
+        pads = [0, 0, 0, 0], 
+        strides = [2, 2],
+        kernel_shape=[2,2]
+    )
+
+    graph_def = helper.make_graph(
+        [node0, node1, node2, node3],
+        'test_conv_bn_relu',
+        [x, y, z, m, n, k, l],
+        [out],
+    )
+
+    model_def = helper.make_model(graph_def, producer_name='conv_relu-example')
+    onnx.save(model_def, 'conv_bn_relu_maxpool_test.onnx')
+
+def conv_relu_maxpool_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1])
+    out = helper.make_tensor_value_info('5', TensorProto.FLOAT, [1, 1, 14, 14])
+
+    node1 = onnx.helper.make_node(
+        'Conv',
+        inputs=['0', '1', '2'],
+        outputs=['3'],
+        dilations = [1, 1], 
+        strides = [1, 1],
+        pads = [0, 0, 0, 0]
+    )
+
+    node2 = onnx.helper.make_node(
+        'Relu',
+        inputs=['3'],
+        outputs=['4']
+    )
+
+    node3 = onnx.helper.make_node(
+        'MaxPool',
+        inputs=['4'],
+        outputs=['5'],
+        pads = [0, 0, 0, 0], 
+        strides = [2, 2],
+        kernel_shape=[2,2]
+    )
+
+    graph_def = helper.make_graph(
+        [node1, node2, node3],
+        'test_conv_relu',
+        [x, y, z],
+        [out],
+    )
+
+    model_def = helper.make_model(graph_def, producer_name='conv_relu-example')
+    onnx.save(model_def, 'conv_relu_maxpool_test.onnx')
+
+def conv_relu_maxpool_x2_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [5, 3, 5, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [5])
+    m = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1, 5, 5, 5])
+    n = helper.make_tensor_value_info('4', TensorProto.FLOAT, [1])
+    out = helper.make_tensor_value_info('10', TensorProto.FLOAT, [1, 1, 5, 5])
+
+    node1 = onnx.helper.make_node(
+        'Conv',
+        inputs=['0', '1', '2'],
+        outputs=['5'],
+        dilations = [1, 1], 
+        strides = [1, 1],
+        pads = [0, 0, 0, 0]
+    )
+
+    node2 = onnx.helper.make_node(
+        'Relu',
+        inputs=['5'],
+        outputs=['6']
+    )
+
+    node3 = onnx.helper.make_node(
+        'MaxPool',
+        inputs=['6'],
+        outputs=['7'],
+        pads = [0, 0, 0, 0], 
+        strides = [2, 2],
+        kernel_shape=[2,2]
+    )
+
+    node4 = onnx.helper.make_node(
+        'Conv',
+        inputs=['7', '3', '4'],
+        outputs=['8'],
+        dilations = [1, 1], 
+        strides = [1, 1],
+        pads = [0, 0, 0, 0]
+    )
+
+    node5 = onnx.helper.make_node(
+        'Relu',
+        inputs=['8'],
+        outputs=['9']
+    )
+
+    node6 = onnx.helper.make_node(
+        'MaxPool',
+        inputs=['9'],
+        outputs=['10'],
+        pads = [0, 0, 0, 0], 
+        strides = [2, 2],
+        kernel_shape=[2,2]
+        )
+
+    graph_def = helper.make_graph(
+        [node1, node2, node3, node4, node5, node6],
+        'test_conv_relu2',
+        [x, y, z, m, n],
+        [out],
+    )
+
+    model_def = helper.make_model(graph_def, producer_name='conv_relu-example')
+    onnx.save(model_def, 'conv_relu_maxpool_x2_test.onnx')
 
 def cos_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
@@ -1334,7 +1511,7 @@ def reducesum_multiaxis_test():
             inputs=['x'],
             outputs=['y'],
             axes=axes,
-            keepdims = 1
+            keepdims = 0
             )
 
     graph_def = helper.make_graph(

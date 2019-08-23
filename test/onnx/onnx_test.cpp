@@ -228,6 +228,87 @@ TEST_CASE(const_of_shape_no_value_attr_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(conv_bias_test)
+{
+    migraphx::program p;
+    auto l0       = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 32, 32}});
+    auto l1       = p.add_parameter("1", {migraphx::shape::float_type, {1, 3, 5, 5}});
+    auto l2       = p.add_parameter("2", {migraphx::shape::float_type, {1}});
+    uint64_t axis = 1;
+    auto l3       = p.add_instruction(migraphx::op::convolution{}, l0, l1);
+    auto l4       = p.add_instruction(migraphx::op::broadcast{axis, l3->get_shape().lens()}, l2);
+    p.add_instruction(migraphx::op::add{}, l3, l4);
+
+    auto prog = migraphx::parse_onnx("conv_bias_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(conv_bn_relu_maxpool_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 32, 32}});
+    auto l1 = p.add_parameter("1", {migraphx::shape::float_type, {1, 3, 5, 5}});
+    auto l2 = p.add_parameter("2", {migraphx::shape::float_type, {1}});
+
+    auto p3       = p.add_parameter("3", {migraphx::shape::float_type, {1}});
+    auto p4       = p.add_parameter("4", {migraphx::shape::float_type, {1}});
+    auto p5       = p.add_parameter("5", {migraphx::shape::float_type, {1}});
+    auto p6       = p.add_parameter("6", {migraphx::shape::float_type, {1}});
+    uint64_t axis = 1;
+    auto l3       = p.add_instruction(migraphx::op::convolution{}, l0, l1);
+    auto l4       = p.add_instruction(migraphx::op::broadcast{axis, l3->get_shape().lens()}, l2);
+    auto l5       = p.add_instruction(migraphx::op::add{}, l3, l4);
+    auto l6 = p.add_instruction(migraphx::op::batch_norm_inference{1.0e-5f}, l5, p3, p4, p5, p6);
+    auto l7 = p.add_instruction(migraphx::op::relu{}, l6);
+    p.add_instruction(migraphx::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{2, 2}}}, l7);
+
+    auto prog = migraphx::parse_onnx("conv_bn_relu_maxpool_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(conv_relu_maxpool_test)
+{
+    migraphx::program p;
+    auto l0       = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 32, 32}});
+    auto l1       = p.add_parameter("1", {migraphx::shape::float_type, {1, 3, 5, 5}});
+    auto l2       = p.add_parameter("2", {migraphx::shape::float_type, {1}});
+    uint64_t axis = 1;
+    auto l3       = p.add_instruction(migraphx::op::convolution{}, l0, l1);
+    auto l4       = p.add_instruction(migraphx::op::broadcast{axis, l3->get_shape().lens()}, l2);
+    auto l5       = p.add_instruction(migraphx::op::add{}, l3, l4);
+    auto l6       = p.add_instruction(migraphx::op::relu{}, l5);
+    p.add_instruction(migraphx::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{2, 2}}}, l6);
+
+    auto prog = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(conv_relu_maxpool_x2_test)
+{
+    migraphx::program p;
+    auto l0       = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 32, 32}});
+    auto l1       = p.add_parameter("1", {migraphx::shape::float_type, {5, 3, 5, 5}});
+    auto l2       = p.add_parameter("2", {migraphx::shape::float_type, {5}});
+    uint64_t axis = 1;
+    auto l3       = p.add_instruction(migraphx::op::convolution{}, l0, l1);
+    auto l4       = p.add_instruction(migraphx::op::broadcast{axis, l3->get_shape().lens()}, l2);
+    auto l5       = p.add_instruction(migraphx::op::add{}, l3, l4);
+    auto l6       = p.add_instruction(migraphx::op::relu{}, l5);
+    auto l7 = p.add_instruction(migraphx::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{2, 2}}}, l6);
+
+    auto l8  = p.add_parameter("3", {migraphx::shape::float_type, {1, 5, 5, 5}});
+    auto l9  = p.add_parameter("4", {migraphx::shape::float_type, {1}});
+    auto l10 = p.add_instruction(migraphx::op::convolution{}, l7, l8);
+    auto l11 = p.add_instruction(migraphx::op::broadcast{axis, l10->get_shape().lens()}, l9);
+    auto l12 = p.add_instruction(migraphx::op::add{}, l10, l11);
+    auto l13 = p.add_instruction(migraphx::op::relu{}, l12);
+    p.add_instruction(migraphx::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{2, 2}}}, l13);
+
+    auto prog = migraphx::parse_onnx("conv_relu_maxpool_x2_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(cos_test)
 {
     migraphx::program p;
@@ -666,87 +747,6 @@ TEST_CASE(pow_test)
     p.add_instruction(migraphx::op::pow{}, l0, l1);
 
     auto prog = migraphx::parse_onnx("pow_test.onnx");
-
-    EXPECT(p == prog);
-}
-
-TEST_CASE(pytorch_conv_bias_test)
-{
-    migraphx::program p;
-    auto l0       = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 32, 32}});
-    auto l1       = p.add_parameter("1", {migraphx::shape::float_type, {1, 3, 5, 5}});
-    auto l2       = p.add_parameter("2", {migraphx::shape::float_type, {1}});
-    uint64_t axis = 1;
-    auto l3       = p.add_instruction(migraphx::op::convolution{}, l0, l1);
-    auto l4       = p.add_instruction(migraphx::op::broadcast{axis, l3->get_shape().lens()}, l2);
-    p.add_instruction(migraphx::op::add{}, l3, l4);
-
-    auto prog = migraphx::parse_onnx("conv.onnx");
-    EXPECT(p == prog);
-}
-
-TEST_CASE(pytorch_conv_bn_relu_maxpool)
-{
-    migraphx::program p;
-    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 32, 32}});
-    auto l1 = p.add_parameter("1", {migraphx::shape::float_type, {1, 3, 5, 5}});
-    auto l2 = p.add_parameter("2", {migraphx::shape::float_type, {1}});
-
-    auto p3       = p.add_parameter("3", {migraphx::shape::float_type, {1}});
-    auto p4       = p.add_parameter("4", {migraphx::shape::float_type, {1}});
-    auto p5       = p.add_parameter("5", {migraphx::shape::float_type, {1}});
-    auto p6       = p.add_parameter("6", {migraphx::shape::float_type, {1}});
-    uint64_t axis = 1;
-    auto l3       = p.add_instruction(migraphx::op::convolution{}, l0, l1);
-    auto l4       = p.add_instruction(migraphx::op::broadcast{axis, l3->get_shape().lens()}, l2);
-    auto l5       = p.add_instruction(migraphx::op::add{}, l3, l4);
-    auto l6 = p.add_instruction(migraphx::op::batch_norm_inference{1.0e-5f}, l5, p3, p4, p5, p6);
-    auto l7 = p.add_instruction(migraphx::op::relu{}, l6);
-    p.add_instruction(migraphx::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{2, 2}}}, l7);
-
-    auto prog = migraphx::parse_onnx("conv_bn_relu_maxpool.onnx");
-    EXPECT(p == prog);
-}
-
-TEST_CASE(pytorch_conv_relu_maxpool)
-{
-    migraphx::program p;
-    auto l0       = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 32, 32}});
-    auto l1       = p.add_parameter("1", {migraphx::shape::float_type, {1, 3, 5, 5}});
-    auto l2       = p.add_parameter("2", {migraphx::shape::float_type, {1}});
-    uint64_t axis = 1;
-    auto l3       = p.add_instruction(migraphx::op::convolution{}, l0, l1);
-    auto l4       = p.add_instruction(migraphx::op::broadcast{axis, l3->get_shape().lens()}, l2);
-    auto l5       = p.add_instruction(migraphx::op::add{}, l3, l4);
-    auto l6       = p.add_instruction(migraphx::op::relu{}, l5);
-    p.add_instruction(migraphx::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{2, 2}}}, l6);
-
-    auto prog = migraphx::parse_onnx("conv_relu_maxpool.onnx");
-    EXPECT(p == prog);
-}
-
-TEST_CASE(pytorch_conv_relu_maxpool_x2)
-{
-    migraphx::program p;
-    auto l0       = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 32, 32}});
-    auto l1       = p.add_parameter("1", {migraphx::shape::float_type, {5, 3, 5, 5}});
-    auto l2       = p.add_parameter("2", {migraphx::shape::float_type, {5}});
-    uint64_t axis = 1;
-    auto l3       = p.add_instruction(migraphx::op::convolution{}, l0, l1);
-    auto l4       = p.add_instruction(migraphx::op::broadcast{axis, l3->get_shape().lens()}, l2);
-    auto l5       = p.add_instruction(migraphx::op::add{}, l3, l4);
-    auto l6       = p.add_instruction(migraphx::op::relu{}, l5);
-    auto l7 = p.add_instruction(migraphx::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{2, 2}}}, l6);
-
-    auto l8  = p.add_parameter("3", {migraphx::shape::float_type, {1, 5, 5, 5}});
-    auto l9  = p.add_parameter("4", {migraphx::shape::float_type, {1}});
-    auto l10 = p.add_instruction(migraphx::op::convolution{}, l7, l8);
-    auto l11 = p.add_instruction(migraphx::op::broadcast{axis, l10->get_shape().lens()}, l9);
-    auto l12 = p.add_instruction(migraphx::op::add{}, l10, l11);
-    auto l13 = p.add_instruction(migraphx::op::relu{}, l12);
-    p.add_instruction(migraphx::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{2, 2}}}, l13);
-
-    auto prog = migraphx::parse_onnx("conv_relu_maxpoolX2.onnx");
 
     EXPECT(p == prog);
 }

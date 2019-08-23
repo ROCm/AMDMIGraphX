@@ -1,6 +1,6 @@
 import migraphx
 
-p = migraphx.parse_onnx("conv_relu_maxpool.onnx")
+p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
 print(p)
 print("Compiling ...")
 p.compile(migraphx.get_target("gpu"))

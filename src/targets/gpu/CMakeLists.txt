@@ -65,8 +65,6 @@ add_library(migraphx_gpu
     hip.cpp
     target.cpp
     lowering.cpp
-    gemm.cpp
-    quant_gemm.cpp
     pooling.cpp
     convolution.cpp
     quant_convolution.cpp

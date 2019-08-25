@@ -12,47 +12,47 @@ namespace gpu {
 
 struct context;
 
-//template <class... Ts>
-//rocblas_status generic_rocblas_gemm_ex(Ts&&... xs)
+// template <class... Ts>
+// rocblas_status generic_rocblas_gemm_ex(Ts&&... xs)
 //{
 //    return rocblas_gemm_ex(std::forward<Ts>(xs)...);
 //}
 //
-//template <class... Ts>
-//rocblas_status generic_rocblas_batched_gemm_ex(Ts&&... xs)
+// template <class... Ts>
+// rocblas_status generic_rocblas_batched_gemm_ex(Ts&&... xs)
 //{
 //    return rocblas_gemm_strided_batched_ex(std::forward<Ts>(xs)...);
 //}
 //
-//template <class T>
-//struct compute_rocblas_type
+// template <class T>
+// struct compute_rocblas_type
 //{
 //    using type = T;
 //};
 //
-//template <class T>
-//struct compute_rocblas_type<const T>
+// template <class T>
+// struct compute_rocblas_type<const T>
 //{
 //    using type = const typename compute_rocblas_type<T>::type;
 //};
 //
-//template <>
-//struct compute_rocblas_type<half>
+// template <>
+// struct compute_rocblas_type<half>
 //{
 //    using type = rocblas_half;
 //};
 //
-//template <class T>
-//using rb_type = typename compute_rocblas_type<T>::type;
+// template <class T>
+// using rb_type = typename compute_rocblas_type<T>::type;
 //
-//template <class T>
-//rb_type<T> to_rocblas_type(T x)
+// template <class T>
+// rb_type<T> to_rocblas_type(T x)
 //{
 //    return reinterpret_cast<const rb_type<T>&>(x);
 //}
 //
-//template <class T>
-//rb_type<T>* to_rocblas_type(T* x)
+// template <class T>
+// rb_type<T>* to_rocblas_type(T* x)
 //{
 //    return reinterpret_cast<rb_type<T>*>(x);
 //}
@@ -95,16 +95,11 @@ struct rocblas_gemm
     {
         switch(type)
         {
-        case shape::double_type:
-            return rocblas_datatype_f64_r;
-        case shape::float_type:
-            return rocblas_datatype_f32_r;
-        case shape::half_type:
-            return rocblas_datatype_f16_r;
-        case shape::int8_type:
-            return rocblas_datatype_i8_r;
-        default:
-            MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
+        case shape::double_type: return rocblas_datatype_f64_r;
+        case shape::float_type: return rocblas_datatype_f32_r;
+        case shape::half_type: return rocblas_datatype_f16_r;
+        case shape::int8_type: return rocblas_datatype_i8_r;
+        default: MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
         }
 
         return rocblas_datatype_f32_r;
@@ -130,11 +125,11 @@ struct rocblas_gemm
         }
 
         rocblas_datatype arg_type = get_type(args[0].get_shape().type());
-        auto output_type = arg_type;
-        auto compute_type = arg_type;
-        if (output_type == rocblas_datatype_i8_r)
+        auto output_type          = arg_type;
+        auto compute_type         = arg_type;
+        if(output_type == rocblas_datatype_i8_r)
         {
-            output_type = rocblas_datatype_i32_r;
+            output_type  = rocblas_datatype_i32_r;
             compute_type = rocblas_datatype_i32_r;
         }
 
@@ -148,7 +143,7 @@ struct rocblas_gemm
             rocblas_int n   = out_lens[dim_1];
             rocblas_int k   = args[0].get_shape().lens()[dim_1];
             auto to_pointer = [&](auto&& arg) { return as.from(arg.data()); };
-            if (args[0].get_shape().type() == shape::int8_type and (k % 4) != 0)
+            if(args[0].get_shape().type() == shape::int8_type and (k % 4) != 0)
             {
                 MIGRAPHX_THROW("ROCBLAS_GEMM: k size of int8 type input must be mutlple of 4!");
             }
@@ -163,31 +158,32 @@ struct rocblas_gemm
                 // column-major format. When doing a C = A * B, we actually do
                 // C^T = (B^T) * (A^T). That is the reason we input args[1] as
                 // A and args[0] as B in calling the rocblas_gemm.
-                rocblas_gemm_ex(
-                    ctx.get_stream().get_rocblas(),
-                    transb ? rocblas_operation_transpose : rocblas_operation_none,
-                    transa ? rocblas_operation_transpose : rocblas_operation_none,
-                    n,
-                    m,
-                    k,
-                    &alpha_r,
-                    to_pointer(args.at(1)),
-                    arg_type,
-                    ldb,
-                    to_pointer(args.at(0)),
-                    arg_type,
-                    lda,
-                    &beta_r,
-                    to_pointer(args[2]),
-                    output_type,
-                    ldc,
-                    is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
-                    output_type,
-                    ldc,
-                    compute_type,
-                    rocblas_gemm_algo_standard,
-                    0,
-                    0, nullptr, nullptr);
+                rocblas_gemm_ex(ctx.get_stream().get_rocblas(),
+                                transb ? rocblas_operation_transpose : rocblas_operation_none,
+                                transa ? rocblas_operation_transpose : rocblas_operation_none,
+                                n,
+                                m,
+                                k,
+                                &alpha_r,
+                                to_pointer(args.at(1)),
+                                arg_type,
+                                ldb,
+                                to_pointer(args.at(0)),
+                                arg_type,
+                                lda,
+                                &beta_r,
+                                to_pointer(args[2]),
+                                output_type,
+                                ldc,
+                                is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
+                                output_type,
+                                ldc,
+                                compute_type,
+                                rocblas_gemm_algo_standard,
+                                0,
+                                0,
+                                nullptr,
+                                nullptr);
             }
             else
             {
@@ -220,7 +216,9 @@ struct rocblas_gemm
                     compute_type,
                     rocblas_gemm_algo_standard,
                     0,
-                    0, nullptr, nullptr);
+                    0,
+                    nullptr,
+                    nullptr);
             }
         });
 

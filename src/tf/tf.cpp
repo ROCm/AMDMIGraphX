@@ -182,6 +182,7 @@ struct tf_parser
 
         add_mem_op("AvgPool", &tf_parser::parse_pooling);
         add_mem_op("BatchMatMul", &tf_parser::parse_matmul, false);
+        add_mem_op("BatchMatMulV2", &tf_parser::parse_matmul, false);
         add_mem_op("BiasAdd", &tf_parser::parse_biasadd);
         add_mem_op("Cast", &tf_parser::parse_cast, false);
         add_mem_op("ConcatV2", &tf_parser::parse_concat, false);

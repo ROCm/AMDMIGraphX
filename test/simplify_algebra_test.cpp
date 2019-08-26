@@ -176,4 +176,29 @@ TEST_CASE(simplify_mul_add)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(simplify_inner_broadcast)
+{
+    auto b = migraphx::op::broadcast{1, {2, 1, 4, 5}};
+    migraphx::program p1;
+    {
+        auto x   = p1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto y   = p1.add_parameter("y", {migraphx::shape::int32_type, {1}});
+        auto xb = p1.add_instruction(b, x);
+        auto yb = p1.add_instruction(b, y);
+        auto sum = p1.add_instruction(migraphx::op::add{}, xb, yb);
+        p1.add_instruction(pass_op{}, sum);
+    }
+    p1.compile(simplify_algebra_target{});
+
+    migraphx::program p2;
+    {
+        auto x   = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto y   = p2.add_parameter("y", {migraphx::shape::int32_type, {1}});
+        auto sum = p2.add_instruction(migraphx::op::add{}, x, y);
+        auto sumb = p2.add_instruction(b, sum);
+        p2.add_instruction(pass_op{}, sumb);
+    }
+    EXPECT(p1 == p2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

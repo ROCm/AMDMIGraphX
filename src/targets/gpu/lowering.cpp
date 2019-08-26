@@ -47,7 +47,6 @@
 #include <migraphx/gpu/batchnorm.hpp>
 #include <migraphx/gpu/pooling.hpp>
 #include <migraphx/gpu/gemm.hpp>
-#include <migraphx/gpu/quant_gemm.hpp>
 #include <migraphx/gpu/concat.hpp>
 #include <migraphx/gpu/pad.hpp>
 #include <migraphx/gpu/gather.hpp>
@@ -117,8 +116,7 @@ struct miopen_apply
         add_generic_op<hip_sign>("sign");
         add_generic_op<hip_sigmoid>("sigmoid");
 
-        add_extend_op<miopen_gemm, op::dot>("dot");
-        // add_extend_op<rocblas_gemm<op::dot>, op::dot>("dot");
+        add_extend_op<rocblas_gemm<op::dot>, op::dot>("dot");
         add_extend_op<rocblas_gemm<op::quant_dot>, op::quant_dot>("quant_dot");
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");

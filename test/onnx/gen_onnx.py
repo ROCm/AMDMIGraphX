@@ -502,6 +502,31 @@ def const_of_shape_no_value_attr_test():
     model_def = helper.make_model(graph_def, producer_name='constant-of-shape')
     onnx.save(model_def, 'const_of_shape_no_value_attr_test.onnx')
 
+def conv_autopad_fail_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 1, 1])
+    out = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1, 1, 34, 34])
+
+    node = onnx.helper.make_node(
+        'Conv',
+        inputs=['0', '1'],
+        outputs=['2'],
+        dilations = [1, 1], 
+        strides = [1, 1],
+        auto_pad = 'SAME',
+        pads = [0,0,1,1,0,0,1,1]
+    )
+
+    graph_def = helper.make_graph(
+        [node],
+        'test_conv',
+        [x, y],
+        [out],
+    )
+
+    model_def = helper.make_model(graph_def, producer_name='conv-example')
+    onnx.save(model_def, 'conv_autopad_fail_test.onnx')
+
 def conv_bias_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])

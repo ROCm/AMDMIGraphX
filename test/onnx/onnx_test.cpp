@@ -228,6 +228,11 @@ TEST_CASE(const_of_shape_no_value_attr_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(conv_autopad_fail_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("conv_autopad_fail_test.onnx"); }));
+}
+
 TEST_CASE(conv_bias_test)
 {
     migraphx::program p;

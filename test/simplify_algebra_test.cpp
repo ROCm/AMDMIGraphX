@@ -183,8 +183,8 @@ TEST_CASE(simplify_inner_broadcast)
     {
         auto x   = p1.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto y   = p1.add_parameter("y", {migraphx::shape::int32_type, {1}});
-        auto xb = p1.add_instruction(b, x);
-        auto yb = p1.add_instruction(b, y);
+        auto xb  = p1.add_instruction(b, x);
+        auto yb  = p1.add_instruction(b, y);
         auto sum = p1.add_instruction(migraphx::op::add{}, xb, yb);
         p1.add_instruction(pass_op{}, sum);
     }
@@ -192,9 +192,9 @@ TEST_CASE(simplify_inner_broadcast)
 
     migraphx::program p2;
     {
-        auto x   = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto y   = p2.add_parameter("y", {migraphx::shape::int32_type, {1}});
-        auto sum = p2.add_instruction(migraphx::op::add{}, x, y);
+        auto x    = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto y    = p2.add_parameter("y", {migraphx::shape::int32_type, {1}});
+        auto sum  = p2.add_instruction(migraphx::op::add{}, x, y);
         auto sumb = p2.add_instruction(b, sum);
         p2.add_instruction(pass_op{}, sumb);
     }

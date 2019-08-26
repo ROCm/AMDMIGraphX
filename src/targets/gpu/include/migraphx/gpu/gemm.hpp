@@ -13,51 +13,6 @@ namespace gpu {
 
 struct context;
 
-// template <class... Ts>
-// rocblas_status generic_rocblas_gemm_ex(Ts&&... xs)
-//{
-//    return rocblas_gemm_ex(std::forward<Ts>(xs)...);
-//}
-//
-// template <class... Ts>
-// rocblas_status generic_rocblas_batched_gemm_ex(Ts&&... xs)
-//{
-//    return rocblas_gemm_strided_batched_ex(std::forward<Ts>(xs)...);
-//}
-//
-// template <class T>
-// struct compute_rocblas_type
-//{
-//    using type = T;
-//};
-//
-// template <class T>
-// struct compute_rocblas_type<const T>
-//{
-//    using type = const typename compute_rocblas_type<T>::type;
-//};
-//
-// template <>
-// struct compute_rocblas_type<half>
-//{
-//    using type = rocblas_half;
-//};
-//
-// template <class T>
-// using rb_type = typename compute_rocblas_type<T>::type;
-//
-// template <class T>
-// rb_type<T> to_rocblas_type(T x)
-//{
-//    return reinterpret_cast<const rb_type<T>&>(x);
-//}
-//
-// template <class T>
-// rb_type<T>* to_rocblas_type(T* x)
-//{
-//    return reinterpret_cast<rb_type<T>*>(x);
-//}
-
 template <class Op>
 struct rocblas_gemm
 {

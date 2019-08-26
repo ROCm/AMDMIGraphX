@@ -202,11 +202,20 @@ struct target
 
         context get_context() const override { return private_detail_te_value.get_context(); }
 
-        argument copy_to(const argument& arg) const override { return private_detail_te_value.copy_to(arg); }
+        argument copy_to(const argument& arg) const override
+        {
+            return private_detail_te_value.copy_to(arg);
+        }
 
-        argument copy_from(const argument& arg) const override { return private_detail_te_value.copy_from(arg); }
+        argument copy_from(const argument& arg) const override
+        {
+            return private_detail_te_value.copy_from(arg);
+        }
 
-        argument allocate(const shape& s) const override { return private_detail_te_value.allocate(s); }
+        argument allocate(const shape& s) const override
+        {
+            return private_detail_te_value.allocate(s);
+        }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };

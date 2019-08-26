@@ -23,10 +23,7 @@ std::vector<pass> target::get_passes(migraphx::context&) const
             dead_code_elimination{}};
 }
 
-argument target::allocate(const shape& s) const
-{
-    return fill_argument(s, 0);
-}
+argument target::allocate(const shape& s) const { return fill_argument(s, 0); }
 
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -3,6 +3,17 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+argument fill_argument(shape s, unsigned long value)
+{
+    argument result;
+    s.visit_type([&](auto as) {
+        using type = typename decltype(as)::type;
+        auto v     = fill_tensor_data<type>(s, value);
+        result     = {s, [v]() mutable { return reinterpret_cast<char*>(v.data()); }};
+    });
+    return result;
+}
+
 argument generate_argument(shape s, unsigned long seed)
 {
     argument result;

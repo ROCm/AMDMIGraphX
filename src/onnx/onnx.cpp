@@ -365,7 +365,7 @@ struct onnx_parser
         if(args.size() == 3)
         {
             uint64_t axis = 1;
-            auto l1       = prog.add_instruction(op, args[0], args[1]);
+            auto l1       = prog.add_instruction(op, l0, args[1]);
             auto l2 = prog.add_instruction(op::broadcast{axis, l1->get_shape().lens()}, args[2]);
             return prog.add_instruction(op::add{}, l1, l2);
         }

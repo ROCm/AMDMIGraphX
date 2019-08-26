@@ -3810,6 +3810,18 @@ struct test_reduce_mean : verify_program<test_reduce_mean>
     };
 };
 
+struct test_reduce_mean2 : verify_program<test_reduce_mean2>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {1, 128, 768}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::reduce_mean{{2}}, x);
+        return p;
+    };
+};
+
 struct test_reduce_mean_int : verify_program<test_reduce_mean_int>
 {
     migraphx::program create_program() const

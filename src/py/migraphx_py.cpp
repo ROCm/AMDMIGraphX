@@ -193,10 +193,13 @@ PYBIND11_MODULE(migraphx, m)
              std::vector<std::pair<float, float>>& quant_params) {
               migraphx::quantize_int8(p, ins_names, quant_params);
           });
-    m.def("quantize_int8", [](migraphx::program& p, std::vector<std::string>& ins_names) {
-        migraphx::quantize_int8(p, ins_names);
+    m.def("quantize_int8", [](migraphx::program& p, const migraphx::target& t, 
+        std::vector<migraphx::program::parameter_map>& cali_args, 
+        std::vector<std::string>& ins_names) {
+        migraphx::quantize_int8(p, t, cali_args, ins_names);
     });
-    m.def("quantize_int8", [](migraphx::program& p) { migraphx::quantize_int8(p); });
+    m.def("quantize_int8", [](migraphx::program& p, const migraphx::target& t, 
+        std::vector<migraphx::program::parameter_map>& cali_args) { migraphx::quantize_int8(p, t, cali_args); });
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

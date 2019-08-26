@@ -125,6 +125,24 @@ struct target
         return (*this).private_detail_te_get_handle().get_context();
     }
 
+    argument copy_to(const argument& arg) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().copy_to(arg);
+    }
+
+    argument copy_from(const argument& arg) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().copy_from(arg);
+    }
+
+    argument allocate(const shape& s) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().allocate(s);
+    }
+
     friend bool is_shared(const target& private_detail_x, const target& private_detail_y)
     {
         return private_detail_x.private_detail_te_handle_mem_var ==
@@ -141,6 +159,9 @@ struct target
         virtual std::string name() const                         = 0;
         virtual std::vector<pass> get_passes(context& ctx) const = 0;
         virtual context get_context() const                      = 0;
+        virtual argument copy_to(const argument& arg) const      = 0;
+        virtual argument copy_from(const argument& arg) const    = 0;
+        virtual argument allocate(const shape& s) const          = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -180,6 +201,12 @@ struct target
         }
 
         context get_context() const override { return private_detail_te_value.get_context(); }
+
+        argument copy_to(const argument& arg) const override { return private_detail_te_value.copy_to(arg); }
+
+        argument copy_from(const argument& arg) const override { return private_detail_te_value.copy_from(arg); }
+
+        argument allocate(const shape& s) const override { return private_detail_te_value.allocate(s); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };

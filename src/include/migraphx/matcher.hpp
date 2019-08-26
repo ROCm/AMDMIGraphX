@@ -74,7 +74,7 @@ auto bind_match(M m, std::string name)
         [ =, name = std::move(name) ](matcher_context & ctx, instruction_ref ins) {
             auto result = m.match(ctx, ins);
             if(result != ctx.not_found())
-                ctx.instructions.emplace(name, ins);
+                ctx.instructions[name] = ins;
             return result;
         });
 }

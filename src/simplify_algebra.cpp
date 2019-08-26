@@ -52,6 +52,7 @@ struct find_mul_conv
     }
 };
 
+// a * (x + b) => a * x + a * b
 struct find_mul_add
 {
     auto matcher() const
@@ -60,7 +61,7 @@ struct find_mul_add
             match::name("add")(
                 match::either_arg(0, 1)(
                     match::any().bind("x"),
-                    match::any_of(conv_const_weights(), match::is_constant()).bind("y")),
+                    match::any_of(conv_const_weights(), match::is_constant()).bind("b")),
                 match::none_of(match::args(match::is_constant(), match::is_constant())),
                 match::used_once()),
             match::is_constant().bind("a")));
@@ -70,12 +71,13 @@ struct find_mul_add
     {
         auto ins   = r.result;
         auto a_ins = r.instructions["a"];
+        auto b_ins = r.instructions["b"];
         auto x_ins = r.instructions["x"];
-        auto y_ins = r.instructions["y"];
+        assert(x_ins != b_ins);
 
-        auto xa_ins = p.insert_instruction(ins, op::mul{}, x_ins, a_ins);
-        auto ya_ins = p.insert_instruction(ins, op::mul{}, y_ins, a_ins);
-        p.replace_instruction(ins, op::add{}, xa_ins, ya_ins);
+        auto ax_ins = p.insert_instruction(ins, op::mul{}, a_ins, x_ins);
+        auto ab_ins = p.insert_instruction(ins, op::mul{}, a_ins, b_ins);
+        p.replace_instruction(ins, op::add{}, ax_ins, ab_ins);
     }
 };
 

@@ -74,7 +74,8 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
                 // if the input is a convert operator, uses its input
                 // as its current input
                 instruction_ref input_fp16{};
-                if(input->name() == "convert")
+                if(input->name() == "convert" and
+                   input->inputs().front()->get_shape().type() == shape::half_type)
                 {
                     input_fp16 = input->inputs().front();
                 }

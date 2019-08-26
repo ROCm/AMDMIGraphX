@@ -122,7 +122,7 @@ struct rocblas_gemm
         rocblas_int ldc = args[2].get_shape().strides()[dim_0];
 
         bool is_3inputs = (args.size() == 4);
-        auto beta = op.beta;
+        auto beta       = op.beta;
         if(!is_3inputs)
         {
             beta = 0;
@@ -132,9 +132,9 @@ struct rocblas_gemm
         auto output_type          = arg_type;
         if(output_type == rocblas_datatype_i8_r)
         {
-            output_type  = rocblas_datatype_i32_r;
+            output_type = rocblas_datatype_i32_r;
         }
-        auto compute_type         = output_type;
+        auto compute_type = output_type;
 
         auto a_lens = args[0].get_shape().lens();
         auto b_lens = args[1].get_shape().lens();

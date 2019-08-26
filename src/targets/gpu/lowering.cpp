@@ -118,7 +118,7 @@ struct miopen_apply
         add_generic_op<hip_sigmoid>("sigmoid");
 
         add_extend_op<miopen_gemm, op::dot>("dot");
-        //add_extend_op<rocblas_gemm<op::dot>, op::dot>("dot");
+        // add_extend_op<rocblas_gemm<op::dot>, op::dot>("dot");
         add_extend_op<rocblas_gemm<op::quant_dot>, op::quant_dot>("quant_dot");
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");

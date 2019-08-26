@@ -154,9 +154,9 @@ TEST_CASE(simplify_mul_add)
 {
     migraphx::program p1;
     {
-        auto x    = p1.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto one  = p1.add_literal(1);
-        auto two  = p1.add_literal(2);
+        auto x   = p1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto one = p1.add_literal(1);
+        auto two = p1.add_literal(2);
         auto sum = p1.add_instruction(migraphx::op::add{}, one, x);
         auto mul = p1.add_instruction(migraphx::op::mul{}, sum, two);
         p1.add_instruction(pass_op{}, mul);
@@ -170,7 +170,7 @@ TEST_CASE(simplify_mul_add)
         auto two  = p2.add_literal(2);
         auto mul1 = p2.add_instruction(migraphx::op::mul{}, two, x);
         auto mul2 = p2.add_instruction(migraphx::op::mul{}, two, one);
-        auto sum = p2.add_instruction(migraphx::op::add{}, mul1, mul2);
+        auto sum  = p2.add_instruction(migraphx::op::add{}, mul1, mul2);
         p2.add_instruction(pass_op{}, sum);
     }
     EXPECT(p1 == p2);

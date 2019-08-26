@@ -356,8 +356,8 @@ TEST_CASE(match_either_args_any2)
     auto sum1 = p.add_instruction(sum_op{}, one, two);
     auto sum2 = p.add_instruction(sum_op{}, sum1, two);
     p.add_instruction(pass_op{}, sum2);
-    auto m =
-        match::name("sum")(match::either_arg(0, 1)(match::any().bind("x"), match::name("@literal").bind("y")));
+    auto m = match::name("sum")(
+        match::either_arg(0, 1)(match::any().bind("x"), match::name("@literal").bind("y")));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum1});
     EXPECT(bool{r.instructions.at("x") != r.instructions.at("y")});
@@ -371,8 +371,8 @@ TEST_CASE(match_either_args_any3)
     auto sum1 = p.add_instruction(sum_op{}, one, two);
     auto sum2 = p.add_instruction(sum_op{}, sum1, two);
     p.add_instruction(pass_op{}, sum2);
-    auto m =
-        match::name("sum")(match::either_arg(0, 1)(match::name("@literal").bind("x"), match::any().bind("y")));
+    auto m = match::name("sum")(
+        match::either_arg(0, 1)(match::name("@literal").bind("x"), match::any().bind("y")));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum1});
     EXPECT(bool{r.instructions.at("x") != r.instructions.at("y")});
@@ -386,8 +386,8 @@ TEST_CASE(match_either_args_any4)
     auto sum1 = p.add_instruction(sum_op{}, one, two);
     auto sum2 = p.add_instruction(sum_op{}, sum1, two);
     p.add_instruction(pass_op{}, sum2);
-    auto m =
-        match::name("sum")(match::either_arg(0, 1)(match::name("sum").bind("x"), match::any().bind("y")));
+    auto m = match::name("sum")(
+        match::either_arg(0, 1)(match::name("sum").bind("x"), match::any().bind("y")));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum2});
     EXPECT(bool{r.instructions.at("x") != r.instructions.at("y")});
@@ -401,8 +401,8 @@ TEST_CASE(match_either_args_any5)
     auto sum1 = p.add_instruction(sum_op{}, one, two);
     auto sum2 = p.add_instruction(sum_op{}, sum1, two);
     p.add_instruction(pass_op{}, sum2);
-    auto m =
-        match::name("sum")(match::either_arg(0, 1)(match::any().bind("x"), match::name("sum").bind("y")));
+    auto m = match::name("sum")(
+        match::either_arg(0, 1)(match::any().bind("x"), match::name("sum").bind("y")));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum2});
     EXPECT(bool{r.instructions.at("x") != r.instructions.at("y")});
@@ -450,7 +450,7 @@ TEST_CASE(match_all_of3)
 TEST_CASE(match_lazy_any_of)
 {
     migraphx::program p;
-    auto one    = p.add_literal(1);
+    auto one = p.add_literal(1);
     p.add_instruction(pass_op{}, one);
     auto m = match::any_of(match::any(), throws());
     auto r = find_match(p, m);
@@ -460,7 +460,7 @@ TEST_CASE(match_lazy_any_of)
 TEST_CASE(match_lazy_all_of)
 {
     migraphx::program p;
-    auto one    = p.add_literal(1);
+    auto one = p.add_literal(1);
     p.add_instruction(pass_op{}, one);
     auto m = match::all_of(match::none(), throws());
     auto r = find_match(p, m);
@@ -470,7 +470,7 @@ TEST_CASE(match_lazy_all_of)
 TEST_CASE(match_lazy_none_of)
 {
     migraphx::program p;
-    auto one    = p.add_literal(1);
+    auto one = p.add_literal(1);
     p.add_instruction(pass_op{}, one);
     auto m = match::none_of(match::any(), throws());
     auto r = find_match(p, m);
@@ -511,7 +511,8 @@ TEST_CASE(match_any_of_lazy1)
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
     auto m = match::name("sum")(
-        match::any_of(match::args(match::any(), match::any()).bind("x"), match::args(match::name("sum"), match::name("sum")).bind("y")));
+        match::any_of(match::args(match::any(), match::any()).bind("x"),
+                      match::args(match::name("sum"), match::name("sum")).bind("y")));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
     EXPECT(migraphx::contains(r.instructions, "x"));
@@ -527,7 +528,8 @@ TEST_CASE(match_any_of_lazy2)
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
     auto m = match::name("sum")(
-        match::any_of(match::args(match::name("@literal"), match::name("@literal")).bind("x"), match::args(match::any(), match::any()).bind("y")));
+        match::any_of(match::args(match::name("@literal"), match::name("@literal")).bind("x"),
+                      match::args(match::any(), match::any()).bind("y")));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
     EXPECT(migraphx::contains(r.instructions, "x"));
@@ -543,7 +545,8 @@ TEST_CASE(match_any_of_lazy3)
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
     auto m = match::name("sum")(
-        match::any_of(match::args(match::any(), match::any()).bind("x"), match::args(match::name("@literal"), match::name("@literal")).bind("y")));
+        match::any_of(match::args(match::any(), match::any()).bind("x"),
+                      match::args(match::name("@literal"), match::name("@literal")).bind("y")));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
     EXPECT(migraphx::contains(r.instructions, "x"));
@@ -558,8 +561,9 @@ TEST_CASE(match_any_of_lazy4)
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m = match::name("sum")(
-        match::any_of(match::args(match::name("@literal").bind("x1"), match::name("@literal").bind("y1")), match::args(match::any().bind("x2"), match::any().bind("y2"))));
+    auto m = match::name("sum")(match::any_of(
+        match::args(match::name("@literal").bind("x1"), match::name("@literal").bind("y1")),
+        match::args(match::any().bind("x2"), match::any().bind("y2"))));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
     EXPECT(migraphx::contains(r.instructions, "x1"));
@@ -577,8 +581,9 @@ TEST_CASE(match_any_of_lazy5)
     auto two = p.add_literal(2);
     auto sum = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(pass_op{}, sum);
-    auto m = match::name("sum")(
-        match::any_of(match::args(match::any().bind("x1"), match::any().bind("y1")), match::args(match::name("@literal").bind("x2"), match::name("@literal").bind("y2"))));
+    auto m = match::name("sum")(match::any_of(
+        match::args(match::any().bind("x1"), match::any().bind("y1")),
+        match::args(match::name("@literal").bind("x2"), match::name("@literal").bind("y2"))));
     auto r = find_match(p, m);
     EXPECT(bool{r.result == sum});
     EXPECT(migraphx::contains(r.instructions, "x1"));

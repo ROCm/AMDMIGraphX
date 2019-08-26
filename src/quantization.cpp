@@ -410,24 +410,26 @@ void quantize_int8(program& prog,
     }
 }
 
-void quantize_int8(program& prog, const target& t,
-                   std::vector<program::parameter_map> &calibration_args, const std::vector<std::string>& ins_names)
+void quantize_int8(program& prog,
+                   const target& t,
+                   std::vector<program::parameter_map>& calibration_args,
+                   const std::vector<std::string>& ins_names)
 {
     // insert capture operator
-    auto cap_prog = prog;
+    auto cap_prog          = prog;
     auto int8_quant_params = capture_arguments(cap_prog, t, ins_names);
 
     // use the calibration data to compute the quantization scale
     cap_prog.compile(t);
 
-    // use all calibration data to run the program to calculate the 
+    // use all calibration data to run the program to calculate the
     // quantization scale and shift
-    for (auto&& arg : calibration_args)
+    for(auto&& arg : calibration_args)
     {
         program::parameter_map m;
-        for (auto&& x : cap_prog.get_parameter_shapes())
+        for(auto&& x : cap_prog.get_parameter_shapes())
         {
-            if (arg.count(x.first) > 0)
+            if(arg.count(x.first) > 0)
             {
                 assert(x.second == arg[x.first].get_shape());
                 m[x.first] = t.copy_to(arg[x.first]);
@@ -443,8 +445,9 @@ void quantize_int8(program& prog, const target& t,
     quantize_int8(prog, ins_names, *int8_quant_params);
 }
 
-void quantize_int8(program& prog, const target& t,
-                   std::vector<program::parameter_map> &calibration_args)
+void quantize_int8(program& prog,
+                   const target& t,
+                   std::vector<program::parameter_map>& calibration_args)
 {
     std::vector<std::string> ins_names = {"dot", "convolution"};
     quantize_int8(prog, t, calibration_args, ins_names);
@@ -505,14 +508,16 @@ capture_arguments(program& prog, const target& t, const std::vector<std::string>
         std::make_shared<std::vector<std::pair<float, float>>>();
     std::shared_ptr<std::vector<float>> max_abs_vals = std::make_shared<std::vector<float>>();
 
-    auto calc_quant_params = [int8_quant_params, max_abs_vals, &t](
-                                 std::size_t ins_index, std::vector<argument> args) {
+    auto calc_quant_params = [int8_quant_params, max_abs_vals, &t](std::size_t ins_index,
+                                                                   std::vector<argument> args) {
         std::pair<float, float> param_pair{64.0f, 0.0f};
 
         // scale and shift is need for only int8 type, and we do not
         // consider shift, so set shift to 0
         std::vector<float> vec_val;
-        t.copy_from(args.front()).visit([&](auto output) { vec_val.assign(output.begin(), output.end()); });
+        t.copy_from(args.front()).visit([&](auto output) {
+            vec_val.assign(output.begin(), output.end());
+        });
         auto max_val                = *std::max_element(vec_val.begin(), vec_val.end());
         auto min_val                = *std::min_element(vec_val.begin(), vec_val.end());
         auto max_abs                = std::max(std::fabs(max_val), std::fabs(min_val));
@@ -530,7 +535,8 @@ capture_arguments(program& prog, const target& t, const std::vector<std::string>
     return int8_quant_params;
 }
 
-std::shared_ptr<std::vector<std::pair<float, float>>> capture_arguments(program& prog, const target& t)
+std::shared_ptr<std::vector<std::pair<float, float>>> capture_arguments(program& prog,
+                                                                        const target& t)
 {
     std::vector<std::string> ins_names = {"dot", "convolution"};
     return capture_arguments(prog, t, ins_names);

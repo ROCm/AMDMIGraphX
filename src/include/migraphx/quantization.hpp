@@ -24,10 +24,16 @@ std::size_t capture_arguments(program& prog,
                               const std::function<void(std::size_t, std::vector<argument>)>& func);
 std::shared_ptr<std::vector<std::pair<float, float>>>
 capture_arguments(program& prog, const target& t, const std::vector<std::string>& ins_names);
-std::shared_ptr<std::vector<std::pair<float, float>>> capture_arguments(program& prog, const target& t);
+std::shared_ptr<std::vector<std::pair<float, float>>> capture_arguments(program& prog,
+                                                                        const target& t);
 
-void quantize_int8(program& prog, const target& t, std::vector<program::parameter_map> &calibration_args);
-void quantize_int8(program& prog, const target& t, std::vector<program::parameter_map> &calibration_args, const std::vector<std::string>& ins_names);
+void quantize_int8(program& prog,
+                   const target& t,
+                   std::vector<program::parameter_map>& calibration_args);
+void quantize_int8(program& prog,
+                   const target& t,
+                   std::vector<program::parameter_map>& calibration_args,
+                   const std::vector<std::string>& ins_names);
 void quantize_int8(program& prog,
                    const std::vector<std::string>& ins_names,
                    const std::vector<std::pair<float, float>>& quant_params);

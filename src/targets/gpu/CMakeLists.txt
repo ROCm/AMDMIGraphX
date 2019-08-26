@@ -33,6 +33,7 @@ add_library(migraphx_device
     device/contiguous.cpp
     device/logsoftmax.cpp
     device/softmax.cpp
+    device/sigmoid.cpp
     device/convert.cpp
     device/mul.cpp
     device/concat.cpp
@@ -77,7 +78,6 @@ add_library(migraphx_gpu
     batchnorm.cpp
     write_literals.cpp
     rocblas.cpp
-    sigmoid.cpp
     abs.cpp
     elu.cpp
     pad.cpp

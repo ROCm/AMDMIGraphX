@@ -48,6 +48,22 @@ TEST_CASE(add_bcast_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(assert_less_equal_test)
+{
+    migraphx::program p;
+    migraphx::shape s0{migraphx::shape::float_type, {2, 3}};
+    auto l0 = p.add_parameter("0", s0);
+    auto l1 = p.add_parameter("1", s0);
+    migraphx::literal l{migraphx::shape{migraphx::shape::int32_type, {2}}, {0, 1}};
+    auto l2 = p.add_literal(l);
+    p.add_instruction(migraphx::op::add{}, l0, l1);
+    auto l3 = p.add_instruction(migraphx::op::identity{}, l0, l1);
+    p.add_instruction(migraphx::op::identity{}, l3, l2);
+    auto prog = optimize_tf("assert_less_equal_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(batchmatmul_test)
 {
     migraphx::program p;
@@ -100,6 +116,16 @@ TEST_CASE(biasadd_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(cast_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    p.add_instruction(migraphx::op::convert{migraphx::shape::int32_type}, l0);
+    auto prog = optimize_tf("cast_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(concat_test)
 {
     migraphx::program p;
@@ -114,16 +140,6 @@ TEST_CASE(concat_test)
 
     p.add_instruction(migraphx::op::concat{static_cast<std::size_t>(axis)}, l0, l1);
     auto prog = optimize_tf("concat_test.pb", false);
-
-    EXPECT(p == prog);
-}
-
-TEST_CASE(cast_test)
-{
-    migraphx::program p;
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    p.add_instruction(migraphx::op::convert{migraphx::shape::int32_type}, l0);
-    auto prog = optimize_tf("cast_test.pb", false);
 
     EXPECT(p == prog);
 }
@@ -257,8 +273,7 @@ TEST_CASE(mean_test)
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
     p.add_literal(l);
     p.add_literal(l);
-    migraphx::op::pooling op;
-    op.lengths = {16, 16};
+    migraphx::op::reduce_mean op{{2, 3}};
     p.add_instruction(op, l0);
     auto l3 = p.add_instruction(op, l0);
     p.add_instruction(migraphx::op::squeeze{{2, 3}}, l3);
@@ -272,10 +287,10 @@ TEST_CASE(mean_test_nhwc)
     migraphx::program p;
     migraphx::literal l{migraphx::shape{migraphx::shape::int32_type, {2}}, {1, 2}};
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    migraphx::op::pooling op;
-    op.lengths = {16, 16};
-    auto l3    = p.add_instruction(op, l0);
-    p.add_instruction(migraphx::op::squeeze{{2, 3}}, l3);
+    auto l1 = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, l0);
+    migraphx::op::reduce_mean op{{1, 2}};
+    auto l2 = p.add_instruction(op, l1);
+    p.add_instruction(migraphx::op::squeeze{{1, 2}}, l2);
     auto prog = optimize_tf("mean_test_nhwc.pb", true);
 
     EXPECT(p == prog);
@@ -289,6 +304,23 @@ TEST_CASE(mul_test)
 
     p.add_instruction(migraphx::op::mul{}, l0, l1);
     auto prog = optimize_tf("mul_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(onehot_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {5}}, {1, 1, 1, 1, 1}});
+    p.add_literal(2);
+    p.add_literal(1.0f);
+    p.add_literal(0.0f);
+    auto l1 = p.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2, 2}}, {1, 0, 0, 1}});
+    int axis = 0;
+    p.add_instruction(migraphx::op::gather{axis}, l1, l0);
+    auto prog = optimize_tf("onehot_test.pb", false);
 
     EXPECT(p == prog);
 }
@@ -477,16 +509,40 @@ TEST_CASE(stridedslice_test)
 {
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 10, 1, 1}});
+    auto l1 = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, l0);
     std::size_t num_axes = 4;
     migraphx::op::slice op;
     op.starts = {0, 0, 0, 0};
     op.ends   = {1, 1, 1, 5};
     op.axes   = std::vector<int64_t>(num_axes);
     std::iota(op.axes.begin(), op.axes.end(), 0);
-    auto l1          = p.add_instruction(op, l0);
+    auto l2          = p.add_instruction(op, l1);
     auto shrink_axis = 1;
-    p.add_instruction(migraphx::op::squeeze{{shrink_axis}}, l1);
+    p.add_instruction(migraphx::op::squeeze{{shrink_axis}}, l2);
     auto prog = optimize_tf("stridedslice_test.pb", true);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(stridedslice_masks_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 10, 3, 3}});
+    std::size_t num_axes = 4;
+    migraphx::op::slice op;
+    op.starts = {0, 1, 1, 0};
+    op.ends   = {1, 3, 3, 10};
+    op.axes   = std::vector<int64_t>(num_axes);
+    std::iota(op.axes.begin(), op.axes.end(), 0);
+    // add literals for starts, ends, and strides in tf (NHWC format)
+    p.add_literal(migraphx::shape{migraphx::shape::int32_type, {4}}, std::vector<int>{0, 1, 1, 0});
+    p.add_literal(migraphx::shape{migraphx::shape::int32_type, {4}}, std::vector<int>{0, 0, 0, 0});
+    p.add_literal(migraphx::shape{migraphx::shape::int32_type, {4}}, std::vector<int>{1, 1, 1, 1});
+
+    auto l1 = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, l0);
+    auto l2 = p.add_instruction(op, l1);
+    p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l2);
+    auto prog = migraphx::parse_tf("stridedslice_masks_test.pb", true);
 
     EXPECT(p == prog);
 }

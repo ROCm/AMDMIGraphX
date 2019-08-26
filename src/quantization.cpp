@@ -118,7 +118,8 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
                 // if the input is a convert operator, uses its input
                 // as its current input
                 instruction_ref input_fp16{};
-                if(input->name() == "convert")
+                if(input->name() == "convert" and
+                   input->inputs().front()->get_shape().type() == shape::half_type)
                 {
                     input_fp16 = input->inputs().front();
                 }
@@ -493,7 +494,7 @@ capture_arguments(program& prog, const std::vector<std::string>& ins_names)
 
     auto num_params = capture_arguments(prog, ins_names, calc_quant_params);
 
-    int8_quant_params->resize(num_params, std::make_pair<float, float>(64.0f, 0.0f));
+    int8_quant_params->resize(num_params, std::pair<float, float>(64.0f, 0.0f));
     max_abs_vals->resize(num_params, 0.0f);
 
     return int8_quant_params;

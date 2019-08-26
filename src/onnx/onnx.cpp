@@ -206,6 +206,16 @@ struct onnx_parser
         return out_lens;
     }
 
+    instruction_ref make_contiguous(instruction_ref ins)
+    {
+        if(ins->get_shape().standard())
+        {
+            return ins;
+        }
+
+        return prog.add_instruction(op::contiguous{}, ins);
+    }
+
     template <class T>
     instruction_ref add_broadcastable_binary_op(instruction_ref arg0, instruction_ref arg1, T x)
     {
@@ -437,12 +447,7 @@ struct onnx_parser
             s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
         }
 
-        if(!args[0]->get_shape().standard())
-        {
-            args[0] = prog.add_instruction(op::contiguous{}, args[0]);
-        }
-
-        return prog.add_instruction(op, args[0]);
+        return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
     instruction_ref
@@ -490,23 +495,41 @@ struct onnx_parser
         {
             axis = parse_value(attributes.at("axis")).at<int>();
         }
+
         op::gather op{axis};
-        return prog.add_instruction(op, std::move(args));
+        return prog.add_instruction(op, make_contiguous(args[0]), make_contiguous(args[1]));
     }
 
     instruction_ref
     parse_slice(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         op::slice op;
+        std::vector<size_t> dims = args[0]->get_shape().lens();
+        size_t num_dims          = dims.size();
         if(contains(attributes, "axes"))
         {
             literal s = parse_value(attributes.at("axes"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
         }
+        else
+        {
+            op.axes = std::vector<int64_t>(num_dims);
+            std::iota(op.axes.begin(), op.axes.end(), 0);
+        }
+
+        if(contains(attributes, "ends"))
         {
             literal s = parse_value(attributes.at("ends"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.ends)); });
+            for(size_t i = 0; i < num_dims; i++)
+            {
+                if(static_cast<size_t>(op.ends[i]) > dims[i])
+                {
+                    op.ends[i] = dims[i];
+                }
+            }
         }
+        if(contains(attributes, "starts"))
         {
             literal s = parse_value(attributes.at("starts"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.starts)); });

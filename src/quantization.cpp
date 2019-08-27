@@ -516,9 +516,7 @@ capture_arguments(program& prog, const target& t, const std::vector<std::string>
         // consider shift, so set shift to 0
         std::vector<float> vec_val;
         auto&& arg = t.copy_from(args.front());
-        arg.visit([&](auto output) {
-            vec_val.assign(output.begin(), output.end());
-        });
+        arg.visit([&](auto output) { vec_val.assign(output.begin(), output.end()); });
         auto max_val                = *std::max_element(vec_val.begin(), vec_val.end());
         auto min_val                = *std::min_element(vec_val.begin(), vec_val.end());
         auto max_abs                = std::max(std::fabs(max_val), std::fabs(min_val));

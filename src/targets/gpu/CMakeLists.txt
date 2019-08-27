@@ -16,6 +16,7 @@ add_library(migraphx_device
     device/argmin.cpp
     device/max.cpp
     device/min.cpp
+    device/mul_add.cpp
     device/exp.cpp
     device/erf.cpp
     device/log.cpp

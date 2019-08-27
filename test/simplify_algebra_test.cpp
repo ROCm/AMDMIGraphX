@@ -1,6 +1,9 @@
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/operators.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -91,9 +94,9 @@ TEST_CASE(simplify_add3)
         auto x    = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         auto one  = p2.add_literal(1);
         auto two  = p2.add_literal(2);
-        auto sum1 = p2.add_instruction(migraphx::op::add{}, one, x);
-        auto sum2 = p2.add_instruction(migraphx::op::add{}, one, two);
-        auto sum3 = p2.add_instruction(migraphx::op::add{}, sum1, sum2);
+        auto sum1 = p2.add_instruction(migraphx::op::add{}, one, two);
+        auto sum2 = p2.add_instruction(migraphx::op::add{}, one, sum1);
+        auto sum3 = p2.add_instruction(migraphx::op::add{}, x, sum2);
         p2.add_instruction(pass_op{}, sum3);
     }
     EXPECT(p1 == p2);
@@ -125,6 +128,75 @@ void simplify_add4()
         auto sum2 = p2.add_instruction(migraphx::op::add{}, x, y);
         auto sum3 = p2.add_instruction(migraphx::op::add{}, sum2, sum1);
         p2.add_instruction(pass_op{}, sum3);
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(simplify_mul_conv1)
+{
+    migraphx::program p;
+    auto x = p.add_parameter("x", {migraphx::shape::int32_type, {1, 128, 28, 28}});
+    auto w =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256, 128, 3, 3}}));
+    auto conv = p.add_instruction(migraphx::op::convolution{{1, 1}, {2, 2}, {1, 1}}, x, w);
+    auto a    = p.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256}}));
+    auto b    = p.add_instruction(migraphx::op::broadcast{1, {1, 256, 14, 14}}, a);
+    auto mul  = p.add_instruction(migraphx::op::mul{}, conv, b);
+    p.add_instruction(pass_op{}, mul);
+    EXPECT(conv->outputs().front()->name() == "mul");
+    p.compile(simplify_algebra_target{});
+    auto new_conv =
+        std::find_if(p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; });
+    EXPECT(new_conv->outputs().front()->name() != "mul");
+}
+
+TEST_CASE(simplify_mul_add)
+{
+    migraphx::program p1;
+    {
+        auto x   = p1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto one = p1.add_literal(1);
+        auto two = p1.add_literal(2);
+        auto sum = p1.add_instruction(migraphx::op::add{}, one, x);
+        auto mul = p1.add_instruction(migraphx::op::mul{}, sum, two);
+        p1.add_instruction(pass_op{}, mul);
+    }
+    p1.compile(simplify_algebra_target{});
+
+    migraphx::program p2;
+    {
+        auto x    = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto one  = p2.add_literal(1);
+        auto two  = p2.add_literal(2);
+        auto mul1 = p2.add_instruction(migraphx::op::mul{}, two, x);
+        auto mul2 = p2.add_instruction(migraphx::op::mul{}, two, one);
+        auto sum  = p2.add_instruction(migraphx::op::add{}, mul1, mul2);
+        p2.add_instruction(pass_op{}, sum);
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(simplify_inner_broadcast)
+{
+    auto b = migraphx::op::broadcast{1, {2, 1, 4, 5}};
+    migraphx::program p1;
+    {
+        auto x   = p1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto y   = p1.add_parameter("y", {migraphx::shape::int32_type, {1}});
+        auto xb  = p1.add_instruction(b, x);
+        auto yb  = p1.add_instruction(b, y);
+        auto sum = p1.add_instruction(migraphx::op::add{}, xb, yb);
+        p1.add_instruction(pass_op{}, sum);
+    }
+    p1.compile(simplify_algebra_target{});
+
+    migraphx::program p2;
+    {
+        auto x    = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto y    = p2.add_parameter("y", {migraphx::shape::int32_type, {1}});
+        auto sum  = p2.add_instruction(migraphx::op::add{}, x, y);
+        auto sumb = p2.add_instruction(b, sum);
+        p2.add_instruction(pass_op{}, sumb);
     }
     EXPECT(p1 == p2);
 }

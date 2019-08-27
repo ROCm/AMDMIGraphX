@@ -16,8 +16,8 @@ struct target
     std::vector<pass> get_passes(migraphx::context& ctx) const;
     migraphx::context get_context() const { return context{}; }
 
-    argument copy_to(const argument& arg) const { return arg; }
-    argument copy_from(const argument& arg) const { return arg; }
+    argument copy_to(const argument& arg) const { return std::move(arg); }
+    argument copy_from(const argument& arg) const { return std::move(arg); }
     argument allocate(const shape& s) const;
 };
 

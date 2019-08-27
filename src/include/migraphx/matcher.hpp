@@ -74,7 +74,7 @@ auto bind_match(M m, std::string name)
         [ =, name = std::move(name) ](matcher_context & ctx, instruction_ref ins) {
             auto result = m.match(ctx, ins);
             if(result != ctx.not_found())
-                ctx.instructions.emplace(name, ins);
+                ctx.instructions[name] = ins;
             return result;
         });
 }
@@ -374,14 +374,14 @@ MIGRAPHX_PRED_MATCHER(same_input_shapes, instruction_ref ins)
         ins->inputs().begin(), ins->inputs().end(), [&](auto x) { return x->get_shape() == s; });
 }
 
-MIGRAPHX_BASIC_MATCHER(output, matcher_context& ctx, instruction_ref ins)
+MIGRAPHX_BASIC_MATCHER(output, const matcher_context& ctx, instruction_ref ins)
 {
     if(ins->outputs().size() == 1)
         return ins->outputs().front();
     return ctx.not_found();
 }
 
-MIGRAPHX_BASIC_MATCHER(used_once, matcher_context& ctx, instruction_ref ins)
+MIGRAPHX_BASIC_MATCHER(used_once, const matcher_context& ctx, instruction_ref ins)
 {
     if(ins->outputs().size() == 1)
         return ins;
@@ -392,7 +392,7 @@ MIGRAPHX_BASIC_MATCHER(used_once, matcher_context& ctx, instruction_ref ins)
 
 inline auto used_once_recursive(std::size_t depth)
 {
-    return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref start) {
+    return make_basic_fun_matcher([=](const matcher_context& ctx, instruction_ref start) {
         // Used once
         if(start->outputs().size() == 1)
             return start;
@@ -427,7 +427,7 @@ inline auto used_once_recursive(std::size_t depth)
 
 MIGRAPHX_PRED_MATCHER(is_constant, instruction_ref ins) { return ins->can_eval(); }
 
-MIGRAPHX_BASIC_MATCHER(is_unused, matcher_context& ctx, instruction_ref ins)
+MIGRAPHX_BASIC_MATCHER(is_unused, const matcher_context& ctx, instruction_ref ins)
 {
     if(ins->outputs().empty() and ins != std::prev(ctx.not_found()))
         return ins;
@@ -482,7 +482,7 @@ inline auto nargs(std::size_t n)
 
 inline auto arg(std::size_t i)
 {
-    return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
+    return make_basic_fun_matcher([=](const matcher_context& ctx, instruction_ref ins) {
         if(i < ins->inputs().size())
             return ins->inputs()[i];
         return ctx.not_found();

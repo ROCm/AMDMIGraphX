@@ -26,7 +26,6 @@ struct tf_parser
 {
     using attribute_map = std::unordered_map<std::string, tensorflow::AttrValue>;
     using node_map      = std::map<std::string, tensorflow::NodeDef>;
-    // using input_node_map = std::unordered_map<std::string, std::unordered_set<std::string>>;
     using op_func = std::function<instruction_ref(attribute_map, std::vector<instruction_ref>)>;
 
     node_map nodes;
@@ -149,9 +148,26 @@ struct tf_parser
         return axes;
     }
 
+    std::vector<int64_t> get_axes_from_mask(const size_t num_axes, const uint32_t mask)
+    {
+        uint32_t bitwise_compare = 1;
+        std::vector<int64_t> axes;
+        for(size_t i = 0; i < num_axes; i++)
+        {
+            // the LSB corresponds to axis 0 when determining which axes to begin
+            if(((mask >> i) & bitwise_compare) == 1)
+                axes.push_back(1);
+            else
+                axes.push_back(0);
+        }
+        return axes;
+    }
+
     tf_parser()
     {
+        add_generic_op("All", op::identity{});
         add_generic_op("Identity", op::identity{});
+        add_generic_op("LessEqual", op::identity{});
         add_generic_op("Relu", op::relu{});
         add_generic_op("Relu6", op::clip{6.0, 0.0});
         add_generic_op("Rsqrt", op::rsqrt{});
@@ -166,6 +182,7 @@ struct tf_parser
 
         add_mem_op("AvgPool", &tf_parser::parse_pooling);
         add_mem_op("BatchMatMul", &tf_parser::parse_matmul, false);
+        add_mem_op("BatchMatMulV2", &tf_parser::parse_matmul, false);
         add_mem_op("BiasAdd", &tf_parser::parse_biasadd);
         add_mem_op("Cast", &tf_parser::parse_cast, false);
         add_mem_op("ConcatV2", &tf_parser::parse_concat, false);
@@ -177,14 +194,15 @@ struct tf_parser
         add_mem_op("GatherV2", &tf_parser::parse_gather, false);
         add_mem_op("MatMul", &tf_parser::parse_matmul, false);
         add_mem_op("MaxPool", &tf_parser::parse_pooling);
-        add_mem_op("Mean", &tf_parser::parse_mean);
+        add_mem_op("Mean", &tf_parser::parse_mean, false);
+        add_mem_op("OneHot", &tf_parser::parse_onehot, false);
         add_mem_op("Pack", &tf_parser::parse_pack, false);
         add_mem_op("Pad", &tf_parser::parse_pad);
         add_mem_op("Reshape", &tf_parser::parse_reshape, false);
         add_mem_op("Slice", &tf_parser::parse_slice, false);
-        add_mem_op("Softmax", &tf_parser::parse_softmax<op::softmax>);
+        add_mem_op("Softmax", &tf_parser::parse_softmax<op::softmax>, false);
         add_mem_op("Squeeze", &tf_parser::parse_squeeze, false);
-        add_mem_op("StridedSlice", &tf_parser::parse_stridedslice);
+        add_mem_op("StridedSlice", &tf_parser::parse_stridedslice, false);
         add_mem_op("Transpose", &tf_parser::parse_transpose, false);
     }
 
@@ -547,7 +565,7 @@ struct tf_parser
         }
         if(contains(attributes, "transpose_b"))
         {
-            transb = attributes.at("transpose_a").b();
+            transb = attributes.at("transpose_b").b();
         }
 
         if(contains(attributes, "adj_x"))
@@ -574,8 +592,7 @@ struct tf_parser
     parse_mean(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         bool keep_dims = attributes.at("keep_dims").b();
-        auto lens      = args[0]->get_shape().lens();
-        auto axes = parse_axes(args[1]->eval().get<int32_t>().to_vector<int64_t>(), lens.size());
+        auto axes      = args[1]->eval().get<int32_t>().to_vector<int64_t>();
 
         if(keep_dims)
         {
@@ -586,6 +603,32 @@ struct tf_parser
             auto ins = prog.add_instruction(op::reduce_mean{axes}, args[0]);
             return prog.add_instruction(op::squeeze{axes}, ins);
         }
+    }
+
+    instruction_ref
+    parse_onehot(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        size_t depth = static_cast<size_t>(args[1]->eval().at<int32_t>());
+
+        int64_t axis    = -1;
+        float on_value  = args[2]->eval().at<float>();
+        float off_value = args[3]->eval().at<float>();
+
+        std::vector<float> depth_input(depth * depth, off_value);
+        for(int i = 0; i < depth; i++)
+        {
+            depth_input[depth * i + i] = on_value;
+        }
+
+        if(contains(attributes, "axis"))
+            axis = attributes.at("axis").i();
+        if(axis == -1)
+        {
+            shape s{shape::float_type, {depth, depth}};
+            auto l0 = prog.add_literal({s, depth_input});
+            return prog.add_instruction(op::gather{0}, {l0, args[0]});
+        }
+        MIGRAPHX_THROW("MIGraphX does not support axis != -1");
     }
 
     instruction_ref parse_pack(const std::string&,
@@ -799,20 +842,49 @@ struct tf_parser
                                        std::vector<instruction_ref> args)
     {
         op::slice op;
-        auto starts     = args[1]->eval().get<int32_t>().to_vector();
-        auto ends       = args[2]->eval().get<int32_t>().to_vector();
-        size_t num_axes = args[0]->get_shape().lens().size();
+        auto starts              = args[1]->eval().get<int32_t>().to_vector();
+        auto ends                = args[2]->eval().get<int32_t>().to_vector();
+        auto l0                  = args[0];
+        size_t num_axes          = l0->get_shape().lens().size();
+        std::vector<size_t> axes = l0->get_shape().lens();
 
         op.starts = std::vector<int64_t>(starts.begin(), starts.end());
         op.ends   = std::vector<int64_t>(ends.begin(), ends.end());
         op.axes   = std::vector<int64_t>(num_axes);
         std::iota(op.axes.begin(), op.axes.end(), 0);
+        uint32_t begin_mask       = 0;
+        uint32_t end_mask         = 0;
         uint32_t shrink_axis_mask = 0;
         uint32_t bitwise_compare  = 1;
         std::vector<int64_t> squeeze_axes;
 
+        if(contains(attributes, "begin_mask"))
+            begin_mask = static_cast<uint32_t>(attributes.at("begin_mask").i());
+
+        if(contains(attributes, "end_mask"))
+            end_mask = static_cast<uint32_t>(attributes.at("end_mask").i());
+
         if(contains(attributes, "shrink_axis_mask"))
             shrink_axis_mask = static_cast<uint32_t>(attributes.at("shrink_axis_mask").i());
+
+        std::vector<int64_t> begin_axes = get_axes_from_mask(num_axes, begin_mask);
+        std::vector<int64_t> end_axes   = get_axes_from_mask(num_axes, end_mask);
+
+        for(size_t i = 0; i < num_axes; i++)
+        {
+            if(begin_axes.at(i) == 1)
+            {
+                op.starts.at(i) = 0;
+            }
+            if(end_axes.at(i) == 1)
+            {
+                op.ends.at(i) = axes.at(i);
+            }
+        }
+
+        auto l1 = prog.add_instruction(op, l0);
+        if(shrink_axis_mask == 0)
+            return l1;
 
         for(size_t i = 0; i < num_axes; i++)
         {
@@ -821,8 +893,7 @@ struct tf_parser
                 squeeze_axes.push_back(i);
         }
 
-        auto l0 = prog.add_instruction(op, make_contiguous(args[0]));
-        return to_nhwc(prog.add_instruction(op::squeeze{squeeze_axes}, l0));
+        return prog.add_instruction(op::squeeze{squeeze_axes}, l1);
     }
 
     instruction_ref
@@ -862,10 +933,16 @@ struct tf_parser
         if(instructions.count(name) == 0)
         {
             auto&& node = nodes.at(name);
+            // assert ops ignored
+            if(node.op() == "Assert" or contains(name, "Assert"))
+                return;
             std::vector<instruction_ref> args;
 
             for(auto&& input : node.input())
             {
+                // control dependencies (signified by ^ before the name) are ignored
+                if(contains(input, "^"))
+                    continue;
                 if(nodes.count(input) > 0)
                 {
                     auto&& iname = get_name(nodes.at(input));

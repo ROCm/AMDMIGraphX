@@ -1,4 +1,4 @@
-#include <migraphx/fwd_conv_batchnorm_rewrite.hpp>
+#include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/op/convolution.hpp>
@@ -56,7 +56,7 @@ TEST_CASE(fwd_conv_batchnorm_rewrite_test)
 
     migraphx::program p1 = create_program();
     migraphx::program p2 = create_program();
-    migraphx::fwd_conv_batchnorm_rewrite opt;
+    migraphx::rewrite_batchnorm opt;
     opt.apply(p2);
     p1.compile(migraphx::cpu::target{});
     p2.compile(migraphx::cpu::target{});
@@ -93,10 +93,10 @@ TEST_CASE(non_literal)
 
     migraphx::program p1 = create_program();
     migraphx::program p2 = create_program();
-    migraphx::fwd_conv_batchnorm_rewrite opt;
+    migraphx::rewrite_batchnorm opt;
     opt.apply(p2);
     EXPECT(any_of(p1, &is_batch_norm));
-    EXPECT(any_of(p2, &is_batch_norm));
+    EXPECT(none_of(p2, &is_batch_norm));
 }
 
 TEST_CASE(as_literal)
@@ -121,7 +121,7 @@ TEST_CASE(as_literal)
 
     migraphx::program p1 = create_program();
     migraphx::program p2 = create_program();
-    migraphx::fwd_conv_batchnorm_rewrite opt;
+    migraphx::rewrite_batchnorm opt;
     opt.apply(p2);
     EXPECT(any_of(p1, &is_batch_norm));
     EXPECT(none_of(p2, &is_batch_norm));
@@ -159,7 +159,7 @@ TEST_CASE(literal_reshape)
 
     migraphx::program p1 = create_program();
     migraphx::program p2 = create_program();
-    migraphx::fwd_conv_batchnorm_rewrite opt;
+    migraphx::rewrite_batchnorm opt;
     opt.apply(p2);
     EXPECT(any_of(p1, &is_batch_norm));
     EXPECT(none_of(p2, &is_batch_norm));

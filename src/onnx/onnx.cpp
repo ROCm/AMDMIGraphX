@@ -1546,8 +1546,8 @@ struct onnx_parser
         literal s = parse_value(attr);
         s.visit([&](auto v) { copy(v, std::back_inserter(result)); });
         // Clamp large indices to -1
-        for(auto&& x:result)
-            if (x > int64_t{std::numeric_limits<std::int32_t>::max()} / 2)
+        for(auto&& x : result)
+            if(x > int64_t{std::numeric_limits<std::int32_t>::max()} / 2)
                 x = -1;
         return result;
     }

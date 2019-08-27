@@ -38,33 +38,31 @@ struct target
     context get_context() const;
     /**
      * @brief copy an argument to the current target.
-     * 
+     *
      * @param arg Input argument to be copied to the target
      * @return Argument in the target.
      */
     argument copy_to(const argument& arg) const;
     /**
      * @brief copy an argument from the current target.
-     * 
+     *
      * @param arg Input argument to be copied from the target
      * @return Argument in the host.
      */
     argument copy_from(const argument& arg) const;
     /**
      * @brief Allocate an argument based on the input shape
-     * 
+     *
      * @param s Shape of the argument to be allocated in the target
      * @return Allocated argument in the target.
      */
     argument allocate(const shape& s) const;
-
 };
 
 #else
 
 template <class T>
-auto target_allocate(rank<1>, T& x, const shape& s)
-    -> decltype(x.allocate(s))
+auto target_allocate(rank<1>, T& x, const shape& s) -> decltype(x.allocate(s))
 {
     return x.allocate(s);
 }
@@ -84,8 +82,7 @@ argument target_allocate(T& x, const shape& s)
 }
 
 template <class T>
-auto copy_to_target(rank<1>, T& x, const argument& arg)
-    -> decltype(x.copy_to(arg))
+auto copy_to_target(rank<1>, T& x, const argument& arg) -> decltype(x.copy_to(arg))
 {
     return x.copy_to(arg);
 }
@@ -106,9 +103,7 @@ argument copy_to_target(T& x, const argument& arg)
 }
 
 template <class T>
-auto copy_from_target(
-    rank<1>, T& x, const argument& arg)
-    -> decltype(x.copy_from(arg))
+auto copy_from_target(rank<1>, T& x, const argument& arg) -> decltype(x.copy_from(arg))
 {
     return x.copy_from(arg);
 }

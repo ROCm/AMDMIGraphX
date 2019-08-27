@@ -74,7 +74,7 @@ auto bind_match(M m, std::string name)
         [ =, name = std::move(name) ](matcher_context & ctx, instruction_ref ins) {
             auto result = m.match(ctx, ins);
             if(result != ctx.not_found())
-                ctx.instructions.emplace(name, ins);
+                ctx.instructions[name] = ins;
             return result;
         });
 }
@@ -240,6 +240,21 @@ void find_matches(program& p, Ms&&... ms)
     }
 }
 
+template <class M>
+struct find_skip
+{
+    M m;
+    M matcher() const { return m; }
+
+    void apply(program&, const matcher_result&) const {}
+};
+
+template <class M>
+find_skip<M> make_find_skip(M m)
+{
+    return {m};
+}
+
 struct lazy_and
 {
     template <class F, class G>
@@ -311,6 +326,12 @@ const constexpr auto all_of  = match_fold_f<lazy_and, true, true>{};
 const constexpr auto any_of  = match_fold_f<lazy_or, false, true>{};
 const constexpr auto none_of = match_fold_f<lazy_or, false, false>{};
 
+template <class... Ms>
+auto skip_matches(Ms... ms)
+{
+    return make_find_skip(any_of(ms...));
+}
+
 inline auto inputs()
 {
     return [](auto ins, auto f) {
@@ -369,6 +390,50 @@ MIGRAPHX_BASIC_MATCHER(used_once, const matcher_context& ctx, instruction_ref in
     return ctx.not_found();
 }
 
+inline auto used_once_recursive(std::size_t depth)
+{
+    return make_basic_fun_matcher([=](const matcher_context& ctx, instruction_ref start) {
+        // Used once
+        if(start->outputs().size() == 1)
+            return start;
+        // Unused
+        if(start->outputs().empty())
+        {
+            if(std::next(start) == ctx.not_found())
+                return start;
+            else
+                return ctx.not_found();
+        }
+        // Check for dead instructions
+        auto is_dead = fix<bool>([&](auto self, auto ins, auto n) {
+            if(n == 0)
+                return false;
+            if(ins->get_shape().elements() == 0)
+                return false;
+            if(ins->outputs().empty() and std::next(ins) != ctx.not_found())
+                return true;
+            return std::all_of(ins->outputs().begin(), ins->outputs().end(), [&](auto i) {
+                return self(i, n - 1);
+            });
+        });
+        auto dead    = std::count_if(start->outputs().begin(), start->outputs().end(), [&](auto i) {
+            return is_dead(i, depth);
+        });
+        if(dead + 1 == start->outputs().size())
+            return start;
+        return ctx.not_found();
+    });
+}
+
+MIGRAPHX_PRED_MATCHER(is_constant, instruction_ref ins) { return ins->can_eval(); }
+
+MIGRAPHX_BASIC_MATCHER(is_unused, const matcher_context& ctx, instruction_ref ins)
+{
+    if(ins->outputs().empty() and ins != std::prev(ctx.not_found()))
+        return ins;
+    return ctx.not_found();
+}
+
 template <class... Ms>
 auto skip_output(Ms... ms)
 {
@@ -402,6 +467,12 @@ inline auto name(std::unordered_set<std::string> names)
     return make_basic_pred_matcher([ =, names = std::move(names) ](instruction_ref ins) {
         return names.count(ins->name()) > 0;
     });
+}
+
+template <class... Ts>
+inline auto name(std::string s, Ts... xs) // NOLINT
+{
+    return name(std::unordered_set<std::string>{std::move(s), std::move(xs)...});
 }
 
 inline auto nargs(std::size_t n)

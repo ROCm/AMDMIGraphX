@@ -88,7 +88,6 @@ struct miopen_apply
     {
         this->last = instruction::get_output_alias(std::prev(prog->end()));
       
-        add_miopen_simple_op<miopen_sigmoid>("sigmoid", make_sigmoid);
         add_miopen_simple_op<miopen_abs>("abs", make_abs);
 
         add_miopen_extend_op<miopen_leaky_relu, op::leaky_relu>("leaky_relu", make_leaky_relu);

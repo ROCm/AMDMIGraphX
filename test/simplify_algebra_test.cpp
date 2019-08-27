@@ -150,4 +150,55 @@ TEST_CASE(simplify_mul_conv1)
     EXPECT(new_conv->outputs().front()->name() != "mul");
 }
 
+TEST_CASE(simplify_mul_add)
+{
+    migraphx::program p1;
+    {
+        auto x   = p1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto one = p1.add_literal(1);
+        auto two = p1.add_literal(2);
+        auto sum = p1.add_instruction(migraphx::op::add{}, one, x);
+        auto mul = p1.add_instruction(migraphx::op::mul{}, sum, two);
+        p1.add_instruction(pass_op{}, mul);
+    }
+    p1.compile(simplify_algebra_target{});
+
+    migraphx::program p2;
+    {
+        auto x    = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto one  = p2.add_literal(1);
+        auto two  = p2.add_literal(2);
+        auto mul1 = p2.add_instruction(migraphx::op::mul{}, two, x);
+        auto mul2 = p2.add_instruction(migraphx::op::mul{}, two, one);
+        auto sum  = p2.add_instruction(migraphx::op::add{}, mul1, mul2);
+        p2.add_instruction(pass_op{}, sum);
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(simplify_inner_broadcast)
+{
+    auto b = migraphx::op::broadcast{1, {2, 1, 4, 5}};
+    migraphx::program p1;
+    {
+        auto x   = p1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto y   = p1.add_parameter("y", {migraphx::shape::int32_type, {1}});
+        auto xb  = p1.add_instruction(b, x);
+        auto yb  = p1.add_instruction(b, y);
+        auto sum = p1.add_instruction(migraphx::op::add{}, xb, yb);
+        p1.add_instruction(pass_op{}, sum);
+    }
+    p1.compile(simplify_algebra_target{});
+
+    migraphx::program p2;
+    {
+        auto x    = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto y    = p2.add_parameter("y", {migraphx::shape::int32_type, {1}});
+        auto sum  = p2.add_instruction(migraphx::op::add{}, x, y);
+        auto sumb = p2.add_instruction(b, sum);
+        p2.add_instruction(pass_op{}, sumb);
+    }
+    EXPECT(p1 == p2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -13,9 +13,9 @@ struct program;
 /**
  * Rewrite batchnorm to a multiply and add.
  */
-struct fwd_conv_batchnorm_rewrite
+struct rewrite_batchnorm
 {
-    std::string name() const { return "fwd_conv_batchnorm_rewrite"; }
+    std::string name() const { return "rewrite_batchnorm"; }
     void apply(program& p) const;
 };
 

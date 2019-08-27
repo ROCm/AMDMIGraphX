@@ -4,6 +4,13 @@ from onnx import helper
 from onnx import numpy_helper
 from onnx import AttributeProto, TensorProto, GraphProto
 
+def onnx_test(op_test):
+    def run_test():
+        model_def = helper.make_model(op_test(), producer_name=op_test.__name__)
+        onnx.save(model_def, '{}.onnx'.format(op_test.__name__))
+    return run_test
+
+@onnx_test
 def acos_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -14,16 +21,14 @@ def acos_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_acos',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='acos-example')
-    onnx.save(model_def, 'onnx_acos.onnx')
-
+@onnx_test
 def add_bcast_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 4])
@@ -37,16 +42,14 @@ def add_bcast_test():
         outputs=['2']
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-add_bcast',
         [x,y],
         [z]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='add_bcast-example')
-    onnx.save(model_def, 'add_bcast_test.onnx')
-
+@onnx_test
 def add_fp16_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [1])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [1])
@@ -58,7 +61,7 @@ def add_fp16_test():
         outputs=['2'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-add-fp16',
         [x,y],
@@ -71,6 +74,7 @@ def add_fp16_test():
     model_def = helper.make_model(graph_def, producer_name=('add-fp16-example'))
     onnx.save(model_def, 'add_fp16_test.onnx')
 
+@onnx_test
 def add_scalar_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [])
@@ -82,7 +86,7 @@ def add_scalar_test():
         outputs=['2']
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-add-scalar',
         [x,y],
@@ -90,9 +94,7 @@ def add_scalar_test():
         initializer=[helper.make_tensor('1', TensorProto.FLOAT, [], [1])]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='add_scalar-example')
-    onnx.save(model_def, 'add_scalar_test.onnx')
-
+@onnx_test
 def argmax_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 6])
@@ -106,16 +108,14 @@ def argmax_test():
     )
 
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_argmax',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='argmax-example')
-    onnx.save(model_def, 'argmax_test.onnx')
-
+@onnx_test
 def argmin_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 5])
@@ -128,16 +128,14 @@ def argmin_test():
         keepdims = 0
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_argmin',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='argmin-example')
-    onnx.save(model_def, 'argmin_test.onnx')
-
+@onnx_test
 def asin_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -148,16 +146,14 @@ def asin_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_asin',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='asin-example')
-    onnx.save(model_def, 'asin_test.onnx')
-
+@onnx_test
 def atan_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -168,16 +164,14 @@ def atan_test():
         outputs=['y'],
     )
     
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_atan',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='atan-example')
-    onnx.save(model_def, 'atan_test.onnx')
-
+@onnx_test
 def cast_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -189,16 +183,14 @@ def cast_test():
         to = 1
     )
     
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_cast',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='cast-example')
-    onnx.save(model_def, 'cast_test.onnx')
-
+@onnx_test
 def clip_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
@@ -212,16 +204,14 @@ def clip_test():
         min=0.0
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-model',
         [x],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='clip-example')
-    onnx.save(model_def, 'clip_test.onnx')
-
+@onnx_test
 def concat_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 4, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7, 4, 3])
@@ -234,16 +224,14 @@ def concat_test():
         outputs=['2'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-concat',
         [x,y],
         [z]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='concat-example')
-    onnx.save(model_def, 'concat_test.onnx')
-
+@onnx_test
 def constant_test():
     x = np.array([0, 1, 2])
     y = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
@@ -260,16 +248,14 @@ def constant_test():
         ),
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-constant',
         [],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name=('constant-example'))
-    onnx.save(model_def, 'constant_test.onnx')
-
+@onnx_test
 def constant_fill_test():
     value = helper.make_tensor_value_info('value', TensorProto.FLOAT, [2, 3])
 
@@ -283,16 +269,14 @@ def constant_fill_test():
         input_as_shape = 0,
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'constant_fill',
         [],
         [value],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='constant-fill-example')
-    onnx.save(model_def, 'constant_fill_test.onnx')
-
+@onnx_test
 def constant_fill_input_as_shape_test():
     np_shape = np.array([2, 3])
     shape = helper.make_tensor_value_info('shape', TensorProto.INT32, [2])
@@ -321,16 +305,14 @@ def constant_fill_input_as_shape_test():
         input_as_shape = 1,
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [const_shape_node, node],
         'constant_fill',
         [],
         [value],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='constant-fill-example')
-    onnx.save(model_def, 'constant_fill_input_as_shape_test.onnx')
-
+@onnx_test
 def constant_scalar_test():
     x = np.array([1])
     y = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1])
@@ -347,16 +329,14 @@ def constant_scalar_test():
         ),
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-constant',
         [],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name=('constant-scalar-example'))
-    onnx.save(model_def, 'constant_scalar_test.onnx')
-
+@onnx_test
 def const_of_shape_empty_input_test():
     tensor_val = onnx.helper.make_tensor(
         'value',
@@ -385,16 +365,14 @@ def const_of_shape_empty_input_test():
         value = tensor_val,
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [shape_const, node],
         'constant_of_shape',
         [],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='constant-of-shape')
-    onnx.save(model_def, 'const_of_shape_empty_input_test.onnx')
-
+@onnx_test
 def const_of_shape_float_test():
     tensor_val = onnx.helper.make_tensor(
         'value',
@@ -423,16 +401,14 @@ def const_of_shape_float_test():
         value = tensor_val
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
             [shape_const, node],
             'constant_of_shape',
             [],
             [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='constant-of-shape')
-    onnx.save(model_def, 'const_of_shape_float_test.onnx')
-
+@onnx_test
 def const_of_shape_int64_test():
     tensor_val = onnx.helper.make_tensor(
         'value',
@@ -460,16 +436,14 @@ def const_of_shape_int64_test():
         value = tensor_val
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [shape_const, node],
         'constant_of_shape',
         [],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='constant-of-shape')
-    onnx.save(model_def, 'const_of_shape_int64_test.onnx')
-
+@onnx_test
 def const_of_shape_no_value_attr_test():
     shape_val = np.array([2, 3, 4]).astype(np.int64)
     shape_ts = helper.make_tensor(
@@ -492,16 +466,14 @@ def const_of_shape_no_value_attr_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [shape_const, node],
         'constant_of_shape',
         [],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='constant-of-shape')
-    onnx.save(model_def, 'const_of_shape_no_value_attr_test.onnx')
-
+@onnx_test
 def conv_autopad_fail_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 1, 1])
@@ -517,16 +489,14 @@ def conv_autopad_fail_test():
         pads = [0,0,1,1,0,0,1,1]
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_conv',
         [x, y],
         [out],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='conv-example')
-    onnx.save(model_def, 'conv_autopad_fail_test.onnx')
-
+@onnx_test
 def conv_bias_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])
@@ -541,16 +511,14 @@ def conv_bias_test():
         strides = [1, 1]
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_conv',
         [x, y, z],
         [out],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='conv-example')
-    onnx.save(model_def, 'conv_bias_test.onnx')
-
+@onnx_test
 def conv_bn_relu_maxpool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])
@@ -592,16 +560,14 @@ def conv_bn_relu_maxpool_test():
         kernel_shape=[2,2]
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node0, node1, node2, node3],
         'test_conv_bn_relu',
         [x, y, z, m, n, k, l],
         [out],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='conv_relu-example')
-    onnx.save(model_def, 'conv_bn_relu_maxpool_test.onnx')
-
+@onnx_test
 def conv_relu_maxpool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])
@@ -632,16 +598,14 @@ def conv_relu_maxpool_test():
         kernel_shape=[2,2]
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node1, node2, node3],
         'test_conv_relu',
         [x, y, z],
         [out],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='conv_relu-example')
-    onnx.save(model_def, 'conv_relu_maxpool_test.onnx')
-
+@onnx_test
 def conv_relu_maxpool_x2_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [5, 3, 5, 5])
@@ -698,16 +662,14 @@ def conv_relu_maxpool_x2_test():
         kernel_shape=[2,2]
         )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node1, node2, node3, node4, node5, node6],
         'test_conv_relu2',
         [x, y, z, m, n],
         [out],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='conv_relu-example')
-    onnx.save(model_def, 'conv_relu_maxpool_x2_test.onnx')
-
+@onnx_test
 def cos_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -718,16 +680,14 @@ def cos_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_cos',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='cos-example')
-    onnx.save(model_def, 'cos_test.onnx')
-
+@onnx_test
 def cosh_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1])
@@ -738,16 +698,14 @@ def cosh_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_cosh',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='cosh-example')
-    onnx.save(model_def, 'cosh_test.onnx')    
-
+@onnx_test
 def dropout_test():
         x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 2, 2])
         y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])
@@ -758,16 +716,14 @@ def dropout_test():
             outputs=['1'],
         )
 
-        graph_def = helper.make_graph(
+        return helper.make_graph(
             [node],
             'test-dropout',
             [x],
             [y]
         )
 
-        model_def = helper.make_model(graph_def, producer_name='dropout-example')
-        onnx.save(model_def, 'dropout_test.onnx')
-
+@onnx_test
 def elu_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
@@ -779,16 +735,14 @@ def elu_test():
         alpha=0.01
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-model',
         [x],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='elu-example')
-    onnx.save(model_def, 'elu_test.onnx')
-
+@onnx_test
 def erf_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 15])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10, 15])
@@ -799,16 +753,14 @@ def erf_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_erf',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='erf-example')
-    onnx.save(model_def, 'erf_test.onnx')
-
+@onnx_test
 def exp_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -819,16 +771,14 @@ def exp_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_exp',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='exp-example')
-    onnx.save(model_def, 'exp_test.onnx')
-
+@onnx_test
 def expand_test():
     shape_val = np.array([2, 3, 4, 5]).astype(np.int64)
     shape_ts = helper.make_tensor(
@@ -852,16 +802,14 @@ def expand_test():
         outputs=['y']
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [shape_const, node],
         'expand',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='expand')
-    onnx.save(model_def, 'expand_test.onnx')
-
+@onnx_test
 def flatten_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [6,  20])
@@ -880,16 +828,14 @@ def flatten_test():
         outputs=['3']
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node,node2],
         'test-flatten',
         [x],
         [y,y2]
     )
 
-    model_def = helper.make_model(graph_def, producer_name=('flatten-example'))
-    onnx.save(model_def, 'flatten_test.onnx')
-
+@onnx_test
 def gather_test():
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
     i = helper.make_tensor_value_info('indices', TensorProto.INT32, [2, 3, 4, 5])
@@ -902,16 +848,14 @@ def gather_test():
         axis=1,
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_gather',
         [x, i],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='gather-example')
-    onnx.save(model_def, 'gather_test.onnx')
-
+@onnx_test
 def gemm_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [5, 7])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [11, 5])
@@ -928,16 +872,14 @@ def gemm_test():
         transB=1
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-gemm',
         [x, y, z],
         [a]
     )
 
-    model_def = helper.make_model(graph_def, producer_name=('gemm-example'))
-    onnx.save(model_def, 'gemm_test.onnx')
-
+@onnx_test
 def gemm_ex_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 1, 5, 6])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1, 1, 5, 7])
@@ -953,16 +895,14 @@ def gemm_ex_test():
         transA = 1
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_gemm_ex',
         [m1, m2, m3],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='gemm-example')
-    onnx.save(model_def, 'gemm_ex_test.onnx')
-
+@onnx_test
 def gemm_ex_brcst_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 1, 5, 6])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1, 1, 5, 7])
@@ -978,16 +918,14 @@ def gemm_ex_brcst_test():
         transA = 1
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_gemm_ex',
         [m1, m2, m3],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='gemm-example')
-    onnx.save(model_def, 'gemm_ex_brcst_test.onnx')
-
+@onnx_test
 def globalavgpool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1,3,16,16])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1,3,1,1])
@@ -998,16 +936,14 @@ def globalavgpool_test():
         outputs=['1'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-globalavgpool',
         [x],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='globalavgpool-example')
-    onnx.save(model_def, 'globalavgpool_test.onnx')
-
+@onnx_test
 def globalmaxpool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1,3,16,16])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1,3,1,1])
@@ -1018,16 +954,14 @@ def globalmaxpool_test():
         outputs=['1'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-globalmaxpool',
         [x],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='globalmaxpool-example')
-    onnx.save(model_def, 'globalmaxpool_test.onnx')
-
+@onnx_test
 def group_conv_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 4, 16, 16])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 1, 3, 3])
@@ -1040,16 +974,14 @@ def group_conv_test():
         outputs=['2'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-group_conv',
         [x,y],
         [z]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='group_conv-example')
-    onnx.save(model_def, 'group_conv_test.onnx')
-
+@onnx_test
 def imagescaler_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1,3,16,16])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1,3,16,16])
@@ -1062,16 +994,14 @@ def imagescaler_test():
         scale=0.5
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-imagescaler',
         [x],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='imagescaler-example')
-    onnx.save(model_def, 'imagescaler_test.onnx')
-
+@onnx_test
 def implicit_add_bcast_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 4, 1])
@@ -1083,16 +1013,14 @@ def implicit_add_bcast_test():
         outputs=['2'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-multi_bcast',
         [x,y],
         [z]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='implicit_bcast-example')
-    onnx.save(model_def, 'implicit_add_bcast_test.onnx')
-
+@onnx_test
 def implicit_pow_bcast_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 4, 1])
@@ -1104,16 +1032,14 @@ def implicit_pow_bcast_test():
         outputs=['out'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'pow_test',
         [arg0, arg1],
         [arg_out],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='pow2')
-    onnx.save(model_def, 'implicit_pow_bcast_test.onnx')
-
+@onnx_test
 def implicit_sub_bcast_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 5])
@@ -1125,16 +1051,14 @@ def implicit_sub_bcast_test():
         outputs=['out'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'subtraction2',
         [arg0, arg1],
         [arg_out],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='add2')
-    onnx.save(model_def, 'implicit_sub_bcast_test.onnx')
-
+@onnx_test
 def leaky_relu_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
@@ -1146,16 +1070,14 @@ def leaky_relu_test():
         alpha=0.01
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-model',
         [x],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='leaky_relu-example')
-    onnx.save(model_def, 'leaky_relu_test.onnx')
-
+@onnx_test
 def log_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -1166,16 +1088,14 @@ def log_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_log',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='log-example')
-    onnx.save(model_def, 'log_test.onnx')
-
+@onnx_test
 def logsoftmax_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 5, 6])
@@ -1187,16 +1107,14 @@ def logsoftmax_test():
         axis = 1
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_logsoftmax',
         [x],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='logsoftmax-example')
-    onnx.save(model_def, 'logsoftmax_test.onnx')
-
+@onnx_test
 def lrn_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 28, 24, 24])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 28, 24, 24])
@@ -1211,16 +1129,14 @@ def lrn_test():
         outputs=['1']
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-lrn',
         [x],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name=('lrn-example'))
-    onnx.save(model_def, 'lrn_test.onnx')
-
+@onnx_test
 def matmul_bmbm_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 6, 7])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [5, 2, 1, 7, 8])
@@ -1232,16 +1148,14 @@ def matmul_bmbm_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_matmul',
         [m1, m2],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='matmul-example')
-    onnx.save(model_def, 'matmul_bmbm_test.onnx')
-
+@onnx_test
 def matmul_bmv_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 6, 7])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7])
@@ -1253,16 +1167,14 @@ def matmul_bmv_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_matmul',
         [m1, m2],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='matmul-example')
-    onnx.save(model_def, 'matmul_bmv_test.onnx')
-
+@onnx_test
 def matmul_mv_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [6, 7])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7])
@@ -1274,16 +1186,14 @@ def matmul_mv_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_matmul',
         [m1, m2],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='matmul-example')
-    onnx.save(model_def, 'matmul_mv_test.onnx')
-
+@onnx_test
 def matmul_vbm_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [5, 7, 8])
@@ -1295,16 +1205,14 @@ def matmul_vbm_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_matmul',
         [m1, m2],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='matmul-example')
-    onnx.save(model_def, 'matmul_vbm_test.onnx')
-
+@onnx_test
 def matmul_vm_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7, 8])
@@ -1316,16 +1224,14 @@ def matmul_vm_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_matmul',
         [m1, m2],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='matmul-example')
-    onnx.save(model_def, 'matmul_vm_test.onnx')
-
+@onnx_test
 def matmul_vv_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7])
@@ -1337,16 +1243,14 @@ def matmul_vv_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_matmul',
         [m1, m2],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='matmul-example')
-    onnx.save(model_def, 'matmul_vv_test.onnx')
-
+@onnx_test
 def max_test():
     a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
@@ -1359,16 +1263,14 @@ def max_test():
         outputs=['3'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-dropout',
         [a, b, c],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='max-example')
-    onnx.save(model_def, 'max_test.onnx')
-
+@onnx_test
 def min_test():
     a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
@@ -1381,16 +1283,14 @@ def min_test():
         outputs=['3'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-dropout',
         [a, b, c],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='min-example')
-    onnx.save(model_def, 'min_test.onnx')
-
+@onnx_test
 def no_pad_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 2])
@@ -1403,16 +1303,14 @@ def no_pad_test():
     )
 
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-no-pad',
         [x],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='no-pad-example')
-    onnx.save(model_def, 'no_pad_test.onnx')
-
+@onnx_test
 def pad_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 4])
@@ -1425,16 +1323,14 @@ def pad_test():
     )
 
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-pad',
         [x],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='pad-example')
-    onnx.save(model_def, 'pad_test.onnx')
-
+@onnx_test
 def pow_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 3, 4, 5])
@@ -1447,16 +1343,14 @@ def pow_test():
     )
 
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'pow_test',
         [arg0, arg1],
         [arg_out],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='pow2')
-    onnx.save(model_def, 'pow_test.onnx')
-
+@onnx_test
 def reducemean_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
@@ -1470,16 +1364,14 @@ def reducemean_test():
         keepdims = 0
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_reducemean',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='reducemean-example')
-    onnx.save(model_def, 'reducemean_test.onnx')
-
+@onnx_test
 def reducemean_keepdims_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 6])
@@ -1493,16 +1385,14 @@ def reducemean_keepdims_test():
         keepdims = 1
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_reducemean',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='reducemean-example')
-    onnx.save(model_def, 'reducemean_keepdims_test.onnx')
-
+@onnx_test
 def reducesum_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 1])
@@ -1516,16 +1406,14 @@ def reducesum_test():
         keepdims = 0
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_reducesum',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='reducesum-example')
-    onnx.save(model_def, 'reducesum_test.onnx')
-
+@onnx_test
 def reducesum_multiaxis_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 1])
@@ -1539,16 +1427,14 @@ def reducesum_multiaxis_test():
             keepdims = 0
             )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
             [node],
             'test_reducesum',
             [x],
             [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='reducesum-example')
-    onnx.save(model_def, 'reducesum_multiaxis_test.onnx')
-
+@onnx_test
 def reducesum_keepdims_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 1])
@@ -1562,16 +1448,14 @@ def reducesum_keepdims_test():
             keepdims = 1
             )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
             [node],
             'test_reducesum',
             [x],
             [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='reducesum-example')
-    onnx.save(model_def, 'reducesum_keepdims_test.onnx')
-
+@onnx_test
 def reshape_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 2, 3])
     x_shape = helper.make_tensor_value_info('1', TensorProto.INT64, [2])
@@ -1592,7 +1476,7 @@ def reshape_test():
         outputs=['3']
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node,node2],
         'test-reshape',
         [x, x_shape],
@@ -1600,9 +1484,7 @@ def reshape_test():
         initializer=[helper.make_tensor('1', TensorProto.INT64, [2], [3, 8])]
     )
 
-    model_def = helper.make_model(graph_def, producer_name=('reshape-example'))
-    onnx.save(model_def, 'reshape_test.onnx')
-
+@onnx_test
 def reshape_non_standard_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3, 4])
     trans_x = helper.make_tensor_value_info('trans_x', TensorProto.FLOAT, [2, 4, 3])
@@ -1622,16 +1504,14 @@ def reshape_non_standard_test():
         shape=[4, 3, 2]
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [trans, res],
         'reshape-ns',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='reshape')
-    onnx.save(model_def, 'reshape_non_standard_test.onnx')
-
+@onnx_test
 def shape_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.INT64, [4])
@@ -1642,16 +1522,14 @@ def shape_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_shape',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='shape-example')
-    onnx.save(model_def, 'shape_test.onnx')
-
+@onnx_test
 def shape_gather_test():
     values = np.array([1])
     value = helper.make_tensor_value_info('value', TensorProto.INT32, [1])
@@ -1685,16 +1563,14 @@ def shape_gather_test():
         axis=0,
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node_const, node_shape, node_gather],
         'shape_gather',
         [x],
         [z],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='shape-gather-example')
-    onnx.save(model_def, 'shape_gather_test.onnx')
-
+@onnx_test
 def sign_test():
     x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [10, 5])
     y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [10, 5])
@@ -1705,16 +1581,14 @@ def sign_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_sign',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='sign-example')
-    onnx.save(model_def, 'sign_test.onnx')
-
+@onnx_test
 def sin_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -1725,16 +1599,14 @@ def sin_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_sin',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='sin-example')
-    onnx.save(model_def, 'sin_test.onnx')
-
+@onnx_test
 def sinh_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -1745,16 +1617,14 @@ def sinh_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_sinh',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='sinh-example')
-    onnx.save(model_def, 'sinh_test.onnx')
-
+@onnx_test
 def slice_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 2])
@@ -1768,16 +1638,14 @@ def slice_test():
         outputs=['1']
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-slice',
         [x],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name=('slice-example'))
-    onnx.save(model_def, 'slice_test.onnx')
-
+@onnx_test
 def softmax_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3])
@@ -1788,16 +1656,14 @@ def softmax_test():
         outputs=['1']
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-softmax',
         [x],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name=('softmax-example'))
-    onnx.save(model_def, 'softmax_test.onnx')
-
+@onnx_test
 def sqrt_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 15])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10, 15])
@@ -1808,16 +1674,14 @@ def sqrt_test():
         outputs=['y'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test_sqrt',
         [x],
         [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='sqrt-example')
-    onnx.save(model_def, 'sqrt_test.onnx')
-
+@onnx_test
 def squeeze_unsqueeze_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 1, 1, 2, 1])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 2])
@@ -1837,16 +1701,14 @@ def squeeze_unsqueeze_test():
         outputs=['2']
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node,node2],
         'test-squeeze-unsqueeze',
         [x],
         [z]
     )
 
-    model_def = helper.make_model(graph_def, producer_name=('squeeze-unsqueeze-example'))
-    onnx.save(model_def, 'squeeze_unsqueeze_test.onnx')
-
+@onnx_test
 def sub_bcast_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 4])
@@ -1861,16 +1723,14 @@ def sub_bcast_test():
     )
 
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'subtraction2',
         [arg0, arg1],
         [arg_out],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='subtraction2')
-    onnx.save(model_def, 'sub_bcast_test.onnx')
-
+@onnx_test
 def sub_scalar_test():
     values = np.array([1])
     arg_node = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
@@ -1897,16 +1757,14 @@ def sub_scalar_test():
         outputs=['out'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [arg_const, node],
         'subtraction1',
         [arg_node],
         [arg_out],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='subtraction1')
-    onnx.save(model_def, 'sub_scalar_test.onnx')
-
+@onnx_test
 def sum_test():
     a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
@@ -1920,16 +1778,14 @@ def sum_test():
         outputs=['3'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-sum',
         [a, b, c],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='sum-example')
-    onnx.save(model_def, 'sum_test.onnx')
-
+@onnx_test
 def sum_test():
     a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
@@ -1942,16 +1798,14 @@ def sum_test():
         outputs=['3'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-sum',
         [a, b, c],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='sum-example')
-    onnx.save(model_def, 'sum_test.onnx')
-
+@onnx_test
 def tan_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -1962,16 +1816,14 @@ def tan_test():
             outputs=['y'],
             )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
             [node],
             'test_tan',
             [x],
             [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='tan-example')
-    onnx.save(model_def, 'tan_test.onnx')
-
+@onnx_test
 def tanh_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1])
@@ -1982,16 +1834,14 @@ def tanh_test():
             outputs=['y'],
             )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
             [node],
             'test_tanh',
             [x],
             [y],
     )
 
-    model_def = helper.make_model(graph_def, producer_name='tanh-example')
-    onnx.save(model_def, 'tahn_test.onnx')
-
+@onnx_test
 def transpose_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 2, 2, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])
@@ -2003,16 +1853,49 @@ def transpose_test():
         outputs=['1'],
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node],
         'test-transpose',
         [x],
         [y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='transpose-example')
-    onnx.save(model_def, 'transpose_test.onnx')
+@onnx_test
+def transpose_gather_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 5, 4, 6])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT32, [2, 4, 3, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 2, 3, 4, 5, 4, 5, 6])
 
+    td = onnx.helper.make_node(
+        'Transpose',
+        inputs=['data'],
+        outputs=['tdata'],
+        perm=[0, 2, 1, 3],
+    )
+
+    ti = onnx.helper.make_node(
+        'Transpose',
+        inputs=['indices'],
+        outputs=['tindices'],
+        perm=[0, 2, 1, 3]
+    )
+
+    node = onnx.helper.make_node(
+        'Gather',
+        inputs=['tdata', 'tindices'],
+        outputs=['y'],
+        axis=1,
+    )
+
+
+    return helper.make_graph(
+        [td, ti, node],
+        'test_gather',
+        [x, i],
+        [y],
+    )
+
+@onnx_test
 def unknown_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 4])
@@ -2031,7 +1914,7 @@ def unknown_test():
         outputs=['3']
     )
 
-    graph_def = helper.make_graph(
+    return helper.make_graph(
         [node,node2],
         'test-unknown',
         [x,y],

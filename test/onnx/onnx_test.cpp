@@ -4,6 +4,7 @@
 #include <migraphx/operators.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_ref.hpp>
 #include <migraphx/onnx.hpp>
 #include "test.hpp"
 
@@ -1011,6 +1012,32 @@ TEST_CASE(transpose_test)
     p.add_instruction(migraphx::op::transpose{perm}, input);
 
     auto prog = migraphx::parse_onnx("transpose_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(transpose_gather_test)
+{
+    migraphx::program p;
+    auto make_contiguous = [&p](migraphx::instruction_ref ins) {
+        if(ins->get_shape().standard())
+        {
+            return ins;
+        }
+
+        return p.add_instruction(migraphx::op::contiguous{}, ins);
+    };
+
+    auto data = p.add_parameter("data", migraphx::shape{migraphx::shape::float_type, {3, 5, 4, 6}});
+    auto ind =
+        p.add_parameter("indices", migraphx::shape{migraphx::shape::int32_type, {2, 4, 3, 5}});
+    auto tr_data = p.add_instruction(migraphx::op::transpose{{0, 2, 1, 3}}, data);
+    auto tr_ind  = p.add_instruction(migraphx::op::transpose{{0, 2, 1, 3}}, ind);
+    int axis     = 1;
+    p.add_instruction(
+        migraphx::op::gather{axis}, make_contiguous(tr_data), make_contiguous(tr_ind));
+
+    auto prog = migraphx::parse_onnx("transpose_gather_test.onnx");
 
     EXPECT(p == prog);
 }

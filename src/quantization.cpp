@@ -515,7 +515,8 @@ capture_arguments(program& prog, const target& t, const std::vector<std::string>
         // scale and shift is need for only int8 type, and we do not
         // consider shift, so set shift to 0
         std::vector<float> vec_val;
-        t.copy_from(args.front()).visit([&](auto output) {
+        auto&& arg = t.copy_from(args.front());
+        arg.visit([&](auto output) {
             vec_val.assign(output.begin(), output.end());
         });
         auto max_val                = *std::max_element(vec_val.begin(), vec_val.end());

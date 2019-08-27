@@ -323,7 +323,11 @@ struct onnx_parser
         {
             if(contains(attributes, "auto_pad"))
             {
-                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                auto s = attributes["auto_pad"].s();
+                if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
+                {
+                    MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                }
             }
             std::vector<std::int64_t> padding;
             copy(attributes["pads"].ints(), std::back_inserter(padding));
@@ -371,7 +375,7 @@ struct onnx_parser
         if(args.size() == 3)
         {
             uint64_t axis = 1;
-            auto l1       = prog.add_instruction(op, args[0], args[1]);
+            auto l1       = prog.add_instruction(op, l0, args[1]);
             auto l2 = prog.add_instruction(op::broadcast{axis, l1->get_shape().lens()}, args[2]);
             return prog.add_instruction(op::add{}, l1, l2);
         }

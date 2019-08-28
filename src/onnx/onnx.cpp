@@ -55,6 +55,7 @@ struct onnx_parser
         add_generic_op("Acos", op::acos{});
         add_generic_op("Atan", op::atan{});
         add_generic_op("Sqrt", op::sqrt{});
+        add_generic_op("Round", op::round{});
         add_generic_op("Sign", op::sign{});
 
         add_binary_op("Add", op::add{});
@@ -323,7 +324,11 @@ struct onnx_parser
         {
             if(contains(attributes, "auto_pad"))
             {
-                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                auto s = attributes["auto_pad"].s();
+                if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
+                {
+                    MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                }
             }
             std::vector<std::int64_t> padding;
             copy(attributes["pads"].ints(), std::back_inserter(padding));
@@ -371,7 +376,7 @@ struct onnx_parser
         if(args.size() == 3)
         {
             uint64_t axis = 1;
-            auto l1       = prog.add_instruction(op, args[0], args[1]);
+            auto l1       = prog.add_instruction(op, l0, args[1]);
             auto l2 = prog.add_instruction(op::broadcast{axis, l1->get_shape().lens()}, args[2]);
             return prog.add_instruction(op::add{}, l1, l2);
         }
@@ -504,15 +509,24 @@ struct onnx_parser
     parse_slice(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         op::slice op;
+        std::vector<size_t> dims = args[0]->get_shape().lens();
+        size_t num_dims          = dims.size();
         if(contains(attributes, "axes"))
         {
             literal s = parse_value(attributes.at("axes"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
         }
+        else
         {
-            literal s = parse_value(attributes.at("ends"));
-            s.visit([&](auto v) { copy(v, std::back_inserter(op.ends)); });
+            op.axes = std::vector<int64_t>(num_dims);
+            std::iota(op.axes.begin(), op.axes.end(), 0);
         }
+
+        if(contains(attributes, "ends"))
+        {
+            op.ends = get_indices(attributes.at("ends"));
+        }
+        if(contains(attributes, "starts"))
         {
             literal s = parse_value(attributes.at("starts"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.starts)); });
@@ -1523,6 +1537,20 @@ struct onnx_parser
                 result[output] = node;
             }
         }
+        return result;
+    }
+
+    static std::vector<int64_t> get_indices(const onnx::AttributeProto& attr)
+    {
+        std::vector<int64_t> result;
+        literal s = parse_value(attr);
+        s.visit([&](auto v) { copy(v, std::back_inserter(result)); });
+        // Clamp large indices to -1
+        std::replace_if(
+            result.begin(),
+            result.end(),
+            [](auto x) { return x > int64_t{std::numeric_limits<std::int32_t>::max()} / 2; },
+            -1);
         return result;
     }
 

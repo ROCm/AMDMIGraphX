@@ -8,6 +8,11 @@
 #include <migraphx/onnx.hpp>
 #include "test.hpp"
 
+TEST_CASE(conv_autopad_fail_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("conv_autopad_fail_test.onnx"); }));
+}
+
 TEST_CASE(pytorch_conv_bias_test)
 {
     migraphx::program p;
@@ -1046,6 +1051,16 @@ TEST_CASE(expand_test)
     p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, param);
 
     auto prog = migraphx::parse_onnx("expand_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(round_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::double_type, {10, 5}});
+    p.add_instruction(migraphx::op::round{}, input);
+
+    auto prog = migraphx::parse_onnx("round_test.onnx");
     EXPECT(p == prog);
 }
 

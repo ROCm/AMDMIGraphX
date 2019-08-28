@@ -502,7 +502,7 @@ std::size_t capture_arguments(program& prog,
 }
 
 std::shared_ptr<std::vector<std::pair<float, float>>>
-capture_arguments(program& prog, const target& t, const std::vector<std::string>& ins_names)
+capture_arguments_impl(program& prog, const target& t, const std::vector<std::string>& ins_names)
 {
     std::shared_ptr<std::vector<std::pair<float, float>>> int8_quant_params =
         std::make_shared<std::vector<std::pair<float, float>>>();
@@ -515,7 +515,7 @@ capture_arguments(program& prog, const target& t, const std::vector<std::string>
         // scale and shift is need for only int8 type, and we do not
         // consider shift, so set shift to 0
         std::vector<float> vec_val;
-        auto&& arg = t.copy_from(args.front());
+        argument arg = t.copy_from(args.front());
         arg.visit([&](auto output) { vec_val.assign(output.begin(), output.end()); });
         auto max_val                = *std::max_element(vec_val.begin(), vec_val.end());
         auto min_val                = *std::min_element(vec_val.begin(), vec_val.end());
@@ -532,13 +532,6 @@ capture_arguments(program& prog, const target& t, const std::vector<std::string>
     max_abs_vals->resize(num_params, 0.0f);
 
     return int8_quant_params;
-}
-
-std::shared_ptr<std::vector<std::pair<float, float>>> capture_arguments(program& prog,
-                                                                        const target& t)
-{
-    std::vector<std::string> ins_names = {"dot", "convolution"};
-    return capture_arguments(prog, t, ins_names);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -248,7 +248,8 @@ TEST_CASE(op_capture)
     {
         auto p            = create_program_float();
         auto op_capture_p = create_program_op();
-        migraphx::capture_arguments(p);
+        migraphx::target t = migraphx::cpu::target{};
+        migraphx::capture_arguments(p, t);
         EXPECT(p == op_capture_p);
     }
 }

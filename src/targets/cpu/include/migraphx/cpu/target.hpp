@@ -17,7 +17,9 @@ struct target
     migraphx::context get_context() const { return context{}; }
 
     argument copy_to(const argument& arg) const { return std::move(arg); }
-    argument copy_from(const argument& arg) const { return std::move(arg); }
+    argument copy_from(const argument& arg) const {
+        return arg;
+    }
     argument allocate(const shape& s) const;
 };
 

@@ -72,7 +72,6 @@ argument target_allocate(rank<0>, T& x, const shape&)
 {
     std::string name = x.name();
     MIGRAPHX_THROW("Not computable: " + name);
-    return argument{};
 }
 
 template <class T>
@@ -88,12 +87,9 @@ auto copy_to_target(rank<1>, T& x, const argument& arg) -> decltype(x.copy_to(ar
 }
 
 template <class T>
-argument copy_to_target(rank<0>, T& x, const argument&)
+argument copy_to_target(rank<0>, T&, const argument& arg)
 {
-    std::string name = x.name();
-    MIGRAPHX_THROW("Not computable: " + name);
-
-    return argument{};
+    return arg;
 }
 
 template <class T>
@@ -109,11 +105,9 @@ auto copy_from_target(rank<1>, T& x, const argument& arg) -> decltype(x.copy_fro
 }
 
 template <class T>
-argument copy_from_target(rank<0>, T& x, const argument&)
+argument copy_from_target(rank<0>, T&, const argument& arg)
 {
-    std::string name = x.name();
-    MIGRAPHX_THROW("Not computable: " + name);
-    return argument{};
+    return arg;
 }
 
 template <class T>

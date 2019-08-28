@@ -23,14 +23,16 @@ std::size_t capture_arguments(program& prog,
                               const std::vector<std::string>& ins_names,
                               const std::function<void(std::size_t, std::vector<argument>)>& func);
 
-std::shared_ptr<std::vector<std::pair<float, float>>>
-capture_arguments_impl(program& prog, const target& t, const std::vector<std::string>& ins_names = {"dot"});
+std::shared_ptr<std::vector<std::pair<float, float>>> capture_arguments_impl(
+    program& prog, const target& t, const std::vector<std::string>& ins_names = {"dot"});
 
-template<class T>                                                                        
-std::shared_ptr<std::vector<std::pair<float, float>>> capture_arguments(program& prog,
-                                                                        T&& t, const std::vector<std::string>& ins_names = {"dot"})
+template <class T>
+std::shared_ptr<std::vector<std::pair<float, float>>>
+capture_arguments(program& prog, T&& t, const std::vector<std::string>& ins_names = {"dot"})
 {
-    static_assert(std::is_same<std::remove_cv_t<std::remove_reference_t<T>>, target>{} && std::is_lvalue_reference<T>{}, "Dangling reference to target!");
+    static_assert(std::is_same<std::remove_cv_t<std::remove_reference_t<T>>, target>{} &&
+                      std::is_lvalue_reference<T>{},
+                  "Dangling reference to target!");
     return capture_arguments_impl(prog, t, ins_names);
 }
 

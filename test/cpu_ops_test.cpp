@@ -2067,7 +2067,7 @@ TEST_CASE(op_capture)
     p.add_instruction(migraphx::op::dot{}, pa, ps);
 
     migraphx::program capture_p = p;
-    migraphx::target t = migraphx::cpu::target{};
+    migraphx::target t          = migraphx::cpu::target{};
     migraphx::capture_arguments(capture_p, t);
 
     p.compile(migraphx::cpu::target{});

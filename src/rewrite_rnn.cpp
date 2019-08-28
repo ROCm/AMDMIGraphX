@@ -564,7 +564,7 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
         {
             // equation g(Xt*(Wh^T) + (rt (.) Ht-1)*(Rh^T) + Rbh + Wbh)
             auto rt_ht1 = prog.insert_instruction(ins, op::mul{}, rt, sih);
-            hr_h = prog.insert_instruction(ins, op::dot{1.0f, 0.0f}, rt_ht1, trh);
+            hr_h        = prog.insert_instruction(ins, op::dot{1.0f, 0.0f}, rt_ht1, trh);
             if(bias != prog.end())
             {
                 hr_h = prog.insert_instruction(ins, op::add{}, hr_h, brb_h);

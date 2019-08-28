@@ -80,14 +80,14 @@ struct rocblas_gemm
         auto beta       = op.beta;
         if(is_3inputs)
         {
-            output_shape.visit_type([&](auto as) {
-                auto to_pointer = [&](auto&& arg) { return as.from(arg.data()); };
-                hipMemcpyAsync(to_pointer(args[3]),
-                               to_pointer(args[2]),
-                               output_shape.bytes(),
-                               hipMemcpyDeviceToDevice,
-                               ctx.get_stream().get());
-            });
+            //output_shape.visit_type([&](auto as) {
+            //    auto to_pointer = [&](auto&& arg) { return as.from(arg.data()); };
+            //    hipMemcpyAsync(to_pointer(args[3]),
+            //                   to_pointer(args[2]),
+            //                   output_shape.bytes(),
+            //                   hipMemcpyDeviceToDevice,
+            //                   ctx.get_stream().get());
+            //});
         }
         else
         {

@@ -13,9 +13,9 @@ struct program;
 /**
  * Remove identical instructions.
  */
-struct common_subexpression_elimination
+struct eliminate_common_subexpression
 {
-    std::string name() const { return "common_subexpression_elimination"; }
+    std::string name() const { return "eliminate_common_subexpression"; }
     void apply(program& p) const;
 };
 

@@ -171,7 +171,7 @@ struct reduce_op : op_name<Derived>
     }
 
     reduce_op() {}
-    reduce_op(std::vector<int64_t> ax) : axes(ax) {}
+    reduce_op(std::vector<int64_t> ax) : axes(std::move(ax)) {}
 };
 
 } // namespace op

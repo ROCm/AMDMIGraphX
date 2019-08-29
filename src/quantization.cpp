@@ -162,7 +162,7 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
 
 void quantize(program& prog) { quantize(prog, {"all"}); }
 
-static void quantize_ins(program& prog,
+static void ins_quantize_int8(program& prog,
                          instruction_ref ins,
                          std::vector<instruction_ref>& converted_inputs,
                          const std::vector<std::pair<float, float>>& ins_quant_params)
@@ -180,8 +180,8 @@ static void quantize_ins(program& prog,
         float threshold = 50.0f;
         if(fabs(new_alpha) >= threshold && fabs(new_beta) >= threshold)
         {
-            int32_t quant_alpha = static_cast<int32_t>(new_alpha);
-            int32_t quant_beta  = static_cast<int32_t>(new_beta);
+            int32_t quant_alpha = static_cast<int32_t>(std::round(new_alpha));
+            int32_t quant_beta  = static_cast<int32_t>(std::round(new_beta));
             if(shape::int32_type == orig_type)
             {
                 prog.replace_instruction(
@@ -308,14 +308,6 @@ void quantize_int8(program& prog,
                    const std::vector<std::string>& ins_names,
                    const std::vector<std::pair<float, float>>& quant_params)
 {
-    // for(size_t i = 0; i < quant_params.size(); i++)
-    // {
-    //     auto param = quant_params.at(i);
-    //     std::cout << "index = " << i << ", scale = " << param.first << "\t" << param.second
-    //               << std::endl;
-    // }
-    // std::cout << std::endl;
-
     // For now, we only support the int8 quantization of gemm and convolution
     std::vector<std::string> op_names = {"dot", "convolution"};
     if(!std::all_of(ins_names.begin(), ins_names.end(), [&](auto name) {
@@ -395,7 +387,7 @@ void quantize_int8(program& prog,
             continue;
         }
 
-        quantize_ins(prog, ins, converted_inputs, ins_quant_params);
+        ins_quantize_int8(prog, ins, converted_inputs, ins_quant_params);
     }
 
     if(quant_param_index != quant_params.size())
@@ -406,8 +398,8 @@ void quantize_int8(program& prog,
 
 void quantize_int8(program& prog,
                    const target& t,
-                   std::vector<program::parameter_map>& calibration_args,
-                   const std::vector<std::string>& ins_names)
+                   const std::vector<std::string>& ins_names,
+                   std::vector<program::parameter_map>& calibration_args)
 {
     // insert capture operator
     auto cap_prog          = prog;
@@ -444,7 +436,7 @@ void quantize_int8(program& prog,
                    std::vector<program::parameter_map>& calibration_args)
 {
     std::vector<std::string> ins_names = {"dot", "convolution"};
-    quantize_int8(prog, t, calibration_args, ins_names);
+    quantize_int8(prog, t, ins_names, calibration_args);
 }
 
 // For the input of each input argument, we need to insert a

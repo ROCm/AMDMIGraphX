@@ -196,9 +196,9 @@ PYBIND11_MODULE(migraphx, m)
     m.def("quantize_int8",
           [](migraphx::program& p,
              const migraphx::target& t,
-             std::vector<migraphx::program::parameter_map>& cali_args,
-             std::vector<std::string>& ins_names) {
-              migraphx::quantize_int8(p, t, cali_args, ins_names);
+             std::vector<std::string>& ins_names,
+             std::vector<migraphx::program::parameter_map>& cali_args) {
+              migraphx::quantize_int8(p, t, ins_names, cali_args);
           });
     m.def("quantize_int8",
           [](migraphx::program& p,

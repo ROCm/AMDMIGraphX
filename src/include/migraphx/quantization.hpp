@@ -43,8 +43,8 @@ void quantize_int8(program& prog,
                    std::vector<program::parameter_map>& calibration_args);
 void quantize_int8(program& prog,
                    const target& t,
-                   std::vector<program::parameter_map>& calibration_args,
-                   const std::vector<std::string>& ins_names);
+                   const std::vector<std::string>& ins_names,
+                   std::vector<program::parameter_map>& calibration_args);
 void quantize_int8(program& prog,
                    const std::vector<std::string>& ins_names,
                    const std::vector<std::pair<float, float>>& quant_params);

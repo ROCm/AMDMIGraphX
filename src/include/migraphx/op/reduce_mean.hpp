@@ -9,8 +9,8 @@ namespace op {
 
 struct reduce_mean : reduce_op<reduce_mean, mean_op>
 {
-    reduce_mean() : reduce_op() {}
-    reduce_mean(std::vector<int64_t> ax) : reduce_op(ax) {}
+    reduce_mean() {}
+    reduce_mean(std::vector<int64_t> ax) : reduce_op(std::move(ax)) {}
 };
 
 } // namespace op

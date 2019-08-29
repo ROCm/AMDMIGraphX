@@ -48,7 +48,7 @@ struct reduce_op
         return "unknown";
     }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         std::vector<shape> in_shapes{inputs};
         in_shapes.pop_back();

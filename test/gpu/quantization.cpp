@@ -16,14 +16,15 @@
 
 TEST_CASE(target_copy)
 {
-    auto run_prog = [](migraphx::program p, const migraphx::target& t, 
-            migraphx::program::parameter_map& m_in, std::vector<float>& res)
-    {
+    auto run_prog = [](migraphx::program p,
+                       const migraphx::target& t,
+                       migraphx::program::parameter_map& m_in,
+                       std::vector<float>& res) {
         p.compile(t);
         migraphx::program::parameter_map m;
-        for (auto&& x : p.get_parameter_shapes())
+        for(auto&& x : p.get_parameter_shapes())
         {
-            if (m_in.count(x.first) > 0)
+            if(m_in.count(x.first) > 0)
             {
                 m[x.first] = t.copy_to(m_in[x.first]);
             }

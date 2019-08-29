@@ -502,6 +502,24 @@ struct test_triadd2 : verify_program<test_triadd2>
     }
 };
 
+struct test_mul_add : verify_program<test_mul_add>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+        migraphx::shape bs{migraphx::shape::float_type, {3}};
+        auto x   = p.add_parameter("x", s);
+        auto a   = p.add_parameter("a", bs);
+        auto b   = p.add_parameter("b", bs);
+        auto ab  = p.add_instruction(migraphx::op::broadcast{1, s.lens()}, a);
+        auto bb  = p.add_instruction(migraphx::op::broadcast{1, s.lens()}, b);
+        auto mul = p.add_instruction(migraphx::op::mul{}, x, ab);
+        p.add_instruction(migraphx::op::add{}, mul, bb);
+        return p;
+    }
+};
+
 struct test_add_broadcast : verify_program<test_add_broadcast>
 {
     migraphx::program create_program() const
@@ -3826,6 +3844,18 @@ struct test_reduce_mean_half : verify_program<test_reduce_mean_half>
         p.add_instruction(migraphx::op::reduce_mean{{2}}, x);
         return p;
     };
+};
+
+struct test_round : verify_program<test_round>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 6}};
+        auto param = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::round{}, param);
+        return p;
+    }
 };
 
 struct test_convert : verify_program<test_convert>

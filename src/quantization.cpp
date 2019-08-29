@@ -163,9 +163,9 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
 void quantize(program& prog) { quantize(prog, {"all"}); }
 
 static void ins_quantize_int8(program& prog,
-                         instruction_ref ins,
-                         std::vector<instruction_ref>& converted_inputs,
-                         const std::vector<std::pair<float, float>>& ins_quant_params)
+                              instruction_ref ins,
+                              std::vector<instruction_ref>& converted_inputs,
+                              const std::vector<std::pair<float, float>>& ins_quant_params)
 {
     auto orig_type = ins->get_shape().type();
     auto inputs    = ins->inputs();

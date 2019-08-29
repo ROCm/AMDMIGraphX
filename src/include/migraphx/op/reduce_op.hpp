@@ -45,14 +45,14 @@ struct sum_op
 {
     std::size_t elem_num = 1;
     template <class T>
-    T operator()(T x, T y)
+    T operator()(T x, T y) const
     {
         return x + y;
     }
 
     auto init() const { return zero(); }
 
-    auto output()
+    auto output() const
     {
         return [=](auto val) { return val; };
     }
@@ -62,14 +62,14 @@ struct mean_op
 {
     std::size_t elem_num = 1;
     template <class T>
-    T operator()(T x, T y)
+    T operator()(T x, T y) const
     {
         return x + y;
     }
 
     auto init() const { return zero(); }
 
-    auto output()
+    auto output() const
     {
         return [=](auto val) { return val / elem_num; };
     }

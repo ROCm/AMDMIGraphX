@@ -90,7 +90,6 @@ add_library(migraphx_gpu
     adjust_allocation.cpp
     pack_int8_args.cpp
     clip.cpp
-    reduce_sum.cpp
     int8_gemm_pack.cpp
     int8_conv_pack.cpp
 )

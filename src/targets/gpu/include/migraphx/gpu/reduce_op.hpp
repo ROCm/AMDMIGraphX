@@ -16,8 +16,8 @@ namespace gpu {
 
 struct context;
 
-template<class Derived, class Op, void (*F)(hipStream_t, const argument&, const argument&)>
-struct reduce_op 
+template <class Derived, class Op, void (*F)(hipStream_t, const argument&, const argument&)>
+struct reduce_op
 {
     Op op;
 
@@ -55,8 +55,7 @@ struct reduce_op
         return op.compute_shape(in_shapes);
     }
 
-    argument
-    compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
         F(ctx.get_stream().get(), args[1], args[0]);
         return args[1];
@@ -67,8 +66,8 @@ struct reduce_op
         return shapes.size() - 1;
     }
 
-    reduce_op() { }
-    reduce_op(const Op& op_ref) : op(op_ref) { }
+    reduce_op() {}
+    reduce_op(const Op& op_ref) : op(op_ref) {}
 };
 
 } // namespace gpu

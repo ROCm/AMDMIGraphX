@@ -13,8 +13,8 @@ struct context;
 
 struct hip_reduce_mean : reduce_op<hip_reduce_mean, op::reduce_mean, device::reduce_mean>
 {
-    hip_reduce_mean() { }
-    hip_reduce_mean(const op::reduce_mean& op_ref) : reduce_op(op_ref) { }
+    hip_reduce_mean() {}
+    hip_reduce_mean(const op::reduce_mean& op_ref) : reduce_op(op_ref) {}
 };
 
 } // namespace gpu

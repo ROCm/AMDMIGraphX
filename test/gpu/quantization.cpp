@@ -96,10 +96,10 @@ TEST_CASE(dot_large_alpha_beta_float)
         // add the shift
         std::vector<float> vsa(sa.elements(), 1.0f);
         auto sfta = p.add_literal(migraphx::literal(sa, vsa));
-        auto msa = p.add_instruction(migraphx::op::add{}, sfta, ma);
-        auto ra = p.add_instruction(migraphx::op::round{}, msa);
-        auto ca = p.add_instruction(migraphx::op::clip{127.0f, -128.0f}, ra);
-        auto qa = p.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, ca);
+        auto msa  = p.add_instruction(migraphx::op::add{}, sfta, ma);
+        auto ra   = p.add_instruction(migraphx::op::round{}, msa);
+        auto ca   = p.add_instruction(migraphx::op::clip{127.0f, -128.0f}, ra);
+        auto qa   = p.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, ca);
 
         // quantize parameter b to int8 type
         auto insert_loc = std::next(pb);
@@ -108,10 +108,12 @@ TEST_CASE(dot_large_alpha_beta_float)
         auto mb = p.insert_instruction(insert_loc, migraphx::op::mul{}, fb, pb);
         auto rb = p.insert_instruction(insert_loc, migraphx::op::round{}, mb);
         auto cb = p.insert_instruction(insert_loc, migraphx::op::clip{127.0f, -128.0f}, rb);
-        auto qb = p.insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
+        auto qb =
+            p.insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
 
         // quantize parameter b to int32 type
-        auto qc = p.insert_instruction(std::next(pc), migraphx::op::convert{migraphx::shape::int32_type}, pc);
+        auto qc = p.insert_instruction(
+            std::next(pc), migraphx::op::convert{migraphx::shape::int32_type}, pc);
 
         auto qdot = p.add_instruction(migraphx::op::quant_dot{2000, 51}, qa, qb, qc);
         p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, qdot);
@@ -121,7 +123,8 @@ TEST_CASE(dot_large_alpha_beta_float)
 
     auto p = create_program();
 
-    const std::vector<std::pair<float, float>>& quant_params{{0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
+    const std::vector<std::pair<float, float>>& quant_params{
+        {0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
     // default scale 64.0f is used for all args
     migraphx::quantize_int8(p, {"dot"}, quant_params);
 

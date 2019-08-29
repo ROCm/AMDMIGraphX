@@ -162,18 +162,18 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
 
 void quantize(program& prog) { quantize(prog, {"all"}); }
 
-static void quantize_ins(program& prog, instruction_ref ins, 
-     std::vector<instruction_ref>& converted_inputs, 
-     const std::vector<std::pair<float, float>>& ins_quant_params)
+static void quantize_ins(program& prog,
+                         instruction_ref ins,
+                         std::vector<instruction_ref>& converted_inputs,
+                         const std::vector<std::pair<float, float>>& ins_quant_params)
 {
     auto orig_type = ins->get_shape().type();
-    auto inputs = ins->inputs();
+    auto inputs    = ins->inputs();
     if(ins->name() == "dot")
     {
-        auto dot_op = any_cast<op::dot>(ins->get_operator());
-        float new_alpha =
-            dot_op.alpha / (ins_quant_params[0].first * ins_quant_params[1].first);
-        float new_beta = dot_op.beta;
+        auto dot_op     = any_cast<op::dot>(ins->get_operator());
+        float new_alpha = dot_op.alpha / (ins_quant_params[0].first * ins_quant_params[1].first);
+        float new_beta  = dot_op.beta;
         // We need additional checking about the quant_alpha value. If
         // abs(quant_alpha) > 50 (some tmp value set here), we can convert
         // it to an integer as the new_alpha in the quant_dot
@@ -218,8 +218,8 @@ static void quantize_ins(program& prog, instruction_ref ins,
                 instruction_ref beta_c{};
                 if(orig_type != shape::float_type)
                 {
-                    auto fp32_c = prog.insert_instruction(
-                        ins, op::convert{shape::float_type}, inputs.back());
+                    auto fp32_c =
+                        prog.insert_instruction(ins, op::convert{shape::float_type}, inputs.back());
                     auto fp32_beta_c = prog.insert_instruction(ins, op::mul{}, l_beta, fp32_c);
                     beta_c = prog.insert_instruction(ins, op::convert{orig_type}, fp32_beta_c);
                 }
@@ -289,8 +289,7 @@ static void quantize_ins(program& prog, instruction_ref ins,
             }
             else
             {
-                auto adjusted_conv =
-                    prog.insert_instruction(ins, op::mul{}, l_factor, float_conv);
+                auto adjusted_conv = prog.insert_instruction(ins, op::mul{}, l_factor, float_conv);
                 prog.replace_instruction(ins, op::convert{orig_type}, adjusted_conv);
             }
         }
@@ -348,7 +347,8 @@ void quantize_int8(program& prog,
         for(auto input : inputs)
         {
             // calculate the index of each instruction to be quantized
-            std::size_t ins_index = (map_ins_index.count(input) > 0) ? map_ins_index[input] : quant_param_index++;
+            std::size_t ins_index =
+                (map_ins_index.count(input) > 0) ? map_ins_index[input] : quant_param_index++;
             map_ins_index[input] = ins_index;
 
             auto param = quant_params[map_ins_index[input]];
@@ -371,7 +371,8 @@ void quantize_int8(program& prog,
                 // if the input is a convert operator, uses its input
                 // as its current input
                 instruction_ref quant_input{};
-                if(input->name() == "convert" and input->inputs().front()->get_shape().type() == quant_type)
+                if(input->name() == "convert" and
+                   input->inputs().front()->get_shape().type() == quant_type)
                 {
                     quant_input = input->inputs().front();
                 }

@@ -58,6 +58,10 @@ struct rocblas_gemm
         case shape::uint8_type: return rocblas_datatype_u8_r;
         case shape::int32_type: return rocblas_datatype_i32_r;
         case shape::uint32_type: return rocblas_datatype_u32_r;
+        case shape::uint16_type:
+        case shape::int16_type:
+        case shape::int64_type:
+        case shape::uint64_type:
         default: MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
         }
 

@@ -162,6 +162,145 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
 
 void quantize(program& prog) { quantize(prog, {"all"}); }
 
+static void quantize_ins(program& prog, instruction_ref ins, 
+     std::vector<instruction_ref>& converted_inputs, 
+     const std::vector<std::pair<float, float>>& ins_quant_params)
+{
+    auto orig_type = ins->get_shape().type();
+    auto inputs = ins->inputs();
+    if(ins->name() == "dot")
+    {
+        auto dot_op = any_cast<op::dot>(ins->get_operator());
+        float new_alpha =
+            dot_op.alpha / (ins_quant_params[0].first * ins_quant_params[1].first);
+        float new_beta = dot_op.beta;
+        // We need additional checking about the quant_alpha value. If
+        // abs(quant_alpha) > 50 (some tmp value set here), we can convert
+        // it to an integer as the new_alpha in the quant_dot
+        float threshold = 50.0f;
+        if(fabs(new_alpha) >= threshold && fabs(new_beta) >= threshold)
+        {
+            int32_t quant_alpha = static_cast<int32_t>(new_alpha);
+            int32_t quant_beta  = static_cast<int32_t>(new_beta);
+            if(shape::int32_type == orig_type)
+            {
+                prog.replace_instruction(
+                    ins, op::quant_dot{quant_alpha, quant_beta}, converted_inputs);
+            }
+            else
+            {
+                auto quant_dot = prog.insert_instruction(
+                    ins, op::quant_dot{quant_alpha, quant_beta}, converted_inputs);
+                prog.replace_instruction(ins, op::convert{orig_type}, quant_dot);
+            }
+        }
+        // either alpha or beta cannot be quantized because of too big
+        // relative rounding error
+        else
+        {
+            if(converted_inputs.size() == 3)
+            {
+                converted_inputs.pop_back();
+            }
+            auto q_dot   = prog.insert_instruction(ins, op::quant_dot{1, 0}, converted_inputs);
+            auto f_dot   = prog.insert_instruction(ins, op::convert{shape::float_type}, q_dot);
+            auto c_shape = q_dot->get_shape();
+            std::vector<float> vec_alpha(c_shape.elements(), new_alpha);
+            auto l_alpha =
+                prog.add_literal(literal({shape::float_type, c_shape.lens()}, vec_alpha));
+
+            if(inputs.size() == 3 and dot_op.beta != 0.0f)
+            {
+                auto alpha_ab = prog.insert_instruction(ins, op::mul{}, l_alpha, f_dot);
+                std::vector<float> vec_beta(c_shape.elements(), dot_op.beta);
+                auto l_beta =
+                    prog.add_literal(literal({shape::float_type, c_shape.lens()}, vec_beta));
+                instruction_ref beta_c{};
+                if(orig_type != shape::float_type)
+                {
+                    auto fp32_c = prog.insert_instruction(
+                        ins, op::convert{shape::float_type}, inputs.back());
+                    auto fp32_beta_c = prog.insert_instruction(ins, op::mul{}, l_beta, fp32_c);
+                    beta_c = prog.insert_instruction(ins, op::convert{orig_type}, fp32_beta_c);
+                }
+                else
+                {
+                    beta_c = prog.insert_instruction(ins, op::mul{}, l_beta, inputs.back());
+                }
+
+                if(orig_type == shape::float_type)
+                {
+                    prog.replace_instruction(ins, op::add{}, alpha_ab, beta_c);
+                }
+                else
+                {
+                    auto f_res = prog.insert_instruction(ins, op::add{}, alpha_ab, beta_c);
+                    prog.replace_instruction(ins, op::convert{orig_type}, f_res);
+                }
+            }
+            else
+            {
+                if(orig_type == shape::float_type)
+                {
+                    prog.replace_instruction(ins, op::mul{}, l_alpha, f_dot);
+                }
+                else
+                {
+                    auto alpha_ab = prog.insert_instruction(ins, op::mul{}, l_alpha, f_dot);
+                    prog.replace_instruction(ins, op::convert{orig_type}, alpha_ab);
+                }
+            }
+        }
+    }
+    else if(ins->name() == "convolution")
+    {
+        // Current MIOpen convolution does not support alpha and beta,
+        // so we need a separate multiply to adjust the output
+        auto conv_op       = any_cast<op::convolution>(ins->get_operator());
+        auto padding       = conv_op.padding;
+        auto stride        = conv_op.stride;
+        auto dilation      = conv_op.dilation;
+        auto padding_mode  = conv_op.padding_mode;
+        auto group         = conv_op.group;
+        auto adjust_factor = 1.0f / (ins_quant_params[0].first * ins_quant_params[1].first);
+
+        auto quant_conv = prog.insert_instruction(
+            ins,
+            op::quant_convolution{padding, stride, dilation, padding_mode, group},
+            converted_inputs);
+        float threshold = 50.0f;
+        std::vector<float> vec_factor(quant_conv->get_shape().elements(), adjust_factor);
+        if(quant_conv->get_shape().type() == orig_type and adjust_factor >= threshold)
+        {
+            auto l_factor = prog.add_literal(
+                literal(quant_conv->get_shape(), vec_factor.begin(), vec_factor.end()));
+            prog.replace_instruction(ins, op::mul{}, quant_conv, l_factor);
+        }
+        // convert quant_conv output to float type, multiply the factor and
+        // conver back to original type
+        else
+        {
+            auto float_conv =
+                prog.insert_instruction(ins, op::convert{shape::float_type}, quant_conv);
+            auto l_factor = prog.add_literal(literal(float_conv->get_shape(), vec_factor));
+            if(orig_type == shape::float_type)
+            {
+                prog.replace_instruction(ins, op::mul{}, l_factor, float_conv);
+            }
+            else
+            {
+                auto adjusted_conv =
+                    prog.insert_instruction(ins, op::mul{}, l_factor, float_conv);
+                prog.replace_instruction(ins, op::convert{orig_type}, adjusted_conv);
+            }
+        }
+    }
+    else
+    {
+        MIGRAPHX_THROW("QUANTIZE_INT8: does not support operator" + ins->name());
+    }
+}
+
 // int8 quantization is different from fp16 since int8 can only handle value
 // -128 ~ 127. To convert the float or double to int8, we need a scale and
 // a shift, then the convert can be done as v_int8 = fp * scale + shift.
@@ -170,13 +309,13 @@ void quantize_int8(program& prog,
                    const std::vector<std::string>& ins_names,
                    const std::vector<std::pair<float, float>>& quant_params)
 {
-    for(size_t i = 0; i < quant_params.size(); i++)
-    {
-        auto param = quant_params.at(i);
-        std::cout << "index = " << i << ", scale = " << param.first << "\t" << param.second
-                  << std::endl;
-    }
-    std::cout << std::endl;
+    // for(size_t i = 0; i < quant_params.size(); i++)
+    // {
+    //     auto param = quant_params.at(i);
+    //     std::cout << "index = " << i << ", scale = " << param.first << "\t" << param.second
+    //               << std::endl;
+    // }
+    // std::cout << std::endl;
 
     // For now, we only support the int8 quantization of gemm and convolution
     std::vector<std::string> op_names = {"dot", "convolution"};
@@ -189,15 +328,13 @@ void quantize_int8(program& prog,
 
     std::size_t quant_param_index = 0;
     std::unordered_map<instruction_ref, instruction_ref> map_quant_ins;
-    std::unordered_map<instruction_ref, std::size_t> map_index;
+    std::unordered_map<instruction_ref, std::size_t> map_ins_index;
     for(auto ins : iterator_for(prog))
     {
         if(not contains(ins_names, ins->name()))
         {
             continue;
         }
-
-        shape::type_t orig_type = ins->get_shape().type();
 
         // for the dot operator, there could be 2 or 3 input arguments
         // if the 3rd argument is available, convert it to an int32.
@@ -211,18 +348,17 @@ void quantize_int8(program& prog,
         for(auto input : inputs)
         {
             // calculate the index of each instruction to be quantized
-            if(map_index.count(input) == 0)
-            {
-                map_index[input] = quant_param_index++;
-            }
-            auto param = quant_params[map_index[input]];
+            std::size_t ins_index = (map_ins_index.count(input) > 0) ? map_ins_index[input] : quant_param_index++;
+            map_ins_index[input] = ins_index;
+
+            auto param = quant_params[map_ins_index[input]];
             ins_quant_params.push_back(param);
 
             // In general, the target_type is int8, but for the dot
             // operation, if it has 3 inputs, then the last one should
             // be converted to int32_type
             shape::type_t quant_type = shape::int8_type;
-            if(ins->name() == "dot" and inputs.size() == 3 and input == inputs.back())
+            if((ins->name() == "dot") and (inputs.size() == 3) and (input == inputs.back()))
             {
                 quant_type = shape::int32_type;
             }
@@ -235,18 +371,9 @@ void quantize_int8(program& prog,
                 // if the input is a convert operator, uses its input
                 // as its current input
                 instruction_ref quant_input{};
-                if(input->name() == "convert")
+                if(input->name() == "convert" and input->inputs().front()->get_shape().type() == quant_type)
                 {
-                    auto tmp_ins = input->inputs().front();
-                    if(tmp_ins->get_shape().type() == quant_type)
-                    {
-                        quant_input = input->inputs().front();
-                    }
-                    else
-                    {
-                        quant_input = insert_quant_ins(
-                            prog, input, quant_type, map_quant_ins, param.first, param.second);
-                    }
+                    quant_input = input->inputs().front();
                 }
                 else
                 {
@@ -267,141 +394,7 @@ void quantize_int8(program& prog,
             continue;
         }
 
-        // When converting from other types to int8_type, there are parameters
-        // used as scale and shift(.0f), which will generate results diffrent from
-        // the original results. To adjust the output to be "correct(approximatly
-        // equal)", we need additional calculation for the adjustment
-        if(ins->name() == "dot")
-        {
-            auto dot_op = any_cast<op::dot>(ins->get_operator());
-            float new_alpha =
-                dot_op.alpha / (ins_quant_params[0].first * ins_quant_params[1].first);
-            float new_beta = dot_op.beta;
-            // We need additional checking about the quant_alpha value. If
-            // abs(quant_alpha) > 50 (some tmp value set here), we can convert
-            // it to an integer as the new_alpha in the quant_dot
-            float threshold = 50.0f;
-            if(fabs(new_alpha) >= threshold && fabs(new_beta) >= threshold)
-            {
-                int32_t quant_alpha = static_cast<int32_t>(new_alpha);
-                int32_t quant_beta  = static_cast<int32_t>(new_beta);
-                if(shape::int32_type == orig_type)
-                {
-                    prog.replace_instruction(
-                        ins, op::quant_dot{quant_alpha, quant_beta}, converted_inputs);
-                }
-                else
-                {
-                    auto quant_dot = prog.insert_instruction(
-                        ins, op::quant_dot{quant_alpha, quant_beta}, converted_inputs);
-                    prog.replace_instruction(ins, op::convert{orig_type}, quant_dot);
-                }
-            }
-            // either alpha or beta cannot be quantized because of too big
-            // relative rounding error
-            else
-            {
-                if(converted_inputs.size() == 3)
-                {
-                    converted_inputs.pop_back();
-                }
-                auto q_dot   = prog.insert_instruction(ins, op::quant_dot{1, 0}, converted_inputs);
-                auto f_dot   = prog.insert_instruction(ins, op::convert{shape::float_type}, q_dot);
-                auto c_shape = q_dot->get_shape();
-                std::vector<float> vec_alpha(c_shape.elements(), new_alpha);
-                auto l_alpha =
-                    prog.add_literal(literal({shape::float_type, c_shape.lens()}, vec_alpha));
-
-                if(inputs.size() == 3 and dot_op.beta != 0.0f)
-                {
-                    auto alpha_ab = prog.insert_instruction(ins, op::mul{}, l_alpha, f_dot);
-                    std::vector<float> vec_beta(c_shape.elements(), dot_op.beta);
-                    auto l_beta =
-                        prog.add_literal(literal({shape::float_type, c_shape.lens()}, vec_beta));
-                    instruction_ref beta_c{};
-                    if(orig_type != shape::float_type)
-                    {
-                        auto fp32_c = prog.insert_instruction(
-                            ins, op::convert{shape::float_type}, inputs.back());
-                        auto fp32_beta_c = prog.insert_instruction(ins, op::mul{}, l_beta, fp32_c);
-                        beta_c = prog.insert_instruction(ins, op::convert{orig_type}, fp32_beta_c);
-                    }
-                    else
-                    {
-                        beta_c = prog.insert_instruction(ins, op::mul{}, l_beta, inputs.back());
-                    }
-
-                    if(orig_type == shape::float_type)
-                    {
-                        prog.replace_instruction(ins, op::add{}, alpha_ab, beta_c);
-                    }
-                    else
-                    {
-                        auto f_res = prog.insert_instruction(ins, op::add{}, alpha_ab, beta_c);
-                        prog.replace_instruction(ins, op::convert{orig_type}, f_res);
-                    }
-                }
-                else
-                {
-                    if(orig_type == shape::float_type)
-                    {
-                        prog.replace_instruction(ins, op::mul{}, l_alpha, f_dot);
-                    }
-                    else
-                    {
-                        auto alpha_ab = prog.insert_instruction(ins, op::mul{}, l_alpha, f_dot);
-                        prog.replace_instruction(ins, op::convert{orig_type}, alpha_ab);
-                    }
-                }
-            }
-        }
-        else if(ins->name() == "convolution")
-        {
-            // Current MIOpen convolution does not support alpha and beta,
-            // so we need a separate multiply to adjust the output
-            auto conv_op       = any_cast<op::convolution>(ins->get_operator());
-            auto padding       = conv_op.padding;
-            auto stride        = conv_op.stride;
-            auto dilation      = conv_op.dilation;
-            auto padding_mode  = conv_op.padding_mode;
-            auto group         = conv_op.group;
-            auto adjust_factor = 1.0f / (ins_quant_params[0].first * ins_quant_params[1].first);
-
-            auto quant_conv = prog.insert_instruction(
-                ins,
-                op::quant_convolution{padding, stride, dilation, padding_mode, group},
-                converted_inputs);
-            float threshold = 50.0f;
-            std::vector<float> vec_factor(quant_conv->get_shape().elements(), adjust_factor);
-            if(quant_conv->get_shape().type() == orig_type and adjust_factor >= threshold)
-            {
-                auto l_factor = prog.add_literal(
-                    literal(quant_conv->get_shape(), vec_factor.begin(), vec_factor.end()));
-                prog.replace_instruction(ins, op::mul{}, quant_conv, l_factor);
-            }
-            // convert quant_conv output to float type, multiply the factor and
-            // conver back to original type
-            else
-            {
-                auto float_conv =
-                    prog.insert_instruction(ins, op::convert{shape::float_type}, quant_conv);
-                auto l_factor = prog.add_literal(literal(float_conv->get_shape(), vec_factor));
-                if(orig_type == shape::float_type)
-                {
-                    prog.replace_instruction(ins, op::mul{}, l_factor, float_conv);
-                }
-                else
-                {
-                    auto adjusted_conv =
-                        prog.insert_instruction(ins, op::mul{}, l_factor, float_conv);
-                    prog.replace_instruction(ins, op::convert{orig_type}, adjusted_conv);
-                }
-            }
-        }
-        else
-        {
-            MIGRAPHX_THROW("QUANTIZE_INT8: does not support operator" + ins->name());
-        }
+        quantize_ins(prog, ins, converted_inputs, ins_quant_params);
     }
 
     if(quant_param_index != quant_params.size())
@@ -462,7 +455,7 @@ std::size_t capture_arguments(program& prog,
 
     size_t num_quant_params = 0;
     // the int8 quantization only support dot and convolution
-    std::vector<std::string> op_names = {"dot", "convolution", "quant_dot", "quant_convolution"};
+    std::vector<std::string> op_names = {"dot", "convolution"};
     if(!std::all_of(ins_names.begin(), ins_names.end(), [&](auto name) {
            return std::find(op_names.begin(), op_names.end(), name) != op_names.end();
        }))

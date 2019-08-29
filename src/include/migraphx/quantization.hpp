@@ -24,11 +24,11 @@ std::size_t capture_arguments(program& prog,
                               const std::function<void(std::size_t, std::vector<argument>)>& func);
 
 std::shared_ptr<std::vector<std::pair<float, float>>> capture_arguments_impl(
-    program& prog, const target& t, const std::vector<std::string>& ins_names = {"dot"});
+    program& prog, const target& t, const std::vector<std::string>& ins_names = {"dot", "convolution"});
 
 template <class T>
 std::shared_ptr<std::vector<std::pair<float, float>>>
-capture_arguments(program& prog, T&& t, const std::vector<std::string>& ins_names = {"dot"})
+capture_arguments(program& prog, T&& t, const std::vector<std::string>& ins_names = {"dot", "convolution"})
 {
     static_assert(std::is_same<std::remove_cv_t<std::remove_reference_t<T>>, target>{} &&
                       std::is_lvalue_reference<T>{},

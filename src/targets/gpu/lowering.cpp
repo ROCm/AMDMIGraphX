@@ -55,6 +55,7 @@
 #include <migraphx/gpu/convert.hpp>
 #include <migraphx/gpu/clip.hpp>
 #include <migraphx/gpu/reduce_sum.hpp>
+#include <migraphx/gpu/round.hpp>
 #include <migraphx/gpu/rsqrt.hpp>
 #include <migraphx/gpu/sqrt.hpp>
 #include <migraphx/gpu/reduce_mean.hpp>
@@ -86,6 +87,7 @@ struct miopen_apply
     void init()
     {
         this->last = instruction::get_output_alias(std::prev(prog->end()));
+
         add_miopen_simple_op<miopen_abs>("abs", make_abs);
 
         add_miopen_extend_op<miopen_leaky_relu, op::leaky_relu>("leaky_relu", make_leaky_relu);
@@ -111,6 +113,7 @@ struct miopen_apply
         add_generic_op<hip_max>("max");
         add_generic_op<hip_min>("min");
         add_generic_op<hip_rsqrt>("rsqrt");
+        add_generic_op<hip_round>("round");
         add_generic_op<hip_pow>("pow");
         add_generic_op<hip_sqdiff>("sqdiff");
         add_generic_op<hip_relu>("relu");

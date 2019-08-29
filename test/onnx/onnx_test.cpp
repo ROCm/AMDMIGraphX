@@ -58,7 +58,7 @@ TEST_CASE(add_scalar_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(argmax)
+TEST_CASE(argmax_test)
 {
     migraphx::program p;
     auto l0  = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
@@ -69,7 +69,7 @@ TEST_CASE(argmax)
     EXPECT(p == prog);
 }
 
-TEST_CASE(argmin)
+TEST_CASE(argmin_test)
 {
     migraphx::program p;
     auto l0  = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
@@ -841,6 +841,16 @@ TEST_CASE(reshape_non_standard_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(round_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::double_type, {10, 5}});
+    p.add_instruction(migraphx::op::round{}, input);
+
+    auto prog = migraphx::parse_onnx("round_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(shape_test)
 {
     migraphx::program p;
@@ -1051,16 +1061,6 @@ TEST_CASE(unknown_test)
     p.add_instruction(migraphx::op::unknown{"Unknown"}, l2);
     auto prog = migraphx::parse_onnx("unknown_test.onnx");
 
-    EXPECT(p == prog);
-}
-
-TEST_CASE(round_test)
-{
-    migraphx::program p;
-    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::double_type, {10, 5}});
-    p.add_instruction(migraphx::op::round{}, input);
-
-    auto prog = migraphx::parse_onnx("round_test.onnx");
     EXPECT(p == prog);
 }
 

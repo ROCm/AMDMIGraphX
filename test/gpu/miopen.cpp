@@ -3846,6 +3846,19 @@ struct test_reduce_mean_half : verify_program<test_reduce_mean_half>
     };
 };
 
+struct test_round : verify_program<test_round>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+
+        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 6}};
+        auto param = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::round{}, param);
+        return p;
+    };
+};
+
 struct test_convert : verify_program<test_convert>
 {
     migraphx::program create_program() const
@@ -3859,19 +3872,6 @@ struct test_convert : verify_program<test_convert>
         auto ib = p.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, pb);
         p.add_instruction(migraphx::op::quant_dot{}, ia, ib);
 
-        return p;
-    };
-};
-
-struct test_round : verify_program<test_round>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-
-        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 6}};
-        auto param = p.add_parameter("x", s);
-        p.add_instruction(migraphx::op::round{}, param);
         return p;
     };
 };

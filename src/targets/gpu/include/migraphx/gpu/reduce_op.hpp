@@ -1,6 +1,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_REDUCE_OP_HPP
 #define MIGRAPHX_GUARD_RTGLIB_REDUCE_OP_HPP
 
+#include <migraphx/gpu/name.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/shape.hpp>
@@ -17,7 +18,7 @@ namespace gpu {
 struct context;
 
 template <class Derived, class Op, void (*F)(hipStream_t, const argument&, const argument&)>
-struct reduce_op
+struct reduce_op : oper<Derived>
 {
     Op op;
 
@@ -25,27 +26,6 @@ struct reduce_op
     static auto reflect(Self& self, T f)
     {
         return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const
-    {
-        const std::string& name = get_type_name<Derived>();
-        // search the namespace gpu (::gpu::)
-        auto pos_ns = name.find("::gpu::");
-        if(pos_ns != std::string::npos)
-        {
-            auto pos_name = name.find("hip_", pos_ns + std::string("::gpu::").length());
-            if(pos_name != std::string::npos)
-            {
-                return std::string("gpu::") + name.substr(pos_name + 4);
-            }
-            else
-            {
-                return name.substr(pos_ns + 2);
-            }
-        }
-
-        return "unknown";
     }
 
     shape compute_shape(const std::vector<shape>& inputs) const

@@ -127,6 +127,16 @@ struct reduce_op : op_name<Derived>
         return {s.type(), lens};
     }
 
+    template<class T>
+    void tune_dims(const std::vector<int64_t>& tuned_axes, 
+        const std::vector<T>& in_lens, std::vector<T>& out_lens) const
+    {
+        for (auto axis : tuned_axes)
+        {
+            out_lens[axis] = in_lens[axis];
+        }
+    }
+
     template <class T>
     void reduce(tensor_view<T>& input,
                 shape& batch_shape,
@@ -138,10 +148,7 @@ struct reduce_op : op_name<Derived>
         auto data_idx = out_idx;
         T val         = op.init();
         shape_for_each(batch_shape, [&](auto b_idx) {
-            for(auto axis : tuned_axes)
-            {
-                data_idx[axis] = b_idx[axis];
-            }
+            tune_dims(tuned_axes, b_idx, data_idx);
             val = op(input(data_idx.begin(), data_idx.end()), val);
         });
 
@@ -154,10 +161,7 @@ struct reduce_op : op_name<Derived>
         auto arg_lens   = args.front().get_shape().lens();
         auto tuned_axes = tune_axes(arg_lens.size());
         std::vector<std::size_t> batch_lens(output_shape.lens().size(), 1);
-        for(auto axis : tuned_axes)
-        {
-            batch_lens[axis] = arg_lens[axis];
-        }
+        tune_dims(tuned_axes, arg_lens, batch_lens);
         shape batch_shape{output_shape.type(), batch_lens};
         visit_all(result, args[0])([&](auto output, auto input) {
             par_for(output_shape.elements(), [&](auto i) {

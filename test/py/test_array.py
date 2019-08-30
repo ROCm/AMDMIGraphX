@@ -69,7 +69,7 @@ def test_input():
 
 
 def test_output():
-    p = migraphx.parse_onnx("conv_relu_maxpool.onnx")
+    p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
     p.compile(migraphx.get_target("gpu"))
 
     r1 = run(p)

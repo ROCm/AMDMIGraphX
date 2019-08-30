@@ -675,7 +675,6 @@ struct onnx_parser
         float epsilon                                     = 1e-5f;
         float momentum                                    = 0.9f;
         op::batch_norm_inference::bn_infer_mode_t bn_mode = op::batch_norm_inference::spatial;
-        bool is_test                                      = false;
         if(contains(attributes, "epsilon"))
         {
             epsilon = parse_value(attributes.at("epsilon")).at<float>();
@@ -684,17 +683,12 @@ struct onnx_parser
         {
             momentum = parse_value(attributes.at("momentum")).at<float>();
         }
-        if(contains(attributes, "is_test"))
-        {
-            is_test = parse_value(attributes.at("is_test")).at<uint64_t>() > 0;
-        }
         if(contains(attributes, "spatial"))
         {
             bn_mode = (parse_value(attributes.at("spatial")).at<uint64_t>() > 0)
                           ? op::batch_norm_inference::spatial
                           : op::batch_norm_inference::per_activation;
         }
-        (void)is_test;
         op::batch_norm_inference op{epsilon, momentum, bn_mode};
         return prog.add_instruction(op, std::move(args));
     }

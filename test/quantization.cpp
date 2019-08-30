@@ -254,4 +254,331 @@ TEST_CASE(op_capture)
     }
 }
 
+TEST_CASE(dot_float)
+{
+    auto create_program = [] {
+        migraphx::program p;
+        migraphx::shape sa{migraphx::shape::float_type, {2, 16}};
+        migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
+        migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
+        auto pa = p.add_parameter("a", sa);
+        auto pb = p.add_parameter("b", sb);
+        auto pc = p.add_parameter("c", sc);
+
+        p.add_instruction(migraphx::op::dot{2.0f, 1.5f}, pa, pb, pc);
+
+        return p;
+    };
+
+    auto create_int8_quantized_prog = [] {
+        migraphx::program p;
+        migraphx::shape sa{migraphx::shape::float_type, {2, 16}};
+        migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
+        migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
+        auto pa = p.add_parameter("a", sa);
+        auto pb = p.add_parameter("b", sb);
+        auto pc = p.add_parameter("c", sc);
+        // quantize parameter a to int8 type, multiply the scale
+        std::vector<float> vfa(sa.elements(), 0.1f);
+        auto fa = p.add_literal(migraphx::literal(sa, vfa));
+        auto ma = p.add_instruction(migraphx::op::mul{}, fa, pa);
+        auto ra   = p.add_instruction(migraphx::op::round{}, ma);
+        auto ca   = p.add_instruction(migraphx::op::clip{127.0f, -128.0f}, ra);
+        auto qa   = p.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, ca);
+
+        // quantize parameter b to int8 type
+        auto insert_loc = std::next(pb);
+        std::vector<float> vfb(sb.elements(), 0.1f);
+        auto fb = p.add_literal(migraphx::literal(sb, vfb));
+        auto mb = p.insert_instruction(insert_loc, migraphx::op::mul{}, fb, pb);
+        auto rb = p.insert_instruction(insert_loc, migraphx::op::round{}, mb);
+        auto cb = p.insert_instruction(insert_loc, migraphx::op::clip{127.0f, -128.0f}, rb);
+        auto qb =
+            p.insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
+
+        // quantize parameter c to int32 type
+        auto qc = p.insert_instruction(std::next(pc), migraphx::op::convert{migraphx::shape::int32_type}, pc);
+
+        auto qdot = p.add_instruction(migraphx::op::quant_dot{1, 0}, qa, qb);
+        auto fdot = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, qdot);
+        std::vector<float> v_alpha(fdot->get_shape().elements(), 200.0f);
+        auto new_alpha = p.add_literal(migraphx::literal(fdot->get_shape(), v_alpha));
+        auto alpha_ab = p.add_instruction(migraphx::op::mul{}, new_alpha, fdot);
+        std::vector<float> v_beta(pc->get_shape().elements(), 1.5f);
+        auto beta = p.add_literal(migraphx::literal(pc->get_shape(), v_beta));
+        auto beta_c = p.add_instruction(migraphx::op::mul{}, beta, pc);
+        p.add_instruction(migraphx::op::add{}, alpha_ab, beta_c);
+
+        return p;
+    };
+
+    auto p = create_program();
+    const std::vector<std::pair<float, float>>& quant_params{
+        {0.1f, 0.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
+    migraphx::quantize_int8(p, {"dot"}, quant_params);
+    auto qp = create_int8_quantized_prog();
+
+    EXPECT(p == qp);
+}
+
+TEST_CASE(dot_double_2args)
+{
+    auto create_program = [] {
+        migraphx::program p;
+        migraphx::shape sa{migraphx::shape::double_type, {2, 16}};
+        migraphx::shape sb{migraphx::shape::double_type, {16, 8}};
+        auto pa = p.add_parameter("a", sa);
+        auto pb = p.add_parameter("b", sb);
+
+        p.add_instruction(migraphx::op::dot{2.0f, 1.5f}, pa, pb);
+
+        return p;
+    };
+
+    auto create_int8_quantized_prog = [] {
+        migraphx::program p;
+        migraphx::shape sa{migraphx::shape::double_type, {2, 16}};
+        migraphx::shape sb{migraphx::shape::double_type, {16, 8}};
+        migraphx::shape sc{migraphx::shape::double_type, {2, 8}};
+        auto pa = p.add_parameter("a", sa);
+        auto pb = p.add_parameter("b", sb);
+        // quantize parameter a to int8 type, multiply the scale
+        std::vector<float> vfa(sa.elements(), 0.1f);
+        auto fpa = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, pa);
+        auto fa = p.add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vfa));
+        auto ma = p.add_instruction(migraphx::op::mul{}, fa, fpa);
+        auto ra   = p.add_instruction(migraphx::op::round{}, ma);
+        auto ca   = p.add_instruction(migraphx::op::clip{127.0f, -128.0f}, ra);
+        auto qa   = p.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, ca);
+
+        // quantize parameter b to int8 type
+        auto insert_loc = std::next(pb);
+        auto fpb = p.insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::float_type}, pb);
+        std::vector<float> vfb(sb.elements(), 0.1f);
+        auto fb = p.add_literal(migraphx::literal({migraphx::shape::float_type, sb.lens()}, vfb));
+        auto mb = p.insert_instruction(insert_loc, migraphx::op::mul{}, fb, fpb);
+        auto rb = p.insert_instruction(insert_loc, migraphx::op::round{}, mb);
+        auto cb = p.insert_instruction(insert_loc, migraphx::op::clip{127.0f, -128.0f}, rb);
+        auto qb =
+            p.insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
+
+        auto qdot = p.add_instruction(migraphx::op::quant_dot{1, 0}, qa, qb);
+        auto fdot = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, qdot);
+        std::vector<float> v_alpha(fdot->get_shape().elements(), 200.0f);
+        auto new_alpha = p.add_literal(migraphx::literal(fdot->get_shape(), v_alpha));
+        auto alpha_ab = p.add_instruction(migraphx::op::mul{}, new_alpha, fdot);
+        p.add_instruction(migraphx::op::convert{migraphx::shape::double_type}, alpha_ab);
+
+        return p;
+    };
+
+    auto p = create_program();
+    const std::vector<std::pair<float, float>>& quant_params{
+        {0.1f, 0.0f}, {0.1f, 0.0f}};
+    migraphx::quantize_int8(p, {"dot"}, quant_params);
+    auto qp = create_int8_quantized_prog();
+
+    EXPECT(p == qp);
+}
+
+TEST_CASE(dot_large_alpha_beta_float)
+{
+    auto create_program = [] {
+        migraphx::program p;
+        migraphx::shape sa{migraphx::shape::float_type, {2, 16}};
+        migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
+        migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
+        auto pa = p.add_parameter("a", sa);
+        auto pb = p.add_parameter("b", sb);
+        auto pc = p.add_parameter("c", sc);
+
+        p.add_instruction(migraphx::op::dot{20.0f, 50.5f}, pa, pb, pc);
+
+        return p;
+    };
+
+    auto create_int8_quantized_prog = [] {
+        migraphx::program p;
+        migraphx::shape sa{migraphx::shape::float_type, {2, 16}};
+        migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
+        migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
+        auto pa = p.add_parameter("a", sa);
+        auto pb = p.add_parameter("b", sb);
+        auto pc = p.add_parameter("c", sc);
+        // quantize parameter a to int8 type, multiply the scale
+        std::vector<float> vfa(sa.elements(), 0.1f);
+        auto fa = p.add_literal(migraphx::literal(sa, vfa));
+        auto ma = p.add_instruction(migraphx::op::mul{}, fa, pa);
+        // add the shift
+        std::vector<float> vsa(sa.elements(), 1.0f);
+        auto sfta = p.add_literal(migraphx::literal(sa, vsa));
+        auto msa  = p.add_instruction(migraphx::op::add{}, sfta, ma);
+        auto ra   = p.add_instruction(migraphx::op::round{}, msa);
+        auto ca   = p.add_instruction(migraphx::op::clip{127.0f, -128.0f}, ra);
+        auto qa   = p.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, ca);
+
+        // quantize parameter b to int8 type
+        auto insert_loc = std::next(pb);
+        std::vector<float> vfb(sb.elements(), 0.1f);
+        auto fb = p.add_literal(migraphx::literal(sb, vfb));
+        auto mb = p.insert_instruction(insert_loc, migraphx::op::mul{}, fb, pb);
+        auto rb = p.insert_instruction(insert_loc, migraphx::op::round{}, mb);
+        auto cb = p.insert_instruction(insert_loc, migraphx::op::clip{127.0f, -128.0f}, rb);
+        auto qb =
+            p.insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
+
+        // quantize parameter c to int32 type
+        auto qc = p.insert_instruction(
+            std::next(pc), migraphx::op::convert{migraphx::shape::int32_type}, pc);
+
+        auto qdot = p.add_instruction(migraphx::op::quant_dot{2000, 51}, qa, qb, qc);
+        p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, qdot);
+
+        return p;
+    };
+
+    auto p = create_program();
+    const std::vector<std::pair<float, float>>& quant_params{
+        {0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
+    migraphx::quantize_int8(p, {"dot"}, quant_params);
+    auto qp = create_int8_quantized_prog();
+
+    EXPECT(p == qp);
+}
+
+TEST_CASE(dot_large_alpha_beta_int32)
+{
+    auto create_program = [] {
+        migraphx::program p;
+        migraphx::shape sa{migraphx::shape::int32_type, {2, 16}};
+        migraphx::shape sb{migraphx::shape::int32_type, {16, 8}};
+        migraphx::shape sc{migraphx::shape::int32_type, {2, 8}};
+        auto pa = p.add_parameter("a", sa);
+        auto pb = p.add_parameter("b", sb);
+        auto pc = p.add_parameter("c", sc);
+
+        p.add_instruction(migraphx::op::dot{20.0f, 50.0f}, pa, pb, pc);
+
+        return p;
+    };
+
+    auto create_int8_quantized_prog = [] {
+        migraphx::program p;
+        migraphx::shape sa{migraphx::shape::int32_type, {2, 16}};
+        migraphx::shape sb{migraphx::shape::int32_type, {16, 8}};
+        migraphx::shape sc{migraphx::shape::int32_type, {2, 8}};
+        auto pa = p.add_parameter("a", sa);
+        auto pb = p.add_parameter("b", sb);
+        auto pc = p.add_parameter("c", sc);
+        // quantize parameter a to int8 type, multiply the scale
+        std::vector<float> vfa(sa.elements(), 0.1f);
+        auto fa = p.add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vfa));
+        auto conv_a = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, pa);
+        auto ma = p.add_instruction(migraphx::op::mul{}, fa, conv_a);
+
+        // add the shift
+        std::vector<float> vsa(sa.elements(), 1.0f);
+        auto sfta = p.add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vsa));
+        auto msa  = p.add_instruction(migraphx::op::add{}, sfta, ma);
+        auto ra   = p.add_instruction(migraphx::op::round{}, msa);
+        auto ca   = p.add_instruction(migraphx::op::clip{127.0f, -128.0f}, ra);
+        auto qa   = p.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, ca);
+
+        // quantize parameter b to int8 type
+        auto insert_loc = std::next(pb);
+        std::vector<float> vfb(sb.elements(), 0.1f);
+        auto fb = p.add_literal(migraphx::literal({migraphx::shape::float_type, sb.lens()}, vfb));
+        auto conv_b = p.insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::float_type}, pb);
+        auto mb = p.insert_instruction(insert_loc, migraphx::op::mul{}, fb, conv_b);
+        auto rb = p.insert_instruction(insert_loc, migraphx::op::round{}, mb);
+        auto cb = p.insert_instruction(insert_loc, migraphx::op::clip{127.0f, -128.0f}, rb);
+        auto qb =
+            p.insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
+
+        p.add_instruction(migraphx::op::quant_dot{2000, 50}, qa, qb, pc);
+
+        return p;
+    };
+
+    auto p = create_program();
+    const std::vector<std::pair<float, float>>& quant_params{{0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
+    migraphx::quantize_int8(p, {"dot"}, quant_params);
+    auto qp = create_int8_quantized_prog();
+
+    EXPECT(p == qp);
+}
+
+
+TEST_CASE(dot_int32)
+{
+    auto create_program = [] {
+        migraphx::program p;
+        migraphx::shape sa{migraphx::shape::int32_type, {2, 16}};
+        migraphx::shape sb{migraphx::shape::int32_type, {16, 8}};
+        migraphx::shape sc{migraphx::shape::int32_type, {2, 8}};
+        auto pa = p.add_parameter("a", sa);
+        auto pb = p.add_parameter("b", sb);
+        auto pc = p.add_parameter("c", sc);
+
+        p.add_instruction(migraphx::op::dot{2.0f, 5.5f}, pa, pb, pc);
+
+        return p;
+    };
+
+    auto create_int8_quantized_prog = [] {
+        migraphx::program p;
+        migraphx::shape sa{migraphx::shape::int32_type, {2, 16}};
+        migraphx::shape sb{migraphx::shape::int32_type, {16, 8}};
+        migraphx::shape sc{migraphx::shape::int32_type, {2, 8}};
+        auto pa = p.add_parameter("a", sa);
+        auto pb = p.add_parameter("b", sb);
+        auto pc = p.add_parameter("c", sc);
+        // quantize parameter a to int8 type, multiply the scale
+        std::vector<float> vfa(sa.elements(), 0.1f);
+        auto fa = p.add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vfa));
+        auto conv_a = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, pa);
+        auto ma = p.add_instruction(migraphx::op::mul{}, fa, conv_a);
+
+        // add the shift
+        std::vector<float> vsa(sa.elements(), 1.0f);
+        auto sfta = p.add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vsa));
+        auto msa  = p.add_instruction(migraphx::op::add{}, sfta, ma);
+        auto ra   = p.add_instruction(migraphx::op::round{}, msa);
+        auto ca   = p.add_instruction(migraphx::op::clip{127.0f, -128.0f}, ra);
+        auto qa   = p.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, ca);
+
+        // quantize parameter b to int8 type
+        auto insert_loc = std::next(pb);
+        std::vector<float> vfb(sb.elements(), 0.1f);
+        auto fb = p.add_literal(migraphx::literal({migraphx::shape::float_type, sb.lens()}, vfb));
+        auto conv_b = p.insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::float_type}, pb);
+        auto mb = p.insert_instruction(insert_loc, migraphx::op::mul{}, fb, conv_b);
+        auto rb = p.insert_instruction(insert_loc, migraphx::op::round{}, mb);
+        auto cb = p.insert_instruction(insert_loc, migraphx::op::clip{127.0f, -128.0f}, rb);
+        auto qb =
+            p.insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
+
+        auto qdot = p.add_instruction(migraphx::op::quant_dot{1, 0}, qa, qb);
+        auto fr = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, qdot);
+        std::vector<float> v_alpha(fr->get_shape().elements(), 20.0f);
+        auto new_alpha = p.add_literal(migraphx::literal(fr->get_shape(), v_alpha));
+        auto alpha_ab = p.add_instruction(migraphx::op::mul{}, new_alpha, fr);
+        auto fc = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, pc);
+        std::vector<float> v_beta(fc->get_shape().elements(), 5.5f);
+        auto beta = p.add_literal(migraphx::literal(fc->get_shape(), v_beta));
+        auto beta_c = p.add_instruction(migraphx::op::mul{}, beta, fc);
+        auto f_res = p.add_instruction(migraphx::op::add{}, alpha_ab, beta_c);
+        p.add_instruction(migraphx::op::convert{migraphx::shape::int32_type}, f_res);
+
+        return p;
+    };
+
+    auto p = create_program();
+    const std::vector<std::pair<float, float>>& quant_params{{0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
+    migraphx::quantize_int8(p, {"dot"}, quant_params);
+    auto qp = create_int8_quantized_prog();
+
+    EXPECT(p == qp);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -57,7 +57,7 @@ instruction_ref insert_quant_ins(program& prog,
                     prog.insert_instruction(insert_loc, op::convert{shape::float_type}, scaled_ins);
             }
             std::vector<float> vec_scale(scaled_ins->get_shape().elements(), scale);
-            auto l_scale = prog.add_literal(literal(scaled_ins->get_shape(), vec_scale));
+            auto l_scale = prog.add_literal(literal(float_ins->get_shape(), vec_scale));
             scaled_ins   = prog.insert_instruction(insert_loc, op::mul{}, l_scale, float_ins);
         }
 
@@ -71,7 +71,7 @@ instruction_ref insert_quant_ins(program& prog,
                     insert_loc, op::convert{shape::float_type}, shifted_ins);
             }
             std::vector<float> vec_shift(shifted_ins->get_shape().elements(), shift);
-            auto l_shift = prog.add_literal(literal(shifted_ins->get_shape(), vec_shift));
+            auto l_shift = prog.add_literal(literal(float_ins->get_shape(), vec_shift));
             shifted_ins  = prog.insert_instruction(insert_loc, op::add{}, l_shift, float_ins);
         }
 
@@ -220,8 +220,7 @@ static void ins_quantize_int8(program& prog,
                 {
                     auto fp32_c =
                         prog.insert_instruction(ins, op::convert{shape::float_type}, inputs.back());
-                    auto fp32_beta_c = prog.insert_instruction(ins, op::mul{}, l_beta, fp32_c);
-                    beta_c = prog.insert_instruction(ins, op::convert{orig_type}, fp32_beta_c);
+                    beta_c = prog.insert_instruction(ins, op::mul{}, l_beta, fp32_c);
                 }
                 else
                 {
@@ -357,7 +356,7 @@ void quantize_int8(program& prog,
 
             auto s = input->get_shape();
             if((s.type() == shape::float_type or s.type() == shape::double_type or
-                s.type() == shape::int32_type) and
+                s.type() == shape::half_type or s.type() == shape::int32_type) and
                s.type() != quant_type)
             {
                 // if the input is a convert operator, uses its input

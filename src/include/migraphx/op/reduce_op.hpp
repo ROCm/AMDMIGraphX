@@ -127,11 +127,12 @@ struct reduce_op : op_name<Derived>
         return {s.type(), lens};
     }
 
-    template<class T>
-    void tune_dims(const std::vector<int64_t>& tuned_axes, 
-        const std::vector<T>& in_lens, std::vector<T>& out_lens) const
+    template <class T>
+    void tune_dims(const std::vector<int64_t>& tuned_axes,
+                   const std::vector<T>& in_lens,
+                   std::vector<T>& out_lens) const
     {
-        for (auto axis : tuned_axes)
+        for(auto axis : tuned_axes)
         {
             out_lens[axis] = in_lens[axis];
         }

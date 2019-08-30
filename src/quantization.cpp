@@ -255,13 +255,14 @@ static void ins_quantize_int8(program& prog,
     {
         // Current MIOpen convolution does not support alpha and beta,
         // so we need a separate multiply to adjust the output
-        auto conv_op       = any_cast<op::convolution>(ins->get_operator());
-        auto padding       = conv_op.padding;
-        auto stride        = conv_op.stride;
-        auto dilation      = conv_op.dilation;
-        auto padding_mode  = conv_op.padding_mode;
-        auto group         = conv_op.group;
-        auto adjust_factor = std::round(1.0f / (ins_quant_params[0].first * ins_quant_params[1].first));
+        auto conv_op      = any_cast<op::convolution>(ins->get_operator());
+        auto padding      = conv_op.padding;
+        auto stride       = conv_op.stride;
+        auto dilation     = conv_op.dilation;
+        auto padding_mode = conv_op.padding_mode;
+        auto group        = conv_op.group;
+        auto adjust_factor =
+            std::round(1.0f / (ins_quant_params[0].first * ins_quant_params[1].first));
 
         auto quant_conv = prog.insert_instruction(
             ins,

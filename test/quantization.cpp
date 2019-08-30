@@ -585,8 +585,7 @@ TEST_CASE(dot_int32)
 
 TEST_CASE(conv_float)
 {
-    auto create_program = []
-    {
+    auto create_program = [] {
         migraphx::program p;
         auto input =
             p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
@@ -605,11 +604,11 @@ TEST_CASE(conv_float)
         auto pw = p.add_parameter("w", sw);
         // quantize parameter a to int8 type, multiply the scale
         std::vector<float> vfx(sx.elements(), 0.1f);
-        auto fx  = p.add_literal(migraphx::literal(sx, vfx));
-        auto mx  = p.add_instruction(migraphx::op::mul{}, fx, px);
-        auto rx  = p.add_instruction(migraphx::op::round{}, mx);
-        auto cx  = p.add_instruction(migraphx::op::clip{127.0f, -128.0f}, rx);
-        auto qx  = p.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, cx);
+        auto fx = p.add_literal(migraphx::literal(sx, vfx));
+        auto mx = p.add_instruction(migraphx::op::mul{}, fx, px);
+        auto rx = p.add_instruction(migraphx::op::round{}, mx);
+        auto cx = p.add_instruction(migraphx::op::clip{127.0f, -128.0f}, rx);
+        auto qx = p.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, cx);
 
         // quantize parameter b to int8 type
         auto insert_loc = std::next(pw);
@@ -640,8 +639,7 @@ TEST_CASE(conv_float)
 
 TEST_CASE(conv_int32)
 {
-    auto create_program = []
-    {
+    auto create_program = [] {
         migraphx::program p;
         auto input =
             p.add_parameter("x", migraphx::shape{migraphx::shape::int32_type, {4, 3, 3, 3}});
@@ -661,15 +659,16 @@ TEST_CASE(conv_int32)
         // quantize parameter a to int8 type, multiply the scale
         auto fpx = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, px);
         std::vector<float> vfx(sx.elements(), 0.1f);
-        auto fx  = p.add_literal(migraphx::literal(fpx->get_shape(), vfx));
-        auto mx  = p.add_instruction(migraphx::op::mul{}, fx, fpx);
-        auto rx  = p.add_instruction(migraphx::op::round{}, mx);
-        auto cx  = p.add_instruction(migraphx::op::clip{127.0f, -128.0f}, rx);
-        auto qx  = p.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, cx);
+        auto fx = p.add_literal(migraphx::literal(fpx->get_shape(), vfx));
+        auto mx = p.add_instruction(migraphx::op::mul{}, fx, fpx);
+        auto rx = p.add_instruction(migraphx::op::round{}, mx);
+        auto cx = p.add_instruction(migraphx::op::clip{127.0f, -128.0f}, rx);
+        auto qx = p.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, cx);
 
         // quantize parameter b to int8 type
         auto insert_loc = std::next(pw);
-        auto fpw = p.insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::float_type}, pw);
+        auto fpw        = p.insert_instruction(
+            insert_loc, migraphx::op::convert{migraphx::shape::float_type}, pw);
         std::vector<float> vfw(sw.elements(), 0.1f);
         auto fw = p.add_literal(migraphx::literal(fpw->get_shape(), vfw));
         auto mw = p.insert_instruction(insert_loc, migraphx::op::mul{}, fw, fpw);
@@ -696,8 +695,7 @@ TEST_CASE(conv_int32)
 
 TEST_CASE(conv_half)
 {
-    auto create_program = []
-    {
+    auto create_program = [] {
         migraphx::program p;
         auto input =
             p.add_parameter("x", migraphx::shape{migraphx::shape::half_type, {4, 3, 3, 3}});
@@ -717,15 +715,16 @@ TEST_CASE(conv_half)
         // quantize parameter a to int8 type, multiply the scale
         auto fpx = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, px);
         std::vector<float> vfx(sx.elements(), 0.1f);
-        auto fx  = p.add_literal(migraphx::literal(fpx->get_shape(), vfx));
-        auto mx  = p.add_instruction(migraphx::op::mul{}, fx, fpx);
-        auto rx  = p.add_instruction(migraphx::op::round{}, mx);
-        auto cx  = p.add_instruction(migraphx::op::clip{127.0f, -128.0f}, rx);
-        auto qx  = p.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, cx);
+        auto fx = p.add_literal(migraphx::literal(fpx->get_shape(), vfx));
+        auto mx = p.add_instruction(migraphx::op::mul{}, fx, fpx);
+        auto rx = p.add_instruction(migraphx::op::round{}, mx);
+        auto cx = p.add_instruction(migraphx::op::clip{127.0f, -128.0f}, rx);
+        auto qx = p.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, cx);
 
         // quantize parameter b to int8 type
         auto insert_loc = std::next(pw);
-        auto fpw = p.insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::float_type}, pw);
+        auto fpw        = p.insert_instruction(
+            insert_loc, migraphx::op::convert{migraphx::shape::float_type}, pw);
         std::vector<float> vfw(sw.elements(), 0.1f);
         auto fw = p.add_literal(migraphx::literal(fpw->get_shape(), vfw));
         auto mw = p.insert_instruction(insert_loc, migraphx::op::mul{}, fw, fpw);
@@ -737,7 +736,7 @@ TEST_CASE(conv_half)
         auto q_conv = p.add_instruction(migraphx::op::quant_convolution{}, qx, qw);
         auto f_conv = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, q_conv);
         std::vector<float> v_adj(f_conv->get_shape().elements(), 100.0f);
-        auto adj = p.add_literal(migraphx::literal(f_conv->get_shape(), v_adj));
+        auto adj   = p.add_literal(migraphx::literal(f_conv->get_shape(), v_adj));
         auto f_res = p.add_instruction(migraphx::op::mul{}, adj, f_conv);
         p.add_instruction(migraphx::op::convert{migraphx::shape::half_type}, f_res);
 

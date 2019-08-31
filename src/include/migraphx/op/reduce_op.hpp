@@ -149,7 +149,7 @@ struct reduce_op : op_name<Derived>
         auto data_idx = out_idx;
         T val         = op.init();
         shape_for_each(batch_shape, [&](auto b_idx) {
-            tune_dims(tuned_axes, b_idx, data_idx);
+            this->tune_dims(tuned_axes, b_idx, data_idx);
             val = op(input(data_idx.begin(), data_idx.end()), val);
         });
 

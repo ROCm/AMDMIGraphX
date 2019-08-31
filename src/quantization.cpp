@@ -42,7 +42,8 @@ instruction_ref insert_quant_ins(program& prog,
 
     assert(ins->get_shape().type() == shape::float_type or
            ins->get_shape().type() == shape::double_type or
-           ins->get_shape().type() == shape::int32_type);
+           ins->get_shape().type() == shape::int32_type or
+           ins->get_shape().type() == shape::half_type);
     instruction_ref quant_ins{};
     auto insert_loc = std::next(ins);
     if(type == shape::int8_type)

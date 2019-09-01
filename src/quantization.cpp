@@ -510,7 +510,7 @@ capture_arguments_impl(program& prog, const target& t, const std::vector<std::st
         max_abs_vals->at(ins_index) = std::max(max_abs_vals->at(ins_index), max_abs);
 
         // if all values are 0, no need to do scaling
-        if (max_abs_vals->at(ins_index) == 0.0f)
+        if(max_abs_vals->at(ins_index) == 0.0f)
         {
             param_pair.first = 1.0f;
         }

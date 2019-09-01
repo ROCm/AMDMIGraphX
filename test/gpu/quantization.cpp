@@ -125,5 +125,4 @@ TEST_CASE(int8_quantization)
     }
 }
 
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -509,7 +509,15 @@ capture_arguments_impl(program& prog, const target& t, const std::vector<std::st
         auto max_abs                = std::max(std::fabs(max_val), std::fabs(min_val));
         max_abs_vals->at(ins_index) = std::max(max_abs_vals->at(ins_index), max_abs);
 
-        param_pair.first                 = 127.0f / max_abs_vals->at(ins_index);
+        // if all values are 0, no need to do scaling
+        if (max_abs_vals->at(ins_index) == 0.0f)
+        {
+            param_pair.first = 1.0f;
+        }
+        else
+        {
+            param_pair.first = 127.0f / max_abs_vals->at(ins_index);
+        }
         int8_quant_params->at(ins_index) = param_pair;
     };
 

@@ -539,7 +539,7 @@ TEST_CASE(dot_int32_one_arg)
         auto f_dot = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, q_dot);
         std::vector<float> v_alpha(f_dot->get_shape().elements(), 20.0f);
         auto new_alpha = p.add_literal(migraphx::literal{f_dot->get_shape(), v_alpha});
-        auto alpha_ab = p.add_instruction(migraphx::op::mul{}, new_alpha, f_dot);
+        auto alpha_ab  = p.add_instruction(migraphx::op::mul{}, new_alpha, f_dot);
         p.add_instruction(migraphx::op::convert{migraphx::shape::int32_type}, alpha_ab);
 
         return p;
@@ -552,7 +552,6 @@ TEST_CASE(dot_int32_one_arg)
 
     EXPECT(p == qp);
 }
-
 
 TEST_CASE(dot_int32)
 {

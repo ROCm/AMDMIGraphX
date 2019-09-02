@@ -1,6 +1,6 @@
 import migraphx
 
-p = migraphx.parse_onnx("conv_relu_maxpool.onnx")
+p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
 print(p)
 s1 = p.get_shape()
 print("Compiling ...")

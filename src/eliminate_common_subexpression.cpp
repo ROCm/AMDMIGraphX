@@ -1,4 +1,4 @@
-#include <migraphx/common_subexpression_elimination.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -27,13 +27,17 @@ void cse_range(program& p, Range&& r)
             if(*eq != *ins)
                 continue;
             p.replace_instruction(ins, eq);
-            cse_range(p, eq->outputs());
+            auto outputs = eq->outputs();
+            std::sort(outputs.begin(), outputs.end(), [&](auto x, auto y) {
+                return std::distance(eq, x) < std::distance(eq, y);
+            });
+            cse_range(p, outputs);
         }
         instructions.emplace(ins->name(), ins);
     }
 }
 
-void common_subexpression_elimination::apply(program& p) const { cse_range(p, iterator_for(p)); }
+void eliminate_common_subexpression::apply(program& p) const { cse_range(p, iterator_for(p)); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

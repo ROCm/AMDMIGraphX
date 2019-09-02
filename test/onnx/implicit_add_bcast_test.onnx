@@ -1,7 +1,7 @@
-add2:u
-
+implicit_bcast-example:u
+
 0
-1out"Addsubtraction2Z
+12"Addtest-multi_bcastZ
 0
 
 
@@ -12,8 +12,8 @@
 
 
 
-b
-out
+b
+2
 
 
 

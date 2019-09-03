@@ -368,6 +368,9 @@ void quantize_int8(program& prog,
                    input->inputs().front()->get_shape().type() == quant_type)
                 {
                     quant_input = input->inputs().front();
+                    // the scale in this case is not used, so tune the scale
+                    // to 1.0f for this parameter
+                    ins_quant_params.back() = std::make_pair<float, float>(1.0f, 0.0f);
                 }
                 else
                 {

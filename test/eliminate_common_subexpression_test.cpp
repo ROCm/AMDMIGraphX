@@ -1,4 +1,4 @@
-#include <migraphx/common_subexpression_elimination.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/op/add.hpp>
 #include <basic_ops.hpp>
@@ -9,7 +9,7 @@ struct cse_target
     std::string name() const { return "dce"; }
     std::vector<migraphx::pass> get_passes(migraphx::context&) const
     {
-        return {migraphx::common_subexpression_elimination{}, migraphx::dead_code_elimination{}};
+        return {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}};
     }
     migraphx::context get_context() const { return {}; }
 };

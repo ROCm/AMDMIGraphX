@@ -13,7 +13,7 @@
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
-#include <migraphx/common_subexpression_elimination.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/rewrite_pooling.hpp>
@@ -49,8 +49,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         rewrite_rnn{},
         rewrite_pooling{},
         dead_code_elimination{},
-        // common_subexpression_elimination{},
-        // dead_code_elimination{},
+        eliminate_common_subexpression{},
+        dead_code_elimination{},
         simplify_algebra{},
         dead_code_elimination{},
         auto_contiguous{},

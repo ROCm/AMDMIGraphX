@@ -17,11 +17,15 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/target.hpp>
 #include <utility>
+#include <set>
 #include <iomanip>
 #include <fstream>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT8_QUANTIZATION_PARAMS)
 
 instruction_ref insert_quant_ins(program& prog,
                                  instruction_ref& ins,
@@ -160,8 +164,6 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
         prog.replace_instruction(ins, op, converted_inputs);
     }
 }
-
-void quantize_fp16(program& prog) { quantize_fp16(prog, {"all"}); }
 
 static void ins_quantize_int8(program& prog,
                               instruction_ref ins,
@@ -305,7 +307,7 @@ static void ins_quantize_int8(program& prog,
 // -128 ~ 127. To convert the float or double to int8, we need a scale and
 // a shift, then the convert can be done as v_int8 = fp * scale + shift.
 // To simplify the changes, we consider shift as 0.0f for now.
-void quantize_int8(program& prog,
+void quantize_int8_impl(program& prog,
                    const std::vector<std::pair<float, float>>& quant_params,
                    const std::vector<std::string>& ins_names)
 {
@@ -321,10 +323,9 @@ void quantize_int8(program& prog,
     }
 
     // For now, we only support the int8 quantization of gemm and convolution
-    std::vector<std::string> op_names = {"dot", "convolution"};
-    if(!std::all_of(ins_names.begin(), ins_names.end(), [&](auto name) {
-           return (std::find(op_names.begin(), op_names.end(), name) != op_names.end());
-       }))
+    std::set<std::string> op_names = {"convolution", "dot"};
+    std::set<std::string> input_ins_names(ins_names.begin(), ins_names.end());
+    if (!std::includes(op_names.begin(), op_names.end(), input_ins_names.begin(), input_ins_names.end()))
     {
         MIGRAPHX_THROW("QUANTIZE_INT8: only support DOT and CONVOLUTION operation");
     }
@@ -381,7 +382,7 @@ void quantize_int8(program& prog,
                     quant_input = input->inputs().front();
                     // the scale in this case is not used, so tune the scale
                     // to 1.0f for this parameter
-                    ins_quant_params.back() = std::make_pair<float, float>(1.0f, 0.0f);
+                    ins_quant_params.back() = std::pair<float, float>(1.0f, 0.0f);
                 }
                 else
                 {
@@ -413,7 +414,7 @@ void quantize_int8(program& prog,
 
 void quantize_int8(program& prog,
                    const target& t,
-                   std::vector<program::parameter_map>& calibration_args,
+                   std::vector<program::parameter_map>& calibration,
                    const std::vector<std::string>& ins_names)
 {
     // insert capture operator
@@ -425,7 +426,7 @@ void quantize_int8(program& prog,
 
     // use all calibration data to run the program to calculate the
     // quantization scale and shift
-    for(auto&& arg : calibration_args)
+    for(auto&& arg : calibration)
     {
         program::parameter_map m;
         for(auto&& x : cap_prog.get_parameter_shapes())
@@ -443,7 +444,7 @@ void quantize_int8(program& prog,
         cap_prog.eval(m);
     }
 
-    quantize_int8(prog, *int8_quant_params, ins_names);
+    quantize_int8_impl(prog, *int8_quant_params, ins_names);
 }
 
 // For the input of each input argument, we need to insert a
@@ -456,9 +457,8 @@ std::size_t capture_arguments(program& prog,
     size_t num_quant_params = 0;
     // the int8 quantization only support dot and convolution
     std::vector<std::string> op_names = {"dot", "convolution"};
-    if(!std::all_of(ins_names.begin(), ins_names.end(), [&](auto name) {
-           return std::find(op_names.begin(), op_names.end(), name) != op_names.end();
-       }))
+    std::set<std::string> input_ins_names(ins_names.begin(), ins_names.end());
+    if (!std::includes(op_names.begin(), op_names.end(), input_ins_names.begin(), input_ins_names.end()))
     {
         MIGRAPHX_THROW("CAPTURE_ARGUMENTS: input operator is not supported");
     }

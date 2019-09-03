@@ -12,6 +12,10 @@ namespace gpu {
 template <class Derived>
 struct oper
 {
+    // function to extract the name part of an operator. For example, we have
+    // a operation "sin", then the get_type_name() will return 
+    // "migraphx::version_1::gpu::hip_sin", this functin will return the name
+    // "gpu::sin" as the operator name
     std::string name() const
     {
         const std::string& name = get_type_name<Derived>();

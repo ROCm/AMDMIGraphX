@@ -670,15 +670,13 @@ TEST_CASE(dot_float_convert)
     };
 
     auto p = create_program();
-    const std::vector<std::pair<float, float>>& quant_params{
-        {0.1f, 1.0f}, {0.1f, 0.0f}};
+    const std::vector<std::pair<float, float>>& quant_params{{0.1f, 1.0f}, {0.1f, 0.0f}};
     migraphx::quantize_int8(p, {"dot"}, quant_params);
     migraphx::run_passes(p, {migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
 }
-
 
 TEST_CASE(conv_float)
 {
@@ -905,7 +903,7 @@ TEST_CASE(int8_quantization)
                        migraphx::program::parameter_map& m_in,
                        std::vector<float>& res,
                        bool b_quantize = false) {
-        if (b_quantize)
+        if(b_quantize)
         {
             std::vector<migraphx::program::parameter_map> cali_data;
             cali_data.push_back(m_in);
@@ -959,6 +957,5 @@ TEST_CASE(int8_quantization)
         EXPECT(migraphx::verify_range(quant_result, no_quant_result));
     }
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

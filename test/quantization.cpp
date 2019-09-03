@@ -43,7 +43,7 @@ TEST_CASE(param_add)
         auto p1 = create_program_float();
         auto p2 = create_program_half();
 
-        migraphx::quantize(p1);
+        migraphx::quantize_fp16(p1);
         EXPECT(p1 == p2);
     }
 
@@ -51,7 +51,7 @@ TEST_CASE(param_add)
         auto p1 = create_program_float();
         auto p2 = create_program_half();
 
-        migraphx::quantize(p1, {"add"});
+        migraphx::quantize_fp16(p1, {"add"});
         EXPECT(p1 == p2);
     }
 }
@@ -127,7 +127,7 @@ TEST_CASE(param_add_sub)
         auto p1 = create_program_float();
         auto p2 = create_program_half_add();
 
-        migraphx::quantize(p1, {"add"});
+        migraphx::quantize_fp16(p1, {"add"});
         EXPECT(p1 == p2);
     }
 
@@ -135,7 +135,7 @@ TEST_CASE(param_add_sub)
         auto p1 = create_program_float();
         auto p2 = create_program_half_sub();
 
-        migraphx::quantize(p1, {"sub"});
+        migraphx::quantize_fp16(p1, {"sub"});
         EXPECT(p1 == p2);
     }
 
@@ -143,7 +143,7 @@ TEST_CASE(param_add_sub)
         auto p1 = create_program_float();
         auto p2 = create_program_half_all();
 
-        migraphx::quantize(p1);
+        migraphx::quantize_fp16(p1);
         migraphx::run_passes(p1, {migraphx::dead_code_elimination{}});
 
         EXPECT(p1 == p2);
@@ -181,7 +181,7 @@ TEST_CASE(literal_add)
         auto p1 = create_program_float();
         auto p2 = create_program_half();
 
-        migraphx::quantize(p1, {"all"});
+        migraphx::quantize_fp16(p1, {"all"});
         migraphx::run_passes(p1,
                              {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
         migraphx::run_passes(p2,
@@ -194,7 +194,7 @@ TEST_CASE(literal_add)
         auto p1 = create_program_float();
         auto p2 = create_program_half();
 
-        migraphx::quantize(p1, {"add"});
+        migraphx::quantize_fp16(p1, {"add"});
         migraphx::run_passes(p1,
                              {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
         migraphx::run_passes(p2,
@@ -313,7 +313,7 @@ TEST_CASE(dot_float)
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{
         {0.1f, 0.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
-    migraphx::quantize_int8(p, {"dot"}, quant_params);
+    migraphx::quantize_int8(p, quant_params, {"dot"});
     migraphx::run_passes(p, {migraphx::dead_code_elimination{}});
 
     auto qp = create_int8_quantized_prog();
@@ -375,7 +375,7 @@ TEST_CASE(dot_double_2args)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
-    migraphx::quantize_int8(p, {"dot"}, quant_params);
+    migraphx::quantize_int8(p, quant_params, {"dot"});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -440,7 +440,7 @@ TEST_CASE(dot_large_alpha_beta_float)
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{
         {0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
-    migraphx::quantize_int8(p, {"dot"}, quant_params);
+    migraphx::quantize_int8(p, quant_params, {"dot"});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -504,7 +504,7 @@ TEST_CASE(dot_large_alpha_beta_int32)
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{
         {0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
-    migraphx::quantize_int8(p, {"dot"}, quant_params);
+    migraphx::quantize_int8(p, quant_params, {"dot"});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -548,7 +548,7 @@ TEST_CASE(dot_int32_one_arg)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{1.0f, 1.0f}};
-    migraphx::quantize_int8(p, {"dot"}, quant_params);
+    migraphx::quantize_int8(p, quant_params, {"dot"});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -622,7 +622,7 @@ TEST_CASE(dot_int32)
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{
         {0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
-    migraphx::quantize_int8(p, {"dot"}, quant_params);
+    migraphx::quantize_int8(p, quant_params, {"dot"});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -671,7 +671,7 @@ TEST_CASE(dot_float_convert)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 1.0f}, {0.1f, 0.0f}};
-    migraphx::quantize_int8(p, {"dot"}, quant_params);
+    migraphx::quantize_int8(p, quant_params, {"dot"});
     migraphx::run_passes(p, {migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
 
@@ -726,7 +726,7 @@ TEST_CASE(conv_float)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
-    migraphx::quantize_int8(p, {"convolution"}, quant_params);
+    migraphx::quantize_int8(p, quant_params, {"convolution"});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -782,7 +782,7 @@ TEST_CASE(conv_int32)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
-    migraphx::quantize_int8(p, {"convolution"}, quant_params);
+    migraphx::quantize_int8(p, quant_params, {"convolution"});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -840,7 +840,7 @@ TEST_CASE(conv_half)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
-    migraphx::quantize_int8(p, {"convolution"}, quant_params);
+    migraphx::quantize_int8(p, quant_params, {"convolution"});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);

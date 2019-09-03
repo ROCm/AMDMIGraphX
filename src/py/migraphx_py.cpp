@@ -183,22 +183,22 @@ PYBIND11_MODULE(migraphx, m)
     });
 
     m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);
-    m.def("quantize", [](migraphx::program& p, std::vector<std::string>& ins_names) {
-        migraphx::quantize(p, ins_names);
+    m.def("quantize_fp16", [](migraphx::program& p, std::vector<std::string>& ins_names) {
+        migraphx::quantize_fp16(p, ins_names);
     });
-    m.def("quantize", [](migraphx::program& p) { migraphx::quantize(p, {"all"}); });
+    m.def("quantize_fp16", [](migraphx::program& p) { migraphx::quantize_fp16(p, {"all"}); });
     m.def("quantize_int8",
           [](migraphx::program& p,
              std::vector<std::string>& ins_names,
              std::vector<std::pair<float, float>>& quant_params) {
-              migraphx::quantize_int8(p, ins_names, quant_params);
+              migraphx::quantize_int8(p, quant_params, ins_names);
           });
     m.def("quantize_int8",
           [](migraphx::program& p,
              const migraphx::target& t,
              std::vector<std::string>& ins_names,
              std::vector<migraphx::program::parameter_map>& cali_args) {
-              migraphx::quantize_int8(p, t, ins_names, cali_args);
+              migraphx::quantize_int8(p, t, cali_args, ins_names);
           });
     m.def("quantize_int8",
           [](migraphx::program& p,

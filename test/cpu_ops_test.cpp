@@ -1821,7 +1821,7 @@ TEST_CASE(fp32_fp16_test)
     auto test_case = [&](std::vector<std::string>&& op_names) {
         std::vector<float> gold_res = {2.0, 4.0, 6.0, 8.0, 10.0, 12.0};
         auto p                      = create_program();
-        migraphx::quantize(p, op_names);
+        migraphx::quantize_fp16(p, op_names);
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
         std::vector<float> res;

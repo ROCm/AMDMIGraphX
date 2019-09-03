@@ -96,7 +96,7 @@ instruction_ref insert_quant_ins(program& prog,
 // For the conversion, there could be cases of overflowing, but it
 // is very rare in the area of deeping learning, so we just do a
 // truncate of the input to get the fp16.
-void quantize(program& prog, const std::vector<std::string>& ins_names)
+void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
 {
     std::unordered_map<instruction_ref, instruction_ref> map_fp16;
     for(auto ins : iterator_for(prog))
@@ -161,7 +161,7 @@ void quantize(program& prog, const std::vector<std::string>& ins_names)
     }
 }
 
-void quantize(program& prog) { quantize(prog, {"all"}); }
+void quantize_fp16(program& prog) { quantize_fp16(prog, {"all"}); }
 
 static void ins_quantize_int8(program& prog,
                               instruction_ref ins,
@@ -306,8 +306,8 @@ static void ins_quantize_int8(program& prog,
 // a shift, then the convert can be done as v_int8 = fp * scale + shift.
 // To simplify the changes, we consider shift as 0.0f for now.
 void quantize_int8(program& prog,
-                   const std::vector<std::string>& ins_names,
-                   const std::vector<std::pair<float, float>>& quant_params)
+                   const std::vector<std::pair<float, float>>& quant_params,
+                   const std::vector<std::string>& ins_names)
 {
     // For now, we only support the int8 quantization of gemm and convolution
     std::vector<std::string> op_names = {"dot", "convolution"};
@@ -402,8 +402,8 @@ void quantize_int8(program& prog,
 
 void quantize_int8(program& prog,
                    const target& t,
-                   const std::vector<std::string>& ins_names,
-                   std::vector<program::parameter_map>& calibration_args)
+                   std::vector<program::parameter_map>& calibration_args,
+                   const std::vector<std::string>& ins_names)
 {
     // insert capture operator
     auto cap_prog          = prog;
@@ -432,15 +432,7 @@ void quantize_int8(program& prog,
         cap_prog.eval(m);
     }
 
-    quantize_int8(prog, ins_names, *int8_quant_params);
-}
-
-void quantize_int8(program& prog,
-                   const target& t,
-                   std::vector<program::parameter_map>& calibration_args)
-{
-    std::vector<std::string> ins_names = {"dot", "convolution"};
-    quantize_int8(prog, t, ins_names, calibration_args);
+    quantize_int8(prog, *int8_quant_params, ins_names);
 }
 
 // For the input of each input argument, we need to insert a

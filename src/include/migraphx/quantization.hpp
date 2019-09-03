@@ -8,11 +8,14 @@
 #include <migraphx/config.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/env.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT8_QUANTIZATION_PARAMS)
 
 void quantize_fp16(program& prog, const std::vector<std::string>& ins_names);
 void quantize_fp16(program& prog);

@@ -309,11 +309,13 @@ void quantize_int8(program& prog,
                    const std::vector<std::pair<float, float>>& quant_params,
                    const std::vector<std::string>& ins_names)
 {
-    if(enabled(MIGRAPHX_INT8_QUANTIZATION_PARAMS{})) {
-        for (std::size_t i = 0; i < quant_params.size(); ++i)
+    if(enabled(MIGRAPHX_INT8_QUANTIZATION_PARAMS{}))
+    {
+        for(std::size_t i = 0; i < quant_params.size(); ++i)
         {
             auto param = quant_params.at(i);
-            std::cout << "ins_index = " << i << ", scale = " << param.first << ", shift = " << param.second << std::endl;
+            std::cout << "ins_index = " << i << ", scale = " << param.first
+                      << ", shift = " << param.second << std::endl;
         }
         std::cout << std::endl;
     }

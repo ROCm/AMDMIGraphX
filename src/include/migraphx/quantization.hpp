@@ -27,8 +27,8 @@ std::shared_ptr<std::vector<std::pair<float, float>>>
 capture_arguments_impl(program& prog, const target& t, const std::vector<std::string>& ins_names);
 
 template <class T>
-std::shared_ptr<std::vector<std::pair<float, float>>> capture_arguments(
-    program& prog, T&& t, const std::vector<std::string>& ins_names)
+std::shared_ptr<std::vector<std::pair<float, float>>>
+capture_arguments(program& prog, T&& t, const std::vector<std::string>& ins_names)
 {
     static_assert(std::is_same<std::remove_cv_t<std::remove_reference_t<T>>, target>{} &&
                       std::is_lvalue_reference<T>{},
@@ -41,8 +41,8 @@ void quantize_int8(program& prog,
                    std::vector<program::parameter_map>& calibration,
                    const std::vector<std::string>& ins_names = {"dot", "convolution"});
 void quantize_int8_impl(program& prog,
-                   const std::vector<std::pair<float, float>>& quant_params,
-                   const std::vector<std::string>& ins_names);
+                        const std::vector<std::pair<float, float>>& quant_params,
+                        const std::vector<std::string>& ins_names);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -308,8 +308,8 @@ static void ins_quantize_int8(program& prog,
 // a shift, then the convert can be done as v_int8 = fp * scale + shift.
 // To simplify the changes, we consider shift as 0.0f for now.
 void quantize_int8_impl(program& prog,
-                   const std::vector<std::pair<float, float>>& quant_params,
-                   const std::vector<std::string>& ins_names)
+                        const std::vector<std::pair<float, float>>& quant_params,
+                        const std::vector<std::string>& ins_names)
 {
     if(enabled(MIGRAPHX_INT8_QUANTIZATION_PARAMS{}))
     {
@@ -325,7 +325,8 @@ void quantize_int8_impl(program& prog,
     // For now, we only support the int8 quantization of gemm and convolution
     std::set<std::string> op_names = {"convolution", "dot"};
     std::set<std::string> input_ins_names(ins_names.begin(), ins_names.end());
-    if (!std::includes(op_names.begin(), op_names.end(), input_ins_names.begin(), input_ins_names.end()))
+    if(!std::includes(
+           op_names.begin(), op_names.end(), input_ins_names.begin(), input_ins_names.end()))
     {
         MIGRAPHX_THROW("QUANTIZE_INT8: only support DOT and CONVOLUTION operation");
     }
@@ -458,7 +459,8 @@ std::size_t capture_arguments(program& prog,
     // the int8 quantization only support dot and convolution
     std::vector<std::string> op_names = {"dot", "convolution"};
     std::set<std::string> input_ins_names(ins_names.begin(), ins_names.end());
-    if (!std::includes(op_names.begin(), op_names.end(), input_ins_names.begin(), input_ins_names.end()))
+    if(!std::includes(
+           op_names.begin(), op_names.end(), input_ins_names.begin(), input_ins_names.end()))
     {
         MIGRAPHX_THROW("CAPTURE_ARGUMENTS: input operator is not supported");
     }

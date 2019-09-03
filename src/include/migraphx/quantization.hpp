@@ -15,10 +15,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT8_QUANTIZATION_PARAMS)
-
-void quantize_fp16(program& prog, const std::vector<std::string>& ins_names);
-void quantize_fp16(program& prog);
+void quantize_fp16(program& prog, const std::vector<std::string>& ins_names = {"all"});
 
 // insert the capture operator for the inputs of each operator to be quantized
 // to int8
@@ -31,7 +28,7 @@ capture_arguments_impl(program& prog, const target& t, const std::vector<std::st
 
 template <class T>
 std::shared_ptr<std::vector<std::pair<float, float>>> capture_arguments(
-    program& prog, T&& t, const std::vector<std::string>& ins_names = {"dot", "convolution"})
+    program& prog, T&& t, const std::vector<std::string>& ins_names)
 {
     static_assert(std::is_same<std::remove_cv_t<std::remove_reference_t<T>>, target>{} &&
                       std::is_lvalue_reference<T>{},
@@ -41,9 +38,9 @@ std::shared_ptr<std::vector<std::pair<float, float>>> capture_arguments(
 
 void quantize_int8(program& prog,
                    const target& t,
-                   std::vector<program::parameter_map>& calibration_args,
+                   std::vector<program::parameter_map>& calibration,
                    const std::vector<std::string>& ins_names = {"dot", "convolution"});
-void quantize_int8(program& prog,
+void quantize_int8_impl(program& prog,
                    const std::vector<std::pair<float, float>>& quant_params,
                    const std::vector<std::string>& ins_names);
 

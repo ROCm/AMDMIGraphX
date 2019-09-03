@@ -250,7 +250,7 @@ TEST_CASE(op_capture)
         auto p             = create_program_float();
         auto op_capture_p  = create_program_op();
         migraphx::target t = migraphx::cpu::target{};
-        migraphx::capture_arguments(p, t);
+        migraphx::capture_arguments(p, t, {"dot", "convolution"});
         EXPECT(p == op_capture_p);
     }
 }
@@ -313,7 +313,7 @@ TEST_CASE(dot_float)
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{
         {0.1f, 0.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
-    migraphx::quantize_int8(p, quant_params, {"dot"});
+    migraphx::quantize_int8_impl(p, quant_params, {"dot"});
     migraphx::run_passes(p, {migraphx::dead_code_elimination{}});
 
     auto qp = create_int8_quantized_prog();
@@ -375,7 +375,7 @@ TEST_CASE(dot_double_2args)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
-    migraphx::quantize_int8(p, quant_params, {"dot"});
+    migraphx::quantize_int8_impl(p, quant_params, {"dot"});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -440,7 +440,7 @@ TEST_CASE(dot_large_alpha_beta_float)
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{
         {0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
-    migraphx::quantize_int8(p, quant_params, {"dot"});
+    migraphx::quantize_int8_impl(p, quant_params, {"dot"});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -504,7 +504,7 @@ TEST_CASE(dot_large_alpha_beta_int32)
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{
         {0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
-    migraphx::quantize_int8(p, quant_params, {"dot"});
+    migraphx::quantize_int8_impl(p, quant_params, {"dot"});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -548,7 +548,7 @@ TEST_CASE(dot_int32_one_arg)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{1.0f, 1.0f}};
-    migraphx::quantize_int8(p, quant_params, {"dot"});
+    migraphx::quantize_int8_impl(p, quant_params, {"dot"});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -622,7 +622,7 @@ TEST_CASE(dot_int32)
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{
         {0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
-    migraphx::quantize_int8(p, quant_params, {"dot"});
+    migraphx::quantize_int8_impl(p, quant_params, {"dot"});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -671,7 +671,7 @@ TEST_CASE(dot_float_convert)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 1.0f}, {0.1f, 0.0f}};
-    migraphx::quantize_int8(p, quant_params, {"dot"});
+    migraphx::quantize_int8_impl(p, quant_params, {"dot"});
     migraphx::run_passes(p, {migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
 
@@ -726,7 +726,7 @@ TEST_CASE(conv_float)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
-    migraphx::quantize_int8(p, quant_params, {"convolution"});
+    migraphx::quantize_int8_impl(p, quant_params, {"convolution"});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -782,7 +782,7 @@ TEST_CASE(conv_int32)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
-    migraphx::quantize_int8(p, quant_params, {"convolution"});
+    migraphx::quantize_int8_impl(p, quant_params, {"convolution"});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -840,7 +840,7 @@ TEST_CASE(conv_half)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
-    migraphx::quantize_int8(p, quant_params, {"convolution"});
+    migraphx::quantize_int8_impl(p, quant_params, {"convolution"});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);

@@ -183,9 +183,16 @@ PYBIND11_MODULE(migraphx, m)
     });
 
     m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);
-    m.def("quantize_fp16", &migraphx::quantize_fp16, py::arg("prog"), py::arg("ins_names") = std::vector<std::string>{"all"});
-    m.def("quantize_int8", &migraphx::quantize_int8, py::arg("prog"), py::arg("t"), py::arg("calibration") = std::vector<migraphx::program::parameter_map>{}, 
-    py::arg("ins_names") = std::vector<std::string>{"dot", "convolution"});
+    m.def("quantize_fp16",
+          &migraphx::quantize_fp16,
+          py::arg("prog"),
+          py::arg("ins_names") = std::vector<std::string>{"all"});
+    m.def("quantize_int8",
+          &migraphx::quantize_int8,
+          py::arg("prog"),
+          py::arg("t"),
+          py::arg("calibration") = std::vector<migraphx::program::parameter_map>{},
+          py::arg("ins_names")   = std::vector<std::string>{"dot", "convolution"});
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

@@ -132,8 +132,7 @@ struct reduce_op : op_name<Derived>
         visit_all(result, args[0])([&](auto output, auto input) {
             par_for(output_shape.elements(), [&](auto i) {
                 auto out_idx = output_shape.multi(i);
-                this->reduce(
-                    input, batch_shape, tuned_axes, out_idx, output, Op{});
+                this->reduce(input, batch_shape, tuned_axes, out_idx, output, Op{});
             });
         });
 

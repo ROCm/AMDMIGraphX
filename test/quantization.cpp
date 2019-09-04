@@ -997,17 +997,6 @@ TEST_CASE(int8_quantization_conv)
         std::vector<float> no_quant_result;
         run_prog(p, cpu_t, no_quant_result);
 
-        for(auto v : no_quant_result)
-        {
-            std::cout << v << "\t";
-        }
-        std::cout << std::endl;
-        for(auto v : quant_result)
-        {
-            std::cout << v << "\t";
-        }
-        std::cout << std::endl;
-
         EXPECT(migraphx::verify_range(quant_result, no_quant_result));
     }
 }

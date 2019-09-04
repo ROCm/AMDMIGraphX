@@ -457,7 +457,7 @@ std::size_t capture_arguments(program& prog,
 
     size_t num_quant_params = 0;
     // the int8 quantization only support dot and convolution
-    std::vector<std::string> op_names = {"dot", "convolution"};
+    std::set<std::string> op_names = {"dot", "convolution"};
     std::set<std::string> input_ins_names(ins_names.begin(), ins_names.end());
     if(!std::includes(
            op_names.begin(), op_names.end(), input_ins_names.begin(), input_ins_names.end()))

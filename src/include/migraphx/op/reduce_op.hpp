@@ -1,7 +1,6 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_OP_HPP
 #define MIGRAPHX_GUARD_OPERATORS_OP_HPP
 
-//#include <migraphx/half.hpp>
 #include <migraphx/op/name.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
@@ -38,40 +37,6 @@ struct zero
     operator T() const
     {
         return T{0};
-    }
-};
-
-struct sum_op
-{
-    std::size_t elem_num = 1;
-    template <class T>
-    T operator()(T x, T y) const
-    {
-        return x + y;
-    }
-
-    auto init() const { return zero(); }
-
-    auto output() const
-    {
-        return [=](auto val) { return val; };
-    }
-};
-
-struct mean_op
-{
-    std::size_t elem_num = 1;
-    template <class T>
-    T operator()(T x, T y) const
-    {
-        return x + y;
-    }
-
-    auto init() const { return zero(); }
-
-    auto output() const
-    {
-        return [=](auto val) { return val / elem_num; };
     }
 };
 
@@ -150,10 +115,10 @@ struct reduce_op : op_name<Derived>
         T val         = op.init();
         shape_for_each(batch_shape, [&](auto b_idx) {
             this->tune_dims(tuned_axes, b_idx, data_idx);
-            val = op(input(data_idx.begin(), data_idx.end()), val);
+            val = op.op()(op.input()(input(data_idx.begin(), data_idx.end())), val);
         });
 
-        output(out_idx.begin(), out_idx.end()) = op.output()(val);
+        output(out_idx.begin(), out_idx.end()) = op.output(batch_shape)(val);
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
@@ -168,7 +133,7 @@ struct reduce_op : op_name<Derived>
             par_for(output_shape.elements(), [&](auto i) {
                 auto out_idx = output_shape.multi(i);
                 this->reduce(
-                    input, batch_shape, tuned_axes, out_idx, output, Op{batch_shape.elements()});
+                    input, batch_shape, tuned_axes, out_idx, output, Op{});
             });
         });
 

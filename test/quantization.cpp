@@ -981,10 +981,8 @@ TEST_CASE(int8_quantization_conv)
         migraphx::shape sx{migraphx::shape::float_type, {4, 2, 2, 2}};
         migraphx::shape sw{migraphx::shape::float_type, {4, 2, 2, 2}};
         std::vector<float> v(sx.elements(), 0.5f);
-        auto input =
-            p.add_literal(migraphx::literal(sx, v));
-        auto weights =
-            p.add_literal(migraphx::literal(sw, v));
+        auto input   = p.add_literal(migraphx::literal(sx, v));
+        auto weights = p.add_literal(migraphx::literal(sw, v));
         p.add_instruction(migraphx::op::convolution{}, input, weights);
 
         return p;
@@ -999,12 +997,12 @@ TEST_CASE(int8_quantization_conv)
         std::vector<float> no_quant_result;
         run_prog(p, cpu_t, no_quant_result);
 
-        for (auto v : no_quant_result)
+        for(auto v : no_quant_result)
         {
             std::cout << v << "\t";
         }
         std::cout << std::endl;
-        for (auto v : quant_result)
+        for(auto v : quant_result)
         {
             std::cout << v << "\t";
         }

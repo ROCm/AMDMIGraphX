@@ -85,6 +85,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
 std::string target::name() const { return "miopen"; }
 
 migraphx::context target::get_context() const { return context{}; }
+
+argument target::copy_to(const argument& arg) const { return gpu::to_gpu(arg); }
+
+argument target::copy_from(const argument& arg) const { return gpu::from_gpu(arg); }
+
+argument target::allocate(const shape& s) const { return gpu::allocate_gpu(s); }
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

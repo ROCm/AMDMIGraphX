@@ -1821,7 +1821,7 @@ TEST_CASE(fp32_fp16_test)
     auto test_case = [&](std::vector<std::string>&& op_names) {
         std::vector<float> gold_res = {2.0, 4.0, 6.0, 8.0, 10.0, 12.0};
         auto p                      = create_program();
-        migraphx::quantize(p, op_names);
+        migraphx::quantize_fp16(p, op_names);
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({});
         std::vector<float> res;
@@ -2029,6 +2029,25 @@ TEST_CASE(sqdiff_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(round_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {9}};
+    auto l = p.add_literal(migraphx::literal{s, {1.1, 1.5, 1.6, -1.1, -1.5, -1.6, 0.0, 2.0, -2.0}});
+    p.add_instruction(migraphx::op::round{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    for(auto v : results_vector)
+    {
+        std::cout << v << "\t";
+    }
+    std::cout << std::endl;
+    std::vector<float> gold = {1.0, 2.0, 2.0, -1.0, -2.0, -2.0, 0.0, 2.0, -2.0};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(op_capture)
 {
     migraphx::program p;
@@ -2048,7 +2067,8 @@ TEST_CASE(op_capture)
     p.add_instruction(migraphx::op::dot{}, pa, ps);
 
     migraphx::program capture_p = p;
-    migraphx::capture_arguments(capture_p);
+    migraphx::target t          = migraphx::cpu::target{};
+    migraphx::capture_arguments(capture_p, t, {"dot"});
 
     p.compile(migraphx::cpu::target{});
     capture_p.compile(migraphx::cpu::target{});
@@ -2062,6 +2082,6 @@ TEST_CASE(op_capture)
     res.visit([&](auto output) { vec.assign(output.begin(), output.end()); });
 
     EXPECT(migraphx::verify_range(vec, cap_vec));
-};
+}
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

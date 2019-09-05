@@ -502,6 +502,24 @@ struct test_triadd2 : verify_program<test_triadd2>
     }
 };
 
+struct test_mul_add : verify_program<test_mul_add>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+        migraphx::shape bs{migraphx::shape::float_type, {3}};
+        auto x   = p.add_parameter("x", s);
+        auto a   = p.add_parameter("a", bs);
+        auto b   = p.add_parameter("b", bs);
+        auto ab  = p.add_instruction(migraphx::op::broadcast{1, s.lens()}, a);
+        auto bb  = p.add_instruction(migraphx::op::broadcast{1, s.lens()}, b);
+        auto mul = p.add_instruction(migraphx::op::mul{}, x, ab);
+        p.add_instruction(migraphx::op::add{}, mul, bb);
+        return p;
+    }
+};
+
 struct test_add_broadcast : verify_program<test_add_broadcast>
 {
     migraphx::program create_program() const
@@ -3676,7 +3694,7 @@ struct test_fp32_fp16_lall : verify_program<test_fp32_fp16_lall>
         auto l1 = p.add_literal(migraphx::literal(s, data));
         auto l2 = p.add_parameter("p2", s);
         p.add_instruction(migraphx::op::add{}, l1, l2);
-        migraphx::quantize(p, {"all"});
+        migraphx::quantize_fp16(p, {"all"});
         return p;
     };
 };
@@ -3692,7 +3710,7 @@ struct test_fp32_fp16_ladd : verify_program<test_fp32_fp16_ladd>
         auto l1 = p.add_literal(migraphx::literal(s, data));
         auto l2 = p.add_parameter("p2", s);
         p.add_instruction(migraphx::op::add{}, l1, l2);
-        migraphx::quantize(p, {"add"});
+        migraphx::quantize_fp16(p, {"add"});
         return p;
     };
 };
@@ -3708,7 +3726,7 @@ struct test_fp32_fp16_add : verify_program<test_fp32_fp16_add>
         auto sum  = p.add_instruction(migraphx::op::add{}, p1, p2);
         auto diff = p.add_instruction(migraphx::op::sub{}, sum, p2);
         p.add_instruction(migraphx::op::add{}, diff, p1);
-        migraphx::quantize(p, {"add"});
+        migraphx::quantize_fp16(p, {"add"});
 
         return p;
     };
@@ -3725,7 +3743,7 @@ struct test_fp32_fp16_sub : verify_program<test_fp32_fp16_sub>
         auto sum  = p.add_instruction(migraphx::op::add{}, p1, p2);
         auto diff = p.add_instruction(migraphx::op::sub{}, sum, p2);
         p.add_instruction(migraphx::op::add{}, diff, p1);
-        migraphx::quantize(p, {"sub"});
+        migraphx::quantize_fp16(p, {"sub"});
 
         return p;
     };
@@ -3824,6 +3842,19 @@ struct test_reduce_mean_half : verify_program<test_reduce_mean_half>
         migraphx::shape s{migraphx::shape::half_type, {3, 1024, 8, 8}};
         auto x = p.add_parameter("x", s);
         p.add_instruction(migraphx::op::reduce_mean{{2}}, x);
+        return p;
+    };
+};
+
+struct test_round : verify_program<test_round>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+
+        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 6}};
+        auto param = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::round{}, param);
         return p;
     };
 };

@@ -4,7 +4,7 @@ include(ROCMPackageConfigHelpers)
 
 add_library(migraphx 
     auto_contiguous.cpp
-    common_subexpression_elimination.cpp
+    eliminate_common_subexpression.cpp
     propagate_constant.cpp
     dead_code_elimination.cpp
     eliminate_allocation.cpp
@@ -12,7 +12,7 @@ add_library(migraphx
     eliminate_concat.cpp
     eliminate_identity.cpp
     eliminate_pad.cpp
-    fwd_conv_batchnorm_rewrite.cpp
+    rewrite_batchnorm.cpp
     rewrite_rnn.cpp
     rewrite_pooling.cpp
     env.cpp

@@ -114,10 +114,13 @@ struct reduce_op : op_name<Derived>
         T val         = static_cast<const Derived&>(*this).init();
         shape_for_each(batch_shape, [&](auto b_idx) {
             this->tune_dims(tuned_axes, b_idx, data_idx);
-            val = static_cast<const Derived&>(*this).op()(static_cast<const Derived&>(*this).input()(input(data_idx.begin(), data_idx.end())), val);
+            val = static_cast<const Derived&>(*this).op()(
+                static_cast<const Derived&>(*this).input()(input(data_idx.begin(), data_idx.end())),
+                val);
         });
 
-        output(out_idx.begin(), out_idx.end()) = static_cast<const Derived&>(*this).output(batch_shape)(val);
+        output(out_idx.begin(), out_idx.end()) =
+            static_cast<const Derived&>(*this).output(batch_shape)(val);
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const

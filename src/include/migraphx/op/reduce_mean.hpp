@@ -16,7 +16,7 @@ struct reduce_mean : reduce_op<reduce_mean>
     {
         return [=](auto x, auto y) { return x + y; };
     }
-    
+
     auto output(const shape& s) const
     {
         return [&](auto val) { return val / s.elements(); };

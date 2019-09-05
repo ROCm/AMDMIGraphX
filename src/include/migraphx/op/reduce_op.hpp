@@ -40,7 +40,7 @@ struct zero
     }
 };
 
-template <class Derived, class Op>
+template <class Derived>
 struct reduce_op : op_name<Derived>
 {
     std::vector<std::int64_t> axes{};
@@ -108,17 +108,16 @@ struct reduce_op : op_name<Derived>
                 shape& batch_shape,
                 std::vector<int64_t>& tuned_axes,
                 std::vector<std::size_t>& out_idx,
-                tensor_view<T>& output,
-                Op op) const
+                tensor_view<T>& output) const
     {
         auto data_idx = out_idx;
-        T val         = op.init();
+        T val         = static_cast<const Derived&>(*this).init();
         shape_for_each(batch_shape, [&](auto b_idx) {
             this->tune_dims(tuned_axes, b_idx, data_idx);
-            val = op.op()(op.input()(input(data_idx.begin(), data_idx.end())), val);
+            val = static_cast<const Derived&>(*this).op()(static_cast<const Derived&>(*this).input()(input(data_idx.begin(), data_idx.end())), val);
         });
 
-        output(out_idx.begin(), out_idx.end()) = op.output(batch_shape)(val);
+        output(out_idx.begin(), out_idx.end()) = static_cast<const Derived&>(*this).output(batch_shape)(val);
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
@@ -132,11 +131,23 @@ struct reduce_op : op_name<Derived>
         visit_all(result, args[0])([&](auto output, auto input) {
             par_for(output_shape.elements(), [&](auto i) {
                 auto out_idx = output_shape.multi(i);
-                this->reduce(input, batch_shape, tuned_axes, out_idx, output, Op{});
+                this->reduce(input, batch_shape, tuned_axes, out_idx, output);
             });
         });
 
         return result;
+    }
+
+    auto init() const { return zero(); }
+
+    auto input() const
+    {
+        return [&](auto val) { return val; };
+    }
+
+    auto output(const shape&) const
+    {
+        return [&](auto val) { return val; };
     }
 
     reduce_op() {}

@@ -241,11 +241,15 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
         long seq_index = is_forward ? i : (seq_len - 1 - i);
         auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, input);
         xt      = prog.insert_instruction(ins, op::squeeze{{0}}, xt);
-        auto xt_wi = prog.insert_instruction(ins, op::dot{}, xt, tran_sw);
         auto ht_ri = prog.insert_instruction(ins, op::dot{}, sih, tran_sr);
+        instruction_ref xt_wi{};
         if(bias != prog.end())
         {
-            xt_wi = prog.insert_instruction(ins, op::add{}, xt_wi, bb);
+            xt_wi = prog.insert_instruction(ins, op::dot{}, xt, tran_sw, bb);
+        }
+        else
+        {
+            xt_wi = prog.insert_instruction(ins, op::dot{}, xt, tran_sw);        
         }
         auto xt_ht = prog.insert_instruction(ins, op::add{}, xt_wi, ht_ri);
 
@@ -538,8 +542,8 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
         auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, seq);
         xt      = prog.insert_instruction(ins, op::squeeze{{0}}, xt);
 
-        auto xt_w    = prog.insert_instruction(ins, op::dot{1.0f, 0.0f}, xt, tw);
-        auto ih1_rzr = prog.insert_instruction(ins, op::dot{1.0f, 0.0f}, sih, trzr);
+        auto xt_w    = prog.insert_instruction(ins, op::dot{}, xt, tw);
+        auto ih1_rzr = prog.insert_instruction(ins, op::dot{}, sih, trzr);
         if(bias != prog.end())
         {
             xt_w    = prog.insert_instruction(ins, op::add{}, xt_w, bwb);
@@ -564,20 +568,26 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
         {
             // equation g(Xt*(Wh^T) + (rt (.) Ht-1)*(Rh^T) + Rbh + Wbh)
             auto rt_ht1 = prog.insert_instruction(ins, op::mul{}, rt, sih);
-            hr_h        = prog.insert_instruction(ins, op::dot{1.0f, 0.0f}, rt_ht1, trh);
             if(bias != prog.end())
             {
-                hr_h = prog.insert_instruction(ins, op::add{}, hr_h, brb_h);
+                hr_h = prog.insert_instruction(ins, op::dot{}, rt_ht1, trh, brb_h);
+            }
+            else
+            {
+                hr_h = prog.insert_instruction(ins, op::dot{}, rt_ht1, trh);
             }
         }
         else
         {
             // equation ht = g(Xt*(Wh^T) + (rt (.) (Ht-1*(Rh^T) + Rbh)) + Wbh)
             instruction_ref ht1_rh{};
-            ht1_rh = prog.insert_instruction(ins, op::dot{1.0f, 0.0f}, sih, trh);
             if(bias != prog.end())
             {
-                ht1_rh = prog.insert_instruction(ins, op::add{}, ht1_rh, brb_h);
+                ht1_rh = prog.insert_instruction(ins, op::dot{}, sih, trh, brb_h);
+            }
+            else
+            {
+                ht1_rh = prog.insert_instruction(ins, op::dot{}, sih, trh);
             }
             hr_h = prog.insert_instruction(ins, op::mul{}, rt, ht1_rh);
         }
@@ -668,6 +678,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
     std::vector<float> ihc_data(ihc_shape.elements(), 0.0);
 
     migraphx::shape pph_shape{type, {1, 3 * hidden_size}};
+    std::vector<float> pph_data(pph_shape.elements(), 0.0);
 
     auto actv_funcs         = lstm_actv_funcs(ins);
     auto lstm_op            = any_cast<op::lstm>(ins->get_operator());

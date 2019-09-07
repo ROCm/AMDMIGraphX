@@ -249,7 +249,7 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
         }
         else
         {
-            xt_wi = prog.insert_instruction(ins, op::dot{}, xt, tran_sw);        
+            xt_wi = prog.insert_instruction(ins, op::dot{}, xt, tran_sw);
         }
         auto xt_ht = prog.insert_instruction(ins, op::add{}, xt_wi, ht_ri);
 

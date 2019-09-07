@@ -17,10 +17,7 @@ struct reduce_max : reduce_op<reduce_max>
         return [=](auto x, auto y) { return x > y ? x : y; };
     }
 
-    auto init() const
-    {
-        return lowest();
-    }
+    auto init() const { return lowest(); }
 };
 
 } // namespace op

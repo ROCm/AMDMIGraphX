@@ -799,7 +799,6 @@ TEST_CASE(reducemax_test)
     EXPECT(p == prog);
 }
 
-
 TEST_CASE(reducesum_test)
 {
     migraphx::program p;

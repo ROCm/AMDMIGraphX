@@ -778,6 +778,28 @@ TEST_CASE(reducemean_keepdims_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(reducemin_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto l1 = p.add_instruction(migraphx::op::reduce_min{{2, 3}}, l0);
+    p.add_instruction(migraphx::op::squeeze{{2, 3}}, l1);
+    auto prog = migraphx::parse_onnx("reducemin_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(reducemax_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    p.add_instruction(migraphx::op::reduce_max{{2}}, l0);
+    auto prog = migraphx::parse_onnx("reducemax_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+
 TEST_CASE(reducesum_test)
 {
     migraphx::program p;

@@ -65,7 +65,7 @@ struct rocblas_gemm
         }
 
         MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
-        
+
         return rocblas_datatype_f32_r;
     }
 

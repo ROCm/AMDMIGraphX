@@ -202,7 +202,7 @@ struct miopen_apply
                 else
                 {
                     auto copy_out = prog->insert_instruction(ins, hip_copy{}, refs.back(), output);
-                    refs.back() = copy_out;
+                    refs.back()   = copy_out;
                     refs.push_back(copy_out);
                 }
             }

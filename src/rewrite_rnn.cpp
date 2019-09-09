@@ -963,13 +963,13 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
         xt      = prog.insert_instruction(ins, op::squeeze{{0}}, xt);
 
         instruction_ref xt_tsw{};
-        if (bias != prog.end())
+        if(bias != prog.end())
         {
-            xt_tsw  = prog.insert_instruction(ins, op::dot{}, xt, tsw, wrb);
+            xt_tsw = prog.insert_instruction(ins, op::dot{}, xt, tsw, wrb);
         }
         else
         {
-            xt_tsw  = prog.insert_instruction(ins, op::dot{}, xt, tsw);            
+            xt_tsw = prog.insert_instruction(ins, op::dot{}, xt, tsw);
         }
         auto xt_sih = prog.insert_instruction(ins, op::dot{}, sih, tsr, xt_tsw);
 

@@ -80,7 +80,7 @@ struct rocblas_gemm
         rocblas_int ldb = args[1].get_shape().strides()[transb ? dim_1 : dim_0];
         rocblas_int ldc = args[2].get_shape().strides()[dim_0];
 
-        bool is_3inputs = (args.size() == 4);
+        bool is_3inputs           = (args.size() == 4);
         rocblas_datatype arg_type = get_type(args[0].get_shape().type());
         auto output_type          = arg_type;
         if(output_type == rocblas_datatype_i8_r)

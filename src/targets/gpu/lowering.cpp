@@ -183,17 +183,18 @@ struct miopen_apply
         });
     }
 
-    template<class Op>
+    template <class Op>
     void add_gemm_op(std::string name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
             auto&& op                         = any_cast<Op>(ins->get_operator());
-            auto beta = op.beta;
+            auto beta                         = op.beta;
             std::vector<instruction_ref> refs = ins->inputs();
-            if((refs.size() == 2) or (refs.size() == 3 and refs.back()->outputs().size() > 1) or (ins == last))
+            if((refs.size() == 2) or (refs.size() == 3 and refs.back()->outputs().size() > 1) or
+               (ins == last))
             {
                 auto output = insert_allocation(ins, ins->get_shape());
-                if (refs.size() == 2)
+                if(refs.size() == 2)
                 {
                     beta = 0;
                     refs.push_back(output);

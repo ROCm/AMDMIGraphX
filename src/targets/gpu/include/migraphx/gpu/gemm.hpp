@@ -195,9 +195,6 @@ struct rocblas_gemm
             }
         });
 
-        // hipStreamSynchronize(ctx.get_stream().get());
-        hipDeviceSynchronize();
-
         return is_3inputs ? args[3] : args[2];
     }
 

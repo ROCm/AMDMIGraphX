@@ -23,9 +23,9 @@ void add_relu(hipStream_t stream,
               const argument& arg2);
 
 void add_sigmoid(hipStream_t stream,
-              const argument& result,
-              const argument& arg1,
-              const argument& arg2);
+                 const argument& result,
+                 const argument& arg1,
+                 const argument& arg2);
 
 void add_tanh(hipStream_t stream,
               const argument& result,
@@ -39,10 +39,10 @@ void add_relu(hipStream_t stream,
               const argument& arg3);
 
 void add_sigmoid(hipStream_t stream,
-              const argument& result,
-              const argument& arg1,
-              const argument& arg2,
-              const argument& arg3);
+                 const argument& result,
+                 const argument& arg1,
+                 const argument& arg2,
+                 const argument& arg3);
 
 void add_tanh(hipStream_t stream,
               const argument& result,

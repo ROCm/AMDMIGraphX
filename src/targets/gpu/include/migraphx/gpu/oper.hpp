@@ -98,7 +98,9 @@ struct binary_device : oper<Derived>
     }
 };
 
-template <class Derived, void (*F)(hipStream_t, const argument&, const argument&, const argument&, const argument&)>
+template <class Derived,
+          void (*F)(
+              hipStream_t, const argument&, const argument&, const argument&, const argument&)>
 struct ternary_device : oper<Derived>
 {
     shape compute_shape(const std::vector<shape>& inputs) const

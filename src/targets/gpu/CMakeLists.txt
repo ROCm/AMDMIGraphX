@@ -30,7 +30,7 @@ add_library(migraphx_device
     device/acos.cpp
     device/atan.cpp
     device/relu.cpp
-    device/add_relu.cpp
+    device/add_unary.cpp
     device/contiguous.cpp
     device/logsoftmax.cpp
     device/softmax.cpp

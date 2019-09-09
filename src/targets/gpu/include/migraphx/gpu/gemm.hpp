@@ -61,10 +61,11 @@ struct rocblas_gemm
         case shape::uint16_type:
         case shape::int16_type:
         case shape::int64_type:
-        case shape::uint64_type:
-        default: MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
+        case shape::uint64_type: MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
         }
 
+        MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
+        
         return rocblas_datatype_f32_r;
     }
 
@@ -128,7 +129,7 @@ struct rocblas_gemm
                                 arg_type,
                                 lda,
                                 &beta_r,
-                                to_pointer(args[2]),
+                                is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
                                 output_type,
                                 ldc,
                                 is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
@@ -160,7 +161,7 @@ struct rocblas_gemm
                     lda,
                     m * k,
                     &beta_r,
-                    to_pointer(args[2]),
+                    is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
                     output_type,
                     ldc,
                     m * n,

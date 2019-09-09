@@ -678,7 +678,6 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
     std::vector<float> ihc_data(ihc_shape.elements(), 0.0);
 
     migraphx::shape pph_shape{type, {1, 3 * hidden_size}};
-    std::vector<float> pph_data(pph_shape.elements(), 0.0);
 
     auto actv_funcs         = lstm_actv_funcs(ins);
     auto lstm_op            = any_cast<op::lstm>(ins->get_operator());
@@ -963,13 +962,16 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
         auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, seq);
         xt      = prog.insert_instruction(ins, op::squeeze{{0}}, xt);
 
-        auto xt_tsw  = prog.insert_instruction(ins, op::dot{}, xt, tsw);
-        auto sih_tsr = prog.insert_instruction(ins, op::dot{}, sih, tsr);
-        auto xt_sih  = prog.insert_instruction(ins, op::add{}, xt_tsw, sih_tsr);
-        if(bias != prog.end())
+        instruction_ref xt_tsw{};
+        if (bias != prog.end())
         {
-            xt_sih = prog.insert_instruction(ins, op::add{}, xt_sih, wrb);
+            xt_tsw  = prog.insert_instruction(ins, op::dot{}, xt, tsw, wrb);
         }
+        else
+        {
+            xt_tsw  = prog.insert_instruction(ins, op::dot{}, xt, tsw);            
+        }
+        auto xt_sih = prog.insert_instruction(ins, op::dot{}, sih, tsr, xt_tsw);
 
         auto it_before_actv = prog.insert_instruction(ins, op::slice{{1}, {0}, {hs}}, xt_sih);
         auto ot_before_actv = prog.insert_instruction(ins, op::slice{{1}, {hs}, {2 * hs}}, xt_sih);

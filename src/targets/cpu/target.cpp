@@ -5,6 +5,7 @@
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/generate.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -21,6 +22,8 @@ std::vector<pass> target::get_passes(migraphx::context&) const
             lowering{},
             dead_code_elimination{}};
 }
+
+argument target::allocate(const shape& s) const { return fill_argument(s, 0); }
 
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS

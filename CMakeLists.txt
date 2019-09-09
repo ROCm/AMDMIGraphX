@@ -22,7 +22,7 @@ find_package(ROCM REQUIRED)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 0.3)
+rocm_setup_version(VERSION 0.4)
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 
@@ -125,6 +125,8 @@ rocm_enable_cppcheck(
         functionConst:*program.*
         shadowFunction
         shadowVar
+        shadowVariable
+        unsafeClassDivZero
         definePrefix:*test/include/test.hpp
     FORCE
     INCONCLUSIVE

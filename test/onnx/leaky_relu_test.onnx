@@ -1,4 +1,4 @@
-leaky_relu-example:R
+leaky_relu-example:R
 "
 01"	LeakyRelu*
 alpha
@@ -11,4 +11,4 @@ test-modelZ
 1
 
 
-B
+B

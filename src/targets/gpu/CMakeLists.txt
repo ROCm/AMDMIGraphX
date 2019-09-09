@@ -34,16 +34,19 @@ add_library(migraphx_device
     device/contiguous.cpp
     device/logsoftmax.cpp
     device/softmax.cpp
+    device/sigmoid.cpp
     device/convert.cpp
     device/mul.cpp
     device/concat.cpp
     device/pad.cpp
     device/gather.cpp
     device/sub.cpp
+    device/int8_gemm_pack.cpp
     device/div.cpp
     device/clip.cpp
     device/reduce_sum.cpp
     device/rsqrt.cpp
+    device/round.cpp
     device/sqrt.cpp
     device/reduce_mean.cpp
     device/pow.cpp
@@ -51,6 +54,7 @@ add_library(migraphx_device
     device/sign.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
+rocm_set_soversion(migraphx_device ${PROJECT_VERSION})
 rocm_clang_tidy_check(migraphx_device)
 target_link_libraries(migraphx_device migraphx hip::device -Wno-invalid-command-line-argument -amdgpu-target=gfx803 -amdgpu-target=gfx900 -amdgpu-target=gfx906)
 target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
@@ -65,8 +69,10 @@ add_library(migraphx_gpu
     target.cpp
     lowering.cpp
     gemm.cpp
+    quant_gemm.cpp
     pooling.cpp
     convolution.cpp
+    quant_convolution.cpp
     softmax.cpp
     logsoftmax.cpp
     contiguous.cpp
@@ -75,19 +81,23 @@ add_library(migraphx_gpu
     batchnorm.cpp
     write_literals.cpp
     rocblas.cpp
-    sigmoid.cpp
     abs.cpp
     elu.cpp
     pad.cpp
     gather.cpp
+    convert.cpp
     lrn.cpp
     schedule_model.cpp
     adjust_allocation.cpp
+    pack_int8_args.cpp
     clip.cpp
     reduce_sum.cpp
     reduce_mean.cpp
+    int8_gemm_pack.cpp
+    int8_conv_pack.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
+rocm_set_soversion(migraphx_gpu ${PROJECT_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device)

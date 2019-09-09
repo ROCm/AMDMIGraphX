@@ -55,6 +55,7 @@ struct onnx_parser
         add_generic_op("Acos", op::acos{});
         add_generic_op("Atan", op::atan{});
         add_generic_op("Sqrt", op::sqrt{});
+        add_generic_op("Round", op::round{});
         add_generic_op("Sign", op::sign{});
 
         add_binary_op("Add", op::add{});
@@ -206,6 +207,16 @@ struct onnx_parser
         return out_lens;
     }
 
+    instruction_ref make_contiguous(instruction_ref ins)
+    {
+        if(ins->get_shape().standard())
+        {
+            return ins;
+        }
+
+        return prog.add_instruction(op::contiguous{}, ins);
+    }
+
     template <class T>
     instruction_ref add_broadcastable_binary_op(instruction_ref arg0, instruction_ref arg1, T x)
     {
@@ -313,7 +324,11 @@ struct onnx_parser
         {
             if(contains(attributes, "auto_pad"))
             {
-                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                auto s = attributes["auto_pad"].s();
+                if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
+                {
+                    MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                }
             }
             std::vector<std::int64_t> padding;
             copy(attributes["pads"].ints(), std::back_inserter(padding));
@@ -361,7 +376,7 @@ struct onnx_parser
         if(args.size() == 3)
         {
             uint64_t axis = 1;
-            auto l1       = prog.add_instruction(op, args[0], args[1]);
+            auto l1       = prog.add_instruction(op, l0, args[1]);
             auto l2 = prog.add_instruction(op::broadcast{axis, l1->get_shape().lens()}, args[2]);
             return prog.add_instruction(op::add{}, l1, l2);
         }
@@ -437,12 +452,7 @@ struct onnx_parser
             s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
         }
 
-        if(!args[0]->get_shape().standard())
-        {
-            args[0] = prog.add_instruction(op::contiguous{}, args[0]);
-        }
-
-        return prog.add_instruction(op, args[0]);
+        return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
     instruction_ref
@@ -490,23 +500,33 @@ struct onnx_parser
         {
             axis = parse_value(attributes.at("axis")).at<int>();
         }
+
         op::gather op{axis};
-        return prog.add_instruction(op, std::move(args));
+        return prog.add_instruction(op, make_contiguous(args[0]), make_contiguous(args[1]));
     }
 
     instruction_ref
     parse_slice(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         op::slice op;
+        std::vector<size_t> dims = args[0]->get_shape().lens();
+        size_t num_dims          = dims.size();
         if(contains(attributes, "axes"))
         {
             literal s = parse_value(attributes.at("axes"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
         }
+        else
         {
-            literal s = parse_value(attributes.at("ends"));
-            s.visit([&](auto v) { copy(v, std::back_inserter(op.ends)); });
+            op.axes = std::vector<int64_t>(num_dims);
+            std::iota(op.axes.begin(), op.axes.end(), 0);
         }
+
+        if(contains(attributes, "ends"))
+        {
+            op.ends = get_indices(attributes.at("ends"));
+        }
+        if(contains(attributes, "starts"))
         {
             literal s = parse_value(attributes.at("starts"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.starts)); });
@@ -655,7 +675,6 @@ struct onnx_parser
         float epsilon                                     = 1e-5f;
         float momentum                                    = 0.9f;
         op::batch_norm_inference::bn_infer_mode_t bn_mode = op::batch_norm_inference::spatial;
-        bool is_test                                      = false;
         if(contains(attributes, "epsilon"))
         {
             epsilon = parse_value(attributes.at("epsilon")).at<float>();
@@ -664,17 +683,12 @@ struct onnx_parser
         {
             momentum = parse_value(attributes.at("momentum")).at<float>();
         }
-        if(contains(attributes, "is_test"))
-        {
-            is_test = parse_value(attributes.at("is_test")).at<uint64_t>() > 0;
-        }
         if(contains(attributes, "spatial"))
         {
             bn_mode = (parse_value(attributes.at("spatial")).at<uint64_t>() > 0)
                           ? op::batch_norm_inference::spatial
                           : op::batch_norm_inference::per_activation;
         }
-        (void)is_test;
         op::batch_norm_inference op{epsilon, momentum, bn_mode};
         return prog.add_instruction(op, std::move(args));
     }
@@ -1011,9 +1025,10 @@ struct onnx_parser
         }
 
         std::vector<operation> vec_actv_funcs(vec_names.size());
-        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](auto& fn) {
-            return map_actv_funcs[fn];
-        });
+        std::transform(vec_names.begin(),
+                       vec_names.end(),
+                       vec_actv_funcs.begin(),
+                       [&](const auto& fn) { return map_actv_funcs[fn]; });
 
         // To be added later
         float clip = 0.0;
@@ -1127,9 +1142,10 @@ struct onnx_parser
         }
 
         std::vector<operation> vec_actv_funcs(vec_names.size());
-        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](auto& name) {
-            return map_actv_funcs[name];
-        });
+        std::transform(vec_names.begin(),
+                       vec_names.end(),
+                       vec_actv_funcs.begin(),
+                       [&](const auto& name) { return map_actv_funcs[name]; });
 
         float clip = 0.0;
         if(contains(attributes, "clip"))
@@ -1299,9 +1315,10 @@ struct onnx_parser
         }
 
         std::vector<operation> vec_actv_funcs(vec_names.size());
-        std::transform(vec_names.begin(), vec_names.end(), vec_actv_funcs.begin(), [&](auto& name) {
-            return map_actv_funcs[name];
-        });
+        std::transform(vec_names.begin(),
+                       vec_names.end(),
+                       vec_actv_funcs.begin(),
+                       [&](const auto& name) { return map_actv_funcs[name]; });
 
         float clip = 0.0;
         if(contains(attributes, "clip"))
@@ -1514,6 +1531,20 @@ struct onnx_parser
                 result[output] = node;
             }
         }
+        return result;
+    }
+
+    static std::vector<int64_t> get_indices(const onnx::AttributeProto& attr)
+    {
+        std::vector<int64_t> result;
+        literal s = parse_value(attr);
+        s.visit([&](auto v) { copy(v, std::back_inserter(result)); });
+        // Clamp large indices to -1
+        std::replace_if(
+            result.begin(),
+            result.end(),
+            [](auto x) { return x > int64_t{std::numeric_limits<std::int32_t>::max()} / 2; },
+            -1);
         return result;
     }
 

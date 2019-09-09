@@ -4,7 +4,7 @@ include(ROCMPackageConfigHelpers)
 
 add_library(migraphx 
     auto_contiguous.cpp
-    common_subexpression_elimination.cpp
+    eliminate_common_subexpression.cpp
     propagate_constant.cpp
     dead_code_elimination.cpp
     eliminate_allocation.cpp
@@ -28,6 +28,7 @@ add_library(migraphx
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp
 )
+rocm_set_soversion(migraphx ${PROJECT_VERSION})
 rocm_clang_tidy_check(migraphx)
 rocm_install_targets(
   TARGETS migraphx

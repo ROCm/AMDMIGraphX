@@ -3749,7 +3749,7 @@ struct test_fp32_fp16_sub : verify_program<test_fp32_fp16_sub>
     };
 };
 
-template<class Op, int Axis, migraphx::shape::type_t T>
+template <class Op, int Axis, migraphx::shape::type_t T>
 struct test_reduce_op_large : verify_program<test_reduce_op_large<Op, Axis, T>>
 {
     migraphx::program create_program() const
@@ -3762,13 +3762,12 @@ struct test_reduce_op_large : verify_program<test_reduce_op_large<Op, Axis, T>>
     };
 };
 
-
 template struct test_reduce_op_large<migraphx::op::reduce_sum, 1, migraphx::shape::float_type>;
 template struct test_reduce_op_large<migraphx::op::reduce_mean, 1, migraphx::shape::float_type>;
 template struct test_reduce_op_large<migraphx::op::reduce_max, 1, migraphx::shape::float_type>;
 template struct test_reduce_op_large<migraphx::op::reduce_min, 1, migraphx::shape::float_type>;
 
-template<class Op, int Axis, migraphx::shape::type_t T>
+template <class Op, int Axis, migraphx::shape::type_t T>
 struct test_reduce_op_small : verify_program<test_reduce_op_small<Op, Axis, T>>
 {
     migraphx::program create_program() const
@@ -3781,12 +3780,12 @@ struct test_reduce_op_small : verify_program<test_reduce_op_small<Op, Axis, T>>
     };
 };
 template struct test_reduce_op_small<migraphx::op::reduce_sum, 2, migraphx::shape::int32_type>;
-template struct test_reduce_op_small<migraphx::op::reduce_mean, 2,migraphx::shape::int32_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_mean, 2, migraphx::shape::int32_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_max, 2, migraphx::shape::int32_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_min, 2, migraphx::shape::int32_type>;
 
 template struct test_reduce_op_small<migraphx::op::reduce_sum, 2, migraphx::shape::half_type>;
-template struct test_reduce_op_small<migraphx::op::reduce_mean, 2,migraphx::shape::half_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_mean, 2, migraphx::shape::half_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_max, 2, migraphx::shape::half_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_min, 2, migraphx::shape::half_type>;
 

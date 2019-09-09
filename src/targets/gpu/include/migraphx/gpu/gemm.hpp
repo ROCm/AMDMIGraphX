@@ -81,23 +81,6 @@ struct rocblas_gemm
         rocblas_int ldc = args[2].get_shape().strides()[dim_0];
 
         bool is_3inputs = (args.size() == 4);
-        auto beta       = op.beta;
-        if(is_3inputs)
-        {
-            // output_shape.visit_type([&](auto as) {
-            //    auto to_pointer = [&](auto&& arg) { return as.from(arg.data()); };
-            //    hipMemcpyAsync(to_pointer(args[3]),
-            //                   to_pointer(args[2]),
-            //                   output_shape.bytes(),
-            //                   hipMemcpyDeviceToDevice,
-            //                   ctx.get_stream().get());
-            //});
-        }
-        else
-        {
-            beta = 0;
-        }
-
         rocblas_datatype arg_type = get_type(args[0].get_shape().type());
         auto output_type          = arg_type;
         if(output_type == rocblas_datatype_i8_r)
@@ -110,7 +93,7 @@ struct rocblas_gemm
         auto b_lens = args[1].get_shape().lens();
         output_shape.visit_type([&](auto as) {
             auto alpha_r    = as(op.alpha);
-            auto beta_r     = as(beta);
+            auto beta_r     = as(op.beta);
             auto out_lens   = output_shape.lens();
             rocblas_int m   = out_lens[dim_0];
             rocblas_int n   = out_lens[dim_1];

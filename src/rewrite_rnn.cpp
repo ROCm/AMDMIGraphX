@@ -241,16 +241,13 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
         long seq_index = is_forward ? i : (seq_len - 1 - i);
         auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, input);
         xt      = prog.insert_instruction(ins, op::squeeze{{0}}, xt);
-        instruction_ref xt_wi{};
+        auto xt_wi = prog.insert_instruction(ins, op::dot{}, xt, tran_sw);
+        auto ht_ri = prog.insert_instruction(ins, op::dot{}, sih, tran_sr);
         if(bias != prog.end())
         {
-            xt_wi = prog.insert_instruction(ins, op::dot{}, xt, tran_sw, bb);
+            xt_wi = prog.insert_instruction(ins, op::add{}, xt_wi, bb);
         }
-        else
-        {
-            xt_wi = prog.insert_instruction(ins, op::dot{}, xt, tran_sw);
-        }
-        auto xt_ht = prog.insert_instruction(ins, op::dot{}, sih, tran_sr, xt_wi);
+        auto xt_ht = prog.insert_instruction(ins, op::add{}, xt_wi, ht_ri);
 
         // apply activation function
         auto ht = prog.insert_instruction(ins, actv_func, xt_ht);
@@ -541,18 +538,12 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
         auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, seq);
         xt      = prog.insert_instruction(ins, op::squeeze{{0}}, xt);
 
-        instruction_ref xt_w{};
-        instruction_ref ih1_rzr{};
-
+        auto xt_w    = prog.insert_instruction(ins, op::dot{}, xt, tw);
+        auto ih1_rzr = prog.insert_instruction(ins, op::dot{}, sih, trzr);
         if(bias != prog.end())
         {
-            xt_w    = prog.insert_instruction(ins, op::dot{}, xt, tw, bwb);
-            ih1_rzr = prog.insert_instruction(ins, op::dot{}, sih, trzr, brb_zr);
-        }
-        else
-        {
-            xt_w    = prog.insert_instruction(ins, op::dot{}, xt, tw);
-            ih1_rzr = prog.insert_instruction(ins, op::dot{}, sih, trzr);
+            xt_w    = prog.insert_instruction(ins, op::add{}, xt_w, bwb);
+            ih1_rzr = prog.insert_instruction(ins, op::add{}, ih1_rzr, brb_zr);
         }
 
         auto xw_z = prog.insert_instruction(ins, op::slice{{1}, {0}, {hs}}, xt_w);
@@ -573,26 +564,19 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
         {
             // equation g(Xt*(Wh^T) + (rt (.) Ht-1)*(Rh^T) + Rbh + Wbh)
             auto rt_ht1 = prog.insert_instruction(ins, op::mul{}, rt, sih);
+            hr_h = prog.insert_instruction(ins, op::dot{}, rt_ht1, trh);
             if(bias != prog.end())
             {
-                hr_h = prog.insert_instruction(ins, op::dot{}, rt_ht1, trh, brb_h);
-            }
-            else
-            {
-                hr_h = prog.insert_instruction(ins, op::dot{}, rt_ht1, trh);
+                hr_h = prog.insert_instruction(ins, op::add{}, hr_h, brb_h);
             }
         }
         else
         {
             // equation ht = g(Xt*(Wh^T) + (rt (.) (Ht-1*(Rh^T) + Rbh)) + Wbh)
-            instruction_ref ht1_rh{};
+            auto ht1_rh = prog.insert_instruction(ins, op::dot{}, sih, trh);
             if(bias != prog.end())
             {
-                ht1_rh = prog.insert_instruction(ins, op::dot{}, sih, trh, brb_h);
-            }
-            else
-            {
-                ht1_rh = prog.insert_instruction(ins, op::dot{}, sih, trh);
+                ht1_rh = prog.insert_instruction(ins, op::add{}, ht1_rh, brb_h);
             }
             hr_h = prog.insert_instruction(ins, op::mul{}, rt, ht1_rh);
         }
@@ -967,16 +951,13 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
         auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, seq);
         xt      = prog.insert_instruction(ins, op::squeeze{{0}}, xt);
 
-        instruction_ref xt_tsw{};
+        auto xt_tsw  = prog.insert_instruction(ins, op::dot{}, xt, tsw);
+        auto sih_tsr = prog.insert_instruction(ins, op::dot{}, sih, tsr);
+        auto xt_sih  = prog.insert_instruction(ins, op::add{}, xt_tsw, sih_tsr);
         if(bias != prog.end())
         {
-            xt_tsw = prog.insert_instruction(ins, op::dot{}, xt, tsw, wrb);
+            xt_sih = prog.insert_instruction(ins, op::add{}, xt_sih, wrb);
         }
-        else
-        {
-            xt_tsw = prog.insert_instruction(ins, op::dot{}, xt, tsw);
-        }
-        auto xt_sih = prog.insert_instruction(ins, op::dot{}, sih, tsr, xt_tsw);
 
         auto it_before_actv = prog.insert_instruction(ins, op::slice{{1}, {0}, {hs}}, xt_sih);
         auto ot_before_actv = prog.insert_instruction(ins, op::slice{{1}, {hs}, {2 * hs}}, xt_sih);

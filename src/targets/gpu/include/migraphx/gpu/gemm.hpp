@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_RTGLIB_QGEMM_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QGEMM_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_GEMM_HPP
+#define MIGRAPHX_GUARD_RTGLIB_GEMM_HPP
 
 #include <rocblas-types.h>
 #include <migraphx/shape.hpp>

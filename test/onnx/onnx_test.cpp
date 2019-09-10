@@ -439,13 +439,7 @@ TEST_CASE(gemm_ex_test)
     auto t0    = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, l0);
     auto alpha = 0.5f;
     auto beta  = 0.8f;
-    auto alpha_ab = p.add_instruction(migraphx::op::dot{alpha, 0}, t0, l1);
-    std::vector<float> vec_beta(l2->get_shape().elements(), beta);
-    auto l_beta =
-        p.add_literal(migraphx::literal(l2->get_shape(), vec_beta.begin(), vec_beta.end()));
-    auto beta_c = p.add_instruction(migraphx::op::mul{}, l_beta, l2);
-    p.add_instruction(migraphx::op::add{}, alpha_ab, beta_c);
-
+    p.add_instruction(migraphx::op::dot{alpha, beta}, t0, l1, l2);
     auto prog = migraphx::parse_onnx("gemm_ex_test.onnx");
 
     EXPECT(p == prog);
@@ -459,17 +453,10 @@ TEST_CASE(gemm_ex_brcst_test)
     auto l2 = p.add_parameter("3", migraphx::shape{migraphx::shape::float_type, {1, 1, 6, 1}});
     auto t0 = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, l0);
     std::vector<std::size_t> out_lens{1, 1, 6, 7};
-    auto t2       = p.add_instruction(migraphx::op::multibroadcast{out_lens}, l2);
-    auto alpha    = 0.5f;
-    auto beta     = 0.8f;
-    auto alpha_ab = p.add_instruction(migraphx::op::dot{alpha, 0}, t0, l1);
-
-    migraphx::shape t2_shape{l2->get_shape().type(), out_lens};
-    std::vector<float> vec_beta(t2_shape.elements(), beta);
-    auto l_beta = p.add_literal(migraphx::literal(t2_shape, vec_beta.begin(), vec_beta.end()));
-    auto beta_c = p.add_instruction(migraphx::op::mul{}, l_beta, t2);
-    p.add_instruction(migraphx::op::add{}, alpha_ab, beta_c);
-
+    auto t2    = p.add_instruction(migraphx::op::multibroadcast{out_lens}, l2);
+    auto alpha = 0.5f;
+    auto beta  = 0.8f;
+    p.add_instruction(migraphx::op::dot{alpha, beta}, t0, l1, t2);
     auto prog = migraphx::parse_onnx("gemm_ex_brcst_test.onnx");
 
     EXPECT(p == prog);

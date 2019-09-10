@@ -599,12 +599,7 @@ struct onnx_parser
                 {
                     l3 = prog.add_instruction(op::multibroadcast{out_lens}, args[2]);
                 }
-                auto alpha_ab = prog.add_instruction(op::dot{alpha, 0}, l1, l2);
-                shape l3_shape{l3->get_shape().type(), out_lens};
-                std::vector<float> vec_beta(l3_shape.elements(), beta);
-                auto l_beta = prog.add_literal(literal(l3_shape, vec_beta.begin(), vec_beta.end()));
-                auto beta_c = prog.add_instruction(op::mul{}, l_beta, l3);
-                return prog.add_instruction(op::add{}, alpha_ab, beta_c);
+                return prog.add_instruction(op::dot{alpha, beta}, l1, l2, l3);
             }
         }
 

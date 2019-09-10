@@ -779,9 +779,8 @@ struct tf_parser
         std::vector<std::size_t> arg_shape = args[0]->get_shape().lens();
         std::vector<int32_t> vec_shape(arg_shape.size());
         migraphx::shape s(migraphx::shape::int32_type, {arg_shape.size()});
-        std::transform(arg_shape.begin(), arg_shape.end(), vec_shape.begin(), [](auto i) {
-            return i;
-        });
+        std::transform(
+            arg_shape.begin(), arg_shape.end(), vec_shape.begin(), [](auto i) { return i; });
         return prog.add_literal(migraphx::literal{s, vec_shape});
     }
 

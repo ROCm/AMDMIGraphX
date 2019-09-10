@@ -180,6 +180,7 @@ struct tf_parser
         add_binary_op("SquaredDifference", op::sqdiff{});
         add_binary_op("Sub", op::sub{});
 
+        add_mem_op("ArgMax", &tf_parser::parse_arg_op<op::argmax>, false);
         add_mem_op("AvgPool", &tf_parser::parse_pooling);
         add_mem_op("BatchMatMul", &tf_parser::parse_matmul, false);
         add_mem_op("BatchMatMulV2", &tf_parser::parse_matmul, false);
@@ -305,6 +306,17 @@ struct tf_parser
                    return prog.add_instruction(x, args);
                },
                transpose);
+    }
+
+    template <class Op>
+    instruction_ref parse_arg_op(const std::string&,
+                                 const attribute_map&,
+                                 std::vector<instruction_ref> args)
+    {
+        int64_t axis = 0;
+        axis     = args[1]->eval().at<int64_t>();
+        auto ins = prog.add_instruction(Op{axis}, args.front());
+        return prog.add_instruction(op::squeeze{{axis}}, ins);
     }
 
     instruction_ref
@@ -918,6 +930,11 @@ struct tf_parser
             if(is_nhwc and dims.size() >= 4)
             {
                 reorder_data(dims);
+            }
+            for(auto& x : dims)
+            {
+                if(x == -1)
+                    x = 64;
             }
             shape s            = shape{shape_type, dims};
             instructions[name] = to_nhwc(prog.add_parameter(name, s));

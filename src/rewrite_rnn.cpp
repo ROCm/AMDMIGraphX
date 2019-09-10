@@ -241,7 +241,6 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
         long seq_index = is_forward ? i : (seq_len - 1 - i);
         auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, input);
         xt      = prog.insert_instruction(ins, op::squeeze{{0}}, xt);
-        auto ht_ri = prog.insert_instruction(ins, op::dot{}, sih, tran_sr);
         instruction_ref xt_wi{};
         if(bias != prog.end())
         {
@@ -251,7 +250,7 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
         {
             xt_wi = prog.insert_instruction(ins, op::dot{}, xt, tran_sw);
         }
-        auto xt_ht = prog.insert_instruction(ins, op::add{}, xt_wi, ht_ri);
+        auto xt_ht = prog.insert_instruction(ins, op::dot{}, sih, tran_sr, xt_wi);
 
         // apply activation function
         auto ht = prog.insert_instruction(ins, actv_func, xt_ht);
@@ -542,12 +541,18 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
         auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, seq);
         xt      = prog.insert_instruction(ins, op::squeeze{{0}}, xt);
 
-        auto xt_w    = prog.insert_instruction(ins, op::dot{}, xt, tw);
-        auto ih1_rzr = prog.insert_instruction(ins, op::dot{}, sih, trzr);
-        if(bias != prog.end())
+        instruction_ref xt_w{};
+        instruction_ref ih1_rzr{};
+
+        if (bias != prog.end())
         {
-            xt_w    = prog.insert_instruction(ins, op::add{}, xt_w, bwb);
-            ih1_rzr = prog.insert_instruction(ins, op::add{}, ih1_rzr, brb_zr);
+            xt_w    = prog.insert_instruction(ins, op::dot{}, xt, tw, bwb);
+            ih1_rzr = prog.insert_instruction(ins, op::dot{}, sih, trzr, brb_zr);
+        }
+        else
+        {
+            xt_w    = prog.insert_instruction(ins, op::dot{}, xt, tw);
+            ih1_rzr = prog.insert_instruction(ins, op::dot{}, sih, trzr);
         }
 
         auto xw_z = prog.insert_instruction(ins, op::slice{{1}, {0}, {hs}}, xt_w);

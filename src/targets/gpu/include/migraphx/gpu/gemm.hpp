@@ -82,6 +82,11 @@ struct rocblas_gemm
         rocblas_int ldc = args[2].get_shape().strides()[dim_0];
 
         bool is_3inputs           = (args.size() == 4);
+        auto beta = op.beta;
+        if (!is_3inputs)
+        {
+            beta = 0;
+        }
         rocblas_datatype arg_type = get_type(args[0].get_shape().type());
         auto output_type          = arg_type;
         if(output_type == rocblas_datatype_i8_r)
@@ -94,7 +99,7 @@ struct rocblas_gemm
         auto b_lens = args[1].get_shape().lens();
         output_shape.visit_type([&](auto as) {
             auto alpha_r    = as(op.alpha);
-            auto beta_r     = as(op.beta);
+            auto beta_r     = as(beta);
             auto out_lens   = output_shape.lens();
             rocblas_int m   = out_lens[dim_0];
             rocblas_int n   = out_lens[dim_1];
@@ -129,7 +134,7 @@ struct rocblas_gemm
                                 arg_type,
                                 lda,
                                 &beta_r,
-                                is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
+                                to_pointer(args[2]),
                                 output_type,
                                 ldc,
                                 is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
@@ -161,7 +166,7 @@ struct rocblas_gemm
                     lda,
                     m * k,
                     &beta_r,
-                    is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
+                    to_pointer(args[2]),
                     output_type,
                     ldc,
                     m * n,

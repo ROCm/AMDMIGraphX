@@ -200,6 +200,7 @@ struct tf_parser
         add_mem_op("Pack", &tf_parser::parse_pack, false);
         add_mem_op("Pad", &tf_parser::parse_pad);
         add_mem_op("Reshape", &tf_parser::parse_reshape, false);
+        add_mem_op("Shape", &tf_parser::parse_shape, false);
         add_mem_op("Slice", &tf_parser::parse_slice, false);
         add_mem_op("Softmax", &tf_parser::parse_softmax<op::softmax>, false);
         add_mem_op("Squeeze", &tf_parser::parse_squeeze, false);
@@ -309,13 +310,12 @@ struct tf_parser
     }
 
     template <class Op>
-    instruction_ref parse_arg_op(const std::string&,
-                                 const attribute_map&,
-                                 std::vector<instruction_ref> args)
+    instruction_ref
+    parse_arg_op(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         int64_t axis = 0;
-        axis     = args[1]->eval().at<int64_t>();
-        auto ins = prog.add_instruction(Op{axis}, args.front());
+        axis         = args[1]->eval().at<int64_t>();
+        auto ins     = prog.add_instruction(Op{axis}, args.front());
         return prog.add_instruction(op::squeeze{{axis}}, ins);
     }
 
@@ -771,17 +771,18 @@ struct tf_parser
         return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
-    void parse_from(std::istream& is)
+    // Use a literal instruction to replace the shape since output of
+    // shape operator are literals in migraphx
+    instruction_ref
+    parse_shape(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
-        tensorflow::GraphDef graph;
-        if(graph.ParseFromIstream(&is))
-        {
-            this->parse_graph(graph);
-        }
-        else
-        {
-            throw std::runtime_error("Failed reading tf file");
-        }
+        std::vector<std::size_t> arg_shape = args[0]->get_shape().lens();
+        std::vector<int32_t> vec_shape(arg_shape.size());
+        migraphx::shape s(migraphx::shape::int32_type, {arg_shape.size()});
+        std::transform(arg_shape.begin(), arg_shape.end(), vec_shape.begin(), [](auto i) {
+            return i;
+        });
+        return prog.add_literal(migraphx::literal{s, vec_shape});
     }
 
     instruction_ref
@@ -980,6 +981,19 @@ struct tf_parser
             {
                 instructions[name] = ops[node.op()](get_attributes(node), args);
             }
+        }
+    }
+
+    void parse_from(std::istream& is)
+    {
+        tensorflow::GraphDef graph;
+        if(graph.ParseFromIstream(&is))
+        {
+            this->parse_graph(graph);
+        }
+        else
+        {
+            throw std::runtime_error("Failed reading tf file");
         }
     }
 

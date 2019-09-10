@@ -544,7 +544,7 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
         instruction_ref xt_w{};
         instruction_ref ih1_rzr{};
 
-        if (bias != prog.end())
+        if(bias != prog.end())
         {
             xt_w    = prog.insert_instruction(ins, op::dot{}, xt, tw, bwb);
             ih1_rzr = prog.insert_instruction(ins, op::dot{}, sih, trzr, brb_zr);

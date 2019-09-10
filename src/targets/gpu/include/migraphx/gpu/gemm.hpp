@@ -81,9 +81,9 @@ struct rocblas_gemm
         rocblas_int ldb = args[1].get_shape().strides()[transb ? dim_1 : dim_0];
         rocblas_int ldc = args[2].get_shape().strides()[dim_0];
 
-        bool is_3inputs           = (args.size() == 4);
-        auto beta = op.beta;
-        if (!is_3inputs)
+        bool is_3inputs = (args.size() == 4);
+        auto beta       = op.beta;
+        if(!is_3inputs)
         {
             beta = 0;
         }

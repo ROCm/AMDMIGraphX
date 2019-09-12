@@ -984,7 +984,6 @@ TEST_CASE(maxpool_test)
     p.add_instruction(migraphx::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{3, 2}}}, al);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
-    // std::cout << result.get_shape() << std::endl;
     std::vector<float> results_vector(36);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(results_vector, c));
@@ -2039,12 +2038,35 @@ TEST_CASE(round_test)
     auto result = p.eval({});
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    for(auto v : results_vector)
-    {
-        std::cout << v << "\t";
-    }
-    std::cout << std::endl;
     std::vector<float> gold = {1.0, 2.0, 2.0, -1.0, -2.0, -2.0, 0.0, 2.0, -2.0};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(ceil_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {9}};
+    auto l = p.add_literal(migraphx::literal{s, {1.1, 1.5, 1.6, -1.1, -1.5, -1.6, 0.0, 2.0, -2.0}});
+    p.add_instruction(migraphx::op::ceil{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {2.0, 2.0, 2.0, -1.0, -1.0, -1.0, 0.0, 2.0, -2.0};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(floor_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {9}};
+    auto l = p.add_literal(migraphx::literal{s, {1.1, 1.5, 0.6, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
+    p.add_instruction(migraphx::op::floor{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {1.0, 1.0, 0.0, -2.0, -2.0, -1.0, -0.0, 2.0, -2.0};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 

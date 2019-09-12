@@ -56,6 +56,8 @@
 #include <migraphx/gpu/clip.hpp>
 #include <migraphx/gpu/reduce_sum.hpp>
 #include <migraphx/gpu/round.hpp>
+#include <migraphx/gpu/ceil.hpp>
+#include <migraphx/gpu/floor.hpp>
 #include <migraphx/gpu/rsqrt.hpp>
 #include <migraphx/gpu/sqrt.hpp>
 #include <migraphx/gpu/reduce_mean.hpp>
@@ -119,6 +121,8 @@ struct miopen_apply
         add_generic_op<hip_relu>("relu");
         add_generic_op<hip_sign>("sign");
         add_generic_op<hip_sigmoid>("sigmoid");
+        add_generic_op<hip_ceil>("ceil");
+        add_generic_op<hip_floor>("floor");
 
         add_extend_op<miopen_gemm, op::dot>("dot");
         add_extend_op<rocblas_quant_gemm, op::quant_dot>("quant_dot");

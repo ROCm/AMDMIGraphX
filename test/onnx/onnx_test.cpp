@@ -21,8 +21,8 @@
 //     };
 // }
 
-// #define ONNX_UNARY_TEST(x) TEST_CASE_REGISTER(x##_test, unary_test<migraphx::op::x>(#x "_test.onnx", 10));
-// ONNX_UNARY_TEST(acos)
+// #define ONNX_UNARY_TEST(x) TEST_CASE_REGISTER(x##_test, unary_test<migraphx::op::x>(#x
+// "_test.onnx", 10)); ONNX_UNARY_TEST(acos)
 
 // // TEST_CASE_REGISTER(acos_test, unary_test<migraphx::op::acos>("acos_test.onnx", 10));
 

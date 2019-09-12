@@ -327,7 +327,8 @@ struct stream_info
                 }
             });
         }
-        // Remove duplicates
+
+        // Remove instructions from the conflict table of an ealier instruction
         for(auto&& ip : conflict_table)
         {
             auto ins1 = ip.first;

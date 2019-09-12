@@ -57,6 +57,8 @@ struct onnx_parser
         add_generic_op("Sqrt", op::sqrt{});
         add_generic_op("Round", op::round{});
         add_generic_op("Sign", op::sign{});
+        add_generic_op("Ceil", op::ceil{});
+        add_generic_op("Floor", op::floor{});
 
         add_binary_op("Add", op::add{});
         add_binary_op("Div", op::div{});

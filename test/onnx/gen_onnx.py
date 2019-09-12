@@ -153,6 +153,18 @@ def cast_test():
 
     return ([node], [x], [y])
 
+@onnx_test
+def ceil_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
+
+    node = onnx.helper.make_node(
+        'Ceil',
+        inputs=['x'],
+        outputs=['y'],
+    )
+
+    return ([node], [x], [y])
 
 @onnx_test
 def clip_test():
@@ -635,6 +647,18 @@ def flatten_test():
 
     return ([node, node2], [x], [y, y2])
 
+@onnx_test
+def floor_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
+
+    node = onnx.helper.make_node(
+        'Floor',
+        inputs=['x'],
+        outputs=['y'],
+    )
+
+    return ([node], [x], [y])
 
 @onnx_test
 def gather_test():

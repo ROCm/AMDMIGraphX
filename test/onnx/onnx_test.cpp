@@ -8,6 +8,24 @@
 #include <migraphx/onnx.hpp>
 #include "test.hpp"
 
+// template <class Op>
+// void unary_test(std::string name, std::size_t S)
+// {
+//     return [=] {
+//         migraphx::program p;
+//         auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {S}});
+//         p.add_instruction(Op{}, input);
+
+//         auto prog = migraphx::parse_onnx(name);
+//         EXPECT(p == prog);
+//     };
+// }
+
+// #define ONNX_UNARY_TEST(x) TEST_CASE_REGISTER(x##_test, unary_test<migraphx::op::x>(#x "_test.onnx", 10));
+// ONNX_UNARY_TEST(acos)
+
+// // TEST_CASE_REGISTER(acos_test, unary_test<migraphx::op::acos>("acos_test.onnx", 10));
+
 TEST_CASE(acos_test)
 {
     migraphx::program p;
@@ -109,6 +127,17 @@ TEST_CASE(cast_test)
     p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, l);
 
     auto prog = migraphx::parse_onnx("cast_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(ceil_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::ceil{}, input);
+
+    auto prog = migraphx::parse_onnx("ceil_test.onnx");
+
     EXPECT(p == prog);
 }
 
@@ -398,6 +427,17 @@ TEST_CASE(flatten_test)
     p.add_instruction(migraphx::op::flatten{2}, l0);
     p.add_instruction(migraphx::op::flatten{1}, l0);
     auto prog = migraphx::parse_onnx("flatten_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(floor_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::floor{}, input);
+
+    auto prog = migraphx::parse_onnx("floor_test.onnx");
 
     EXPECT(p == prog);
 }

@@ -25,8 +25,9 @@ rocblas_datatype get_type(shape::type_t type)
     MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
 }
 
-template<class T>
-void gemm_impl(context& ctx, const shape& output_shape, const std::vector<argument>& args, T alpha, T beta)
+template <class T>
+void gemm_impl(
+    context& ctx, const shape& output_shape, const std::vector<argument>& args, T alpha, T beta)
 {
     bool transa     = args[0].get_shape().transposed();
     bool transb     = args[1].get_shape().transposed();
@@ -65,10 +66,8 @@ void gemm_impl(context& ctx, const shape& output_shape, const std::vector<argume
             MIGRAPHX_THROW("ROCBLAS_GEMM: k size of int8 type input must be mutlple of 4!");
         }
 
-        auto num_matrices = std::accumulate(out_lens.rbegin() + 2,
-                                            out_lens.rend(),
-                                            std::size_t{1},
-                                            std::multiplies<std::size_t>());
+        auto num_matrices = std::accumulate(
+            out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
         if(num_matrices == 1)
         {
             // the rocblas_gemm API handles inputs and output matrices as
@@ -140,12 +139,20 @@ void gemm_impl(context& ctx, const shape& output_shape, const std::vector<argume
     });
 }
 
-void gemm(context& ctx, const shape& output_shape, const std::vector<argument>& args, float alpha, float beta)
+void gemm(context& ctx,
+          const shape& output_shape,
+          const std::vector<argument>& args,
+          float alpha,
+          float beta)
 {
     gemm_impl(ctx, output_shape, args, alpha, beta);
 }
 
-void gemm(context& ctx, const shape& output_shape, const std::vector<argument>& args, int32_t alpha, int32_t beta)
+void gemm(context& ctx,
+          const shape& output_shape,
+          const std::vector<argument>& args,
+          int32_t alpha,
+          int32_t beta)
 {
     gemm_impl(ctx, output_shape, args, alpha, beta);
 }

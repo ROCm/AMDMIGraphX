@@ -414,7 +414,7 @@ void quantize_int8_impl(program& prog,
 
 void quantize_int8(program& prog,
                    const target& t,
-                   std::vector<program::parameter_map>& calibration,
+                   const std::vector<program::parameter_map>& calibration,
                    const std::vector<std::string>& ins_names)
 {
     // insert capture operator

@@ -45,10 +45,9 @@ program::parameter_map create_param_map(const program& p, bool gpu)
     return m;
 }
 
-
 target get_target(bool gpu)
 {
-        if(gpu)
+    if(gpu)
     {
 #ifdef HAVE_GPU
         return gpu::target{};

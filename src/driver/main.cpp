@@ -83,7 +83,7 @@ struct compiler
     static const int q_fp16 = 1;
     static const int q_int8 = 2;
     loader l;
-    bool gpu = true;
+    bool gpu     = true;
     int quantize = 0;
 
     std::vector<std::string> fill1;
@@ -110,9 +110,12 @@ struct compiler
     {
         auto p = l.load();
         auto t = get_target(gpu);
-        if (quantize == q_fp16) {
+        if(quantize == q_fp16)
+        {
             quantize_fp16(p);
-        } else if (quantize == q_int8) {
+        }
+        else if(quantize == q_int8)
+        {
             quantize_int8(p, t, {params(p, false)});
         }
         p.compile(t);

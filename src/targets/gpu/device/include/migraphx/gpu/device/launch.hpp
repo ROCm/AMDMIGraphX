@@ -78,7 +78,7 @@ inline auto gs_launch(hipStream_t stream, std::size_t n, std::size_t local = 102
 
     return [=](auto f) {
         launch(stream, nglobal, local)(
-            [=](auto idx) { idx.global_stride(n, [&](auto i) { gs_invoke(f, i, idx); }); });
+            [=] __device__ (auto idx) { idx.global_stride(n, [&](auto i) { gs_invoke(f, i, idx); }); });
     };
 }
 

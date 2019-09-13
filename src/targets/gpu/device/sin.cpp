@@ -9,7 +9,7 @@ namespace device {
 
 void sin(hipStream_t stream, const argument& result, const argument& arg)
 {
-    nary(stream, result, arg)([](auto x) { return ::sin(to_hip_type(x)); });
+    nary(stream, result, arg)([] __device__ (auto x) { return ::sin(to_hip_type(x)); });
 }
 
 } // namespace device

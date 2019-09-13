@@ -8,7 +8,7 @@ namespace device {
 
 void sub(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2)
 {
-    nary(stream, result, arg1, arg2)([](auto x, auto y) { return x - y; });
+    nary(stream, result, arg1, arg2)([] __device__ (auto x, auto y) { return x - y; });
 }
 
 } // namespace device

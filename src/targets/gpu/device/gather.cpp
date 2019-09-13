@@ -25,7 +25,7 @@ argument gather(hipStream_t stream, argument result, argument arg1, argument arg
             arg2.visit([&](auto indices) {
                 const auto* indices_ptr = device_cast(indices.data());
                 auto* output_ptr        = device_cast(output.data());
-                gs_launch(stream, nelements, 256)([=](auto i) {
+                gs_launch(stream, nelements, 256)([=] __device__ (auto i) {
                     auto idx        = out_comp.multi(i);
                     idx[axis_index] = indices_ptr[idx[axis_index]];
                     output_ptr[i]   = input[idx];

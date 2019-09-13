@@ -13,7 +13,7 @@ void mul_add_relu(hipStream_t stream,
                   const argument& arg3)
 {
     nary(stream, result, arg1, arg2, arg3)(
-        [](auto x, auto a, auto b) { return std::max<decltype(a * x + b)>(0, a * x + b); });
+        [] __device__ (auto x, auto a, auto b) { return std::max<decltype(a * x + b)>(0, a * x + b); });
 }
 
 void add_relu(hipStream_t stream,
@@ -22,7 +22,7 @@ void add_relu(hipStream_t stream,
               const argument& arg2)
 {
     nary(stream, result, arg1, arg2)(
-        [](auto x, auto y) { return std::max<decltype(x + y)>(0, x + y); });
+        [] __device__ (auto x, auto y) { return std::max<decltype(x + y)>(0, x + y); });
 }
 
 void add_relu(hipStream_t stream,
@@ -32,7 +32,7 @@ void add_relu(hipStream_t stream,
               const argument& arg3)
 {
     nary(stream, result, arg1, arg2, arg3)(
-        [](auto x, auto y, auto z) { return std::max<decltype(x + y + z)>(0, x + y + z); });
+        [] __device__ (auto x, auto y, auto z) { return std::max<decltype(x + y + z)>(0, x + y + z); });
 }
 
 } // namespace device

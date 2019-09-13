@@ -87,13 +87,13 @@ void arg_op(Op op, hipStream_t stream, const argument& result, const argument& a
         const std::size_t block_size = compute_block_size(batch_item_num, max_block_size);
         gs_launch(stream,
                   batch_shape.elements() * block_size,
-                  block_size)([=](auto i, auto idx) __device__ {
+                  block_size)([=] __device__ (auto i, auto idx) {
             auto batch_idx = batch_s.multi(i / block_size);
             auto data_idx  = batch_idx;
             auto init      = make_val_index<type>(op.init());
 
             auto op_output =
-                block_reduce<max_block_size>(idx, op, init, batch_item_num, [&](auto j) __device__ {
+                block_reduce<max_block_size>(idx, op, init, batch_item_num, [&] __device__ (auto j) {
                     data_idx[axis] = j;
                     return make_val_index(input[arg_s.index(data_idx)], j);
                 });

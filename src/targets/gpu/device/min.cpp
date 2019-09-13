@@ -10,7 +10,7 @@ namespace device {
 void min(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2)
 {
     nary(stream, result, arg1, arg2)(
-        [](auto x, auto y) { return std::min(to_hip_type(x), to_hip_type(y)); });
+        [] __device__ (auto x, auto y) { return std::min(to_hip_type(x), to_hip_type(y)); });
 }
 
 } // namespace device

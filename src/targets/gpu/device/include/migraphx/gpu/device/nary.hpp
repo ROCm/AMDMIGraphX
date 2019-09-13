@@ -24,7 +24,7 @@ auto nary_nonstandard_impl(hipStream_t stream, F f, argument result, Arguments..
 {
     std::size_t nelements = result.get_shape().elements();
     hip_visit_all(result, args...)([&](auto output, auto... inputs) {
-        gs_launch(stream, nelements)([=](auto i) {
+        gs_launch(stream, nelements)([=] __device__ (auto i) {
             auto idx  = output.get_shape().multi(i);
             output[i] = f(inputs[idx]...);
         });
@@ -54,7 +54,7 @@ void nary_broadcast_vec_impl(
         [&](auto output, auto binput, auto... inputs) {
             using type                  = typename decltype(output)::value_type;
             const std::size_t nelements = output.size() / vec_size;
-            launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
+            launch(stream, nglobal, nlocal)([=] __device__ (auto idx) {
 
                 MIGRAPHX_DEVICE_SHARED type buffer[2048 / vec_size];
                 // Load bias into LDS
@@ -99,7 +99,7 @@ void nary_broadcast_impl(hipStream_t stream, F f, argument result, argument barg
     std::size_t nelements     = result.get_shape().elements();
     hip_visit_all(result, barg, args...)([&](auto output, auto binput, auto... inputs) {
         using type = typename decltype(output)::value_type;
-        launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
+        launch(stream, nglobal, nlocal)([=] __device__ (auto idx) {
             MIGRAPHX_DEVICE_SHARED type buffer[2048];
             // Load bias into LDS
             for(size_t i = idx.local; i < bdim_len; i += nlocal)
@@ -144,7 +144,7 @@ void nary_double_broadcast_vec_impl(
         [&](auto output, auto binput1, auto binput2, auto... inputs) {
             using type                  = typename decltype(output)::value_type;
             const std::size_t nelements = output.size() / vec_size;
-            launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
+            launch(stream, nglobal, nlocal)([=] __device__ (auto idx) {
 
                 MIGRAPHX_DEVICE_SHARED type buffer[2048 / vec_size];
                 // Load bias into LDS
@@ -199,7 +199,7 @@ void nary_double_broadcast_impl(
     hip_visit_all(result, barg1, barg2, args...)(
         [&](auto output, auto binput1, auto binput2, auto... inputs) {
             using type = typename decltype(output)::value_type;
-            launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
+            launch(stream, nglobal, nlocal)([=] __device__ (auto idx) {
                 MIGRAPHX_DEVICE_SHARED type buffer[2048];
                 // Load bias into LDS
                 for(size_t i = idx.local; i < bdim_len; i += nlocal)
@@ -232,7 +232,7 @@ void nary_standard_vec_impl(hipStream_t stream, F f, argument result, Arguments.
         const std::size_t vec_size = 4;
         auto data                  = pack_vec<4>(device_cast(inputs.data())...);
         auto* outp                 = as_vec<4>(device_cast(output.data()));
-        gs_launch(stream, output_shape.elements() / vec_size)([=](auto i) {
+        gs_launch(stream, output_shape.elements() / vec_size)([=] __device__ (auto i) {
             vec<type, 4> out = outp[i];
             data(
                 [&](auto... xs) {
@@ -252,7 +252,7 @@ void nary_standard_impl(hipStream_t stream, F f, argument result, Arguments... a
 {
     std::size_t nelements = result.get_shape().elements();
     hip_pointer_visit_all(result, args...)([&](auto output, auto... inputs) {
-        gs_launch(stream, nelements)([=](auto i) { output[i] = f(inputs[i]...); });
+        gs_launch(stream, nelements)([=] __device__ (auto i) { output[i] = f(inputs[i]...); });
     });
 }
 

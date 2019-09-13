@@ -22,7 +22,7 @@ argument concat(hipStream_t stream,
         auto offset           = offsets[j];
         shape arg_shape{arg.get_shape().type(), arg.get_shape().lens()};
         hip_visit_all(args.back(), arg, arg_shape)([&](auto output, auto input, auto input_shape) {
-            gs_launch(stream, nelements)([=](auto i) {
+            gs_launch(stream, nelements)([=] __device__ (auto i) {
                 auto input_idx              = input_shape.multi(i);
                 auto idx                    = output.get_shape().index(input_idx);
                 output.data()[idx + offset] = input[input_idx];

@@ -9,7 +9,7 @@ namespace device {
 void pow(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2)
 {
     nary(stream, result, arg1, arg2)(
-        [](auto b, auto e) { return ::pow(to_hip_type(b), to_hip_type(e)); });
+        [] __device__ (auto b, auto e) { return ::pow(to_hip_type(b), to_hip_type(e)); });
 }
 
 } // namespace device

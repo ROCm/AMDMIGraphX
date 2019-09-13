@@ -433,8 +433,8 @@ void quantize_int8(program& prog,
         {
             if(arg.count(x.first) > 0)
             {
-                assert(x.second == arg[x.first].get_shape());
-                m[x.first] = t.copy_to(arg[x.first]);
+                assert(x.second == arg.at(x.first).get_shape());
+                m[x.first] = t.copy_to(arg.at(x.first));
             }
             else
             {

@@ -30,7 +30,7 @@ add_library(migraphx_device
     device/acos.cpp
     device/atan.cpp
     device/relu.cpp
-    device/add_relu.cpp
+    device/add_unary.cpp
     device/contiguous.cpp
     device/logsoftmax.cpp
     device/softmax.cpp
@@ -93,8 +93,6 @@ add_library(migraphx_gpu
     adjust_allocation.cpp
     pack_int8_args.cpp
     clip.cpp
-    reduce_sum.cpp
-    reduce_mean.cpp
     int8_gemm_pack.cpp
     int8_conv_pack.cpp
 )

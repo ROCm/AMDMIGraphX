@@ -54,6 +54,7 @@ add_library(migraphx_device
     device/sign.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
+rocm_set_soversion(migraphx_device ${PROJECT_VERSION})
 rocm_clang_tidy_check(migraphx_device)
 target_link_libraries(migraphx_device migraphx hip::device -Wno-invalid-command-line-argument -amdgpu-target=gfx803 -amdgpu-target=gfx900 -amdgpu-target=gfx906)
 target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
@@ -90,12 +91,11 @@ add_library(migraphx_gpu
     adjust_allocation.cpp
     pack_int8_args.cpp
     clip.cpp
-    reduce_sum.cpp
-    reduce_mean.cpp
     int8_gemm_pack.cpp
     int8_conv_pack.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
+rocm_set_soversion(migraphx_gpu ${PROJECT_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device)

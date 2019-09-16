@@ -896,7 +896,7 @@ TEST_CASE(target_copy)
     }
 }
 
-TEST_CASE(int8_quantization)
+TEST_CASE(int8_quantization_dot)
 {
     auto run_prog = [](migraphx::program p,
                        const migraphx::target& t,
@@ -953,6 +953,49 @@ TEST_CASE(int8_quantization)
 
         std::vector<float> no_quant_result;
         run_prog(p, cpu_t, m, no_quant_result);
+
+        EXPECT(migraphx::verify_range(quant_result, no_quant_result));
+    }
+}
+
+TEST_CASE(int8_quantization_conv)
+{
+    auto run_prog = [](migraphx::program p,
+                       const migraphx::target& t,
+                       std::vector<float>& res,
+                       bool b_quantize = false) {
+        if(b_quantize)
+        {
+            std::vector<migraphx::program::parameter_map> cali_data;
+            migraphx::quantize_int8(p, t, cali_data);
+        }
+        p.compile(t);
+        migraphx::program::parameter_map m;
+
+        auto result = t.copy_from(p.eval(m));
+        result.visit([&](auto v) { res.assign(v.begin(), v.end()); });
+    };
+
+    auto create_program = [] {
+        migraphx::program p;
+        migraphx::shape sx{migraphx::shape::float_type, {4, 2, 2, 2}};
+        migraphx::shape sw{migraphx::shape::float_type, {4, 2, 2, 2}};
+        std::vector<float> v(sx.elements(), 0.5f);
+        auto input   = p.add_literal(migraphx::literal(sx, v));
+        auto weights = p.add_literal(migraphx::literal(sw, v));
+        p.add_instruction(migraphx::op::convolution{}, input, weights);
+
+        return p;
+    };
+
+    {
+        auto p = create_program();
+        std::vector<float> quant_result;
+        migraphx::target cpu_t = migraphx::cpu::target{};
+        run_prog(p, cpu_t, quant_result, true);
+
+        std::vector<float> no_quant_result;
+        run_prog(p, cpu_t, no_quant_result);
 
         EXPECT(migraphx::verify_range(quant_result, no_quant_result));
     }

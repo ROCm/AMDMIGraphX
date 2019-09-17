@@ -129,7 +129,7 @@ MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
 
 MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 {
-    if (enabled(MIGRAPHX_DISABLE_MIOPEN_FUSION{}))
+    if(enabled(MIGRAPHX_DISABLE_MIOPEN_FUSION{}))
         return false;
     if(ins->name() != "gpu::convolution")
         return false;
@@ -144,7 +144,8 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
         return false;
     auto op = conv.op;
     // Dont fuse winograd for non-3x3s since there is no fused windograd for those configs
-    if (conv.algo == miopenConvolutionFwdAlgoWinograd and wei.lens()[2] != 3 and wei.lens()[3] != 3 and op.stride == make_array<size_t>(1, 1))
+    if(conv.algo == miopenConvolutionFwdAlgoWinograd and wei.lens()[2] != 3 and
+       wei.lens()[3] != 3 and op.stride == make_array<size_t>(1, 1))
         return false;
     return contains({{0, 0}, {1, 1}, {2, 2}}, op.padding) and
            contains({{0, 0}, {1, 1}}, op.stride) and op.dilation == make_array<size_t>(1, 1);

@@ -6,6 +6,7 @@
 #include <migraphx/gpu/gemm_impl.hpp>
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/op/dot.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -26,14 +27,11 @@ struct rocblas_gemm
 
     std::string name() const
     {
-        if(op.name().find("quant_") != std::string::npos)
+        if(contains(op.name(), "quant_"))
         {
             return "gpu::quant_gemm";
         }
-        else
-        {
-            return "gpu::gemm";
-        }
+        return "gpu::gemm";
     }
 
     shape compute_shape(const std::vector<shape>& inputs) const

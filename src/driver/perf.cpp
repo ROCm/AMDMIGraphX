@@ -45,6 +45,22 @@ program::parameter_map create_param_map(const program& p, bool gpu)
     return m;
 }
 
+target get_target(bool gpu)
+{
+    if(gpu)
+    {
+#ifdef HAVE_GPU
+        return gpu::target{};
+#else
+        MIGRAPHX_THROW("Gpu not supported.");
+#endif
+    }
+    else
+    {
+        return cpu::target{};
+    }
+}
+
 void compile_program(program& p, bool gpu)
 {
     if(gpu)

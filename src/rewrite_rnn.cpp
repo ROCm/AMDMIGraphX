@@ -564,26 +564,19 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
         {
             // equation g(Xt*(Wh^T) + (rt (.) Ht-1)*(Rh^T) + Rbh + Wbh)
             auto rt_ht1 = prog.insert_instruction(ins, op::mul{}, rt, sih);
+            hr_h        = prog.insert_instruction(ins, op::dot{}, rt_ht1, trh);
             if(bias != prog.end())
             {
-                hr_h = prog.insert_instruction(ins, op::dot{}, rt_ht1, trh, brb_h);
-            }
-            else
-            {
-                hr_h = prog.insert_instruction(ins, op::dot{}, rt_ht1, trh);
+                hr_h = prog.insert_instruction(ins, op::add{}, hr_h, brb_h);
             }
         }
         else
         {
             // equation ht = g(Xt*(Wh^T) + (rt (.) (Ht-1*(Rh^T) + Rbh)) + Wbh)
-            instruction_ref ht1_rh{};
+            auto ht1_rh = prog.insert_instruction(ins, op::dot{}, sih, trh);
             if(bias != prog.end())
             {
-                ht1_rh = prog.insert_instruction(ins, op::dot{}, sih, trh, brb_h);
-            }
-            else
-            {
-                ht1_rh = prog.insert_instruction(ins, op::dot{}, sih, trh);
+                ht1_rh = prog.insert_instruction(ins, op::add{}, ht1_rh, brb_h);
             }
             hr_h = prog.insert_instruction(ins, op::mul{}, rt, ht1_rh);
         }

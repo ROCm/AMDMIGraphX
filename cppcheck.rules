@@ -91,6 +91,15 @@
 </rule>
 <rule>
     <tokenlist>raw</tokenlist>
+    <pattern><![CDATA[] (__device__ |__host__ )+(\(|{)]]></pattern>
+    <message>
+        <id>LambdaAttribute</id>
+        <severity>warning</severity>
+        <summary>Attributes to lambdas must come after parameter list.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>raw</tokenlist>
     <pattern><![CDATA[hipLaunchKernelGGL \( (?!\( \w+ < \w+ > \))]]></pattern>
     <message>
         <id>UseDeviceLaunch</id>

@@ -17,8 +17,8 @@ namespace device {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_NARY);
 
-#define MIGRAPHX_TRACE_NARY_FUNCTION \
-    if (enabled(MIGRAPHX_TRACE_NARY{})) \
+#define MIGRAPHX_TRACE_NARY_FUNCTION   \
+    if(enabled(MIGRAPHX_TRACE_NARY{})) \
         std::cout << "nary device function: " << __PRETTY_FUNCTION__ << std::endl;
 
 template <class... Ts>

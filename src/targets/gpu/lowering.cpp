@@ -47,7 +47,6 @@
 #include <migraphx/gpu/batchnorm.hpp>
 #include <migraphx/gpu/pooling.hpp>
 #include <migraphx/gpu/gemm.hpp>
-#include <migraphx/gpu/quant_gemm.hpp>
 #include <migraphx/gpu/concat.hpp>
 #include <migraphx/gpu/pad.hpp>
 #include <migraphx/gpu/gather.hpp>
@@ -122,8 +121,6 @@ struct miopen_apply
         add_generic_op<hip_sign>("sign");
         add_generic_op<hip_sigmoid>("sigmoid");
 
-        add_extend_op<miopen_gemm, op::dot>("dot");
-        add_extend_op<rocblas_quant_gemm, op::quant_dot>("quant_dot");
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
         add_extend_op<hip_softmax, op::softmax>("softmax");
@@ -138,11 +135,12 @@ struct miopen_apply
         add_extend_op<hip_reduce_mean, op::reduce_mean>("reduce_mean");
         add_extend_op<hip_reduce_min, op::reduce_min>("reduce_min");
         add_extend_op<hip_reduce_max, op::reduce_max>("reduce_max");
+        add_gemm_op<op::dot>("dot");
+        add_gemm_op<op::quant_dot>("quant_dot");
 
         add_lrn_op();
         add_convolution_op();
         add_quant_convolution_op();
-        // add_quant_dot_op();
         add_pooling_op();
         add_batch_norm_inference_op();
     }
@@ -186,6 +184,38 @@ struct miopen_apply
 
             return prog->replace_instruction(
                 ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
+        });
+    }
+
+    template <class Op>
+    void add_gemm_op(std::string name)
+    {
+        apply_map.emplace(name, [=](instruction_ref ins) {
+            auto&& op                         = any_cast<Op>(ins->get_operator());
+            auto beta                         = op.beta;
+            std::vector<instruction_ref> refs = ins->inputs();
+            if((refs.size() == 2) or (refs.size() == 3 and refs.back()->outputs().size() > 1) or
+               (ins == last))
+            {
+                auto output = insert_allocation(ins, ins->get_shape());
+                if(refs.size() == 2)
+                {
+                    beta = 0;
+                    refs.push_back(output);
+                }
+                else
+                {
+                    auto copy_out = prog->insert_instruction(ins, hip_copy{}, refs.back(), output);
+                    refs.back()   = copy_out;
+                    refs.push_back(copy_out);
+                }
+            }
+            else
+            {
+                refs.push_back(refs.back());
+            }
+
+            return prog->replace_instruction(ins, rocblas_gemm<Op>{Op{op.alpha, beta}}, refs);
         });
     }
 

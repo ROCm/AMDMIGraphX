@@ -68,8 +68,6 @@ add_library(migraphx_gpu
     hip.cpp
     target.cpp
     lowering.cpp
-    gemm.cpp
-    quant_gemm.cpp
     pooling.cpp
     convolution.cpp
     quant_convolution.cpp
@@ -93,6 +91,7 @@ add_library(migraphx_gpu
     clip.cpp
     int8_gemm_pack.cpp
     int8_conv_pack.cpp
+    gemm_impl.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_set_soversion(migraphx_gpu ${PROJECT_VERSION})

@@ -59,7 +59,7 @@ struct min
 struct lowest
 {
     template <class T>
-    operator T() const
+    MIGRAPHX_DEVICE_CONSTEXPR operator T() const
     {
         return device_cast(std::numeric_limits<host_type<T>>::lowest());
     }
@@ -68,7 +68,7 @@ struct lowest
 struct highest
 {
     template <class T>
-    operator T() const
+    MIGRAPHX_DEVICE_CONSTEXPR operator T() const
     {
         return device_cast(std::numeric_limits<host_type<T>>::max());
     }
@@ -224,10 +224,10 @@ void reduce_multi_impl(hipStream_t stream,
 
         const std::size_t max_block_size = 256;
         const std::size_t block_size     = compute_block_size(relements, max_block_size);
-        gs_launch(stream, nelements * block_size, block_size)([=](auto i, auto idx) __device__ {
+        gs_launch(stream, nelements * block_size, block_size)([=] __device__ (auto i, auto idx) {
             const auto out_idx = i / block_size;
             auto base_idx      = output.get_shape().multi(out_idx);
-            auto r = block_reduce<max_block_size>(idx, op, init, relements, [&](auto j) __device__ {
+            auto r = block_reduce<max_block_size>(idx, op, init, relements, [&] __device__ (auto j) {
                 auto reduce_idx = reduce_shape.multi(j);
                 return read_input(input[reduce_idx + base_idx]);
             });
@@ -252,10 +252,10 @@ void reduce_standard_impl(hipStream_t stream,
 
         const std::size_t max_block_size = 256;
         const std::size_t block_size     = compute_block_size(relements, max_block_size);
-        gs_launch(stream, nelements * block_size, block_size)([=](auto i, auto idx) __device__ {
+        gs_launch(stream, nelements * block_size, block_size)([=] __device__ (auto i, auto idx) {
             const auto out_idx  = i / block_size;
             const auto base_idx = out_idx * relements;
-            auto r = block_reduce<max_block_size>(idx, op, init, relements, [&](auto j) __device__ {
+            auto r = block_reduce<max_block_size>(idx, op, init, relements, [&] __device__ (auto j) {
                 return read_input(input.data()[base_idx + j]);
             });
             if(idx.local == 0)

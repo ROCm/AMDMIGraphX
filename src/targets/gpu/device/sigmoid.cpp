@@ -9,7 +9,7 @@ namespace device {
 
 void sigmoid(hipStream_t stream, const argument& result, const argument& arg)
 {
-    nary(stream, result, arg)([](auto x) { return 1.f / (1.f + ::exp(to_hip_type(-x))); });
+    nary(stream, result, arg)([] __device__ (auto x) { return 1.f / (1.f + ::exp(to_hip_type(-x))); });
 }
 
 } // namespace device

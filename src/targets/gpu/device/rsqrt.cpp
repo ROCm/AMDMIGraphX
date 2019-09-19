@@ -9,7 +9,7 @@ namespace device {
 
 void rsqrt(hipStream_t stream, const argument& result, const argument& arg)
 {
-    nary(stream, result, arg)([](auto x) __device__ { return ::rsqrt(to_hip_type(x)); });
+    nary(stream, result, arg)([] __device__ (auto x) { return ::rsqrt(to_hip_type(x)); });
 }
 
 } // namespace device

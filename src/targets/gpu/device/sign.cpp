@@ -9,7 +9,7 @@ namespace device {
 
 void sign(hipStream_t stream, const argument& result, const argument& arg)
 {
-    nary(stream, result, arg)([](auto x) { return (x > 0 ? 1 : ((x < 0) ? -1 : 0)); });
+    nary(stream, result, arg)([] __device__ (auto x) { return (x > 0 ? 1 : ((x < 0) ? -1 : 0)); });
 }
 
 } // namespace device

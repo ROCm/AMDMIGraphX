@@ -8,7 +8,7 @@ namespace device {
 
 void relu(hipStream_t stream, const argument& result, const argument& arg)
 {
-    nary(stream, result, arg)([](auto x) { return std::max<decltype(x)>(0, x); });
+    nary(stream, result, arg)([] __device__ (auto x) { return std::max<decltype(x)>(0, x); });
 }
 
 } // namespace device

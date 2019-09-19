@@ -24,11 +24,11 @@ pad(hipStream_t stream, argument result, argument arg1, float value, std::vector
             device_val = device_cast(std::numeric_limits<type>::lowest());
         }
         gs_launch(stream,
-                  result.get_shape().elements())([=](auto i) { output.data()[i] = device_val; });
+                  result.get_shape().elements())([=] __device__ (auto i) { output.data()[i] = device_val; });
 
         hip_index offsets;
         std::copy(pads.begin(), pads.begin() + offsets.size(), offsets.begin());
-        gs_launch(stream, nelements)([=](auto i) {
+        gs_launch(stream, nelements)([=] __device__ (auto i) {
             auto idx = input.get_shape().multi(i);
             for(std::size_t j = 0; j < offsets.size(); j++)
             {

@@ -38,7 +38,7 @@ capture_arguments(program& prog, T&& t, const std::vector<std::string>& ins_name
 
 void quantize_int8(program& prog,
                    const target& t,
-                   std::vector<program::parameter_map>& calibration,
+                   const std::vector<program::parameter_map>& calibration,
                    const std::vector<std::string>& ins_names = {"dot", "convolution"});
 void quantize_int8_impl(program& prog,
                         const std::vector<std::pair<float, float>>& quant_params,

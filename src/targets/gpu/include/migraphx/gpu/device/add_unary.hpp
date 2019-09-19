@@ -1,6 +1,6 @@
 
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_ADD_RELU_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_ADD_RELU_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_ADD_UNARY_HPP
+#define MIGRAPHX_GUARD_RTGLIB_DEVICE_ADD_UNARY_HPP
 
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
@@ -22,7 +22,29 @@ void add_relu(hipStream_t stream,
               const argument& arg1,
               const argument& arg2);
 
+void add_sigmoid(hipStream_t stream,
+                 const argument& result,
+                 const argument& arg1,
+                 const argument& arg2);
+
+void add_tanh(hipStream_t stream,
+              const argument& result,
+              const argument& arg1,
+              const argument& arg2);
+
 void add_relu(hipStream_t stream,
+              const argument& result,
+              const argument& arg1,
+              const argument& arg2,
+              const argument& arg3);
+
+void add_sigmoid(hipStream_t stream,
+                 const argument& result,
+                 const argument& arg1,
+                 const argument& arg2,
+                 const argument& arg3);
+
+void add_tanh(hipStream_t stream,
               const argument& result,
               const argument& arg1,
               const argument& arg2,

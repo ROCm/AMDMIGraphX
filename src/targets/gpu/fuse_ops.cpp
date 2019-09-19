@@ -2,8 +2,9 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/convolution.hpp>
+#include <migraphx/gpu/oper.hpp>
 #include <migraphx/gpu/device/mul_add.hpp>
-#include <migraphx/gpu/device/add_relu.hpp>
+#include <migraphx/gpu/device/add_unary.hpp>
 #include <migraphx/gpu/device/add.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/array.hpp>
@@ -11,6 +12,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_FUSION)
 
 struct fusion
 {
@@ -126,6 +129,8 @@ MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
 
 MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 {
+    if(enabled(MIGRAPHX_DISABLE_MIOPEN_FUSION{}))
+        return false;
     if(ins->name() != "gpu::convolution")
         return false;
     if(ins->get_shape().type() != shape::float_type)
@@ -138,6 +143,10 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
     if(wei.lens()[1] > 512 and conv.algo != miopenConvolutionFwdAlgoWinograd)
         return false;
     auto op = conv.op;
+    // Dont fuse winograd for non-3x3s since there is no fused windograd for those configs
+    if(conv.algo == miopenConvolutionFwdAlgoWinograd and wei.lens()[2] != 3 and
+       wei.lens()[3] != 3 and op.stride == make_array<size_t>(1, 1))
+        return false;
     return contains({{0, 0}, {1, 1}, {2, 2}}, op.padding) and
            contains({{0, 0}, {1, 1}}, op.stride) and op.dilation == make_array<size_t>(1, 1);
 }
@@ -161,42 +170,28 @@ struct hip_triadd
     }
 };
 
-struct hip_triadd_relu
+struct hip_triadd_relu : ternary_device<hip_triadd_relu, &device::add_relu>
 {
-    std::string name() const { return "hip::triadd_relu"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(4);
-        return inputs.front();
-    }
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
-    {
-        device::add_relu(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
-        return args.at(3);
-    }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
 };
 
-struct hip_add_relu
+struct hip_triadd_sigmoid : ternary_device<hip_triadd_sigmoid, &device::add_sigmoid>
 {
-    std::string name() const { return "hip::add_relu"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(3);
-        return inputs.front();
-    }
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
-    {
-        device::add_relu(ctx.get_stream().get(), args.at(2), args.at(0), args.at(1));
-        return args.at(2);
-    }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
+};
+
+struct hip_triadd_tanh : ternary_device<hip_triadd_tanh, &device::add_tanh>
+{
+};
+
+struct hip_add_relu : binary_device<hip_add_relu, &device::add_relu>
+{
+};
+
+struct hip_add_sigmoid : binary_device<hip_add_relu, &device::add_sigmoid>
+{
+};
+
+struct hip_add_tanh : binary_device<hip_add_tanh, &device::add_tanh>
+{
 };
 
 struct hip_mul_add
@@ -258,11 +253,14 @@ void move_standard_front(std::vector<instruction_ref>& args)
         std::swap(*it, args.front());
 }
 
-struct find_add_relu
+struct find_add_unary
 {
+    std::string op_name;
+    operation binary_add_op;
+    operation ternary_add_op;
     auto matcher() const
     {
-        return match::name("gpu::relu")(match::arg(0)(
+        return match::name(op_name)(match::arg(0)(
             match::used_once(),
             match::any_of(match::name("gpu::add"),
                           match::name("hip::triadd"),
@@ -282,9 +280,9 @@ struct find_add_relu
         // Use the allocation from the relu operator
         args.back() = ins->inputs().back();
         if(add_ins->name() == "gpu::add")
-            p.replace_instruction(ins, hip_add_relu{}, args);
+            p.replace_instruction(ins, binary_add_op, args);
         else if(add_ins->name() == "hip::triadd")
-            p.replace_instruction(ins, hip_triadd_relu{}, args);
+            p.replace_instruction(ins, ternary_add_op, args);
     }
 };
 
@@ -521,7 +519,9 @@ void fuse_ops::apply(program& p) const
         find_conv_bias{ctx},
         find_mul_add{},
         find_mul_add_relu{},
-        find_add_relu{}
+        find_add_unary{"gpu::relu", hip_add_relu{}, hip_triadd_relu{}},
+        find_add_unary{"gpu::sigmoid", hip_add_sigmoid{}, hip_triadd_sigmoid{}},
+        find_add_unary{"gpu::tanh", hip_add_tanh{}, hip_triadd_tanh{}}
     );
     // clang-format on
 }

@@ -827,6 +827,77 @@ struct test_add_relu : verify_program<test_add_relu>
     }
 };
 
+struct test_add_sigmoid : verify_program<test_add_sigmoid>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x   = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto y   = p.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto add = p.add_instruction(migraphx::op::add{}, x, y);
+        p.add_instruction(migraphx::op::sigmoid{}, add);
+        return p;
+    }
+};
+
+struct test_add_tanh : verify_program<test_add_tanh>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x   = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto y   = p.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto add = p.add_instruction(migraphx::op::add{}, x, y);
+        p.add_instruction(migraphx::op::tanh{}, add);
+        return p;
+    }
+};
+
+struct test_triadd_relu : verify_program<test_triadd_relu>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x   = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto y   = p.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto z   = p.add_parameter("z", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto sum = p.add_instruction(migraphx::op::add{}, x, y);
+        auto triadd = p.add_instruction(migraphx::op::add{}, sum, z);
+        p.add_instruction(migraphx::op::relu{}, triadd);
+        return p;
+    }
+};
+
+struct test_triadd_sigmoid : verify_program<test_triadd_sigmoid>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x   = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto y   = p.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto z   = p.add_parameter("z", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto sum = p.add_instruction(migraphx::op::add{}, x, y);
+        auto triadd = p.add_instruction(migraphx::op::add{}, sum, z);
+        p.add_instruction(migraphx::op::sigmoid{}, triadd);
+        return p;
+    }
+};
+
+struct test_triadd_tanh : verify_program<test_triadd_tanh>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x   = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto y   = p.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto z   = p.add_parameter("z", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto sum = p.add_instruction(migraphx::op::add{}, x, y);
+        auto triadd = p.add_instruction(migraphx::op::add{}, sum, z);
+        p.add_instruction(migraphx::op::tanh{}, triadd);
+        return p;
+    }
+};
+
 struct test_sigmoid : verify_program<test_sigmoid>
 {
     migraphx::program create_program() const

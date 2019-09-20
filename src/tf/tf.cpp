@@ -939,10 +939,10 @@ struct tf_parser
                 {
                     auto batch_size = value_of(MIGRAPHX_BATCH_SIZE{});
                     if(batch_size > 0)
-                        x = batch_size; 
+                        x = batch_size;
                     else
                         x = 1;
-                }        
+                }
             }
             shape s            = shape{shape_type, dims};
             instructions[name] = to_nhwc(prog.add_parameter(name, s));

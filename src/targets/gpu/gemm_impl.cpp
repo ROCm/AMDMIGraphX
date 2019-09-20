@@ -1,42 +1,33 @@
-#include <migraphx/gpu/quant_gemm.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/generate.hpp>
-#include <fstream>
-#include <iomanip>
+#include <rocblas-types.h>
+#include <migraphx/gpu/gemm_impl.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-shape rocblas_quant_gemm::compute_shape(const std::vector<shape>& inputs) const
+rocblas_datatype get_type(shape::type_t type)
 {
-    std::vector<shape> in_shapes(inputs);
-    in_shapes.pop_back();
-    check_shapes{in_shapes}.not_broadcasted();
-    batch_not_transposed(inputs[0].strides());
-    batch_not_transposed(inputs[1].strides());
-
-    return op.compute_shape(in_shapes);
-}
-
-void rocblas_quant_gemm::batch_not_transposed(const std::vector<std::size_t>& strides) const
-{
-    if(strides.size() <= 2)
-        return;
-    auto dim_0       = strides.size() - 2;
-    auto matrix_size = std::max(strides[dim_0], strides[dim_0 + 1]);
-    std::vector<std::size_t> batch(strides.begin(), strides.begin() + dim_0);
-    if(std::adjacent_find(batch.begin(), batch.end(), [&](auto i, auto j) {
-           return (i < j or i < matrix_size or j < matrix_size);
-       }) != batch.end())
+    switch(type)
     {
-        MIGRAPHX_THROW("QUANT_DOT: batch size {" + to_string_range(strides) + "} is transposed!");
+    case shape::double_type: return rocblas_datatype_f64_r;
+    case shape::float_type: return rocblas_datatype_f32_r;
+    case shape::half_type: return rocblas_datatype_f16_r;
+    case shape::int8_type: return rocblas_datatype_i8_r;
+    case shape::uint8_type: return rocblas_datatype_u8_r;
+    case shape::int32_type: return rocblas_datatype_i32_r;
+    case shape::uint32_type: return rocblas_datatype_u32_r;
+    case shape::uint16_type:
+    case shape::int16_type:
+    case shape::int64_type:
+    case shape::uint64_type: MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
     }
+
+    MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
 }
 
-argument rocblas_quant_gemm::compute(context& ctx,
-                                     const shape& output_shape,
-                                     const std::vector<argument>& args) const
+template <class T>
+void gemm_impl(
+    context& ctx, const shape& output_shape, const std::vector<argument>& args, T alpha, T beta)
 {
     bool transa     = args[0].get_shape().transposed();
     bool transb     = args[1].get_shape().transposed();
@@ -48,23 +39,32 @@ argument rocblas_quant_gemm::compute(context& ctx,
     rocblas_int ldc = args[2].get_shape().strides()[dim_0];
 
     bool is_3inputs = (args.size() == 4);
-    int32_t beta    = 0;
-    if(is_3inputs)
+    if(!is_3inputs)
     {
-        beta = op.beta;
+        beta = 0;
     }
+    rocblas_datatype arg_type = get_type(args[0].get_shape().type());
+    auto output_type          = arg_type;
+    if(output_type == rocblas_datatype_i8_r)
+    {
+        output_type = rocblas_datatype_i32_r;
+    }
+    auto compute_type = output_type;
 
     auto a_lens = args[0].get_shape().lens();
     auto b_lens = args[1].get_shape().lens();
     output_shape.visit_type([&](auto as) {
-        auto alpha_r    = as(op.alpha);
+        auto alpha_r    = as(alpha);
         auto beta_r     = as(beta);
         auto out_lens   = output_shape.lens();
         rocblas_int m   = out_lens[dim_0];
         rocblas_int n   = out_lens[dim_1];
         rocblas_int k   = args[0].get_shape().lens()[dim_1];
         auto to_pointer = [&](auto&& arg) { return as.from(arg.data()); };
-        assert(k % 4 == 0);
+        if(args[0].get_shape().type() == shape::int8_type and (k % 4) != 0)
+        {
+            MIGRAPHX_THROW("ROCBLAS_GEMM: k size of int8 type input must be mutlple of 4!");
+        }
 
         auto num_matrices = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
@@ -82,19 +82,19 @@ argument rocblas_quant_gemm::compute(context& ctx,
                             k,
                             &alpha_r,
                             to_pointer(args.at(1)),
-                            rocblas_datatype_i8_r,
+                            arg_type,
                             ldb,
                             to_pointer(args.at(0)),
-                            rocblas_datatype_i8_r,
+                            arg_type,
                             lda,
                             &beta_r,
                             to_pointer(args[2]),
-                            rocblas_datatype_i32_r,
+                            output_type,
                             ldc,
                             is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
-                            rocblas_datatype_i32_r,
+                            output_type,
                             ldc,
-                            rocblas_datatype_i32_r,
+                            compute_type,
                             rocblas_gemm_algo_standard,
                             0,
                             0,
@@ -112,24 +112,24 @@ argument rocblas_quant_gemm::compute(context& ctx,
                 k,
                 &alpha_r,
                 to_pointer(args.at(1)),
-                rocblas_datatype_i8_r,
+                arg_type,
                 ldb,
                 k * n,
                 to_pointer(args.at(0)),
-                rocblas_datatype_i8_r,
+                arg_type,
                 lda,
                 m * k,
                 &beta_r,
                 to_pointer(args[2]),
-                rocblas_datatype_i32_r,
+                output_type,
                 ldc,
                 m * n,
                 is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
-                rocblas_datatype_i32_r,
+                output_type,
                 ldc,
                 m * n,
                 num_matrices,
-                rocblas_datatype_i32_r,
+                compute_type,
                 rocblas_gemm_algo_standard,
                 0,
                 0,
@@ -137,8 +137,24 @@ argument rocblas_quant_gemm::compute(context& ctx,
                 nullptr);
         }
     });
+}
 
-    return is_3inputs ? args[3] : args[2];
+void gemm(context& ctx,
+          const shape& output_shape,
+          const std::vector<argument>& args,
+          float alpha,
+          float beta)
+{
+    gemm_impl(ctx, output_shape, args, alpha, beta);
+}
+
+void gemm(context& ctx,
+          const shape& output_shape,
+          const std::vector<argument>& args,
+          int32_t alpha,
+          int32_t beta)
+{
+    gemm_impl(ctx, output_shape, args, alpha, beta);
 }
 
 } // namespace gpu

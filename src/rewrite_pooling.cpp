@@ -20,6 +20,8 @@ void rewrite_pooling::apply(program& prog) const
         if(ins->inputs().empty())
             continue;
         auto&& s  = ins->inputs().front()->get_shape();
+        if (not s.standard())
+            continue;
         auto&& op = any_cast<op::pooling>(ins->get_operator());
         if(op.mode != "average")
             continue;

@@ -1,4 +1,5 @@
 
+#include <migraphx/env.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/operators.hpp>
 #include <migraphx/generate.hpp>
@@ -23,6 +24,8 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #endif
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_GPU_COMPILE)
 
 // An improved async, that doesn't block
 template <class Function>
@@ -82,7 +85,7 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-void compile_check(migraphx::program& p, const migraphx::target& t)
+void compile_check(migraphx::program& p, const migraphx::target& t, bool show_trace = false)
 {
     auto name = t.name();
     auto s    = p.get_shape();
@@ -92,6 +95,10 @@ void compile_check(migraphx::program& p, const migraphx::target& t)
     {
         std::cout << ss.str() << std::endl;
         throw std::runtime_error("Compiling program with " + name + " alters its shape");
+    }
+    else if (show_trace)
+    {
+        std::cout << ss.str() << std::endl;
     }
 }
 
@@ -116,7 +123,7 @@ migraphx::argument run_gpu(migraphx::program& p)
     V v;
     p = v.create_program();
     auto_print pp{p, 1};
-    compile_check(p, migraphx::gpu::target{});
+    compile_check(p, migraphx::gpu::target{}, migraphx::enabled(MIGRAPHX_TRACE_GPU_COMPILE{}));
     migraphx::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
@@ -980,6 +987,23 @@ struct test_conv_pooling : verify_program<test_conv_pooling>
             p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto conv    = p.add_instruction(migraphx::op::convolution{}, input, weights);
         auto pooling = p.add_instruction(migraphx::op::pooling{"max"}, conv);
+        p.add_instruction(migraphx::op::relu{}, pooling);
+        return p;
+    }
+};
+
+struct test_concat_pooling : verify_program<test_concat_pooling>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 256, 8, 8}});
+        auto transpose = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, input);
+        auto concat = p.add_instruction(migraphx::op::concat{3}, transpose);
+        auto concat_t = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, concat);
+
+        auto pooling = p.add_instruction(migraphx::op::pooling{"average", {0, 0}, {1, 1}, {8, 8}}, concat_t);
         p.add_instruction(migraphx::op::relu{}, pooling);
         return p;
     }

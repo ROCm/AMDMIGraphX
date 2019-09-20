@@ -2,13 +2,18 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/convolution.hpp>
-#include <migraphx/gpu/device/add_relu.hpp>
+#include <migraphx/gpu/oper.hpp>
+#include <migraphx/gpu/device/mul_add.hpp>
+#include <migraphx/gpu/device/add_unary.hpp>
 #include <migraphx/gpu/device/add.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/array.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_FUSION)
 
 struct fusion
 {
@@ -122,15 +127,10 @@ MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
            s.strides()[1] != 0 and s.strides()[2] == 0 and s.strides()[3] == 0;
 }
 
-// TODO: Move to another header
-template <class T, class... Ts>
-std::array<T, sizeof...(Ts) + 1> make_array(T x, Ts... xs)
-{
-    return {std::move(x), std::move(static_cast<T>(xs))...};
-}
-
 MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 {
+    if(enabled(MIGRAPHX_DISABLE_MIOPEN_FUSION{}))
+        return false;
     if(ins->name() != "gpu::convolution")
         return false;
     if(ins->get_shape().type() != shape::float_type)
@@ -140,11 +140,13 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
     auto conv = any_cast<miopen_convolution>(ins->get_operator());
     if(conv.op.group > 1)
         return false;
-    if(conv.op.padding_mode != op::padding_mode_t::default_)
-        return false;
     if(wei.lens()[1] > 512 and conv.algo != miopenConvolutionFwdAlgoWinograd)
         return false;
     auto op = conv.op;
+    // Dont fuse winograd for non-3x3s since there is no fused windograd for those configs
+    if(conv.algo == miopenConvolutionFwdAlgoWinograd and wei.lens()[2] != 3 and
+       wei.lens()[3] != 3 and op.stride == make_array<size_t>(1, 1))
+        return false;
     return contains({{0, 0}, {1, 1}, {2, 2}}, op.padding) and
            contains({{0, 0}, {1, 1}}, op.stride) and op.dilation == make_array<size_t>(1, 1);
 }
@@ -168,9 +170,33 @@ struct hip_triadd
     }
 };
 
-struct hip_triadd_relu
+struct hip_triadd_relu : ternary_device<hip_triadd_relu, &device::add_relu>
 {
-    std::string name() const { return "hip::triadd_relu"; }
+};
+
+struct hip_triadd_sigmoid : ternary_device<hip_triadd_sigmoid, &device::add_sigmoid>
+{
+};
+
+struct hip_triadd_tanh : ternary_device<hip_triadd_tanh, &device::add_tanh>
+{
+};
+
+struct hip_add_relu : binary_device<hip_add_relu, &device::add_relu>
+{
+};
+
+struct hip_add_sigmoid : binary_device<hip_add_relu, &device::add_sigmoid>
+{
+};
+
+struct hip_add_tanh : binary_device<hip_add_tanh, &device::add_tanh>
+{
+};
+
+struct hip_mul_add
+{
+    std::string name() const { return "hip::mul_add"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(4);
@@ -178,7 +204,7 @@ struct hip_triadd_relu
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        device::add_relu(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
+        device::mul_add(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
         return args.at(3);
     }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
@@ -187,18 +213,19 @@ struct hip_triadd_relu
     }
 };
 
-struct hip_add_relu
+struct hip_mul_add_relu
 {
-    std::string name() const { return "hip::add_relu"; }
+    std::string name() const { return "hip::mul_add_relu"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs, *this}.has(3);
+        check_shapes{inputs, *this}.has(4);
         return inputs.front();
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        device::add_relu(ctx.get_stream().get(), args.at(2), args.at(0), args.at(1));
-        return args.at(2);
+        device::mul_add_relu(
+            ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
+        return args.at(3);
     }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
@@ -206,12 +233,40 @@ struct hip_add_relu
     }
 };
 
-struct find_add_relu
+void move_broadcasted_back(std::vector<instruction_ref>& args)
 {
+    // Ensure the last arguments is the broadcasted one
+    auto last = std::prev(args.end());
+    auto it =
+        std::find_if(args.begin(), last, [](auto arg) { return arg->get_shape().broadcasted(); });
+    if(it != last)
+        std::swap(*it, *std::prev(last));
+}
+
+void move_standard_front(std::vector<instruction_ref>& args)
+{
+    // Ensure the first arguments is the standard one
+    auto last = std::prev(args.end());
+    auto it =
+        std::find_if(args.begin(), last, [](auto arg) { return arg->get_shape().standard(); });
+    if(it != last)
+        std::swap(*it, args.front());
+}
+
+struct find_add_unary
+{
+    std::string op_name;
+    operation binary_add_op;
+    operation ternary_add_op;
     auto matcher() const
     {
-        return match::name("gpu::relu")(match::arg(0)(
-            match::any_of(match::name("gpu::add"), match::name("hip::triadd")).bind("add")));
+        return match::name(op_name)(match::arg(0)(
+            match::used_once(),
+            match::any_of(match::name("gpu::add"),
+                          match::name("hip::triadd"),
+                          match::any_of(match::name("@literal"),
+                                        match::any_of[match::inputs()](match::standard_shape())))
+                .bind("add")));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -219,12 +274,15 @@ struct find_add_relu
         auto add_ins = r.instructions["add"];
         auto ins     = r.result;
         auto args    = add_ins->inputs();
+        move_standard_front(args);
+        move_broadcasted_back(args);
+
         // Use the allocation from the relu operator
         args.back() = ins->inputs().back();
         if(add_ins->name() == "gpu::add")
-            p.replace_instruction(ins, hip_add_relu{}, args);
+            p.replace_instruction(ins, binary_add_op, args);
         else if(add_ins->name() == "hip::triadd")
-            p.replace_instruction(ins, hip_triadd_relu{}, args);
+            p.replace_instruction(ins, ternary_add_op, args);
     }
 };
 
@@ -232,26 +290,75 @@ struct find_triadd
 {
     auto matcher() const
     {
-        return match::name("gpu::add")(match::either_arg(0, 1)(match::name("gpu::add").bind("add"),
-                                                               match::any().bind("input")));
+        return match::name("gpu::add")(match::either_arg(0, 1)(
+            match::name("gpu::add")(match::used_once()).bind("add"),
+            match::any(match::any_of(match::name("@literal"),
+                                     match::any_of[match::inputs()](match::standard_shape())))
+                .bind("input")));
     }
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto add_ins        = r.instructions["add"];
-        auto input_ins      = r.instructions["input"];
-        auto ins            = r.result;
-        auto args           = add_ins->inputs();
+        auto add_ins   = r.instructions["add"];
+        auto input_ins = r.instructions["input"];
+        auto ins       = r.result;
+        auto args      = add_ins->inputs();
+        assert(add_ins != input_ins);
+
         auto is_broadcasted = [](auto arg) { return arg->get_shape().broadcasted(); };
         if(std::count_if(args.begin(), args.end(), is_broadcasted) > 1)
             return;
         args.insert(args.begin(), input_ins);
-        // Ensure the last arguments is the broadcasted one
-        auto it = std::find_if(args.begin(), args.end(), is_broadcasted);
-        if(it != args.end())
-            std::swap(*it, *std::prev(args.end(), 2));
+        move_standard_front(args);
+        move_broadcasted_back(args);
+
         args.back() = ins->inputs().back();
         p.replace_instruction(ins, hip_triadd{}, args);
+    }
+};
+
+struct find_mul_add
+{
+    auto matcher() const
+    {
+        return match::name("gpu::add")(match::either_arg(0, 1)(
+            match::name("gpu::mul")(match::used_once()).bind("mul"), match::any().bind("b")));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto mul_ins = r.instructions["mul"];
+        auto b_ins   = r.instructions["b"];
+        auto ins     = r.result;
+        auto args    = mul_ins->inputs();
+        assert(mul_ins != b_ins);
+
+        move_standard_front(args);
+        move_broadcasted_back(args);
+        args.insert(std::prev(args.end()), b_ins);
+
+        args.back() = ins->inputs().back();
+        p.replace_instruction(ins, hip_mul_add{}, args);
+    }
+};
+
+struct find_mul_add_relu
+{
+    auto matcher() const
+    {
+        return match::name("gpu::relu")(
+            match::arg(0)(match::name("hip::mul_add")(match::used_once()).bind("mul_add")));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto mul_add_ins = r.instructions["mul_add"];
+        auto ins         = r.result;
+        auto args        = mul_add_ins->inputs();
+
+        // Use the allocation from the relu operator
+        args.back() = ins->inputs().back();
+        p.replace_instruction(ins, hip_mul_add_relu{}, args);
     }
 };
 
@@ -410,7 +517,11 @@ void fuse_ops::apply(program& p) const
     match::find_matches(p, 
         find_conv_bias_relu{ctx},
         find_conv_bias{ctx},
-        find_add_relu{}
+        find_mul_add{},
+        find_mul_add_relu{},
+        find_add_unary{"gpu::relu", hip_add_relu{}, hip_triadd_relu{}},
+        find_add_unary{"gpu::sigmoid", hip_add_sigmoid{}, hip_triadd_sigmoid{}},
+        find_add_unary{"gpu::tanh", hip_add_tanh{}, hip_triadd_tanh{}}
     );
     // clang-format on
 }

@@ -2,6 +2,7 @@
 #include <migraphx/gpu/hip.hpp>
 
 #include <migraphx/manage_ptr.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <miopen/miopen.h>
 
 #include <vector>
@@ -110,6 +111,18 @@ void copy_to_gpu(const argument& src, const argument& dst)
     auto status = hipMemcpy(dst.data(), src.data(), src_size, hipMemcpyHostToDevice);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Copy to gpu failed: " + hip_error(status));
+}
+
+void gpu_copy(context& ctx, const argument& src, const argument& dst)
+{
+    std::size_t src_size = src.get_shape().bytes();
+    std::size_t dst_size = dst.get_shape().bytes();
+    if(src_size > dst_size)
+        MIGRAPHX_THROW("Not enough memory available in destination to do copy");
+    auto status = hipMemcpyAsync(
+        dst.data(), src.data(), src_size, hipMemcpyDeviceToDevice, ctx.get_stream().get());
+    if(status != hipSuccess)
+        MIGRAPHX_THROW("Gpu copy failed: " + hip_error(status));
 }
 
 } // namespace gpu

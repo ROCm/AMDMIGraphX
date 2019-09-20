@@ -4,7 +4,7 @@ include(ROCMPackageConfigHelpers)
 
 add_library(migraphx 
     auto_contiguous.cpp
-    common_subexpression_elimination.cpp
+    eliminate_common_subexpression.cpp
     propagate_constant.cpp
     dead_code_elimination.cpp
     eliminate_allocation.cpp
@@ -12,8 +12,9 @@ add_library(migraphx
     eliminate_concat.cpp
     eliminate_identity.cpp
     eliminate_pad.cpp
-    fwd_conv_batchnorm_rewrite.cpp
+    rewrite_batchnorm.cpp
     rewrite_rnn.cpp
+    rewrite_pooling.cpp
     env.cpp
     generate.cpp
     instruction.cpp
@@ -27,6 +28,7 @@ add_library(migraphx
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp
 )
+rocm_set_soversion(migraphx ${PROJECT_VERSION})
 rocm_clang_tidy_check(migraphx)
 rocm_install_targets(
   TARGETS migraphx
@@ -40,6 +42,7 @@ target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLU
 
 set(PACKAGE_DEPENDS)
 
+add_subdirectory(driver)
 add_subdirectory(onnx)
 add_subdirectory(tf)
 

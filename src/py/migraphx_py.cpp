@@ -6,11 +6,9 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/stringutils.hpp>
-#ifdef ENABLE_TF
 #include <migraphx/tf.hpp>
-#else
 #include <migraphx/onnx.hpp>
-#endif
+#include <migraphx/type_name.hpp>
 
 #ifdef HAVE_GPU
 #include <migraphx/gpu/target.hpp>
@@ -104,8 +102,13 @@ migraphx::shape to_shape(const py::buffer_info& info)
             t = as.type_enum();
             n = sizeof(as());
         }
-
     });
+
+    if(n == 0)
+    {
+        MIGRAPHX_THROW("MIGRAPHX PYTHON: Unsupported data type" + info.format);
+    }
+
     auto strides = info.strides;
     std::transform(strides.begin(), strides.end(), strides.begin(), [&](auto i) -> std::size_t {
         return n > 0 ? i / n : 0;
@@ -153,6 +156,7 @@ PYBIND11_MODULE(migraphx, m)
     py::class_<migraphx::target>(m, "target");
 
     py::class_<migraphx::program>(m, "program")
+        .def("clone", [](migraphx::program& p) { return *(new migraphx::program(p)); })
         .def("get_parameter_shapes", &migraphx::program::get_parameter_shapes)
         .def("get_shape", &migraphx::program::get_shape)
         .def("compile", [](migraphx::program& p, const migraphx::target& t) { p.compile(t); })
@@ -161,16 +165,13 @@ PYBIND11_MODULE(migraphx, m)
         .def("__ne__", std::not_equal_to<migraphx::program>{})
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
 
-#ifdef ENABLE_TF
     m.def("parse_tf",
           &migraphx::parse_tf,
           "Parse tf protobuf (default format is nhwc)",
           py::arg("filename"),
           py::arg("is_nhwc") = true);
-#else
     m.def("parse_onnx", &migraphx::parse_onnx);
 
-#endif
     m.def("get_target", [](const std::string& name) -> migraphx::target {
         if(name == "cpu")
             return migraphx::cpu::target{};
@@ -182,10 +183,16 @@ PYBIND11_MODULE(migraphx, m)
     });
 
     m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);
-    m.def("quantize", [](migraphx::program& p, std::vector<std::string>& ins_names) {
-        migraphx::quantize(p, ins_names);
-    });
-    m.def("quantize", [](migraphx::program& p) { migraphx::quantize(p, {"all"}); });
+    m.def("quantize_fp16",
+          &migraphx::quantize_fp16,
+          py::arg("prog"),
+          py::arg("ins_names") = std::vector<std::string>{"all"});
+    m.def("quantize_int8",
+          &migraphx::quantize_int8,
+          py::arg("prog"),
+          py::arg("t"),
+          py::arg("calibration") = std::vector<migraphx::program::parameter_map>{},
+          py::arg("ins_names")   = std::vector<std::string>{"dot", "convolution"});
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

@@ -1,6 +1,7 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/operators.hpp>
+#include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -163,6 +164,146 @@ TEST_CASE(transpose_double_contiguous)
     EXPECT(p.get_shape() == out_shape);
     EXPECT(std::distance(p.begin(), p.end()) == n - 1);
     EXPECT(p.has_instruction(t));
+}
+
+TEST_CASE(transpose_partial1)
+{
+    migraphx::program p;
+    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
+    auto x  = p.add_parameter("x", s);
+    auto t1 = p.add_instruction(migraphx::op::transpose{{1, 0, 2}}, x);
+    auto t2 = p.add_instruction(migraphx::op::transpose{{1, 2, 0}}, t1);
+    p.add_instruction(pass_op{}, t2);
+    auto out_shape = p.get_shape();
+    auto n         = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape() == out_shape);
+    EXPECT(std::distance(p.begin(), p.end()) == n - 1);
+}
+
+TEST_CASE(transpose_partial2)
+{
+    migraphx::program p;
+    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
+    auto x  = p.add_parameter("x", s);
+    auto t1 = p.add_instruction(migraphx::op::transpose{{1, 0, 2}}, x);
+    auto t2 = p.add_instruction(migraphx::op::transpose{{1, 2, 0}}, t1);
+    auto t3 = p.add_instruction(migraphx::op::transpose{{1, 0, 2}}, t2);
+    p.add_instruction(pass_op{}, t3);
+    auto out_shape = p.get_shape();
+    auto n         = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape() == out_shape);
+    EXPECT(std::distance(p.begin(), p.end()) == n - 2);
+}
+
+TEST_CASE(transpose_partial3)
+{
+    migraphx::program p;
+    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
+    auto x  = p.add_parameter("x", s);
+    auto t1 = p.add_instruction(migraphx::op::transpose{{1, 0, 2}}, x);
+    auto t2 = p.add_instruction(migraphx::op::transpose{{1, 2, 0}}, t1);
+    auto t3 = p.add_instruction(migraphx::op::transpose{{1, 0, 2}}, t2);
+    auto t4 = p.add_instruction(migraphx::op::transpose{{1, 0, 2}}, t3);
+    p.add_instruction(pass_op{}, t4);
+    auto out_shape = p.get_shape();
+    auto n         = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape() == out_shape);
+    EXPECT(std::distance(p.begin(), p.end()) == n - 3);
+}
+
+TEST_CASE(nop_transpose1)
+{
+    migraphx::program p;
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
+    auto x = p.add_parameter("x", s);
+    auto t = p.add_instruction(migraphx::op::transpose{{0, 1, 2}}, x);
+    p.add_instruction(pass_op{}, t);
+    auto out_shape = p.get_shape();
+    auto n         = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape() == out_shape);
+    EXPECT(std::distance(p.begin(), p.end()) == n - 1);
+}
+
+TEST_CASE(nop_transpose2)
+{
+    migraphx::program p;
+    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
+    auto x  = p.add_parameter("x", s);
+    auto t1 = p.add_instruction(migraphx::op::transpose{{0, 1, 2}}, x);
+    auto t2 = p.add_instruction(migraphx::op::transpose{{0, 1, 2}}, t1);
+    auto t3 = p.add_instruction(migraphx::op::transpose{{0, 1, 2}}, t2);
+    auto t4 = p.add_instruction(migraphx::op::transpose{{0, 1, 2}}, t3);
+    p.add_instruction(pass_op{}, t4);
+    auto out_shape = p.get_shape();
+    auto n         = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape() == out_shape);
+    EXPECT(std::distance(p.begin(), p.end()) == n - 4);
+}
+
+TEST_CASE(nop_transpose3)
+{
+    migraphx::program p;
+    auto s      = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
+    auto x      = p.add_parameter("x", s);
+    auto y      = p.add_parameter("y", s);
+    auto concat = p.add_instruction(migraphx::op::concat{3}, x, y);
+    auto t1     = p.add_instruction(migraphx::op::transpose{{0, 1, 2, 3}}, concat);
+    auto t2     = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, t1);
+    p.add_instruction(pass_op{}, t2);
+    auto out_shape = p.get_shape();
+    auto n         = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape() == out_shape);
+    EXPECT(std::distance(p.begin(), p.end()) == n - 1);
+}
+
+TEST_CASE(concat_transpose1)
+{
+    migraphx::program p;
+    auto s      = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
+    auto x      = p.add_parameter("x", s);
+    auto y      = p.add_parameter("y", s);
+    auto xt     = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
+    auto yt     = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, y);
+    auto concat = p.add_instruction(migraphx::op::concat{2}, xt, yt);
+    auto t      = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, concat);
+    p.add_instruction(pass_op{}, t);
+    auto out_shape = p.get_shape();
+    auto n         = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape().lens() == out_shape.lens());
+    EXPECT(std::distance(p.begin(), p.end()) == n - 3);
+    auto new_concat =
+        std::find_if(p.begin(), p.end(), [](auto ins) { return ins.name() == "concat"; });
+    EXPECT(bool{new_concat != p.end()});
+    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 3);
+}
+
+TEST_CASE(concat_transpose2)
+{
+    migraphx::program p;
+    auto s      = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
+    auto x      = p.add_parameter("x", s);
+    auto y      = p.add_parameter("y", s);
+    auto xt     = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, x);
+    auto yt     = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, y);
+    auto concat = p.add_instruction(migraphx::op::concat{3}, xt, yt);
+    auto t      = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, concat);
+    p.add_instruction(pass_op{}, t);
+    auto out_shape = p.get_shape();
+    auto n         = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape().lens() == out_shape.lens());
+    EXPECT(std::distance(p.begin(), p.end()) == n - 2);
+    auto new_concat =
+        std::find_if(p.begin(), p.end(), [](auto ins) { return ins.name() == "concat"; });
+    EXPECT(bool{new_concat != p.end()});
+    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

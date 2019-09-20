@@ -17,6 +17,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/tf.hpp>
+#include <migraphx/pad_calc.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -24,8 +25,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct tf_parser
 {
     using attribute_map = std::unordered_map<std::string, tensorflow::AttrValue>;
-    using node_map      = std::unordered_map<std::string, tensorflow::NodeDef>;
-    // using input_node_map = std::unordered_map<std::string, std::unordered_set<std::string>>;
+    using node_map      = std::map<std::string, tensorflow::NodeDef>;
     using op_func = std::function<instruction_ref(attribute_map, std::vector<instruction_ref>)>;
 
     node_map nodes;
@@ -36,7 +36,50 @@ struct tf_parser
 
     std::unordered_map<std::string, op_func> ops;
 
-    std::vector<size_t> parse_axes(const attribute_map& attributes, const std::string& s) const
+    bool should_transpose(instruction_ref ins) const
+    {
+        return is_nhwc and ins->get_shape().lens().size() == 4;
+    }
+
+    instruction_ref to_nhwc(instruction_ref ins)
+    {
+        if(should_transpose(ins))
+            return prog.add_instruction(op::transpose{{0, 2, 3, 1}}, ins);
+        return ins;
+    }
+
+    instruction_ref to_nchw(instruction_ref ins)
+    {
+        if(should_transpose(ins))
+            return prog.add_instruction(op::transpose{{0, 3, 1, 2}}, ins);
+        return ins;
+    }
+
+    instruction_ref to_kcxy(instruction_ref ins)
+    {
+        if(should_transpose(ins))
+            return prog.add_instruction(op::transpose{{3, 2, 0, 1}}, ins);
+        return ins;
+    }
+
+    instruction_ref make_contiguous(instruction_ref ins)
+    {
+        if(ins->get_shape().standard())
+            return ins;
+        else
+            return prog.add_instruction(op::contiguous{}, ins);
+    }
+
+    std::vector<instruction_ref> to_nchw(const std::vector<instruction_ref>& args)
+    {
+        std::vector<instruction_ref> result(args.size());
+        std::transform(
+            args.begin(), args.end(), result.begin(), [&](auto ins) { return this->to_nchw(ins); });
+        return result;
+    }
+
+    std::vector<size_t>
+    parse_axes(const attribute_map& attributes, const std::string& s, const size_t num_dims) const
     {
         auto attrs = attributes.at(s).list().i();
         std::vector<size_t> axes;
@@ -44,14 +87,14 @@ struct tf_parser
         if(is_nhwc)
         {
             std::transform(axes.begin(), axes.end(), axes.begin(), [&](size_t axis) {
-                return parse_axis(axis);
+                return parse_axis(axis, num_dims);
             });
         }
         return axes;
     }
 
     template <class T>
-    std::vector<T> parse_axes(std::vector<T> axes) const
+    std::vector<T> parse_axes(std::vector<T> axes, const size_t num_dims) const
     {
         if(is_nhwc)
         {
@@ -59,7 +102,7 @@ struct tf_parser
             std::transform(axes.begin(),
                            axes.end(),
                            std::back_inserter(new_axes),
-                           [&](size_t axis) { return parse_axis(axis); });
+                           [&](size_t axis) { return parse_axis(axis, num_dims); });
             return new_axes;
         }
         return axes;
@@ -74,17 +117,17 @@ struct tf_parser
         std::vector<T> new_data(prev_data.size());
         for(size_t i = 0; i < new_data.size(); i++)
         {
-            auto new_idx         = parse_axis(i);
+            auto new_idx         = parse_axis(i, new_data.size());
             new_data.at(new_idx) = prev_data.at(i);
         }
         prev_data = new_data;
     }
 
     template <class T>
-    T parse_axis(const T& dim) const
+    T parse_axis(const T& dim, const size_t num_dims) const
     {
         T new_dim = dim;
-        if(is_nhwc)
+        if(is_nhwc and num_dims >= 4)
         {
             switch(dim)
             {
@@ -105,70 +148,109 @@ struct tf_parser
         return axes;
     }
 
+    std::vector<int64_t> get_axes_from_mask(const size_t num_axes, const uint32_t mask)
+    {
+        uint32_t bitwise_compare = 1;
+        std::vector<int64_t> axes;
+        for(size_t i = 0; i < num_axes; i++)
+        {
+            // the LSB corresponds to axis 0 when determining which axes to begin
+            if(((mask >> i) & bitwise_compare) == 1)
+                axes.push_back(1);
+            else
+                axes.push_back(0);
+        }
+        return axes;
+    }
+
     tf_parser()
     {
+        add_generic_op("All", op::identity{});
         add_generic_op("Identity", op::identity{});
+        add_generic_op("LessEqual", op::identity{});
         add_generic_op("Relu", op::relu{});
         add_generic_op("Relu6", op::clip{6.0, 0.0});
+        add_generic_op("Rsqrt", op::rsqrt{});
+        add_generic_op("Tanh", op::tanh{});
+        add_generic_op("StopGradient", op::identity{});
 
         add_binary_op("Add", op::add{});
         add_binary_op("Mul", op::mul{});
+        add_binary_op("Pow", op::pow{});
+        add_binary_op("SquaredDifference", op::sqdiff{});
+        add_binary_op("Sub", op::sub{});
 
         add_mem_op("AvgPool", &tf_parser::parse_pooling);
+        add_mem_op("BatchMatMul", &tf_parser::parse_matmul, false);
+        add_mem_op("BatchMatMulV2", &tf_parser::parse_matmul, false);
         add_mem_op("BiasAdd", &tf_parser::parse_biasadd);
-        add_mem_op("ConcatV2", &tf_parser::parse_concat);
+        add_mem_op("Cast", &tf_parser::parse_cast, false);
+        add_mem_op("ConcatV2", &tf_parser::parse_concat, false);
         add_mem_op("Const", &tf_parser::parse_constant);
         add_mem_op("Conv2D", &tf_parser::parse_conv);
         add_mem_op("DepthwiseConv2dNative", &tf_parser::parse_depthwiseconv);
+        add_mem_op("ExpandDims", &tf_parser::parse_expanddims, false);
         add_mem_op("FusedBatchNorm", &tf_parser::parse_batchnorm);
-        add_mem_op("MatMul", &tf_parser::parse_matmul);
+        add_mem_op("GatherV2", &tf_parser::parse_gather, false);
+        add_mem_op("MatMul", &tf_parser::parse_matmul, false);
         add_mem_op("MaxPool", &tf_parser::parse_pooling);
-        add_mem_op("Mean", &tf_parser::parse_mean);
-        add_mem_op("Pack", &tf_parser::parse_pack);
+        add_mem_op("Mean", &tf_parser::parse_mean, false);
+        add_mem_op("OneHot", &tf_parser::parse_onehot, false);
+        add_mem_op("Pack", &tf_parser::parse_pack, false);
         add_mem_op("Pad", &tf_parser::parse_pad);
-        add_mem_op("Reshape", &tf_parser::parse_reshape);
-        add_mem_op("Softmax", &tf_parser::parse_softmax);
-        add_mem_op("Squeeze", &tf_parser::parse_squeeze);
-        add_mem_op("StridedSlice", &tf_parser::parse_stridedslice);
+        add_mem_op("Reshape", &tf_parser::parse_reshape, false);
+        add_mem_op("Slice", &tf_parser::parse_slice, false);
+        add_mem_op("Softmax", &tf_parser::parse_softmax<op::softmax>, false);
+        add_mem_op("Squeeze", &tf_parser::parse_squeeze, false);
+        add_mem_op("StridedSlice", &tf_parser::parse_stridedslice, false);
+        add_mem_op("Transpose", &tf_parser::parse_transpose, false);
     }
 
     template <class F>
-    void add_op(std::string name, F f)
+    void add_op(std::string name, F f, bool transpose = true)
     {
-        ops.emplace(name, f);
+        if(transpose)
+        {
+            ops.emplace(name,
+                        op_func{[=](const attribute_map& attributes,
+                                    const std::vector<instruction_ref>& args) -> instruction_ref {
+                            return to_nhwc(f(attributes, to_nchw(args)));
+                        }});
+        }
+        else
+        {
+            ops.emplace(name, f);
+        }
     }
 
-    // Multi output op
     template <class F>
-    void add_multi_op(std::string name, F f)
+    void add_mem_op(std::string name, F f, bool transpose = true)
     {
-        ops.emplace(name, f);
-    }
-
-    template <class F>
-    void add_mem_op(std::string name, F f)
-    {
-        add_op(name, [=](auto&&... xs) {
-            return std::mem_fn(f)(*this, name, std::forward<decltype(xs)>(xs)...);
-        });
+        add_op(name,
+               [=](auto&&... xs) {
+                   return std::mem_fn(f)(*this, name, std::forward<decltype(xs)>(xs)...);
+               },
+               transpose);
     }
 
     template <class T>
     void add_binary_op(std::string name, T x)
     {
-        add_op(name, [this, x](const attribute_map& attributes, std::vector<instruction_ref> args) {
-            if(args.size() != 2)
-                MIGRAPHX_THROW("binary operators should have 2 operands");
-            auto l0 = args[1];
-            if(contains(attributes, "data_format"))
-            {
-                if(is_nhwc)
-                {
-                    l0 = prog.add_instruction(op::transpose{{0, 3, 1, 2}}, args[1]);
-                }
-            }
-            return add_broadcastable_binary_op(args[0], l0, x);
-        });
+        add_op(name,
+               [this, x](const attribute_map&, std::vector<instruction_ref> args) {
+                   if(args.size() != 2)
+                       MIGRAPHX_THROW("binary operators should have 2 operands");
+                   // TODO
+                   // if(contains(attributes, "data_format"))
+                   // {
+                   //     if(is_nhwc)
+                   //     {
+                   //         l0 = prog.add_instruction(op::transpose{{0, 3, 1, 2}}, args[1]);
+                   //     }
+                   // }
+                   return add_broadcastable_binary_op(args[0], args[1], x);
+               },
+               false);
     }
 
     template <class T>
@@ -207,20 +289,22 @@ struct tf_parser
 
             auto l0 = prog.add_instruction(op::multibroadcast{output_lens}, arg0);
             auto l1 = prog.add_instruction(op::multibroadcast{output_lens}, arg1);
-            return prog.add_instruction(x, l0, l1);
+            return to_nhwc(prog.add_instruction(x, to_nchw(l0), to_nchw(l1)));
         }
         else
         {
-            return prog.add_instruction(x, {arg0, arg1});
+            return to_nhwc(prog.add_instruction(x, {to_nchw(arg0), to_nchw(arg1)}));
         }
     }
 
     template <class T>
-    void add_generic_op(std::string name, T x)
+    void add_generic_op(std::string name, T x, bool transpose = true)
     {
-        add_op(name, [this, x](const attribute_map&, std::vector<instruction_ref> args) {
-            return prog.add_instruction(x, args);
-        });
+        add_op(name,
+               [this, x](const attribute_map&, std::vector<instruction_ref> args) {
+                   return prog.add_instruction(x, args);
+               },
+               transpose);
     }
 
     instruction_ref
@@ -246,11 +330,18 @@ struct tf_parser
     }
 
     instruction_ref
+    parse_cast(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        shape::type_t type = parse_type(attributes.at("DstT").type());
+        return prog.add_instruction(op::convert{type}, std::move(args));
+    }
+
+    instruction_ref
     parse_concat(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         // get index for axis within args
         size_t axis_idx = attributes.at("N").i();
-        size_t axis     = parse_axis(args[axis_idx]->eval().at<int64_t>());
+        size_t axis     = args[axis_idx]->eval().at<int64_t>();
         op::concat op{axis};
         // return only first N arguments (assuming last index is the axis value)
         return prog.add_instruction(
@@ -261,45 +352,14 @@ struct tf_parser
                                    attribute_map attributes,
                                    const std::vector<instruction_ref>&)
     {
-        literal v       = parse_tensor(attributes.at("value").tensor());
-        auto l0         = prog.add_literal(v);
-        size_t num_axes = l0->get_shape().lens().size();
-        if(num_axes >= 4)
-        {
-            std::vector<int64_t> transpose_axes = get_axes(num_axes);
-            reorder_data(transpose_axes);
-            l0 = prog.add_instruction(op::transpose{transpose_axes}, l0);
-        }
-        return l0;
+        literal v = parse_tensor(attributes.at("value").tensor());
+        return prog.add_literal(v);
     }
 
     instruction_ref
     parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         op::convolution op;
-        if(contains(attributes, "padding"))
-        {
-            const std::string& pad_mode = attributes.at("padding").s();
-            if(pad_mode.find("SAME") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::same;
-            }
-            else if(pad_mode.find("EXPLICIT") != std::string::npos)
-            {
-                std::vector<size_t> padding;
-                copy(attributes.at("explicit_paddings").list().i(), std::back_inserter(padding));
-                if(padding.size() != 4)
-                {
-                    MIGRAPHX_THROW("padding should have 4 values");
-                }
-                if(padding[0] != padding[2] || padding[1] != padding[3])
-                {
-                    MIGRAPHX_THROW("migraphx does not support asymetric padding");
-                }
-                op.padding[0] = padding[0];
-                op.padding[1] = padding[1];
-            }
-        }
         if(contains(attributes, "strides"))
         {
             std::vector<size_t> stride;
@@ -324,22 +384,58 @@ struct tf_parser
             op.dilation[0] = dilation[2];
             op.dilation[1] = dilation[3];
         }
-        auto weights = args[1];
-        // check if weights are from a constant
 
-        if(weights->name() != "@param")
+        auto weights = to_kcxy(args[1]);
+        auto l0      = args[0];
+        if(contains(attributes, "padding"))
         {
-            if(is_nhwc)
+            const std::string& pad_mode = attributes.at("padding").s();
+            if(pad_mode.find("SAME") != std::string::npos)
             {
-                weights = prog.add_instruction(op::transpose{{1, 3, 0, 2}}, args[1]);
+                op.padding_mode                 = op::padding_mode_t::same;
+                std::vector<size_t> weight_dims = weights->get_shape().lens();
+                size_t weight_h                 = weight_dims[2];
+                size_t weight_w                 = weight_dims[3];
+
+                auto input_dims = l0->get_shape().lens();
+                size_t input_h  = input_dims[2];
+                size_t input_w  = input_dims[3];
+                std::vector<int64_t> pads(input_dims.size());
+                calculate_padding(0, pads, input_h, op.stride[0], op.dilation[0], weight_h);
+                calculate_padding(1, pads, input_w, op.stride[1], op.dilation[1], weight_w);
+
+                if(pads[0] != pads[2] || pads[1] != pads[3])
+                {
+                    std::vector<int64_t> padding = {0, 0, pads[0], pads[1], 0, 0, pads[2], pads[3]};
+                    l0 = prog.add_instruction(migraphx::op::pad{padding}, l0);
+                }
+                else
+                {
+                    op.padding[0] = pads[0];
+                    op.padding[1] = pads[1];
+                }
             }
-            else
+            else if(pad_mode.find("VALID") != std::string::npos)
             {
-                weights = prog.add_instruction(op::transpose{{3, 2, 0, 1}}, args[1]);
+                op.padding_mode = op::padding_mode_t::valid;
+            }
+            else if(pad_mode.find("EXPLICIT") != std::string::npos)
+            {
+                std::vector<size_t> padding;
+                copy(attributes.at("explicit_paddings").list().i(), std::back_inserter(padding));
+                if(padding.size() != 4)
+                {
+                    MIGRAPHX_THROW("padding should have 4 values");
+                }
+                if(padding[0] != padding[2] || padding[1] != padding[3])
+                {
+                    MIGRAPHX_THROW("migraphx does not support asymetric padding");
+                }
+                op.padding[0] = padding[0];
+                op.padding[1] = padding[1];
             }
         }
-
-        return prog.add_instruction(op, {args[0], weights});
+        return prog.add_instruction(op, {l0, to_kcxy(args[1])});
     }
 
     instruction_ref parse_depthwiseconv(const std::string&,
@@ -349,14 +445,7 @@ struct tf_parser
         op::convolution op;
         size_t num_channels = args[0]->get_shape().lens()[1];
         op.group            = num_channels;
-        if(contains(attributes, "padding"))
-        {
-            const std::string& pad_mode = attributes.at("padding").s();
-            if(pad_mode.find("SAME") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::same;
-            }
-        }
+
         if(contains(attributes, "strides"))
         {
             std::vector<size_t> stride;
@@ -369,17 +458,54 @@ struct tf_parser
             op.stride[0] = stride[2];
             op.stride[1] = stride[3];
         }
-        auto weights = args[1];
-        // check if weights are from a constant
-        if(weights->name() != "@param")
+
+        auto weights = to_kcxy(args[1]);
+        if(contains(attributes, "dilations"))
         {
-            if(is_nhwc)
+            std::vector<size_t> dilation;
+            copy(attributes.at("dilations").list().i(), std::back_inserter(dilation));
+            reorder_data(dilation);
+            if(dilation.size() != 4)
             {
-                weights = prog.add_instruction(op::transpose{{1, 3, 0, 2}}, args[1]);
+                MIGRAPHX_THROW("dilation should have 4 values");
             }
-            else
+            op.dilation[0] = dilation[2];
+            op.dilation[1] = dilation[3];
+        }
+
+        auto l0 = args[0];
+        if(contains(attributes, "padding"))
+        {
+            const std::string& pad_mode = attributes.at("padding").s();
+
+            if(pad_mode.find("SAME") != std::string::npos)
             {
-                weights = prog.add_instruction(op::transpose{{3, 2, 0, 1}}, args[1]);
+                op.padding_mode                 = op::padding_mode_t::same;
+                std::vector<size_t> weight_dims = weights->get_shape().lens();
+                size_t weight_h                 = weight_dims[2];
+                size_t weight_w                 = weight_dims[3];
+
+                auto input_dims = l0->get_shape().lens();
+                size_t input_h  = input_dims[2];
+                size_t input_w  = input_dims[3];
+                std::vector<int64_t> pads(input_dims.size());
+                calculate_padding(0, pads, input_h, op.stride[0], op.dilation[0], weight_h);
+                calculate_padding(1, pads, input_w, op.stride[1], op.dilation[1], weight_w);
+
+                if(pads[0] != pads[2] || pads[1] != pads[3])
+                {
+                    std::vector<int64_t> padding = {0, 0, pads[0], pads[1], 0, 0, pads[2], pads[3]};
+                    l0 = prog.add_instruction(migraphx::op::pad{padding}, l0);
+                }
+                else
+                {
+                    op.padding[0] = pads[0];
+                    op.padding[1] = pads[1];
+                }
+            }
+            else if(pad_mode.find("VALID") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::valid;
             }
         }
 
@@ -394,10 +520,37 @@ struct tf_parser
         new_weights_shape[0] = out_channels;
         new_weights_shape[1] = 1;
         // Make sure weights are contiguous before doing reshape
-        auto cweights    = prog.add_instruction(op::contiguous{}, weights);
-        auto new_weights = prog.add_instruction(op::reshape{new_weights_shape}, cweights);
+        auto new_weights =
+            prog.add_instruction(op::reshape{new_weights_shape}, make_contiguous(weights));
 
-        return prog.add_instruction(op, {args[0], new_weights});
+        return prog.add_instruction(op, {l0, new_weights});
+    }
+
+    instruction_ref
+    parse_expanddims(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    {
+        std::vector<size_t> input_dims = args[0]->get_shape().lens();
+        std::vector<int64_t> new_dims(input_dims.begin(), input_dims.end());
+        size_t num_dims = input_dims.size();
+        int32_t dim     = args[1]->eval().at<int32_t>();
+
+        if(dim < 0)
+        {
+            new_dims.insert(new_dims.begin() + (num_dims + dim + 1), 1);
+        }
+        else
+        {
+            new_dims.insert(new_dims.begin() + dim, 1);
+        }
+        return prog.add_instruction(op::reshape{new_dims}, args[0]);
+    }
+
+    instruction_ref
+    parse_gather(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    {
+        int axis = args[2]->eval().at<int32_t>();
+        op::gather op{axis};
+        return prog.add_instruction(op, {args[0], args[1]});
     }
 
     instruction_ref
@@ -412,7 +565,16 @@ struct tf_parser
         }
         if(contains(attributes, "transpose_b"))
         {
-            transb = attributes.at("transpose_a").b();
+            transb = attributes.at("transpose_b").b();
+        }
+
+        if(contains(attributes, "adj_x"))
+        {
+            transa = attributes.at("adj_x").b();
+        }
+        if(contains(attributes, "adj_y"))
+        {
+            transb = attributes.at("adj_y").b();
         }
 
         std::vector<int64_t> perm(args[0]->get_shape().lens().size());
@@ -429,23 +591,44 @@ struct tf_parser
     instruction_ref
     parse_mean(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        auto axes      = parse_axes(args[1]->eval().get<int32_t>().to_vector());
         bool keep_dims = attributes.at("keep_dims").b();
-        std::vector<int32_t> hw_axes{2, 3};
-        // check if conditions for GlobalAvgPool are met
-        auto lens = args[0]->get_shape().lens();
-        if(axes == hw_axes and lens.size() == 4)
+        auto axes      = args[1]->eval().get<int32_t>().to_vector<int64_t>();
+
+        if(keep_dims)
         {
-            op::pooling op{"average"};
-            op.lengths[0] = lens[2];
-            op.lengths[1] = lens[3];
-            auto l0       = prog.add_instruction(op, args.front());
-            if(keep_dims)
-                return l0;
-            return prog.add_instruction(
-                op::squeeze{std::vector<int64_t>(hw_axes.begin(), hw_axes.end())}, l0);
+            return prog.add_instruction(op::reduce_mean{axes}, args[0]);
         }
-        MIGRAPHX_THROW("MIGraphX does not support mean outside of GlobalAvgPool transformation");
+        else
+        {
+            auto ins = prog.add_instruction(op::reduce_mean{axes}, args[0]);
+            return prog.add_instruction(op::squeeze{axes}, ins);
+        }
+    }
+
+    instruction_ref
+    parse_onehot(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        size_t depth = static_cast<size_t>(args[1]->eval().at<int32_t>());
+
+        int64_t axis    = -1;
+        float on_value  = args[2]->eval().at<float>();
+        float off_value = args[3]->eval().at<float>();
+
+        std::vector<float> depth_input(depth * depth, off_value);
+        for(int i = 0; i < depth; i++)
+        {
+            depth_input[depth * i + i] = on_value;
+        }
+
+        if(contains(attributes, "axis"))
+            axis = attributes.at("axis").i();
+        if(axis == -1)
+        {
+            shape s{shape::float_type, {depth, depth}};
+            auto l0 = prog.add_literal({s, depth_input});
+            return prog.add_instruction(op::gather{0}, {l0, args[0]});
+        }
+        MIGRAPHX_THROW("MIGraphX does not support axis != -1");
     }
 
     instruction_ref parse_pack(const std::string&,
@@ -463,16 +646,14 @@ struct tf_parser
             MIGRAPHX_THROW("TF_PARSER: axis value of " + to_string(axis) +
                            " must be smaller than input size " + to_string(input_size));
         }
-        // check if input arg needs axis to be converted to NCHW
-        if(input_size >= 4)
-            axis = parse_axis(axis);
 
         std::transform(
             args.begin(),
             args.end(),
             std::back_inserter(unsqueezed_args),
             [&](instruction_ref arg) { return prog.add_instruction(op::unsqueeze{{axis}}, arg); });
-        return prog.add_instruction(op::concat{static_cast<size_t>(axis)}, unsqueezed_args);
+        return to_nhwc(
+            prog.add_instruction(op::concat{static_cast<size_t>(axis)}, unsqueezed_args));
     }
 
     instruction_ref
@@ -508,18 +689,6 @@ struct tf_parser
     {
         op::pooling op{starts_with(name, "Max") ? "max" : "average"};
 
-        if(contains(attributes, "padding"))
-        {
-            const std::string& pad_mode = attributes.at("padding").s();
-            if(pad_mode.find("SAME") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::same;
-            }
-            else if(pad_mode.find("VALID") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::valid;
-            }
-        }
         if(contains(attributes, "strides"))
         {
             std::vector<size_t> stride;
@@ -544,7 +713,39 @@ struct tf_parser
             op.lengths[0] = ksize[2];
             op.lengths[1] = ksize[3];
         }
-        return prog.add_instruction(op, args[0]);
+
+        auto l0 = args[0];
+        if(contains(attributes, "padding"))
+        {
+            const std::string& pad_mode = attributes.at("padding").s();
+            if(pad_mode.find("SAME") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::same;
+                auto input_dims = l0->get_shape().lens();
+                size_t input_h  = input_dims[2];
+                size_t input_w  = input_dims[3];
+                std::vector<int64_t> pads(input_dims.size());
+                calculate_padding(0, pads, input_h, op.stride[0], 1, op.lengths[0]);
+                calculate_padding(1, pads, input_w, op.stride[1], 1, op.lengths[1]);
+
+                if(pads[0] != pads[2] || pads[1] != pads[3])
+                {
+                    std::vector<int64_t> padding = {0, 0, pads[0], pads[1], 0, 0, pads[2], pads[3]};
+                    l0                           = prog.add_instruction(
+                        migraphx::op::pad{padding, std::numeric_limits<float>::lowest()}, l0);
+                }
+                else
+                {
+                    op.padding[0] = pads[0];
+                    op.padding[1] = pads[1];
+                }
+            }
+            else if(pad_mode.find("VALID") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::valid;
+            }
+        }
+        return prog.add_instruction(op, l0);
     }
 
     instruction_ref
@@ -555,7 +756,7 @@ struct tf_parser
             MIGRAPHX_THROW("reshape needs 2 arguments (input, new_shape)");
         auto s = args[1]->eval();
         s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
-        return prog.add_instruction(op, args[0]);
+        return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
     void parse_from(std::istream& is)
@@ -572,13 +773,46 @@ struct tf_parser
     }
 
     instruction_ref
-    parse_softmax(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    parse_slice(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
-        auto dims = args.front()->get_shape().lens();
-        auto r =
-            prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1]), 1, 1}}, args.front());
-        auto s = prog.add_instruction(op::softmax{}, r);
-        return prog.add_instruction(op::reshape{{long(dims[0]), long(dims[1])}}, s);
+        op::slice op;
+        auto starts     = args[1]->eval().get<int32_t>().to_vector();
+        auto size       = args[2]->eval().get<int32_t>().to_vector();
+        auto axes       = args[0]->get_shape().lens();
+        size_t num_axes = axes.size();
+
+        op.starts = std::vector<int64_t>(starts.begin(), starts.end());
+        op.ends   = std::vector<int64_t>(num_axes);
+        op.axes   = std::vector<int64_t>(num_axes);
+        std::iota(op.axes.begin(), op.axes.end(), 0);
+        for(size_t i = 0; i < num_axes; i++)
+        {
+            if(size[i] == -1)
+                op.ends[i] = axes[i];
+            else
+                op.ends[i] = starts[i] + size[i];
+        }
+        return prog.add_instruction(op, make_contiguous(args[0]));
+    }
+
+    // template to facilitate the logsoftmax later
+    template <class Op>
+    instruction_ref parse_softmax(const std::string&,
+                                  const attribute_map& attributes,
+                                  std::vector<instruction_ref> args)
+    {
+        int axis      = -1;
+        auto num_dims = args[0]->get_shape().lens().size();
+        if(contains(attributes, "axis"))
+        {
+            axis = static_cast<int>(attributes.at("axis").i());
+        }
+        if(axis < 0)
+        {
+            axis += num_dims;
+        }
+
+        return prog.add_instruction(Op{axis}, make_contiguous(args[0]));
     }
 
     instruction_ref parse_squeeze(const std::string&,
@@ -586,20 +820,21 @@ struct tf_parser
                                   std::vector<instruction_ref> args)
     {
         op::squeeze op;
-        auto axes = parse_axes(attributes, "squeeze_dims");
+        auto input_dims = args[0]->get_shape().lens();
+        auto axes       = attributes.at("squeeze_dims").list().i();
         copy(axes, std::back_inserter(op.axes));
-        auto args0_dims = args[0]->get_shape().lens();
+
         if(op.axes.empty()) // no squeeze_dims provided, remove any dim that equals 1
         {
-            for(size_t i = 0; i < args0_dims.size(); i++)
+            for(size_t i = 0; i < input_dims.size(); i++)
             {
-                if(args0_dims.at(i) == 1)
+                if(input_dims.at(i) == 1)
                 {
                     op.axes.push_back(i);
                 }
             }
         }
-        return prog.add_instruction(op, args[0]);
+        return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
     instruction_ref parse_stridedslice(const std::string&,
@@ -607,25 +842,49 @@ struct tf_parser
                                        std::vector<instruction_ref> args)
     {
         op::slice op;
-        auto starts     = args[1]->eval().get<int32_t>().to_vector();
-        auto ends       = args[2]->eval().get<int32_t>().to_vector();
-        size_t num_axes = args[0]->get_shape().lens().size();
-        if(num_axes >= 4)
-        {
-            reorder_data(starts);
-            reorder_data(ends);
-        }
+        auto starts              = args[1]->eval().get<int32_t>().to_vector();
+        auto ends                = args[2]->eval().get<int32_t>().to_vector();
+        auto l0                  = args[0];
+        size_t num_axes          = l0->get_shape().lens().size();
+        std::vector<size_t> axes = l0->get_shape().lens();
 
         op.starts = std::vector<int64_t>(starts.begin(), starts.end());
         op.ends   = std::vector<int64_t>(ends.begin(), ends.end());
         op.axes   = std::vector<int64_t>(num_axes);
         std::iota(op.axes.begin(), op.axes.end(), 0);
+        uint32_t begin_mask       = 0;
+        uint32_t end_mask         = 0;
         uint32_t shrink_axis_mask = 0;
         uint32_t bitwise_compare  = 1;
         std::vector<int64_t> squeeze_axes;
 
+        if(contains(attributes, "begin_mask"))
+            begin_mask = static_cast<uint32_t>(attributes.at("begin_mask").i());
+
+        if(contains(attributes, "end_mask"))
+            end_mask = static_cast<uint32_t>(attributes.at("end_mask").i());
+
         if(contains(attributes, "shrink_axis_mask"))
             shrink_axis_mask = static_cast<uint32_t>(attributes.at("shrink_axis_mask").i());
+
+        std::vector<int64_t> begin_axes = get_axes_from_mask(num_axes, begin_mask);
+        std::vector<int64_t> end_axes   = get_axes_from_mask(num_axes, end_mask);
+
+        for(size_t i = 0; i < num_axes; i++)
+        {
+            if(begin_axes.at(i) == 1)
+            {
+                op.starts.at(i) = 0;
+            }
+            if(end_axes.at(i) == 1)
+            {
+                op.ends.at(i) = axes.at(i);
+            }
+        }
+
+        auto l1 = prog.add_instruction(op, l0);
+        if(shrink_axis_mask == 0)
+            return l1;
 
         for(size_t i = 0; i < num_axes; i++)
         {
@@ -633,13 +892,18 @@ struct tf_parser
             if(((shrink_axis_mask >> i) & bitwise_compare) == 1)
                 squeeze_axes.push_back(i);
         }
-        if(num_axes >= 4)
-        {
-            squeeze_axes = parse_axes(squeeze_axes);
-        }
 
-        auto l0 = prog.add_instruction(op, args[0]);
-        return prog.add_instruction(op::squeeze{squeeze_axes}, l0);
+        return prog.add_instruction(op::squeeze{squeeze_axes}, l1);
+    }
+
+    instruction_ref
+    parse_transpose(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    {
+        auto perm = args[1]->eval().get<int32_t>().to_vector();
+        op::transpose op;
+        op.dims = std::vector<int64_t>(perm.begin(), perm.end());
+
+        return prog.add_instruction(op, args.front());
     }
 
     void parse_graph(const tensorflow::GraphDef& graph)
@@ -656,7 +920,7 @@ struct tf_parser
                 reorder_data(dims);
             }
             shape s            = shape{shape_type, dims};
-            instructions[name] = prog.add_parameter(name, s);
+            instructions[name] = to_nhwc(prog.add_parameter(name, s));
         }
         for(auto&& p : nodes)
         {
@@ -669,10 +933,16 @@ struct tf_parser
         if(instructions.count(name) == 0)
         {
             auto&& node = nodes.at(name);
+            // assert ops ignored
+            if(node.op() == "Assert" or contains(name, "Assert"))
+                return;
             std::vector<instruction_ref> args;
 
             for(auto&& input : node.input())
             {
+                // control dependencies (signified by ^ before the name) are ignored
+                if(contains(input, "^"))
+                    continue;
                 if(nodes.count(input) > 0)
                 {
                     auto&& iname = get_name(nodes.at(input));
@@ -732,72 +1002,56 @@ struct tf_parser
         shape::type_t shape_type{};
         switch(t)
         {
-        case tensorflow::DataType::DT_INVALID:
-            break; // throw std::runtime_error("Unsupported type UNDEFINED");
         case tensorflow::DataType::DT_FLOAT: shape_type = shape::float_type; break;
         case tensorflow::DataType::DT_DOUBLE: shape_type = shape::double_type; break;
         case tensorflow::DataType::DT_INT32: shape_type = shape::int32_type; break;
-        case tensorflow::DataType::DT_UINT8:
-            break; // throw std::runtime_error("Unsupported type UINT8");
         case tensorflow::DataType::DT_INT16: shape_type = shape::int16_type; break;
         case tensorflow::DataType::DT_INT8: shape_type = shape::int8_type; break;
-        case tensorflow::DataType::DT_STRING:
-            break; // throw std::runtime_error("Unsupported type STRING");
-        case tensorflow::DataType::DT_COMPLEX64:
-            break; // throw std::runtime_error("Unsupported type COMPLEX64");
         case tensorflow::DataType::DT_INT64: shape_type = shape::int64_type; break;
-        case tensorflow::DataType::DT_BOOL:
-            break; // throw std::runtime_error("Unsupported type BOOL");
-        case tensorflow::DataType::DT_QINT8:
-            break; // throw std::runtime_error("Unsupported type QINT8");
-        case tensorflow::DataType::DT_QUINT8:
-            break; // throw std::runtime_error("Unsupported type QUINT8");
-        case tensorflow::DataType::DT_QINT32:
-            break; // throw std::runtime_error("Unsupported type QINT32");
-        case tensorflow::DataType::DT_BFLOAT16:
-            break; // throw std::runtime_error("Unsupported type BFLOAT16");
-        case tensorflow::DataType::DT_QINT16:
-            break; // throw std::runtime_error("Unsupported type QINT16");
-        case tensorflow::DataType::DT_QUINT16:
-            break; // throw std::runtime_error("Unsupported type QUINT16");
         case tensorflow::DataType::DT_UINT16: shape_type = shape::uint16_type; break;
-        case tensorflow::DataType::DT_COMPLEX128:
-            break; // throw std::runtime_error("Unsupported type COMPLEX128");
         case tensorflow::DataType::DT_HALF: shape_type = shape::half_type; break;
-        case tensorflow::DataType::DT_RESOURCE:
-            break; // throw std::runtime_error("Unsupported type RESOURCE");
-        case tensorflow::DataType::DT_VARIANT:
-            break; // throw std::runtime_error("Unsupported type VARIANT");
         case tensorflow::DataType::DT_UINT32: shape_type = shape::uint32_type; break;
-        case tensorflow::DataType::DT_UINT64:
-            shape_type = shape::uint64_type;
-            break;
+        case tensorflow::DataType::DT_UINT64: shape_type = shape::uint64_type; break;
 
+        case tensorflow::DataType::DT_INVALID:
+        case tensorflow::DataType::DT_UINT8:
+        case tensorflow::DataType::DT_STRING:
+        case tensorflow::DataType::DT_COMPLEX64:
+        case tensorflow::DataType::DT_BOOL:
+        case tensorflow::DataType::DT_QINT8:
+        case tensorflow::DataType::DT_QUINT8:
+        case tensorflow::DataType::DT_QINT32:
+        case tensorflow::DataType::DT_BFLOAT16:
+        case tensorflow::DataType::DT_QINT16:
+        case tensorflow::DataType::DT_QUINT16:
+        case tensorflow::DataType::DT_COMPLEX128:
+        case tensorflow::DataType::DT_RESOURCE:
+        case tensorflow::DataType::DT_VARIANT:
         // tf pb should not use these types
-        case tensorflow::DataType::DT_FLOAT_REF: break;
-        case tensorflow::DataType::DT_DOUBLE_REF: break;
-        case tensorflow::DataType::DT_INT32_REF: break;
-        case tensorflow::DataType::DT_UINT8_REF: break;
-        case tensorflow::DataType::DT_INT16_REF: break;
-        case tensorflow::DataType::DT_INT8_REF: break;
-        case tensorflow::DataType::DT_STRING_REF: break;
-        case tensorflow::DataType::DT_COMPLEX64_REF: break;
-        case tensorflow::DataType::DT_INT64_REF: break;
-        case tensorflow::DataType::DT_BOOL_REF: break;
-        case tensorflow::DataType::DT_QINT8_REF: break;
-        case tensorflow::DataType::DT_QUINT8_REF: break;
-        case tensorflow::DataType::DT_QINT32_REF: break;
-        case tensorflow::DataType::DT_BFLOAT16_REF: break;
-        case tensorflow::DataType::DT_QINT16_REF: break;
-        case tensorflow::DataType::DT_QUINT16_REF: break;
-        case tensorflow::DataType::DT_UINT16_REF: break;
-        case tensorflow::DataType::DT_COMPLEX128_REF: break;
-        case tensorflow::DataType::DT_HALF_REF: break;
-        case tensorflow::DataType::DT_RESOURCE_REF: break;
-        case tensorflow::DataType::DT_VARIANT_REF: break;
-        case tensorflow::DataType::DT_UINT32_REF: break;
-        case tensorflow::DataType::DT_UINT64_REF: break;
-        case tensorflow::DataType::DataType_INT_MAX_SENTINEL_DO_NOT_USE_: break;
+        case tensorflow::DataType::DT_FLOAT_REF:
+        case tensorflow::DataType::DT_DOUBLE_REF:
+        case tensorflow::DataType::DT_INT32_REF:
+        case tensorflow::DataType::DT_UINT8_REF:
+        case tensorflow::DataType::DT_INT16_REF:
+        case tensorflow::DataType::DT_INT8_REF:
+        case tensorflow::DataType::DT_STRING_REF:
+        case tensorflow::DataType::DT_COMPLEX64_REF:
+        case tensorflow::DataType::DT_INT64_REF:
+        case tensorflow::DataType::DT_BOOL_REF:
+        case tensorflow::DataType::DT_QINT8_REF:
+        case tensorflow::DataType::DT_QUINT8_REF:
+        case tensorflow::DataType::DT_QINT32_REF:
+        case tensorflow::DataType::DT_BFLOAT16_REF:
+        case tensorflow::DataType::DT_QINT16_REF:
+        case tensorflow::DataType::DT_QUINT16_REF:
+        case tensorflow::DataType::DT_UINT16_REF:
+        case tensorflow::DataType::DT_COMPLEX128_REF:
+        case tensorflow::DataType::DT_HALF_REF:
+        case tensorflow::DataType::DT_RESOURCE_REF:
+        case tensorflow::DataType::DT_VARIANT_REF:
+        case tensorflow::DataType::DT_UINT32_REF:
+        case tensorflow::DataType::DT_UINT64_REF:
+        case tensorflow::DataType::DataType_INT_MAX_SENTINEL_DO_NOT_USE_:
         case tensorflow::DataType::DataType_INT_MIN_SENTINEL_DO_NOT_USE_: break;
         }
         return shape_type;
@@ -812,61 +1066,59 @@ struct tf_parser
             const std::string& s = t.tensor_content();
             switch(t.dtype())
             {
-            case tensorflow::DataType::DT_INVALID: throw std::runtime_error("");
             case tensorflow::DataType::DT_FLOAT:
                 return literal{{shape::float_type, dims}, s.data()};
-            case tensorflow::DataType::DT_UINT8: throw std::runtime_error("");
+            case tensorflow::DataType::DT_BOOL:
             case tensorflow::DataType::DT_INT8: return literal{{shape::int8_type, dims}, s.data()};
             case tensorflow::DataType::DT_UINT16:
-                return literal{{shape::uint16_type, dims}, s.data()};
             case tensorflow::DataType::DT_INT16:
                 return literal{{shape::int16_type, dims}, s.data()};
             case tensorflow::DataType::DT_INT32:
                 return literal{{shape::int32_type, dims}, s.data()};
             case tensorflow::DataType::DT_INT64:
                 return literal{{shape::int64_type, dims}, s.data()};
-            case tensorflow::DataType::DT_STRING: throw std::runtime_error("");
-            case tensorflow::DataType::DT_BOOL: return literal{{shape::int8_type, dims}, s.data()};
             case tensorflow::DataType::DT_HALF: return literal{{shape::half_type, dims}, s.data()};
             case tensorflow::DataType::DT_DOUBLE:
                 return literal{{shape::double_type, dims}, s.data()};
-            case tensorflow::DataType::DT_UINT32: throw std::runtime_error("");
-            case tensorflow::DataType::DT_UINT64: throw std::runtime_error("");
-            case tensorflow::DataType::DT_COMPLEX64: throw std::runtime_error("");
-            case tensorflow::DataType::DT_COMPLEX128: throw std::runtime_error("");
-            case tensorflow::DataType::DT_QINT8: throw std::runtime_error("");
-            case tensorflow::DataType::DT_QUINT8: throw std::runtime_error("");
-            case tensorflow::DataType::DT_QINT32: throw std::runtime_error("");
-            case tensorflow::DataType::DT_BFLOAT16: throw std::runtime_error("");
-            case tensorflow::DataType::DT_QINT16: throw std::runtime_error("");
-            case tensorflow::DataType::DT_QUINT16: throw std::runtime_error("");
-            case tensorflow::DataType::DT_RESOURCE: throw std::runtime_error("");
-            case tensorflow::DataType::DT_VARIANT: throw std::runtime_error("");
-            case tensorflow::DataType::DT_FLOAT_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_DOUBLE_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_INT32_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_UINT8_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_INT16_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_INT8_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_STRING_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_COMPLEX64_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_INT64_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_BOOL_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_QINT8_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_QUINT8_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_QINT32_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_BFLOAT16_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_QINT16_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_QUINT16_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_UINT16_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_COMPLEX128_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_HALF_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_RESOURCE_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_VARIANT_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_UINT32_REF: throw std::runtime_error("");
-            case tensorflow::DataType::DT_UINT64_REF: throw std::runtime_error("");
+            case tensorflow::DataType::DT_INVALID:
+            case tensorflow::DataType::DT_UINT8:
+            case tensorflow::DataType::DT_STRING:
+            case tensorflow::DataType::DT_UINT32:
+            case tensorflow::DataType::DT_UINT64:
+            case tensorflow::DataType::DT_COMPLEX64:
+            case tensorflow::DataType::DT_COMPLEX128:
+            case tensorflow::DataType::DT_QINT8:
+            case tensorflow::DataType::DT_QUINT8:
+            case tensorflow::DataType::DT_QINT32:
+            case tensorflow::DataType::DT_BFLOAT16:
+            case tensorflow::DataType::DT_QINT16:
+            case tensorflow::DataType::DT_QUINT16:
+            case tensorflow::DataType::DT_RESOURCE:
+            case tensorflow::DataType::DT_VARIANT:
+            case tensorflow::DataType::DT_FLOAT_REF:
+            case tensorflow::DataType::DT_DOUBLE_REF:
+            case tensorflow::DataType::DT_INT32_REF:
+            case tensorflow::DataType::DT_UINT8_REF:
+            case tensorflow::DataType::DT_INT16_REF:
+            case tensorflow::DataType::DT_INT8_REF:
+            case tensorflow::DataType::DT_STRING_REF:
+            case tensorflow::DataType::DT_COMPLEX64_REF:
+            case tensorflow::DataType::DT_INT64_REF:
+            case tensorflow::DataType::DT_BOOL_REF:
+            case tensorflow::DataType::DT_QINT8_REF:
+            case tensorflow::DataType::DT_QUINT8_REF:
+            case tensorflow::DataType::DT_QINT32_REF:
+            case tensorflow::DataType::DT_BFLOAT16_REF:
+            case tensorflow::DataType::DT_QINT16_REF:
+            case tensorflow::DataType::DT_QUINT16_REF:
+            case tensorflow::DataType::DT_UINT16_REF:
+            case tensorflow::DataType::DT_COMPLEX128_REF:
+            case tensorflow::DataType::DT_HALF_REF:
+            case tensorflow::DataType::DT_RESOURCE_REF:
+            case tensorflow::DataType::DT_VARIANT_REF:
+            case tensorflow::DataType::DT_UINT32_REF:
+            case tensorflow::DataType::DT_UINT64_REF:
             case tensorflow::DataType::DataType_INT_MAX_SENTINEL_DO_NOT_USE_:
-                throw std::runtime_error("");
             case tensorflow::DataType::DataType_INT_MIN_SENTINEL_DO_NOT_USE_:
                 throw std::runtime_error("");
             }
@@ -874,11 +1126,9 @@ struct tf_parser
         }
         switch(t.dtype())
         {
-        case tensorflow::DataType::DT_INVALID: throw std::runtime_error("");
         case tensorflow::DataType::DT_FLOAT:
             return create_literal(
                 shape::float_type, dims, get_data_vals(t.float_val(), shape_size));
-        case tensorflow::DataType::DT_UINT8: throw std::runtime_error("");
         case tensorflow::DataType::DT_INT8:
             return create_literal(shape::int8_type, dims, get_data_vals(t.int_val(), shape_size));
         case tensorflow::DataType::DT_UINT16:
@@ -890,7 +1140,6 @@ struct tf_parser
         case tensorflow::DataType::DT_INT64:
             return create_literal(
                 shape::int64_type, dims, get_data_vals(t.int64_val(), shape_size));
-        case tensorflow::DataType::DT_STRING: throw std::runtime_error("");
         case tensorflow::DataType::DT_BOOL:
             return create_literal(shape::int32_type, dims, get_data_vals(t.bool_val(), shape_size));
         case tensorflow::DataType::DT_HALF:
@@ -906,43 +1155,45 @@ struct tf_parser
         }
         case tensorflow::DataType::DT_DOUBLE:
             return literal{{shape::double_type, dims}, get_data_vals(t.double_val(), shape_size)};
-        case tensorflow::DataType::DT_UINT32: throw std::runtime_error("");
-        case tensorflow::DataType::DT_UINT64: throw std::runtime_error("");
-        case tensorflow::DataType::DT_COMPLEX64: throw std::runtime_error("");
-        case tensorflow::DataType::DT_COMPLEX128: throw std::runtime_error("");
-        case tensorflow::DataType::DT_QINT8: throw std::runtime_error("");
-        case tensorflow::DataType::DT_QUINT8: throw std::runtime_error("");
-        case tensorflow::DataType::DT_QINT32: throw std::runtime_error("");
-        case tensorflow::DataType::DT_BFLOAT16: throw std::runtime_error("");
-        case tensorflow::DataType::DT_QINT16: throw std::runtime_error("");
-        case tensorflow::DataType::DT_QUINT16: throw std::runtime_error("");
-        case tensorflow::DataType::DT_RESOURCE: throw std::runtime_error("");
-        case tensorflow::DataType::DT_VARIANT: throw std::runtime_error("");
-        case tensorflow::DataType::DT_FLOAT_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_DOUBLE_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_INT32_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_UINT8_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_INT16_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_INT8_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_STRING_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_COMPLEX64_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_INT64_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_BOOL_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_QINT8_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_QUINT8_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_QINT32_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_BFLOAT16_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_QINT16_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_QUINT16_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_UINT16_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_COMPLEX128_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_HALF_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_RESOURCE_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_VARIANT_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_UINT32_REF: throw std::runtime_error("");
-        case tensorflow::DataType::DT_UINT64_REF: throw std::runtime_error("");
+        case tensorflow::DataType::DT_INVALID:
+        case tensorflow::DataType::DT_UINT8:
+        case tensorflow::DataType::DT_STRING:
+        case tensorflow::DataType::DT_UINT32:
+        case tensorflow::DataType::DT_UINT64:
+        case tensorflow::DataType::DT_COMPLEX64:
+        case tensorflow::DataType::DT_COMPLEX128:
+        case tensorflow::DataType::DT_QINT8:
+        case tensorflow::DataType::DT_QUINT8:
+        case tensorflow::DataType::DT_QINT32:
+        case tensorflow::DataType::DT_BFLOAT16:
+        case tensorflow::DataType::DT_QINT16:
+        case tensorflow::DataType::DT_QUINT16:
+        case tensorflow::DataType::DT_RESOURCE:
+        case tensorflow::DataType::DT_VARIANT:
+        case tensorflow::DataType::DT_FLOAT_REF:
+        case tensorflow::DataType::DT_DOUBLE_REF:
+        case tensorflow::DataType::DT_INT32_REF:
+        case tensorflow::DataType::DT_UINT8_REF:
+        case tensorflow::DataType::DT_INT16_REF:
+        case tensorflow::DataType::DT_INT8_REF:
+        case tensorflow::DataType::DT_STRING_REF:
+        case tensorflow::DataType::DT_COMPLEX64_REF:
+        case tensorflow::DataType::DT_INT64_REF:
+        case tensorflow::DataType::DT_BOOL_REF:
+        case tensorflow::DataType::DT_QINT8_REF:
+        case tensorflow::DataType::DT_QUINT8_REF:
+        case tensorflow::DataType::DT_QINT32_REF:
+        case tensorflow::DataType::DT_BFLOAT16_REF:
+        case tensorflow::DataType::DT_QINT16_REF:
+        case tensorflow::DataType::DT_QUINT16_REF:
+        case tensorflow::DataType::DT_UINT16_REF:
+        case tensorflow::DataType::DT_COMPLEX128_REF:
+        case tensorflow::DataType::DT_HALF_REF:
+        case tensorflow::DataType::DT_RESOURCE_REF:
+        case tensorflow::DataType::DT_VARIANT_REF:
+        case tensorflow::DataType::DT_UINT32_REF:
+        case tensorflow::DataType::DT_UINT64_REF:
         case tensorflow::DataType::DataType_INT_MAX_SENTINEL_DO_NOT_USE_:
-            throw std::runtime_error("");
         case tensorflow::DataType::DataType_INT_MIN_SENTINEL_DO_NOT_USE_:
             throw std::runtime_error("");
         }
@@ -1006,6 +1257,7 @@ program parse_tf(const std::string& name, bool is_nhwc)
 #else
     parser.parse_from(input);
 #endif
+    parser.to_nchw(std::prev(parser.prog.end()));
     return std::move(parser.prog);
 }
 

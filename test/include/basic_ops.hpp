@@ -82,6 +82,26 @@ struct pass_op
     int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
 };
 
+struct unary_pass_op
+{
+    std::string name() const { return "unary_pass"; }
+    migraphx::argument
+    compute(migraphx::context&, const migraphx::shape&, std::vector<migraphx::argument> args) const
+    {
+        if(args.empty())
+            return {};
+        return args.front();
+    }
+
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        if(inputs.size() != 1)
+            MIGRAPHX_THROW("Wrong inputs");
+        return inputs.front();
+    }
+    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+};
+
 struct pass_standard_op
 {
     std::string name() const { return "pass"; }

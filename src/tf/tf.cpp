@@ -22,6 +22,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BATCH_SIZE)
+
 struct tf_parser
 {
     using attribute_map = std::unordered_map<std::string, tensorflow::AttrValue>;
@@ -934,7 +936,13 @@ struct tf_parser
             for(auto& x : dims)
             {
                 if(x == -1)
-                    x = 64;
+                {
+                    auto batch_size = value_of(MIGRAPHX_BATCH_SIZE{});
+                    if(batch_size > 0)
+                        x = batch_size; 
+                    else
+                        x = 1;
+                }        
             }
             shape s            = shape{shape_type, dims};
             instructions[name] = to_nhwc(prog.add_parameter(name, s));

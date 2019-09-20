@@ -1,5 +1,5 @@
 pfultz2/rocm-recipes
-danmar/cppcheck@8aa68ee297c2d9ebadf5bcfd00c66ea8d9291e35 -DHAVE_RULES=1
-ROCm-Developer-Tools/HIP@e21df3058728ad8e73708bc99b82e0bdd3509c97
+danmar/cppcheck@ef714225bb31e9a76ac2484796763572386955ae -DHAVE_RULES=1
+ROCm-Developer-Tools/HIP@2490e42baa7d90458f0632fd9fbead2d395f41b9
 python/cpython@v3.6.6 -X autotools -H sha256:92aa914572c695c0aeb01b0a214813f414da4b51a371234df514a74761f2bb36
 -f requirements.txt

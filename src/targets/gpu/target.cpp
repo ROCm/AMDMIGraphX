@@ -13,14 +13,16 @@
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
-#include <migraphx/common_subexpression_elimination.hpp>
-#include <migraphx/fwd_conv_batchnorm_rewrite.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/rewrite_rnn.hpp>
+#include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/adjust_allocation.hpp>
+#include <migraphx/gpu/pack_int8_args.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/schedule.hpp>
 
@@ -37,21 +39,24 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
     return
     {
         dead_code_elimination{},
+        simplify_reshapes{},
+        dead_code_elimination{},
         eliminate_identity{},
         eliminate_pad{},
         dead_code_elimination{},
-        fwd_conv_batchnorm_rewrite{},
+        rewrite_batchnorm{},
         dead_code_elimination{},
         rewrite_rnn{},
+        rewrite_pooling{},
         dead_code_elimination{},
-        //common_subexpression_elimination{},
-        //dead_code_elimination{},
+        eliminate_common_subexpression{},
+        dead_code_elimination{},
         simplify_algebra{},
-        dead_code_elimination{},
-        propagate_constant{},
         dead_code_elimination{},
         auto_contiguous{},
         simplify_reshapes{},
+        dead_code_elimination{},
+        propagate_constant{},
         dead_code_elimination{},
         lowering{ctx},
         eliminate_concat{concat_gpu_optimization{}},
@@ -59,6 +64,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         eliminate_contiguous{},
         dead_code_elimination{},
         adjust_allocation{},
+        dead_code_elimination{},
+        pack_int8_args{},
         dead_code_elimination{},
         fuse_ops{&ctx},
         dead_code_elimination{},
@@ -78,6 +85,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
 std::string target::name() const { return "miopen"; }
 
 migraphx::context target::get_context() const { return context{}; }
+
+argument target::copy_to(const argument& arg) const { return gpu::to_gpu(arg); }
+
+argument target::copy_from(const argument& arg) const { return gpu::from_gpu(arg); }
+
+argument target::allocate(const shape& s) const { return gpu::allocate_gpu(s); }
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

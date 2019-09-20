@@ -96,7 +96,7 @@ void compile_check(migraphx::program& p, const migraphx::target& t, bool show_tr
         std::cout << ss.str() << std::endl;
         throw std::runtime_error("Compiling program with " + name + " alters its shape");
     }
-    else if (show_trace)
+    else if(show_trace)
     {
         std::cout << ss.str() << std::endl;
     }
@@ -1000,10 +1000,11 @@ struct test_concat_pooling : verify_program<test_concat_pooling>
         auto input =
             p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 256, 8, 8}});
         auto transpose = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, input);
-        auto concat = p.add_instruction(migraphx::op::concat{3}, transpose);
-        auto concat_t = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, concat);
+        auto concat    = p.add_instruction(migraphx::op::concat{3}, transpose);
+        auto concat_t  = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, concat);
 
-        auto pooling = p.add_instruction(migraphx::op::pooling{"average", {0, 0}, {1, 1}, {8, 8}}, concat_t);
+        auto pooling =
+            p.add_instruction(migraphx::op::pooling{"average", {0, 0}, {1, 1}, {8, 8}}, concat_t);
         p.add_instruction(migraphx::op::relu{}, pooling);
         return p;
     }

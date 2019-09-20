@@ -204,7 +204,7 @@ struct find_concat_transpose
 
 void simplify_reshapes::apply(program& p) const
 {
-    for(int i = 0;i < 2;i++)
+    for(int i = 0; i < 2; i++)
     {
         auto end = std::prev(p.end());
         for(auto ins : iterator_for(p))

@@ -149,9 +149,9 @@ TEST_CASE(simplify_add_broadcast2)
         auto one  = p.add_literal({inner, {1, 1}});
         auto oneb = p.add_instruction(b, one);
         auto two  = p.add_literal({outer, {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}});
-        auto sum1 = p.add_instruction(migraphx::op::add{}, x, oneb);
-        auto sum2 = p.add_instruction(migraphx::op::add{}, y, two);
-        auto sum3 = p.add_instruction(migraphx::op::add{}, sum1, sum2);
+        auto sum1 = p.add_instruction(migraphx::op::add{}, x, y);
+        auto sum2 = p.add_instruction(migraphx::op::add{}, oneb, two);
+        auto sum3 = p.add_instruction(migraphx::op::add{}, sum2, sum1);
         p.add_instruction(pass_op{}, sum3);
         return p;
     };

@@ -4,6 +4,7 @@
 #include <migraphx/op/identity.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/dfor.hpp>
+#include <migraphx/par_for.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
 #include <unordered_map>
@@ -23,6 +24,119 @@ auto get_outputs()
 {
     return [](auto i) { return i->outputs(); };
 }
+
+struct dominator_info
+{
+    bool strictly_dominate(instruction_ref ins1, instruction_ref ins2)
+    {
+        if(ins1 != ins2)
+        {
+            auto iter = ins2;
+            while(contains(ins2idom, iter))
+            {
+                if(ins1 == ins2idom[iter])
+                    return true;
+                iter = ins2idom[iter];
+            }
+        }
+        return false;
+    }
+
+    void compute_dominator(program& p, std::unordered_map<instruction_ref, std::size_t>& ins2stream)
+    {
+        std::size_t num_ins = p.size();
+        if (num_ins == 0)
+        {
+            return;
+        }
+
+        std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> ins2dominators;
+        auto& ins_dom_tree = ins2idom;
+
+        for (auto ins : reverse_iterator_for(p))
+        {
+            if (!contains(ins2stream, ins))
+            {
+                continue;
+            }
+
+            instruction_ref ins_tmp = p.end();
+
+            int output_num = 0;
+            // find dominators
+            for (auto &output : ins->outputs())
+            {
+                if (!contains(ins2stream, output))
+                {
+                    continue;
+                }
+
+                output_num++;
+                if (ins_tmp == p.end())
+                {
+                    ins2dominators[ins] = ins2dominators[output];
+                }
+                else
+                {
+                    std::unordered_set<instruction_ref> dom_set;
+                    for (auto& it : ins2dominators[ins])
+                    {
+                        if (contains(ins2dominators[output], it))
+                        {
+                            dom_set.insert(it);
+                        }
+                    }
+                    ins2dominators[ins] = dom_set;
+                }
+                ins_tmp = output;
+            }
+
+            if (output_num == 1)
+            {
+                ins_dom_tree[ins] = ins_tmp;
+            }
+            else if (output_num > 0)
+            {
+                find_dominator_tree(ins2dominators, ins, ins2idom, ins2idom);
+            }
+            std::cout << "ins2dominators size = " << ins2dominators.size() << std::endl;
+        }
+
+        std::cout << "ins2idom size = " << ins2idom.size();
+    }
+
+    void find_dominator_tree(std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>& ins2dominators,
+                             instruction_ref ins, std::unordered_map<instruction_ref, instruction_ref>& ins_dom_tree,
+                             std::unordered_map<instruction_ref, instruction_ref>& idom)
+    {
+        for(auto& iter1 : ins2dominators[ins])
+        {
+            auto dom_check = [& dom_tree = idom, ins1 = iter1 ](instruction_ref ins2)
+            {
+                if(ins1 == ins2)
+                    return false;
+                auto iter = ins2;
+                while(contains(dom_tree, iter))
+                {
+                    if(ins1 == dom_tree[iter])
+                        return true;
+                    iter = dom_tree[iter];
+                }
+                return false;
+            };
+
+            // check whether iter1 strictly dominates or post-dominates any other notes in
+            // p_ins's dominators or post-dominators.
+            if(!std::any_of(ins2dominators[ins].begin(), ins2dominators[ins].end(), dom_check))
+            {
+                assert(!contains(ins_dom_tree, ins));
+                ins_dom_tree[ins] = iter1;
+            }
+        }
+    }
+
+    std::unordered_map<instruction_ref, instruction_ref> ins2idom;
+};
 
 struct stream_info
 {
@@ -262,20 +376,42 @@ struct stream_info
     {
         std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> result;
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> merge_to;
+        dominator_info di;
+        di.compute_dominator(p, ins2stream);
+
         result.reserve(p.size());
         merge_to.reserve(p.size());
         for(auto ins : reverse_iterator_for(p))
         {
-            for(auto&& arg : ins->outputs())
+            for(auto&& output : ins->outputs())
             {
-                if(is_merge_point(arg))
-                    merge_to[ins].insert(arg);
-                merge_to[ins].insert(merge_to[arg].begin(), merge_to[arg].end());
+                if(is_merge_point(output))
+                    merge_to[ins].insert(output);
+                merge_to[ins].insert(merge_to[output].begin(), merge_to[output].end());
+            }
+
+            if (is_split_point(ins))
+            {
+                assert(merge_to.find(ins) != merge_to.end());
+                std::unordered_set<instruction_ref> del_set;
+                for (auto merge : merge_to[ins])
+                {
+                    if (di.strictly_dominate(ins, merge))
+                    {
+                        del_set.insert(merge);
+                    }
+                }
+
+                std::cout << "del_set size = " << del_set.size() << std::endl;
+                for (auto del_ins : del_set)
+                {
+                    merge_to[ins].erase(del_ins);
+                }
             }
 
             auto streams = this->get_streams(ins);
 
-            // Collect concur instructions for each merge point.
+             // Collect concur instructions for each merge point.
             for(auto& merge : merge_to[ins])
             {
                 for(auto stream : streams)
@@ -284,8 +420,8 @@ struct stream_info
                         result[merge].resize(stream + 1);
                     auto&& r = result[merge][stream];
                     r.push_back(ins);
-                    // Copy inputs if they dont have a stream(and are not a builtin and context
-                    // free). Inputs without a stream can have a implicit dependency
+                    // Copy inputs if they dont have a has_streamontext
+                    // free). Inputs without a stream chas_stream
                     std::copy_if(ins->inputs().begin(),
                                  ins->inputs().end(),
                                  std::back_inserter(r),
@@ -307,6 +443,31 @@ struct stream_info
         auto concur_ins = this->find_concurrent_instructions(p);
         for(auto&& merge : concur_ins)
         {
+            std::cout << "size = " << merge.second.size() << std::endl;
+            for (auto st : merge.second)
+            {
+                std::cout << "\tsub_size = " << st.size() << std::endl;
+            }
+            conflict_table[merge.first].reserve(concur_ins.size() * 2);
+        }
+
+        // par_for(concur_ins.size(), [&](auto index) {
+        //     std::cout << "index = " << std::endl;
+        //     auto it = concur_ins.begin();
+        //     for (std::size_t i = 0; i < index; ++i)
+        //     {
+        //         ++it;
+        //     }
+        //     auto merge = *it;
+
+        for (auto&& merge : concur_ins)
+        {
+            std::cout << "ins_name = " << merge.first->name() << std::endl;
+            std::cout << "size = " << merge.second.size() << std::endl;
+            for (auto st : merge.second)
+            {
+                std::cout << "\tsub_size = " << st.size() << std::endl;
+            }
             dfor(merge.second.size(), merge.second.size())([&](auto i, auto j) {
                 if(i == j)
                     return;
@@ -326,6 +487,7 @@ struct stream_info
                     }
                 }
             });
+        // });
         }
 
         // Remove instructions from the conflict table of an ealier instruction

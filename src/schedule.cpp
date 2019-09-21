@@ -45,7 +45,7 @@ struct dominator_info
     void compute_dominator(program& p, std::unordered_map<instruction_ref, std::size_t>& ins2stream)
     {
         std::size_t num_ins = p.size();
-        if (num_ins == 0)
+        if(num_ins == 0)
         {
             return;
         }
@@ -53,9 +53,9 @@ struct dominator_info
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> ins2dominators;
         auto& ins_dom_tree = ins2idom;
 
-        for (auto ins : reverse_iterator_for(p))
+        for(auto ins : reverse_iterator_for(p))
         {
-            if (!contains(ins2stream, ins))
+            if(!contains(ins2stream, ins))
             {
                 continue;
             }
@@ -64,24 +64,24 @@ struct dominator_info
 
             int output_num = 0;
             // find dominators
-            for (auto &output : ins->outputs())
+            for(auto& output : ins->outputs())
             {
-                if (!contains(ins2stream, output))
+                if(!contains(ins2stream, output))
                 {
                     continue;
                 }
 
                 output_num++;
-                if (ins_tmp == p.end())
+                if(ins_tmp == p.end())
                 {
                     ins2dominators[ins] = ins2dominators[output];
                 }
                 else
                 {
                     std::unordered_set<instruction_ref> dom_set;
-                    for (auto& it : ins2dominators[ins])
+                    for(auto& it : ins2dominators[ins])
                     {
-                        if (contains(ins2dominators[output], it))
+                        if(contains(ins2dominators[output], it))
                         {
                             dom_set.insert(it);
                         }
@@ -91,11 +91,11 @@ struct dominator_info
                 ins_tmp = output;
             }
 
-            if (output_num == 1)
+            if(output_num == 1)
             {
                 ins_dom_tree[ins] = ins_tmp;
             }
-            else if (output_num > 0)
+            else if(output_num > 0)
             {
                 find_dominator_tree(ins2dominators, ins, ins2idom, ins2idom);
             }
@@ -105,9 +105,11 @@ struct dominator_info
         std::cout << "ins2idom size = " << ins2idom.size();
     }
 
-    void find_dominator_tree(std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>& ins2dominators,
-                             instruction_ref ins, std::unordered_map<instruction_ref, instruction_ref>& ins_dom_tree,
-                             std::unordered_map<instruction_ref, instruction_ref>& idom)
+    void find_dominator_tree(
+        std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>& ins2dominators,
+        instruction_ref ins,
+        std::unordered_map<instruction_ref, instruction_ref>& ins_dom_tree,
+        std::unordered_map<instruction_ref, instruction_ref>& idom)
     {
         for(auto& iter1 : ins2dominators[ins])
         {
@@ -390,20 +392,20 @@ struct stream_info
                 merge_to[ins].insert(merge_to[output].begin(), merge_to[output].end());
             }
 
-            if (is_split_point(ins))
+            if(is_split_point(ins))
             {
                 assert(merge_to.find(ins) != merge_to.end());
                 std::unordered_set<instruction_ref> del_set;
-                for (auto merge : merge_to[ins])
+                for(auto merge : merge_to[ins])
                 {
-                    if (di.strictly_dominate(ins, merge))
+                    if(di.strictly_dominate(ins, merge))
                     {
                         del_set.insert(merge);
                     }
                 }
 
                 std::cout << "del_set size = " << del_set.size() << std::endl;
-                for (auto del_ins : del_set)
+                for(auto del_ins : del_set)
                 {
                     merge_to[ins].erase(del_ins);
                 }
@@ -411,7 +413,7 @@ struct stream_info
 
             auto streams = this->get_streams(ins);
 
-             // Collect concur instructions for each merge point.
+            // Collect concur instructions for each merge point.
             for(auto& merge : merge_to[ins])
             {
                 for(auto stream : streams)
@@ -444,7 +446,7 @@ struct stream_info
         for(auto&& merge : concur_ins)
         {
             std::cout << "size = " << merge.second.size() << std::endl;
-            for (auto st : merge.second)
+            for(auto st : merge.second)
             {
                 std::cout << "\tsub_size = " << st.size() << std::endl;
             }
@@ -460,11 +462,11 @@ struct stream_info
         //     }
         //     auto merge = *it;
 
-        for (auto&& merge : concur_ins)
+        for(auto&& merge : concur_ins)
         {
             std::cout << "ins_name = " << merge.first->name() << std::endl;
             std::cout << "size = " << merge.second.size() << std::endl;
-            for (auto st : merge.second)
+            for(auto st : merge.second)
             {
                 std::cout << "\tsub_size = " << st.size() << std::endl;
             }
@@ -487,7 +489,7 @@ struct stream_info
                     }
                 }
             });
-        // });
+            // });
         }
 
         // Remove instructions from the conflict table of an ealier instruction

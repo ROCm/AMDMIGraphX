@@ -26,6 +26,9 @@ fi
 
 type "$yapf_base" >/dev/null 2>&1 && yapf_format="$yapf_base"
 
+echo $yapf_format
+exit 0
+
 if [ -z "$yapf_format" ]
 then
     echo "$base is not installed. Pre-commit hook for python files will not be executed"

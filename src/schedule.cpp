@@ -55,10 +55,10 @@ struct dominator_info
 
         for(auto ins : reverse_iterator_for(p))
         {
-            if(!contains(ins2stream, ins))
-            {
-                continue;
-            }
+            // if(!contains(ins2stream, ins))
+            // {
+            //     continue;
+            // }
 
             instruction_ref ins_tmp = p.end();
 
@@ -66,10 +66,10 @@ struct dominator_info
             // find dominators
             for(auto& output : ins->outputs())
             {
-                if(!contains(ins2stream, output))
-                {
-                    continue;
-                }
+                // if(!contains(ins2stream, output))
+                // {
+                //     continue;
+                // }
 
                 output_num++;
                 if(ins_tmp == p.end())
@@ -99,10 +99,7 @@ struct dominator_info
             {
                 find_dominator_tree(ins2dominators, ins, ins2idom, ins2idom);
             }
-            std::cout << "ins2dominators size = " << ins2dominators.size() << std::endl;
         }
-
-        std::cout << "ins2idom size = " << ins2idom.size();
     }
 
     void find_dominator_tree(
@@ -392,27 +389,23 @@ struct stream_info
                 merge_to[ins].insert(merge_to[output].begin(), merge_to[output].end());
             }
 
-            if(is_split_point(ins))
+            assert(merge_to.find(ins) != merge_to.end());
+            std::unordered_set<instruction_ref> del_set;
+            for(auto merge : merge_to[ins])
             {
-                assert(merge_to.find(ins) != merge_to.end());
-                std::unordered_set<instruction_ref> del_set;
-                for(auto merge : merge_to[ins])
+                if(di.strictly_dominate(merge, ins))
                 {
-                    if(di.strictly_dominate(ins, merge))
-                    {
-                        del_set.insert(merge);
-                    }
-                }
-
-                std::cout << "del_set size = " << del_set.size() << std::endl;
-                for(auto del_ins : del_set)
-                {
-                    merge_to[ins].erase(del_ins);
+                    del_set.insert(merge);
                 }
             }
 
-            auto streams = this->get_streams(ins);
+            std::cout << "del_set size = " << del_set.size() << std::endl;
+            for(auto del_ins : del_set)
+            {
+                merge_to[ins].erase(del_ins);
+            }
 
+            auto streams = this->get_streams(ins);
             // Collect concur instructions for each merge point.
             for(auto& merge : merge_to[ins])
             {
@@ -453,15 +446,6 @@ struct stream_info
             conflict_table[merge.first].reserve(concur_ins.size() * 2);
         }
 
-        // par_for(concur_ins.size(), [&](auto index) {
-        //     std::cout << "index = " << std::endl;
-        //     auto it = concur_ins.begin();
-        //     for (std::size_t i = 0; i < index; ++i)
-        //     {
-        //         ++it;
-        //     }
-        //     auto merge = *it;
-
         for(auto&& merge : concur_ins)
         {
             std::cout << "ins_name = " << merge.first->name() << std::endl;
@@ -489,7 +473,6 @@ struct stream_info
                     }
                 }
             });
-            // });
         }
 
         // Remove instructions from the conflict table of an ealier instruction

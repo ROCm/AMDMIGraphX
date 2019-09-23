@@ -50,6 +50,7 @@ do
     then
         if [ echo $file | grep -E -q '\.py$' ]
         then
+            echo "here!"
             if [ use_yapf ]
             then
                 echo "$yapf_format $file"

@@ -277,10 +277,7 @@ def const_of_shape_empty_input_test():
                                          [10])
     shape_val = np.array([2, 3, 4]).astype(np.int64)
     empty_val = np.array([]).astype(np.int64)
-    empty_ts = helper.make_tensor(name='empty_tensor',
-                                  data_type=TensorProto.INT32,
-                                  dims=empty_val.shape,
-                                  vals=empty_val.flatten().astype(int))
+    empty_ts = helper.make_tensor(name='empty_tensor',data_type=TensorProto.INT32,dims=empty_val.shape,vals=empty_val.flatten().astype(int))
     shape_const = helper.make_node(
         'Constant',
         inputs=[],

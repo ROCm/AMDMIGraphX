@@ -50,7 +50,7 @@ do
     then
         if [ $(echo $file | grep -E -q '\.py$') ]
         then
-            if use_yapf
+            if $use_yapf
             then
                 echo "$yapf_format $file"
                 "$yapf_format" -i "$file"

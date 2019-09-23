@@ -32,8 +32,6 @@ then
     use_yapf=false
 fi
 
-echo "using yapf formatting for python files"
-
 # Do everything from top - level
 cd $(git rev-parse --show-toplevel)
 

@@ -438,41 +438,70 @@ struct stream_info
         auto concur_ins = this->find_concurrent_instructions(p);
         for(auto&& merge : concur_ins)
         {
-            std::cout << "size = " << merge.second.size() << std::endl;
-            for(auto st : merge.second)
-            {
-                std::cout << "\tsub_size = " << st.size() << std::endl;
-            }
-            conflict_table[merge.first].reserve(concur_ins.size() * 2);
-        }
-
-        for(auto&& merge : concur_ins)
-        {
             std::cout << "ins_name = " << merge.first->name() << std::endl;
             std::cout << "size = " << merge.second.size() << std::endl;
             for(auto st : merge.second)
             {
                 std::cout << "\tsub_size = " << st.size() << std::endl;
             }
-            dfor(merge.second.size(), merge.second.size())([&](auto i, auto j) {
-                if(i == j)
-                    return;
-                for(auto ins1 : merge.second[i])
+
+            std::size_t size = merge.second.size();
+            for (std::size_t i = 0; i < size; ++i)
+            {
+                std::unordered_set<instruction_ref> ins1_set;
+                std::unordered_set<instruction_ref> ins2_set;
+                for (auto ins1 : merge.second[i])
+                {
+                    ins1_set.insert(ins1);
+                }
+
+                for (std::size_t j = i + 1; j < size; ++j)
+                {
+                    for (auto ins2 : merge.second[j])
+                    {
+                        if (ins1_set.count(ins2) > 0) continue;
+                        ins2_set.insert(ins2);
+                    }
+                }
+
+                for (auto ins1 : merge.second[i])
                 {
                     auto p1 = std::distance(ins1, merge.first);
-                    for(auto ins2 : merge.second[j])
+                    for (auto ins2 : ins2_set)
                     {
-                        if(ins1 == ins2)
-                            continue;
+                        if (ins1 == ins2) continue;
                         auto p2 = std::distance(ins2, merge.first);
                         // The smaller distance means the instruction occurs later
                         if(p1 > p2)
                             conflict_table[ins2].insert(ins1);
                         else
                             conflict_table[ins1].insert(ins2);
-                    }
+                    }                    
                 }
-            });
+
+                std::cout << "conflict_table size = " << conflict_table.size() << std::endl;
+            }
+
+            // dfor(merge.second.size(), merge.second.size())([&](auto i, auto j) {
+            //     if(i == j)
+            //         return;
+                
+            //     for(auto ins1 : merge.second[i])
+            //     {
+            //         auto p1 = std::distance(ins1, merge.first);
+            //         for(auto ins2 : merge.second[j])
+            //         {
+            //             if(ins1 == ins2)
+            //                 continue;
+            //             auto p2 = std::distance(ins2, merge.first);
+            //             // The smaller distance means the instruction occurs later
+            //             if(p1 > p2)
+            //                 conflict_table[ins2].insert(ins1);
+            //             else
+            //                 conflict_table[ins1].insert(ins2);
+            //         }
+            //     }
+            // });
         }
 
         // Remove instructions from the conflict table of an ealier instruction

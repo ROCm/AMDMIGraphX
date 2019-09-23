@@ -50,7 +50,7 @@ do
     then
         echo $use_yapf
         echo $file
-        if [ $(echo $file | grep -E -q '\.py$') ]
+        if [ $(echo $file | grep -E '\.py$') ]
         then
             if $use_yapf
             then

@@ -49,6 +49,7 @@ do
     if [ -e "$file" ]
     then
         echo $use_yapf
+        echo $file
         if [ $(echo $file | grep -E -q '\.py$') ]
         then
             if $use_yapf

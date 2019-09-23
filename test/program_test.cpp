@@ -31,6 +31,31 @@ TEST_CASE(program_equality)
     EXPECT(x == y);
 }
 
+TEST_CASE(program_not_equality1)
+{
+    migraphx::program x;
+    migraphx::program y = create_program();
+    EXPECT(x != y);
+    x = y;
+    EXPECT(x == y);
+}
+
+TEST_CASE(program_not_equality2)
+{
+    migraphx::program x;
+    migraphx::program y = create_program();
+    EXPECT(x != y);
+    y = x;
+    EXPECT(x == y);
+}
+
+TEST_CASE(program_default_copy_construct)
+{
+    migraphx::program x;
+    migraphx::program y;
+    EXPECT(x == y);
+}
+
 TEST_CASE(program_copy)
 {
     auto create_program_1 = [] {

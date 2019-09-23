@@ -48,10 +48,9 @@ for file in $(git diff-index --cached --name-only $against | grep -E '\.h$|\.hpp
 do
     if [ -e "$file" ]
     then
-        if [ echo $file | grep -E -q '\.py$' ]
+        if [ $(echo $file | grep -E -q '\.py$') ]
         then
-            echo "here!"
-            if [ use_yapf ]
+            if use_yapf
             then
                 echo "$yapf_format $file"
                 "$yapf_format" -i "$file"

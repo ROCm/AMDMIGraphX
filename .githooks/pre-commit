@@ -48,6 +48,7 @@ for file in $(git diff-index --cached --name-only $against | grep -E '\.h$|\.hpp
 do
     if [ -e "$file" ]
     then
+        echo $use_yapf
         if [ $(echo $file | grep -E -q '\.py$') ]
         then
             if $use_yapf

@@ -3,6 +3,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/op/add.hpp>
 #include <migraphx/op/mul.hpp>
+#include <migraphx/op/concat.hpp>
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
@@ -164,6 +165,36 @@ struct find_inner_broadcast
     }
 };
 
+struct find_add_convs
+{
+    auto matcher() const
+    {
+        return match::name("add")(match::args(conv_const_weights().bind("a"), conv_const_weights().bind("b")));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins   = r.result;
+        auto a_conv = r.instructions["a"];
+        auto a_input = a_conv->inputs().at(0);
+        auto a_weights = a_conv->inputs().at(1);
+        auto b_conv = r.instructions["b"];
+        auto b_input = b_conv->inputs().at(0);
+        auto b_weights = b_conv->inputs().at(1);
+
+        // If convolution is not the same then skip
+        if (a_conv->get_operator() != b_conv->get_operator())
+            return;
+
+        if (a_weights->get_shape() != b_weights->get_shape())
+            return;
+
+        auto concat_input = p.insert_instruction(ins, op::concat{1}, a_input, b_input);
+        auto concat_weights = p.insert_instruction(ins, op::concat{1}, a_weights, b_weights);
+        p.replace_instruction(ins, a_conv->get_operator(), concat_input, concat_weights);
+    }
+};
+
 void simplify_algebra::apply(program& p) const
 {
     // Run simplifications multiple times
@@ -173,6 +204,7 @@ void simplify_algebra::apply(program& p) const
                             find_inner_broadcast{},
                             find_double_add_lit_broadcast{},
                             find_add_lit_broadcast{},
+                            find_add_convs{},
                             find_mul_conv{},
                             find_mul_add{});
         dead_code_elimination{}.apply(p);

@@ -11,6 +11,7 @@
 #include <unordered_set>
 #include <set>
 #include <deque>
+#include <chrono>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -44,6 +45,7 @@ struct dominator_info
 
     void compute_dominator(program& p, std::unordered_map<instruction_ref, std::size_t>& ins2stream)
     {
+        (void)ins2stream;
         std::size_t num_ins = p.size();
         if(num_ins == 0)
         {
@@ -434,6 +436,8 @@ struct stream_info
     std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>
     get_conflicts(program& p)
     {
+        using namespace std::chrono;
+        high_resolution_clock::time_point t1 = high_resolution_clock::now();
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> conflict_table;
         auto concur_ins = this->find_concurrent_instructions(p);
         for(auto&& merge : concur_ins)
@@ -445,30 +449,42 @@ struct stream_info
                 std::cout << "\tsub_size = " << st.size() << std::endl;
             }
 
-            std::size_t size = merge.second.size();
-            for(std::size_t i = 0; i < size; ++i)
+            int size = static_cast<int>(merge.second.size());
+            std::unordered_set<instruction_ref> checked_ins1_set;
+            for(int i = 0; i < size - 1; ++i)
             {
                 std::unordered_set<instruction_ref> ins1_set;
-                std::unordered_set<instruction_ref> ins2_set;
                 for(auto ins1 : merge.second[i])
                 {
-                    ins1_set.insert(ins1);
+                    if (checked_ins1_set.count(ins1) == 0)
+                        ins1_set.insert(ins1);
                 }
+                checked_ins1_set.insert(ins1_set.begin(), ins1_set.end());
 
-                for(std::size_t j = i + 1; j < size; ++j)
+                std::unordered_set<instruction_ref> ins2_set;
+                for(auto j = i + 1; j < size; ++j)
                 {
                     for(auto ins2 : merge.second[j])
                     {
-                        if(ins1_set.count(ins2) > 0)
-                            continue;
-                        ins2_set.insert(ins2);
+                        if(checked_ins1_set.count(ins2) == 0)
+                            ins2_set.insert(ins2);
                     }
                 }
 
-                for(auto ins1 : merge.second[i])
+                for(auto ins1 : ins1_set)
                 {
+                    auto& conflict_ins1 = conflict_table[ins1];
+                    std::unordered_set<instruction_ref> cleaned_ins2_set;
+                    for (auto ins2 : ins2_set)
+                    {
+                        if (conflict_ins1.count(ins2) == 0)
+                        {
+                            cleaned_ins2_set.insert(ins2);
+                        }
+                    }
+
                     auto p1 = std::distance(ins1, merge.first);
-                    for(auto ins2 : ins2_set)
+                    for(auto ins2 : cleaned_ins2_set)
                     {
                         if(ins1 == ins2)
                             continue;
@@ -483,27 +499,6 @@ struct stream_info
 
                 std::cout << "conflict_table size = " << conflict_table.size() << std::endl;
             }
-
-            // dfor(merge.second.size(), merge.second.size())([&](auto i, auto j) {
-            //     if(i == j)
-            //         return;
-
-            //     for(auto ins1 : merge.second[i])
-            //     {
-            //         auto p1 = std::distance(ins1, merge.first);
-            //         for(auto ins2 : merge.second[j])
-            //         {
-            //             if(ins1 == ins2)
-            //                 continue;
-            //             auto p2 = std::distance(ins2, merge.first);
-            //             // The smaller distance means the instruction occurs later
-            //             if(p1 > p2)
-            //                 conflict_table[ins2].insert(ins1);
-            //             else
-            //                 conflict_table[ins1].insert(ins2);
-            //         }
-            //     }
-            // });
         }
 
         // Remove instructions from the conflict table of an ealier instruction
@@ -514,6 +509,11 @@ struct stream_info
                 if(contains(conflict_table[ins2], ins1))
                     conflict_table[ins2].erase(ins1);
         }
+
+        high_resolution_clock::time_point t2 = high_resolution_clock::now();
+        duration<double> time_span = duration_cast<duration<double>>(t2 - t1);
+        std::cout << "get_conflict_time = " << time_span.count() << " seconds!" << std::endl;
+
         return conflict_table;
     }
 };

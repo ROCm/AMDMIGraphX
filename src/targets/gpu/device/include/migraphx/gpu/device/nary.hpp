@@ -20,13 +20,25 @@ auto pack(Ts... xs) __device__
 }
 
 template <class F, class... Arguments>
-auto nary_nonstandard_impl(hipStream_t stream, F f, argument result, Arguments... args)
+auto nary_nonstandard_nonpacked_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
     std::size_t nelements = result.get_shape().elements();
     hip_visit_all(result, args...)([&](auto output, auto... inputs) {
         gs_launch(stream, nelements)([=](auto i) {
             auto idx  = output.get_shape().multi(i);
             output[i] = f(inputs[idx]...);
+        });
+    });
+}
+
+template <class F, class... Arguments>
+auto nary_nonstandard_packed_impl(hipStream_t stream, F f, argument result, Arguments... args)
+{
+    std::size_t nelements = result.get_shape().elements();
+    hip_visit_all(result, args...)([&](auto output, auto... inputs) {
+        gs_launch(stream, nelements)([=](auto i) {
+            auto idx  = output.get_shape().multi(i);
+            output[idx] = f(inputs[i]...);
         });
     });
 }
@@ -265,14 +277,16 @@ void nary_impl(hipStream_t stream, F f, argument result, Arguments... args)
         all_of({args.get_shape()...}, [&](const shape& s) { return s == result.get_shape(); });
     if(standard or (packed and same_shapes))
         nary_standard_impl(stream, f, result, args...);
+    else if (packed)
+        nary_nonstandard_packed_impl(stream, f, result, args...);
     else
-        nary_nonstandard_impl(stream, f, result, args...);
+        nary_nonstandard_nonpacked_impl(stream, f, result, args...);
 }
 
 template <class... Arguments>
 auto nary_nonstandard(hipStream_t stream, argument result, Arguments... args)
 {
-    return [=](auto f) { nary_nonstandard_impl(stream, f, result, args...); };
+    return [=](auto f) { nary_nonstandard_nonpacked_impl(stream, f, result, args...); };
 }
 
 template <class... Arguments>

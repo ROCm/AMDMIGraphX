@@ -456,7 +456,7 @@ struct stream_info
                 std::unordered_set<instruction_ref> ins1_set;
                 for(auto ins1 : merge.second[i])
                 {
-                    if (checked_ins1_set.count(ins1) == 0)
+                    if(checked_ins1_set.count(ins1) == 0)
                         ins1_set.insert(ins1);
                 }
                 checked_ins1_set.insert(ins1_set.begin(), ins1_set.end());
@@ -475,9 +475,9 @@ struct stream_info
                 {
                     auto& conflict_ins1 = conflict_table[ins1];
                     std::unordered_set<instruction_ref> cleaned_ins2_set;
-                    for (auto ins2 : ins2_set)
+                    for(auto ins2 : ins2_set)
                     {
-                        if (conflict_ins1.count(ins2) == 0)
+                        if(conflict_ins1.count(ins2) == 0)
                         {
                             cleaned_ins2_set.insert(ins2);
                         }
@@ -511,7 +511,7 @@ struct stream_info
         }
 
         high_resolution_clock::time_point t2 = high_resolution_clock::now();
-        duration<double> time_span = duration_cast<duration<double>>(t2 - t1);
+        duration<double> time_span           = duration_cast<duration<double>>(t2 - t1);
         std::cout << "get_conflict_time = " << time_span.count() << " seconds!" << std::endl;
 
         return conflict_table;

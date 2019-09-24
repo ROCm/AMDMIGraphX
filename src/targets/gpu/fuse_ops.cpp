@@ -1,6 +1,7 @@
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/gpu/miopen.hpp>
+#include <migraphx/gpu/clip.hpp>
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/oper.hpp>
 #include <migraphx/gpu/device/mul_add.hpp>
@@ -8,6 +9,7 @@
 #include <migraphx/gpu/device/add.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/array.hpp>
+#include <migraphx/op/clip.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -65,6 +67,16 @@ struct fusion
     {
         op_t result;
         auto status = miopenCreateOpActivationForward(fp.get(), &result, miopenActivationRELU);
+        if(status != miopenStatusSuccess)
+            MIGRAPHX_THROW("Creating operator failed");
+        return result;
+    }
+
+    op_t create_clipped_relu()
+    {
+        op_t result;
+        auto status =
+            miopenCreateOpActivationForward(fp.get(), &result, miopenActivationCLIPPEDRELU);
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("Creating operator failed");
         return result;
@@ -170,6 +182,65 @@ struct hip_triadd
     }
 };
 
+struct hip_triadd_clip
+{
+    op::clip op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return op::clip::reflect(self.op, f);
+    }
+    std::string name() const { return "hip::triadd_clip"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(4);
+        return inputs.front();
+    }
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
+        device::add_clip(ctx.get_stream().get(),
+                         args.at(3),
+                         args.at(0),
+                         args.at(1),
+                         args.at(2),
+                         op.max_val,
+                         op.min_val);
+        return args.at(3);
+    }
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+};
+
+struct hip_add_clip
+{
+    op::clip op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return op::clip::reflect(self.op, f);
+    }
+    std::string name() const { return "hip::add_clip"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(3);
+        return inputs.front();
+    }
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
+        device::add_clip(
+            ctx.get_stream().get(), args.at(2), args.at(0), args.at(1), op.max_val, op.min_val);
+        return args.at(2);
+    }
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+};
+
 struct hip_triadd_relu : ternary_device<hip_triadd_relu, &device::add_relu>
 {
 };
@@ -252,6 +323,35 @@ void move_standard_front(std::vector<instruction_ref>& args)
     if(it != last)
         std::swap(*it, args.front());
 }
+
+struct find_add_clip
+{
+    auto matcher() const
+    {
+        return match::name(std::unordered_set<std::string>{"gpu::clip", "gpu::clipped_relu"})(
+            match::arg(0)(match::any_of(match::name("gpu::add"),
+                                        match::name("hip::triadd"),
+                                        match::any_of[match::inputs()](match::standard_shape()))
+                              .bind("add")));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto add_ins = r.instructions["add"];
+        auto ins     = r.result;
+        auto&& op    = any_cast<gpu::hip_clip>(ins->get_operator()).op;
+        auto args    = add_ins->inputs();
+        move_standard_front(args);
+        move_broadcasted_back(args);
+
+        // Use the allocation from the relu operator
+        args.back() = ins->inputs().back();
+        if(add_ins->name() == "gpu::add")
+            p.replace_instruction(ins, hip_add_clip{op}, args);
+        else if(add_ins->name() == "hip::triadd")
+            p.replace_instruction(ins, hip_triadd_clip{op}, args);
+    }
+};
 
 struct find_add_unary
 {
@@ -485,12 +585,14 @@ void apply_conv_bias(context& ctx, program& p, match::matcher_result r)
     p.replace_instruction(ins, cb, input_ins, weights_ins, old_ws_ins, bias_ins, alloc_ins);
 }
 
+
 struct find_conv_bias
 {
     context* ctx = nullptr;
     auto matcher() const
     {
-        return conv_bias(match::none_of(match::output(match::name("gpu::relu"))));
+        return conv_bias(match::none_of(match::output(
+            match::name(std::unordered_set<std::string>{"gpu::relu"}))));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -521,7 +623,8 @@ void fuse_ops::apply(program& p) const
         find_mul_add_relu{},
         find_add_unary{"gpu::relu", hip_add_relu{}, hip_triadd_relu{}},
         find_add_unary{"gpu::sigmoid", hip_add_sigmoid{}, hip_triadd_sigmoid{}},
-        find_add_unary{"gpu::tanh", hip_add_tanh{}, hip_triadd_tanh{}}
+        find_add_unary{"gpu::tanh", hip_add_tanh{}, hip_triadd_tanh{}},
+        find_add_clip{}
     );
     // clang-format on
 }

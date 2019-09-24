@@ -16,8 +16,8 @@ argument concat(hipStream_t stream,
     auto ninputs = args.size() - 1;
     for(std::size_t j = 0; j < ninputs; j++)
     {
-        auto&& arg            = args[j];
-        auto offset           = offsets[j];
+        auto&& arg  = args[j];
+        auto offset = offsets[j];
         shape arg_shape{arg.get_shape().type(), arg.get_shape().lens()};
         auto byte_offset = offset * arg_shape.type_size();
         auto output      = argument(arg_shape, args.back().data() + byte_offset);

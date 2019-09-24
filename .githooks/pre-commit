@@ -24,6 +24,7 @@ then
     exit 0
 fi
 
+# check if yapf is installed
 type "$yapf_base" >/dev/null 2>&1 && yapf_format="$yapf_base"
 
 # no versions of yapf are installed
@@ -31,6 +32,17 @@ if [ -z "$yapf_format" ]
 then
     echo "$yapf_base is not installed. Pre-commit hook for python files will not be executed"
     use_yapf=false
+fi
+
+# Do everything from top - level
+cd $(git rev-parse --show-toplevel)
+
+if git rev-parse --verify HEAD >/dev/null 2>&1
+then
+    against=HEAD
+else
+    # Initial commit: diff against an empty tree object
+    against=16bbb57
 fi
 
 # do the formatting

@@ -44,8 +44,9 @@ def add_bcast_test():
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 4])
     z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2, 3, 4, 5])
 
-    node = onnx.helper.make_node('Add',inputs=['0', '1'],
-    broadcast=1,
+    node = onnx.helper.make_node('Add',
+                                 inputs=['0', '1'],
+                                 broadcast=1,
                                  axis=1,
                                  outputs=['2'])
 

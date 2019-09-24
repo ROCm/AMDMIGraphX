@@ -20,8 +20,8 @@ argument concat(hipStream_t stream,
         std::size_t nelements = arg.get_shape().elements();
         auto offset           = offsets[j];
         shape arg_shape{arg.get_shape().type(), arg.get_shape().lens()};
-        auto byte_offset = offset*arg_shape.type_size();
-        auto output = argument(arg_shape, args.back().data()+byte_offset);
+        auto byte_offset = offset * arg_shape.type_size();
+        auto output      = argument(arg_shape, args.back().data() + byte_offset);
         contiguous(stream, std::move(output), arg);
     }
     return args.back();

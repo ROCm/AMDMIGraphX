@@ -96,7 +96,7 @@ void compile_check(migraphx::program& p, const migraphx::target& t, bool show_tr
         std::cout << ss.str() << std::endl;
         throw std::runtime_error("Compiling program with " + name + " alters its shape");
     }
-    else if(show_trace)
+    if(show_trace)
     {
         std::cout << ss.str() << std::endl;
     }

@@ -65,7 +65,6 @@ void add_tanh(hipStream_t stream,
               const argument& arg2,
               const argument& arg3);
 
-
 } // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

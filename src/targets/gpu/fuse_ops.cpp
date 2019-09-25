@@ -72,16 +72,6 @@ struct fusion
         return result;
     }
 
-    op_t create_clipped_relu()
-    {
-        op_t result;
-        auto status =
-            miopenCreateOpActivationForward(fp.get(), &result, miopenActivationCLIPPEDRELU);
-        if(status != miopenStatusSuccess)
-            MIGRAPHX_THROW("Creating operator failed");
-        return result;
-    }
-
     op_t create_conv(const op::convolution& op, const shape& weights)
     {
         op_t result;
@@ -585,14 +575,13 @@ void apply_conv_bias(context& ctx, program& p, match::matcher_result r)
     p.replace_instruction(ins, cb, input_ins, weights_ins, old_ws_ins, bias_ins, alloc_ins);
 }
 
-
 struct find_conv_bias
 {
     context* ctx = nullptr;
     auto matcher() const
     {
-        return conv_bias(match::none_of(match::output(
-            match::name(std::unordered_set<std::string>{"gpu::relu"}))));
+        return conv_bias(match::none_of(
+            match::output(match::name(std::unordered_set<std::string>{"gpu::relu"}))));
     }
 
     void apply(program& p, match::matcher_result r) const

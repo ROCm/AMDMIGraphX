@@ -21,8 +21,8 @@ void add_clip(hipStream_t stream,
               const argument& result,
               const argument& arg1,
               const argument& arg2,
-              const float max,
-              const float min);
+              float max,
+              float min);
 
 void add_relu(hipStream_t stream,
               const argument& result,
@@ -44,8 +44,8 @@ void add_clip(hipStream_t stream,
               const argument& arg1,
               const argument& arg2,
               const argument& arg3,
-              const float max,
-              const float min);
+              float max,
+              float min);
 
 void add_relu(hipStream_t stream,
               const argument& result,

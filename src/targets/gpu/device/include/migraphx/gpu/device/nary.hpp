@@ -50,7 +50,7 @@ auto nary_nonstandard_packed_impl(hipStream_t stream, F f, argument result, Argu
     hip_visit_all(s, result, args...)([&](auto standard_shape, auto output, auto... inputs) {
         gs_launch(stream, nelements)([=](auto i) {
             auto idx    = standard_shape.multi(i);
-            output[idx] = f(inputs[i]...);
+            output[idx] = f(inputs.data()[i]...);
         });
     });
 }

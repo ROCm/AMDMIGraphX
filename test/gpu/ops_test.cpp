@@ -1813,7 +1813,7 @@ struct test_concat_transpose : verify_program<test_concat_transpose>
         std::size_t axis = 1;
         migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
-        migraphx::shape s2{migraphx::shape::int32_type, {2, 1}};
+        migraphx::shape s2{migraphx::shape::int32_type, {2, 4}};
         auto l0  = p.add_parameter("x", s0);
         auto lp1 = p.add_parameter("y", s1);
         auto l1  = p.add_instruction(migraphx::op::transpose{{1, 0}}, lp1);
@@ -1831,7 +1831,7 @@ struct test_concat_transpose2 : verify_program<test_concat_transpose2>
         std::size_t axis = 1;
         migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
-        migraphx::shape s2{migraphx::shape::int32_type, {1, 2}};
+        migraphx::shape s2{migraphx::shape::int32_type, {5, 2}};
         auto l0  = p.add_parameter("x", s0);
         auto lp1 = p.add_parameter("y", s1);
         auto l1  = p.add_instruction(migraphx::op::transpose{{1, 0}}, lp1);

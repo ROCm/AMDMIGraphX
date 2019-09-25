@@ -60,6 +60,8 @@
 #include <migraphx/gpu/rsqrt.hpp>
 #include <migraphx/gpu/sqrt.hpp>
 #include <migraphx/gpu/reduce_mean.hpp>
+#include <migraphx/gpu/reduce_min.hpp>
+#include <migraphx/gpu/reduce_max.hpp>
 #include <migraphx/gpu/pow.hpp>
 #include <migraphx/gpu/sqdiff.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
@@ -135,6 +137,8 @@ struct miopen_apply
         add_extend_op<hip_clip, op::clip>("clip");
         add_extend_op<hip_reduce_sum, op::reduce_sum>("reduce_sum");
         add_extend_op<hip_reduce_mean, op::reduce_mean>("reduce_mean");
+        add_extend_op<hip_reduce_min, op::reduce_min>("reduce_min");
+        add_extend_op<hip_reduce_max, op::reduce_max>("reduce_max");
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
 

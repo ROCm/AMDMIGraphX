@@ -6,12 +6,20 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/array.hpp>
+#include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_NARY);
+
+#define MIGRAPHX_TRACE_NARY_FUNCTION   \
+    if(enabled(MIGRAPHX_TRACE_NARY{})) \
+        std::cout << "nary device function: " << __PRETTY_FUNCTION__ << std::endl;
 
 template <class... Ts>
 auto pack(Ts... xs) __device__
@@ -22,6 +30,7 @@ auto pack(Ts... xs) __device__
 template <class F, class... Arguments>
 auto nary_nonstandard_nonpacked_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
+    MIGRAPHX_TRACE_NARY_FUNCTION
     std::size_t nelements = result.get_shape().elements();
     shape s{result.get_shape().type(), result.get_shape().lens()};
     hip_visit_all(s, result, args...)([&](auto standard_shape, auto output, auto... inputs) {
@@ -35,6 +44,7 @@ auto nary_nonstandard_nonpacked_impl(hipStream_t stream, F f, argument result, A
 template <class F, class... Arguments>
 auto nary_nonstandard_packed_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
+    MIGRAPHX_TRACE_NARY_FUNCTION
     std::size_t nelements = result.get_shape().elements();
     shape s{result.get_shape().type(), result.get_shape().lens()};
     hip_visit_all(s, result, args...)([&](auto standard_shape, auto output, auto... inputs) {
@@ -49,6 +59,7 @@ template <class F, class... Arguments>
 void nary_broadcast_vec_impl(
     hipStream_t stream, F f, argument result, argument barg, Arguments... args)
 {
+    MIGRAPHX_TRACE_NARY_FUNCTION
     const auto& output_shape = result.get_shape();
     const auto& b_shape      = barg.get_shape();
     auto bdim =
@@ -97,6 +108,7 @@ void nary_broadcast_vec_impl(
 template <class F, class... Arguments>
 void nary_broadcast_impl(hipStream_t stream, F f, argument result, argument barg, Arguments... args)
 {
+    MIGRAPHX_TRACE_NARY_FUNCTION
     const auto& output_shape = result.get_shape();
     const auto& b_shape      = barg.get_shape();
     auto bdim =
@@ -136,6 +148,7 @@ template <class F, class... Arguments>
 void nary_double_broadcast_vec_impl(
     hipStream_t stream, F f, argument result, argument barg1, argument barg2, Arguments... args)
 {
+    MIGRAPHX_TRACE_NARY_FUNCTION
     assert(barg1.get_shape().broadcasted());
     assert(barg2.get_shape().broadcasted());
     assert(barg1.get_shape() == barg2.get_shape());
@@ -193,6 +206,7 @@ template <class F, class... Arguments>
 void nary_double_broadcast_impl(
     hipStream_t stream, F f, argument result, argument barg1, argument barg2, Arguments... args)
 {
+    MIGRAPHX_TRACE_NARY_FUNCTION
     assert(barg1.get_shape().broadcasted());
     assert(barg2.get_shape().broadcasted());
     assert(barg1.get_shape() == barg2.get_shape());
@@ -240,6 +254,7 @@ void nary_double_broadcast_impl(
 template <class F, class... Arguments>
 void nary_standard_vec_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
+    MIGRAPHX_TRACE_NARY_FUNCTION
     const auto& output_shape = result.get_shape();
     visit_all(result, args...)([&](auto output, auto... inputs) {
         using type = device_type<std::remove_cv_t<typename decltype(output)::value_type>>;
@@ -264,6 +279,7 @@ void nary_standard_vec_impl(hipStream_t stream, F f, argument result, Arguments.
 template <class F, class... Arguments>
 void nary_standard_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
+    MIGRAPHX_TRACE_NARY_FUNCTION
     std::size_t nelements = result.get_shape().elements();
     hip_pointer_visit_all(result, args...)([&](auto output, auto... inputs) {
         gs_launch(stream, nelements)([=](auto i) { output[i] = f(inputs[i]...); });
@@ -273,6 +289,7 @@ void nary_standard_impl(hipStream_t stream, F f, argument result, Arguments... a
 template <class F, class... Arguments>
 void nary_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
+    MIGRAPHX_TRACE_NARY_FUNCTION
     const auto shapes   = make_array(args.get_shape()...);
     const bool standard = all_of(shapes, [](const shape& s) { return s.standard(); });
     const bool packed   = all_of(shapes, [](const shape& s) { return s.packed(); });

@@ -105,6 +105,8 @@ struct onnx_parser
         add_mem_op("Pad", &onnx_parser::parse_pad);
         add_mem_op("ReduceSum", &onnx_parser::parse_reduce_oper<op::reduce_sum>);
         add_mem_op("ReduceMean", &onnx_parser::parse_reduce_oper<op::reduce_mean>);
+        add_mem_op("ReduceMin", &onnx_parser::parse_reduce_oper<op::reduce_min>);
+        add_mem_op("ReduceMax", &onnx_parser::parse_reduce_oper<op::reduce_max>);
 
         // init the activation function map
         init_actv_func();

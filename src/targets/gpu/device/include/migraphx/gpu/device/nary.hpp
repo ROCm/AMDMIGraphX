@@ -26,7 +26,7 @@ auto nary_nonstandard_nonpacked_impl(hipStream_t stream, F f, argument result, A
     shape s{result.get_shape().type(), result.get_shape().lens()};
     hip_visit_all(s, result, args...)([&](auto standard_shape, auto output, auto... inputs) {
         gs_launch(stream, nelements)([=](auto i) {
-            auto idx  = standard_shape.multi(i);
+            auto idx    = standard_shape.multi(i);
             output[idx] = f(inputs[idx]...);
         });
     });
@@ -39,7 +39,7 @@ auto nary_nonstandard_packed_impl(hipStream_t stream, F f, argument result, Argu
     shape s{result.get_shape().type(), result.get_shape().lens()};
     hip_visit_all(s, result, args...)([&](auto standard_shape, auto output, auto... inputs) {
         gs_launch(stream, nelements)([=](auto i) {
-            auto idx  = standard_shape.multi(i);
+            auto idx    = standard_shape.multi(i);
             output[idx] = f(inputs[i]...);
         });
     });
@@ -273,13 +273,12 @@ void nary_standard_impl(hipStream_t stream, F f, argument result, Arguments... a
 template <class F, class... Arguments>
 void nary_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
-    const auto shapes = make_array(args.get_shape()...);
+    const auto shapes   = make_array(args.get_shape()...);
     const bool standard = all_of(shapes, [](const shape& s) { return s.standard(); });
     const bool packed   = all_of(shapes, [](const shape& s) { return s.packed(); });
     const bool same_shapes =
         all_of(shapes, [&](const shape& s) { return s == result.get_shape(); });
-    const bool same_input_shapes =
-        all_of(shapes, [&](const shape& s) { return s == shapes[0]; });
+    const bool same_input_shapes = all_of(shapes, [&](const shape& s) { return s == shapes[0]; });
     if((result.get_shape().standard() and standard) or (packed and same_shapes))
         nary_standard_impl(stream, f, result, args...);
     else if(packed and same_input_shapes)

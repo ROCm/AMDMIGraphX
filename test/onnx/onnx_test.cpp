@@ -8,24 +8,6 @@
 #include <migraphx/onnx.hpp>
 #include "test.hpp"
 
-// template <class Op>
-// void unary_test(std::string name, std::size_t S)
-// {
-//     return [=] {
-//         migraphx::program p;
-//         auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {S}});
-//         p.add_instruction(Op{}, input);
-
-//         auto prog = migraphx::parse_onnx(name);
-//         EXPECT(p == prog);
-//     };
-// }
-
-// #define ONNX_UNARY_TEST(x) TEST_CASE_REGISTER(x##_test, unary_test<migraphx::op::x>(#x
-// "_test.onnx", 10)); ONNX_UNARY_TEST(acos)
-
-// // TEST_CASE_REGISTER(acos_test, unary_test<migraphx::op::acos>("acos_test.onnx", 10));
-
 TEST_CASE(acos_test)
 {
     migraphx::program p;

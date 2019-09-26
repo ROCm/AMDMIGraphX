@@ -306,4 +306,26 @@ TEST_CASE(concat_transpose2)
     EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 1);
 }
 
+TEST_CASE(concat_transpose3)
+{
+    migraphx::program p;
+    auto s      = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
+    auto x      = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}});
+    auto y      = p.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {1, 5, 3, 4}});
+    auto xt     = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, x);
+    auto yt     = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, y);
+    auto concat = p.add_instruction(migraphx::op::concat{3}, xt, yt);
+    auto t      = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, concat);
+    p.add_instruction(pass_op{}, t);
+    auto out_shape = p.get_shape();
+    auto n         = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape().lens() == out_shape.lens());
+    EXPECT(std::distance(p.begin(), p.end()) == n - 2);
+    auto new_concat =
+        std::find_if(p.begin(), p.end(), [](auto ins) { return ins.name() == "concat"; });
+    EXPECT(bool{new_concat != p.end()});
+    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

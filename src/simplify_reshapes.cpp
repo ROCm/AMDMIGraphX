@@ -177,8 +177,7 @@ struct find_concat_transpose
 {
     auto matcher() const
     {
-        return match::name("concat")(match::same_input_shapes(),
-                                     match::all_of[match::inputs()](match::transpose_shape()));
+        return match::name("concat")(match::all_of[match::inputs()](match::transpose_shape()));
     }
 
     void apply(program& p, const match::matcher_result& mr) const
@@ -194,8 +193,6 @@ struct find_concat_transpose
         std::vector<instruction_ref> inputs;
         std::transform(
             ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&](auto i) {
-                if(i->name() == "transpose" and i->inputs().front()->get_shape().standard())
-                    return i->inputs().front();
                 return p.insert_instruction(ins, op::transpose{permutation}, i);
             });
         auto concat = p.insert_instruction(ins, op, inputs);
@@ -207,20 +204,23 @@ struct find_concat_transpose
 
 void simplify_reshapes::apply(program& p) const
 {
-    auto end = std::prev(p.end());
-    for(auto ins : iterator_for(p))
+    for(int i = 0; i < 2; i++)
     {
-        if(ins == end and ins->name() == "contiguous")
-            continue;
-        // Skip possible dead instructions
-        if(ins->outputs().empty() and ins != end)
-            continue;
-        match::find_matches(p,
-                            ins,
-                            find_nop_reshapes{},
-                            find_reshaper{},
-                            find_transpose{},
-                            find_concat_transpose{});
+        auto end = std::prev(p.end());
+        for(auto ins : iterator_for(p))
+        {
+            if(ins == end and ins->name() == "contiguous")
+                continue;
+            // Skip possible dead instructions
+            if(ins->outputs().empty() and ins != end)
+                continue;
+            match::find_matches(p,
+                                ins,
+                                find_nop_reshapes{},
+                                find_reshaper{},
+                                find_transpose{},
+                                find_concat_transpose{});
+        }
     }
 }
 

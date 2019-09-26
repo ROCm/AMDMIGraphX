@@ -7,6 +7,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/permutation.hpp>
 #include <unordered_set>
 
 namespace migraphx {
@@ -43,17 +44,6 @@ auto get_transpose_dims(instruction_ref ins)
     return any_cast<const op::transpose&>(ins->get_operator()).dims;
 }
 
-std::vector<int64_t> reorder_dims(std::vector<int64_t> dims, std::vector<int64_t> permutation)
-{
-    std::vector<int64_t> result(dims.size());
-    assert(dims.size() == permutation.size());
-    for(std::size_t i = 0; i < dims.size(); i++)
-    {
-        result[i] = dims[permutation[i]];
-    }
-    return result;
-}
-
 bool is_no_transpose(const std::vector<int64_t>& dims)
 {
     if(dims.empty())
@@ -62,25 +52,6 @@ bool is_no_transpose(const std::vector<int64_t>& dims)
         return false;
     return std::adjacent_find(
                dims.begin(), dims.end(), [](auto x, auto y) { return (y - x) != 1; }) == dims.end();
-}
-
-template <class Vector, class Op>
-std::vector<int64_t> sort_permutation(const Vector& data, Op op)
-{
-    std::vector<std::int64_t> result(data.size());
-    std::iota(result.begin(), result.end(), 0);
-    std::sort(result.begin(), result.end(), [&](auto x, auto y) { return op(data[x], data[y]); });
-    return result;
-}
-
-std::vector<int64_t> invert_permutation(const std::vector<int64_t>& permutation)
-{
-    return sort_permutation(permutation, std::less<>{});
-}
-
-std::vector<int64_t> find_permutation(const shape& s)
-{
-    return sort_permutation(s.strides(), std::greater<>{});
 }
 
 struct find_reshaper

@@ -64,6 +64,60 @@ struct hip_array
             result[i] = x[i] + y[i];
         return result;
     }
+
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator==(const hip_array& x, const hip_array& y)
+    {
+        for(std::size_t i = 0; i < N; i++) {
+            if (x[i] != y[i]) return false;
+        }
+        return true;
+    }
+
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator!=(const hip_array& x, const hip_array& y)
+    {
+        return !(x == y);
+    }
+
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator<(const hip_array& x, const hip_array& y)
+    {
+        for(std::size_t i = 0; i < N; i++) {
+            if (x[i] < y[i]) return true;
+            if (y[i] < x[i]) return false;
+        }
+        return false;
+    }
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator<=(const hip_array& x, const hip_array& y)
+    {
+        return (x < y) or (x == y);
+    }
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator>(const hip_array& x, const hip_array& y)
+    {
+        return !(x <= y);
+    }
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator>=(const hip_array& x, const hip_array& y)
+    {
+        return !(x < y);
+    }
+
+
+    MIGRAPHX_DEVICE_CONSTEXPR hip_array carry(hip_array result) const
+    {
+        std::ptrdiff_t rem = 0;
+        for(std::ptrdiff_t i = result.size() - 1; i >= 0; i--)
+        {
+            auto z = result[i] + rem;
+            rem    = z - std::ptrdiff_t(d[i]) + 1;
+            if(rem > 0)
+                z -= rem;
+            else
+                rem = 0;
+            result[i] = z;
+        }
+        // Add overflows to the front
+        if (rem > 0)
+            result.front() += rem;
+        return result;
+    }
 };
 
 } // namespace device

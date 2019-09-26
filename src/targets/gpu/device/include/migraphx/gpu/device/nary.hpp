@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_DEVICE_NARY_HPP
 
 #include <migraphx/gpu/device/launch.hpp>
+#include <migraphx/gpu/device/multi_index.hpp>
 #include <migraphx/gpu/device/visit.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
@@ -31,11 +32,9 @@ template <class F, class... Arguments>
 auto nary_nonstandard_nonpacked_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
     MIGRAPHX_TRACE_NARY_FUNCTION
-    std::size_t nelements = result.get_shape().elements();
     shape s{result.get_shape().type(), result.get_shape().lens()};
     hip_visit_all(s, result, args...)([&](auto standard_shape, auto output, auto... inputs) {
-        gs_launch(stream, nelements)([=](auto i) {
-            auto idx    = standard_shape.multi(i);
+        mi_launch(stream, standard_shape)([=](auto idx) {
             output[idx] = f(inputs[idx]...);
         });
     });
@@ -45,12 +44,10 @@ template <class F, class... Arguments>
 auto nary_nonstandard_packed_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
     MIGRAPHX_TRACE_NARY_FUNCTION
-    std::size_t nelements = result.get_shape().elements();
     shape s{result.get_shape().type(), result.get_shape().lens()};
     hip_visit_all(s, result, args...)([&](auto standard_shape, auto output, auto... inputs) {
-        gs_launch(stream, nelements)([=](auto i) {
-            auto idx    = standard_shape.multi(i);
-            output[idx] = f(inputs.data()[i]...);
+        mi_launch(stream, standard_shape)([=](auto idx) {
+            output[idx] = f(inputs[idx]...);
         });
     });
 }

@@ -15,7 +15,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template<class Vector>
+template <class Vector>
 inline Vector reorder_dims(const Vector& dims, std::vector<int64_t> permutation)
 {
     std::vector<int64_t> result(dims.size());

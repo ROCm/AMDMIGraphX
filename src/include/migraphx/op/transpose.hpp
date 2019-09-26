@@ -60,7 +60,6 @@ struct transpose
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
-
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

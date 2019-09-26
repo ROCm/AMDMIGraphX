@@ -28,32 +28,33 @@ struct multi_index
     }
 };
 
-template<std::size_t N>
-MIGRAPHX_DEVICE_CONSTEXPR multi_index<N> make_multi_index(const hip_shape<N>& s, std::size_t i, std::size_t n)
+template <std::size_t N>
+MIGRAPHX_DEVICE_CONSTEXPR multi_index<N>
+make_multi_index(const hip_shape<N>& s, std::size_t i, std::size_t n)
 {
     return {s.multi(i), s.multi(n)};
 }
 
-template<std::size_t N>
-MIGRAPHX_DEVICE_CONSTEXPR multi_index<N> make_multi_index(const hip_shape<N>& s, std::size_t i, const hip_array<std::size_t, N>& n)
+template <std::size_t N>
+MIGRAPHX_DEVICE_CONSTEXPR multi_index<N>
+make_multi_index(const hip_shape<N>& s, std::size_t i, const hip_array<std::size_t, N>& n)
 {
     return {s.multi(i), n};
 }
 
-template<std::size_t N>
+template <std::size_t N>
 inline auto mi_launch(hipStream_t stream, const hip_shape<N>& s, std::size_t local = 1024)
 {
-    std::size_t n = s.elements();
+    std::size_t n       = s.elements();
     std::size_t groups  = (n + local - 1) / local;
     std::size_t nglobal = std::min<std::size_t>(256, groups) * local;
 
     auto nglobal_multi = s.multi(nglobal);
 
     return [=](auto f) {
-        launch(stream, nglobal, local)(
-            [=](auto idx) {
-                auto midx = make_multi_index(s, idx.global, nglobal_multi);
-                midx.for_stride(s.lens, [&](auto i) { f(i); });
+        launch(stream, nglobal, local)([=](auto idx) {
+            auto midx = make_multi_index(s, idx.global, nglobal_multi);
+            midx.for_stride(s.lens, [&](auto i) { f(i); });
         });
     };
 }

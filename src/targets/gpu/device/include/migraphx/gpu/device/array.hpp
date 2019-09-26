@@ -67,8 +67,10 @@ struct hip_array
 
     friend MIGRAPHX_DEVICE_CONSTEXPR bool operator==(const hip_array& x, const hip_array& y)
     {
-        for(std::size_t i = 0; i < N; i++) {
-            if (x[i] != y[i]) return false;
+        for(std::size_t i = 0; i < N; i++)
+        {
+            if(x[i] != y[i])
+                return false;
         }
         return true;
     }
@@ -80,9 +82,12 @@ struct hip_array
 
     friend MIGRAPHX_DEVICE_CONSTEXPR bool operator<(const hip_array& x, const hip_array& y)
     {
-        for(std::size_t i = 0; i < N; i++) {
-            if (x[i] < y[i]) return true;
-            if (y[i] < x[i]) return false;
+        for(std::size_t i = 0; i < N; i++)
+        {
+            if(x[i] < y[i])
+                return true;
+            if(y[i] < x[i])
+                return false;
         }
         return false;
     }
@@ -99,7 +104,6 @@ struct hip_array
         return !(x < y);
     }
 
-
     MIGRAPHX_DEVICE_CONSTEXPR hip_array carry(hip_array result) const
     {
         std::ptrdiff_t rem = 0;
@@ -114,7 +118,7 @@ struct hip_array
             result[i] = z;
         }
         // Add overflows to the front
-        if (rem > 0)
+        if(rem > 0)
             result.front() += rem;
         return result;
     }

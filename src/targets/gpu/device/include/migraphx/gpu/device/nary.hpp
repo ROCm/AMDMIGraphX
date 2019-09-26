@@ -34,9 +34,7 @@ auto nary_nonstandard_nonpacked_impl(hipStream_t stream, F f, argument result, A
     MIGRAPHX_TRACE_NARY_FUNCTION
     shape s{result.get_shape().type(), result.get_shape().lens()};
     hip_visit_all(s, result, args...)([&](auto standard_shape, auto output, auto... inputs) {
-        mi_launch(stream, standard_shape)([=](auto idx) {
-            output[idx] = f(inputs[idx]...);
-        });
+        mi_launch(stream, standard_shape)([=](auto idx) { output[idx] = f(inputs[idx]...); });
     });
 }
 
@@ -46,9 +44,7 @@ auto nary_nonstandard_packed_impl(hipStream_t stream, F f, argument result, Argu
     MIGRAPHX_TRACE_NARY_FUNCTION
     shape s{result.get_shape().type(), result.get_shape().lens()};
     hip_visit_all(s, result, args...)([&](auto standard_shape, auto output, auto... inputs) {
-        mi_launch(stream, standard_shape)([=](auto idx) {
-            output[idx] = f(inputs[idx]...);
-        });
+        mi_launch(stream, standard_shape)([=](auto idx) { output[idx] = f(inputs[idx]...); });
     });
 }
 

@@ -16,15 +16,20 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class Vector>
-inline Vector reorder_dims(const Vector& dims, std::vector<int64_t> permutation)
+inline Vector reorder_dims(const Vector& dims, const std::vector<int64_t>& permutation)
 {
-    std::vector<int64_t> result(dims.size());
+    Vector result(dims.size());
     assert(dims.size() == permutation.size());
     for(std::size_t i = 0; i < dims.size(); i++)
     {
         result[i] = dims[permutation[i]];
     }
     return result;
+}
+
+inline shape reorder_shape(const shape& s, const std::vector<int64_t>& permutation)
+{
+    return {s.type(), reorder_dims(s.lens(), permutation), reorder_dims(s.strides(), permutation)};
 }
 
 template <class Vector, class Op>

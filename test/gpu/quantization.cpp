@@ -85,7 +85,7 @@ TEST_CASE(int8_quantization)
             }
             else
             {
-                m[x.first] = t.copy_to(migraphx::generate_argument(x.second));
+                m[x.first] = t.allocate(x.second);
             }
         }
 
@@ -110,8 +110,10 @@ TEST_CASE(int8_quantization)
         auto p = create_program();
         migraphx::program::parameter_map m;
         migraphx::shape sa{migraphx::shape::float_type, {2, 16}};
+        migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
         migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
         m["a"] = migraphx::generate_argument(sa);
+        m["b"] = migraphx::generate_argument(sb);
         m["c"] = migraphx::generate_argument(sc);
         std::vector<float> cpu_result;
         migraphx::target cpu_t = migraphx::cpu::target{};

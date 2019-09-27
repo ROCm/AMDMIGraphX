@@ -198,25 +198,25 @@ struct miopen_apply
             auto&& op                         = any_cast<Op>(ins->get_operator());
             auto beta                         = op.beta;
             std::vector<instruction_ref> refs = ins->inputs();
-            if (refs.size() == 2)
+            if(refs.size() == 2)
             {
                 auto output = insert_allocation(ins, ins->get_shape());
-                beta = 0;
+                beta        = 0;
                 refs.push_back(output);
             }
             else
             {
                 auto c_alias = instruction::get_output_alias(refs.back());
-                if (ins == last or refs.back()->outputs().size() > 1 or c_alias->inputs().empty())
+                if(ins == last or refs.back()->outputs().size() > 1 or c_alias->inputs().empty())
                 {
-                    auto output = insert_allocation(ins, ins->get_shape());
+                    auto output   = insert_allocation(ins, ins->get_shape());
                     auto copy_out = prog->insert_instruction(ins, hip_copy{}, refs.back(), output);
                     refs.back()   = copy_out;
                     refs.push_back(copy_out);
                 }
                 else
                 {
-                    refs.push_back(refs.back());                    
+                    refs.push_back(refs.back());
                 }
             }
 

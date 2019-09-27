@@ -28,6 +28,7 @@ auto get_outputs()
 
 struct dominator_info
 {
+    // check whether ins1 strictly dominates ins2
     bool strictly_dominate(instruction_ref ins1, instruction_ref ins2)
     {
         if(ins1 != ins2)
@@ -101,6 +102,8 @@ struct dominator_info
             {
                 find_dominator_tree(ins2dominators, ins, ins2idom, ins2idom);
             }
+
+            ins2dominators[ins].insert(ins);
         }
     }
 
@@ -391,20 +394,23 @@ struct stream_info
                 merge_to[ins].insert(merge_to[output].begin(), merge_to[output].end());
             }
 
-            assert(merge_to.find(ins) != merge_to.end());
-            std::unordered_set<instruction_ref> del_set;
-            for(auto merge : merge_to[ins])
+            if (!is_split_point(ins))
             {
-                if(di.strictly_dominate(merge, ins))
+                assert(merge_to.find(ins) != merge_to.end());
+                std::unordered_set<instruction_ref> del_set;
+                for(auto merge : merge_to[ins])
                 {
-                    del_set.insert(merge);
+                    if(di.strictly_dominate(merge, ins))
+                    {
+                        del_set.insert(merge);
+                    }
                 }
-            }
 
-            std::cout << "del_set size = " << del_set.size() << std::endl;
-            for(auto del_ins : del_set)
-            {
-                merge_to[ins].erase(del_ins);
+                std::cout << "del_set size = " << del_set.size() << std::endl;
+                for(auto del_ins : del_set)
+                {
+                    merge_to[ins].erase(del_ins);
+                }
             }
 
             auto streams = this->get_streams(ins);

@@ -14,6 +14,7 @@
 #include <migraphx/op/binary.hpp>
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/capture.hpp>
+#include <migraphx/op/ceil.hpp>
 #include <migraphx/op/clip.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/concat.hpp>
@@ -28,6 +29,7 @@
 #include <migraphx/op/erf.hpp>
 #include <migraphx/op/exp.hpp>
 #include <migraphx/op/flatten.hpp>
+#include <migraphx/op/floor.hpp>
 #include <migraphx/op/gather.hpp>
 #include <migraphx/op/gru.hpp>
 #include <migraphx/op/identity.hpp>

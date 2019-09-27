@@ -3911,6 +3911,32 @@ struct test_round : verify_program<test_round>
     };
 };
 
+struct test_ceil : verify_program<test_ceil>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+
+        migraphx::shape s{migraphx::shape::double_type, {2, 3, 4, 6}};
+        auto param = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::ceil{}, param);
+        return p;
+    };
+};
+
+struct test_floor : verify_program<test_floor>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+
+        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 6}};
+        auto param = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::floor{}, param);
+        return p;
+    };
+};
+
 struct test_convert : verify_program<test_convert>
 {
     migraphx::program create_program() const

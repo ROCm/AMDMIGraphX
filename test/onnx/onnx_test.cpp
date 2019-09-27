@@ -112,6 +112,17 @@ TEST_CASE(cast_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(ceil_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::ceil{}, input);
+
+    auto prog = migraphx::parse_onnx("ceil_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(clip_test)
 {
     migraphx::program p;
@@ -398,6 +409,17 @@ TEST_CASE(flatten_test)
     p.add_instruction(migraphx::op::flatten{2}, l0);
     p.add_instruction(migraphx::op::flatten{1}, l0);
     auto prog = migraphx::parse_onnx("flatten_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(floor_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::floor{}, input);
+
+    auto prog = migraphx::parse_onnx("floor_test.onnx");
 
     EXPECT(p == prog);
 }

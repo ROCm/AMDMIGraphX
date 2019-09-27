@@ -49,9 +49,13 @@ add_library(migraphx_device
     device/round.cpp
     device/sqrt.cpp
     device/reduce_mean.cpp
+    device/reduce_min.cpp
+    device/reduce_max.cpp
     device/pow.cpp
     device/sqdiff.cpp
     device/sign.cpp
+    device/ceil.cpp
+    device/floor.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${PROJECT_VERSION})

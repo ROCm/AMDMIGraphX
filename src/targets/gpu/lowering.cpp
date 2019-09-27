@@ -198,7 +198,7 @@ struct miopen_apply
             auto&& op                         = any_cast<Op>(ins->get_operator());
             auto beta                         = op.beta;
             std::vector<instruction_ref> refs = ins->inputs();
-            auto output = insert_allocation(ins, ins->get_shape());
+            auto output                       = insert_allocation(ins, ins->get_shape());
             if(refs.size() == 2)
             {
                 beta = 0;
@@ -206,8 +206,8 @@ struct miopen_apply
             }
             else
             {
-                auto copy_out = prog->insert_instruction(ins, hip_copy{}, refs.back(), output); 
-                refs.back()   = copy_out; 
+                auto copy_out = prog->insert_instruction(ins, hip_copy{}, refs.back(), output);
+                refs.back()   = copy_out;
                 refs.push_back(copy_out);
             }
 

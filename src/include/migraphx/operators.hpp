@@ -14,6 +14,7 @@
 #include <migraphx/op/binary.hpp>
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/capture.hpp>
+#include <migraphx/op/ceil.hpp>
 #include <migraphx/op/clip.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/concat.hpp>
@@ -28,6 +29,7 @@
 #include <migraphx/op/erf.hpp>
 #include <migraphx/op/exp.hpp>
 #include <migraphx/op/flatten.hpp>
+#include <migraphx/op/floor.hpp>
 #include <migraphx/op/gather.hpp>
 #include <migraphx/op/gru.hpp>
 #include <migraphx/op/identity.hpp>
@@ -51,6 +53,8 @@
 #include <migraphx/op/pow.hpp>
 #include <migraphx/op/reduce_sum.hpp>
 #include <migraphx/op/reduce_mean.hpp>
+#include <migraphx/op/reduce_min.hpp>
+#include <migraphx/op/reduce_max.hpp>
 #include <migraphx/op/relu.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/rnn.hpp>

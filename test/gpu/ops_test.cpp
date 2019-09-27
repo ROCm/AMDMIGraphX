@@ -1,4 +1,5 @@
 
+#include <migraphx/env.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/operators.hpp>
 #include <migraphx/generate.hpp>
@@ -23,6 +24,8 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #endif
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_GPU_COMPILE)
 
 // An improved async, that doesn't block
 template <class Function>
@@ -82,7 +85,7 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-void compile_check(migraphx::program& p, const migraphx::target& t)
+void compile_check(migraphx::program& p, const migraphx::target& t, bool show_trace = false)
 {
     auto name = t.name();
     auto s    = p.get_shape();
@@ -92,6 +95,10 @@ void compile_check(migraphx::program& p, const migraphx::target& t)
     {
         std::cout << ss.str() << std::endl;
         throw std::runtime_error("Compiling program with " + name + " alters its shape");
+    }
+    if(show_trace)
+    {
+        std::cout << ss.str() << std::endl;
     }
 }
 
@@ -116,7 +123,7 @@ migraphx::argument run_gpu(migraphx::program& p)
     V v;
     p = v.create_program();
     auto_print pp{p, 1};
-    compile_check(p, migraphx::gpu::target{});
+    compile_check(p, migraphx::gpu::target{}, migraphx::enabled(MIGRAPHX_TRACE_GPU_COMPILE{}));
     migraphx::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
@@ -1001,6 +1008,24 @@ struct test_conv_pooling : verify_program<test_conv_pooling>
             p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto conv    = p.add_instruction(migraphx::op::convolution{}, input, weights);
         auto pooling = p.add_instruction(migraphx::op::pooling{"max"}, conv);
+        p.add_instruction(migraphx::op::relu{}, pooling);
+        return p;
+    }
+};
+
+struct test_concat_pooling : verify_program<test_concat_pooling>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 256, 8, 8}});
+        auto transpose = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, input);
+        auto concat    = p.add_instruction(migraphx::op::concat{3}, transpose);
+        auto concat_t  = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, concat);
+
+        auto pooling =
+            p.add_instruction(migraphx::op::pooling{"average", {0, 0}, {1, 1}, {8, 8}}, concat_t);
         p.add_instruction(migraphx::op::relu{}, pooling);
         return p;
     }
@@ -3841,41 +3866,45 @@ struct test_fp32_fp16_sub : verify_program<test_fp32_fp16_sub>
     };
 };
 
-struct test_reduce_sum : verify_program<test_reduce_sum>
+template <class Op, int Axis, migraphx::shape::type_t T>
+struct test_reduce_op_large : verify_program<test_reduce_op_large<Op, Axis, T>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
-        migraphx::shape s{migraphx::shape::float_type, {3, 1026, 4, 3}};
+        migraphx::shape s{T, {3, 1026, 4, 3}};
         auto x = p.add_parameter("x", s);
-        p.add_instruction(migraphx::op::reduce_sum{{1}}, x);
+        p.add_instruction(Op{{1}}, x);
         return p;
     };
 };
 
-struct test_reduce_sum_int : verify_program<test_reduce_sum_int>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        migraphx::shape s{migraphx::shape::int32_type, {3, 4, 8, 8}};
-        auto x = p.add_parameter("x", s);
-        p.add_instruction(migraphx::op::reduce_sum{{1}}, x);
-        return p;
-    };
-};
+template struct test_reduce_op_large<migraphx::op::reduce_sum, 1, migraphx::shape::float_type>;
+template struct test_reduce_op_large<migraphx::op::reduce_mean, 1, migraphx::shape::float_type>;
+template struct test_reduce_op_large<migraphx::op::reduce_max, 1, migraphx::shape::float_type>;
+template struct test_reduce_op_large<migraphx::op::reduce_min, 1, migraphx::shape::float_type>;
 
-struct test_reduce_sum_half : verify_program<test_reduce_sum_half>
+template <class Op, int Axis, migraphx::shape::type_t T>
+struct test_reduce_op_small : verify_program<test_reduce_op_small<Op, Axis, T>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
-        migraphx::shape s{migraphx::shape::half_type, {3, 4, 8, 8}};
+        migraphx::shape s{T, {3, 4, 8, 8}};
         auto x = p.add_parameter("x", s);
-        p.add_instruction(migraphx::op::reduce_sum{{1}}, x);
+        p.add_instruction(Op{{1}}, x);
         return p;
     };
 };
+template struct test_reduce_op_small<migraphx::op::reduce_sum, 2, migraphx::shape::int32_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_mean, 2, migraphx::shape::int32_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_max, 2, migraphx::shape::int32_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_min, 2, migraphx::shape::int32_type>;
+
+template struct test_reduce_op_small<migraphx::op::reduce_sum, 2, migraphx::shape::half_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_mean, 2, migraphx::shape::half_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_max, 2, migraphx::shape::half_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_min, 2, migraphx::shape::half_type>;
 
 struct test_rsqrt : verify_program<test_rsqrt>
 {
@@ -3890,54 +3919,6 @@ struct test_rsqrt : verify_program<test_rsqrt>
     };
 };
 
-struct test_reduce_mean : verify_program<test_reduce_mean>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        migraphx::shape s{migraphx::shape::float_type, {3, 9, 4, 3}};
-        auto x = p.add_parameter("x", s);
-        p.add_instruction(migraphx::op::reduce_mean{{1}}, x);
-        return p;
-    };
-};
-
-struct test_reduce_mean2 : verify_program<test_reduce_mean2>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        migraphx::shape s{migraphx::shape::float_type, {1, 128, 768}};
-        auto x = p.add_parameter("x", s);
-        p.add_instruction(migraphx::op::reduce_mean{{2}}, x);
-        return p;
-    };
-};
-
-struct test_reduce_mean_int : verify_program<test_reduce_mean_int>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        migraphx::shape s{migraphx::shape::int32_type, {3, 1024, 8, 8}};
-        auto x = p.add_parameter("x", s);
-        p.add_instruction(migraphx::op::reduce_mean{{1}}, x);
-        return p;
-    };
-};
-
-struct test_reduce_mean_half : verify_program<test_reduce_mean_half>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        migraphx::shape s{migraphx::shape::half_type, {3, 1024, 8, 8}};
-        auto x = p.add_parameter("x", s);
-        p.add_instruction(migraphx::op::reduce_mean{{2}}, x);
-        return p;
-    };
-};
-
 struct test_round : verify_program<test_round>
 {
     migraphx::program create_program() const
@@ -3947,6 +3928,32 @@ struct test_round : verify_program<test_round>
         migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 6}};
         auto param = p.add_parameter("x", s);
         p.add_instruction(migraphx::op::round{}, param);
+        return p;
+    };
+};
+
+struct test_ceil : verify_program<test_ceil>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+
+        migraphx::shape s{migraphx::shape::double_type, {2, 3, 4, 6}};
+        auto param = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::ceil{}, param);
+        return p;
+    };
+};
+
+struct test_floor : verify_program<test_floor>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+
+        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 6}};
+        auto param = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::floor{}, param);
         return p;
     };
 };

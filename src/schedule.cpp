@@ -394,7 +394,7 @@ struct stream_info
                 merge_to[ins].insert(merge_to[output].begin(), merge_to[output].end());
             }
 
-            if (!is_split_point(ins))
+            if(!is_split_point(ins))
             {
                 assert(merge_to.find(ins) != merge_to.end());
                 std::unordered_set<instruction_ref> del_set;

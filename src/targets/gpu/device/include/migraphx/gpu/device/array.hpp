@@ -49,6 +49,17 @@ struct hip_array
         return result;
     }
 
+    MIGRAPHX_DEVICE_CONSTEXPR T single(std::size_t width = 100) const
+    {
+        T result = 0;
+        T a = 1;
+        for(std::size_t i = 0; i < N; i++) {
+            result += d[N - i - 1] * a;
+            a *= width;
+        }
+        return result;
+    }
+
     friend MIGRAPHX_DEVICE_CONSTEXPR hip_array operator*(const hip_array& x, const hip_array& y)
     {
         hip_array result;
@@ -79,30 +90,19 @@ struct hip_array
     {
         return !(x == y);
     }
-
+    // This uses the product order rather than lexical order
     friend MIGRAPHX_DEVICE_CONSTEXPR bool operator<(const hip_array& x, const hip_array& y)
     {
         for(std::size_t i = 0; i < N; i++)
         {
-            if(x[i] < y[i])
-                return true;
-            if(y[i] < x[i])
+            if(not (x[i] < y[i]))
                 return false;
         }
-        return false;
+        return true;
     }
-    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator<=(const hip_array& x, const hip_array& y)
-    {
-        return (x < y) or (x == y);
-    }
-    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator>(const hip_array& x, const hip_array& y)
-    {
-        return !(x <= y);
-    }
-    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator>=(const hip_array& x, const hip_array& y)
-    {
-        return !(x < y);
-    }
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator>(const hip_array& x, const hip_array& y) { return y < x; }
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator<=(const hip_array& x, const hip_array& y) { return (x < y) or (x == y); }
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator>=(const hip_array& x, const hip_array& y) { return (y < x) or (x == y); }
 
     MIGRAPHX_DEVICE_CONSTEXPR hip_array carry(hip_array result) const
     {
@@ -117,9 +117,9 @@ struct hip_array
                 rem = 0;
             result[i] = z;
         }
-        // Add overflows to the front
+        // Add overflows to the back
         if(rem > 0)
-            result.front() += rem;
+            result.back() += rem;
         return result;
     }
 };

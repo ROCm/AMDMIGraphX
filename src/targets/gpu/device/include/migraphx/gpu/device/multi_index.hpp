@@ -15,12 +15,11 @@ struct multi_index
 {
     using hip_index = hip_array<std::size_t, N>;
     hip_index id{};
-    hip_index size{};
+    hip_index stride{};
 
     template <class F>
     MIGRAPHX_DEVICE_CONSTEXPR void for_stride(hip_index n, F f) const
     {
-        const auto stride = size;
         for(hip_index i = id; i < n; i = n.carry(i + stride))
         {
             f(i);
@@ -49,6 +48,7 @@ inline auto mi_launch(hipStream_t stream, const hip_shape<N>& s, std::size_t loc
     std::size_t groups  = (n + local - 1) / local;
     std::size_t nglobal = std::min<std::size_t>(256, groups) * local;
 
+    assert(s.standard);
     auto nglobal_multi = s.multi(nglobal);
 
     return [=](auto f) {

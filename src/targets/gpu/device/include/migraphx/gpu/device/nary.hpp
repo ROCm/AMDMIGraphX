@@ -44,12 +44,12 @@ auto nary_nonstandard_packed_impl(hipStream_t stream, F f, argument result, Argu
 {
     MIGRAPHX_TRACE_NARY_FUNCTION
     auto arg_shape = make_array(args...).front().get_shape();
-    auto perm      = find_permutation(arg_shape);
-    auto s         = reorder_shape(arg_shape, perm);
-    assert(s.standard());
+    auto perm      = invert_permutation(find_permutation(arg_shape));
     hip_visit_all(s, result.reshape(reorder_shape(result.get_shape(), perm)), args.reshape(s)...)(
         [&](auto standard_shape, auto output, auto... inputs) {
-            mi_launch(stream, standard_shape)([=](auto idx) { output[idx] = f(inputs[idx]...); });
+            mi_launch(stream, standard_shape)([=](auto idx) { 
+                output[idx] = f(inputs[idx]...); 
+            });
         });
 }
 

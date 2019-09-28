@@ -48,9 +48,7 @@ auto nary_nonstandard_packed_impl(hipStream_t stream, F f, argument result, Argu
     auto s         = reorder_shape(arg_shape, perm);
     hip_visit_all(s, result.reshape(reorder_shape(result.get_shape(), perm)), args.reshape(s)...)(
         [&](auto standard_shape, auto output, auto... inputs) {
-            mi_launch(stream, standard_shape)([=](auto idx) { 
-                output[idx] = f(inputs[idx]...); 
-            });
+            mi_launch(stream, standard_shape)([=](auto idx) { output[idx] = f(inputs[idx]...); });
         });
 }
 

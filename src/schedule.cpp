@@ -426,7 +426,7 @@ struct stream_info
                     auto&& r = result[merge][stream];
                     r.push_back(ins);
                     // Copy inputs if they dont have a has_stream or not context
-                    // free. Inputs without a stream 
+                    // free. Inputs without a stream
                     std::copy_if(ins->inputs().begin(),
                                  ins->inputs().end(),
                                  std::back_inserter(r),

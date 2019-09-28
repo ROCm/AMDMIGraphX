@@ -52,8 +52,9 @@ struct hip_array
     MIGRAPHX_DEVICE_CONSTEXPR T single(std::size_t width = 100) const
     {
         T result = 0;
-        T a = 1;
-        for(std::size_t i = 0; i < N; i++) {
+        T a      = 1;
+        for(std::size_t i = 0; i < N; i++)
+        {
             result += d[N - i - 1] * a;
             a *= width;
         }
@@ -95,14 +96,23 @@ struct hip_array
     {
         for(std::size_t i = 0; i < N; i++)
         {
-            if(not (x[i] < y[i]))
+            if(not(x[i] < y[i]))
                 return false;
         }
         return true;
     }
-    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator>(const hip_array& x, const hip_array& y) { return y < x; }
-    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator<=(const hip_array& x, const hip_array& y) { return (x < y) or (x == y); }
-    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator>=(const hip_array& x, const hip_array& y) { return (y < x) or (x == y); }
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator>(const hip_array& x, const hip_array& y)
+    {
+        return y < x;
+    }
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator<=(const hip_array& x, const hip_array& y)
+    {
+        return (x < y) or (x == y);
+    }
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator>=(const hip_array& x, const hip_array& y)
+    {
+        return (y < x) or (x == y);
+    }
 
     MIGRAPHX_DEVICE_CONSTEXPR hip_array carry(hip_array result) const
     {

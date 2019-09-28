@@ -104,7 +104,9 @@ struct dominator_info
             }
 
             ins2dominators[ins].insert(ins);
+            std::cout << "ins2dominator_size = " << ins2dominators[ins].size() << std::endl;
         }
+        std::cout << "dom_tree_size = " << ins_dom_tree.size() << std::endl;
     }
 
     void find_dominator_tree(
@@ -379,28 +381,28 @@ struct stream_info
     find_concurrent_instructions(program& p)
     {
         std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> result;
-        std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> merge_to;
+        std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> merge_from;
         dominator_info di;
         di.compute_dominator(p, ins2stream);
 
         result.reserve(p.size());
-        merge_to.reserve(p.size());
-        for(auto ins : reverse_iterator_for(p))
+        merge_from.reserve(p.size());
+        for(auto ins : iterator_for(p))
         {
-            for(auto&& output : ins->outputs())
+            for(auto&& input : ins->inputs())
             {
-                if(is_merge_point(output))
-                    merge_to[ins].insert(output);
-                merge_to[ins].insert(merge_to[output].begin(), merge_to[output].end());
+                if(is_split_point(input))
+                    merge_from[ins].insert(input);
+                merge_from[ins].insert(merge_from[input].begin(), merge_from[input].end());
             }
 
-            if(!is_split_point(ins))
+            if(is_merge_point(ins))
             {
-                assert(merge_to.find(ins) != merge_to.end());
+                assert(merge_from.find(ins) != merge_from.end());
                 std::unordered_set<instruction_ref> del_set;
-                for(auto merge : merge_to[ins])
+                for(auto merge : merge_from[ins])
                 {
-                    if(di.strictly_dominate(merge, ins))
+                    if(di.strictly_dominate(ins, merge))
                     {
                         del_set.insert(merge);
                     }
@@ -409,13 +411,13 @@ struct stream_info
                 std::cout << "del_set size = " << del_set.size() << std::endl;
                 for(auto del_ins : del_set)
                 {
-                    merge_to[ins].erase(del_ins);
+                    merge_from[ins].erase(del_ins);
                 }
             }
 
             auto streams = this->get_streams(ins);
             // Collect concur instructions for each merge point.
-            for(auto& merge : merge_to[ins])
+            for(auto& merge : merge_from[ins])
             {
                 for(auto stream : streams)
                 {
@@ -423,8 +425,8 @@ struct stream_info
                         result[merge].resize(stream + 1);
                     auto&& r = result[merge][stream];
                     r.push_back(ins);
-                    // Copy inputs if they dont have a has_streamontext
-                    // free). Inputs without a stream chas_stream
+                    // Copy inputs if they dont have a has_stream or not context
+                    // free. Inputs without a stream 
                     std::copy_if(ins->inputs().begin(),
                                  ins->inputs().end(),
                                  std::back_inserter(r),

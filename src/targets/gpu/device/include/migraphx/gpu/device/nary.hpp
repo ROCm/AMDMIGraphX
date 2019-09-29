@@ -20,7 +20,7 @@ namespace device {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_NARY);
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_TRACE_NARY_FUNCTION  \
+#define MIGRAPHX_TRACE_NARY_FUNCTION   \
     if(enabled(MIGRAPHX_TRACE_NARY{})) \
         std::cout << "nary device function: " << __PRETTY_FUNCTION__ << std::endl;
 
@@ -41,7 +41,10 @@ auto nary_nonstandard_nonpacked_impl(hipStream_t stream, F f, argument result, A
 }
 
 template <class F, class... Arguments>
-auto nary_nonstandard_packed_impl(hipStream_t stream, F f, const argument& result, Arguments... args)
+auto nary_nonstandard_packed_impl(hipStream_t stream,
+                                  F f,
+                                  const argument& result,
+                                  Arguments... args)
 {
     MIGRAPHX_TRACE_NARY_FUNCTION
     auto arg_shape = make_array(args...).front().get_shape();

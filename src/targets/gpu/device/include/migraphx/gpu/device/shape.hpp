@@ -9,12 +9,26 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
+constexpr const std::size_t div_shift = 31;
+MIGRAPHX_DEVICE_CONSTEXPR std::size_t encode_divisor(std::size_t divisor)
+{
+    if (divisor == 0)
+        return 0;
+    return (1L << div_shift) / divisor + 1;
+}
+
+MIGRAPHX_DEVICE_CONSTEXPR std::size_t fast_div(std::size_t dividend, std::size_t encoded_divisor)
+{
+    return (dividend * encoded_divisor) >> div_shift;
+}
+
 template <std::size_t N>
 struct hip_shape
 {
     using hip_index                   = hip_array<std::size_t, N>;
     hip_array<std::size_t, N> lens    = {};
     hip_array<std::size_t, N> strides = {};
+    hip_array<std::size_t, N> divs    = {};
     bool standard                     = false;
 
     __device__ __host__ hip_shape() = default;
@@ -25,6 +39,7 @@ struct hip_shape
         assert(s.strides().size() == N);
         std::copy(s.lens().begin(), s.lens().end(), lens.begin());
         std::copy(s.strides().begin(), s.strides().end(), strides.begin());
+        std::transform(s.strides().begin(), s.strides().end(), divs.begin(), &encode_divisor);
     }
 
     MIGRAPHX_DEVICE_CONSTEXPR std::size_t elements() const { return lens.product(); }
@@ -68,8 +83,11 @@ struct hip_shape
         std::size_t tidx = idx;
         for(std::size_t is = 0; is < result.size(); is++)
         {
-            result[is] = tidx / strides[is];
-            tidx       = tidx % strides[is];
+            auto d = fast_div(tidx, divs[is]);
+            result[is] = d;
+            tidx = tidx - strides[is] * d;
+            // result[is] = tidx / strides[is];
+            // tidx       = tidx % strides[is];
         }
         return result;
     }

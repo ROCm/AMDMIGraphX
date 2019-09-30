@@ -21,8 +21,8 @@ TEST_CASE(gpu_target_copy)
     migraphx::target cpu_t = migraphx::cpu::target{};
     migraphx::shape s{migraphx::shape::int8_type, {2, 3, 4, 5}};
 
-    auto cpu_arg_orig = migraphx::generate_argument(s, 0x123456L);
-    auto gpu_arg = gpu_t.copy_to(cpu_arg_orig);
+    auto cpu_arg_orig  = migraphx::generate_argument(s, 0x123456L);
+    auto gpu_arg       = gpu_t.copy_to(cpu_arg_orig);
     auto cpu_arg_final = gpu_t.copy_from(gpu_arg);
 
     std::vector<int8_t> val_orig;

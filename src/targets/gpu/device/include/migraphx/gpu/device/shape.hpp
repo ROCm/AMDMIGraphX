@@ -12,7 +12,7 @@ namespace device {
 constexpr const std::size_t div_shift = 31;
 MIGRAPHX_DEVICE_CONSTEXPR std::size_t encode_divisor(std::size_t divisor)
 {
-    if (divisor == 0)
+    if(divisor == 0)
         return 0;
     return (1L << div_shift) / divisor + 1;
 }
@@ -83,9 +83,9 @@ struct hip_shape
         std::size_t tidx = idx;
         for(std::size_t is = 0; is < result.size(); is++)
         {
-            auto d = fast_div(tidx, divs[is]);
+            auto d     = fast_div(tidx, divs[is]);
             result[is] = d;
-            tidx = tidx - strides[is] * d;
+            tidx       = tidx - strides[is] * d;
             // result[is] = tidx / strides[is];
             // tidx       = tidx % strides[is];
         }

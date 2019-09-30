@@ -21,7 +21,8 @@ MIGRAPHX_DEVICE_CONSTEXPR std::size_t fast_div(std::size_t dividend, std::size_t
     return (dividend * encoded_divisor) >> fast_div_shift;
 }
 
-MIGRAPHX_DEVICE_CONSTEXPR std::size_t fast_mod(std::size_t dividend, std::size_t divisor, std::size_t encoded_divisor)
+MIGRAPHX_DEVICE_CONSTEXPR std::size_t
+fast_mod(std::size_t dividend, std::size_t divisor, std::size_t encoded_divisor)
 {
     return dividend - divisor * fast_div(dividend, encoded_divisor);
 }

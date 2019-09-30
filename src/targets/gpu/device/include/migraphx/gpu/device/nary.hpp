@@ -33,9 +33,9 @@ auto nary_nonstandard_impl(hipStream_t stream, F f, argument result, Arguments..
 
 inline auto create_broadcast_index(std::size_t len, std::size_t stride)
 {
-    auto next_stride = stride * len;
+    auto next_stride   = stride * len;
     auto e_next_stride = encode_divisor(next_stride);
-    auto e_stride = encode_divisor(stride);
+    auto e_stride      = encode_divisor(stride);
     return [=](auto i) {
         // ( i % next_stride) / stride
         return fast_div(fast_mod(i, next_stride, e_next_stride), e_stride);
@@ -53,8 +53,8 @@ void nary_broadcast_vec_impl(
                       std::find_if(b_shape.strides().begin(), b_shape.strides().end(), [](auto x) {
                           return x != 0;
                       }));
-    auto bdim_len         = output_shape.lens()[bdim];
-    auto bdim_stride      = output_shape.strides()[bdim];
+    auto bdim_len      = output_shape.lens()[bdim];
+    auto bdim_stride   = output_shape.strides()[bdim];
     auto broadcast_idx = create_broadcast_index(bdim_len, bdim_stride);
 
     const std::size_t vec_size     = 4;
@@ -101,8 +101,8 @@ void nary_broadcast_impl(hipStream_t stream, F f, argument result, argument barg
                       std::find_if(b_shape.strides().begin(), b_shape.strides().end(), [](auto x) {
                           return x != 0;
                       }));
-    auto bdim_len         = output_shape.lens()[bdim];
-    auto bdim_stride      = output_shape.strides()[bdim];
+    auto bdim_len      = output_shape.lens()[bdim];
+    auto bdim_stride   = output_shape.strides()[bdim];
     auto broadcast_idx = create_broadcast_index(bdim_len, bdim_stride);
 
     const std::size_t nlocal  = 1024;
@@ -143,8 +143,8 @@ void nary_double_broadcast_vec_impl(
                       std::find_if(b_shape.strides().begin(), b_shape.strides().end(), [](auto x) {
                           return x != 0;
                       }));
-    auto bdim_len         = output_shape.lens()[bdim];
-    auto bdim_stride      = output_shape.strides()[bdim];
+    auto bdim_len      = output_shape.lens()[bdim];
+    auto bdim_stride   = output_shape.strides()[bdim];
     auto broadcast_idx = create_broadcast_index(bdim_len, bdim_stride);
 
     const std::size_t vec_size     = 4;
@@ -200,8 +200,8 @@ void nary_double_broadcast_impl(
                       std::find_if(b_shape.strides().begin(), b_shape.strides().end(), [](auto x) {
                           return x != 0;
                       }));
-    auto bdim_len         = output_shape.lens()[bdim];
-    auto bdim_stride      = output_shape.strides()[bdim];
+    auto bdim_len      = output_shape.lens()[bdim];
+    auto bdim_stride   = output_shape.strides()[bdim];
     auto broadcast_idx = create_broadcast_index(bdim_len, bdim_stride);
 
     const std::size_t nlocal  = 1024;

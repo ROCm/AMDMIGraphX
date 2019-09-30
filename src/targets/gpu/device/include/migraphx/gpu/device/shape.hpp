@@ -73,7 +73,7 @@ struct hip_shape
         {
             auto d     = fast_div(tidx, divs[is]);
             result[is] = d;
-            tidx       = tidx - strides[is] * d;
+            tidx       = remainder(d, tidx, strides[is]);
         }
         return result;
     }

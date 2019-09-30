@@ -22,9 +22,15 @@ MIGRAPHX_DEVICE_CONSTEXPR std::size_t fast_div(std::size_t dividend, std::size_t
 }
 
 MIGRAPHX_DEVICE_CONSTEXPR std::size_t
+remainder(std::size_t result, std::size_t dividend, std::size_t divisor)
+{
+    return dividend - divisor * result;
+}
+
+MIGRAPHX_DEVICE_CONSTEXPR std::size_t
 fast_mod(std::size_t dividend, std::size_t divisor, std::size_t encoded_divisor)
 {
-    return dividend - divisor * fast_div(dividend, encoded_divisor);
+    return remainder(fast_div(dividend, encoded_divisor), dividend, divisor);
 }
 
 } // namespace device

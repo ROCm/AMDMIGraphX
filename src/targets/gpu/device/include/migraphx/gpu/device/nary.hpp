@@ -31,6 +31,17 @@ auto nary_nonstandard_impl(hipStream_t stream, F f, argument result, Arguments..
     });
 }
 
+inline auto create_broadcast_index(std::size_t len, std::size_t stride)
+{
+    auto next_stride = stride * len;
+    auto e_next_stride = encode_divisor(next_stride);
+    auto e_stride = encode_divisor(stride);
+    return [=](auto i) {
+        // ( i % next_stride) / stride
+        return fast_div(fast_mod(i, next_stride, e_next_stride), e_stride);
+    };
+}
+
 template <class F, class... Arguments>
 void nary_broadcast_vec_impl(
     hipStream_t stream, F f, argument result, argument barg, Arguments... args)
@@ -44,7 +55,7 @@ void nary_broadcast_vec_impl(
                       }));
     auto bdim_len         = output_shape.lens()[bdim];
     auto bdim_stride      = output_shape.strides()[bdim];
-    auto bdim_next_stride = bdim_stride * bdim_len;
+    auto broadcast_idx = create_broadcast_index(bdim_len, bdim_stride);
 
     const std::size_t vec_size     = 4;
     const std::size_t nlocal       = 1024;
@@ -67,7 +78,7 @@ void nary_broadcast_vec_impl(
                 // Process the data
                 for(size_t i = idx.global; i < nelements; i += nglobal)
                 {
-                    auto bidx = ((i * vec_size) % bdim_next_stride) / bdim_stride;
+                    auto bidx = broadcast_idx(i * vec_size);
                     auto b    = bp[bidx];
                     auto out  = output.data()[i];
                     for(std::size_t j = 0; j < vec_size; j++)
@@ -92,7 +103,7 @@ void nary_broadcast_impl(hipStream_t stream, F f, argument result, argument barg
                       }));
     auto bdim_len         = output_shape.lens()[bdim];
     auto bdim_stride      = output_shape.strides()[bdim];
-    auto bdim_next_stride = bdim_stride * bdim_len;
+    auto broadcast_idx = create_broadcast_index(bdim_len, bdim_stride);
 
     const std::size_t nlocal  = 1024;
     const std::size_t nglobal = 256 * nlocal;
@@ -110,7 +121,7 @@ void nary_broadcast_impl(hipStream_t stream, F f, argument result, argument barg
             // Process the data
             for(size_t i = idx.global; i < nelements; i += nglobal)
             {
-                auto bidx        = (i % bdim_next_stride) / bdim_stride;
+                auto bidx        = broadcast_idx(i);
                 auto b           = buffer[bidx];
                 output.data()[i] = f(inputs.data()[i]..., b);
             }
@@ -134,7 +145,7 @@ void nary_double_broadcast_vec_impl(
                       }));
     auto bdim_len         = output_shape.lens()[bdim];
     auto bdim_stride      = output_shape.strides()[bdim];
-    auto bdim_next_stride = bdim_stride * bdim_len;
+    auto broadcast_idx = create_broadcast_index(bdim_len, bdim_stride);
 
     const std::size_t vec_size     = 4;
     const std::size_t nlocal       = 1024;
@@ -161,7 +172,7 @@ void nary_double_broadcast_vec_impl(
                 // Process the data
                 for(size_t i = idx.global; i < nelements; i += nglobal)
                 {
-                    auto bidx = ((i * vec_size) % bdim_next_stride) / bdim_stride;
+                    auto bidx = broadcast_idx(i * vec_size);
                     auto b1   = bp[bidx];
                     auto b2   = bp[bidx + bdim_len];
                     auto out  = output.data()[i];
@@ -191,7 +202,7 @@ void nary_double_broadcast_impl(
                       }));
     auto bdim_len         = output_shape.lens()[bdim];
     auto bdim_stride      = output_shape.strides()[bdim];
-    auto bdim_next_stride = bdim_stride * bdim_len;
+    auto broadcast_idx = create_broadcast_index(bdim_len, bdim_stride);
 
     const std::size_t nlocal  = 1024;
     const std::size_t nglobal = 256 * nlocal;
@@ -214,7 +225,7 @@ void nary_double_broadcast_impl(
                 // Process the data
                 for(size_t i = idx.global; i < nelements; i += nglobal)
                 {
-                    auto bidx        = (i % bdim_next_stride) / bdim_stride;
+                    auto bidx        = broadcast_idx(i);
                     auto b1          = buffer[bidx];
                     auto b2          = buffer[bidx + bdim_len];
                     output.data()[i] = f(inputs.data()[i]..., b2, b1);

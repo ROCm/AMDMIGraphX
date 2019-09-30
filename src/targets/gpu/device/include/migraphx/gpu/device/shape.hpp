@@ -3,24 +3,12 @@
 #define MIGRAPHX_GUARD_RTGLIB_DEVICE_SHAPE_HPP
 
 #include <migraphx/gpu/device/array.hpp>
+#include <migraphx/gpu/device/fast_div.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
-
-constexpr const std::size_t div_shift = 31;
-MIGRAPHX_DEVICE_CONSTEXPR std::size_t encode_divisor(std::size_t divisor)
-{
-    if(divisor == 0)
-        return 0;
-    return (1L << div_shift) / divisor + 1;
-}
-
-MIGRAPHX_DEVICE_CONSTEXPR std::size_t fast_div(std::size_t dividend, std::size_t encoded_divisor)
-{
-    return (dividend * encoded_divisor) >> div_shift;
-}
 
 template <std::size_t N>
 struct hip_shape
@@ -86,8 +74,6 @@ struct hip_shape
             auto d     = fast_div(tidx, divs[is]);
             result[is] = d;
             tidx       = tidx - strides[is] * d;
-            // result[is] = tidx / strides[is];
-            // tidx       = tidx % strides[is];
         }
         return result;
     }

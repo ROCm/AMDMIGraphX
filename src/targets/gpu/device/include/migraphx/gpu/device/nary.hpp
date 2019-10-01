@@ -38,7 +38,7 @@ inline auto create_broadcast_index(std::size_t len, std::size_t stride)
     auto e_stride      = encode_divisor(stride);
     return [=](auto i) {
         // ( i % next_stride) / stride
-        return fast_div(fast_mod(i, next_stride, e_next_stride), e_stride);
+        return fast_div(i, e_stride) - len*fast_div(i, e_next_stride);
     };
 }
 

@@ -76,7 +76,7 @@ struct hip_shape
             // tidx = tdix / lens[is];
             auto q     = fast_div(tidx, divs[is]);
             result[is] = remainder(q, tidx, lens[is]);
-            tidx = q;
+            tidx       = q;
         }
         return result;
     }

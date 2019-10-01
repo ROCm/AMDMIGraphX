@@ -113,7 +113,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Release') {
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release")
     }
-
+}, clang_release_py3: rocmnode('vega') { cmake_build ->
     stage('Clang Release Python 3') {
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release -DPYTHON_EXECUTABLE=/usr/local/bin/python3")
     }

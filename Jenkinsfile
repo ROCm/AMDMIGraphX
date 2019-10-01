@@ -98,7 +98,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
             | grep -v 'build/' \
             | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-5.0 -style=file {} | diff - {}\'
             find . -iname \'*.py\' \
-            | grep -v -E 'build/' | grep -v 'doc/' | grep -v 'tools/' \
+            | grep -v 'build/'  \
             | xargs -n 1 -P 1 -I{} -t sh -c \'yapf {} | diff - {}\'
         '''
     }

@@ -27,7 +27,8 @@ struct hip_shape
         assert(s.strides().size() == N);
         std::copy(s.lens().begin(), s.lens().end(), lens.begin());
         std::copy(s.strides().begin(), s.strides().end(), strides.begin());
-        std::transform(s.strides().begin(), s.strides().end(), divs.begin(), &encode_divisor);
+        assert(std::all_of(s.lens().begin(), s.lens().end(), &is_divisor_encodable));
+        std::transform(s.lens().begin(), s.lens().end(), divs.begin(), &encode_divisor);
     }
 
     MIGRAPHX_DEVICE_CONSTEXPR std::size_t elements() const { return lens.product(); }
@@ -69,11 +70,13 @@ struct hip_shape
     {
         hip_index result;
         std::size_t tidx = idx;
-        for(std::size_t is = 0; is < result.size(); is++)
+        for(std::ptrdiff_t is = result.size() - 1; is >= 0; is--)
         {
-            auto d     = fast_div(tidx, divs[is]);
-            result[is] = d;
-            tidx       = remainder(d, tidx, strides[is]);
+            // result[is] = tidx % lens[is];
+            // tidx = tdix / lens[is];
+            auto q     = fast_div(tidx, divs[is]);
+            result[is] = remainder(q, tidx, lens[is]);
+            tidx = q;
         }
         return result;
     }

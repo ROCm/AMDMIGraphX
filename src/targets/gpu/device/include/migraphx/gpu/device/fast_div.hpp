@@ -8,12 +8,18 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-constexpr const std::size_t fast_div_shift = 31;
+constexpr const std::size_t fast_div_shift = 42;
 MIGRAPHX_DEVICE_CONSTEXPR std::size_t encode_divisor(std::size_t divisor)
 {
     if(divisor == 0)
         return 0;
-    return (1L << fast_div_shift) / divisor + 1;
+    auto p = std::size_t{1} << fast_div_shift;
+    return (p + divisor - 1) / divisor;
+}
+
+inline constexpr bool is_divisor_encodable(std::size_t i)
+{
+    return i < std::size_t{1} << (fast_div_shift / 2);
 }
 
 MIGRAPHX_DEVICE_CONSTEXPR std::size_t fast_div(std::size_t dividend, std::size_t encoded_divisor)

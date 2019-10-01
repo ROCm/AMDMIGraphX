@@ -32,15 +32,17 @@ struct dominator_info
     {
         std::unordered_map<instruction_ref, int> ins_index;
         int count = 0;
-        for (auto ins : iterator_for(p))
+        for(auto ins : iterator_for(p))
         {
             ins_index[ins] = count++;
         }
 
-        for (auto&& it : dom_tree)
+        for(auto&& it : dom_tree)
         {
-            std::cout << "ins_index = " << ins_index[it.first] << ", name = " << it.first->name() << std::endl;
-            std::cout << "\t\tdom_index = " << ins_index[it.second] << ", name = " << it.second->name() << std::endl;
+            std::cout << "ins_index = " << ins_index[it.first] << ", name = " << it.first->name()
+                      << std::endl;
+            std::cout << "\t\tdom_index = " << ins_index[it.second]
+                      << ", name = " << it.second->name() << std::endl;
         }
     }
 
@@ -60,7 +62,8 @@ struct dominator_info
     }
 
     // compute post dominators
-    void compute_dominator_reverse(program& p, std::unordered_map<instruction_ref, std::size_t>& ins2stream)
+    void compute_dominator_reverse(program& p,
+                                   std::unordered_map<instruction_ref, std::size_t>& ins2stream)
     {
         (void)ins2stream;
         std::size_t num_ins = p.size();
@@ -80,7 +83,7 @@ struct dominator_info
             // }
 
             instruction_ref ins_tmp = p.end();
-            int output_num = 0;
+            int output_num          = 0;
             // find dominators
             for(auto& output : ins->outputs())
             {
@@ -124,7 +127,8 @@ struct dominator_info
     }
 
     // compute prev dominators
-    void compute_dominator_forward(program& p, std::unordered_map<instruction_ref, std::size_t>& ins2stream)
+    void compute_dominator_forward(program& p,
+                                   std::unordered_map<instruction_ref, std::size_t>& ins2stream)
     {
         (void)ins2stream;
         std::size_t num_ins = p.size();
@@ -139,7 +143,7 @@ struct dominator_info
         for(auto ins : iterator_for(p))
         {
             instruction_ref ins_tmp = p.end();
-            int input_num = 0;
+            int input_num           = 0;
             // find dominators
             for(auto& input : ins->inputs())
             {
@@ -430,7 +434,8 @@ struct stream_info
         int stream = -1;
         for(auto&& arg : ins->outputs())
         {
-            if (!has_stream(arg)) continue;
+            if(!has_stream(arg))
+                continue;
 
             int arg_stream = get_stream(arg);
             if(arg_stream < 0)
@@ -449,7 +454,8 @@ struct stream_info
         int stream = -1;
         for(auto&& arg : ins->inputs())
         {
-            if (!has_stream(arg)) continue;
+            if(!has_stream(arg))
+                continue;
 
             int arg_stream = get_stream(arg);
             if(arg_stream < 0)
@@ -460,7 +466,6 @@ struct stream_info
         }
         return false;
     }
-
 
     std::vector<instruction_ref> get_recorded_instructions(instruction_ref start)
     {

@@ -153,6 +153,7 @@ def cast_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def ceil_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
@@ -165,6 +166,7 @@ def ceil_test():
     )
 
     return ([node], [x], [y])
+
 
 @onnx_test
 def clip_test():
@@ -647,6 +649,7 @@ def flatten_test():
 
     return ([node, node2], [x], [y, y2])
 
+
 @onnx_test
 def floor_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
@@ -659,6 +662,7 @@ def floor_test():
     )
 
     return ([node], [x], [y])
+
 
 @onnx_test
 def gather_test():
@@ -1053,6 +1057,7 @@ def pow_test():
 
     return ([node], [arg0, arg1], [arg_out])
 
+
 @onnx_test
 def reducemax_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
@@ -1082,6 +1087,7 @@ def reducemean_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def reducemean_keepdims_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
@@ -1096,6 +1102,7 @@ def reducemean_keepdims_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def reducemin_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
@@ -1109,6 +1116,7 @@ def reducemin_test():
                                  keepdims=1)
 
     return ([node], [x], [y])
+
 
 @onnx_test
 def reducesum_test():

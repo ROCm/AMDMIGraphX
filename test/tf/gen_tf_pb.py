@@ -66,7 +66,8 @@ def batchnorm_test(g1):
                                g1_mean,
                                g1_variance,
                                epsilon=0.00001,
-                               is_training=False,name='batchnorm1')
+                               is_training=False,
+                               name='batchnorm1')
 
 
 @tf_test

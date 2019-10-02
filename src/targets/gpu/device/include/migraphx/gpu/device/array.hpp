@@ -9,30 +9,30 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-#define MIGRAPHX_DEVICE_ARRAY_OP(op, binary_op) \
-    MIGRAPHX_DEVICE_CONSTEXPR hip_array& operator op(const hip_array& x) \
-    { \
-        for(std::size_t i = 0; i < N; i++) \
-            d[i] op x[i]; \
-        return *this; \
-    } \
-    MIGRAPHX_DEVICE_CONSTEXPR hip_array& operator op(const T& x) \
-    { \
-        for(std::size_t i = 0; i < N; i++) \
-            d[i] op x; \
-        return *this; \
-    } \
+#define MIGRAPHX_DEVICE_ARRAY_OP(op, binary_op)                                                    \
+    MIGRAPHX_DEVICE_CONSTEXPR hip_array& operator op(const hip_array& x)                           \
+    {                                                                                              \
+        for(std::size_t i = 0; i < N; i++)                                                         \
+            d[i] op x[i];                                                                          \
+        return *this;                                                                              \
+    }                                                                                              \
+    MIGRAPHX_DEVICE_CONSTEXPR hip_array& operator op(const T& x)                                   \
+    {                                                                                              \
+        for(std::size_t i = 0; i < N; i++)                                                         \
+            d[i] op x;                                                                             \
+        return *this;                                                                              \
+    }                                                                                              \
     friend MIGRAPHX_DEVICE_CONSTEXPR hip_array operator binary_op(hip_array x, const hip_array& y) \
-    { \
-        return x op y; \
-    } \
-    friend MIGRAPHX_DEVICE_CONSTEXPR hip_array operator binary_op(hip_array x, const T& y) \
-    { \
-        return x op y; \
-    } \
-    friend MIGRAPHX_DEVICE_CONSTEXPR hip_array operator binary_op(const T& y, hip_array x) \
-    { \
-        return x op y; \
+    {                                                                                              \
+        return x op y;                                                                             \
+    }                                                                                              \
+    friend MIGRAPHX_DEVICE_CONSTEXPR hip_array operator binary_op(hip_array x, const T& y)         \
+    {                                                                                              \
+        return x op y;                                                                             \
+    }                                                                                              \
+    friend MIGRAPHX_DEVICE_CONSTEXPR hip_array operator binary_op(const T& y, hip_array x)         \
+    {                                                                                              \
+        return x op y;                                                                             \
     }
 
 template <class T, std::size_t N>

@@ -101,9 +101,7 @@ static std::unordered_map<std::string, std::size_t> create_weight_map()
             {"gpu::conv_bias_relu", 4},
             {"gpu::pooling", 2},
             {"gpu::gemm", 2},
-            {"gpu::concat", 1},
-            {"hip::add_clip", 2},
-            {"hip::add_relu", 2}};
+            {"gpu::concat", 1};
 }
 
 static const std::unordered_map<std::string, std::size_t>& weight_map()

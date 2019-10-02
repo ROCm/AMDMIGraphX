@@ -1,10 +1,3 @@
-/*=============================================================================
-    Copyright (c) 2017 Paul Fultz II
-    permutation.hpp
-    Distributed under the Boost Software License, Version 1.0. (See accompanying
-    file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
-==============================================================================*/
-
 #ifndef MIGRAPHX_GUARD_RTGLIB_PERMUTATION_HPP
 #define MIGRAPHX_GUARD_RTGLIB_PERMUTATION_HPP
 

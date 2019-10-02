@@ -4,20 +4,25 @@ try:
 except:
     pass
 
+
 def assert_eq(x, y):
     if x == y:
         pass
     else:
         raise Exception(str(x) + " != " + str(y))
 
+
 def read_float(b, index):
-    return struct.unpack_from('f', b, index*4)[0]
+    return struct.unpack_from('f', b, index * 4)[0]
+
 
 def write_float(b, index):
-    struct.pack_into('f', b, index*4)
+    struct.pack_into('f', b, index * 4)
+
 
 def nelements(lens):
-    return reduce(lambda x,y: x*y,lens, 1)
+    return reduce(lambda x, y: x * y, lens, 1)
+
 
 def create_buffer(t, data, shape):
     a = array.array(t, data)
@@ -28,18 +33,21 @@ def create_buffer(t, data, shape):
         m = memoryview(a.tostring())
         return m
 
+
 def check_argument(a):
     l = a.tolist()
     for i in range(len(l)):
         assert_eq(l[i], read_float(a, i))
 
+
 def check_shapes(r, m):
     lens = list(m.shape)
-    strides = [int(s/m.itemsize) for s in m.strides]
+    strides = [int(s / m.itemsize) for s in m.strides]
     elements = nelements(lens)
     assert_eq(r.get_shape().elements(), elements)
     assert_eq(r.get_shape().lens(), lens)
     assert_eq(r.get_shape().strides(), strides)
+
 
 def run(p):
     params = {}
@@ -48,12 +56,14 @@ def run(p):
 
     return migraphx.from_gpu(p.run(params))
 
+
 def test_shape(shape):
     data = list(range(nelements(shape)))
     m = create_buffer('f', data, shape)
     a = migraphx.argument(m)
     check_shapes(a, m)
     assert_eq(a.tolist(), data)
+
 
 def test_input():
     if sys.version_info >= (3, 0):

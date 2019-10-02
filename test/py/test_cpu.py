@@ -9,6 +9,7 @@ print(p)
 s2 = p.get_shape()
 assert s1 == s2
 params = {}
+
 for key, value in p.get_parameter_shapes().items():
     print("Parameter {} -> {}".format(key, value))
     params[key] = migraphx.generate_argument(value)

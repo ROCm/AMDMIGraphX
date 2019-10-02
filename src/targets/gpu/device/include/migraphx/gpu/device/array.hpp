@@ -9,6 +9,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_ARRAY_OP(op, binary_op)                                                    \
     MIGRAPHX_DEVICE_CONSTEXPR hip_array& operator op(const hip_array& x)                           \
     {                                                                                              \

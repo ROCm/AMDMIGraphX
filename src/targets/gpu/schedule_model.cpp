@@ -122,5 +122,5 @@ std::size_t schedule_model::weight(const operation& op) const
 }
 
 } // namespace gpu
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

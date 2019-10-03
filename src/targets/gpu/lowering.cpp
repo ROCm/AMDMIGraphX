@@ -198,25 +198,26 @@ struct miopen_apply
             auto&& op                         = any_cast<Op>(ins->get_operator());
             auto beta                         = op.beta;
             std::vector<instruction_ref> refs = ins->inputs();
-            if((refs.size() == 2) or (refs.size() == 3 and refs.back()->outputs().size() > 1) or
-               (ins == last))
+            if(refs.size() == 2)
             {
                 auto output = insert_allocation(ins, ins->get_shape());
-                if(refs.size() == 2)
+                beta        = 0;
+                refs.push_back(output);
+            }
+            else
+            {
+                auto c_alias = instruction::get_output_alias(refs.back());
+                if(ins == last or refs.back()->outputs().size() > 1 or c_alias->inputs().empty())
                 {
-                    beta = 0;
-                    refs.push_back(output);
-                }
-                else
-                {
+                    auto output   = insert_allocation(ins, ins->get_shape());
                     auto copy_out = prog->insert_instruction(ins, hip_copy{}, refs.back(), output);
                     refs.back()   = copy_out;
                     refs.push_back(copy_out);
                 }
-            }
-            else
-            {
-                refs.push_back(refs.back());
+                else
+                {
+                    refs.push_back(refs.back());
+                }
             }
 
             return prog->replace_instruction(ins, rocblas_gemm<Op>{Op{op.alpha, beta}}, refs);

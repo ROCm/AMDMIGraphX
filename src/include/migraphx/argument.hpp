@@ -43,6 +43,12 @@ struct argument : raw_data<argument>
 
     const shape& get_shape() const { return this->m_shape; }
 
+    argument reshape(const shape& s) const
+    {
+        argument self = *this;
+        return {s, [=]() mutable { return self.data(); }};
+    }
+
     private:
     shape m_shape;
 };

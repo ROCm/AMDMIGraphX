@@ -138,6 +138,7 @@ migraphx::argument run_gpu(migraphx::program& p)
     EXPECT(is_shared(ctx, p.get_context()));
     p.dry_run(m);
     EXPECT(is_shared(ctx, p.get_context()));
+    p.eval(m);
     return migraphx::gpu::from_gpu(p.eval(m));
 }
 
@@ -1048,6 +1049,24 @@ struct test_gemm : verify_program<test_gemm>
         auto a = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {4, 5}});
         auto b = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {5, 3}});
         p.add_instruction(migraphx::op::dot{}, a, b);
+        return p;
+    }
+};
+
+struct test_gemm_copy : verify_program<test_gemm_copy>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape sa{migraphx::shape::float_type, {2, 16}};
+        migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
+        migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
+        auto pa = p.add_parameter("a", sa);
+        auto pb = p.add_parameter("b", sb);
+        auto pc = p.add_parameter("c", sc);
+        auto dr = p.add_instruction(migraphx::op::dot{}, pa, pb, pc);
+        p.add_instruction(migraphx::op::add{}, dr, dr);
+
         return p;
     }
 };

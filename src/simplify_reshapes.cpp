@@ -7,6 +7,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/permutation.hpp>
 #include <unordered_set>
 
 namespace migraphx {
@@ -43,17 +44,6 @@ auto get_transpose_dims(instruction_ref ins)
     return any_cast<const op::transpose&>(ins->get_operator()).dims;
 }
 
-std::vector<int64_t> reorder_dims(std::vector<int64_t> dims, std::vector<int64_t> permutation)
-{
-    std::vector<int64_t> result(dims.size());
-    assert(dims.size() == permutation.size());
-    for(std::size_t i = 0; i < dims.size(); i++)
-    {
-        result[i] = dims[permutation[i]];
-    }
-    return result;
-}
-
 bool is_no_transpose(const std::vector<int64_t>& dims)
 {
     if(dims.empty())
@@ -62,25 +52,6 @@ bool is_no_transpose(const std::vector<int64_t>& dims)
         return false;
     return std::adjacent_find(
                dims.begin(), dims.end(), [](auto x, auto y) { return (y - x) != 1; }) == dims.end();
-}
-
-template <class Vector, class Op>
-std::vector<int64_t> sort_permutation(const Vector& data, Op op)
-{
-    std::vector<std::int64_t> result(data.size());
-    std::iota(result.begin(), result.end(), 0);
-    std::sort(result.begin(), result.end(), [&](auto x, auto y) { return op(data[x], data[y]); });
-    return result;
-}
-
-std::vector<int64_t> invert_permutation(const std::vector<int64_t>& permutation)
-{
-    return sort_permutation(permutation, std::less<>{});
-}
-
-std::vector<int64_t> find_permutation(const shape& s)
-{
-    return sort_permutation(s.strides(), std::greater<>{});
 }
 
 struct find_reshaper
@@ -177,8 +148,7 @@ struct find_concat_transpose
 {
     auto matcher() const
     {
-        return match::name("concat")(match::same_input_shapes(),
-                                     match::all_of[match::inputs()](match::transpose_shape()));
+        return match::name("concat")(match::all_of[match::inputs()](match::transpose_shape()));
     }
 
     void apply(program& p, const match::matcher_result& mr) const
@@ -194,8 +164,6 @@ struct find_concat_transpose
         std::vector<instruction_ref> inputs;
         std::transform(
             ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&](auto i) {
-                if(i->name() == "transpose" and i->inputs().front()->get_shape().standard())
-                    return i->inputs().front();
                 return p.insert_instruction(ins, op::transpose{permutation}, i);
             });
         auto concat = p.insert_instruction(ins, op, inputs);
@@ -207,20 +175,23 @@ struct find_concat_transpose
 
 void simplify_reshapes::apply(program& p) const
 {
-    auto end = std::prev(p.end());
-    for(auto ins : iterator_for(p))
+    for(int i = 0; i < 2; i++)
     {
-        if(ins == end and ins->name() == "contiguous")
-            continue;
-        // Skip possible dead instructions
-        if(ins->outputs().empty() and ins != end)
-            continue;
-        match::find_matches(p,
-                            ins,
-                            find_nop_reshapes{},
-                            find_reshaper{},
-                            find_transpose{},
-                            find_concat_transpose{});
+        auto end = std::prev(p.end());
+        for(auto ins : iterator_for(p))
+        {
+            if(ins == end and ins->name() == "contiguous")
+                continue;
+            // Skip possible dead instructions
+            if(ins->outputs().empty() and ins != end)
+                continue;
+            match::find_matches(p,
+                                ins,
+                                find_nop_reshapes{},
+                                find_reshaper{},
+                                find_transpose{},
+                                find_concat_transpose{});
+        }
     }
 }
 

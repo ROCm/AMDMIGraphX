@@ -155,6 +155,20 @@ def cast_test():
 
 
 @onnx_test
+def ceil_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
+
+    node = onnx.helper.make_node(
+        'Ceil',
+        inputs=['x'],
+        outputs=['y'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def clip_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
@@ -637,6 +651,20 @@ def flatten_test():
 
 
 @onnx_test
+def floor_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
+
+    node = onnx.helper.make_node(
+        'Floor',
+        inputs=['x'],
+        outputs=['y'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def gather_test():
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
     i = helper.make_tensor_value_info('indices', TensorProto.INT32,
@@ -1031,6 +1059,21 @@ def pow_test():
 
 
 @onnx_test
+def reducemax_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 6])
+    axes = [2]
+
+    node = onnx.helper.make_node('ReduceMax',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axes=axes,
+                                 keepdims=0)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def reducemean_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
@@ -1061,6 +1104,21 @@ def reducemean_keepdims_test():
 
 
 @onnx_test
+def reducemin_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 1, 5, 1])
+    axes = [1, 3]
+
+    node = onnx.helper.make_node('ReduceMin',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axes=axes,
+                                 keepdims=1)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def reducesum_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 1])
@@ -1070,7 +1128,7 @@ def reducesum_test():
                                  inputs=['x'],
                                  outputs=['y'],
                                  axes=axes,
-                                 keepdims=0)
+                                 keepdims=1)
 
     return ([node], [x], [y])
 

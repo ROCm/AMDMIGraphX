@@ -29,6 +29,15 @@ TEST_CASE(test_shape_packed_default)
     EXPECT(not s.broadcasted());
 }
 
+TEST_CASE(test_shape_standard)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}, {6, 3, 1}};
+    EXPECT(s.standard());
+    EXPECT(s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
 TEST_CASE(test_shape_packed)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2}, {2, 1}};
@@ -56,6 +65,33 @@ TEST_CASE(test_shape_transposed2)
     EXPECT(not s.broadcasted());
 }
 
+TEST_CASE(test_shape_overlap)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}, {6, 3, 2}};
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
+TEST_CASE(test_shape_overlap2)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}, {6, 2, 1}};
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
+TEST_CASE(test_shape_overlap3)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}, {4, 2, 1}};
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
 TEST_CASE(test_shape_broadcasted)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2}, {1, 0}};
@@ -64,6 +100,43 @@ TEST_CASE(test_shape_broadcasted)
     EXPECT(not s.transposed());
     EXPECT(s.broadcasted());
 }
+
+TEST_CASE(test_shape_broadcasted2)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 2}, {0, 1}};
+    EXPECT(not s.standard());
+    EXPECT(s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(s.broadcasted());
+}
+
+TEST_CASE(test_shape_broadcasted3)
+{
+    migraphx::shape s{migraphx::shape::float_type, {3, 2}, {0, 1}};
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(s.broadcasted());
+}
+
+TEST_CASE(test_shape_broadcasted4)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}, {6, 0, 1}};
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(s.broadcasted());
+}
+
+TEST_CASE(test_shape_broadcasted5)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}, {1, 0, 6}};
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(s.transposed());
+    EXPECT(s.broadcasted());
+}
+
 
 TEST_CASE(test_shape_default_copy)
 {

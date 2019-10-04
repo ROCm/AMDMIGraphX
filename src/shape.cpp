@@ -33,7 +33,8 @@ struct shape_impl
         // assert(std::any_of(m_strides.begin(), m_strides.end(), [](auto x) { return x > 0; }) and
         //        "At least one stride must be non-zero");
         m_standard = this->elements() == this->element_space() and
-                     std::is_sorted(m_strides.rbegin(), m_strides.rend());
+                     std::is_sorted(m_strides.rbegin(), m_strides.rend()) and
+                     std::none_of(m_strides.begin(), m_strides.end(), [](auto x) { return x == 0; });
     }
     shape::type_t m_type;
     std::vector<std::size_t> m_lens;
@@ -160,7 +161,20 @@ bool shape::packed() const { return this->elements() == this->element_space(); }
 
 bool shape::transposed() const
 {
-    return not std::is_sorted(this->strides().rbegin(), this->strides().rend());
+    if (this->broadcasted())
+    {
+        // TODO: Use a filter_iterator instead
+        std::vector<std::size_t> s;
+        s.reserve(this->strides().size());
+        std::copy_if(this->strides().begin(), this->strides().end(), std::back_inserter(s), [](std::size_t x) {
+            return x != 0;
+        });
+        return not std::is_sorted(s.rbegin(), s.rend());
+    }
+    else
+    {
+        return not std::is_sorted(this->strides().rbegin(), this->strides().rend());
+    }
 }
 
 bool shape::broadcasted() const

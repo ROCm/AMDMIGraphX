@@ -142,7 +142,7 @@ struct hip_array
             // Reset overflow
             overflow = 0;
             // Compute overflow using while loop instead of mod
-            while(z >= d[i]) 
+            while(z >= d[i])
             {
                 z -= d[i];
                 overflow += 1;

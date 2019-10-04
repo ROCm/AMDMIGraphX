@@ -165,12 +165,50 @@ struct find_inner_broadcast
     }
 };
 
+bool axis_equal(const std::vector<std::size_t>& x,
+                const std::vector<std::size_t>& y,
+                std::size_t axis)
+{
+    return x.size() == y.size() and x.size() > axis and
+           std::equal(x.begin(), x.begin() + axis, y.begin()) and
+           std::equal(x.begin() + axis + 1, x.end(), y.begin() + axis + 1);
+}
+
+bool axis_shape_equal(const shape& x, const shape& y, std::size_t axis)
+{
+    // TODO: Check strides
+    return axis_equal(x.lens(), y.lens(), axis);
+}
+
 struct find_add_convs
 {
     auto matcher() const
     {
         return match::name("add")(
             match::args(conv_const_weights().bind("a"), conv_const_weights().bind("b")));
+    }
+
+    static bool symmetrical_strides(const op::convolution& op)
+    {
+        return op.stride[0] == op.stride[1];
+    }
+
+    static std::size_t compute_stride_factor(const op::convolution& x, const op::convolution& y)
+    {
+        if(not symmetrical_strides(x))
+            return 0;
+        if(not symmetrical_strides(y))
+            return 0;
+        if((x.stride[0] % y.stride[0]) != 0)
+            return 0;
+        return x.stride[0] / y.stride[0];
+    }
+
+    static shape compute_stride_shape(const shape& input, std::size_t n)
+    {
+        shape s{input.type(),
+                {input.lens()[0], input.lens()[1], input.lens()[2] / n, input.lens()[3] / n}};
+        return {input.type(), s.lens(), {s.strides()[0], s.strides()[1], s.strides()[2], n}};
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -183,16 +221,47 @@ struct find_add_convs
         auto b_input   = b_conv->inputs().at(0);
         auto b_weights = b_conv->inputs().at(1);
 
-        // If convolution is not the same then skip
-        if(a_conv->get_operator() != b_conv->get_operator())
+        if(not axis_shape_equal(a_weights->get_shape(), b_weights->get_shape(), 1))
             return;
 
-        if(a_weights->get_shape() != b_weights->get_shape())
-            return;
+        auto a_op   = any_cast<op::convolution>(a_conv->get_operator());
+        auto b_op   = any_cast<op::convolution>(b_conv->get_operator());
+        auto new_op = a_op;
+
+        if(a_op != b_op)
+        {
+            if(std::tie(a_op.padding, a_op.dilation, a_op.group) ==
+                   std::tie(b_op.padding, b_op.dilation, b_op.group) and
+               a_weights->get_shape().lens()[2] == 1 and a_weights->get_shape().lens()[3] == 1)
+            {
+                if(a_op.stride < b_op.stride)
+                {
+                    auto n = compute_stride_factor(b_op, a_op);
+                    if(n == 0)
+                        return;
+                    new_op  = a_op;
+                    b_input = p.insert_instruction(
+                        ins, op::as_shape{compute_stride_shape(b_input->get_shape(), n)}, b_input);
+                }
+                else if(b_op.stride < a_op.stride)
+                {
+                    auto n = compute_stride_factor(a_op, b_op);
+                    if(n == 0)
+                        return;
+                    new_op  = b_op;
+                    a_input = p.insert_instruction(
+                        ins, op::as_shape{compute_stride_shape(a_input->get_shape(), n)}, a_input);
+                }
+                else
+                    return;
+            }
+            else
+                return;
+        }
 
         auto concat_input   = p.insert_instruction(ins, op::concat{1}, a_input, b_input);
         auto concat_weights = p.insert_instruction(ins, op::concat{1}, a_weights, b_weights);
-        p.replace_instruction(ins, a_conv->get_operator(), concat_input, concat_weights);
+        p.replace_instruction(ins, new_op, concat_input, concat_weights);
     }
 };
 

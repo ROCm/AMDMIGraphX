@@ -4,6 +4,8 @@
 #include <migraphx/op/add.hpp>
 #include <migraphx/op/mul.hpp>
 #include <migraphx/op/concat.hpp>
+#include <migraphx/op/convolution.hpp>
+#include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>

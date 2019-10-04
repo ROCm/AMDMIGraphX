@@ -303,4 +303,24 @@ TEST_CASE(simplify_add_conv2)
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
 }
 
+TEST_CASE(simplify_add_conv3)
+{
+    migraphx::program p;
+    auto x = p.add_parameter("x", {migraphx::shape::float_type, {1, 128, 14, 14}});
+    auto w =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto y = p.add_parameter("y", {migraphx::shape::float_type, {1, 128, 28, 28}});
+    auto v =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto conv1 = p.add_instruction(migraphx::op::convolution{}, x, w);
+    auto conv2 = p.add_instruction(migraphx::op::convolution{{0, 0}, {2, 2}}, y, v);
+    auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
+    p.add_instruction(pass_op{}, sum);
+    auto s = p.get_shape();
+    p.compile(simplify_algebra_target{});
+    EXPECT(s == p.get_shape());
+    EXPECT(std::count_if(
+               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

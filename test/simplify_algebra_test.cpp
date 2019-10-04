@@ -273,12 +273,13 @@ TEST_CASE(simplify_add_conv1)
         p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 3, 3}}));
     auto conv1 = p.add_instruction(migraphx::op::convolution{}, x, w);
     auto conv2 = p.add_instruction(migraphx::op::convolution{}, y, v);
-    auto sum  = p.add_instruction(migraphx::op::add{}, conv1, conv2);
+    auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
     p.add_instruction(pass_op{}, sum);
     auto s = p.get_shape();
     p.compile(simplify_algebra_target{});
     EXPECT(s == p.get_shape());
-    EXPECT(std::count_if(p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
+    EXPECT(std::count_if(
+               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
 }
 
 TEST_CASE(simplify_add_conv2)
@@ -292,13 +293,14 @@ TEST_CASE(simplify_add_conv2)
         p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 7, 7}}));
     auto conv1 = p.add_instruction(migraphx::op::convolution{}, x, w);
     auto conv2 = p.add_instruction(migraphx::op::convolution{{0, 0}, {3, 3}}, y, v);
-    auto sum  = p.add_instruction(migraphx::op::add{}, conv1, conv2);
+    auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
     p.add_instruction(pass_op{}, sum);
     auto s = p.get_shape();
     p.compile(simplify_algebra_target{});
     EXPECT(s == p.get_shape());
     // No fusion
-    EXPECT(std::count_if(p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
+    EXPECT(std::count_if(
+               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

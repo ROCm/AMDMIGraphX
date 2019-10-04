@@ -2,16 +2,27 @@
 #define MIGRAPHX_GUARD_RTGLIB_DEVICE_NARY_HPP
 
 #include <migraphx/gpu/device/launch.hpp>
+#include <migraphx/gpu/device/multi_index.hpp>
 #include <migraphx/gpu/device/visit.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/array.hpp>
+#include <migraphx/env.hpp>
+#include <migraphx/permutation.hpp>
 #include <migraphx/config.hpp>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_NARY);
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_TRACE_NARY_FUNCTION   \
+    if(enabled(MIGRAPHX_TRACE_NARY{})) \
+        std::cout << "nary device function: " << __PRETTY_FUNCTION__ << std::endl;
 
 template <class... Ts>
 auto pack(Ts... xs) __device__
@@ -20,14 +31,12 @@ auto pack(Ts... xs) __device__
 }
 
 template <class F, class... Arguments>
-auto nary_nonstandard_impl(hipStream_t stream, F f, argument result, Arguments... args)
+auto nary_nonstandard_nonpacked_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
-    std::size_t nelements = result.get_shape().elements();
-    hip_visit_all(result, args...)([&](auto output, auto... inputs) {
-        gs_launch(stream, nelements)([=](auto i) {
-            auto idx  = output.get_shape().multi(i);
-            output[i] = f(inputs[idx]...);
-        });
+    MIGRAPHX_TRACE_NARY_FUNCTION
+    shape s{result.get_shape().type(), result.get_shape().lens()};
+    hip_visit_all(s, result, args...)([&](auto standard_shape, auto output, auto... inputs) {
+        mi_launch(stream, standard_shape)([=](auto idx) { output[idx] = f(inputs[idx]...); });
     });
 }
 
@@ -43,9 +52,26 @@ inline auto create_broadcast_index(std::size_t len, std::size_t stride)
 }
 
 template <class F, class... Arguments>
+auto nary_nonstandard_packed_impl(hipStream_t stream,
+                                  F f,
+                                  const argument& result,
+                                  Arguments... args)
+{
+    MIGRAPHX_TRACE_NARY_FUNCTION
+    auto arg_shape = make_array(args...).front().get_shape();
+    auto perm      = find_permutation(arg_shape);
+    auto s         = reorder_shape(arg_shape, perm);
+    hip_visit_all(s, result.reshape(reorder_shape(result.get_shape(), perm)), args.reshape(s)...)(
+        [&](auto standard_shape, auto output, auto... inputs) {
+            mi_launch(stream, standard_shape)([=](auto idx) { output[idx] = f(inputs[idx]...); });
+        });
+}
+
+template <class F, class... Arguments>
 void nary_broadcast_vec_impl(
     hipStream_t stream, F f, argument result, argument barg, Arguments... args)
 {
+    MIGRAPHX_TRACE_NARY_FUNCTION
     const auto& output_shape = result.get_shape();
     const auto& b_shape      = barg.get_shape();
     auto bdim =
@@ -94,6 +120,7 @@ void nary_broadcast_vec_impl(
 template <class F, class... Arguments>
 void nary_broadcast_impl(hipStream_t stream, F f, argument result, argument barg, Arguments... args)
 {
+    MIGRAPHX_TRACE_NARY_FUNCTION
     const auto& output_shape = result.get_shape();
     const auto& b_shape      = barg.get_shape();
     auto bdim =
@@ -133,6 +160,7 @@ template <class F, class... Arguments>
 void nary_double_broadcast_vec_impl(
     hipStream_t stream, F f, argument result, argument barg1, argument barg2, Arguments... args)
 {
+    MIGRAPHX_TRACE_NARY_FUNCTION
     assert(barg1.get_shape().broadcasted());
     assert(barg2.get_shape().broadcasted());
     assert(barg1.get_shape() == barg2.get_shape());
@@ -190,6 +218,7 @@ template <class F, class... Arguments>
 void nary_double_broadcast_impl(
     hipStream_t stream, F f, argument result, argument barg1, argument barg2, Arguments... args)
 {
+    MIGRAPHX_TRACE_NARY_FUNCTION
     assert(barg1.get_shape().broadcasted());
     assert(barg2.get_shape().broadcasted());
     assert(barg1.get_shape() == barg2.get_shape());
@@ -237,6 +266,7 @@ void nary_double_broadcast_impl(
 template <class F, class... Arguments>
 void nary_standard_vec_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
+    MIGRAPHX_TRACE_NARY_FUNCTION
     const auto& output_shape = result.get_shape();
     visit_all(result, args...)([&](auto output, auto... inputs) {
         using type = device_type<std::remove_cv_t<typename decltype(output)::value_type>>;
@@ -261,6 +291,7 @@ void nary_standard_vec_impl(hipStream_t stream, F f, argument result, Arguments.
 template <class F, class... Arguments>
 void nary_standard_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
+    MIGRAPHX_TRACE_NARY_FUNCTION
     std::size_t nelements = result.get_shape().elements();
     hip_pointer_visit_all(result, args...)([&](auto output, auto... inputs) {
         gs_launch(stream, nelements)([=](auto i) { output[i] = f(inputs[i]...); });
@@ -270,20 +301,25 @@ void nary_standard_impl(hipStream_t stream, F f, argument result, Arguments... a
 template <class F, class... Arguments>
 void nary_impl(hipStream_t stream, F f, argument result, Arguments... args)
 {
-    bool standard = all_of({args.get_shape()...}, [](const shape& s) { return s.standard(); });
-    bool packed   = all_of({args.get_shape()...}, [](const shape& s) { return s.packed(); });
-    bool same_shapes =
-        all_of({args.get_shape()...}, [&](const shape& s) { return s == result.get_shape(); });
-    if(standard or (packed and same_shapes))
+    MIGRAPHX_TRACE_NARY_FUNCTION
+    const auto shapes   = make_array(args.get_shape()...);
+    const bool standard = all_of(shapes, [](const shape& s) { return s.standard(); });
+    const bool packed   = all_of(shapes, [](const shape& s) { return s.packed(); });
+    const bool same_shapes =
+        all_of(shapes, [&](const shape& s) { return s == result.get_shape(); });
+    const bool same_input_shapes = all_of(shapes, [&](const shape& s) { return s == shapes[0]; });
+    if((result.get_shape().standard() and standard) or (packed and same_shapes))
         nary_standard_impl(stream, f, result, args...);
+    else if(packed and same_input_shapes)
+        nary_nonstandard_packed_impl(stream, f, result, args...);
     else
-        nary_nonstandard_impl(stream, f, result, args...);
+        nary_nonstandard_nonpacked_impl(stream, f, result, args...);
 }
 
 template <class... Arguments>
 auto nary_nonstandard(hipStream_t stream, argument result, Arguments... args)
 {
-    return [=](auto f) { nary_nonstandard_impl(stream, f, result, args...); };
+    return [=](auto f) { nary_nonstandard_nonpacked_impl(stream, f, result, args...); };
 }
 
 template <class... Arguments>

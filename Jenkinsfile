@@ -86,7 +86,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
         '''
     }
 }, format: rocmnode('rocmtest') { cmake_build ->
-    stage('Clang Format') {
+    stage('Format') {
         sh '''
             find . -iname \'*.h\' \
                 -o -iname \'*.hpp\' \
@@ -97,6 +97,9 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
                 -o -iname \'*.cl\' \
             | grep -v 'build/' \
             | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-5.0 -style=file {} | diff - {}\'
+            find . -iname \'*.py\' \
+            | grep -v 'build/'  \
+            | xargs -n 1 -P 1 -I{} -t sh -c \'yapf {} | diff - {}\'
         '''
     }
 }, clang_debug: rocmnode('vega') { cmake_build ->
@@ -110,7 +113,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Release') {
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release")
     }
-
+}, clang_release_py3: rocmnode('vega') { cmake_build ->
     stage('Clang Release Python 3') {
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release -DPYTHON_EXECUTABLE=/usr/local/bin/python3")
     }

@@ -9,6 +9,33 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
+// NOLINTNEXTLINE
+#define MIGRAPHX_DEVICE_ARRAY_OP(op, binary_op)                                                    \
+    MIGRAPHX_DEVICE_CONSTEXPR hip_array& operator op(const hip_array& x)                           \
+    {                                                                                              \
+        for(std::size_t i = 0; i < N; i++)                                                         \
+            d[i] op x[i];                                                                          \
+        return *this;                                                                              \
+    }                                                                                              \
+    MIGRAPHX_DEVICE_CONSTEXPR hip_array& operator op(const T& x)                                   \
+    {                                                                                              \
+        for(std::size_t i = 0; i < N; i++)                                                         \
+            d[i] op x;                                                                             \
+        return *this;                                                                              \
+    }                                                                                              \
+    friend MIGRAPHX_DEVICE_CONSTEXPR hip_array operator binary_op(hip_array x, const hip_array& y) \
+    {                                                                                              \
+        return x op y;                                                                             \
+    }                                                                                              \
+    friend MIGRAPHX_DEVICE_CONSTEXPR hip_array operator binary_op(hip_array x, const T& y)         \
+    {                                                                                              \
+        return x op y;                                                                             \
+    }                                                                                              \
+    friend MIGRAPHX_DEVICE_CONSTEXPR hip_array operator binary_op(const T& y, hip_array x)         \
+    {                                                                                              \
+        return x op y;                                                                             \
+    }
+
 template <class T, std::size_t N>
 struct hip_array
 {
@@ -49,19 +76,79 @@ struct hip_array
         return result;
     }
 
-    friend MIGRAPHX_DEVICE_CONSTEXPR hip_array operator*(const hip_array& x, const hip_array& y)
+    MIGRAPHX_DEVICE_CONSTEXPR T single(std::size_t width = 100) const
     {
-        hip_array result;
+        T result = 0;
+        T a      = 1;
         for(std::size_t i = 0; i < N; i++)
-            result[i] = x[i] * y[i];
+        {
+            result += d[N - i - 1] * a;
+            a *= width;
+        }
         return result;
     }
 
-    friend MIGRAPHX_DEVICE_CONSTEXPR hip_array operator+(const hip_array& x, const hip_array& y)
+    MIGRAPHX_DEVICE_ARRAY_OP(+=, +)
+    MIGRAPHX_DEVICE_ARRAY_OP(*=, *)
+    MIGRAPHX_DEVICE_ARRAY_OP(/=, /)
+    MIGRAPHX_DEVICE_ARRAY_OP(%=, %)
+    MIGRAPHX_DEVICE_ARRAY_OP(&=, &)
+    MIGRAPHX_DEVICE_ARRAY_OP(|=, |)
+    MIGRAPHX_DEVICE_ARRAY_OP(^=, ^)
+
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator==(const hip_array& x, const hip_array& y)
     {
-        hip_array result{};
         for(std::size_t i = 0; i < N; i++)
-            result[i] = x[i] + y[i];
+        {
+            if(x[i] != y[i])
+                return false;
+        }
+        return true;
+    }
+
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator!=(const hip_array& x, const hip_array& y)
+    {
+        return !(x == y);
+    }
+    // This uses the product order rather than lexical order
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator<(const hip_array& x, const hip_array& y)
+    {
+        for(std::size_t i = 0; i < N; i++)
+        {
+            if(not(x[i] < y[i]))
+                return false;
+        }
+        return true;
+    }
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator>(const hip_array& x, const hip_array& y)
+    {
+        return y < x;
+    }
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator<=(const hip_array& x, const hip_array& y)
+    {
+        return (x < y) or (x == y);
+    }
+    friend MIGRAPHX_DEVICE_CONSTEXPR bool operator>=(const hip_array& x, const hip_array& y)
+    {
+        return (y < x) or (x == y);
+    }
+
+    MIGRAPHX_DEVICE_CONSTEXPR hip_array carry(hip_array result) const
+    {
+        std::ptrdiff_t rem = 0;
+        for(std::ptrdiff_t i = result.size() - 1; i >= 0; i--)
+        {
+            auto z = result[i] + rem;
+            rem    = z - std::ptrdiff_t(d[i]) + 1;
+            if(rem > 0)
+                z -= rem;
+            else
+                rem = 0;
+            result[i] = z;
+        }
+        // Add overflows to the back
+        if(rem > 0)
+            result.back() += rem;
         return result;
     }
 };

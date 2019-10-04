@@ -138,6 +138,7 @@ migraphx::argument run_gpu(migraphx::program& p)
     EXPECT(is_shared(ctx, p.get_context()));
     p.dry_run(m);
     EXPECT(is_shared(ctx, p.get_context()));
+    p.eval(m);
     return migraphx::gpu::from_gpu(p.eval(m));
 }
 
@@ -821,6 +822,27 @@ struct test_conv_relu_half : verify_program<test_conv_relu_half>
     }
 };
 
+struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto weights =
+            p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto l0   = migraphx::literal{migraphx::shape{migraphx::shape::float_type, {4}},
+                                    {2.0f, 2.0f, 2.0f, 2.0f}};
+        auto bias = p.add_literal(l0);
+        auto conv = p.add_instruction(migraphx::op::convolution{}, input, weights);
+        auto bcast_add =
+            p.add_instruction(migraphx::op::broadcast{1, conv->get_shape().lens()}, bias);
+        auto bias_add = p.add_instruction(migraphx::op::add{}, conv, bcast_add);
+        p.add_instruction(migraphx::op::clip{6.0f, 0.0f}, bias_add);
+        return p;
+    }
+};
+
 struct test_add_relu : verify_program<test_add_relu>
 {
     migraphx::program create_program() const
@@ -1048,6 +1070,24 @@ struct test_gemm : verify_program<test_gemm>
         auto a = p.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {4, 5}});
         auto b = p.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {5, 3}});
         p.add_instruction(migraphx::op::dot{}, a, b);
+        return p;
+    }
+};
+
+struct test_gemm_copy : verify_program<test_gemm_copy>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape sa{migraphx::shape::float_type, {2, 16}};
+        migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
+        migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
+        auto pa = p.add_parameter("a", sa);
+        auto pb = p.add_parameter("b", sb);
+        auto pc = p.add_parameter("c", sc);
+        auto dr = p.add_instruction(migraphx::op::dot{}, pa, pb, pc);
+        p.add_instruction(migraphx::op::add{}, dr, dr);
+
         return p;
     }
 };
@@ -1825,6 +1865,61 @@ struct test_concat2 : verify_program<test_concat2>
         auto l0 = p.add_parameter("x", s0);
         auto l1 = p.add_parameter("y", s1);
         auto l2 = p.add_parameter("z", s2);
+        p.add_instruction(migraphx::op::concat{axis}, l0, l1, l2);
+        return p;
+    }
+};
+
+struct test_concat_transpose : verify_program<test_concat_transpose>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        std::size_t axis = 1;
+        migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
+        migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
+        migraphx::shape s2{migraphx::shape::int32_type, {2, 4}};
+        auto l0  = p.add_parameter("x", s0);
+        auto lp1 = p.add_parameter("y", s1);
+        auto l1  = p.add_instruction(migraphx::op::transpose{{1, 0}}, lp1);
+        auto l2  = p.add_parameter("z", s2);
+        p.add_instruction(migraphx::op::concat{axis}, l0, l1, l2);
+        return p;
+    }
+};
+
+struct test_concat_transpose2 : verify_program<test_concat_transpose2>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        std::size_t axis = 1;
+        migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
+        migraphx::shape s1{migraphx::shape::int32_type, {2, 3}};
+        migraphx::shape s2{migraphx::shape::int32_type, {5, 2}};
+        auto l0  = p.add_parameter("x", s0);
+        auto l1  = p.add_parameter("y", s1);
+        auto lp2 = p.add_parameter("z", s2);
+        auto l2  = p.add_instruction(migraphx::op::transpose{{1, 0}}, lp2);
+        p.add_instruction(migraphx::op::concat{axis}, l0, l1, l2);
+        return p;
+    }
+};
+
+struct test_concat_transpose3 : verify_program<test_concat_transpose3>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        std::size_t axis = 1;
+        migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
+        migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
+        migraphx::shape s2{migraphx::shape::int32_type, {5, 2}};
+        auto l0  = p.add_parameter("x", s0);
+        auto lp1 = p.add_parameter("y", s1);
+        auto l1  = p.add_instruction(migraphx::op::transpose{{1, 0}}, lp1);
+        auto lp2 = p.add_parameter("z", s2);
+        auto l2  = p.add_instruction(migraphx::op::transpose{{1, 0}}, lp2);
         p.add_instruction(migraphx::op::concat{axis}, l0, l1, l2);
         return p;
     }

@@ -137,7 +137,6 @@ TEST_CASE(test_shape_broadcasted5)
     EXPECT(s.broadcasted());
 }
 
-
 TEST_CASE(test_shape_default_copy)
 {
     migraphx::shape s1{};

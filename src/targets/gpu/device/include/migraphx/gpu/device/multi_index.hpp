@@ -15,18 +15,12 @@ struct multi_index
 {
     using hip_index = hip_array<std::size_t, N>;
     hip_index id{};
-    std::size_t stride = 0;
-
-    MIGRAPHX_DEVICE_CONSTEXPR hip_index add_stride(hip_index i) const
-    {
-        i.back() += stride;
-        return i;
-    }
+    hip_index stride{};
 
     template <class F>
     MIGRAPHX_DEVICE_CONSTEXPR void for_stride(hip_index n, F f) const
     {
-        for(hip_index i = id; i < n; i = n.carry(add_stride(i)))
+        for(hip_index i = id; i < n; i = n.carry(i + stride))
         {
             f(i);
         }
@@ -37,7 +31,7 @@ template <std::size_t N>
 MIGRAPHX_DEVICE_CONSTEXPR multi_index<N>
 make_multi_index(const hip_shape<N>& s, std::size_t i, std::size_t n)
 {
-    return {s.multi(i), n};
+    return {s.multi(i), s.multi(n)};
 }
 
 template <std::size_t N>
@@ -55,9 +49,11 @@ inline auto mi_launch(hipStream_t stream, const hip_shape<N>& s, std::size_t loc
     std::size_t groups  = (n + local - 1) / local;
     std::size_t nglobal = std::min<std::size_t>(128, groups) * local;
 
+    auto nglobal_multi = s.multi(nglobal);
+
     return [=](auto f) {
         launch(stream, nglobal, local)([=](auto idx) {
-            auto midx = make_multi_index(s, idx.global, nglobal);
+            auto midx = make_multi_index(s, idx.global, nglobal_multi);
             midx.for_stride(s.lens, [&](auto i) { f(i); });
         });
     };

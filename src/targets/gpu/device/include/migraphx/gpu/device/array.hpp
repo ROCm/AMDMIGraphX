@@ -135,20 +135,23 @@ struct hip_array
 
     MIGRAPHX_DEVICE_CONSTEXPR hip_array carry(hip_array result) const
     {
-        std::ptrdiff_t rem = 0;
+        uint32_t overflow = 0;
         for(std::ptrdiff_t i = result.size() - 1; i >= 0; i--)
         {
-            auto z = result[i] + rem;
-            rem    = z - std::ptrdiff_t(d[i]) + 1;
-            if(rem > 0)
-                z -= rem;
-            else
-                rem = 0;
+            auto z = result[i] + overflow;
+            // Reset overflow
+            overflow = 0;
+            // Compute overflow using while loop instead of mod
+            while(z >= d[i]) 
+            {
+                z -= d[i];
+                overflow += 1;
+            }
             result[i] = z;
         }
         // Add overflows to the back
-        if(rem > 0)
-            result.back() += rem;
+        if(overflow > 0)
+            result.back() += overflow;
         return result;
     }
 };

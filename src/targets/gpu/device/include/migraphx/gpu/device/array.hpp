@@ -151,7 +151,7 @@ struct hip_array
         }
         // Add overflows to the back
         if(overflow > 0)
-            result.back() += overflow;
+            result.front() += overflow;
         return result;
     }
 };

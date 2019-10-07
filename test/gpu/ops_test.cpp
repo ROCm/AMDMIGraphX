@@ -836,7 +836,7 @@ struct test_conv_add : verify_program<test_conv_add>
         auto conv1 = p.add_instruction(migraphx::op::convolution{}, x, w);
         auto conv2 = p.add_instruction(migraphx::op::convolution{}, y, v);
         auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
-        p.add_instruction(migraphx::op::relu{}, sum);
+        p.add_instruction(migraphx::op::exp{}, sum);
         return p;
     }
 };
@@ -855,7 +855,7 @@ struct test_conv_add2 : verify_program<test_conv_add2>
         auto conv1 = p.add_instruction(migraphx::op::convolution{}, x, w);
         auto conv2 = p.add_instruction(migraphx::op::convolution{{0, 0}, {2, 2}}, y, v);
         auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
-        p.add_instruction(migraphx::op::relu{}, sum);
+        p.add_instruction(migraphx::op::exp{}, sum);
         return p;
     }
 };

@@ -10,12 +10,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-template <std::size_t N>
+template <index_int N>
 struct multi_index
 {
-    using hip_index = hip_array<std::size_t, N>;
+    using hip_index = hip_array<index_int, N>;
     hip_index id{};
-    std::size_t stride = 0;
+    index_int stride = 0;
 
     MIGRAPHX_DEVICE_CONSTEXPR hip_index add_stride(hip_index i) const
     {
@@ -33,27 +33,27 @@ struct multi_index
     }
 };
 
-template <std::size_t N>
+template <index_int N>
 MIGRAPHX_DEVICE_CONSTEXPR multi_index<N>
-make_multi_index(const hip_shape<N>& s, std::size_t i, std::size_t n)
+make_multi_index(const hip_shape<N>& s, index_int i, index_int n)
 {
     return {s.multi(i), n};
 }
 
-template <std::size_t N>
+template <index_int N>
 MIGRAPHX_DEVICE_CONSTEXPR multi_index<N>
-make_multi_index(const hip_shape<N>& s, std::size_t i, const hip_array<std::size_t, N>& n)
+make_multi_index(const hip_shape<N>& s, index_int i, const hip_array<index_int, N>& n)
 {
     return {s.multi(i), n};
 }
 
-template <std::size_t N>
-inline auto mi_launch(hipStream_t stream, const hip_shape<N>& s, std::size_t local = 1024)
+template <index_int N>
+inline auto mi_launch(hipStream_t stream, const hip_shape<N>& s, index_int local = 1024)
 {
     assert(s.standard);
-    std::size_t n       = s.elements();
-    std::size_t groups  = (n + local - 1) / local;
-    std::size_t nglobal = std::min<std::size_t>(128, groups) * local;
+    index_int n       = s.elements();
+    index_int groups  = (n + local - 1) / local;
+    index_int nglobal = std::min<index_int>(128, groups) * local;
 
     return [=](auto f) {
         launch(stream, nglobal, local)([=](auto idx) {

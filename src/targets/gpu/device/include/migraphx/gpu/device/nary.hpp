@@ -89,7 +89,7 @@ void nary_broadcast_vec_impl(
     const index_int bdim_vec_len = bdim_len / vec_size;
     hip_vec_visit_all<vec_size>(result, barg, args...)(
         [&](auto output, auto binput, auto... inputs) {
-            using type                  = typename decltype(output)::value_type;
+            using type                = typename decltype(output)::value_type;
             const index_int nelements = output.size() / vec_size;
             launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
 
@@ -181,7 +181,7 @@ void nary_double_broadcast_vec_impl(
     const index_int bdim_vec_len = bdim_len / vec_size;
     hip_vec_visit_all<vec_size>(result, barg1, barg2, args...)(
         [&](auto output, auto binput1, auto binput2, auto... inputs) {
-            using type                  = typename decltype(output)::value_type;
+            using type                = typename decltype(output)::value_type;
             const index_int nelements = output.size() / vec_size;
             launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
 
@@ -271,8 +271,8 @@ void nary_standard_vec_impl(hipStream_t stream, F f, argument result, Arguments.
     visit_all(result, args...)([&](auto output, auto... inputs) {
         using type = device_type<std::remove_cv_t<typename decltype(output)::value_type>>;
         const index_int vec_size = 4;
-        auto data                  = pack_vec<4>(device_cast(inputs.data())...);
-        auto* outp                 = as_vec<4>(device_cast(output.data()));
+        auto data                = pack_vec<4>(device_cast(inputs.data())...);
+        auto* outp               = as_vec<4>(device_cast(output.data()));
         gs_launch(stream, output_shape.elements() / vec_size)([=](auto i) {
             vec<type, 4> out = outp[i];
             data(

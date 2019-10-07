@@ -13,11 +13,11 @@ namespace device {
 template <index_int N>
 struct hip_shape
 {
-    using hip_index                   = hip_array<index_int, N>;
-    hip_index lens    = {};
-    hip_index strides = {};
-    hip_array<std::uint64_t, N> divs    = {};
-    bool standard                     = false;
+    using hip_index                  = hip_array<index_int, N>;
+    hip_index lens                   = {};
+    hip_index strides                = {};
+    hip_array<std::uint64_t, N> divs = {};
+    bool standard                    = false;
 
     __device__ __host__ hip_shape() = default;
 

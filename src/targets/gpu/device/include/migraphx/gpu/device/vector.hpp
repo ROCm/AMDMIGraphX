@@ -56,7 +56,7 @@ struct hip_vector
     }
 
     private:
-    T d[N]          = {};
+    T d[N]        = {};
     index_int len = 0;
 };
 

@@ -945,7 +945,7 @@ struct onnx_parser
             l_val.visit([&](auto val) {
                 using val_type = std::remove_cv_t<typename decltype(val)::value_type>;
                 // l_val contains only one element
-                std::vector<val_type> out_vec(s.elements(), *val.begin());
+                std::vector<val_type> out_vec(s.elements(), val.front());
                 l_out = literal(s, out_vec);
             });
 

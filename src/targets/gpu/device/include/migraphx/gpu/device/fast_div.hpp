@@ -9,7 +9,7 @@ namespace gpu {
 namespace device {
 
 constexpr const std::size_t fast_div_shift = 42;
-std::size_t encode_divisor(std::size_t divisor)
+inline std::size_t encode_divisor(std::size_t divisor)
 {
     if(divisor == 0)
         return 0;

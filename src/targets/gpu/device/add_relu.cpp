@@ -6,7 +6,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-
 void add_relu(hipStream_t stream,
               const argument& result,
               const argument& arg1,

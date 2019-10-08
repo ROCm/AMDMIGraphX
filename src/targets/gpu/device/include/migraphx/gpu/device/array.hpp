@@ -136,7 +136,7 @@ struct hip_array
     MIGRAPHX_DEVICE_CONSTEXPR hip_array carry(hip_array result) const
     {
         uint32_t overflow = 0;
-        for(std::ptrdiff_t i = result.size() - 1; i >= 0; i--)
+        for(std::ptrdiff_t i = result.size() - 1; i > 0; i--)
         {
             auto z = result[i] + overflow;
             // Reset overflow
@@ -149,9 +149,7 @@ struct hip_array
             }
             result[i] = z;
         }
-        // Add overflows to the back
-        if(overflow > 0)
-            result.front() += overflow;
+        result[0] += overflow;
         return result;
     }
 };

@@ -14,7 +14,6 @@ std::size_t encode_divisor(std::size_t divisor)
     if(divisor == 0)
         return 0;
     auto p = std::size_t{1} << fast_div_shift;
-    // std::cout << divisor << " -> " << ((p + divisor - 1) / divisor) << std::endl;
     return (p + divisor - 1) / divisor;
 }
 

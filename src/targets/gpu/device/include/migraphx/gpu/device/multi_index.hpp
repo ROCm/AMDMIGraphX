@@ -4,7 +4,6 @@
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/shape.hpp>
-#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -54,7 +53,8 @@ inline auto mi_launch(hipStream_t stream, const hip_shape<N>& s, std::size_t loc
     assert(groups > 0);
     assert(nglobal > 0);
     auto nglobal_multi = s.multi(nglobal);
-    assert(std::any_of(nglobal_multi.begin(), nglobal_multi.end(), [](auto x) { return x > 0; }));
+    // Skip checking this, since this will cause metadata to not be generated for some unknown reason
+    // assert(std::any_of(nglobal_multi.begin(), nglobal_multi.end(), [](auto x) { return x > 0; }));
 
     return [=](auto f) {
         launch(stream, nglobal, local)([=](auto idx) {

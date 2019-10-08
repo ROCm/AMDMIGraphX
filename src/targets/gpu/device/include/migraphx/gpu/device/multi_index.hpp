@@ -56,7 +56,7 @@ inline auto mi_launch(hipStream_t stream, const hip_shape<N>& s, std::size_t loc
     // Skip checking this, since this will cause metadata to not be generated
     // for some unknown reason.
     //
-    // assert(std::any_of(nglobal_multi.begin(), nglobal_multi.end(), [](auto x) { return x > 0; }));
+    // assert(std::any_of(nglobal_multi.begin(), nglobal_multi.end(), [](auto x){return x>0;}));
 
     return [=](auto f) {
         launch(stream, nglobal, local)([=](auto idx) {

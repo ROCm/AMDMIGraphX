@@ -70,14 +70,15 @@ struct hip_shape
     {
         hip_index result;
         std::size_t tidx = idx;
-        for(std::ptrdiff_t is = result.size() - 1; is >= 0; is--)
+        for(std::ptrdiff_t is = result.size() - 1; is > 0; is--)
         {
             // result[is] = tidx % lens[is];
-            // tidx = tdix / lens[is];
+            // tidx = tidx / lens[is];
             auto q     = fast_div(tidx, divs[is]);
             result[is] = remainder(q, tidx, lens[is]);
             tidx       = q;
         }
+        result[0] = tidx;
         return result;
     }
 };

@@ -304,7 +304,8 @@ void nary_impl(hipStream_t stream, F f, argument result, Arguments... args)
     MIGRAPHX_TRACE_NARY_FUNCTION
     const auto shapes   = make_array(args.get_shape()...);
     const bool standard = all_of(shapes, [](const shape& s) { return s.standard(); });
-    const bool packed   = all_of(shapes, [](const shape& s) { return s.packed(); });
+    const bool packed =
+        all_of(shapes, [](const shape& s) { return s.packed() and not s.broadcasted(); });
     const bool same_shapes =
         all_of(shapes, [&](const shape& s) { return s == result.get_shape(); });
     const bool same_input_shapes = all_of(shapes, [&](const shape& s) { return s == shapes[0]; });

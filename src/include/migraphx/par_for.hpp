@@ -28,12 +28,25 @@ struct joinable_thread : std::thread
 };
 
 template <class F>
+auto thread_invoke(std::size_t i, std::size_t tid, F f) -> decltype(f(i, tid))
+{
+    f(i, tid);
+}
+
+template <class F>
+auto thread_invoke(std::size_t i, std::size_t, F f) -> decltype(f(i))
+{
+    f(i);
+}
+
+template <class F>
 void par_for_impl(std::size_t n, std::size_t threadsize, F f)
 {
     if(threadsize <= 1)
     {
         for(std::size_t i = 0; i < n; i++)
-            f(i);
+            thread_invoke(i, 0, f);
+        ;
     }
     else
     {
@@ -45,16 +58,18 @@ void par_for_impl(std::size_t n, std::size_t threadsize, F f)
             std::size_t grainsize = std::ceil(static_cast<double>(n) / threads.size());
 
         std::size_t work = 0;
-        std::generate(threads.begin(), threads.end(), [=, &work] {
+        std::size_t tid  = 0;
+        std::generate(threads.begin(), threads.end(), [=, &work, &tid] {
             auto result = joinable_thread([=] {
                 std::size_t start = work;
                 std::size_t last  = std::min(n, work + grainsize);
                 for(std::size_t i = start; i < last; i++)
                 {
-                    f(i);
+                    thread_invoke(i, tid, f);
                 }
             });
             work += grainsize;
+            ++tid;
             return result;
         });
         assert(work >= n);

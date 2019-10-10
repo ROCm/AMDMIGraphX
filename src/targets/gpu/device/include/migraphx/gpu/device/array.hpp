@@ -13,13 +13,13 @@ namespace device {
 #define MIGRAPHX_DEVICE_ARRAY_OP(op, binary_op)                                                    \
     MIGRAPHX_DEVICE_CONSTEXPR hip_array& operator op(const hip_array& x)                           \
     {                                                                                              \
-        for(std::size_t i = 0; i < N; i++)                                                         \
+        for(index_int i = 0; i < N; i++)                                                         \
             d[i] op x[i];                                                                          \
         return *this;                                                                              \
     }                                                                                              \
     MIGRAPHX_DEVICE_CONSTEXPR hip_array& operator op(const T& x)                                   \
     {                                                                                              \
-        for(std::size_t i = 0; i < N; i++)                                                         \
+        for(index_int i = 0; i < N; i++)                                                         \
             d[i] op x;                                                                             \
         return *this;                                                                              \
     }                                                                                              \
@@ -36,12 +36,12 @@ namespace device {
         return x op y;                                                                             \
     }
 
-template <class T, std::size_t N>
+template <class T, index_int N>
 struct hip_array
 {
     T d[N];
-    MIGRAPHX_DEVICE_CONSTEXPR T& operator[](std::size_t i) { return d[i]; }
-    MIGRAPHX_DEVICE_CONSTEXPR const T& operator[](std::size_t i) const { return d[i]; }
+    MIGRAPHX_DEVICE_CONSTEXPR T& operator[](index_int i) { return d[i]; }
+    MIGRAPHX_DEVICE_CONSTEXPR const T& operator[](index_int i) const { return d[i]; }
 
     MIGRAPHX_DEVICE_CONSTEXPR T& front() { return d[0]; }
     MIGRAPHX_DEVICE_CONSTEXPR const T& front() const { return d[0]; }
@@ -52,7 +52,7 @@ struct hip_array
     MIGRAPHX_DEVICE_CONSTEXPR T* data() { return d; }
     MIGRAPHX_DEVICE_CONSTEXPR const T* data() const { return d; }
 
-    MIGRAPHX_DEVICE_CONSTEXPR std::integral_constant<std::size_t, N> size() const { return {}; }
+    MIGRAPHX_DEVICE_CONSTEXPR std::integral_constant<index_int, N> size() const { return {}; }
 
     MIGRAPHX_DEVICE_CONSTEXPR T* begin() { return d; }
     MIGRAPHX_DEVICE_CONSTEXPR const T* begin() const { return d; }
@@ -63,7 +63,7 @@ struct hip_array
     MIGRAPHX_DEVICE_CONSTEXPR T dot(const hip_array& x) const
     {
         T result = 0;
-        for(std::size_t i = 0; i < N; i++)
+        for(index_int i = 0; i < N; i++)
             result += x[i] * d[i];
         return result;
     }
@@ -71,16 +71,16 @@ struct hip_array
     MIGRAPHX_DEVICE_CONSTEXPR T product() const
     {
         T result = 1;
-        for(std::size_t i = 0; i < N; i++)
+        for(index_int i = 0; i < N; i++)
             result *= d[i];
         return result;
     }
 
-    MIGRAPHX_DEVICE_CONSTEXPR T single(std::size_t width = 100) const
+    MIGRAPHX_DEVICE_CONSTEXPR T single(index_int width = 100) const
     {
         T result = 0;
         T a      = 1;
-        for(std::size_t i = 0; i < N; i++)
+        for(index_int i = 0; i < N; i++)
         {
             result += d[N - i - 1] * a;
             a *= width;
@@ -98,7 +98,7 @@ struct hip_array
 
     friend MIGRAPHX_DEVICE_CONSTEXPR bool operator==(const hip_array& x, const hip_array& y)
     {
-        for(std::size_t i = 0; i < N; i++)
+        for(index_int i = 0; i < N; i++)
         {
             if(x[i] != y[i])
                 return false;
@@ -113,7 +113,7 @@ struct hip_array
     // This uses the product order rather than lexical order
     friend MIGRAPHX_DEVICE_CONSTEXPR bool operator<(const hip_array& x, const hip_array& y)
     {
-        for(std::size_t i = 0; i < N; i++)
+        for(index_int i = 0; i < N; i++)
         {
             if(not(x[i] < y[i]))
                 return false;

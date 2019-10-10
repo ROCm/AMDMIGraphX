@@ -5,7 +5,11 @@
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/oper.hpp>
 #include <migraphx/gpu/device/mul_add.hpp>
-#include <migraphx/gpu/device/add_unary.hpp>
+#include <migraphx/gpu/device/add_clip.hpp>
+#include <migraphx/gpu/device/add_relu.hpp>
+#include <migraphx/gpu/device/add_sigmoid.hpp>
+#include <migraphx/gpu/device/add_tanh.hpp>
+#include <migraphx/gpu/device/mul_add_relu.hpp>
 #include <migraphx/gpu/device/add.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/array.hpp>

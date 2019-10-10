@@ -9,7 +9,7 @@ namespace gpu {
 namespace device {
 
 constexpr const uint64_t fast_div_shift = 42;
-MIGRAPHX_DEVICE_CONSTEXPR uint64_t encode_divisor(uint64_t divisor)
+inline uint64_t encode_divisor(uint64_t divisor)
 {
     if(divisor == 0)
         return 0;
@@ -19,7 +19,7 @@ MIGRAPHX_DEVICE_CONSTEXPR uint64_t encode_divisor(uint64_t divisor)
 
 inline constexpr bool is_divisor_encodable(uint64_t i)
 {
-    return i < uint64_t{1} << (fast_div_shift / 2);
+    return i < (uint64_t{1} << (fast_div_shift / 2));
 }
 
 MIGRAPHX_DEVICE_CONSTEXPR uint64_t fast_div(uint64_t dividend, uint64_t encoded_divisor)

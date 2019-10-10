@@ -46,7 +46,6 @@ void par_for_impl(std::size_t n, std::size_t threadsize, F f)
     {
         for(std::size_t i = 0; i < n; i++)
             thread_invoke(i, 0, f);
-        ;
     }
     else
     {

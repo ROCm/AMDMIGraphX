@@ -14,11 +14,12 @@ void shape_for_each(const migraphx::shape& s, F f)
     // Ensure calls to f use const ref to vector
     auto call = [&f](const std::vector<std::size_t>& i) { f(i); };
     std::vector<std::size_t> indices(s.lens().size());
-    for(std::size_t i = 0; i < s.elements(); i++)
+    shape ss{s.type(), s.lens()};
+    for(std::size_t i = 0; i < ss.elements(); i++)
     {
-        std::transform(s.strides().begin(),
-                       s.strides().end(),
-                       s.lens().begin(),
+        std::transform(ss.strides().begin(),
+                       ss.strides().end(),
+                       ss.lens().begin(),
                        indices.begin(),
                        [&](std::size_t stride, std::size_t len) {
                            assert(len > 0 and stride > 0);

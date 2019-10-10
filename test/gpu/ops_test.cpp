@@ -822,6 +822,27 @@ struct test_conv_relu_half : verify_program<test_conv_relu_half>
     }
 };
 
+struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto weights =
+            p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto l0   = migraphx::literal{migraphx::shape{migraphx::shape::float_type, {4}},
+                                    {2.0f, 2.0f, 2.0f, 2.0f}};
+        auto bias = p.add_literal(l0);
+        auto conv = p.add_instruction(migraphx::op::convolution{}, input, weights);
+        auto bcast_add =
+            p.add_instruction(migraphx::op::broadcast{1, conv->get_shape().lens()}, bias);
+        auto bias_add = p.add_instruction(migraphx::op::add{}, conv, bcast_add);
+        p.add_instruction(migraphx::op::clip{6.0f, 0.0f}, bias_add);
+        return p;
+    }
+};
+
 struct test_conv_add : verify_program<test_conv_add>
 {
     migraphx::program create_program() const
@@ -1653,6 +1674,32 @@ struct test_contiguous : verify_program<test_contiguous>
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {4, 4, 4, 3}, {48, 4, 1, 16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::contiguous{}, x);
+        EXPECT(p.get_shape().standard());
+        return p;
+    }
+};
+
+struct test_contiguous_broadcast : verify_program<test_contiguous_broadcast>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {1, 2}, {0, 1}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::contiguous{}, x);
+        EXPECT(p.get_shape().standard());
+        return p;
+    }
+};
+
+struct test_contiguous_broadcast_transpose : verify_program<test_contiguous_broadcast_transpose>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {1, 3072, 768}, {0, 1, 3072}};
         auto x = p.add_parameter("x", s);
         p.add_instruction(migraphx::op::contiguous{}, x);
         EXPECT(p.get_shape().standard());

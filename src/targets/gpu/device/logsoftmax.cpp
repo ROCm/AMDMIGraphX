@@ -14,10 +14,10 @@ namespace device {
 
 void logsoftmax(hipStream_t stream, const argument& result, const argument& arg, int axis)
 {
-    auto lens                  = result.get_shape().lens();
-    auto batch_lens            = lens;
+    auto lens                = result.get_shape().lens();
+    auto batch_lens          = lens;
     index_int batch_item_num = lens[axis];
-    batch_lens[axis]           = 1;
+    batch_lens[axis]         = 1;
     migraphx::shape batch_shape{result.get_shape().type(), batch_lens};
 
     hip_visit_all(result, arg, batch_shape)([&](auto output, auto input, auto batch) {

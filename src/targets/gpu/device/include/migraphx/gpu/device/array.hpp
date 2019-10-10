@@ -13,13 +13,13 @@ namespace device {
 #define MIGRAPHX_DEVICE_ARRAY_OP(op, binary_op)                                                    \
     MIGRAPHX_DEVICE_CONSTEXPR hip_array& operator op(const hip_array& x)                           \
     {                                                                                              \
-        for(index_int i = 0; i < N; i++)                                                         \
+        for(index_int i = 0; i < N; i++)                                                           \
             d[i] op x[i];                                                                          \
         return *this;                                                                              \
     }                                                                                              \
     MIGRAPHX_DEVICE_CONSTEXPR hip_array& operator op(const T& x)                                   \
     {                                                                                              \
-        for(index_int i = 0; i < N; i++)                                                         \
+        for(index_int i = 0; i < N; i++)                                                           \
             d[i] op x;                                                                             \
         return *this;                                                                              \
     }                                                                                              \

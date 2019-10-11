@@ -7,15 +7,18 @@
 #include <migraphx/onnx.hpp>
 #include <migraphx/stringutils.hpp>
 
-#include <migraphx/quantization.hpp>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/generate.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/propagate_constant.hpp>
+#include <migraphx/quantization.hpp>
+#include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+
+#include <fstream>
 
 namespace migraphx {
 namespace driver {
@@ -37,7 +40,7 @@ struct loader
         ap(is_nhwc, {"--nhwc"}, ap.help("Treat tensorflow format as nhwc"), ap.set_value(true));
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
-        ap(optimize, {"--optimize"}, ap.help("Optimize when reading"), ap.set_value(true));
+        ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
     }
 
     program load()
@@ -63,6 +66,7 @@ struct loader
         if(optimize)
             migraphx::run_passes(p,
                                  {
+                                     migraphx::rewrite_batchnorm{},
                                      migraphx::eliminate_identity{},
                                      migraphx::dead_code_elimination{},
                                      migraphx::simplify_algebra{},
@@ -126,12 +130,35 @@ struct compiler
 struct read : command<read>
 {
     loader l;
-    void parse(argument_parser& ap) { l.parse(ap); }
+    bool graphviz = false;
+    bool brief = false;
+    std::string output;
+    void parse(argument_parser& ap) 
+    { 
+        l.parse(ap);
+        ap(graphviz, {"--graphviz", "-g"}, ap.help("Print out a graphviz representation."), ap.set_value(true));
+        ap(brief, {"--brief"}, ap.help("Make the output brief."), ap.set_value(true));
+        ap(output, {"--output", "-o"}, ap.help("Output to file."));
+    }
+
+
 
     void run()
     {
         auto p = l.load();
-        std::cout << p << std::endl;
+        
+        auto* os = &std::cout;
+        std::ofstream fs;
+        if (not output.empty())
+        {
+            fs.open(output);
+            os = &fs;
+        }
+
+        if (graphviz)
+            p.print_graph(*os, brief);
+        else
+            *os << p << std::endl;
     }
 };
 

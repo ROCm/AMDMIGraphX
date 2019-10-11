@@ -597,19 +597,18 @@ void program::print_graph(std::ostream& os, bool brief) const
     os << "\trankdir=LR;" << std::endl;
     print_program(*this, [&](auto ins, const auto& names) {
         std::string label;
-        if (brief)
+        if(brief)
             label = ins->name();
         else
             label = to_string(ins->get_operator());
-        os << "\t" << enclose_name(names.at(ins))
-           << "[label=" << enclose_name(label) << "]";
+        os << "\t" << enclose_name(names.at(ins)) << "[label=" << enclose_name(label) << "]";
         os << ";" << std::endl;
         if(!ins->inputs().empty())
         {
             for(auto&& arg : ins->inputs())
             {
                 os << "\t" << enclose_name(names.at(arg)) << " -> " << enclose_name(names.at(ins));
-                if (not brief)
+                if(not brief)
                     os << "[label=" << enclose_name(to_string(ins->get_shape())) << "]";
                 os << ";" << std::endl;
             }

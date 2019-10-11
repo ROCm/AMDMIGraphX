@@ -131,31 +131,32 @@ struct read : command<read>
 {
     loader l;
     bool graphviz = false;
-    bool brief = false;
+    bool brief    = false;
     std::string output;
-    void parse(argument_parser& ap) 
-    { 
+    void parse(argument_parser& ap)
+    {
         l.parse(ap);
-        ap(graphviz, {"--graphviz", "-g"}, ap.help("Print out a graphviz representation."), ap.set_value(true));
+        ap(graphviz,
+           {"--graphviz", "-g"},
+           ap.help("Print out a graphviz representation."),
+           ap.set_value(true));
         ap(brief, {"--brief"}, ap.help("Make the output brief."), ap.set_value(true));
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
     }
 
-
-
     void run()
     {
         auto p = l.load();
-        
+
         auto* os = &std::cout;
         std::ofstream fs;
-        if (not output.empty())
+        if(not output.empty())
         {
             fs.open(output);
             os = &fs;
         }
 
-        if (graphviz)
+        if(graphviz)
             p.print_graph(*os, brief);
         else
             *os << p << std::endl;

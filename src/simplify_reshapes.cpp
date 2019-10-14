@@ -173,6 +173,38 @@ struct find_concat_transpose
     }
 };
 
+struct find_nested_concat
+{
+    auto matcher() const
+    {
+        return match::name("concat")(match::any_of[match::inputs()](match::name("concat")));
+    }
+
+    static std::size_t get_axis(instruction_ref ins)
+    {
+        auto op = any_cast<op::concat>(ins->get_operator());
+        return op.axis;
+    }
+
+    void apply(program& p, const match::matcher_result& mr) const
+    {
+        auto ins  = mr.result;
+        auto axis = get_axis(ins);
+        std::vector<instruction_ref> args;
+        fix([&](auto self, auto&& inputs) {
+            for(auto&& i : inputs)
+            {
+                if(i->name() == "concat" and get_axis(i) == axis and i->outputs().size() == 1)
+                    self(i->inputs());
+                else
+                    args.push_back(i);
+            }
+
+        })(ins->inputs());
+        p.replace_instruction(ins, ins->get_operator(), args);
+    }
+};
+
 void simplify_reshapes::apply(program& p) const
 {
     for(int i = 0; i < 2; i++)
@@ -190,7 +222,8 @@ void simplify_reshapes::apply(program& p) const
                                 find_nop_reshapes{},
                                 find_reshaper{},
                                 find_transpose{},
-                                find_concat_transpose{});
+                                find_concat_transpose{},
+                                find_nested_concat{});
         }
     }
 }

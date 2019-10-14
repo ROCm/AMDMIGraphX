@@ -332,9 +332,9 @@ TEST_CASE(concat_transpose3)
 TEST_CASE(nested_concat1)
 {
     migraphx::program p;
-    auto s      = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
-    auto x      = p.add_parameter("x", s);
-    auto y      = p.add_parameter("y", s);
+    auto s       = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
+    auto x       = p.add_parameter("x", s);
+    auto y       = p.add_parameter("y", s);
     auto concat1 = p.add_instruction(migraphx::op::concat{1}, x, y);
     auto concat2 = p.add_instruction(migraphx::op::concat{1}, y, x);
     auto concat3 = p.add_instruction(migraphx::op::concat{1}, concat1, concat2);
@@ -350,10 +350,11 @@ TEST_CASE(nested_concat1)
 TEST_CASE(nested_concat2)
 {
     migraphx::program p;
-    auto s      = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
-    auto x      = p.add_parameter("x", s);
-    auto y      = p.add_parameter("y", s);
-    auto l = p.add_literal(migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1, 4, 3, 4}}));
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
+    auto x = p.add_parameter("x", s);
+    auto y = p.add_parameter("y", s);
+    auto l = p.add_literal(
+        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1, 4, 3, 4}}));
     auto concat1 = p.add_instruction(migraphx::op::concat{1}, x, y);
     auto concat2 = p.add_instruction(migraphx::op::concat{1}, y, x);
     auto concat3 = p.add_instruction(migraphx::op::concat{1}, concat1, concat2, l);

@@ -31,11 +31,9 @@ struct softmax
         return inputs.at(0);
     }
 
-    auto output() const {
-        return [=](auto x, auto y)
-        {
-            return x / y;
-        };
+    auto output() const
+    {
+        return [=](auto x, auto y) { return x / y; };
     }
 };
 

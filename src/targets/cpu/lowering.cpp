@@ -166,7 +166,7 @@ struct cpu_lrn
     }
 };
 
-template<class Op>
+template <class Op>
 struct cpu_convolution
 {
     Op op;
@@ -196,9 +196,9 @@ struct cpu_convolution
                 auto wei_w = wei[3];
 
                 par_dfor(output_shape.lens()[0],
-                        output_shape.lens()[1],
-                        output_shape.lens()[2],
-                        output_shape.lens()[3])(
+                         output_shape.lens()[1],
+                         output_shape.lens()[2],
+                         output_shape.lens()[3])(
                     [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
                         const auto start_x  = i * op.stride[0] - op.padding[0];
                         const auto start_y  = j * op.stride[1] - op.padding[1];
@@ -601,7 +601,7 @@ struct cpu_unary
     }
 };
 
-template<class Op>
+template <class Op>
 struct cpu_softmax
 {
     Op op;
@@ -651,7 +651,8 @@ struct cpu_softmax
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
                     idx[op.axis] = j;
-                    output(idx.begin(), idx.end()) = op.output()(output(idx.begin(), idx.end()), batch_sum[i]);
+                    output(idx.begin(), idx.end()) =
+                        op.output()(output(idx.begin(), idx.end()), batch_sum[i]);
                 }
             });
         });
@@ -681,17 +682,18 @@ struct cpu_apply
     {
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
-        apply_map["convolution"]       = extend_op<cpu_convolution<op::convolution>, op::convolution>();
-        apply_map["dot"]               = extend_op<cpu_gemm, op::dot>();
-        apply_map["quant_dot"]         = extend_op<cpu_quant_gemm, op::quant_dot>();
-        apply_map["quant_convolution"] = extend_op<cpu_convolution<op::quant_convolution>, op::quant_convolution>();
-        apply_map["elu"]               = extend_op<cpu_unary<elu_op>, op::elu>();
-        apply_map["im2col"]            = extend_op<cpu_im2col, op::im2col>();
-        apply_map["leaky_relu"]        = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
-        apply_map["logsoftmax"]        = extend_op<cpu_softmax<op::logsoftmax>, op::logsoftmax>();
-        apply_map["lrn"]               = extend_op<cpu_lrn, op::lrn>();
-        apply_map["pad"]               = extend_op<cpu_pad, op::pad>();
-        apply_map["softmax"]           = extend_op<cpu_softmax<op::softmax>, op::softmax>();
+        apply_map["convolution"] = extend_op<cpu_convolution<op::convolution>, op::convolution>();
+        apply_map["dot"]         = extend_op<cpu_gemm, op::dot>();
+        apply_map["quant_dot"]   = extend_op<cpu_quant_gemm, op::quant_dot>();
+        apply_map["quant_convolution"] =
+            extend_op<cpu_convolution<op::quant_convolution>, op::quant_convolution>();
+        apply_map["elu"]        = extend_op<cpu_unary<elu_op>, op::elu>();
+        apply_map["im2col"]     = extend_op<cpu_im2col, op::im2col>();
+        apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
+        apply_map["logsoftmax"] = extend_op<cpu_softmax<op::logsoftmax>, op::logsoftmax>();
+        apply_map["lrn"]        = extend_op<cpu_lrn, op::lrn>();
+        apply_map["pad"]        = extend_op<cpu_pad, op::pad>();
+        apply_map["softmax"]    = extend_op<cpu_softmax<op::softmax>, op::softmax>();
     }
 
     void apply()

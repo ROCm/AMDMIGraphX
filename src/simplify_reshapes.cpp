@@ -99,13 +99,13 @@ struct find_nop_reshapes
     auto matcher() const
     {
         auto reshapes = reshaper_names();
-        reshapes.insert("pooling");
-        reshapes.insert("pad");
+        reshapes.insert("as_shape");
+        reshapes.insert("broadcast");
         reshapes.insert("concat");
         reshapes.insert("multibroadcast");
-        reshapes.insert("broadcast");
-        reshapes.insert("transpose");
+        reshapes.insert("pad");
         reshapes.insert("slice");
+        reshapes.insert("transpose");
         return match::name(reshapes)(match::same_shape(match::arg(0)));
     }
 

@@ -10,33 +10,33 @@ namespace gpu {
 namespace device {
 
 template <class F>
-void visit_tensor_size(std::size_t n, F f)
+void visit_tensor_size(index_int n, F f)
 {
     switch(n)
     {
     case 1:
     {
-        f(std::integral_constant<std::size_t, 1>{});
+        f(std::integral_constant<index_int, 1>{});
         break;
     }
     case 2:
     {
-        f(std::integral_constant<std::size_t, 2>{});
+        f(std::integral_constant<index_int, 2>{});
         break;
     }
     case 3:
     {
-        f(std::integral_constant<std::size_t, 3>{});
+        f(std::integral_constant<index_int, 3>{});
         break;
     }
     case 4:
     {
-        f(std::integral_constant<std::size_t, 4>{});
+        f(std::integral_constant<index_int, 4>{});
         break;
     }
     case 5:
     {
-        f(std::integral_constant<std::size_t, 5>{});
+        f(std::integral_constant<index_int, 5>{});
         break;
     }
     default: throw std::runtime_error("Unknown tensor size");
@@ -58,9 +58,9 @@ void hip_visit_all_impl(const shape& s, F f, V&& v, Ts&&... xs)
     if(!std::all_of(
            types.begin(), types.end(), [&](migraphx::shape::type_t t) { return t == s.type(); }))
         MIGRAPHX_THROW("Types must be the same");
-    std::initializer_list<std::size_t> ranks = {get_shape(xs).lens().size()...};
-    if(!std::all_of(
-           ranks.begin(), ranks.end(), [&](std::size_t r) { return r == s.lens().size(); }))
+    std::initializer_list<index_int> ranks = {
+        static_cast<index_int>(get_shape(xs).lens().size())...};
+    if(!std::all_of(ranks.begin(), ranks.end(), [&](index_int r) { return r == s.lens().size(); }))
         MIGRAPHX_THROW("Ranks must be the same");
     visit_tensor_size(s.lens().size(),
                       [&](auto ndim) { s.visit_type([&](auto as) { v(f(xs, ndim, as)...); }); });
@@ -69,9 +69,9 @@ void hip_visit_all_impl(const shape& s, F f, V&& v, Ts&&... xs)
 template <class V, class F, class... Ts>
 void hip_visit_views_impl(const shape& s, F f, V&& v, Ts&&... xs)
 {
-    std::initializer_list<std::size_t> ranks = {get_shape(xs).lens().size()...};
-    if(!std::all_of(
-           ranks.begin(), ranks.end(), [&](std::size_t r) { return r == s.lens().size(); }))
+    std::initializer_list<index_int> ranks = {
+        static_cast<index_int>(get_shape(xs).lens().size())...};
+    if(!std::all_of(ranks.begin(), ranks.end(), [&](index_int r) { return r == s.lens().size(); }))
         MIGRAPHX_THROW("Ranks must be the same");
     visit_tensor_size(s.lens().size(), [&](auto ndim) { v(f(xs, ndim)...); });
 }
@@ -132,7 +132,7 @@ auto hip_visit_all(T&& x, Ts&&... xs)
     };
 }
 
-template <std::size_t N, class T, class... Ts>
+template <index_int N, class T, class... Ts>
 auto hip_vec_visit_all(T&& x, Ts&&... xs)
 {
     return [&](auto f) {

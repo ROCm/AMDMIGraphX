@@ -329,7 +329,7 @@ TEST_CASE(concat_transpose3)
     EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 1);
 }
 
-TEST_CASE(nested_concat1)
+TEST_CASE(nested_concat)
 {
     migraphx::program p;
     auto s       = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
@@ -347,7 +347,7 @@ TEST_CASE(nested_concat1)
     EXPECT(std::count_if(p.begin(), p.end(), [](auto ins) { return ins.name() == "concat"; }) == 1);
 }
 
-TEST_CASE(nested_concat2)
+TEST_CASE(nested_concat_partial)
 {
     migraphx::program p;
     auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};

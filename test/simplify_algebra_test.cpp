@@ -282,7 +282,7 @@ TEST_CASE(simplify_add_conv1)
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
 }
 
-TEST_CASE(simplify_add_conv2)
+TEST_CASE(simplify_add_conv_no_fusion_7x7_diff_strides)
 {
     migraphx::program p;
     auto x = p.add_parameter("x", {migraphx::shape::float_type, {1, 128, 14, 14}});
@@ -303,7 +303,7 @@ TEST_CASE(simplify_add_conv2)
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
 }
 
-TEST_CASE(simplify_add_conv3)
+TEST_CASE(simplify_add_conv_1x1_diff_strides1)
 {
     migraphx::program p;
     auto x = p.add_parameter("x", {migraphx::shape::float_type, {1, 128, 14, 14}});
@@ -323,7 +323,7 @@ TEST_CASE(simplify_add_conv3)
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
 }
 
-TEST_CASE(simplify_add_conv4)
+TEST_CASE(simplify_add_conv_1x1_diff_strides2)
 {
     migraphx::program p;
     auto x = p.add_parameter("x", {migraphx::shape::float_type, {1, 128, 28, 28}});
@@ -343,7 +343,7 @@ TEST_CASE(simplify_add_conv4)
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
 }
 
-TEST_CASE(simplify_add_conv5)
+TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides1)
 {
     migraphx::program p;
     auto x = p.add_parameter("x", {migraphx::shape::float_type, {1, 128, 28, 14}});
@@ -364,7 +364,7 @@ TEST_CASE(simplify_add_conv5)
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
 }
 
-TEST_CASE(simplify_add_conv6)
+TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides2)
 {
     migraphx::program p;
     auto x = p.add_parameter("x", {migraphx::shape::float_type, {1, 128, 14, 14}});

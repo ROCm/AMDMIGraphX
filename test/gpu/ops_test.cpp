@@ -862,7 +862,7 @@ struct test_conv_add : verify_program<test_conv_add>
     }
 };
 
-struct test_conv_add2 : verify_program<test_conv_add2>
+struct test_conv_add_1x1_diff_strides : verify_program<test_conv_add_1x1_diff_strides>
 {
     migraphx::program create_program() const
     {

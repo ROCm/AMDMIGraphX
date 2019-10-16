@@ -17,6 +17,7 @@ const auto& reshaper_names()
 {
     // clang-format off
     static const std::unordered_set<std::string> names = {
+        "flatten",
         "reshape",
         "contiguous",
         "squeeze",
@@ -98,8 +99,13 @@ struct find_nop_reshapes
     auto matcher() const
     {
         auto reshapes = reshaper_names();
-        reshapes.insert("transpose");
+        reshapes.insert("as_shape");
+        reshapes.insert("broadcast");
+        reshapes.insert("concat");
+        reshapes.insert("multibroadcast");
+        reshapes.insert("pad");
         reshapes.insert("slice");
+        reshapes.insert("transpose");
         return match::name(reshapes)(match::same_shape(match::arg(0)));
     }
 

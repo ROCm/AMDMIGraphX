@@ -200,6 +200,7 @@ struct tf_parser
         add_mem_op("Pad", &tf_parser::parse_pad);
         add_mem_op("Reshape", &tf_parser::parse_reshape, false);
         add_mem_op("Slice", &tf_parser::parse_slice, false);
+        add_mem_op("Split", &tf_parser::parse_split, false);
         add_mem_op("Softmax", &tf_parser::parse_softmax<op::softmax>, false);
         add_mem_op("Squeeze", &tf_parser::parse_squeeze, false);
         add_mem_op("StridedSlice", &tf_parser::parse_stridedslice, false);
@@ -807,6 +808,13 @@ struct tf_parser
         }
 
         return prog.add_instruction(Op{axis}, make_contiguous(args[0]));
+    }
+
+    instruction_ref parse_split(const std::string&,
+                                  const attribute_map&,
+                                  std::vector<instruction_ref> args)
+    {
+        return prog.add_instruction(op::identity{}, args[1]);
     }
 
     instruction_ref parse_squeeze(const std::string&,

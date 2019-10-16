@@ -810,9 +810,8 @@ struct tf_parser
         return prog.add_instruction(Op{axis}, make_contiguous(args[0]));
     }
 
-    instruction_ref parse_split(const std::string&,
-                                  const attribute_map&,
-                                  std::vector<instruction_ref> args)
+    instruction_ref
+    parse_split(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         return prog.add_instruction(op::identity{}, args[1]);
     }

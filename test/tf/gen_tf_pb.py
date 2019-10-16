@@ -277,7 +277,9 @@ def softmax_test(g1):
 def split_test(g1):
     with g1.as_default():
         g1_input = tf.placeholder(tf.float32, shape=(5, 30), name='0')
-        split0, split1, split2 = tf.split(g1_input, [4, 15, 11], 1, name='split')
+        split0, split1, split2 = tf.split(g1_input, [4, 15, 11],
+                                          1,
+                                          name='split')
         tf.concat([split0, split1], axis=1, name='concat1')
         tf.concat([split1, split2], axis=1, name='concat2')
 

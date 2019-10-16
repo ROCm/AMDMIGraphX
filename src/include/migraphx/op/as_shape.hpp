@@ -29,7 +29,7 @@ struct as_shape
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(1).standard();
-        assert(inputs.front().elements() == s.elements());
+        assert(inputs.front().elements() >= s.elements());
         return s;
     }
     argument compute(shape output_shape, std::vector<argument> args) const

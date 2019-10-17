@@ -109,6 +109,7 @@ struct onnx_parser
         add_mem_op("ReduceMean", &onnx_parser::parse_reduce_oper<op::reduce_mean>);
         add_mem_op("ReduceMin", &onnx_parser::parse_reduce_oper<op::reduce_min>);
         add_mem_op("ReduceMax", &onnx_parser::parse_reduce_oper<op::reduce_max>);
+        add_mem_op("Tile", &onnx_parser::parse_tile);
 
         // init the activation function map
         init_actv_func();
@@ -1401,6 +1402,26 @@ struct onnx_parser
         int to_type        = parse_value(attributes.at("to")).at<int>();
         shape::type_t type = get_type(to_type);
         return prog.add_instruction(op::convert{type}, std::move(args));
+    }
+
+    instruction_ref
+    parse_tile(const std::string&, attribute_map, std::vector<instruction_ref> args)
+    {
+        migraphx::argument arg_s = args[1]->eval();
+        check_arg_empty(arg_s, "Tile: dynamic shape is not supported");
+        std::vector<std::int64_t> repeats;
+        arg_s.visit([&](auto input) { repeats.assign(input.begin(), input.end()); });
+
+        auto l0 = args[0];
+        for (size_t i = 0; i < repeats.size(); i++)
+        {
+            auto l1 = l0;
+            for (size_t j = 1; j < repeats[i]; j++)
+            {
+                l0 = prog.add_instruction(op::concat{i}, l0, l1);
+            }
+        }
+        return l0;
     }
 
     void parse_from(std::istream& is)

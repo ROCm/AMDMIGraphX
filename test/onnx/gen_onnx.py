@@ -1465,6 +1465,34 @@ def tanh_test():
 
 
 @onnx_test
+def tile_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [2, 4])
+
+    node = onnx.helper.make_node(
+        'Tile',
+        inputs=['x','y'],
+        outputs=['z']
+    )
+
+    return ([node], [x, y], [z], [helper.make_tensor('y', TensorProto.INT64, [2], [1, 2])])
+
+@onnx_test
+def tile_test_3x2():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [6, 4])
+
+    node = onnx.helper.make_node(
+        'Tile',
+        inputs=['x','y'],
+        outputs=['z']
+    )
+
+    return ([node], [x, y], [z], [helper.make_tensor('y', TensorProto.INT64, [2], [3, 2])])
+
+@onnx_test
 def transpose_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 2, 2, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])

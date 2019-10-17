@@ -8,10 +8,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-template <std::size_t NDim>
-using hip_tensor_index = hip_array<std::size_t, NDim>;
+template <index_int NDim>
+using hip_tensor_index = hip_array<index_int, NDim>;
 
-template <std::size_t NDim>
+template <index_int NDim>
 struct hip_tensor_descriptor
 {
     __device__ __host__ hip_tensor_descriptor() = default;
@@ -22,11 +22,11 @@ struct hip_tensor_descriptor
         std::copy(s.strides().begin(), s.strides().end(), strides);
     }
 
-    __device__ __host__ hip_tensor_index<NDim> multi(std::size_t idx) const
+    __device__ __host__ hip_tensor_index<NDim> multi(index_int idx) const
     {
         hip_tensor_index<NDim> result{};
-        std::size_t tidx = idx;
-        for(std::size_t is = 0; is < NDim; is++)
+        index_int tidx = idx;
+        for(index_int is = 0; is < NDim; is++)
         {
             result[is] = tidx / strides[is];
             tidx       = tidx % strides[is];
@@ -34,15 +34,15 @@ struct hip_tensor_descriptor
 
         return result;
     }
-    __device__ __host__ std::size_t linear(hip_tensor_index<NDim> s) const
+    __device__ __host__ index_int linear(hip_tensor_index<NDim> s) const
     {
-        std::size_t idx = 0;
-        for(std::size_t i = 0; i < NDim; i++)
+        index_int idx = 0;
+        for(index_int i = 0; i < NDim; i++)
             idx += s[i] * strides[i];
         return idx;
     }
-    std::size_t lens[NDim]    = {};
-    std::size_t strides[NDim] = {};
+    index_int lens[NDim]    = {};
+    index_int strides[NDim] = {};
 };
 
 } // namespace device

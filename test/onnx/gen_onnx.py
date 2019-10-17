@@ -1470,13 +1470,11 @@ def tile_test():
     y = helper.make_tensor_value_info('y', TensorProto.INT64, [2])
     z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [2, 4])
 
-    node = onnx.helper.make_node(
-        'Tile',
-        inputs=['x','y'],
-        outputs=['z']
-    )
+    node = onnx.helper.make_node('Tile', inputs=['x', 'y'], outputs=['z'])
 
-    return ([node], [x, y], [z], [helper.make_tensor('y', TensorProto.INT64, [2], [1, 2])])
+    return ([node], [x, y], [z],
+            [helper.make_tensor('y', TensorProto.INT64, [2], [1, 2])])
+
 
 @onnx_test
 def tile_test_3x2():
@@ -1484,13 +1482,11 @@ def tile_test_3x2():
     y = helper.make_tensor_value_info('y', TensorProto.INT64, [2])
     z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [6, 4])
 
-    node = onnx.helper.make_node(
-        'Tile',
-        inputs=['x','y'],
-        outputs=['z']
-    )
+    node = onnx.helper.make_node('Tile', inputs=['x', 'y'], outputs=['z'])
 
-    return ([node], [x, y], [z], [helper.make_tensor('y', TensorProto.INT64, [2], [3, 2])])
+    return ([node], [x, y], [z],
+            [helper.make_tensor('y', TensorProto.INT64, [2], [3, 2])])
+
 
 @onnx_test
 def transpose_test():

@@ -75,8 +75,8 @@ struct highest
 };
 
 #ifdef MIGRAPHX_NO_DPP
-template <std::size_t N, class Op, class T, class F>
-__device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
+template <index_int N, class Op, class T, class F>
+__device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
 {
     using type = decltype(f(idx.local));
     MIGRAPHX_DEVICE_SHARED type buffer[N];
@@ -85,9 +85,9 @@ __device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
     buffer[idx.local] = x;
     __syncthreads();
 
-    for(std::size_t s = 1; s < idx.nlocal(); s *= 2)
+    for(index_int s = 1; s < idx.nlocal(); s *= 2)
     {
-        const std::size_t index = 2 * s * idx.local;
+        const index_int index = 2 * s * idx.local;
         if(index + s < idx.nlocal())
         {
             buffer[index] = op(buffer[index], buffer[index + s]);
@@ -118,7 +118,7 @@ template <unsigned int DppCtrl,
           class T>
 __device__ T dpp_mov(T& x)
 {
-    static const std::size_t n = sizeof(T) < 4 ? 1 : sizeof(T) / 4;
+    static const index_int n = sizeof(T) < 4 ? 1 : sizeof(T) / 4;
     union type
     {
         uint32_t reg[n];
@@ -128,7 +128,7 @@ __device__ T dpp_mov(T& x)
     type input{};
     // cppcheck-suppress unreadVariable
     input.data = x;
-    for(std::size_t i = 0; i < n; i++)
+    for(index_int i = 0; i < n; i++)
     {
         output.reg[i] = __llvm_amdgcn_move_dpp(input.reg[i], DppCtrl, RowMask, BankMask, BoundCtrl);
     }
@@ -176,8 +176,8 @@ __device__ inline void dpp_reduce(float& x, sum)
 #endif
 }
 
-template <std::size_t N, class Op, class T, class F>
-__device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
+template <index_int N, class Op, class T, class F>
+__device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
 {
     using type = decltype(f(idx.local));
     MIGRAPHX_DEVICE_SHARED type buffer[N / 64];
@@ -193,14 +193,14 @@ __device__ auto block_reduce(index idx, Op op, T init, std::size_t n, F f)
     __syncthreads();
 
     type y = init;
-    for(std::size_t i = 0; i < idx.nlocal() / 64; i++)
+    for(index_int i = 0; i < idx.nlocal() / 64; i++)
     {
         y = op(y, buffer[i]);
     }
     return y;
 }
 #endif
-constexpr std::size_t compute_block_size(std::size_t n, std::size_t max_block_size)
+constexpr index_int compute_block_size(index_int n, index_int max_block_size)
 {
     size_t block_size = 64;
     while(block_size < max_block_size and block_size < n)
@@ -222,8 +222,8 @@ void reduce_multi_impl(hipStream_t stream,
         auto nelements = result.get_shape().elements();
         auto relements = reduce_slice.elements();
 
-        const std::size_t max_block_size = 256;
-        const std::size_t block_size     = compute_block_size(relements, max_block_size);
+        const index_int max_block_size = 256;
+        const index_int block_size     = compute_block_size(relements, max_block_size);
         gs_launch(stream, nelements * block_size, block_size)([=](auto i, auto idx) __device__ {
             const auto out_idx = i / block_size;
             auto base_idx      = output.get_shape().multi(out_idx);
@@ -245,13 +245,13 @@ void reduce_standard_impl(hipStream_t stream,
                           T init,
                           Input read_input,
                           Output read_output,
-                          std::size_t relements)
+                          index_int relements)
 {
     hip_visit_all(result, arg)([&](auto output, auto input) {
         auto nelements = result.get_shape().elements();
 
-        const std::size_t max_block_size = 256;
-        const std::size_t block_size     = compute_block_size(relements, max_block_size);
+        const index_int max_block_size = 256;
+        const index_int block_size     = compute_block_size(relements, max_block_size);
         gs_launch(stream, nelements * block_size, block_size)([=](auto i, auto idx) __device__ {
             const auto out_idx  = i / block_size;
             const auto base_idx = out_idx * relements;
@@ -287,12 +287,12 @@ void reduce(hipStream_t stream,
     }
     else
     {
-        std::vector<std::size_t> reduce_lens;
+        std::vector<index_int> reduce_lens;
         std::transform(output_shape.lens().begin(),
                        output_shape.lens().end(),
                        input_shape.lens().begin(),
                        std::back_inserter(reduce_lens),
-                       [](auto x, auto y) -> std::size_t {
+                       [](auto x, auto y) -> index_int {
                            if(x == y)
                                return 1;
                            else

@@ -591,21 +591,26 @@ static std::string enclose_name(const std::string& name)
     return '"' + replace_string(name, "\"", "\\\"") + '"';
 }
 
-void program::print_graph(std::ostream& os) const
+void program::print_graph(std::ostream& os, bool brief) const
 {
     os << "digraph {" << std::endl;
     os << "\trankdir=LR;" << std::endl;
     print_program(*this, [&](auto ins, const auto& names) {
-        os << "\t" << enclose_name(names.at(ins))
-           << "[label=" << enclose_name(to_string(ins->get_operator())) << "];";
-        os << std::endl;
+        std::string label;
+        if(brief)
+            label = ins->name();
+        else
+            label = to_string(ins->get_operator());
+        os << "\t" << enclose_name(names.at(ins)) << "[label=" << enclose_name(label) << "]";
+        os << ";" << std::endl;
         if(!ins->inputs().empty())
         {
             for(auto&& arg : ins->inputs())
             {
                 os << "\t" << enclose_name(names.at(arg)) << " -> " << enclose_name(names.at(ins));
-                os << "[label=" << enclose_name(to_string(ins->get_shape())) << "];";
-                os << std::endl;
+                if(not brief)
+                    os << "[label=" << enclose_name(to_string(ins->get_shape())) << "]";
+                os << ";" << std::endl;
             }
         }
     });

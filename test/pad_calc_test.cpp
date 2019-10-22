@@ -3,7 +3,6 @@
 #include <migraphx/pad_calc.hpp>
 #include "test.hpp"
 
-
 TEST_CASE(pad_calc_test_no_pad)
 {
 

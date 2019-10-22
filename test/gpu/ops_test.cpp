@@ -850,10 +850,10 @@ struct test_conv_add : verify_program<test_conv_add>
         migraphx::program p;
         auto x = p.add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 4}});
         auto w =
-            p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 3, 3}}));
+            p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 3, 3}}, 1));
         auto y = p.add_parameter("y", {migraphx::shape::float_type, {1, 8, 4, 4}});
         auto v =
-            p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 3, 3}}));
+            p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 3, 3}}, 2));
         auto conv1 = p.add_instruction(migraphx::op::convolution{}, x, w);
         auto conv2 = p.add_instruction(migraphx::op::convolution{}, y, v);
         auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
@@ -869,14 +869,49 @@ struct test_conv_add_1x1_diff_strides : verify_program<test_conv_add_1x1_diff_st
         migraphx::program p;
         auto x = p.add_parameter("x", {migraphx::shape::float_type, {1, 8, 2, 2}});
         auto w =
-            p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 1, 1}}));
+            p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 1, 1}}, 1));
         auto y = p.add_parameter("y", {migraphx::shape::float_type, {1, 8, 4, 4}});
         auto v =
-            p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 1, 1}}));
+            p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 1, 1}}, 2));
         auto conv1 = p.add_instruction(migraphx::op::convolution{}, x, w);
         auto conv2 = p.add_instruction(migraphx::op::convolution{{0, 0}, {2, 2}}, y, v);
         auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
         p.add_instruction(migraphx::op::exp{}, sum);
+        return p;
+    }
+};
+
+struct test_conv_bn_add : verify_program<test_conv_bn_add>
+{
+    static migraphx::instruction_ref add_bn(migraphx::program& p, migraphx::instruction_ref x, std::size_t channels, std::size_t seed = 1)
+    {
+        migraphx::shape vars{migraphx::shape::float_type, {channels}};
+        auto scale    = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1+seed)));
+        auto bias     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2+seed)));
+        auto mean     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3+seed)));
+        auto variance = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4+seed)));
+        return p.add_instruction(migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
+    }
+
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        std::size_t ichannels = 64;
+        std::size_t ochannels = 256;
+        auto x = p.add_parameter("x", {migraphx::shape::float_type, {1, ichannels, 56, 56}});
+        auto w =
+            p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {ochannels, ichannels, 1, 1}}, 1));
+        auto y = p.add_parameter("y", {migraphx::shape::float_type, {1, ichannels, 56, 56}});
+        auto v =
+            p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {ochannels, ichannels, 1, 1}}, 2));
+        auto relu1 = p.add_instruction(migraphx::op::relu{}, x);
+        auto conv1 = p.add_instruction(migraphx::op::convolution{}, relu1, w);
+        auto bn1 = add_bn(p, conv1, ochannels, 1);
+        auto relu2 = p.add_instruction(migraphx::op::relu{}, y);
+        auto conv2 = p.add_instruction(migraphx::op::convolution{}, relu2, v);
+        auto bn2 = add_bn(p, conv2, ochannels, 1);
+        auto sum   = p.add_instruction(migraphx::op::add{}, bn1, bn2);
+        p.add_instruction(migraphx::op::relu{}, sum);
         return p;
     }
 };

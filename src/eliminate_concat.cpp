@@ -17,8 +17,10 @@ void eliminate_concat::apply(program& p) const
         if(ins->name() != concat_opt.name())
             continue;
         // If any inputs are literals then abort
+        // If any inputs are used more than once, then abort since there could
+        // be errors due to aliasing
         if(std::any_of(ins->inputs().begin() + 1, ins->inputs().end(), [](auto arg) {
-               return arg->name() == "@literal";
+               return arg->name() == "@literal" or arg->outputs().size() > 1;
            }))
             continue;
         // We can only do this optimization when concat axis is either the leftmost

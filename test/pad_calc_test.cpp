@@ -5,7 +5,6 @@
 
 TEST_CASE(pad_calc_test_no_pad)
 {
-
     std::vector<int64_t> golden_pads{0, 0, 0, 0};
     std::vector<int64_t> pads{0, 0, 0, 0};
     // 1x1 filter size

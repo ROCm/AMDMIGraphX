@@ -18,33 +18,35 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
+using index_int = std::uint32_t;
+
 #define MIGRAPHX_DEVICE_CONSTEXPR constexpr __device__ __host__ // NOLINT
 
-template <class T, std::size_t N>
+template <class T, index_int N>
 using vec = T __attribute__((ext_vector_type(N)));
 
-template <std::size_t N, class T>
+template <index_int N, class T>
 __device__ __host__ T* as_pointer(vec<T, N>* x)
 {
     return reinterpret_cast<T*>(x);
 }
 
-template <std::size_t N, class T>
+template <index_int N, class T>
 __device__ __host__ vec<T, N>* as_vec(T* x)
 {
     return reinterpret_cast<vec<T, N>*>(x);
 }
 
-template <std::size_t N, class T>
+template <index_int N, class T>
 tensor_view<vec<T, N>> as_vec(tensor_view<T> x)
 {
     return {x.get_shape(), as_vec<N>(x.data())};
 }
 
-template <std::size_t N, class... Ts>
+template <index_int N, class... Ts>
 auto pack_vec(Ts... xs)
 {
-    return [=](auto f, std::size_t n) { return f(as_vec<N>(xs)[n]...); };
+    return [=](auto f, index_int n) { return f(as_vec<N>(xs)[n]...); };
 }
 
 using gpu_half = __fp16;
@@ -56,7 +58,7 @@ struct device_type
     using type = T;
 };
 
-template <class T, std::size_t N>
+template <class T, index_int N>
 struct device_type<vec<T, N>>
 {
     using type = vec<typename device_type<T>::type, N>;

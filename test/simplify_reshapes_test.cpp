@@ -2,6 +2,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/operators.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/generate.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -326,6 +327,44 @@ TEST_CASE(concat_transpose3)
         std::find_if(p.begin(), p.end(), [](auto ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != p.end()});
     EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 1);
+}
+
+TEST_CASE(nested_concat)
+{
+    migraphx::program p;
+    auto s       = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
+    auto x       = p.add_parameter("x", s);
+    auto y       = p.add_parameter("y", s);
+    auto concat1 = p.add_instruction(migraphx::op::concat{1}, x, y);
+    auto concat2 = p.add_instruction(migraphx::op::concat{1}, y, x);
+    auto concat3 = p.add_instruction(migraphx::op::concat{1}, concat1, concat2);
+    p.add_instruction(pass_op{}, concat3);
+    auto out_shape = p.get_shape();
+    auto n         = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape().lens() == out_shape.lens());
+    EXPECT(std::distance(p.begin(), p.end()) == n - 2);
+    EXPECT(std::count_if(p.begin(), p.end(), [](auto ins) { return ins.name() == "concat"; }) == 1);
+}
+
+TEST_CASE(nested_concat_partial)
+{
+    migraphx::program p;
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
+    auto x = p.add_parameter("x", s);
+    auto y = p.add_parameter("y", s);
+    auto l = p.add_literal(
+        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1, 4, 3, 4}}));
+    auto concat1 = p.add_instruction(migraphx::op::concat{1}, x, y);
+    auto concat2 = p.add_instruction(migraphx::op::concat{1}, y, x);
+    auto concat3 = p.add_instruction(migraphx::op::concat{1}, concat1, concat2, l);
+    p.add_instruction(pass_op{}, concat3);
+    auto out_shape = p.get_shape();
+    auto n         = std::distance(p.begin(), p.end());
+    p.compile(simplify_reshapes_target{});
+    EXPECT(p.get_shape().lens() == out_shape.lens());
+    EXPECT(std::distance(p.begin(), p.end()) == n - 2);
+    EXPECT(std::count_if(p.begin(), p.end(), [](auto ins) { return ins.name() == "concat"; }) == 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

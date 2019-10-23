@@ -210,9 +210,7 @@ struct cpu_convolution
                             const auto in_y  = start_y + y;
                             const auto in_ch = group_id * wei_c + k;
                             if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
-                            {
                                 acc += input(o, in_ch, in_x, in_y) * weights(w, k, x, y);
-                            }
                         });
                         output(o, w, i, j) = acc;
                     });

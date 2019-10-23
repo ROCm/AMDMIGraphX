@@ -57,7 +57,7 @@ struct stream_info
         })(last);
     }
 
-    template<class Compare>
+    template <class Compare>
     auto compare_by_weights(Compare compare) const
     {
         return by(compare, [this](auto x) {
@@ -65,7 +65,7 @@ struct stream_info
         });
     }
 
-    template<class Compare>
+    template <class Compare>
     void sort_args_by_weight(std::vector<instruction_ref>& args, Compare compare) const
     {
         if(args.size() < 2)
@@ -143,7 +143,7 @@ struct stream_info
 
         // Set the critical partition to stream 0
         set_stream(critical, 0);
-        if (n == 1)
+        if(n == 1)
         {
             // Assign streams for the other partitions
             for(auto&& ins_part : partitions)
@@ -157,13 +157,15 @@ struct stream_info
             // Assign streams for the other partitions
             for(auto&& ins_part : partitions)
             {
-                std::sort(
-                    ins_part.second.begin(), ins_part.second.end(), by(std::greater<>{}, [](auto&& x) {
-                        return std::make_tuple(x.weight, x.instructions.size());
-                    }));
+                std::sort(ins_part.second.begin(),
+                          ins_part.second.end(),
+                          by(std::greater<>{}, [](auto&& x) {
+                              return std::make_tuple(x.weight, x.instructions.size());
+                          }));
                 for(auto&& part : ins_part.second)
                 {
-                    auto stream = std::min_element(streams.begin(), streams.end()) - streams.begin();
+                    auto stream =
+                        std::min_element(streams.begin(), streams.end()) - streams.begin();
                     set_stream(part, stream + 1);
                     streams[stream] += part.weight;
                 }
@@ -177,7 +179,8 @@ struct stream_info
     {
         bool operator()(const weight_ins& x, const weight_ins& y) const
         {
-            return std::make_pair(x.first, std::addressof(*x.second)) > std::make_pair(y.first, std::addressof(*y.second));
+            return std::make_pair(x.first, std::addressof(*x.second)) >
+                   std::make_pair(y.first, std::addressof(*y.second));
         }
     };
 
@@ -198,7 +201,7 @@ struct stream_info
             children.pop();
 
             p.move_instruction(top, p.begin());
-            for(auto ins:top->inputs())
+            for(auto ins : top->inputs())
             {
                 add_child(ins);
             }
@@ -481,7 +484,7 @@ void schedule::apply(program& p) const
     }
 
     // No concurrency
-    if (nstreams < 2)
+    if(nstreams < 2)
         return;
 
     // Schedule instructions

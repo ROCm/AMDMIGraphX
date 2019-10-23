@@ -1426,17 +1426,14 @@ struct onnx_parser
         for(auto&& f : graph.initializer())
         {
             initializer_data[f.name()] = f;
+            instructions[f.name()]     = prog.add_literal(parse_tensor(f));
         }
+
         for(auto&& input : graph.input())
         {
             const std::string& name = input.name();
-            // Does the input have an initializer?
-            if(contains(initializer_data, name))
-            {
-                auto t             = initializer_data[name];
-                instructions[name] = prog.add_literal(parse_tensor(t));
-            }
-            else
+            // input not in initializer_data, so it is a real input
+            if(!contains(initializer_data, name))
             {
                 // TODO: Get shape of input parameter
                 shape s            = parse_type(input.type());

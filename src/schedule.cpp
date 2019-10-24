@@ -63,8 +63,9 @@ struct stream_info
         if(args.size() < 2)
             return;
         std::sort(args.begin(), args.end(), by(compare, [this](auto x) {
-            return std::make_tuple(this->weights.at(x), x->inputs().size(), std::addressof(*x));
-        }));
+                      return std::make_tuple(
+                          this->weights.at(x), x->inputs().size(), std::addressof(*x));
+                  }));
     }
 
     std::vector<instruction_ref>::iterator sort_args(std::vector<instruction_ref>& args)
@@ -183,17 +184,16 @@ struct stream_info
         std::set<weight_ins, compare_weight_ins> children;
         std::unordered_map<instruction_ref, std::size_t> visited;
         auto add_child = [&](auto ins) {
-            auto w = this->iweights.at(ins);
+            auto w  = this->iweights.at(ins);
             auto& v = visited[ins];
             auto it = children.find(std::make_pair(v * w, ins));
-            if (it == children.end())
+            if(it == children.end())
             {
                 v++;
                 children.insert(std::make_pair(v * w, ins));
             }
         };
         add_child(std::prev(p.end()));
-
 
         while(not children.empty())
         {

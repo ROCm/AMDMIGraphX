@@ -16,11 +16,11 @@ void eliminate_concat::apply(program& p) const
         // Look for the concat operator
         if(ins->name() != concat_opt.name())
             continue;
-        // If any inputs are literals then abort
+        // If any inputs are builtin or context free then abort
         // If any inputs are used more than once, then abort since there could
         // be errors due to aliasing
-        if(std::any_of(ins->inputs().begin() + 1, ins->inputs().end(), [](auto arg) {
-               return arg->name() == "@literal" or arg->outputs().size() > 1;
+        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto arg) {
+               return arg->name().front() == '@' or arg->get_operator().is_context_free() or arg->outputs().size() > 1;
            }))
             continue;
         // We can only do this optimization when concat axis is either the leftmost

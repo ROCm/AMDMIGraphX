@@ -58,19 +58,13 @@ struct stream_info
     }
 
     template <class Compare>
-    auto compare_by_weights(Compare compare) const
-    {
-        return by(compare, [this](auto x) {
-            return std::make_tuple(this->weights.at(x), x->inputs().size(), std::addressof(*x));
-        });
-    }
-
-    template <class Compare>
     void sort_args_by_weight(std::vector<instruction_ref>& args, Compare compare) const
     {
         if(args.size() < 2)
             return;
-        std::sort(args.begin(), args.end(), compare_by_weights(compare));
+        std::sort(args.begin(), args.end(), by(compare, [this](auto x) {
+            return std::make_tuple(this->weights.at(x), x->inputs().size(), std::addressof(*x));
+        }));
     }
 
     std::vector<instruction_ref>::iterator sort_args(std::vector<instruction_ref>& args)
@@ -179,26 +173,33 @@ struct stream_info
     {
         bool operator()(const weight_ins& x, const weight_ins& y) const
         {
-            return std::make_pair(x.first, std::addressof(*x.second)) >
+            return std::make_pair(x.first, std::addressof(*x.second)) <
                    std::make_pair(y.first, std::addressof(*y.second));
         }
     };
 
-    void sort(program& p) const
+    void sort(program& p, std::size_t n) const
     {
-        std::priority_queue<weight_ins, std::vector<weight_ins>, compare_weight_ins> children;
+        std::set<weight_ins, compare_weight_ins> children;
+        std::unordered_map<instruction_ref, std::size_t> visited;
         auto add_child = [&](auto ins) {
-            children.push(std::make_pair(this->iweights.at(ins), ins));
+            auto w = this->iweights.at(ins);
+            auto& v = visited[ins];
+            auto it = children.find(std::make_pair(v * w, ins));
+            if (it == children.end())
+            {
+                v++;
+                children.insert(std::make_pair(v * w, ins));
+            }
         };
-        children.push(std::make_pair(0, std::prev(p.end())));
+        add_child(std::prev(p.end()));
 
-        std::unordered_set<instruction_ref> visited;
 
         while(not children.empty())
         {
             // Pop the first element
-            auto top = children.top().second;
-            children.pop();
+            auto top = children.begin()->second;
+            children.erase(children.begin());
 
             p.move_instruction(top, p.begin());
             for(auto ins : top->inputs())
@@ -464,7 +465,7 @@ void schedule::apply(program& p) const
     auto last = std::prev(p.end());
     si.accumulate_weights(last, model);
     auto nstreams = si.assign_streams(p, model.concurrency());
-    si.sort(p);
+    si.sort(p, model.concurrency());
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}) or enabled(MIGRAPHX_TRACE_SCHEDULE{}))
     {

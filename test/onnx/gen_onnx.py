@@ -823,6 +823,22 @@ def implicit_pow_bcast_test():
 
 
 @onnx_test
+def implicit_sub_bcast_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [2, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'Sub',
+        inputs=['0', '1'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
 def initializer_not_an_input():
     values = np.array([[1, 2, 3, 4], [5, 6, 7, 8]])
     w = helper.make_tensor(name='w',
@@ -840,22 +856,6 @@ def initializer_not_an_input():
     )
 
     return ([node], [x], [y], [w])
-
-
-@onnx_test
-def implicit_sub_bcast_test():
-    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
-    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 5])
-    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
-                                            [2, 3, 4, 5])
-
-    node = onnx.helper.make_node(
-        'Sub',
-        inputs=['0', '1'],
-        outputs=['out'],
-    )
-
-    return ([node], [arg0, arg1], [arg_out])
 
 
 @onnx_test

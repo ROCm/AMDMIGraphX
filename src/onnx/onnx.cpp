@@ -1422,18 +1422,14 @@ struct onnx_parser
     void parse_graph(const onnx::GraphProto& graph)
     {
         nodes = get_nodes(graph);
-        std::unordered_map<std::string, onnx::TensorProto> initializer_data;
         for(auto&& f : graph.initializer())
-        {
-            initializer_data[f.name()] = f;
             instructions[f.name()]     = prog.add_literal(parse_tensor(f));
-        }
 
         for(auto&& input : graph.input())
         {
             const std::string& name = input.name();
             // input not in initializer_data, so it is a real input
-            if(!contains(initializer_data, name))
+            if(!contains(instructions, name))
             {
                 // TODO: Get shape of input parameter
                 shape s            = parse_type(input.type());

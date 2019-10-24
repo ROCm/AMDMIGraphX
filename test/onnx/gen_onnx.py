@@ -821,14 +821,14 @@ def implicit_pow_bcast_test():
 
     return ([node], [arg0, arg1], [arg_out])
 
+
 @onnx_test
 def initializer_not_an_input():
     values = np.array([[1, 2, 3, 4], [5, 6, 7, 8]])
-    w = helper.make_tensor(
-        name = 'w',
-        data_type = TensorProto.FLOAT,
-        dims = values.shape,
-        vals = values.flatten().astype(np.float))
+    w = helper.make_tensor(name='w',
+                           data_type=TensorProto.FLOAT,
+                           dims=values.shape,
+                           vals=values.flatten().astype(np.float))
 
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [5, 2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5, 4])
@@ -840,6 +840,7 @@ def initializer_not_an_input():
     )
 
     return ([node], [x], [y], [w])
+
 
 @onnx_test
 def implicit_sub_bcast_test():

@@ -10,7 +10,7 @@ namespace device {
 void max(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2)
 {
     nary(stream, result, arg1, arg2)(
-        [](auto x, auto y) __device__ { return std::max(to_hip_type(x), to_hip_type(y)); });
+        [](auto x, auto y) __device__ { return ::max(to_hip_type(x), to_hip_type(y)); });
 }
 
 } // namespace device

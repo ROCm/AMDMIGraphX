@@ -13,7 +13,7 @@ void clip(hipStream_t stream,
           const float min)
 {
     nary(stream, result, arg1)([max, min](auto x) __device__ {
-        return std::min<decltype(x)>(std::max<decltype(x)>(min, x), max);
+        return ::min<decltype(x)>(::max<decltype(x)>(min, x), max);
     });
 }
 

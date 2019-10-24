@@ -179,12 +179,13 @@ struct stream_info
         }
     };
 
-    void sort(program& p, std::size_t n) const
+    void sort(program& p, std::size_t) const
     {
         std::set<weight_ins, compare_weight_ins> children;
         std::unordered_map<instruction_ref, std::size_t> visited;
         auto add_child = [&](auto ins) {
-            auto w  = this->iweights.at(ins);
+            auto i = this->iweights.at(ins);
+            auto w  = i + (2 * p.size() * i / (1 + this->weights.at(ins) / 2));
             auto& v = visited[ins];
             auto it = children.find(std::make_pair(v * w, ins));
             if(it == children.end())

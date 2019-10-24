@@ -183,9 +183,12 @@ struct stream_info
     {
         std::set<weight_ins, compare_weight_ins> children;
         std::unordered_map<instruction_ref, std::size_t> visited;
+        auto last = std::prev(p.end());
+        auto mw = this->weights.at(last);
+        auto nw = mw / p.size();
         auto add_child = [&](auto ins) {
-            auto i  = this->iweights.at(ins);
-            auto w  = i + (2 * p.size() * i / (1 + this->weights.at(ins) / 2));
+            auto x = 1 + (mw - this->weights.at(ins)) / nw;
+            auto w = x * this->iweights.at(ins);
             auto& v = visited[ins];
             auto it = children.find(std::make_pair(v * w, ins));
             if(it == children.end())
@@ -194,7 +197,7 @@ struct stream_info
                 children.insert(std::make_pair(v * w, ins));
             }
         };
-        add_child(std::prev(p.end()));
+        add_child(last);
 
         while(not children.empty())
         {

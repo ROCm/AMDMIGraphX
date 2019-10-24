@@ -1423,7 +1423,7 @@ struct onnx_parser
     {
         nodes = get_nodes(graph);
         for(auto&& f : graph.initializer())
-            instructions[f.name()]     = prog.add_literal(parse_tensor(f));
+            instructions[f.name()] = prog.add_literal(parse_tensor(f));
 
         for(auto&& input : graph.input())
         {

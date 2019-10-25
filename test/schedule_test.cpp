@@ -616,8 +616,9 @@ TEST_CASE(inner_par_merge)
                                                  t.get_stream(outer1),
                                                  t.get_stream(outer2)}));
 
-    EXPECT(t.get_stream(outer1) == 2);
-    EXPECT(t.get_stream(outer2) == 1);
+    EXPECT(t.get_stream(outer1) != t.get_stream(outer2));
+    EXPECT(migraphx::contains({1, 2}, t.get_stream(outer1)));
+    EXPECT(migraphx::contains({1, 2}, t.get_stream(outer2)));
 
     EXPECT(t.get_stream(i1) != t.get_stream(i2));
     for(auto ins : c1)

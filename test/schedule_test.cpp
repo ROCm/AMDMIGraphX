@@ -280,7 +280,7 @@ TEST_CASE(stream_free)
     EXPECT(not t.has_stream(one));
     EXPECT(not t.has_stream(onep1));
     EXPECT(not t.has_stream(onep2));
-    EXPECT(t.get_stream(binary) == 0);
+    EXPECT(not t.has_stream(binary));
 }
 
 TEST_CASE(zero_record)
@@ -616,8 +616,8 @@ TEST_CASE(inner_par_merge)
                                                  t.get_stream(outer1),
                                                  t.get_stream(outer2)}));
 
-    EXPECT(t.get_stream(outer1) == 1);
-    EXPECT(t.get_stream(outer2) == 2);
+    EXPECT(t.get_stream(outer1) == 2);
+    EXPECT(t.get_stream(outer2) == 1);
 
     EXPECT(t.get_stream(i1) != t.get_stream(i2));
     for(auto ins : c1)

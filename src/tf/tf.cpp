@@ -398,11 +398,9 @@ struct tf_parser
                 size_t weight_w                 = weight_dims[3];
 
                 auto input_dims = l0->get_shape().lens();
-                size_t input_h  = input_dims[2];
-                size_t input_w  = input_dims[3];
                 std::vector<int64_t> pads(input_dims.size());
-                calculate_padding(0, pads, input_h, op.stride[0], op.dilation[0], weight_h);
-                calculate_padding(1, pads, input_w, op.stride[1], op.dilation[1], weight_w);
+                calculate_padding(0, pads, input_dims[2], op.stride[0], op.dilation[0], weight_h);
+                calculate_padding(1, pads, input_dims[3], op.stride[1], op.dilation[1], weight_w);
 
                 if(pads[0] != pads[2] || pads[1] != pads[3])
                 {
@@ -486,11 +484,9 @@ struct tf_parser
                 size_t weight_w                 = weight_dims[3];
 
                 auto input_dims = l0->get_shape().lens();
-                size_t input_h  = input_dims[2];
-                size_t input_w  = input_dims[3];
                 std::vector<int64_t> pads(input_dims.size());
-                calculate_padding(0, pads, input_h, op.stride[0], op.dilation[0], weight_h);
-                calculate_padding(1, pads, input_w, op.stride[1], op.dilation[1], weight_w);
+                calculate_padding(0, pads, input_dims[2], op.stride[0], op.dilation[0], weight_h);
+                calculate_padding(1, pads, input_dims[3], op.stride[1], op.dilation[1], weight_w);
 
                 if(pads[0] != pads[2] || pads[1] != pads[3])
                 {
@@ -722,11 +718,9 @@ struct tf_parser
             {
                 op.padding_mode = op::padding_mode_t::same;
                 auto input_dims = l0->get_shape().lens();
-                size_t input_h  = input_dims[2];
-                size_t input_w  = input_dims[3];
                 std::vector<int64_t> pads(input_dims.size());
-                calculate_padding(0, pads, input_h, op.stride[0], 1, op.lengths[0]);
-                calculate_padding(1, pads, input_w, op.stride[1], 1, op.lengths[1]);
+                calculate_padding(0, pads, input_dims[2], op.stride[0], 1, op.lengths[0]);
+                calculate_padding(1, pads, input_dims[3], op.stride[1], 1, op.lengths[1]);
 
                 if(pads[0] != pads[2] || pads[1] != pads[3])
                 {

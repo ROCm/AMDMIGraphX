@@ -839,6 +839,26 @@ def implicit_sub_bcast_test():
 
 
 @onnx_test
+def initializer_not_an_input():
+    values = np.array([[1, 2, 3, 4], [5, 6, 7, 8]])
+    w = helper.make_tensor(name='w',
+                           data_type=TensorProto.FLOAT,
+                           dims=values.shape,
+                           vals=values.flatten().astype(np.float))
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [5, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5, 4])
+
+    node = onnx.helper.make_node(
+        'Gemm',
+        inputs=['x', 'w'],
+        outputs=['y'],
+    )
+
+    return ([node], [x], [y], [w])
+
+
+@onnx_test
 def leaky_relu_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])

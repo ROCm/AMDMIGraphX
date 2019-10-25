@@ -538,10 +538,16 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 
     os << std::endl;
     os << "Summary:" << std::endl;
-    for(auto&& p : op_times)
+    std::vector<std::pair<double, std::string>> op_times_sorted;
+    std::transform(op_times.begin(),
+                   op_times.end(),
+                   std::back_inserter(op_times_sorted),
+                   [](auto p) { return std::make_pair(p.second, p.first); });
+    std::sort(op_times_sorted.begin(), op_times_sorted.end(), std::greater<>{});
+    for(auto&& p : op_times_sorted)
     {
-        auto&& name    = p.first;
-        double avg     = p.second;
+        auto&& name    = p.second;
+        double avg     = p.first;
         double percent = std::ceil(100.0 * avg / total_instruction_time);
         os << name << ": " << avg << "ms, " << percent << "%" << std::endl;
     }

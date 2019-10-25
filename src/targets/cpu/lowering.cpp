@@ -567,32 +567,15 @@ struct cpu_unary
     {
         check_shapes{inputs}.has(1);
         auto s = inputs.at(0);
-        if(s.packed())
-        {
-            return s;
-        }
-        else
-        {
-            return {s.type(), s.lens()};
-        }
+        return {s.type(), s.lens()};
     }
 
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        result.visit([&](auto output) {
-            args[0].visit([&](auto input) {
-                if(input.get_shape().standard())
-                {
-                    std::transform(input.begin(), input.end(), output.begin(), op.fcn());
-                }
-                else
-                {
-                    shape_for_each(output.get_shape(), [&](const auto& idx) {
-                        output(idx.begin(), idx.end()) = op.fcn()(input(idx.begin(), idx.end()));
-                    });
-                }
-            });
+        visit_all(result, args[0])([&](auto output, auto input) {
+            assert(input.get_shape().standard());
+            std::transform(input.begin(), input.end(), output.begin(), op.fcn());
         });
 
         return result;

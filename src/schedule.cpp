@@ -185,9 +185,9 @@ struct stream_info
         std::unordered_map<instruction_ref, std::size_t> visited;
         auto last      = std::prev(p.end());
         auto mw        = this->weights.at(last);
-        auto nw        = mw / p.size();
+        auto nw        = mw / (p.size() + 1);
         auto add_child = [&](auto ins) {
-            auto x  = 1 + (mw - this->weights.at(ins)) / nw;
+            auto x  = 1 + (mw - this->weights.at(ins)) / (nw + 1);
             auto w  = x * this->iweights.at(ins);
             auto& v = visited[ins];
             auto it = children.find(std::make_pair(v * w, ins));

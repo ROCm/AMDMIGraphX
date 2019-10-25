@@ -705,9 +705,8 @@ TEST_CASE(inner_split1)
     EXPECT(
         get_wait_for(output) ==
         get_wait_for(t.get_stream(output), {t.get_stream(i1), t.get_stream(s1), t.get_stream(s2)}));
-    EXPECT(get_wait_for(s1).empty());
-    // TODO: Remove the extra wait here
-    // EXPECT(get_wait_for(s2).empty());
+    // Either s1 or s2 has a wait depending on the sort order but not both
+    EXPECT(get_wait_for(s1).empty() xor get_wait_for(s2).empty());
     t.check_conflicts(p, {c1, {i1}, {s1}, {s2}});
 }
 

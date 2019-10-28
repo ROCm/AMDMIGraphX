@@ -30,6 +30,11 @@ struct logsoftmax
         }
         return inputs.at(0);
     }
+
+    auto output() const
+    {
+        return [=](auto x, auto y) { return std::log(x / y); };
+    }
 };
 
 } // namespace op

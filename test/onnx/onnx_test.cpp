@@ -48,8 +48,8 @@ TEST_CASE(add_fp16_test)
 TEST_CASE(add_scalar_test)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
     auto l1 = p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1}});
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
     auto m0 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l0);
     auto m1 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l1);
     p.add_instruction(migraphx::op::add{}, m0, m1);
@@ -585,6 +585,19 @@ TEST_CASE(implicit_sub_bcast_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(initializer_not_an_input)
+{
+    migraphx::program p;
+    std::vector<float> w = {1, 2, 3, 4, 5, 6, 7, 8};
+    auto l1 = p.add_literal(migraphx::literal({migraphx::shape::float_type, {2, 4}}, w));
+    auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {5, 2}});
+    p.add_instruction(migraphx::op::dot{}, l0, l1);
+
+    auto prog = migraphx::parse_onnx("initializer_not_an_input.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(leaky_relu_test)
 {
     migraphx::program p;
@@ -858,9 +871,9 @@ TEST_CASE(reshape_test)
     migraphx::program p;
     migraphx::op::reshape op;
     std::vector<int64_t> reshape_dims{3, 8};
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {4, 2, 3}});
     p.add_literal(
         migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, reshape_dims});
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {4, 2, 3}});
     op.dims = reshape_dims;
     p.add_instruction(op, l0);
     p.add_instruction(op, l0);

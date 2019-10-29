@@ -538,10 +538,16 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 
     os << std::endl;
     os << "Summary:" << std::endl;
-    for(auto&& p : op_times)
+    std::vector<std::pair<double, std::string>> op_times_sorted;
+    std::transform(op_times.begin(),
+                   op_times.end(),
+                   std::back_inserter(op_times_sorted),
+                   [](auto p) { return std::make_pair(p.second, p.first); });
+    std::sort(op_times_sorted.begin(), op_times_sorted.end(), std::greater<>{});
+    for(auto&& p : op_times_sorted)
     {
-        auto&& name    = p.first;
-        double avg     = p.second;
+        auto&& name    = p.second;
+        double avg     = p.first;
         double percent = std::ceil(100.0 * avg / total_instruction_time);
         os << name << ": " << avg << "ms, " << percent << "%" << std::endl;
     }
@@ -591,21 +597,26 @@ static std::string enclose_name(const std::string& name)
     return '"' + replace_string(name, "\"", "\\\"") + '"';
 }
 
-void program::print_graph(std::ostream& os) const
+void program::print_graph(std::ostream& os, bool brief) const
 {
     os << "digraph {" << std::endl;
     os << "\trankdir=LR;" << std::endl;
     print_program(*this, [&](auto ins, const auto& names) {
-        os << "\t" << enclose_name(names.at(ins))
-           << "[label=" << enclose_name(to_string(ins->get_operator())) << "];";
-        os << std::endl;
+        std::string label;
+        if(brief)
+            label = ins->name();
+        else
+            label = to_string(ins->get_operator());
+        os << "\t" << enclose_name(names.at(ins)) << "[label=" << enclose_name(label) << "]";
+        os << ";" << std::endl;
         if(!ins->inputs().empty())
         {
             for(auto&& arg : ins->inputs())
             {
                 os << "\t" << enclose_name(names.at(arg)) << " -> " << enclose_name(names.at(ins));
-                os << "[label=" << enclose_name(to_string(ins->get_shape())) << "];";
-                os << std::endl;
+                if(not brief)
+                    os << "[label=" << enclose_name(to_string(ins->get_shape())) << "]";
+                os << ";" << std::endl;
             }
         }
     });

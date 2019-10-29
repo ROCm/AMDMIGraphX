@@ -82,8 +82,8 @@ template <index_int N>
 inline auto mi_launch(hipStream_t stream, const hip_shape<N>& global, index_int nlocal = 1024)
 {
     auto nglobal_multi = mi_nglobal(global, nlocal);
-    auto nglobal = global.index(nglobal_multi);
-    
+    auto nglobal       = global.index(nglobal_multi);
+
     return [=](auto f) {
         launch(stream, nglobal, nlocal)([=](auto idx) {
             auto midx = make_multi_index(global, idx.global, nglobal_multi);
@@ -95,11 +95,11 @@ inline auto mi_launch(hipStream_t stream, const hip_shape<N>& global, index_int 
 template <index_int N>
 inline auto mi_launch(hipStream_t stream, const hip_shape<N>& global, const hip_shape<N>& local)
 {
-    auto nlocal = 1024;
+    auto nlocal        = 1024;
     auto nglobal_multi = mi_nglobal(global, nlocal);
-    auto nglobal = global.index(nglobal_multi);
-    auto nlocal_multi = mi_nlocal(local, nlocal);
-    
+    auto nglobal       = global.index(nglobal_multi);
+    auto nlocal_multi  = mi_nlocal(local, nlocal);
+
     return [=](auto f) {
         launch(stream, nglobal, nlocal)([=](auto idx) {
             auto midx = make_multi_index(global, idx.global, nglobal_multi);
@@ -112,13 +112,10 @@ inline auto mi_launch(hipStream_t stream, const hip_shape<N>& global, const hip_
 template <index_int N>
 inline auto mi_gs_launch(hipStream_t stream, const hip_shape<N>& global, index_int nlocal = 1024)
 {
-        return [=](auto f) {
-        mi_launch(stream, global, nlocal)([=](auto, auto g) {
-            g([&](auto i) { f(i); });
-        });
+    return [=](auto f) {
+        mi_launch(stream, global, nlocal)([=](auto, auto g) { g([&](auto i) { f(i); }); });
     };
 }
-
 
 } // namespace device
 } // namespace gpu

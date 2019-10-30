@@ -9,6 +9,7 @@
 #include <migraphx/ranges.hpp>
 #include <unordered_map>
 #include <unordered_set>
+#include <queue>
 #include <thread>
 #include <mutex>
 #include <set>
@@ -17,6 +18,8 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_SCHEDULE)
 
 auto get_inputs()
 {
@@ -54,6 +57,17 @@ struct stream_info
         })(last);
     }
 
+    template <class Compare>
+    void sort_args_by_weight(std::vector<instruction_ref>& args, Compare compare) const
+    {
+        if(args.size() < 2)
+            return;
+        std::sort(args.begin(), args.end(), by(compare, [this](auto x) {
+                      return std::make_tuple(
+                          this->weights.at(x), x->inputs().size(), std::addressof(*x));
+                  }));
+    }
+
     std::vector<instruction_ref>::iterator sort_args(std::vector<instruction_ref>& args)
     {
         if(args.size() < 2)
@@ -61,11 +75,8 @@ struct stream_info
             return args.end();
         }
 
-        const std::size_t min_partition_threshold = 2;
-        auto compare                              = by(std::greater<>{}, [&](auto x) {
-            return std::make_tuple(this->weights[x], x->inputs().size());
-        });
-        std::sort(args.begin(), args.end(), compare);
+        const std::size_t min_partition_threshold = 1;
+        sort_args_by_weight(args, std::greater<>{});
 
         auto it = std::lower_bound(std::next(args.begin()),
                                    args.end(),
@@ -89,8 +100,9 @@ struct stream_info
         }
     };
 
-    void assign_streams(program& p, std::size_t n)
+    std::size_t assign_streams(program& p, std::size_t n)
     {
+        assert(n > 0);
         partition critical;
         std::unordered_map<instruction_ref, std::deque<partition>> partitions;
         partitions.reserve(weights.size());
@@ -126,19 +138,77 @@ struct stream_info
 
         // Set the critical partition to stream 0
         set_stream(critical, 0);
-        std::vector<std::size_t> streams(n - 1);
-        // Assign streams for the other partitions
-        for(auto&& ins_part : partitions)
+        if(n == 1)
         {
-            std::sort(
-                ins_part.second.begin(), ins_part.second.end(), by(std::greater<>{}, [](auto&& x) {
-                    return std::make_tuple(x.weight, x.instructions.size());
-                }));
-            for(auto&& part : ins_part.second)
+            // Assign streams for the other partitions
+            for(auto&& ins_part : partitions)
+                for(auto&& part : ins_part.second)
+                    set_stream(part, 0);
+            return 1;
+        }
+        else
+        {
+            std::vector<std::size_t> streams(n - 1);
+            // Assign streams for the other partitions
+            for(auto&& ins_part : partitions)
             {
-                auto stream = std::min_element(streams.begin(), streams.end()) - streams.begin();
-                set_stream(part, stream + 1);
-                streams[stream] += part.weight;
+                std::sort(ins_part.second.begin(),
+                          ins_part.second.end(),
+                          by(std::greater<>{}, [](auto&& x) {
+                              return std::make_tuple(x.weight, x.instructions.size());
+                          }));
+                for(auto&& part : ins_part.second)
+                {
+                    auto stream =
+                        std::min_element(streams.begin(), streams.end()) - streams.begin();
+                    set_stream(part, stream + 1);
+                    streams[stream] += part.weight;
+                }
+            }
+            return 1 + std::count_if(streams.begin(), streams.end(), [](auto x) { return x > 0; });
+        }
+    }
+
+    using weight_ins = std::pair<std::size_t, instruction_ref>;
+    struct compare_weight_ins
+    {
+        bool operator()(const weight_ins& x, const weight_ins& y) const
+        {
+            return std::make_pair(x.first, std::addressof(*x.second)) <
+                   std::make_pair(y.first, std::addressof(*y.second));
+        }
+    };
+
+    void sort(program& p, std::size_t) const
+    {
+        std::set<weight_ins, compare_weight_ins> children;
+        std::unordered_map<instruction_ref, std::size_t> visited;
+        auto last      = std::prev(p.end());
+        auto mw        = this->weights.at(last);
+        auto nw        = mw / (p.size() + 1);
+        auto add_child = [&](auto ins) {
+            auto x  = 1 + (mw - this->weights.at(ins)) / (nw + 1);
+            auto w  = x * this->iweights.at(ins);
+            auto& v = visited[ins];
+            auto it = children.find(std::make_pair(v * w, ins));
+            if(it == children.end())
+            {
+                v++;
+                children.insert(std::make_pair(v * w, ins));
+            }
+        };
+        add_child(last);
+
+        while(not children.empty())
+        {
+            // Pop the first element
+            auto top = children.begin()->second;
+            children.erase(children.begin());
+
+            p.move_instruction(top, p.begin());
+            for(auto ins : top->inputs())
+            {
+                add_child(ins);
             }
         }
     }
@@ -398,9 +468,10 @@ void schedule::apply(program& p) const
     stream_info si;
     auto last = std::prev(p.end());
     si.accumulate_weights(last, model);
-    si.assign_streams(p, model.concurrency());
+    auto nstreams = si.assign_streams(p, model.concurrency());
+    si.sort(p, model.concurrency());
 
-    if(enabled(MIGRAPHX_TRACE_COMPILE{}))
+    if(enabled(MIGRAPHX_TRACE_COMPILE{}) or enabled(MIGRAPHX_TRACE_SCHEDULE{}))
     {
         p.annotate(std::cout, [&](auto ins) {
             std::cout << ":";
@@ -416,6 +487,10 @@ void schedule::apply(program& p) const
         });
         std::cout << std::endl;
     }
+
+    // No concurrency
+    if(nstreams < 2)
+        return;
 
     // Schedule instructions
     std::size_t wait_id = 0;

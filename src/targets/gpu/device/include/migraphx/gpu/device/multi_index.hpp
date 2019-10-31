@@ -30,12 +30,10 @@ struct multi_index
     }
 };
 
-
-template<class ForStride>
+template <class ForStride>
 auto deduce_for_stride(ForStride fs) -> decltype(fs(id{}));
 
-MIGRAPHX_DEVICE_CONSTEXPR multi_index<1>
-make_multi_index(index_int i, index_int n)
+MIGRAPHX_DEVICE_CONSTEXPR multi_index<1> make_multi_index(index_int i, index_int n)
 {
     return {{i}, {n}};
 }

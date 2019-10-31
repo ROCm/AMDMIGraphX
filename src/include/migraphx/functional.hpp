@@ -209,7 +209,7 @@ auto always(T x)
 
 struct id
 {
-    template<class T>
+    template <class T>
     constexpr T operator()(T&& x) const
     {
         return static_cast<T&&>(x);

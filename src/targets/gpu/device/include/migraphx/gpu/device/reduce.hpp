@@ -177,7 +177,12 @@ __device__ inline void dpp_reduce(float& x, sum)
 #endif
 }
 
-template <index_int N, class Op, class T, class ForStride, class F, MIGRAPHX_REQUIRES(not std::is_integral<ForStride>{})>
+template <index_int N,
+          class Op,
+          class T,
+          class ForStride,
+          class F,
+          MIGRAPHX_REQUIRES(not std::is_integral<ForStride>{})>
 __device__ auto block_reduce(index idx, Op op, T init, ForStride fs, F f)
 {
     using type = decltype(f(deduce_for_stride(fs)));
@@ -207,10 +212,9 @@ __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
     auto midx = make_multi_index(idx.local, idx.nlocal());
     // Workaround hcc, create a local array
     auto fs = midx.id;
-    fs[0] = n;
-    return block_reduce<N>(idx, op, init, midx.for_stride(fs), [&](auto mi) __device__ {
-        return f(mi[0]);
-    });
+    fs[0]   = n;
+    return block_reduce<N>(
+        idx, op, init, midx.for_stride(fs), [&](auto mi) __device__ { return f(mi[0]); });
 }
 
 #endif

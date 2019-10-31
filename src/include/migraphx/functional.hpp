@@ -207,6 +207,15 @@ auto always(T x)
     return always_f<T>{x};
 }
 
+struct id
+{
+    template<class T>
+    constexpr T operator()(T&& x) const
+    {
+        return static_cast<T&&>(x);
+    }
+};
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

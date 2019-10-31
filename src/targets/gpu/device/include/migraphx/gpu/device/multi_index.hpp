@@ -4,6 +4,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/shape.hpp>
+#include <migraphx/functional.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -19,7 +20,8 @@ struct multi_index
 
     MIGRAPHX_DEVICE_CONSTEXPR auto for_stride(hip_index n) const
     {
-        return [=](auto f) {
+        // f should return void, but this helps with type deduction
+        return [=](auto f) -> decltype(f(hip_index{})) {
             for(hip_index i = id; i < n; i = n.carry(i + stride))
             {
                 f(i);
@@ -27,6 +29,16 @@ struct multi_index
         };
     }
 };
+
+
+template<class ForStride>
+auto deduce_for_stride(ForStride fs) -> decltype(fs(id{}));
+
+MIGRAPHX_DEVICE_CONSTEXPR multi_index<1>
+make_multi_index(index_int i, index_int n)
+{
+    return {{i}, {n}};
+}
 
 template <index_int N>
 MIGRAPHX_DEVICE_CONSTEXPR multi_index<N>

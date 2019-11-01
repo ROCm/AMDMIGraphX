@@ -280,7 +280,7 @@ TEST_CASE(stream_free)
     EXPECT(not t.has_stream(one));
     EXPECT(not t.has_stream(onep1));
     EXPECT(not t.has_stream(onep2));
-    EXPECT(t.get_stream(binary) == 0);
+    EXPECT(not t.has_stream(binary));
 }
 
 TEST_CASE(zero_record)
@@ -616,8 +616,9 @@ TEST_CASE(inner_par_merge)
                                                  t.get_stream(outer1),
                                                  t.get_stream(outer2)}));
 
-    EXPECT(t.get_stream(outer1) == 1);
-    EXPECT(t.get_stream(outer2) == 2);
+    EXPECT(t.get_stream(outer1) != t.get_stream(outer2));
+    EXPECT(migraphx::contains({1, 2}, t.get_stream(outer1)));
+    EXPECT(migraphx::contains({1, 2}, t.get_stream(outer2)));
 
     EXPECT(t.get_stream(i1) != t.get_stream(i2));
     for(auto ins : c1)
@@ -704,9 +705,8 @@ TEST_CASE(inner_split1)
     EXPECT(
         get_wait_for(output) ==
         get_wait_for(t.get_stream(output), {t.get_stream(i1), t.get_stream(s1), t.get_stream(s2)}));
-    EXPECT(get_wait_for(s1).empty());
-    // TODO: Remove the extra wait here
-    // EXPECT(get_wait_for(s2).empty());
+    // Either s1 or s2 has a wait depending on the sort order but not both
+    EXPECT(get_wait_for(s1).empty() xor get_wait_for(s2).empty());
     t.check_conflicts(p, {c1, {i1}, {s1}, {s2}});
 }
 

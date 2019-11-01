@@ -242,15 +242,17 @@ void reduce_multi_impl(hipStream_t stream,
 
         const index_int max_block_size = 256;
         const index_int block_size     = compute_block_size(relements, max_block_size);
-        mi_launch(stream, output.get_shape(), reduce_shape, block_size)([=](auto idx, auto global, auto local) __device__ {
-            global([&](auto i) __device__ {
-                auto r = block_reduce<max_block_size>(idx, op, init, local, [&](auto j) __device__ {
-                    return read_input(input[i + j]);
+        mi_launch(stream, output.get_shape(), reduce_shape, block_size)(
+            [=](auto idx, auto global, auto local) __device__ {
+                global([&](auto i) __device__ {
+                    auto r =
+                        block_reduce<max_block_size>(idx, op, init, local, [&](auto j) __device__ {
+                            return read_input(input[i + j]);
+                        });
+                    if(idx.local == 0)
+                        output[i] = read_output(r);
                 });
-                if(idx.local == 0)
-                    output[i] = read_output(r);
             });
-        });
     });
 }
 

@@ -103,14 +103,17 @@ inline auto mi_launch(hipStream_t stream, const hip_shape<N>& global, index_int 
 }
 
 template <index_int N>
-inline auto mi_launch(hipStream_t stream, const hip_shape<N>& global, const hip_shape<N>& local, index_int nlocal = 1024)
+inline auto mi_launch(hipStream_t stream,
+                      const hip_shape<N>& global,
+                      const hip_shape<N>& local,
+                      index_int nlocal = 1024)
 {
     auto nglobal_multi = mi_nglobal(global, 1);
     auto nglobal       = global.index(nglobal_multi);
     auto nlocal_multi  = mi_nlocal(local, nlocal);
 
     return [=](auto f) {
-        launch(stream, nglobal*nlocal, nlocal)([=](auto idx) {
+        launch(stream, nglobal * nlocal, nlocal)([=](auto idx) {
             // TODO: Use fast div for nlocal
             auto midx = make_multi_index(global, idx.global / nlocal, nglobal_multi);
             auto lidx = make_multi_index(local, idx.local, nlocal_multi);

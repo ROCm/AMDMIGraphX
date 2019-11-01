@@ -237,7 +237,6 @@ void reduce_multi_impl(hipStream_t stream,
                        const shape& reduce_slice)
 {
     hip_visit_all(result, arg, reduce_slice)([&](auto output, auto input, auto reduce_shape) {
-        auto nelements = result.get_shape().elements();
         auto relements = reduce_slice.elements();
 
         const index_int max_block_size = 256;

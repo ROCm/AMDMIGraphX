@@ -25,7 +25,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_NARY);
         std::cout << "nary device function: " << __PRETTY_FUNCTION__ << std::endl;
 
 template <class... Ts>
-auto pack(Ts... xs) __device__
+constexpr auto pack(Ts... xs)
 {
     return [=](auto f) { return f(xs...); };
 }

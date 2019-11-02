@@ -61,13 +61,13 @@ inline auto launch(hipStream_t stream, index_int global, index_int local)
 }
 
 template <class F>
-__host__ __device__ auto gs_invoke(F&& f, index_int i, index idx) -> decltype(f(i, idx))
+MIGRAPHX_DEVICE_CONSTEXPR auto gs_invoke(F&& f, index_int i, index idx) -> decltype(f(i, idx))
 {
     return f(i, idx);
 }
 
 template <class F>
-__host__ __device__ auto gs_invoke(F&& f, index_int i, index) -> decltype(f(i))
+MIGRAPHX_DEVICE_CONSTEXPR auto gs_invoke(F&& f, index_int i, index) -> decltype(f(i))
 {
     return f(i);
 }

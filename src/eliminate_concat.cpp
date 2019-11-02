@@ -21,7 +21,9 @@ void eliminate_concat::apply(program& p) const
         // If any inputs are used more than once, then abort since there could
         // be errors due to aliasing
         if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto arg) {
-               return arg->name().front() == '@' or (arg->get_operator().is_context_free() and not contains({"concat", "identity"}, arg->name())) or
+               return arg->name().front() == '@' or
+                      (arg->get_operator().is_context_free() and
+                       not contains({"concat", "identity"}, arg->name())) or
                       arg->outputs().size() > 1;
            }))
             continue;

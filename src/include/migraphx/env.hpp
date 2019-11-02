@@ -19,7 +19,7 @@ bool enabled(const char* name);
 bool disabled(const char* name);
 std::vector<std::string> env(const char* name);
 
-std::size_t value_of(const char* name);
+std::size_t value_of(const char* name, std::size_t fallback = 0);
 
 template <class T>
 bool enabled(T)
@@ -36,9 +36,9 @@ bool disabled(T)
 }
 
 template <class T>
-std::size_t value_of(T)
+std::size_t value_of(T, std::size_t fallback = 0)
 {
-    static const std::size_t result = value_of(T::value());
+    static const std::size_t result = value_of(T::value(), fallback);
     return result;
 }
 

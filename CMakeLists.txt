@@ -72,6 +72,7 @@ rocm_enable_clang_tidy(
         -google-runtime-references
         -hicpp-braces-around-statements
         -hicpp-explicit-conversions
+        -hicpp-member-init
         -hicpp-no-array-decay
         -hicpp-special-member-functions
         -hicpp-uppercase-literal-suffix
@@ -80,9 +81,11 @@ rocm_enable_clang_tidy(
         -llvm-header-guard
         -llvm-include-order
         -misc-macro-parentheses
-        -modernize-use-override
+        -modernize-concat-nested-namespaces
         -modernize-pass-by-value
         -modernize-use-default-member-init
+        -modernize-use-nodiscard
+        -modernize-use-override
         -modernize-use-trailing-return-type
         -modernize-use-transparent-functors
         -performance-type-promotion-in-math-fn

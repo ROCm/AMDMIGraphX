@@ -384,25 +384,26 @@ argument generic_eval(const program& p,
     values.reserve(16);
     for(auto ins : iterator_for(p))
     {
-        if(ins->name() == "@literal")
+        const auto& name = ins->name();
+        if(name == "@literal")
         {
             results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
         }
-        else if(ins->name() == "@param")
+        else if(name == "@param")
         {
             results.emplace(
                 ins, trace(ins, [&] {
                     auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
                     if(not contains(params, param_name))
                         MIGRAPHX_THROW("Parameter not found: " + param_name);
-                    auto param = params.at(param_name);
+                    auto param = params[param_name];
                     if(param.get_shape() != ins->get_shape())
                         MIGRAPHX_THROW("Incorrect shape {" + to_string(param.get_shape()) +
                                        "} for parameter: " + param_name);
                     return param;
                 }));
         }
-        else if(ins->name() == "@outline")
+        else if(name == "@outline")
         {
             results.emplace(ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
         }
@@ -538,10 +539,16 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 
     os << std::endl;
     os << "Summary:" << std::endl;
-    for(auto&& p : op_times)
+    std::vector<std::pair<double, std::string>> op_times_sorted;
+    std::transform(op_times.begin(),
+                   op_times.end(),
+                   std::back_inserter(op_times_sorted),
+                   [](auto p) { return std::make_pair(p.second, p.first); });
+    std::sort(op_times_sorted.begin(), op_times_sorted.end(), std::greater<>{});
+    for(auto&& p : op_times_sorted)
     {
-        auto&& name    = p.first;
-        double avg     = p.second;
+        auto&& name    = p.second;
+        double avg     = p.first;
         double percent = std::ceil(100.0 * avg / total_instruction_time);
         os << name << ": " << avg << "ms, " << percent << "%" << std::endl;
     }

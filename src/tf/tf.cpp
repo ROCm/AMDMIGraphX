@@ -809,17 +809,18 @@ struct tf_parser
         return prog.add_instruction(Op{axis}, make_contiguous(args[0]));
     }
 
-    instruction_ref
-    parse_split(const std::string& name, const attribute_map& attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_split(const std::string& name,
+                                const attribute_map& attributes,
+                                std::vector<instruction_ref> args)
     {
         bool vector_as_input = args.size() == 3;
-        int num_outputs = 1;
-        auto axis_arg = args[0];
-        auto input_arg = args[1];
+        int num_outputs      = 1;
+        auto axis_arg        = args[0];
+        auto input_arg       = args[1];
         if(vector_as_input)
         {
             input_arg = args[0];
-            axis_arg = args[2];            
+            axis_arg  = args[2];
         }
 
         if(contains(attributes, "num_split"))
@@ -829,22 +830,21 @@ struct tf_parser
         std::vector<int> slice_pos{0};
         if(vector_as_input)
         {
-            splits = args[1]->eval().get<int32_t>().to_vector();
+            splits      = args[1]->eval().get<int32_t>().to_vector();
             num_outputs = splits.size();
         }
-        
-        if (num_outputs == 1)
+
+        if(num_outputs == 1)
             return prog.add_instruction(op::identity{}, input_arg);
-        
-        
+
         auto lens     = input_arg->get_shape().lens();
         auto num_dims = lens.size();
-        int axis   = axis_arg->eval().at<int32_t>();
+        int axis      = axis_arg->eval().at<int32_t>();
 
         // ensure split is made evenly if "num_split" is used
-        if (not vector_as_input)
+        if(not vector_as_input)
             assert(lens[axis] % num_outputs == 0);
-        
+
         auto split_size = lens[axis] / num_outputs;
 
         // push back first end point of slice
@@ -876,16 +876,16 @@ struct tf_parser
             op::slice op;
             op.axes = std::vector<int64_t>(num_dims);
             std::iota(op.axes.begin(), op.axes.end(), 0);
-            op.starts       = std::vector<int64_t>(num_dims, 0);
-            op.ends         = std::vector<int64_t>(lens.begin(), lens.end());
-            
+            op.starts = std::vector<int64_t>(num_dims, 0);
+            op.ends   = std::vector<int64_t>(lens.begin(), lens.end());
+
             op.starts[axis] = slice_pos[i];
             op.ends[axis]   = slice_pos[i + 1];
             if(i == 0)
                 result = prog.add_instruction(op, input_arg);
             else
             {
-                auto new_name = name + ':' + std::to_string(i);
+                auto new_name          = name + ':' + std::to_string(i);
                 instructions[new_name] = prog.add_instruction(op, input_arg);
             }
         }
@@ -1037,14 +1037,14 @@ struct tf_parser
                         assert(name != iname);
                         this->parse_node(iname);
                         args.push_back(instructions.at(iname));
-                    }   
+                    }
                 }
                 else
                 {
                     args.push_back(instructions.at(input));
                 }
             }
-             
+
             if(node.op() == "Split" or node.op() == "SplitV")
             {
                 instructions[name] = parse_split(name, get_attributes(node), args);

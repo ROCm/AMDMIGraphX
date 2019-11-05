@@ -200,7 +200,6 @@ struct tf_parser
         add_mem_op("Pad", &tf_parser::parse_pad);
         add_mem_op("Reshape", &tf_parser::parse_reshape, false);
         add_mem_op("Slice", &tf_parser::parse_slice, false);
-        add_mem_op("Split", &tf_parser::parse_split, false);
         add_mem_op("Softmax", &tf_parser::parse_softmax<op::softmax>, false);
         add_mem_op("Squeeze", &tf_parser::parse_squeeze, false);
         add_mem_op("StridedSlice", &tf_parser::parse_stridedslice, false);
@@ -811,9 +810,86 @@ struct tf_parser
     }
 
     instruction_ref
-    parse_split(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    parse_split(const std::string& name, const attribute_map& attributes, std::vector<instruction_ref> args)
     {
-        return prog.add_instruction(op::identity{}, args[1]);
+        bool vector_as_input = args.size() == 3;
+        int num_outputs = 1;
+        auto axis_arg = args[0];
+        auto input_arg = args[1];
+        if(vector_as_input)
+        {
+            input_arg = args[0];
+            axis_arg = args[2];            
+        }
+
+        if(contains(attributes, "num_split"))
+            num_outputs = attributes.at("num_split").i();
+
+        std::vector<int> splits(num_outputs);
+        std::vector<int> slice_pos{0};
+        if(vector_as_input)
+        {
+            splits = args[1]->eval().get<int32_t>().to_vector();
+            num_outputs = splits.size();
+        }
+        
+        if (num_outputs == 1)
+            return prog.add_instruction(op::identity{}, input_arg);
+        
+        
+        auto lens     = input_arg->get_shape().lens();
+        auto num_dims = lens.size();
+        int axis   = axis_arg->eval().at<int32_t>();
+
+        // ensure split is made evenly if "num_split" is used
+        if (not vector_as_input)
+            assert(lens[axis] % num_outputs == 0);
+        
+        auto split_size = lens[axis] / num_outputs;
+
+        // push back first end point of slice
+        if(vector_as_input)
+        {
+            slice_pos.push_back(splits[0]);
+        }
+        else
+        {
+            slice_pos.push_back(split_size);
+        }
+
+        // calculate remaining end points for each slice
+        for(auto i = 1; i < num_outputs; i++)
+        {
+            if(vector_as_input)
+            {
+                splits[i] += splits[i - 1];
+                slice_pos.push_back(splits[i]);
+            }
+            else
+            {
+                slice_pos.push_back((i + 1) * split_size);
+            }
+        }
+        instruction_ref result;
+        for(auto i = 0; i < num_outputs; i++)
+        {
+            op::slice op;
+            op.axes = std::vector<int64_t>(num_dims);
+            std::iota(op.axes.begin(), op.axes.end(), 0);
+            op.starts       = std::vector<int64_t>(num_dims, 0);
+            op.ends         = std::vector<int64_t>(lens.begin(), lens.end());
+            
+            op.starts[axis] = slice_pos[i];
+            op.ends[axis]   = slice_pos[i + 1];
+            if(i == 0)
+                result = prog.add_instruction(op, input_arg);
+            else
+            {
+                auto new_name = name + ':' + std::to_string(i);
+                instructions[new_name] = prog.add_instruction(op, input_arg);
+            }
+        }
+        return result;
     }
 
     instruction_ref parse_squeeze(const std::string&,
@@ -946,17 +1022,34 @@ struct tf_parser
                     continue;
                 if(nodes.count(input) > 0)
                 {
-                    auto&& iname = get_name(nodes.at(input));
-                    assert(name != iname);
-                    this->parse_node(iname);
-                    args.push_back(instructions.at(iname));
+                    std::string iname;
+                    // input was from a node with multiple outputs
+                    if(contains(input, ':'))
+                    {
+                        auto orig_iname = input.substr(0, input.find(':'));
+                        assert(name != orig_iname);
+                        this->parse_node(orig_iname);
+                        args.push_back(instructions.at(input));
+                    }
+                    else
+                    {
+                        iname = get_name(nodes.at(input));
+                        assert(name != iname);
+                        this->parse_node(iname);
+                        args.push_back(instructions.at(iname));
+                    }   
                 }
                 else
                 {
                     args.push_back(instructions.at(input));
                 }
             }
-            if(ops.count(node.op()) == 0)
+             
+            if(node.op() == "Split" or node.op() == "SplitV")
+            {
+                instructions[name] = parse_split(name, get_attributes(node), args);
+            }
+            else if(ops.count(node.op()) == 0)
             {
                 instructions[name] = prog.add_instruction(op::unknown{node.op()}, args);
             }

@@ -834,7 +834,8 @@ struct tf_parser
             num_outputs = splits.size();
         }
 
-        assert(num_outputs > 0);
+        if(num_outputs == 0)
+            MIGRAPHX_THROW("number of outputs cannot be 0");
 
         if(num_outputs == 1)
             return prog.add_instruction(op::identity{}, input_arg);

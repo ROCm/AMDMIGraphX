@@ -834,6 +834,8 @@ struct tf_parser
             num_outputs = splits.size();
         }
 
+        assert(num_outputs > 0);
+
         if(num_outputs == 1)
             return prog.add_instruction(op::identity{}, input_arg);
 
@@ -842,8 +844,7 @@ struct tf_parser
         int axis      = axis_arg->eval().at<int32_t>();
 
         // ensure split is made evenly if "num_split" is used
-        if(not vector_as_input)
-            assert(lens[axis] % num_outputs == 0);
+        assert(vector_as_input or lens[axis] % num_outputs == 0);
 
         auto split_size = lens[axis] / num_outputs;
 

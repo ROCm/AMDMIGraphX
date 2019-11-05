@@ -10,7 +10,7 @@ namespace gpu {
 namespace device {
 
 template <class F>
-void visit_tensor_size(index_int n, F f)
+constexpr void visit_tensor_size(index_int n, F f)
 {
     switch(n)
     {

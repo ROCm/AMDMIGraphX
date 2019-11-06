@@ -899,13 +899,6 @@ struct tf_parser
             op.starts[axis] = slice_pos[i];
             op.ends[axis]   = slice_pos[i + 1];
             result.push_back(prog.add_instruction(op, input_arg));
-            // if(i == 0)
-            //     result = prog.add_instruction(op, input_arg);
-            // else
-            // {
-            //     auto new_name          = name + ':' + std::to_string(i);
-            //     instructions[new_name] = prog.add_instruction(op, input_arg);
-            // }
         }
         return result;
     }
@@ -1063,10 +1056,6 @@ struct tf_parser
                 }
             }
 
-            // if(node.op() == "Split" or node.op() == "SplitV")
-            // {
-            //     instructions[name] = parse_split(name, get_attributes(node), args);
-            // }
             std::vector<instruction_ref> result;
             if(ops.count(node.op()) == 0)
             {
@@ -1076,7 +1065,7 @@ struct tf_parser
             {
                 result = ops[node.op()](get_attributes(node), args);
             }
-            // Even no output nodes produce output in migraphx
+            // First output has no ":" delimiter
             instructions[name] = result.front();
             for(size_t i = 1; i < result.size(); i++)
             {

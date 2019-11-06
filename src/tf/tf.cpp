@@ -26,7 +26,8 @@ struct tf_parser
 {
     using attribute_map = std::unordered_map<std::string, tensorflow::AttrValue>;
     using node_map      = std::map<std::string, tensorflow::NodeDef>;
-    using op_func = std::function<std::vector<instruction_ref>(attribute_map, std::vector<instruction_ref>)>;
+    using op_func =
+        std::function<std::vector<instruction_ref>(attribute_map, std::vector<instruction_ref>)>;
 
     node_map nodes;
     std::vector<tensorflow::NodeDef> input_nodes;
@@ -221,15 +222,17 @@ struct tf_parser
     {
         if(transpose)
         {
-            ops.emplace(name,
-                        op_func{[=](const attribute_map& attributes,
-                                    const std::vector<instruction_ref>& args) {
-                            return std::vector<instruction_ref>{to_nhwc(f(attributes, to_nchw(args)))};
-                        }});
+            ops.emplace(
+                name,
+                op_func{
+                    [=](const attribute_map& attributes, const std::vector<instruction_ref>& args) {
+                        return std::vector<instruction_ref>{to_nhwc(f(attributes, to_nchw(args)))};
+                    }});
         }
         else
         {
-            ops.emplace(name,  op_func{[=](const attribute_map& attributes,
+            ops.emplace(name,
+                        op_func{[=](const attribute_map& attributes,
                                     const std::vector<instruction_ref>& args) {
                             return std::vector<instruction_ref>{f(attributes, args)};
                         }});
@@ -823,8 +826,8 @@ struct tf_parser
     }
 
     std::vector<instruction_ref> parse_split(const std::string&,
-                                const attribute_map& attributes,
-                                std::vector<instruction_ref> args)
+                                             const attribute_map& attributes,
+                                             std::vector<instruction_ref> args)
     {
         bool vector_as_input = args.size() == 3;
         int num_outputs      = 1;

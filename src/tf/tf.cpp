@@ -26,7 +26,7 @@ struct tf_parser
 {
     using attribute_map = std::unordered_map<std::string, tensorflow::AttrValue>;
     using node_map      = std::map<std::string, tensorflow::NodeDef>;
-    using op_func = std::function<instruction_ref(attribute_map, std::vector<instruction_ref>)>;
+    using op_func = std::function<std::vector<instruction_ref>(attribute_map, std::vector<instruction_ref>)>;
 
     node_map nodes;
     std::vector<tensorflow::NodeDef> input_nodes;
@@ -75,6 +75,14 @@ struct tf_parser
         std::vector<instruction_ref> result(args.size());
         std::transform(
             args.begin(), args.end(), result.begin(), [&](auto ins) { return this->to_nchw(ins); });
+        return result;
+    }
+
+    std::vector<instruction_ref> to_nhwc(const std::vector<instruction_ref>& args)
+    {
+        std::vector<instruction_ref> result(args.size());
+        std::transform(
+            args.begin(), args.end(), result.begin(), [&](auto ins) { return this->to_nhwc(ins); });
         return result;
     }
 
@@ -200,6 +208,8 @@ struct tf_parser
         add_mem_op("Pad", &tf_parser::parse_pad);
         add_mem_op("Reshape", &tf_parser::parse_reshape, false);
         add_mem_op("Slice", &tf_parser::parse_slice, false);
+        add_mem_op("Split", &tf_parser::parse_split, false);
+        add_mem_op("SplitV", &tf_parser::parse_split, false);
         add_mem_op("Softmax", &tf_parser::parse_softmax<op::softmax>, false);
         add_mem_op("Squeeze", &tf_parser::parse_squeeze, false);
         add_mem_op("StridedSlice", &tf_parser::parse_stridedslice, false);
@@ -213,13 +223,16 @@ struct tf_parser
         {
             ops.emplace(name,
                         op_func{[=](const attribute_map& attributes,
-                                    const std::vector<instruction_ref>& args) -> instruction_ref {
-                            return to_nhwc(f(attributes, to_nchw(args)));
+                                    const std::vector<instruction_ref>& args) {
+                            return std::vector<instruction_ref>{to_nhwc(f(attributes, to_nchw(args)))};
                         }});
         }
         else
         {
-            ops.emplace(name, f);
+            ops.emplace(name,  op_func{[=](const attribute_map& attributes,
+                                    const std::vector<instruction_ref>& args) {
+                            return std::vector<instruction_ref>{f(attributes, args)};
+                        }});
         }
     }
 
@@ -809,7 +822,7 @@ struct tf_parser
         return prog.add_instruction(Op{axis}, make_contiguous(args[0]));
     }
 
-    instruction_ref parse_split(const std::string& name,
+    std::vector<instruction_ref> parse_split(const std::string&,
                                 const attribute_map& attributes,
                                 std::vector<instruction_ref> args)
     {
@@ -834,11 +847,10 @@ struct tf_parser
             num_outputs = splits.size();
         }
 
-        if(num_outputs == 0)
-            MIGRAPHX_THROW("number of outputs cannot be 0");
+        assert(num_outputs > 0);
 
         if(num_outputs == 1)
-            return prog.add_instruction(op::identity{}, input_arg);
+            return std::vector<instruction_ref>{prog.add_instruction(op::identity{}, input_arg)};
 
         auto lens     = input_arg->get_shape().lens();
         auto num_dims = lens.size();
@@ -872,7 +884,7 @@ struct tf_parser
                 slice_pos.push_back((i + 1) * split_size);
             }
         }
-        instruction_ref result;
+        std::vector<instruction_ref> result;
         for(auto i = 0; i < num_outputs; i++)
         {
             op::slice op;
@@ -883,13 +895,14 @@ struct tf_parser
 
             op.starts[axis] = slice_pos[i];
             op.ends[axis]   = slice_pos[i + 1];
-            if(i == 0)
-                result = prog.add_instruction(op, input_arg);
-            else
-            {
-                auto new_name          = name + ':' + std::to_string(i);
-                instructions[new_name] = prog.add_instruction(op, input_arg);
-            }
+            result.push_back(prog.add_instruction(op, input_arg));
+            // if(i == 0)
+            //     result = prog.add_instruction(op, input_arg);
+            // else
+            // {
+            //     auto new_name          = name + ':' + std::to_string(i);
+            //     instructions[new_name] = prog.add_instruction(op, input_arg);
+            // }
         }
         return result;
     }
@@ -1047,17 +1060,24 @@ struct tf_parser
                 }
             }
 
-            if(node.op() == "Split" or node.op() == "SplitV")
+            // if(node.op() == "Split" or node.op() == "SplitV")
+            // {
+            //     instructions[name] = parse_split(name, get_attributes(node), args);
+            // }
+            std::vector<instruction_ref> result;
+            if(ops.count(node.op()) == 0)
             {
-                instructions[name] = parse_split(name, get_attributes(node), args);
-            }
-            else if(ops.count(node.op()) == 0)
-            {
-                instructions[name] = prog.add_instruction(op::unknown{node.op()}, args);
+                result.push_back(prog.add_instruction(op::unknown{node.op()}, args));
             }
             else
             {
-                instructions[name] = ops[node.op()](get_attributes(node), args);
+                result = ops[node.op()](get_attributes(node), args);
+            }
+            // Even no output nodes produce output in migraphx
+            instructions[name] = result.front();
+            for(size_t i = 1; i < result.size(); i++)
+            {
+                instructions[name + ":" + std::to_string(i)] = result.at(i);
             }
         }
     }

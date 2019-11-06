@@ -218,7 +218,7 @@ struct tf_parser
     }
 
     template <class F>
-    void add_op(std::string name, F f, bool transpose = true)
+    void add_op(const std::string& name, F f, bool transpose = true)
     {
         if(transpose)
         {
@@ -1037,17 +1037,15 @@ struct tf_parser
                     // input was from a node with multiple outputs
                     if(contains(input, ':'))
                     {
-                        auto orig_iname = input.substr(0, input.find(':'));
-                        assert(name != orig_iname);
-                        this->parse_node(orig_iname);
-                        args.push_back(instructions.at(input));
+                        iname = input.substr(0, input.find(':'));
                     }
                     else
                     {
                         iname = get_name(nodes.at(input));
-                        assert(name != iname);
-                        this->parse_node(iname);
-                        args.push_back(instructions.at(iname));
+                    }
+                    assert(name != iname);
+                    this->parse_node(iname);
+                    args.push_back(instructions.at(input));
                     }
                 }
                 else
@@ -1065,6 +1063,8 @@ struct tf_parser
             {
                 result = ops[node.op()](get_attributes(node), args);
             }
+
+            assert(result.size() > 0);
             // First output has no ":" delimiter
             instructions[name] = result.front();
             for(size_t i = 1; i < result.size(); i++)

@@ -1047,29 +1047,31 @@ struct tf_parser
                     this->parse_node(iname);
                     args.push_back(instructions.at(input));
                 }
+                else
+                {
+                    args.push_back(instructions.at(input));
+                }
             }
-            else { args.push_back(instructions.at(input)); }
-        }
 
-        std::vector<instruction_ref> result;
-        if(ops.count(node.op()) == 0)
-        {
-            result.push_back(prog.add_instruction(op::unknown{node.op()}, args));
-        }
-        else
-        {
-            result = ops[node.op()](get_attributes(node), args);
-        }
+            std::vector<instruction_ref> result;
+            if(ops.count(node.op()) == 0)
+            {
+                result.push_back(prog.add_instruction(op::unknown{node.op()}, args));
+            }
+            else
+            {
+                result = ops[node.op()](get_attributes(node), args);
+            }
 
-        assert(result.size() > 0);
-        // First output has no ":" delimiter
-        instructions[name] = result.front();
-        for(size_t i = 1; i < result.size(); i++)
-        {
-            instructions[name + ":" + std::to_string(i)] = result.at(i);
+            assert(result.size() > 0);
+            // First output has no ":" delimiter
+            instructions[name] = result.front();
+            for(size_t i = 1; i < result.size(); i++)
+            {
+                instructions[name + ":" + std::to_string(i)] = result.at(i);
+            }
         }
     }
-}
 
 static attribute_map
 get_attributes(const tensorflow::NodeDef& node)

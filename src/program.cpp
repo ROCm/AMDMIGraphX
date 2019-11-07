@@ -345,15 +345,15 @@ instruction_ref program::validate() const
                         [&](const instruction& i) { return !i.valid(impl->instructions.begin()); });
 }
 
-void program::compile(const target& t, tracer trace)
+void program::compile(const target& t, compile_options options)
 {
     assert(this->validate() == impl->instructions.end());
     this->impl->ctx = t.get_context();
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
-        trace = tracer{std::cout};
-    trace(*this);
-    trace();
-    run_passes(*this, t.get_passes(this->impl->ctx), trace);
+        options.trace = tracer{std::cout};
+    options.trace(*this);
+    options.trace();
+    run_passes(*this, t.get_passes(this->impl->ctx), options.trace);
     auto invalid = this->validate();
     if(invalid != impl->instructions.end())
     {

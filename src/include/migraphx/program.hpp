@@ -8,7 +8,7 @@
 #include <migraphx/builtin.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/target.hpp>
-#include <migraphx/tracer.hpp>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
 #include <algorithm>
@@ -107,7 +107,7 @@ struct program
 
     instruction_ref validate() const;
 
-    void compile(const target& t, tracer trace = tracer{});
+    void compile(const target& t, compile_options options = compile_options{});
 
     void finalize();
 

@@ -1063,7 +1063,7 @@ struct tf_parser
                 result = ops[node.op()](get_attributes(node), args);
             }
 
-            assert(result.size() > 0);
+            assert(!result.empty());
             // First output has no ":" delimiter
             instructions[name] = result.front();
             for(size_t i = 1; i < result.size(); i++)
@@ -1073,116 +1073,195 @@ struct tf_parser
         }
     }
 
-static attribute_map
-get_attributes(const tensorflow::NodeDef& node)
-{
-    attribute_map result;
-    for(auto&& attr : node.attr())
+    static attribute_map get_attributes(const tensorflow::NodeDef& node)
     {
-        result[attr.first] = attr.second;
-    }
-    return result;
-}
-
-static std::string get_name(const tensorflow::NodeDef& node) { return node.name(); }
-
-static node_map get_nodes(const tensorflow::GraphDef& graph,
-                          std::vector<tensorflow::NodeDef>& input_nodes)
-{
-    node_map result;
-    for(auto&& node : graph.node())
-    {
-        auto node_name = get_name(node);
-        // assume each node in graph has an associated name
-        if(node_name.empty())
-            MIGRAPHX_THROW("tf node with no name found");
-        result[node_name] = node;
-        if(node.op() == "Placeholder")
+        attribute_map result;
+        for(auto&& attr : node.attr())
         {
-            input_nodes.push_back(node);
+            result[attr.first] = attr.second;
         }
+        return result;
     }
-    return result;
-}
 
-static shape::type_t parse_type(const tensorflow::DataType t)
-{
-    shape::type_t shape_type{};
-    switch(t)
+    static std::string get_name(const tensorflow::NodeDef& node) { return node.name(); }
+
+    static node_map get_nodes(const tensorflow::GraphDef& graph,
+                              std::vector<tensorflow::NodeDef>& input_nodes)
     {
-    case tensorflow::DataType::DT_FLOAT: shape_type = shape::float_type; break;
-    case tensorflow::DataType::DT_DOUBLE: shape_type = shape::double_type; break;
-    case tensorflow::DataType::DT_INT32: shape_type = shape::int32_type; break;
-    case tensorflow::DataType::DT_INT16: shape_type = shape::int16_type; break;
-    case tensorflow::DataType::DT_INT8: shape_type = shape::int8_type; break;
-    case tensorflow::DataType::DT_INT64: shape_type = shape::int64_type; break;
-    case tensorflow::DataType::DT_UINT16: shape_type = shape::uint16_type; break;
-    case tensorflow::DataType::DT_HALF: shape_type = shape::half_type; break;
-    case tensorflow::DataType::DT_UINT32: shape_type = shape::uint32_type; break;
-    case tensorflow::DataType::DT_UINT64: shape_type = shape::uint64_type; break;
-
-    case tensorflow::DataType::DT_INVALID:
-    case tensorflow::DataType::DT_UINT8:
-    case tensorflow::DataType::DT_STRING:
-    case tensorflow::DataType::DT_COMPLEX64:
-    case tensorflow::DataType::DT_BOOL:
-    case tensorflow::DataType::DT_QINT8:
-    case tensorflow::DataType::DT_QUINT8:
-    case tensorflow::DataType::DT_QINT32:
-    case tensorflow::DataType::DT_BFLOAT16:
-    case tensorflow::DataType::DT_QINT16:
-    case tensorflow::DataType::DT_QUINT16:
-    case tensorflow::DataType::DT_COMPLEX128:
-    case tensorflow::DataType::DT_RESOURCE:
-    case tensorflow::DataType::DT_VARIANT:
-    // tf pb should not use these types
-    case tensorflow::DataType::DT_FLOAT_REF:
-    case tensorflow::DataType::DT_DOUBLE_REF:
-    case tensorflow::DataType::DT_INT32_REF:
-    case tensorflow::DataType::DT_UINT8_REF:
-    case tensorflow::DataType::DT_INT16_REF:
-    case tensorflow::DataType::DT_INT8_REF:
-    case tensorflow::DataType::DT_STRING_REF:
-    case tensorflow::DataType::DT_COMPLEX64_REF:
-    case tensorflow::DataType::DT_INT64_REF:
-    case tensorflow::DataType::DT_BOOL_REF:
-    case tensorflow::DataType::DT_QINT8_REF:
-    case tensorflow::DataType::DT_QUINT8_REF:
-    case tensorflow::DataType::DT_QINT32_REF:
-    case tensorflow::DataType::DT_BFLOAT16_REF:
-    case tensorflow::DataType::DT_QINT16_REF:
-    case tensorflow::DataType::DT_QUINT16_REF:
-    case tensorflow::DataType::DT_UINT16_REF:
-    case tensorflow::DataType::DT_COMPLEX128_REF:
-    case tensorflow::DataType::DT_HALF_REF:
-    case tensorflow::DataType::DT_RESOURCE_REF:
-    case tensorflow::DataType::DT_VARIANT_REF:
-    case tensorflow::DataType::DT_UINT32_REF:
-    case tensorflow::DataType::DT_UINT64_REF:
-    case tensorflow::DataType::DataType_INT_MAX_SENTINEL_DO_NOT_USE_:
-    case tensorflow::DataType::DataType_INT_MIN_SENTINEL_DO_NOT_USE_: break;
+        node_map result;
+        for(auto&& node : graph.node())
+        {
+            auto node_name = get_name(node);
+            // assume each node in graph has an associated name
+            if(node_name.empty())
+                MIGRAPHX_THROW("tf node with no name found");
+            result[node_name] = node;
+            if(node.op() == "Placeholder")
+            {
+                input_nodes.push_back(node);
+            }
+        }
+        return result;
     }
-    return shape_type;
-}
 
-static literal parse_tensor(const tensorflow::TensorProto& t)
-{
-    std::vector<size_t> dims = parse_dims(t.tensor_shape());
-    size_t shape_size = std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<size_t>());
-    if(!t.tensor_content().empty()) // has raw data
+    static shape::type_t parse_type(const tensorflow::DataType t)
     {
-        const std::string& s = t.tensor_content();
+        shape::type_t shape_type{};
+        switch(t)
+        {
+        case tensorflow::DataType::DT_FLOAT: shape_type = shape::float_type; break;
+        case tensorflow::DataType::DT_DOUBLE: shape_type = shape::double_type; break;
+        case tensorflow::DataType::DT_INT32: shape_type = shape::int32_type; break;
+        case tensorflow::DataType::DT_INT16: shape_type = shape::int16_type; break;
+        case tensorflow::DataType::DT_INT8: shape_type = shape::int8_type; break;
+        case tensorflow::DataType::DT_INT64: shape_type = shape::int64_type; break;
+        case tensorflow::DataType::DT_UINT16: shape_type = shape::uint16_type; break;
+        case tensorflow::DataType::DT_HALF: shape_type = shape::half_type; break;
+        case tensorflow::DataType::DT_UINT32: shape_type = shape::uint32_type; break;
+        case tensorflow::DataType::DT_UINT64: shape_type = shape::uint64_type; break;
+
+        case tensorflow::DataType::DT_INVALID:
+        case tensorflow::DataType::DT_UINT8:
+        case tensorflow::DataType::DT_STRING:
+        case tensorflow::DataType::DT_COMPLEX64:
+        case tensorflow::DataType::DT_BOOL:
+        case tensorflow::DataType::DT_QINT8:
+        case tensorflow::DataType::DT_QUINT8:
+        case tensorflow::DataType::DT_QINT32:
+        case tensorflow::DataType::DT_BFLOAT16:
+        case tensorflow::DataType::DT_QINT16:
+        case tensorflow::DataType::DT_QUINT16:
+        case tensorflow::DataType::DT_COMPLEX128:
+        case tensorflow::DataType::DT_RESOURCE:
+        case tensorflow::DataType::DT_VARIANT:
+        // tf pb should not use these types
+        case tensorflow::DataType::DT_FLOAT_REF:
+        case tensorflow::DataType::DT_DOUBLE_REF:
+        case tensorflow::DataType::DT_INT32_REF:
+        case tensorflow::DataType::DT_UINT8_REF:
+        case tensorflow::DataType::DT_INT16_REF:
+        case tensorflow::DataType::DT_INT8_REF:
+        case tensorflow::DataType::DT_STRING_REF:
+        case tensorflow::DataType::DT_COMPLEX64_REF:
+        case tensorflow::DataType::DT_INT64_REF:
+        case tensorflow::DataType::DT_BOOL_REF:
+        case tensorflow::DataType::DT_QINT8_REF:
+        case tensorflow::DataType::DT_QUINT8_REF:
+        case tensorflow::DataType::DT_QINT32_REF:
+        case tensorflow::DataType::DT_BFLOAT16_REF:
+        case tensorflow::DataType::DT_QINT16_REF:
+        case tensorflow::DataType::DT_QUINT16_REF:
+        case tensorflow::DataType::DT_UINT16_REF:
+        case tensorflow::DataType::DT_COMPLEX128_REF:
+        case tensorflow::DataType::DT_HALF_REF:
+        case tensorflow::DataType::DT_RESOURCE_REF:
+        case tensorflow::DataType::DT_VARIANT_REF:
+        case tensorflow::DataType::DT_UINT32_REF:
+        case tensorflow::DataType::DT_UINT64_REF:
+        case tensorflow::DataType::DataType_INT_MAX_SENTINEL_DO_NOT_USE_:
+        case tensorflow::DataType::DataType_INT_MIN_SENTINEL_DO_NOT_USE_: break;
+        }
+        return shape_type;
+    }
+
+    static literal parse_tensor(const tensorflow::TensorProto& t)
+    {
+        std::vector<size_t> dims = parse_dims(t.tensor_shape());
+        size_t shape_size = std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<size_t>());
+        if(!t.tensor_content().empty()) // has raw data
+        {
+            const std::string& s = t.tensor_content();
+            switch(t.dtype())
+            {
+            case tensorflow::DataType::DT_FLOAT:
+                return literal{{shape::float_type, dims}, s.data()};
+            case tensorflow::DataType::DT_BOOL:
+            case tensorflow::DataType::DT_INT8: return literal{{shape::int8_type, dims}, s.data()};
+            case tensorflow::DataType::DT_UINT16:
+            case tensorflow::DataType::DT_INT16:
+                return literal{{shape::int16_type, dims}, s.data()};
+            case tensorflow::DataType::DT_INT32:
+                return literal{{shape::int32_type, dims}, s.data()};
+            case tensorflow::DataType::DT_INT64:
+                return literal{{shape::int64_type, dims}, s.data()};
+            case tensorflow::DataType::DT_HALF: return literal{{shape::half_type, dims}, s.data()};
+            case tensorflow::DataType::DT_DOUBLE:
+                return literal{{shape::double_type, dims}, s.data()};
+            case tensorflow::DataType::DT_INVALID:
+            case tensorflow::DataType::DT_UINT8:
+            case tensorflow::DataType::DT_STRING:
+            case tensorflow::DataType::DT_UINT32:
+            case tensorflow::DataType::DT_UINT64:
+            case tensorflow::DataType::DT_COMPLEX64:
+            case tensorflow::DataType::DT_COMPLEX128:
+            case tensorflow::DataType::DT_QINT8:
+            case tensorflow::DataType::DT_QUINT8:
+            case tensorflow::DataType::DT_QINT32:
+            case tensorflow::DataType::DT_BFLOAT16:
+            case tensorflow::DataType::DT_QINT16:
+            case tensorflow::DataType::DT_QUINT16:
+            case tensorflow::DataType::DT_RESOURCE:
+            case tensorflow::DataType::DT_VARIANT:
+            case tensorflow::DataType::DT_FLOAT_REF:
+            case tensorflow::DataType::DT_DOUBLE_REF:
+            case tensorflow::DataType::DT_INT32_REF:
+            case tensorflow::DataType::DT_UINT8_REF:
+            case tensorflow::DataType::DT_INT16_REF:
+            case tensorflow::DataType::DT_INT8_REF:
+            case tensorflow::DataType::DT_STRING_REF:
+            case tensorflow::DataType::DT_COMPLEX64_REF:
+            case tensorflow::DataType::DT_INT64_REF:
+            case tensorflow::DataType::DT_BOOL_REF:
+            case tensorflow::DataType::DT_QINT8_REF:
+            case tensorflow::DataType::DT_QUINT8_REF:
+            case tensorflow::DataType::DT_QINT32_REF:
+            case tensorflow::DataType::DT_BFLOAT16_REF:
+            case tensorflow::DataType::DT_QINT16_REF:
+            case tensorflow::DataType::DT_QUINT16_REF:
+            case tensorflow::DataType::DT_UINT16_REF:
+            case tensorflow::DataType::DT_COMPLEX128_REF:
+            case tensorflow::DataType::DT_HALF_REF:
+            case tensorflow::DataType::DT_RESOURCE_REF:
+            case tensorflow::DataType::DT_VARIANT_REF:
+            case tensorflow::DataType::DT_UINT32_REF:
+            case tensorflow::DataType::DT_UINT64_REF:
+            case tensorflow::DataType::DataType_INT_MAX_SENTINEL_DO_NOT_USE_:
+            case tensorflow::DataType::DataType_INT_MIN_SENTINEL_DO_NOT_USE_:
+                throw std::runtime_error("");
+            }
+            MIGRAPHX_THROW("Invalid tensor type");
+        }
         switch(t.dtype())
         {
-        case tensorflow::DataType::DT_FLOAT: return literal{{shape::float_type, dims}, s.data()};
-        case tensorflow::DataType::DT_BOOL:
-        case tensorflow::DataType::DT_INT8: return literal{{shape::int8_type, dims}, s.data()};
+        case tensorflow::DataType::DT_FLOAT:
+            return create_literal(
+                shape::float_type, dims, get_data_vals(t.float_val(), shape_size));
+        case tensorflow::DataType::DT_INT8:
+            return create_literal(shape::int8_type, dims, get_data_vals(t.int_val(), shape_size));
         case tensorflow::DataType::DT_UINT16:
-        case tensorflow::DataType::DT_INT16: return literal{{shape::int16_type, dims}, s.data()};
-        case tensorflow::DataType::DT_INT32: return literal{{shape::int32_type, dims}, s.data()};
-        case tensorflow::DataType::DT_INT64: return literal{{shape::int64_type, dims}, s.data()};
-        case tensorflow::DataType::DT_HALF: return literal{{shape::half_type, dims}, s.data()};
-        case tensorflow::DataType::DT_DOUBLE: return literal{{shape::double_type, dims}, s.data()};
+            return create_literal(shape::uint16_type, dims, get_data_vals(t.int_val(), shape_size));
+        case tensorflow::DataType::DT_INT16:
+            return create_literal(shape::int16_type, dims, get_data_vals(t.int_val(), shape_size));
+        case tensorflow::DataType::DT_INT32:
+            return create_literal(shape::int32_type, dims, get_data_vals(t.int_val(), shape_size));
+        case tensorflow::DataType::DT_INT64:
+            return create_literal(
+                shape::int64_type, dims, get_data_vals(t.int64_val(), shape_size));
+        case tensorflow::DataType::DT_BOOL:
+            return create_literal(shape::int32_type, dims, get_data_vals(t.bool_val(), shape_size));
+        case tensorflow::DataType::DT_HALF:
+        {
+            std::vector<int> data_int32 = get_data_vals(t.half_val(), shape_size);
+            std::vector<uint16_t> data_uint16(data_int32.begin(), data_int32.end());
+            std::vector<half> data_half;
+            std::transform(data_uint16.begin(),
+                           data_uint16.end(),
+                           std::back_inserter(data_half),
+                           [](uint16_t raw_val) { return *reinterpret_cast<half*>(&raw_val); });
+            return create_literal(shape::half_type, dims, data_half);
+        }
+        case tensorflow::DataType::DT_DOUBLE:
+            return literal{{shape::double_type, dims}, get_data_vals(t.double_val(), shape_size)};
         case tensorflow::DataType::DT_INVALID:
         case tensorflow::DataType::DT_UINT8:
         case tensorflow::DataType::DT_STRING:
@@ -1227,114 +1306,42 @@ static literal parse_tensor(const tensorflow::TensorProto& t)
         }
         MIGRAPHX_THROW("Invalid tensor type");
     }
-    switch(t.dtype())
-    {
-    case tensorflow::DataType::DT_FLOAT:
-        return create_literal(shape::float_type, dims, get_data_vals(t.float_val(), shape_size));
-    case tensorflow::DataType::DT_INT8:
-        return create_literal(shape::int8_type, dims, get_data_vals(t.int_val(), shape_size));
-    case tensorflow::DataType::DT_UINT16:
-        return create_literal(shape::uint16_type, dims, get_data_vals(t.int_val(), shape_size));
-    case tensorflow::DataType::DT_INT16:
-        return create_literal(shape::int16_type, dims, get_data_vals(t.int_val(), shape_size));
-    case tensorflow::DataType::DT_INT32:
-        return create_literal(shape::int32_type, dims, get_data_vals(t.int_val(), shape_size));
-    case tensorflow::DataType::DT_INT64:
-        return create_literal(shape::int64_type, dims, get_data_vals(t.int64_val(), shape_size));
-    case tensorflow::DataType::DT_BOOL:
-        return create_literal(shape::int32_type, dims, get_data_vals(t.bool_val(), shape_size));
-    case tensorflow::DataType::DT_HALF:
-    {
-        std::vector<int> data_int32 = get_data_vals(t.half_val(), shape_size);
-        std::vector<uint16_t> data_uint16(data_int32.begin(), data_int32.end());
-        std::vector<half> data_half;
-        std::transform(data_uint16.begin(),
-                       data_uint16.end(),
-                       std::back_inserter(data_half),
-                       [](uint16_t raw_val) { return *reinterpret_cast<half*>(&raw_val); });
-        return create_literal(shape::half_type, dims, data_half);
-    }
-    case tensorflow::DataType::DT_DOUBLE:
-        return literal{{shape::double_type, dims}, get_data_vals(t.double_val(), shape_size)};
-    case tensorflow::DataType::DT_INVALID:
-    case tensorflow::DataType::DT_UINT8:
-    case tensorflow::DataType::DT_STRING:
-    case tensorflow::DataType::DT_UINT32:
-    case tensorflow::DataType::DT_UINT64:
-    case tensorflow::DataType::DT_COMPLEX64:
-    case tensorflow::DataType::DT_COMPLEX128:
-    case tensorflow::DataType::DT_QINT8:
-    case tensorflow::DataType::DT_QUINT8:
-    case tensorflow::DataType::DT_QINT32:
-    case tensorflow::DataType::DT_BFLOAT16:
-    case tensorflow::DataType::DT_QINT16:
-    case tensorflow::DataType::DT_QUINT16:
-    case tensorflow::DataType::DT_RESOURCE:
-    case tensorflow::DataType::DT_VARIANT:
-    case tensorflow::DataType::DT_FLOAT_REF:
-    case tensorflow::DataType::DT_DOUBLE_REF:
-    case tensorflow::DataType::DT_INT32_REF:
-    case tensorflow::DataType::DT_UINT8_REF:
-    case tensorflow::DataType::DT_INT16_REF:
-    case tensorflow::DataType::DT_INT8_REF:
-    case tensorflow::DataType::DT_STRING_REF:
-    case tensorflow::DataType::DT_COMPLEX64_REF:
-    case tensorflow::DataType::DT_INT64_REF:
-    case tensorflow::DataType::DT_BOOL_REF:
-    case tensorflow::DataType::DT_QINT8_REF:
-    case tensorflow::DataType::DT_QUINT8_REF:
-    case tensorflow::DataType::DT_QINT32_REF:
-    case tensorflow::DataType::DT_BFLOAT16_REF:
-    case tensorflow::DataType::DT_QINT16_REF:
-    case tensorflow::DataType::DT_QUINT16_REF:
-    case tensorflow::DataType::DT_UINT16_REF:
-    case tensorflow::DataType::DT_COMPLEX128_REF:
-    case tensorflow::DataType::DT_HALF_REF:
-    case tensorflow::DataType::DT_RESOURCE_REF:
-    case tensorflow::DataType::DT_VARIANT_REF:
-    case tensorflow::DataType::DT_UINT32_REF:
-    case tensorflow::DataType::DT_UINT64_REF:
-    case tensorflow::DataType::DataType_INT_MAX_SENTINEL_DO_NOT_USE_:
-    case tensorflow::DataType::DataType_INT_MIN_SENTINEL_DO_NOT_USE_: throw std::runtime_error("");
-    }
-    MIGRAPHX_THROW("Invalid tensor type");
-}
 
-template <class T>
-static std::vector<T> get_data_vals(const google::protobuf::RepeatedField<T>& data,
-                                    const size_t& shape_size)
-{
-    std::vector<T> data_vals(shape_size);
-    // check if shape has enough data values given existing fields
-    if(data.size() == 1)
+    template <class T>
+    static std::vector<T> get_data_vals(const google::protobuf::RepeatedField<T>& data,
+                                        const size_t& shape_size)
     {
-        std::fill(data_vals.begin(), data_vals.end(), data[0]);
+        std::vector<T> data_vals(shape_size);
+        // check if shape has enough data values given existing fields
+        if(data.size() == 1)
+        {
+            std::fill(data_vals.begin(), data_vals.end(), data[0]);
+        }
+        else
+            copy(data.begin(), data.end(), std::back_inserter(data_vals));
+        return data_vals;
     }
-    else
-        copy(data.begin(), data.end(), std::back_inserter(data_vals));
-    return data_vals;
-}
 
-static std::vector<size_t> parse_dims(const tensorflow::TensorShapeProto& s)
-{
-    std::vector<size_t> dims;
-    auto input_dims = s.dim();
-    std::transform(input_dims.begin(),
-                   input_dims.end(),
-                   std::back_inserter(dims),
-                   [](const tensorflow::TensorShapeProto_Dim& dim) { return dim.size(); });
-    return dims;
-}
+    static std::vector<size_t> parse_dims(const tensorflow::TensorShapeProto& s)
+    {
+        std::vector<size_t> dims;
+        auto input_dims = s.dim();
+        std::transform(input_dims.begin(),
+                       input_dims.end(),
+                       std::back_inserter(dims),
+                       [](const tensorflow::TensorShapeProto_Dim& dim) { return dim.size(); });
+        return dims;
+    }
 
-template <class T>
-static literal
-create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, std::vector<T> data)
-{
-    // assume if explicit value is mentioned in protobuf and dim size <= 1, treat as scalar
-    if(dims.empty() or (dims.size() == 1 and dims.front() == 1))
-        return literal{{shape_type}, data};
-    return literal{{shape_type, dims}, data};
-}
+    template <class T>
+    static literal
+    create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, std::vector<T> data)
+    {
+        // assume if explicit value is mentioned in protobuf and dim size <= 1, treat as scalar
+        if(dims.empty() or (dims.size() == 1 and dims.front() == 1))
+            return literal{{shape_type}, data};
+        return literal{{shape_type, dims}, data};
+    }
 }; // namespace MIGRAPHX_INLINE_NS
 
 program parse_tf(const std::string& name, bool is_nhwc)
@@ -1361,5 +1368,5 @@ program parse_tf(const std::string& name, bool is_nhwc)
     return std::move(parser.prog);
 }
 
-} // namespace migraphx
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

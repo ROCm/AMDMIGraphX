@@ -2,18 +2,14 @@
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
-struct contiguous_target
+void run_pass(migraphx::program& p)
 {
-    std::string name() const { return "contiguous"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const
-    {
-        return {migraphx::auto_contiguous{}};
-    }
-    migraphx::context get_context() const { return {}; }
-};
+    migraphx::run_passes(p, {migraphx::auto_contiguous{}});
+}
 
 // TODO: Add this test case
 void literal_broadcast()
@@ -22,7 +18,7 @@ void literal_broadcast()
     p.add_literal(get_2_broadcasted());
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().broadcasted());
-    p.compile(contiguous_target{});
+    run_pass(p);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().broadcasted());
 }
@@ -33,7 +29,7 @@ TEST_CASE(literal_transpose)
     p.add_literal(get_2x2_transposed());
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().transposed());
-    p.compile(contiguous_target{});
+    run_pass(p);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
 }
@@ -48,7 +44,7 @@ TEST_CASE(after_literal_transpose)
     p.add_instruction(pass_op{}, t);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().transposed());
-    p.compile(contiguous_target{});
+    run_pass(p);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
 }
@@ -64,7 +60,7 @@ TEST_CASE(after_literal_broadcast)
     p.add_instruction(pass_op{}, b);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().broadcasted());
-    p.compile(contiguous_target{});
+    run_pass(p);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().broadcasted());
 }
@@ -79,7 +75,7 @@ TEST_CASE(after_param_transpose)
     p.add_instruction(pass_op{}, t);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().transposed());
-    p.compile(contiguous_target{});
+    run_pass(p);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
 }
@@ -95,7 +91,7 @@ TEST_CASE(after_param_broadcast)
     p.add_instruction(pass_op{}, b);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().broadcasted());
-    p.compile(contiguous_target{});
+    run_pass(p);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().broadcasted());
 }

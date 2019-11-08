@@ -1,21 +1,15 @@
 #include <migraphx/eliminate_allocation.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
-struct eliminate_allocation_target
+void run_pass(migraphx::program& p, std::size_t align = 32)
 {
-    std::size_t align = 32;
-    std::string name() const { return "eliminate_allocation"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const
-    {
-        return {migraphx::eliminate_allocation{"allocate", align},
-                migraphx::dead_code_elimination{}};
-    }
-    migraphx::context get_context() const { return {}; }
-};
+    migraphx::run_passes(p, {migraphx::eliminate_allocation{"allocate", align}, migraphx::dead_code_elimination{}});
+}
 
 struct allocate
 {
@@ -53,7 +47,7 @@ TEST_CASE(basic)
     auto a3 = p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
     p.add_instruction(pass_op{}, a3, p2);
 
-    p.compile(eliminate_allocation_target{});
+    run_pass(p);
     EXPECT(p.get_shape() == migraphx::shape{migraphx::shape::float_type, {200}});
     EXPECT(p.get_parameter_shape("memory").bytes() == (8 * 4 + 40 * 4 + 200 * 4));
 }
@@ -70,7 +64,7 @@ TEST_CASE(aligned)
     auto a3 = p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
     p.add_instruction(pass_op{}, a3, p2);
 
-    p.compile(eliminate_allocation_target{});
+    run_pass(p);
     EXPECT(p.get_shape() == migraphx::shape{migraphx::shape::float_type, {200}});
     EXPECT(p.get_parameter_shape("memory").bytes() == (32 + 32 + 200 * 4));
 }
@@ -87,7 +81,7 @@ TEST_CASE(unaligned)
     auto a3 = p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
     p.add_instruction(pass_op{}, a3, p2);
 
-    p.compile(eliminate_allocation_target{1});
+    run_pass(p, 1);
     EXPECT(p.get_shape() == migraphx::shape{migraphx::shape::float_type, {200}});
     EXPECT(p.get_parameter_shape("memory").bytes() == (1 * 4 + 2 * 4 + 200 * 4));
 }
@@ -104,13 +98,12 @@ TEST_CASE(float_aligned)
     auto a3 = p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
     p.add_instruction(pass_op{}, a3, p2);
 
-    p.compile(eliminate_allocation_target{4});
+    run_pass(p, 4);
     EXPECT(p.get_shape() == migraphx::shape{migraphx::shape::float_type, {200}});
     EXPECT(p.get_parameter_shape("memory").bytes() == (1 * 4 + 2 * 4 + 200 * 4));
 }
 
 int main(int argc, const char* argv[])
 {
-    setenv("MIGRAPHX_DISABLE_MEMORY_COLORING", "1", 1);
     test::run(argc, argv);
 }

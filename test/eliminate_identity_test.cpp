@@ -6,10 +6,7 @@
 #include <migraphx/op/identity.hpp>
 #include <test.hpp>
 
-void run_pass(migraphx::program& p)
-{
-    migraphx::run_passes(p, {migraphx::eliminate_identity{}});
-}
+void run_pass(migraphx::program& p) { migraphx::run_passes(p, {migraphx::eliminate_identity{}}); }
 
 TEST_CASE(simple_test)
 {

@@ -6,10 +6,7 @@
 #include <basic_ops.hpp>
 #include <test.hpp>
 
-void run_pass(migraphx::program& p)
-{
-    migraphx::run_passes(p, {migraphx::auto_contiguous{}});
-}
+void run_pass(migraphx::program& p) { migraphx::run_passes(p, {migraphx::auto_contiguous{}}); }
 
 // TODO: Add this test case
 void literal_broadcast()

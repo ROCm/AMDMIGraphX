@@ -8,7 +8,8 @@
 
 void run_pass(migraphx::program& p, std::size_t align = 32)
 {
-    migraphx::run_passes(p, {migraphx::eliminate_allocation{"allocate", align}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(
+        p, {migraphx::eliminate_allocation{"allocate", align}, migraphx::dead_code_elimination{}});
 }
 
 struct allocate
@@ -103,7 +104,4 @@ TEST_CASE(float_aligned)
     EXPECT(p.get_parameter_shape("memory").bytes() == (1 * 4 + 2 * 4 + 200 * 4));
 }
 
-int main(int argc, const char* argv[])
-{
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

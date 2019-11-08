@@ -7,7 +7,8 @@
 
 void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(p, {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(
+        p, {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(cse_test1)

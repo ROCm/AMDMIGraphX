@@ -46,7 +46,9 @@ struct concat_test_optimization
 
 void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(p, {migraphx::eliminate_concat{concat_test_optimization{}}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p,
+                         {migraphx::eliminate_concat{concat_test_optimization{}},
+                          migraphx::dead_code_elimination{}});
 }
 
 struct allocate

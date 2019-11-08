@@ -1,4 +1,5 @@
 #include <migraphx/schedule.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
@@ -155,15 +156,9 @@ bool check_conflicts(migraphx::program& p, migraphx::instruction_ref x, migraphx
     return false;
 }
 
-struct schedule_target
+struct scheduler
 {
     schedule_model_test model{};
-    std::string name() const { return "schedule"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const
-    {
-        return {migraphx::schedule{model}};
-    }
-    migraphx::context get_context() const { return {}; }
 
     std::size_t get_stream(migraphx::instruction_ref ins) { return model.ins2stream->at(ins); }
 
@@ -174,6 +169,11 @@ struct schedule_target
             return this->get_stream(ins);
         });
         return result;
+    }
+
+    void run_pass(migraphx::program& p)
+    {
+        migraphx::run_passes(p, {migraphx::schedule{model}});
     }
 
     bool has_stream(migraphx::instruction_ref ins) { return model.ins2stream->count(ins) > 0; }
@@ -253,13 +253,13 @@ chain(migraphx::program& p, std::size_t n, T x, migraphx::instruction_ref input)
 }
 TEST_CASE(single_entry)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one    = p.add_literal(1);
     auto onep1  = p.add_instruction(unary_op{}, one);
     auto onep2  = p.add_instruction(unary_op{}, one);
     auto binary = p.add_instruction(nary_op{}, onep1, onep2);
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
     EXPECT(t.get_stream(binary) == 0);
@@ -270,13 +270,13 @@ TEST_CASE(single_entry)
 
 TEST_CASE(stream_free)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one    = p.add_literal(1);
     auto onep1  = p.add_instruction(stream_free_op{}, one);
     auto onep2  = p.add_instruction(stream_free_op{}, one);
     auto binary = p.add_instruction(nary_op{}, onep1, onep2);
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(not t.has_stream(onep1));
     EXPECT(not t.has_stream(onep2));
@@ -285,7 +285,7 @@ TEST_CASE(stream_free)
 
 TEST_CASE(zero_record)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one    = p.add_literal(1);
     auto onep1  = p.add_instruction(unary_op{}, one);
@@ -293,7 +293,7 @@ TEST_CASE(zero_record)
     auto onei1  = p.add_instruction(migraphx::op::identity{}, onep1);
     auto onei2  = p.add_instruction(migraphx::op::identity{}, onep2);
     auto binary = p.add_instruction(nary_op{}, onei1, onei2);
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
     EXPECT(t.has_stream(binary));
@@ -305,13 +305,13 @@ TEST_CASE(zero_record)
 
 TEST_CASE(zero_merge1)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one    = p.add_literal(1);
     auto onep1  = p.add_instruction(unary_op{}, one);
     auto onep2  = p.add_instruction(unary_op{}, one);
     auto binary = p.add_instruction(migraphx::op::identity{}, onep1, onep2);
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
     // No stream assignment
@@ -323,7 +323,7 @@ TEST_CASE(zero_merge1)
 
 TEST_CASE(zero_merge2)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one    = p.add_literal(1);
     auto onep1  = p.add_instruction(unary_op{}, one);
@@ -331,7 +331,7 @@ TEST_CASE(zero_merge2)
     auto binary = p.add_instruction(migraphx::op::identity{},
                                     p.add_instruction(migraphx::op::identity{}, onep1),
                                     p.add_instruction(migraphx::op::identity{}, onep2));
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
     // No stream assignment
@@ -343,14 +343,14 @@ TEST_CASE(zero_merge2)
 
 TEST_CASE(zero_merge3)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one   = p.add_literal(1);
     auto onep1 = p.add_instruction(unary_op{}, one);
     auto onep2 = p.add_instruction(unary_op{}, one);
     auto id    = p.add_instruction(migraphx::op::identity{}, onep1, onep2);
     auto final = p.add_instruction(unary_op{}, id);
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
     // No stream assignment
@@ -366,7 +366,7 @@ TEST_CASE(zero_merge3)
 
 TEST_CASE(zero_merge4)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one   = p.add_literal(1);
     auto onep1 = p.add_instruction(unary_op{}, one);
@@ -375,7 +375,7 @@ TEST_CASE(zero_merge4)
                                 p.add_instruction(migraphx::op::identity{}, onep1),
                                 p.add_instruction(migraphx::op::identity{}, onep2));
     auto final = p.add_instruction(unary_op{}, id);
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
     // No stream assignment
@@ -391,14 +391,14 @@ TEST_CASE(zero_merge4)
 
 TEST_CASE(double_entry)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one    = p.add_instruction(stream_free_op{}, p.add_literal(1));
     auto two    = p.add_instruction(stream_free_op{}, p.add_literal(2));
     auto onep   = p.add_instruction(unary_op{}, one);
     auto twop   = p.add_instruction(unary_op{}, two);
     auto binary = p.add_instruction(nary_op{}, onep, twop);
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(not t.has_stream(two));
     EXPECT(t.get_stream(onep) != t.get_stream(twop));
@@ -410,13 +410,13 @@ TEST_CASE(double_entry)
 
 TEST_CASE(two_branches)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one    = p.add_literal(1);
     auto c1     = chain(p, 2, unary_op{}, one);
     auto i1     = p.add_instruction(unary_op{}, one);
     auto binary = p.add_instruction(nary_op{}, i1, c1.back());
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) == 1);
     for(auto ins : c1)
@@ -429,7 +429,7 @@ TEST_CASE(two_branches)
 
 TEST_CASE(four_branches)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one    = p.add_literal(1);
     auto c1     = chain(p, 4, unary_op{}, one);
@@ -437,7 +437,7 @@ TEST_CASE(four_branches)
     auto c3     = chain(p, 2, unary_op{}, one);
     auto i1     = p.add_instruction(unary_op{}, one);
     auto binary = p.add_instruction(nary_op{}, i1, c1.back(), c2.back(), c3.back());
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) == 3);
     for(auto ins : c1)
@@ -457,7 +457,7 @@ TEST_CASE(four_branches)
 
 TEST_CASE(five_branches)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one    = p.add_literal(1);
     auto c1     = chain(p, 5, unary_op{}, one);
@@ -466,7 +466,7 @@ TEST_CASE(five_branches)
     auto c4     = chain(p, 2, unary_op{}, one);
     auto i1     = p.add_instruction(unary_op{}, one);
     auto binary = p.add_instruction(nary_op{}, i1, c1.back(), c2.back(), c3.back(), c4.back());
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) == 3);
     for(auto ins : c1)
@@ -489,7 +489,7 @@ TEST_CASE(five_branches)
 
 TEST_CASE(four_branches_eq)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one    = p.add_literal(1);
     auto onep1  = p.add_instruction(unary_op{}, one);
@@ -497,7 +497,7 @@ TEST_CASE(four_branches_eq)
     auto onep3  = p.add_instruction(unary_op{}, one);
     auto onep4  = p.add_instruction(unary_op{}, one);
     auto binary = p.add_instruction(nary_op{}, onep1, onep2, onep3, onep4);
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(
         sorted<std::size_t>(
@@ -515,7 +515,7 @@ TEST_CASE(four_branches_eq)
 
 TEST_CASE(seq_merge)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one     = p.add_literal(1);
     auto c1      = chain(p, 2, unary_op{}, one);
@@ -526,7 +526,7 @@ TEST_CASE(seq_merge)
     auto i2      = p.add_instruction(unary_op{}, binary1);
     auto binary2 = p.add_instruction(nary_op{}, i2, c2.back());
 
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
 
     EXPECT(t.get_stream(i1) != t.get_stream(c1.back()));
@@ -548,7 +548,7 @@ TEST_CASE(seq_merge)
 
 TEST_CASE(par_merge)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one     = p.add_literal(1);
     auto start1  = p.add_instruction(unary_op{}, one);
@@ -563,7 +563,7 @@ TEST_CASE(par_merge)
 
     auto binary3 = p.add_instruction(nary_op{}, binary1, binary2);
 
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(binary3) == 0);
 
@@ -589,7 +589,7 @@ TEST_CASE(par_merge)
 
 TEST_CASE(inner_par_merge)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one     = p.add_literal(1);
     auto start1  = p.add_instruction(unary_op{}, one);
@@ -607,7 +607,7 @@ TEST_CASE(inner_par_merge)
 
     auto output = p.add_instruction(nary_op{}, binary1, binary2, outer1, outer2);
 
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(output) == 0);
     EXPECT(get_wait_for(output) == get_wait_for(t.get_stream(output),
@@ -642,7 +642,7 @@ TEST_CASE(inner_par_merge)
 
 TEST_CASE(par_merge_multi_entry)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one     = p.add_literal(1);
     auto start1  = p.add_instruction(unary_op{}, one);
@@ -658,7 +658,7 @@ TEST_CASE(par_merge_multi_entry)
 
     auto binary3 = p.add_instruction(nary_op{}, binary1, binary2);
 
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(not t.has_stream(two));
     EXPECT(t.get_stream(binary3) == 0);
@@ -685,7 +685,7 @@ TEST_CASE(par_merge_multi_entry)
 
 TEST_CASE(inner_split1)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one    = p.add_literal(1);
     auto c1     = chain(p, 2, unary_op{}, one);
@@ -693,7 +693,7 @@ TEST_CASE(inner_split1)
     auto s1     = p.add_instruction(unary_op{}, c1);
     auto s2     = p.add_instruction(unary_op{}, c1);
     auto output = p.add_instruction(nary_op{}, i1, s1, s2);
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) != t.get_stream(s1));
     EXPECT(t.get_stream(i1) != t.get_stream(s2));
@@ -712,7 +712,7 @@ TEST_CASE(inner_split1)
 
 TEST_CASE(inner_split2)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one    = p.add_literal(1);
     auto c1     = chain(p, 2, unary_op{}, one);
@@ -720,7 +720,7 @@ TEST_CASE(inner_split2)
     auto s1     = chain(p, 3, unary_op{}, c1.back());
     auto s2     = chain(p, 4, unary_op{}, c1.back());
     auto output = p.add_instruction(nary_op{}, i1, s1.back(), s2.back());
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) != t.get_stream(s1.back()));
     EXPECT(t.get_stream(i1) != t.get_stream(s2.back()));
@@ -738,7 +738,7 @@ TEST_CASE(inner_split2)
 
 TEST_CASE(inception_resnet)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
     auto one    = p.add_literal(1);
     auto input  = p.add_instruction(unary_op{}, one);
@@ -746,7 +746,7 @@ TEST_CASE(inception_resnet)
     auto i1     = p.add_instruction(unary_op{}, input);
     auto binary = p.add_instruction(nary_op{}, i1, c1.back());
     auto output = p.add_instruction(nary_op{}, binary, input);
-    p.compile(t);
+    t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) != 0);
     for(auto ins : c1)
@@ -761,7 +761,7 @@ TEST_CASE(inception_resnet)
 
 TEST_CASE(inception1)
 {
-    schedule_target t{};
+    scheduler t{};
     migraphx::program p;
 
     auto i1     = p.add_literal(0);
@@ -854,7 +854,7 @@ TEST_CASE(inception1)
     auto i101   = p.add_literal(2);
     auto output = p.add_instruction(nary_op{"output"}, i96, i101, i100, i98, i99);
 
-    p.compile(t);
+    t.run_pass(p);
 
     EXPECT(t.get_streams({i7, i11, i17, i23, i25, i31, i37, i39}) ==
            t.get_streams({i7, i7, i7, i7, i7, i7, i7, i7}));

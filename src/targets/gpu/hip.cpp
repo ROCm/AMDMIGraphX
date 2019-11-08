@@ -102,27 +102,31 @@ void set_device(std::size_t id)
 
 void gpu_sync() { hipDeviceSynchronize(); }
 
-void copy_to_gpu(const argument& src, const argument& dst)
-{
-    std::size_t src_size = src.get_shape().bytes();
-    std::size_t dst_size = dst.get_shape().bytes();
-    if(src_size > dst_size)
-        MIGRAPHX_THROW("Not enough memory available in destination to do copy");
-    auto status = hipMemcpy(dst.data(), src.data(), src_size, hipMemcpyHostToDevice);
-    if(status != hipSuccess)
-        MIGRAPHX_THROW("Copy to gpu failed: " + hip_error(status));
-}
-
-void gpu_copy(context& ctx, const argument& src, const argument& dst)
+void hip_async_copy(context& ctx, const argument& src, const argument& dst, hipMemcpyKind kind)
 {
     std::size_t src_size = src.get_shape().bytes();
     std::size_t dst_size = dst.get_shape().bytes();
     if(src_size > dst_size)
         MIGRAPHX_THROW("Not enough memory available in destination to do copy");
     auto status = hipMemcpyAsync(
-        dst.data(), src.data(), src_size, hipMemcpyDeviceToDevice, ctx.get_stream().get());
+        dst.data(), src.data(), src_size, kind, ctx.get_stream().get());
     if(status != hipSuccess)
         MIGRAPHX_THROW("Gpu copy failed: " + hip_error(status));
+}
+
+void gpu_copy(context& ctx, const argument& src, const argument& dst)
+{
+    hip_async_copy(ctx, src, dst, hipMemcpyDeviceToDevice);
+}
+
+void copy_to_gpu(context& ctx, const argument& src, const argument& dst)
+{
+    hip_async_copy(ctx, src, dst, hipMemcpyHostToDevice);
+}
+
+void copy_from_gpu(context& ctx, const argument& src, const argument& dst)
+{
+    hip_async_copy(ctx, src, dst, hipMemcpyDeviceToHost);
 }
 
 } // namespace gpu

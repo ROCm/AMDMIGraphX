@@ -108,8 +108,7 @@ void hip_async_copy(context& ctx, const argument& src, const argument& dst, hipM
     std::size_t dst_size = dst.get_shape().bytes();
     if(src_size > dst_size)
         MIGRAPHX_THROW("Not enough memory available in destination to do copy");
-    auto status = hipMemcpyAsync(
-        dst.data(), src.data(), src_size, kind, ctx.get_stream().get());
+    auto status = hipMemcpyAsync(dst.data(), src.data(), src_size, kind, ctx.get_stream().get());
     if(status != hipSuccess)
         MIGRAPHX_THROW("Gpu copy failed: " + hip_error(status));
 }

@@ -171,10 +171,7 @@ struct scheduler
         return result;
     }
 
-    void run_pass(migraphx::program& p)
-    {
-        migraphx::run_passes(p, {migraphx::schedule{model}});
-    }
+    void run_pass(migraphx::program& p) { migraphx::run_passes(p, {migraphx::schedule{model}}); }
 
     bool has_stream(migraphx::instruction_ref ins) { return model.ins2stream->count(ins) > 0; }
 

@@ -32,8 +32,9 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 
-std::vector<pass> target::get_passes(migraphx::context& gctx) const
+std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
+    (void)options;
     auto& ctx = any_cast<context>(gctx);
     // clang-format off
     return

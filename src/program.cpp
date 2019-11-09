@@ -353,7 +353,7 @@ void program::compile(const target& t, compile_options options)
         options.trace = tracer{std::cout};
     options.trace(*this);
     options.trace();
-    run_passes(*this, t.get_passes(this->impl->ctx), options.trace);
+    run_passes(*this, t.get_passes(this->impl->ctx, options), options.trace);
     auto invalid = this->validate();
     if(invalid != impl->instructions.end())
     {

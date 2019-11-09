@@ -3,6 +3,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/compile_options.hpp>
 #include <sstream>
 #include "test.hpp"
 #include <basic_ops.hpp>
@@ -15,7 +16,7 @@ struct id_target
     };
     migraphx::context ctx = context{};
     std::string name() const { return "id"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const { return {}; }
+    std::vector<migraphx::pass> get_passes(migraphx::context&, const migraphx::compile_options&) const { return {}; }
     migraphx::context get_context() const { return ctx; }
 };
 
@@ -72,7 +73,7 @@ struct reverse_pass
 struct reverse_target
 {
     std::string name() const { return "reverse"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const { return {reverse_pass{}}; }
+    std::vector<migraphx::pass> get_passes(migraphx::context&, const migraphx::compile_options&) const { return {reverse_pass{}}; }
     migraphx::context get_context() const { return {}; }
 };
 
@@ -99,14 +100,14 @@ struct invert_pass
 struct invert_target
 {
     std::string name() const { return "invert"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const { return {invert_pass{}}; }
+    std::vector<migraphx::pass> get_passes(migraphx::context&, const migraphx::compile_options&) const { return {invert_pass{}}; }
     migraphx::context get_context() const { return {}; }
 };
 
 struct double_invert_target
 {
     std::string name() const { return "double_invert"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const
+    std::vector<migraphx::pass> get_passes(migraphx::context&, const migraphx::compile_options&) const
     {
         return {invert_pass{}, invert_pass{}};
     }

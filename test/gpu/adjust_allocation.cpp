@@ -15,14 +15,15 @@
 #include <basic_ops.hpp>
 #include <test.hpp>
 
-void run_lowering(migraphx::program& p) 
+void run_lowering(migraphx::program& p)
 {
     auto ctx = migraphx::gpu::context{};
-    migraphx::run_passes(p, {migraphx::auto_contiguous{},
-                migraphx::gpu::lowering{ctx},
-                migraphx::dead_code_elimination{},
-                migraphx::eliminate_contiguous{},
-                migraphx::dead_code_elimination{}}); 
+    migraphx::run_passes(p,
+                         {migraphx::auto_contiguous{},
+                          migraphx::gpu::lowering{ctx},
+                          migraphx::dead_code_elimination{},
+                          migraphx::eliminate_contiguous{},
+                          migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(tanh_shape)

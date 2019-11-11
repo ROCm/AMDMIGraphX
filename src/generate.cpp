@@ -9,7 +9,7 @@ argument fill_argument(shape s, unsigned long value)
     s.visit_type([&](auto as) {
         using type = typename decltype(as)::type;
         auto v     = fill_tensor_data<type>(s, value);
-        result     = {s, [v]() mutable { return reinterpret_cast<char*>(v.data()); }};
+        result     = {s, [v]() mutable { return reinterpret_cast<char*>(v.get()); }};
     });
     return result;
 }
@@ -20,7 +20,7 @@ argument generate_argument(shape s, unsigned long seed)
     s.visit_type([&](auto as) {
         using type = typename decltype(as)::type;
         auto v     = generate_tensor_data<type>(s, seed);
-        result     = {s, [v]() mutable { return reinterpret_cast<char*>(v.data()); }};
+        result     = {s, [v]() mutable { return reinterpret_cast<char*>(v.get()); }};
     });
     return result;
 }
@@ -31,7 +31,7 @@ literal generate_literal(shape s, unsigned long seed)
     s.visit_type([&](auto as) {
         using type = typename decltype(as)::type;
         auto v     = generate_tensor_data<type>(s, seed);
-        result     = {s, v};
+        result     = {s, reinterpret_cast<char*>(v.get())};
     });
     return result;
 }

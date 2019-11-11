@@ -82,7 +82,7 @@ auto generate_tensor_data(const migraphx::shape& s, unsigned long seed = 0)
 {
     // std::vector<T> result(s.elements());
     auto result = make_shared_array<T>(s.elements());
-    std::generate(result.get(), result.get()+s.elements(), xorshf96_generator<T>{seed});
+    std::generate(result.get(), result.get() + s.elements(), xorshf96_generator<T>{seed});
     // std::generate(result.begin(), result.end(), [&]{ return seed % 7; });
     // std::generate(result.begin(), result.end(), []{ return 1; });
     return result;
@@ -93,7 +93,7 @@ auto fill_tensor_data(const migraphx::shape& s, unsigned long value = 0)
 {
     // std::vector<T> result(s.elements());
     auto result = make_shared_array<T>(s.elements());
-    std::generate(result.get(), result.get()+s.elements(), [=] { return value; });
+    std::generate(result.get(), result.get() + s.elements(), [=] { return value; });
     return result;
 }
 

@@ -15,7 +15,7 @@ namespace gpu {
 struct preallocate_param
 {
     std::string param{};
-    context * ctx = nullptr;
+    context* ctx = nullptr;
     std::string name() const { return "preallocate_param"; }
     void apply(program& p) const;
 };

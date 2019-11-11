@@ -75,7 +75,7 @@ namespace gpu {
 
 struct miopen_apply
 {
-    program* prog = nullptr;
+    program* prog        = nullptr;
     const lowering* pass = nullptr;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
@@ -160,15 +160,15 @@ struct miopen_apply
 
     void copy_params()
     {
-        if (not pass->offload_copy)
+        if(not pass->offload_copy)
             return;
-        for(auto ins:iterator_for(*prog))
+        for(auto ins : iterator_for(*prog))
         {
-            if (ins->name() != "@param")
+            if(ins->name() != "@param")
                 continue;
             auto pos = std::next(ins);
-            auto a = insert_allocation(pos, ins->get_shape());
-            auto c = prog->insert_instruction(pos, hip_copy_to_gpu{}, ins, a);
+            auto a   = insert_allocation(pos, ins->get_shape());
+            auto c   = prog->insert_instruction(pos, hip_copy_to_gpu{}, ins, a);
             prog->replace_instruction(ins, c);
         }
         auto end = std::prev(prog->end());

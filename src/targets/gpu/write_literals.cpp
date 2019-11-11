@@ -28,7 +28,7 @@ void write_literals::apply(program& p) const
             else
             {
                 std::string id = "@literal:" + std::to_string(n);
-                argument a    = to_gpu(ins->get_literal().get_argument());
+                argument a     = to_gpu(ins->get_literal().get_argument());
                 ctx->get_current_device().preallocations[id] = a;
                 p.replace_instruction(ins, hip_load_memory{a.get_shape(), id});
                 n++;

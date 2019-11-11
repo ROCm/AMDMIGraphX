@@ -50,12 +50,12 @@ struct check_shapes
         return end - begin;
     }
 
-    template<class... Ts>
+    template <class... Ts>
     const check_shapes& has(Ts... ns) const
     {
-        if (migraphx::none_of({ns...}, [&](auto i) { return size() == i; }))
-            MIGRAPHX_THROW(prefix() + "Wrong number of arguments: expected " + to_string_range({ns...}) +
-                           " but given " + std::to_string(size()));
+        if(migraphx::none_of({ns...}, [&](auto i) { return size() == i; }))
+            MIGRAPHX_THROW(prefix() + "Wrong number of arguments: expected " +
+                           to_string_range({ns...}) + " but given " + std::to_string(size()));
         return *this;
     }
 

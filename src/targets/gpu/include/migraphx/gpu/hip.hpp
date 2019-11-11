@@ -120,7 +120,7 @@ struct hip_copy_from_gpu
     }
     argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
-        if (args.size() == 1)
+        if(args.size() == 1)
         {
             argument result{output_shape};
             copy_from_gpu(ctx, args[0], result);
@@ -132,8 +132,9 @@ struct hip_copy_from_gpu
             return args[1];
         }
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>& args) const {
-        if (args.size() == 1)
+    std::ptrdiff_t output_alias(const std::vector<shape>& args) const
+    {
+        if(args.size() == 1)
             return -1;
         return 1;
     }

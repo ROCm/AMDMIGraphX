@@ -123,6 +123,7 @@ struct hip_device
     std::size_t device_id      = 0;
     std::size_t current_stream = 0;
     std::vector<stream> streams;
+
     public:
     std::unordered_map<std::string, argument> preallocations{};
 };

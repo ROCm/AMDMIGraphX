@@ -128,6 +128,11 @@ void copy_from_gpu(context& ctx, const argument& src, const argument& dst)
     hip_async_copy(ctx, src, dst, hipMemcpyDeviceToHost);
 }
 
+argument get_preallocation(context& ctx, std::string id)
+{
+    return ctx.get_current_device().preallocations.at(id);
+}
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

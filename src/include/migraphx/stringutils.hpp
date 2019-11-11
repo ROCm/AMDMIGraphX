@@ -96,6 +96,12 @@ inline std::string to_string_range(const Range& r)
 }
 
 template <class T>
+inline std::string to_string_range(const std::initializer_list<T>& r)
+{
+    return to_string_range(r);
+}
+
+template <class T>
 inline std::string to_string(const T& x)
 {
     std::stringstream ss;

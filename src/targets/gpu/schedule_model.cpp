@@ -96,6 +96,7 @@ void schedule_model::record(program& p, instruction_ref ins, std::size_t wait_id
 static std::unordered_map<std::string, std::size_t> create_weight_map()
 {
     return {{"hip::load_literal", 0},
+            {"hip::hip_load_memory", 0},
             {"hip::allocate", 0},
             {"gpu::convolution", 8},
             {"gpu::conv_bias_relu", 8},

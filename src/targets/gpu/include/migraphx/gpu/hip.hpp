@@ -26,6 +26,8 @@ void gpu_copy(context& ctx, const argument& src, const argument& dst);
 void copy_to_gpu(context& ctx, const argument& src, const argument& dst);
 void copy_from_gpu(context& ctx, const argument& src, const argument& dst);
 
+argument get_preallocation(context& ctx, std::string id);
+
 struct hip_allocate
 {
     shape s;
@@ -113,15 +115,28 @@ struct hip_copy_from_gpu
     std::string name() const { return "hip::copy_from_gpu"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(2);
-        return inputs.at(1);
+        check_shapes{inputs}.has(1, 2);
+        return inputs.at(0);
     }
-    argument compute(context& ctx, const shape&, std::vector<argument> args) const
+    argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
-        copy_from_gpu(ctx, args[0], args[1]);
-        return args[1];
+        if (args.size() == 1)
+        {
+            argument result{output_shape};
+            copy_from_gpu(ctx, args[0], result);
+            return result;
+        }
+        else
+        {
+            copy_from_gpu(ctx, args[0], args[1]);
+            return args[1];
+        }
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 1; }
+    std::ptrdiff_t output_alias(const std::vector<shape>& args) const {
+        if (args.size() == 1)
+            return -1;
+        return 1;
+    }
 };
 
 struct hip_copy
@@ -138,6 +153,29 @@ struct hip_copy
         return args[1];
     }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 1; }
+};
+
+struct hip_load_memory
+{
+    shape s;
+    std::string id{};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.s, "shape"), f(self.id, "id"));
+    }
+
+    std::string name() const { return "hip::hip_load_memory"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs}.has(0);
+        return s;
+    }
+    argument compute(context& ctx, const shape&, const std::vector<argument>&) const
+    {
+        return get_preallocation(ctx, id);
+    }
 };
 
 } // namespace gpu

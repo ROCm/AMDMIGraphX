@@ -199,7 +199,6 @@ PYBIND11_MODULE(migraphx, m)
     m.def("to_gpu", &migraphx::gpu::to_gpu, py::arg("arg"), py::arg("host") = false);
     m.def("from_gpu", &migraphx::gpu::from_gpu);
     m.def("gpu_sync", &migraphx::gpu::gpu_sync);
-    m.def("copy_to_gpu", &migraphx::gpu::copy_to_gpu);
 #endif
 
 #ifdef VERSION_INFO

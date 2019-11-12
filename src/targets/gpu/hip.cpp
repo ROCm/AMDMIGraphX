@@ -12,7 +12,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-using hip_ptr      = MIGRAPHX_MANAGE_PTR(void, hipFree);
+using hip_ptr = MIGRAPHX_MANAGE_PTR(void, hipFree);
 using hip_host_ptr = MIGRAPHX_MANAGE_PTR(void, hipHostUnregister);
 
 std::string hip_error(int error) { return hipGetErrorString(static_cast<hipError_t>(error)); }
@@ -30,7 +30,7 @@ std::size_t get_available_gpu_memory()
 void* get_device_ptr(void* hptr)
 {
     void* result = nullptr;
-    auto status  = hipHostGetDevicePointer(&result, hptr, 0);
+    auto status = hipHostGetDevicePointer(&result, hptr, 0);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Failed getting device pointer: " + hip_error(status));
     return result;
@@ -57,7 +57,6 @@ hip_host_ptr register_on_gpu(void* ptr, std::size_t sz)
     auto status = hipHostRegister(ptr, sz, hipHostRegisterMapped);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Gpu register failed: " + hip_error(status));
-
     return hip_host_ptr{ptr};
 }
 
@@ -98,18 +97,15 @@ argument allocate_gpu(const shape& s, bool host)
 
 argument register_on_gpu(argument arg)
 {
-    auto p = share(register_on_gpu(arg.data(), arg.get_shape().bytes()));
-    return {arg.get_shape(),
-            [ p, a = std::move(arg) ]() mutable {
-                return reinterpret_cast<char*>(get_device_ptr(p.get()));
+    auto arg_shared = std::move(arg).share();
+    auto p = share(register_on_gpu(arg_shared.data(), arg_shared.get_shape().bytes()));
+    return {arg_shared.get_shape(), [p, a = std::move(arg_shared)]() mutable { return get_device_ptr(p.get()); }};
 }
-}; // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
 
 argument to_gpu(const argument& arg, bool host)
 {
     auto p = share(write_to_gpu(arg.data(), arg.get_shape().bytes(), host));
-    return {arg.get_shape(), [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
+    return {arg.get_shape(), p};
 }
 
 argument from_gpu(const argument& arg)
@@ -118,7 +114,7 @@ argument from_gpu(const argument& arg)
     arg.visit([&](auto x) {
         using type = typename decltype(x)::value_type;
         auto v     = read_from_gpu<type>(arg.data(), x.get_shape().bytes() / sizeof(type));
-        result     = {x.get_shape(), [v]() mutable { return reinterpret_cast<char*>(v.data()); }};
+        result     = {x.get_shape(), [v]() mutable { return v.data(); }};
     });
     return result;
 }
@@ -165,6 +161,6 @@ argument get_preallocation(context& ctx, std::string id)
     return ctx.get_current_device().preallocations.at(id);
 }
 
-} // namespace migraphx
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

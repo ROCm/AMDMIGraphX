@@ -109,8 +109,10 @@ struct hip_copy_to_gpu
         auto input = register_on_gpu(args[0]);
         if(args.size() == 1)
             return input;
-        gpu_copy(ctx, input, args[1]);
-        return args[1];
+        argument result = args[1].share();
+        gpu_copy(ctx, input, result);
+        // Associate the input since it was regeistered on the host
+        return {result.get_shape(), [input, result]() mutable { return result.data(); }};
     }
     std::ptrdiff_t output_alias(const std::vector<shape>& args) const
     {

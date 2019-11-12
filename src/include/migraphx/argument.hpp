@@ -28,8 +28,12 @@ struct argument : raw_data<argument>
         data = [=]() mutable { return buffer.data(); };
     }
 
-    template<class F, MIGRAPHX_REQUIRES(std::is_pointer<decltype(std::declval<F>()())>{})>
-    argument(shape s, F d) : data([f = std::move(d)]() mutable { return reinterpret_cast<char*>(f()); }), m_shape(std::move(s)) {}
+    template <class F, MIGRAPHX_REQUIRES(std::is_pointer<decltype(std::declval<F>()())>{})>
+    argument(shape s, F d)
+        : data([f = std::move(d)]() mutable { return reinterpret_cast<char*>(f()); }),
+          m_shape(std::move(s))
+    {
+    }
     template <class T>
     argument(shape s, T* d)
         : data([d] { return reinterpret_cast<char*>(d); }), m_shape(std::move(s))
@@ -42,10 +46,7 @@ struct argument : raw_data<argument>
     {
     }
 
-    argument(shape s,std::nullptr_t)
-        : data([] { return nullptr; }), m_shape(std::move(s))
-    {
-    }
+    argument(shape s, std::nullptr_t) : data([] { return nullptr; }), m_shape(std::move(s)) {}
 
     /// Provides a raw pointer to the data
     std::function<char*()> data = nullptr;

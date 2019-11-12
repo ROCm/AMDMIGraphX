@@ -12,7 +12,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-using hip_ptr = MIGRAPHX_MANAGE_PTR(void, hipFree);
+using hip_ptr      = MIGRAPHX_MANAGE_PTR(void, hipFree);
 using hip_host_ptr = MIGRAPHX_MANAGE_PTR(void, hipHostUnregister);
 
 std::string hip_error(int error) { return hipGetErrorString(static_cast<hipError_t>(error)); }
@@ -30,7 +30,7 @@ std::size_t get_available_gpu_memory()
 void* get_device_ptr(void* hptr)
 {
     void* result = nullptr;
-    auto status = hipHostGetDevicePointer(&result, hptr, 0);
+    auto status  = hipHostGetDevicePointer(&result, hptr, 0);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Failed getting device pointer: " + hip_error(status));
     return result;
@@ -98,9 +98,12 @@ argument allocate_gpu(const shape& s, bool host)
 argument register_on_gpu(argument arg)
 {
     auto arg_shared = std::move(arg).share();
-    auto p = share(register_on_gpu(arg_shared.data(), arg_shared.get_shape().bytes()));
-    return {arg_shared.get_shape(), [p, a = std::move(arg_shared)]() mutable { return get_device_ptr(p.get()); }};
+    auto p          = share(register_on_gpu(arg_shared.data(), arg_shared.get_shape().bytes()));
+    return {arg_shared.get_shape(),
+            [ p, a = std::move(arg_shared) ]() mutable {return get_device_ptr(p.get());
 }
+}; // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
 
 argument to_gpu(const argument& arg, bool host)
 {
@@ -161,6 +164,6 @@ argument get_preallocation(context& ctx, std::string id)
     return ctx.get_current_device().preallocations.at(id);
 }
 
-} // namespace gpu
+} // namespace migraphx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

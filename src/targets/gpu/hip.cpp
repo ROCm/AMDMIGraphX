@@ -3,6 +3,7 @@
 
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/device/contiguous.hpp>
 #include <miopen/miopen.h>
 
 #include <vector>
@@ -12,6 +13,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 using hip_ptr = MIGRAPHX_MANAGE_PTR(void, hipFree);
+using hip_host_ptr = MIGRAPHX_MANAGE_PTR(void, hipHostUnregister);
 
 std::string hip_error(int error) { return hipGetErrorString(static_cast<hipError_t>(error)); }
 
@@ -23,6 +25,15 @@ std::size_t get_available_gpu_memory()
     if(status != hipSuccess)
         MIGRAPHX_THROW("Failed getting available memory: " + hip_error(status));
     return free;
+}
+
+void* get_device_ptr(void* hptr)
+{
+    void* result = nullptr;
+    auto status = hipHostGetDevicePointer(&result, hptr, 0);
+    if(status != hipSuccess)
+        MIGRAPHX_THROW("Failed getting device pointer: " + hip_error(status));
+    return result;
 }
 
 hip_ptr allocate_gpu(std::size_t sz, bool host = false)
@@ -39,6 +50,15 @@ hip_ptr allocate_gpu(std::size_t sz, bool host = false)
             allocate_gpu(sz, true);
     }
     return hip_ptr{result};
+}
+
+hip_host_ptr register_on_gpu(void* ptr, std::size_t sz)
+{
+    auto status = hipHostRegister(ptr, sz, hipHostRegisterMapped);
+    if(status != hipSuccess)
+        MIGRAPHX_THROW("Gpu register failed: " + hip_error(status));
+
+    return hip_host_ptr{ptr};
 }
 
 template <class T>
@@ -74,6 +94,12 @@ argument allocate_gpu(const shape& s, bool host)
 {
     auto p = share(allocate_gpu(s.bytes() + 1, host));
     return {s, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
+}
+
+argument register_on_gpu(argument arg)
+{
+    auto p = share(register_on_gpu(arg.data(), arg.get_shape().bytes()));
+    return {arg.get_shape(), [p, a = std::move(arg)]() mutable { return reinterpret_cast<char*>(get_device_ptr(p.get())); }};
 }
 
 argument to_gpu(const argument& arg, bool host)
@@ -115,17 +141,19 @@ void hip_async_copy(context& ctx, const argument& src, const argument& dst, hipM
 
 void gpu_copy(context& ctx, const argument& src, const argument& dst)
 {
-    hip_async_copy(ctx, src, dst, hipMemcpyDeviceToDevice);
+    // Workaround: Use contiguous as hip's memcpy is broken
+    device::contiguous(ctx.get_stream().get(), dst, src);
+    // hip_async_copy(ctx, src, dst, hipMemcpyDeviceToDevice);
 }
 
 void copy_to_gpu(context& ctx, const argument& src, const argument& dst)
 {
-    hip_async_copy(ctx, src, dst, hipMemcpyHostToDevice);
+    gpu_copy(ctx, register_on_gpu(src), dst);
 }
 
 void copy_from_gpu(context& ctx, const argument& src, const argument& dst)
 {
-    hip_async_copy(ctx, src, dst, hipMemcpyDeviceToHost);
+    gpu_copy(ctx, src, register_on_gpu(dst));
 }
 
 argument get_preallocation(context& ctx, std::string id)

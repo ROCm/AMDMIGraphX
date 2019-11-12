@@ -14,6 +14,8 @@ struct context;
 
 argument allocate_gpu(const shape& s, bool host = false);
 
+argument register_on_gpu(argument arg);
+
 argument to_gpu(const argument& arg, bool host = false);
 
 argument from_gpu(const argument& arg);
@@ -99,18 +101,24 @@ struct hip_copy_to_gpu
     std::string name() const { return "hip::copy_to_gpu"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(2);
-        return inputs.at(1);
+        check_shapes{inputs}.has(1, 2);
+        return inputs.at(0);
     }
     argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        argument input = allocate_gpu(output_shape, true);
-        std::copy(args[0].data(), args[0].data() + args[0].get_shape().bytes(), input.data());
-        copy_to_gpu(ctx, input, args[1]);
+        auto input = register_on_gpu(args[0]);
+        if(args.size() == 1)
+            return input;
+        gpu_copy(ctx, input, args[1]);
         return args[1];
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 1; }
+    std::ptrdiff_t output_alias(const std::vector<shape>& args) const
+    {
+        if(args.size() == 1)
+            return -1;
+        return 1;
+    }
 };
 
 struct hip_copy_from_gpu
@@ -127,7 +135,7 @@ struct hip_copy_from_gpu
         if(args.size() == 1)
         {
             argument result = allocate_gpu(output_shape, true);
-            copy_from_gpu(ctx, args[0], result);
+            gpu_copy(ctx, args[0], result);
             return result;
         }
         else

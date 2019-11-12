@@ -169,6 +169,7 @@ struct miopen_apply
             auto pos = std::next(ins);
             auto a   = insert_allocation(pos, ins->get_shape());
             auto c   = prog->insert_instruction(pos, hip_copy_to_gpu{}, ins, a);
+            // auto c   = prog->insert_instruction(pos, hip_copy_to_gpu{}, ins);
             prog->replace_instruction(ins, c);
         }
         auto end = std::prev(prog->end());

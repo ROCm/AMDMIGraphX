@@ -6,6 +6,7 @@
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

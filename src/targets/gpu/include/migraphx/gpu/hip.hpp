@@ -104,8 +104,7 @@ struct hip_copy_to_gpu
         check_shapes{inputs}.has(1, 2);
         return inputs.at(0);
     }
-    argument
-    compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
         auto input = register_on_gpu(args[0]);
         if(args.size() == 1)

@@ -46,6 +46,12 @@ add_compile_options(-std=c++14)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)
 include(ROCMClangTidy)
+if(CMAKE_CXX_COMPILER MATCHES ".*hcc")
+    set(MIGRAPHX_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
+# Enable tidy on hip
+elseif(MIGRAPHX_ENABLE_GPU)
+    set(MIGRAPHX_TIDY_ERRORS ALL)
+endif()
 rocm_enable_clang_tidy(
     CHECKS
         *
@@ -100,16 +106,19 @@ rocm_enable_clang_tidy(
         -*-use-auto
         -*-use-emplace
         -*-use-equals-default
-    ERRORS
-        *
-        -readability-inconsistent-declaration-parameter-name
+    ${MIGRAPHX_TIDY_ERRORS}
     HEADER_FILTER
         ".*hpp"
     EXTRA_ARGS
         -UNDEBUG
         -DMIGRAPHX_USE_CLANG_TIDY
         "-Dmain\\\\(...\\\\)=main\\\\(__VA_ARGS__\\\\) // NOLINT"
-
+    # CLANG_ARGS
+    #     -analyzer-config optin.cplusplus.UninitializedObject:Pedantic=true
+    #     -analyzer-config widen-loops=true
+    #     -analyzer-config unroll-loops=true
+    #     -analyzer-config cfg-lifetime=true
+    #     -analyzer-config cfg-scopes=true
 )
 include(ROCMCppCheck)
 rocm_enable_cppcheck(
@@ -146,6 +155,8 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
         CPPCHECK=1
+        __device__=
+        __host__=
 )
 
 enable_testing()

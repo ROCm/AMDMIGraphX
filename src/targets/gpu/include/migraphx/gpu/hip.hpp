@@ -81,21 +81,6 @@ struct hip_sync
     }
 };
 
-struct hip_write
-{
-    std::string name() const { return "hip::write"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs}.has(1);
-        return inputs.front();
-    }
-    argument compute(context&, const shape&, const std::vector<argument>& args) const
-    {
-        return to_gpu(args.front());
-    }
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
-};
-
 struct hip_copy_to_gpu
 {
     std::string name() const { return "hip::copy_to_gpu"; }
@@ -111,7 +96,7 @@ struct hip_copy_to_gpu
             return input;
         argument result = args[1].share();
         gpu_copy(ctx, input, result);
-        // Associate the input since it was regeistered on the host
+        // Associate the input since it was registered with hip
         return {result.get_shape(), [input, result]() mutable { return result.data(); }};
     }
     std::ptrdiff_t output_alias(const std::vector<shape>& args) const

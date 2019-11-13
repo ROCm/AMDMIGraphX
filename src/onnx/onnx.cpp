@@ -493,7 +493,7 @@ struct onnx_parser
     {
         // change to hande axis to be negative values
         int axis = parse_value(attributes.at("axis")).at<int>();
-        if (axis < 0)
+        if(axis < 0)
         {
             auto n_dim = args[0]->get_shape().lens().size();
             axis += n_dim;

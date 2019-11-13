@@ -492,7 +492,7 @@ struct onnx_parser
     parse_concat(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         // change to hande axis to be negative values
-        if (!contains(attributes, "axis"))
+        if(!contains(attributes, "axis"))
         {
             MIGRAPHX_THROW("PARSE_CONCAT: attribute axis is required!");
         }

@@ -1973,7 +1973,6 @@ struct test_concat_axis_neg_1 : verify_program<test_concat_axis_neg_1>
     }
 };
 
-
 struct test_concat_axis_0 : verify_program<test_concat_axis_0>
 {
     migraphx::program create_program() const
@@ -2234,7 +2233,7 @@ void manual_identity()
 void manual_test_concat_relu()
 {
     migraphx::program p;
-    int axis         = 0;
+    int axis                 = 0;
     std::vector<float> data0 = {0, 1, 2, 3};
     std::vector<float> data1 = {4, 5, 6, 7, 8, 9};
     std::vector<float> data2 = {10, 11};

@@ -59,7 +59,7 @@ TEST_CASE(concat_test)
 {
     {
         migraphx::program p;
-        int axis       = 1;
+        int axis               = 1;
         std::vector<int> data0 = {0, 1, 5, 6};
         std::vector<int> data1 = {2, 3, 4, 7, 8, 9};
         std::vector<int> data2 = {10, 20};
@@ -83,7 +83,7 @@ TEST_CASE(concat_test)
 
     {
         migraphx::program p;
-        int axis       = -1;
+        int axis               = -1;
         std::vector<int> data0 = {0, 1, 5, 6};
         std::vector<int> data1 = {2, 3, 4, 7, 8, 9};
         std::vector<int> data2 = {10, 20};
@@ -107,7 +107,7 @@ TEST_CASE(concat_test)
 
     {
         migraphx::program p;
-        int axis       = 0;
+        int axis               = 0;
         std::vector<int> data0 = {0, 1, 2, 3};
         std::vector<int> data1 = {4, 5, 6, 7, 8, 9};
         std::vector<int> data2 = {10, 11};
@@ -131,7 +131,7 @@ TEST_CASE(concat_test)
 
     {
         migraphx::program p;
-        int axis       = -2;
+        int axis               = -2;
         std::vector<int> data0 = {0, 1, 2, 3};
         std::vector<int> data1 = {4, 5, 6, 7, 8, 9};
         std::vector<int> data2 = {10, 11};

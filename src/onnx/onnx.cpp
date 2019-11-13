@@ -492,13 +492,13 @@ struct onnx_parser
     parse_concat(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         // change to hande axis to be negative values
-        int axis = parse_value(attributes.at("axis")).at<int>();
-        if(axis < 0)
+        if (!contains(attributes, "axis"))
         {
-            auto n_dim = args[0]->get_shape().lens().size();
-            axis += n_dim;
+            MIGRAPHX_THROW("PARSE_CONCAT: attribute axis is required!");
         }
-        op::concat op{static_cast<std::size_t>(axis)};
+
+        int axis = parse_value(attributes.at("axis")).at<int>();
+        op::concat op{axis};
         return prog.add_instruction(op, std::move(args));
     }
 

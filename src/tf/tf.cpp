@@ -341,7 +341,7 @@ struct tf_parser
     {
         // get index for axis within args
         size_t axis_idx = attributes.at("N").i();
-        size_t axis     = args[axis_idx]->eval().at<int64_t>();
+        int axis     = args[axis_idx]->eval().at<int64_t>();
         op::concat op{axis};
         // return only first N arguments (assuming last index is the axis value)
         return prog.add_instruction(
@@ -649,7 +649,7 @@ struct tf_parser
             std::back_inserter(unsqueezed_args),
             [&](instruction_ref arg) { return prog.add_instruction(op::unsqueeze{{axis}}, arg); });
         return to_nhwc(
-            prog.add_instruction(op::concat{static_cast<size_t>(axis)}, unsqueezed_args));
+            prog.add_instruction(op::concat{static_cast<int>(axis)}, unsqueezed_args));
     }
 
     instruction_ref

@@ -491,8 +491,14 @@ struct onnx_parser
     instruction_ref
     parse_concat(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        std::size_t axis = parse_value(attributes.at("axis")).at<int>();
-        op::concat op{axis};
+        // change to hande axis to be negative values
+        int axis = parse_value(attributes.at("axis")).at<int>();
+        if (axis < 0)
+        {
+            auto n_dim = args[0]->get_shape().lens().size();
+            axis += n_dim;
+        }
+        op::concat op{static_cast<std::size_t>(axis)};
         return prog.add_instruction(op, std::move(args));
     }
 

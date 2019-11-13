@@ -135,6 +135,26 @@ TEST_CASE(gather_test)
         migraphx::shape s{migraphx::shape::float_type, {3, 3}};
         auto a0 = p.add_literal(migraphx::literal{s, data});
         migraphx::shape s_indices{migraphx::shape::int32_type, {1, 2}};
+        std::vector<int> indices{-3, -1};
+        auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
+        int axis = 0;
+        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
+        p.compile(migraphx::cpu::target{});
+        auto result = p.eval({});
+        std::vector<float> res_data(4 * 5);
+        std::vector<float> golden = {0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f};
+        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(res_data, golden));
+    }
+
+    {
+        migraphx::program p;
+
+        std::vector<float> data(3 * 3);
+        std::iota(data.begin(), data.end(), 0.5);
+        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
+        auto a0 = p.add_literal(migraphx::literal{s, data});
+        migraphx::shape s_indices{migraphx::shape::int32_type, {1, 2}};
         std::vector<int> indices{0, 2};
         auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
         int axis = 1;
@@ -177,6 +197,27 @@ TEST_CASE(gather_test)
         // scalar index
         migraphx::shape s_indices{migraphx::shape::int32_type};
         std::vector<int> indices{0};
+        auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
+        int axis = -1;
+        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
+        p.compile(migraphx::cpu::target{});
+        auto result = p.eval({});
+        std::vector<float> res_data{};
+        std::vector<float> golden = {0.5f, 3.5f, 6.5f};
+        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(res_data, golden));
+    }
+
+    {
+        migraphx::program p;
+
+        std::vector<float> data(3 * 3);
+        std::iota(data.begin(), data.end(), 0.5);
+        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
+        auto a0 = p.add_literal(migraphx::literal{s, data});
+        // scalar index
+        migraphx::shape s_indices{migraphx::shape::int32_type};
+        std::vector<int> indices{-3};
         auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
         int axis = -1;
         p.add_instruction(migraphx::op::gather{axis}, a0, a1);

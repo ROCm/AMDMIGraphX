@@ -159,13 +159,14 @@ PYBIND11_MODULE(migraphx, m)
         .def("clone", [](migraphx::program& p) { return *(new migraphx::program(p)); })
         .def("get_parameter_shapes", &migraphx::program::get_parameter_shapes)
         .def("get_shape", &migraphx::program::get_shape)
-        .def("compile", [](migraphx::program& p, const migraphx::target& t, bool offload_copy) {
-            migraphx::compile_options options;
-            options.offload_copy = offload_copy;
-            p.compile(t, options); 
-        },
-        py::arg("t"),
-        py::arg("offload_copy") = true)
+        .def("compile",
+             [](migraphx::program& p, const migraphx::target& t, bool offload_copy) {
+                 migraphx::compile_options options;
+                 options.offload_copy = offload_copy;
+                 p.compile(t, options);
+             },
+             py::arg("t"),
+             py::arg("offload_copy") = true)
         .def("run", &migraphx::program::eval)
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})

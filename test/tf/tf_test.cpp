@@ -474,6 +474,61 @@ TEST_CASE(softmax_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(split_test)
+{
+    migraphx::program p;
+    std::vector<int64_t> axes{0, 1};
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {5, 30}});
+    p.add_literal(3); // num_splits
+    p.add_literal(1); // split axis
+    p.add_literal(1); // concat axis
+    p.add_literal(1); // concat axis
+    auto l1 = p.add_instruction(migraphx::op::slice{axes, {0, 0}, {5, 10}}, l0);
+    auto l2 = p.add_instruction(migraphx::op::slice{axes, {0, 10}, {5, 20}}, l0);
+    auto l3 = p.add_instruction(migraphx::op::slice{axes, {0, 20}, {5, 30}}, l0);
+    p.add_instruction(migraphx::op::concat{1}, l1, l2);
+    p.add_instruction(migraphx::op::concat{1}, l2, l3);
+
+    auto prog = migraphx::parse_tf("split_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(split_test_one_output)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {5, 30}});
+    p.add_literal(1); // num_splits
+    p.add_literal(1); // split axis
+    p.add_instruction(migraphx::op::identity{}, l0);
+
+    auto prog = migraphx::parse_tf("split_test_one_output.pb", false);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(split_test_vector_as_input)
+{
+    migraphx::program p;
+    std::vector<int64_t> axes{0, 1};
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {5, 30}});
+    // split sizes
+    p.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {3}}, {4, 15, 11}});
+    p.add_literal(1); // split axis
+    p.add_literal(1); // concat axis
+    p.add_literal(1); // concat axis
+    auto l1 = p.add_instruction(migraphx::op::slice{axes, {0, 0}, {5, 4}}, l0);
+    auto l2 = p.add_instruction(migraphx::op::slice{axes, {0, 4}, {5, 19}}, l0);
+    auto l3 = p.add_instruction(migraphx::op::slice{axes, {0, 19}, {5, 30}}, l0);
+    p.add_instruction(migraphx::op::concat{1}, l1, l2);
+    p.add_instruction(migraphx::op::concat{1}, l2, l3);
+
+    auto prog = migraphx::parse_tf("split_test_vector_as_input.pb", false);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(sqdiff_test)
 {
     migraphx::program p;

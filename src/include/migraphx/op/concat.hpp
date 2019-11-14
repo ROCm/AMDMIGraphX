@@ -30,8 +30,8 @@ struct concat
     std::vector<std::size_t> compute_offsets(const shape& output_shape,
                                              const std::vector<argument>& args) const
     {
-        std::size_t n_dims = args[0].get_shape().lens().size();
-        std::size_t axis_index     = (axis < 0) ? axis + n_dims : axis;
+        std::size_t n_dims     = args[0].get_shape().lens().size();
+        std::size_t axis_index = (axis < 0) ? axis + n_dims : axis;
         std::vector<std::size_t> offsets;
         std::vector<std::size_t> offset(args[0].get_shape().lens().size(), 0);
         offset[axis_index] = 0;
@@ -51,7 +51,7 @@ struct concat
 
         const auto& first_shape_lens = inputs.front().lens();
         const auto& type             = inputs.front().type();
-        std::size_t axis_index               = (axis < 0) ? (first_shape_lens.size() + axis) : axis;
+        std::size_t axis_index       = (axis < 0) ? (first_shape_lens.size() + axis) : axis;
         for(std::size_t l = 0; l < first_shape_lens.size(); l++)
         {
             if(l != axis_index)

@@ -33,7 +33,8 @@ void eliminate_concat::apply(program& p) const
         // we only need to check the first input
         auto lens      = ins->inputs().front()->get_shape().lens();
         auto concat_op = concat_opt.get_concat(ins->get_operator());
-        std::size_t axis_index = (concat_op.axis < 0) ? (concat_op.axis + lens.size()) : concat_op.axis;
+        std::size_t axis_index =
+            (concat_op.axis < 0) ? (concat_op.axis + lens.size()) : concat_op.axis;
         if(axis_index == 0 ||
            std::all_of(lens.begin(), lens.begin() + concat_op.axis, [](auto x) { return x == 1; }))
         {

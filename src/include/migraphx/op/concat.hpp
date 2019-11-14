@@ -30,7 +30,7 @@ struct concat
     std::vector<std::size_t> compute_offsets(const shape& output_shape,
                                              const std::vector<argument>& args) const
     {
-        auto n_dims = args[0].get_shape().lens().size();
+        auto n_dims            = args[0].get_shape().lens().size();
         std::size_t axis_index = (axis < 0) ? axis + n_dims : axis;
         std::vector<std::size_t> offsets;
         std::vector<std::size_t> offset(n_dims, 0);

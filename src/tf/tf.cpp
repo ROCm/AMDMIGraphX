@@ -1342,7 +1342,7 @@ struct tf_parser
             return literal{{shape_type}, data};
         return literal{{shape_type, dims}, data};
     }
-}; // namespace MIGRAPHX_INLINE_NS
+};
 
 program parse_tf(const std::string& name, bool is_nhwc)
 {

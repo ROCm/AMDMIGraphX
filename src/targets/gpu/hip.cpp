@@ -95,9 +95,9 @@ argument allocate_gpu(const shape& s, bool host)
     return {s, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
 }
 
-argument register_on_gpu(argument arg)
+argument register_on_gpu(const argument& arg)
 {
-    auto arg_shared = std::move(arg).share();
+    auto arg_shared = arg.share();
     auto p          = share(register_on_gpu(arg_shared.data(), arg_shared.get_shape().bytes()));
     return {arg_shared.get_shape(),
             [ p, a = std::move(arg_shared) ]() mutable {return get_device_ptr(p.get());
@@ -117,6 +117,7 @@ argument from_gpu(const argument& arg)
     arg.visit([&](auto x) {
         using type = typename decltype(x)::value_type;
         auto v     = read_from_gpu<type>(arg.data(), x.get_shape().bytes() / sizeof(type));
+        // cppcheck-suppress returnDanglingLifetime
         result     = {x.get_shape(), [v]() mutable { return v.data(); }};
     });
     return result;
@@ -159,11 +160,11 @@ void copy_from_gpu(context& ctx, const argument& src, const argument& dst)
     gpu_copy(ctx, src, register_on_gpu(dst));
 }
 
-argument get_preallocation(context& ctx, std::string id)
+argument get_preallocation(context& ctx, const std::string& id)
 {
     return ctx.get_current_device().preallocations.at(id);
 }
 
-} // namespace migraphx
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

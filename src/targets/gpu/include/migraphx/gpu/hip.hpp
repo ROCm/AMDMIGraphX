@@ -14,7 +14,7 @@ struct context;
 
 argument allocate_gpu(const shape& s, bool host = false);
 
-argument register_on_gpu(argument arg);
+argument register_on_gpu(const argument& arg);
 
 argument to_gpu(const argument& arg, bool host = false);
 
@@ -28,7 +28,7 @@ void gpu_copy(context& ctx, const argument& src, const argument& dst);
 void copy_to_gpu(context& ctx, const argument& src, const argument& dst);
 void copy_from_gpu(context& ctx, const argument& src, const argument& dst);
 
-argument get_preallocation(context& ctx, std::string id);
+argument get_preallocation(context& ctx, const std::string& id);
 
 struct hip_allocate
 {
@@ -124,11 +124,8 @@ struct hip_copy_from_gpu
             gpu_copy(ctx, args[0], result);
             return result;
         }
-        else
-        {
-            copy_from_gpu(ctx, args[0], args[1]);
-            return args[1];
-        }
+        copy_from_gpu(ctx, args[0], args[1]);
+        return args[1];
     }
     std::ptrdiff_t output_alias(const std::vector<shape>& args) const
     {

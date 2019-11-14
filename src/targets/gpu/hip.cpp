@@ -165,6 +165,6 @@ argument get_preallocation(context& ctx, const std::string& id)
     return ctx.get_current_device().preallocations.at(id);
 }
 
-} // namespace migraphx
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -118,7 +118,7 @@ argument from_gpu(const argument& arg)
         using type = typename decltype(x)::value_type;
         auto v     = read_from_gpu<type>(arg.data(), x.get_shape().bytes() / sizeof(type));
         // cppcheck-suppress returnDanglingLifetime
-        result     = {x.get_shape(), [v]() mutable { return v.data(); }};
+        result = {x.get_shape(), [v]() mutable { return v.data(); }};
     });
     return result;
 }
@@ -165,6 +165,6 @@ argument get_preallocation(context& ctx, const std::string& id)
     return ctx.get_current_device().preallocations.at(id);
 }
 
-} // namespace gpu
+} // namespace migraphx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

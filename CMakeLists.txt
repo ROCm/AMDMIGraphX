@@ -110,6 +110,7 @@ rocm_enable_clang_tidy(
     HEADER_FILTER
         ".*hpp"
     EXTRA_ARGS
+        -UNDEBUG
         -DMIGRAPHX_USE_CLANG_TIDY
         "-Dmain\\\\(...\\\\)=main\\\\(__VA_ARGS__\\\\) // NOLINT"
     # CLANG_ARGS

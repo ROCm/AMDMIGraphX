@@ -87,8 +87,9 @@ struct compiler
     static const int q_fp16 = 1;
     static const int q_int8 = 2;
     loader l;
-    bool gpu     = true;
-    int quantize = 0;
+    bool gpu          = true;
+    bool offload_copy = false;
+    int quantize      = 0;
 
     std::vector<std::string> fill1;
     void parse(argument_parser& ap)
@@ -96,6 +97,10 @@ struct compiler
         l.parse(ap);
         ap(gpu, {"--gpu"}, ap.help("Compile on the gpu"), ap.set_value(true));
         ap(gpu, {"--cpu"}, ap.help("Compile on the cpu"), ap.set_value(false));
+        ap(offload_copy,
+           {"--enable-offload-copy"},
+           ap.help("Enable implicit offload copying"),
+           ap.set_value(false));
         ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(q_fp16));
         ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(q_int8));
         ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append());
@@ -103,10 +108,11 @@ struct compiler
 
     auto params(const program& p, bool use_gpu = true)
     {
+        bool gpu_flag = use_gpu && gpu && !offload_copy;
         program::parameter_map m;
         for(auto&& s : fill1)
             m[s] = fill_argument(p.get_parameter_shape(s), 1);
-        fill_param_map(m, p, use_gpu && gpu);
+        fill_param_map(m, p, gpu_flag);
         return m;
     }
 
@@ -122,7 +128,9 @@ struct compiler
         {
             quantize_int8(p, t, {params(p, false)});
         }
-        p.compile(t);
+        compile_options options;
+        options.offload_copy = offload_copy;
+        p.compile(t, options);
         return p;
     }
 };

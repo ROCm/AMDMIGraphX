@@ -11,6 +11,7 @@
 #include <migraphx/context.hpp>
 #include <migraphx/pass.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/rank.hpp>
 
@@ -28,9 +29,10 @@ struct target
      * @brief The transformation pass to be run during compilation.
      *
      * @param ctx This is the target-dependent context that is created by `get_context`
+     * @param options Compiling options passed in by the user
      * @return The passes to be ran
      */
-    std::vector<pass> get_passes(context& ctx) const;
+    std::vector<pass> get_passes(context& ctx, const compile_options& options) const;
     /**
      * @brief Construct a context for the target.
      * @return The context to be used during compilation and execution.
@@ -119,7 +121,7 @@ argument copy_from_target(T& x, const argument& arg)
 <%
 interface('target',
      virtual('name', returns='std::string', const=True),
-     virtual('get_passes', ctx='context&', returns='std::vector<pass>', const=True),
+     virtual('get_passes', ctx='context&', options='const compile_options&', returns='std::vector<pass>', const=True),
      virtual('get_context', returns='context', const=True),
      virtual('copy_to',
              returns = 'argument',

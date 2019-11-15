@@ -101,6 +101,7 @@ add_library(migraphx_gpu
     int8_gemm_pack.cpp
     int8_conv_pack.cpp
     gemm_impl.cpp
+    preallocate_param.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_set_soversion(migraphx_gpu ${PROJECT_VERSION})

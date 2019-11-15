@@ -28,12 +28,25 @@ struct argument : raw_data<argument>
         data = [=]() mutable { return buffer.data(); };
     }
 
-    argument(shape s, std::function<char*()> d) : data(std::move(d)), m_shape(std::move(s)) {}
+    template <class F, MIGRAPHX_REQUIRES(std::is_pointer<decltype(std::declval<F>()())>{})>
+    argument(shape s, F d)
+        : data([f = std::move(d)]() mutable { return reinterpret_cast<char*>(f()); }),
+          m_shape(std::move(s))
+    {
+    }
     template <class T>
     argument(shape s, T* d)
         : data([d] { return reinterpret_cast<char*>(d); }), m_shape(std::move(s))
     {
     }
+
+    template <class T>
+    argument(shape s, std::shared_ptr<T> d)
+        : data([d] { return reinterpret_cast<char*>(d.get()); }), m_shape(std::move(s))
+    {
+    }
+
+    argument(shape s, std::nullptr_t) : data([] { return nullptr; }), m_shape(std::move(s)) {}
 
     /// Provides a raw pointer to the data
     std::function<char*()> data = nullptr;
@@ -47,6 +60,13 @@ struct argument : raw_data<argument>
     {
         argument self = *this;
         return {s, [=]() mutable { return self.data(); }};
+    }
+
+    /// Make copy of the argument that is always sharing the data
+    argument share() const
+    {
+        auto self = std::make_shared<argument>(*this);
+        return {m_shape, [self]() mutable { return self->data(); }};
     }
 
     private:

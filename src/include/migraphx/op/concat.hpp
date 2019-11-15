@@ -18,7 +18,7 @@ namespace op {
 
 struct concat
 {
-    int axis = 0;
+    int64_t axis = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -46,7 +46,7 @@ struct concat
     {
         if(inputs.empty())
         {
-            MIGRAPHX_THROW("Number of input tensors should exceed 0");
+            MIGRAPHX_THROW("CONCAT: Number of input tensors should exceed 0");
         }
 
         const auto& first_shape_lens = inputs.front().lens();
@@ -60,7 +60,7 @@ struct concat
                        return s.lens()[l] == first_shape_lens[l];
                    }))
                 {
-                    MIGRAPHX_THROW("Non-axis dimensions should match");
+                    MIGRAPHX_THROW("CONCAT: Non-axis dimensions should match");
                 }
             }
         }

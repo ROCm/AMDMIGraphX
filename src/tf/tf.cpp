@@ -357,7 +357,7 @@ struct tf_parser
     {
         // get index for axis within args
         size_t axis_idx = attributes.at("N").i();
-        int64_t axis        = args[axis_idx]->eval().at<int64_t>();
+        int64_t axis    = args[axis_idx]->eval().at<int64_t>();
         op::concat op{axis};
         // return only first N arguments (assuming last index is the axis value)
         return prog.add_instruction(

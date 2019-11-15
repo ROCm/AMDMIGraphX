@@ -22,6 +22,7 @@
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/adjust_allocation.hpp>
+#include <migraphx/gpu/preallocate_param.hpp>
 #include <migraphx/gpu/pack_int8_args.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/schedule.hpp>
@@ -32,7 +33,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 
-std::vector<pass> target::get_passes(migraphx::context& gctx) const
+std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
     auto& ctx = any_cast<context>(gctx);
     // clang-format off
@@ -58,7 +59,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         dead_code_elimination{},
         propagate_constant{},
         dead_code_elimination{},
-        lowering{ctx},
+        lowering{&ctx, options.offload_copy},
         eliminate_contiguous{},
         dead_code_elimination{},
         eliminate_concat{concat_gpu_optimization{}},
@@ -72,6 +73,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx) const
         write_literals{&ctx},
         schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
         memory_coloring{"hip::allocate"},
+        preallocate_param{"scratch", &ctx},
         dead_code_elimination{},
         eliminate_workspace{},
         eliminate_allocation{"hip::allocate"},

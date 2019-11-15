@@ -6,6 +6,7 @@
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -123,6 +124,9 @@ struct hip_device
     std::size_t device_id      = 0;
     std::size_t current_stream = 0;
     std::vector<stream> streams;
+
+    public:
+    std::unordered_map<std::string, argument> preallocations{};
 };
 
 struct context

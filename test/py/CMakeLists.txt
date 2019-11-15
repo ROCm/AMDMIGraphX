@@ -19,6 +19,7 @@ add_dependencies(check migraphx_py)
 
 add_py_test(cpu test_cpu.py WORKING_DIRECTORY ${TEST_ONNX_DIR})
 if(MIGRAPHX_ENABLE_GPU)
+add_py_test(gpu_offload test_gpu_offload.py WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(gpu test_gpu.py WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(array test_array.py WORKING_DIRECTORY ${TEST_ONNX_DIR})
 endif()

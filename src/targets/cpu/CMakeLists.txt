@@ -5,7 +5,7 @@ add_library(migraphx_cpu
     gemm.cpp
 )
 set_target_properties(migraphx_cpu PROPERTIES EXPORT_NAME cpu)
-rocm_set_soversion(migraphx_cpu ${PROJECT_VERSION})
+rocm_set_soversion(migraphx_cpu ${MIGRAPHX_SO_VERSION})
 
 find_path(BLAZE_INCLUDE blaze/Blaze.h)
 find_package(Threads)

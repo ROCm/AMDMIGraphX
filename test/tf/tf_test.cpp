@@ -138,7 +138,7 @@ TEST_CASE(concat_test)
     // add the literal using a vector in order to set stride to 1 (like in tf parser)
     p.add_literal(migraphx::shape{migraphx::shape::int32_type}, std::vector<int>{axis});
 
-    p.add_instruction(migraphx::op::concat{static_cast<std::size_t>(axis)}, l0, l1);
+    p.add_instruction(migraphx::op::concat{axis}, l0, l1);
     auto prog = optimize_tf("concat_test.pb", false);
 
     EXPECT(p == prog);
@@ -341,7 +341,7 @@ TEST_CASE(pack_test)
                    [&](migraphx::instruction_ref arg) {
                        return p.add_instruction(migraphx::op::unsqueeze{{axis}}, arg);
                    });
-    p.add_instruction(migraphx::op::concat{static_cast<size_t>(axis)}, unsqueezed_args);
+    p.add_instruction(migraphx::op::concat{static_cast<int>(axis)}, unsqueezed_args);
     auto prog = optimize_tf("pack_test.pb", false);
 
     EXPECT(p == prog);
@@ -366,7 +366,7 @@ TEST_CASE(pack_test_nhwc)
                    [&](migraphx::instruction_ref arg) {
                        return p.add_instruction(migraphx::op::unsqueeze{{nchw_axis}}, arg);
                    });
-    p.add_instruction(migraphx::op::concat{static_cast<size_t>(nchw_axis)}, unsqueezed_args);
+    p.add_instruction(migraphx::op::concat{static_cast<int>(nchw_axis)}, unsqueezed_args);
     auto prog = optimize_tf("pack_test_nhwc.pb", true);
 
     EXPECT(p == prog);

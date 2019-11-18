@@ -18,7 +18,7 @@ namespace op {
 
 struct concat
 {
-    std::size_t axis = 0;
+    int64_t axis = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -30,13 +30,15 @@ struct concat
     std::vector<std::size_t> compute_offsets(const shape& output_shape,
                                              const std::vector<argument>& args) const
     {
+        auto n_dims            = args[0].get_shape().lens().size();
+        std::size_t axis_index = (axis < 0) ? axis + n_dims : axis;
         std::vector<std::size_t> offsets;
-        std::vector<std::size_t> offset(args[0].get_shape().lens().size(), 0);
-        offset[axis] = 0;
+        std::vector<std::size_t> offset(n_dims, 0);
+        offset[axis_index] = 0;
         for(const auto& arg : args)
         {
             offsets.push_back(output_shape.index(offset));
-            offset[axis] += arg.get_shape().lens()[axis];
+            offset[axis_index] += arg.get_shape().lens()[axis_index];
         }
         return offsets;
     }
@@ -44,20 +46,21 @@ struct concat
     {
         if(inputs.empty())
         {
-            MIGRAPHX_THROW("Number of input tensors should exceed 0");
+            MIGRAPHX_THROW("CONCAT: Number of input tensors should exceed 0");
         }
 
         const auto& first_shape_lens = inputs.front().lens();
         const auto& type             = inputs.front().type();
+        std::size_t axis_index       = (axis < 0) ? (first_shape_lens.size() + axis) : axis;
         for(std::size_t l = 0; l < first_shape_lens.size(); l++)
         {
-            if(l != axis)
+            if(l != axis_index)
             {
                 if(!std::all_of(inputs.begin(), inputs.end(), [&](auto s) {
                        return s.lens()[l] == first_shape_lens[l];
                    }))
                 {
-                    MIGRAPHX_THROW("Non-axis dimensions should match");
+                    MIGRAPHX_THROW("CONCAT: Non-axis dimensions should match");
                 }
             }
         }
@@ -65,11 +68,11 @@ struct concat
         for(const auto& input : inputs)
         {
             const auto& lens = input.lens();
-            new_dim_axis += lens[axis];
+            new_dim_axis += lens[axis_index];
         }
         std::vector<std::size_t> new_lens;
         std::copy(first_shape_lens.begin(), first_shape_lens.end(), std::back_inserter(new_lens));
-        new_lens[axis] = new_dim_axis;
+        new_lens[axis_index] = new_dim_axis;
         return {type, new_lens};
     }
     argument compute(const shape& output_shape, std::vector<argument> args) const

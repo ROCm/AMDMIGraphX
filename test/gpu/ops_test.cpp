@@ -1941,12 +1941,12 @@ struct quant_conv_padding_stride : verify_program<quant_conv_padding_stride>
     }
 };
 
-struct test_concat : verify_program<test_concat>
+struct test_concat_axis_1 : verify_program<test_concat_axis_1>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
-        std::size_t axis = 1;
+        int axis = 1;
         migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {2, 3}};
         migraphx::shape s2{migraphx::shape::int32_type, {2, 1}};
@@ -1958,12 +1958,29 @@ struct test_concat : verify_program<test_concat>
     }
 };
 
-struct test_concat2 : verify_program<test_concat2>
+struct test_concat_axis_neg_1 : verify_program<test_concat_axis_neg_1>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
-        std::size_t axis = 0;
+        int axis = -1;
+        migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
+        migraphx::shape s1{migraphx::shape::int32_type, {2, 3}};
+        migraphx::shape s2{migraphx::shape::int32_type, {2, 1}};
+        auto l0 = p.add_parameter("x", s0);
+        auto l1 = p.add_parameter("y", s1);
+        auto l2 = p.add_parameter("z", s2);
+        p.add_instruction(migraphx::op::concat{axis}, l0, l1, l2);
+        return p;
+    }
+};
+
+struct test_concat_axis_0 : verify_program<test_concat_axis_0>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        int axis = 0;
         migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
         migraphx::shape s2{migraphx::shape::int32_type, {1, 2}};
@@ -1980,7 +1997,7 @@ struct test_concat_transpose : verify_program<test_concat_transpose>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        std::size_t axis = 1;
+        int axis = 1;
         migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
         migraphx::shape s2{migraphx::shape::int32_type, {2, 4}};
@@ -1998,7 +2015,7 @@ struct test_concat_transpose2 : verify_program<test_concat_transpose2>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        std::size_t axis = 1;
+        int axis = 1;
         migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {2, 3}};
         migraphx::shape s2{migraphx::shape::int32_type, {5, 2}};
@@ -2016,7 +2033,7 @@ struct test_concat_transpose3 : verify_program<test_concat_transpose3>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        std::size_t axis = 1;
+        int axis = 1;
         migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
         migraphx::shape s2{migraphx::shape::int32_type, {5, 2}};
@@ -2035,7 +2052,7 @@ struct test_concat_relu : verify_program<test_concat_relu>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        std::size_t axis = 0;
+        int axis = 0;
         migraphx::shape s0{migraphx::shape::float_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::float_type, {3, 2}};
         migraphx::shape s2{migraphx::shape::float_type, {1, 2}};
@@ -2134,6 +2151,22 @@ struct test_gather_neg_axis : verify_program<test_gather_neg_axis>
     }
 };
 
+struct test_gather_neg_indices : verify_program<test_gather_neg_indices>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
+        migraphx::shape s_indices{migraphx::shape::int32_type, {2, 2}};
+        std::vector<int> indices{-2, -1, -1, -2};
+        auto a0  = p.add_parameter("data", s);
+        auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
+        int axis = -1;
+        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
+        return p;
+    }
+};
+
 struct test_gather_scalar_output : verify_program<test_gather_scalar_output>
 {
     migraphx::program create_program() const
@@ -2202,7 +2235,7 @@ void manual_identity()
 void manual_test_concat_relu()
 {
     migraphx::program p;
-    std::size_t axis         = 0;
+    int axis                 = 0;
     std::vector<float> data0 = {0, 1, 2, 3};
     std::vector<float> data1 = {4, 5, 6, 7, 8, 9};
     std::vector<float> data2 = {10, 11};

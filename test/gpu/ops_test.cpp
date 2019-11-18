@@ -90,7 +90,9 @@ void compile_check(migraphx::program& p, const migraphx::target& t, bool show_tr
     auto name = t.name();
     auto s    = p.get_shape();
     std::stringstream ss;
-    p.compile(t, migraphx::tracer{ss});
+    migraphx::compile_options options;
+    options.trace = migraphx::tracer{ss};
+    p.compile(t, options);
     if(p.get_shape() != s)
     {
         std::cout << ss.str() << std::endl;

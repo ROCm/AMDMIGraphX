@@ -83,16 +83,28 @@ inline std::string remove_prefix(std::string s, const std::string& prefix)
         return s;
 }
 
+template <class Iterator>
+inline std::string to_string_range(Iterator start, Iterator last)
+{
+    std::stringstream ss;
+    if(start != last)
+    {
+        ss << *start;
+        std::for_each(std::next(start), last, [&](auto&& x) { ss << ", " << x; });
+    }
+    return ss.str();
+}
+
 template <class Range>
 inline std::string to_string_range(const Range& r)
 {
-    std::stringstream ss;
-    if(!r.empty())
-    {
-        ss << r.front();
-        std::for_each(std::next(r.begin()), r.end(), [&](auto&& x) { ss << ", " << x; });
-    }
-    return ss.str();
+    return to_string_range(r.begin(), r.end());
+}
+
+template <class T>
+inline std::string to_string_range(const std::initializer_list<T>& r)
+{
+    return to_string_range(r.begin(), r.end());
 }
 
 template <class T>

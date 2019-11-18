@@ -22,7 +22,8 @@ find_package(ROCM REQUIRED)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 0.4)
+rocm_setup_version(VERSION 0.5)
+set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 

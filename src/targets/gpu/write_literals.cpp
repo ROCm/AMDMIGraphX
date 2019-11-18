@@ -10,32 +10,10 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_COPY_LITERALS)
 
-struct hip_load_literal
-{
-    shape s;
-    std::size_t n = 0;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.s, "shape"), f(self.n, "id"));
-    }
-
-    std::string name() const { return "hip::load_literal"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs}.has(0);
-        return s;
-    }
-    argument compute(context& ctx, const shape&, const std::vector<argument>&) const
-    {
-        return ctx.literals.at(n);
-    }
-};
-
 void write_literals::apply(program& p) const
 {
     assert(ctx != nullptr);
+    std::size_t n = 0;
     for(auto ins : iterator_for(p))
     {
         if(ins->name() == "@literal")
@@ -49,10 +27,11 @@ void write_literals::apply(program& p) const
             }
             else
             {
-                argument a    = to_gpu(ins->get_literal().get_argument());
-                std::size_t n = ctx->literals.size();
-                ctx->literals.push_back(a);
-                p.replace_instruction(ins, hip_load_literal{a.get_shape(), n});
+                std::string id = "@literal:" + std::to_string(n);
+                argument a     = to_gpu(ins->get_literal().get_argument());
+                ctx->get_current_device().preallocations[id] = a;
+                p.replace_instruction(ins, hip_load_memory{a.get_shape(), id});
+                n++;
             }
         }
     }

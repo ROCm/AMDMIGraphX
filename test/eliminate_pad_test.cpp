@@ -1,19 +1,15 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/operators.hpp>
 #include <test.hpp>
 
-struct eliminate_pad_target
+void run_pass(migraphx::program& p)
 {
-    std::string name() const { return "eliminate_pad"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const
-    {
-        return {migraphx::eliminate_pad{}, migraphx::dead_code_elimination{}};
-    }
-    migraphx::context get_context() const { return {}; }
-};
+    migraphx::run_passes(p, {migraphx::eliminate_pad{}, migraphx::dead_code_elimination{}});
+}
 
 migraphx::instruction_ref
 create_im2col(migraphx::instruction_ref& l_img, size_t channels, migraphx::program& p)
@@ -59,7 +55,7 @@ TEST_CASE(rewrite_test)
     auto l2 = p.add_instruction(migraphx::op::pooling{}, padded_img);
     p.add_instruction(migraphx::op::identity{}, l0, l1, l2);
 
-    p.compile(eliminate_pad_target{});
+    run_pass(p);
     EXPECT(std::none_of(
         p.begin(), p.end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
 }
@@ -78,7 +74,7 @@ TEST_CASE(rewrite_test_asymmetric)
 
     create_im2col(padded_img, channels, p);
 
-    p.compile(eliminate_pad_target{});
+    run_pass(p);
     EXPECT(std::any_of(
         p.begin(), p.end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
 }

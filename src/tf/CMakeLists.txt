@@ -21,7 +21,7 @@ set_target_properties(tf-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
 
 add_library(migraphx_tf tf.cpp)
 set_target_properties(migraphx_tf PROPERTIES EXPORT_NAME tf)
-rocm_set_soversion(migraphx_tf ${PROJECT_VERSION})
+rocm_set_soversion(migraphx_tf ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_tf)
 target_link_libraries(migraphx_tf PRIVATE tf-proto)
 target_link_libraries(migraphx_tf PUBLIC migraphx)
@@ -30,16 +30,3 @@ rocm_install_targets(
   TARGETS migraphx_tf
 )
 
-add_executable(read_tf read_tf.cpp)
-rocm_clang_tidy_check(read_tf)
-target_link_libraries(read_tf migraphx_tf migraphx_cpu)
-
-if(MIGRAPHX_ENABLE_GPU)
-add_executable(verify_tf verify_tf.cpp)
-rocm_clang_tidy_check(verify_tf)
-target_link_libraries(verify_tf migraphx_tf migraphx_cpu migraphx_gpu)
-
-add_executable(perf_tf perf_tf.cpp)
-rocm_clang_tidy_check(perf_tf)
-target_link_libraries(perf_tf migraphx_tf migraphx_cpu migraphx_gpu)
-endif()

@@ -1,4 +1,4 @@
-#include <migraphx/gpu/device/add_unary.hpp>
+#include <migraphx/gpu/device/mul_add.hpp>
 #include <migraphx/gpu/device/nary.hpp>
 
 namespace migraphx {

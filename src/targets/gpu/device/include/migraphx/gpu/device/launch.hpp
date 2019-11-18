@@ -3,6 +3,7 @@
 
 #include <hip/hip_runtime.h>
 #include <migraphx/config.hpp>
+#include <migraphx/gpu/device/types.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -11,29 +12,29 @@ namespace device {
 
 struct index
 {
-    std::size_t global = 0;
-    std::size_t local  = 0;
-    std::size_t group  = 0;
+    index_int global = 0;
+    index_int local  = 0;
+    index_int group  = 0;
 
-    __device__ std::size_t nglobal() const { return blockDim.x * gridDim.x; } // NOLINT
+    __device__ index_int nglobal() const { return blockDim.x * gridDim.x; } // NOLINT
 
-    __device__ std::size_t nlocal() const { return blockDim.x; } // NOLINT
+    __device__ index_int nlocal() const { return blockDim.x; } // NOLINT
 
     template <class F>
-    __device__ void global_stride(std::size_t n, F f) const
+    __device__ void global_stride(index_int n, F f) const
     {
         const auto stride = nglobal();
-        for(std::size_t i = global; i < n; i += stride)
+        for(index_int i = global; i < n; i += stride)
         {
             f(i);
         }
     }
 
     template <class F>
-    __device__ void local_stride(std::size_t n, F f) const
+    __device__ void local_stride(index_int n, F f) const
     {
         const auto stride = nlocal();
-        for(std::size_t i = local; i < n; i += stride)
+        for(index_int i = local; i < n; i += stride)
         {
             f(i);
         }
@@ -47,7 +48,7 @@ __global__ void launcher(F f)
     f(idx);
 }
 
-inline auto launch(hipStream_t stream, std::size_t global, std::size_t local)
+inline auto launch(hipStream_t stream, index_int global, index_int local)
 {
     return [=](auto f) {
         assert(local > 0);
@@ -60,21 +61,21 @@ inline auto launch(hipStream_t stream, std::size_t global, std::size_t local)
 }
 
 template <class F>
-__host__ __device__ auto gs_invoke(F&& f, std::size_t i, index idx) -> decltype(f(i, idx))
+MIGRAPHX_DEVICE_CONSTEXPR auto gs_invoke(F&& f, index_int i, index idx) -> decltype(f(i, idx))
 {
     return f(i, idx);
 }
 
 template <class F>
-__host__ __device__ auto gs_invoke(F&& f, std::size_t i, index) -> decltype(f(i))
+MIGRAPHX_DEVICE_CONSTEXPR auto gs_invoke(F&& f, index_int i, index) -> decltype(f(i))
 {
     return f(i);
 }
 
-inline auto gs_launch(hipStream_t stream, std::size_t n, std::size_t local = 1024)
+inline auto gs_launch(hipStream_t stream, index_int n, index_int local = 1024)
 {
-    std::size_t groups  = (n + local - 1) / local;
-    std::size_t nglobal = std::min<std::size_t>(256, groups) * local;
+    index_int groups  = (n + local - 1) / local;
+    index_int nglobal = std::min<index_int>(256, groups) * local;
 
     return [=](auto f) {
         launch(stream, nglobal, local)(

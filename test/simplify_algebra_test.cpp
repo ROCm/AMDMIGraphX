@@ -1,5 +1,6 @@
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/operators.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/ranges.hpp>
@@ -7,15 +8,10 @@
 #include <basic_ops.hpp>
 #include <test.hpp>
 
-struct simplify_algebra_target
+void run_pass(migraphx::program& p)
 {
-    std::string name() const { return "simplify_algebra"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const
-    {
-        return {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}};
-    }
-    migraphx::context get_context() const { return {}; }
-};
+    migraphx::run_passes(p, {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}});
+}
 
 TEST_CASE(simplify_add1)
 {
@@ -30,7 +26,7 @@ TEST_CASE(simplify_add1)
         auto sum3 = p1.add_instruction(migraphx::op::add{}, sum1, sum2);
         p1.add_instruction(pass_op{}, sum3);
     }
-    p1.compile(simplify_algebra_target{});
+    run_pass(p1);
 
     migraphx::program p2;
     {
@@ -59,7 +55,7 @@ TEST_CASE(simplify_add2)
         auto sum3 = p1.add_instruction(migraphx::op::add{}, sum1, sum2);
         p1.add_instruction(pass_op{}, sum3);
     }
-    p1.compile(simplify_algebra_target{});
+    run_pass(p1);
 
     migraphx::program p2;
     {
@@ -87,7 +83,7 @@ TEST_CASE(simplify_add3)
         auto sum3 = p1.add_instruction(migraphx::op::add{}, sum1, sum2);
         p1.add_instruction(pass_op{}, sum3);
     }
-    p1.compile(simplify_algebra_target{});
+    run_pass(p1);
 
     migraphx::program p2;
     {
@@ -120,7 +116,7 @@ TEST_CASE(simplify_add_broadcast1)
         auto sum3 = p1.add_instruction(migraphx::op::add{}, sum1, sum2);
         p1.add_instruction(pass_op{}, sum3);
     }
-    p1.compile(simplify_algebra_target{});
+    run_pass(p1);
 
     migraphx::program p2;
     {
@@ -156,7 +152,7 @@ TEST_CASE(simplify_add_broadcast2)
         return p;
     };
     migraphx::program p1 = create_program();
-    p1.compile(simplify_algebra_target{});
+    run_pass(p1);
 
     migraphx::program p2 = create_program();
     EXPECT(p1 == p2);
@@ -177,7 +173,7 @@ void simplify_add4()
         auto sum3 = p1.add_instruction(migraphx::op::add{}, sum2, two);
         p1.add_instruction(pass_op{}, sum3);
     }
-    p1.compile(simplify_algebra_target{});
+    run_pass(p1);
 
     migraphx::program p2;
     {
@@ -205,7 +201,7 @@ TEST_CASE(simplify_mul_conv1)
     auto mul  = p.add_instruction(migraphx::op::mul{}, conv, b);
     p.add_instruction(pass_op{}, mul);
     EXPECT(conv->outputs().front()->name() == "mul");
-    p.compile(simplify_algebra_target{});
+    run_pass(p);
     auto new_conv =
         std::find_if(p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; });
     EXPECT(new_conv->outputs().front()->name() != "mul");
@@ -222,7 +218,7 @@ TEST_CASE(simplify_mul_add)
         auto mul = p1.add_instruction(migraphx::op::mul{}, sum, two);
         p1.add_instruction(pass_op{}, mul);
     }
-    p1.compile(simplify_algebra_target{});
+    run_pass(p1);
 
     migraphx::program p2;
     {
@@ -249,7 +245,7 @@ TEST_CASE(simplify_inner_broadcast)
         auto sum = p1.add_instruction(migraphx::op::add{}, xb, yb);
         p1.add_instruction(pass_op{}, sum);
     }
-    p1.compile(simplify_algebra_target{});
+    run_pass(p1);
 
     migraphx::program p2;
     {
@@ -260,6 +256,129 @@ TEST_CASE(simplify_inner_broadcast)
         p2.add_instruction(pass_op{}, sumb);
     }
     EXPECT(p1 == p2);
+}
+
+TEST_CASE(simplify_add_conv1)
+{
+    migraphx::program p;
+    auto x = p.add_parameter("x", {migraphx::shape::float_type, {1, 128, 28, 28}});
+    auto w =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 3, 3}}));
+    auto y = p.add_parameter("y", {migraphx::shape::float_type, {1, 128, 28, 28}});
+    auto v =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 3, 3}}));
+    auto conv1 = p.add_instruction(migraphx::op::convolution{}, x, w);
+    auto conv2 = p.add_instruction(migraphx::op::convolution{}, y, v);
+    auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
+    p.add_instruction(pass_op{}, sum);
+    auto s = p.get_shape();
+    run_pass(p);
+    EXPECT(s == p.get_shape());
+    EXPECT(std::count_if(
+               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
+}
+
+TEST_CASE(simplify_add_conv_no_fusion_7x7_diff_strides)
+{
+    migraphx::program p;
+    auto x = p.add_parameter("x", {migraphx::shape::float_type, {1, 128, 14, 14}});
+    auto w =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 7, 7}}));
+    auto y = p.add_parameter("y", {migraphx::shape::float_type, {1, 128, 28, 28}});
+    auto v =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 7, 7}}));
+    auto conv1 = p.add_instruction(migraphx::op::convolution{}, x, w);
+    auto conv2 = p.add_instruction(migraphx::op::convolution{{0, 0}, {3, 3}}, y, v);
+    auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
+    p.add_instruction(pass_op{}, sum);
+    auto s = p.get_shape();
+    run_pass(p);
+    EXPECT(s == p.get_shape());
+    // No fusion
+    EXPECT(std::count_if(
+               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
+}
+
+TEST_CASE(simplify_add_conv_1x1_diff_strides1)
+{
+    migraphx::program p;
+    auto x = p.add_parameter("x", {migraphx::shape::float_type, {1, 128, 14, 14}});
+    auto w =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto y = p.add_parameter("y", {migraphx::shape::float_type, {1, 128, 28, 28}});
+    auto v =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto conv1 = p.add_instruction(migraphx::op::convolution{}, x, w);
+    auto conv2 = p.add_instruction(migraphx::op::convolution{{0, 0}, {2, 2}}, y, v);
+    auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
+    p.add_instruction(pass_op{}, sum);
+    auto s = p.get_shape();
+    run_pass(p);
+    EXPECT(s == p.get_shape());
+    EXPECT(std::count_if(
+               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
+}
+
+TEST_CASE(simplify_add_conv_1x1_diff_strides2)
+{
+    migraphx::program p;
+    auto x = p.add_parameter("x", {migraphx::shape::float_type, {1, 128, 28, 28}});
+    auto w =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto y = p.add_parameter("y", {migraphx::shape::float_type, {1, 128, 14, 14}});
+    auto v =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto conv1 = p.add_instruction(migraphx::op::convolution{{0, 0}, {2, 2}}, x, w);
+    auto conv2 = p.add_instruction(migraphx::op::convolution{}, y, v);
+    auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
+    p.add_instruction(pass_op{}, sum);
+    auto s = p.get_shape();
+    run_pass(p);
+    EXPECT(s == p.get_shape());
+    EXPECT(std::count_if(
+               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
+}
+
+TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides1)
+{
+    migraphx::program p;
+    auto x = p.add_parameter("x", {migraphx::shape::float_type, {1, 128, 28, 14}});
+    auto w =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto y = p.add_parameter("y", {migraphx::shape::float_type, {1, 128, 14, 14}});
+    auto v =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto conv1 = p.add_instruction(migraphx::op::convolution{{0, 0}, {2, 1}}, x, w);
+    auto conv2 = p.add_instruction(migraphx::op::convolution{}, y, v);
+    auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
+    p.add_instruction(pass_op{}, sum);
+    auto s = p.get_shape();
+    run_pass(p);
+    EXPECT(s == p.get_shape());
+    // No fusion
+    EXPECT(std::count_if(
+               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
+}
+
+TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides2)
+{
+    migraphx::program p;
+    auto x = p.add_parameter("x", {migraphx::shape::float_type, {1, 128, 14, 14}});
+    auto w =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto y = p.add_parameter("y", {migraphx::shape::float_type, {1, 128, 28, 14}});
+    auto v =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto conv1 = p.add_instruction(migraphx::op::convolution{}, x, w);
+    auto conv2 = p.add_instruction(migraphx::op::convolution{{0, 0}, {2, 1}}, y, v);
+    auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
+    p.add_instruction(pass_op{}, sum);
+    auto s = p.get_shape();
+    run_pass(p);
+    EXPECT(s == p.get_shape());
+    // No fusion
+    EXPECT(std::count_if(
+               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

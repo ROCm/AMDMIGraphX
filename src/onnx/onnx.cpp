@@ -57,6 +57,8 @@ struct onnx_parser
         add_generic_op("Sqrt", op::sqrt{});
         add_generic_op("Round", op::round{});
         add_generic_op("Sign", op::sign{});
+        add_generic_op("Ceil", op::ceil{});
+        add_generic_op("Floor", op::floor{});
 
         add_binary_op("Add", op::add{});
         add_binary_op("Div", op::div{});
@@ -489,7 +491,13 @@ struct onnx_parser
     instruction_ref
     parse_concat(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        std::size_t axis = parse_value(attributes.at("axis")).at<int>();
+        // change to hande axis to be negative values
+        if(!contains(attributes, "axis"))
+        {
+            MIGRAPHX_THROW("PARSE_CONCAT: attribute axis is required!");
+        }
+
+        int axis = parse_value(attributes.at("axis")).at<int>();
         op::concat op{axis};
         return prog.add_instruction(op, std::move(args));
     }
@@ -943,7 +951,7 @@ struct onnx_parser
             l_val.visit([&](auto val) {
                 using val_type = std::remove_cv_t<typename decltype(val)::value_type>;
                 // l_val contains only one element
-                std::vector<val_type> out_vec(s.elements(), *val.begin());
+                std::vector<val_type> out_vec(s.elements(), val.front());
                 l_out = literal(s, out_vec);
             });
 
@@ -1420,21 +1428,14 @@ struct onnx_parser
     void parse_graph(const onnx::GraphProto& graph)
     {
         nodes = get_nodes(graph);
-        std::unordered_map<std::string, onnx::TensorProto> initializer_data;
         for(auto&& f : graph.initializer())
-        {
-            initializer_data[f.name()] = f;
-        }
+            instructions[f.name()] = prog.add_literal(parse_tensor(f));
+
         for(auto&& input : graph.input())
         {
             const std::string& name = input.name();
-            // Does the input have an initializer?
-            if(contains(initializer_data, name))
-            {
-                auto t             = initializer_data[name];
-                instructions[name] = prog.add_literal(parse_tensor(t));
-            }
-            else
+            // input not in initializer_data, so it is a real input
+            if(!contains(instructions, name))
             {
                 // TODO: Get shape of input parameter
                 shape s            = parse_type(input.type());

@@ -11,6 +11,7 @@
 #include <migraphx/context.hpp>
 #include <migraphx/pass.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/rank.hpp>
 
@@ -28,9 +29,10 @@ struct target
      * @brief The transformation pass to be run during compilation.
      *
      * @param ctx This is the target-dependent context that is created by `get_context`
+     * @param options Compiling options passed in by the user
      * @return The passes to be ran
      */
-    std::vector<pass> get_passes(context& ctx) const;
+    std::vector<pass> get_passes(context& ctx, const compile_options& options) const;
     /**
      * @brief Construct a context for the target.
      * @return The context to be used during compilation and execution.
@@ -122,7 +124,7 @@ argument copy_from_target(T& x, const argument& arg)
  * struct target
  * {
  *      std::string name() const;
- *      std::vector<pass> get_passes(context& ctx) const;
+ *      std::vector<pass> get_passes(context& ctx,const compile_options& options) const;
  *      context get_context() const;
  *      argument copy_to(const argument& input) const;
  *      argument copy_from(const argument& input) const;
@@ -194,10 +196,10 @@ struct target
         return (*this).private_detail_te_get_handle().name();
     }
 
-    std::vector<pass> get_passes(context& ctx) const
+    std::vector<pass> get_passes(context& ctx, const compile_options& options) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().get_passes(ctx);
+        return (*this).private_detail_te_get_handle().get_passes(ctx, options);
     }
 
     context get_context() const
@@ -237,12 +239,13 @@ struct target
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const                         = 0;
-        virtual std::vector<pass> get_passes(context& ctx) const = 0;
-        virtual context get_context() const                      = 0;
-        virtual argument copy_to(const argument& input) const    = 0;
-        virtual argument copy_from(const argument& input) const  = 0;
-        virtual argument allocate(const shape& s) const          = 0;
+        virtual std::string name() const                                           = 0;
+        virtual std::vector<pass> get_passes(context& ctx,
+                                             const compile_options& options) const = 0;
+        virtual context get_context() const                                        = 0;
+        virtual argument copy_to(const argument& input) const                      = 0;
+        virtual argument copy_from(const argument& input) const                    = 0;
+        virtual argument allocate(const shape& s) const                            = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -275,10 +278,10 @@ struct target
 
         std::string name() const override { return private_detail_te_value.name(); }
 
-        std::vector<pass> get_passes(context& ctx) const override
+        std::vector<pass> get_passes(context& ctx, const compile_options& options) const override
         {
 
-            return private_detail_te_value.get_passes(ctx);
+            return private_detail_te_value.get_passes(ctx, options);
         }
 
         context get_context() const override { return private_detail_te_value.get_context(); }

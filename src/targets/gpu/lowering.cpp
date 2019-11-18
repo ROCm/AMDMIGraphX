@@ -55,6 +55,8 @@
 #include <migraphx/gpu/clip.hpp>
 #include <migraphx/gpu/reduce_sum.hpp>
 #include <migraphx/gpu/round.hpp>
+#include <migraphx/gpu/ceil.hpp>
+#include <migraphx/gpu/floor.hpp>
 #include <migraphx/gpu/rsqrt.hpp>
 #include <migraphx/gpu/sqrt.hpp>
 #include <migraphx/gpu/reduce_mean.hpp>
@@ -73,10 +75,17 @@ namespace gpu {
 
 struct miopen_apply
 {
-    program* prog = nullptr;
-    context ctx{};
+    program* prog        = nullptr;
+    const lowering* pass = nullptr;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
+
+    context& get_context()
+    {
+        assert(pass != nullptr);
+        assert(pass->ctx != nullptr);
+        return *pass->ctx;
+    }
 
     void check_shape(shape x, instruction_ref i)
     {
@@ -87,6 +96,8 @@ struct miopen_apply
 
     void init()
     {
+        assert(prog != nullptr);
+        assert(pass != nullptr);
         this->last = instruction::get_output_alias(std::prev(prog->end()));
 
         add_miopen_simple_op<miopen_abs>("abs", make_abs);
@@ -120,6 +131,8 @@ struct miopen_apply
         add_generic_op<hip_relu>("relu");
         add_generic_op<hip_sign>("sign");
         add_generic_op<hip_sigmoid>("sigmoid");
+        add_generic_op<hip_ceil>("ceil");
+        add_generic_op<hip_floor>("floor");
 
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
@@ -145,6 +158,23 @@ struct miopen_apply
         add_batch_norm_inference_op();
     }
 
+    void copy_params()
+    {
+        if(not pass->offload_copy)
+            return;
+        for(auto ins : iterator_for(*prog))
+        {
+            if(ins->name() != "@param")
+                continue;
+            auto pos = std::next(ins);
+            auto a   = insert_allocation(pos, ins->get_shape());
+            auto c   = prog->insert_instruction(pos, hip_copy_to_gpu{}, ins, a);
+            prog->replace_instruction(ins, c);
+        }
+        auto end = std::prev(prog->end());
+        prog->add_instruction(hip_copy_from_gpu{}, end);
+    }
+
     void apply()
     {
         init();
@@ -156,11 +186,12 @@ struct miopen_apply
                 check_shape(s, apply_map.at(it->name())(it));
             }
         }
+        copy_params();
     }
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
     {
-        if(ins == last and tag.empty())
+        if(not pass->offload_copy and ins == last and tag.empty())
         {
             return prog->add_parameter("output", s);
         }
@@ -177,7 +208,7 @@ struct miopen_apply
             auto&& op = any_cast<op::convolution>(ins->get_operator());
 
             auto conv = miopen_convolution{op, make_conv(op)};
-            auto ws   = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
+            auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
             auto workspace = insert_allocation(ins, ws, "workspace");
             auto output    = insert_allocation(ins, ins->get_shape());
@@ -194,25 +225,26 @@ struct miopen_apply
             auto&& op                         = any_cast<Op>(ins->get_operator());
             auto beta                         = op.beta;
             std::vector<instruction_ref> refs = ins->inputs();
-            if((refs.size() == 2) or (refs.size() == 3 and refs.back()->outputs().size() > 1) or
-               (ins == last))
+            if(refs.size() == 2)
             {
                 auto output = insert_allocation(ins, ins->get_shape());
-                if(refs.size() == 2)
+                beta        = 0;
+                refs.push_back(output);
+            }
+            else
+            {
+                auto c_alias = instruction::get_output_alias(refs.back());
+                if(ins == last or refs.back()->outputs().size() > 1 or c_alias->inputs().empty())
                 {
-                    beta = 0;
-                    refs.push_back(output);
-                }
-                else
-                {
+                    auto output   = insert_allocation(ins, ins->get_shape());
                     auto copy_out = prog->insert_instruction(ins, hip_copy{}, refs.back(), output);
                     refs.back()   = copy_out;
                     refs.push_back(copy_out);
                 }
-            }
-            else
-            {
-                refs.push_back(refs.back());
+                else
+                {
+                    refs.push_back(refs.back());
+                }
             }
 
             return prog->replace_instruction(ins, rocblas_gemm<Op>{Op{op.alpha, beta}}, refs);
@@ -224,7 +256,7 @@ struct miopen_apply
         apply_map.emplace("quant_convolution", [=](instruction_ref ins) {
             auto&& op = any_cast<op::quant_convolution>(ins->get_operator());
             auto conv = miopen_quant_convolution{op, make_conv(op)};
-            auto ws   = conv.compile(ctx, ins->get_shape(), to_shapes(ins->inputs()));
+            auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
             auto args      = ins->inputs();
             auto workspace = insert_allocation(ins, ws, "workspace");
@@ -329,7 +361,7 @@ struct miopen_apply
     }
 };
 
-void lowering::apply(program& p) const { miopen_apply{&p, ctx}.apply(); }
+void lowering::apply(program& p) const { miopen_apply{&p, this}.apply(); }
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

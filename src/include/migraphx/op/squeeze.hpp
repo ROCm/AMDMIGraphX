@@ -36,13 +36,13 @@ struct squeeze
 
         // change to support negative axis value
         std::vector<int64_t> tuned_axes(axes.size());
-        std::transform(axes.begin(), axes.end(), tuned_axes.begin(),
-            [&](auto i) {
-                return i >= 0 ? i : i + old_lens.size();
-            });
+        std::transform(axes.begin(), axes.end(), tuned_axes.begin(), [&](auto i) {
+            return i >= 0 ? i : i + old_lens.size();
+        });
 
-        if(std::any_of(
-               tuned_axes.begin(), tuned_axes.end(), [&](auto axis) { return old_lens[axis] != 1; }))
+        if(std::any_of(tuned_axes.begin(), tuned_axes.end(), [&](auto axis) {
+               return old_lens[axis] != 1;
+           }))
         {
             MIGRAPHX_THROW("squeeze axis dimension should be equal to 1");
         }

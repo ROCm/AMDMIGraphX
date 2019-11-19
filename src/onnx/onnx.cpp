@@ -230,8 +230,15 @@ struct onnx_parser
             auto s0       = arg0->get_shape().lens();
             auto s1       = arg1->get_shape().lens();
             auto out_lens = compute_broadcasted_lens(s0, s1);
-            auto l0       = prog.add_instruction(op::multibroadcast{out_lens}, arg0);
-            auto l1       = prog.add_instruction(op::multibroadcast{out_lens}, arg1);
+
+            auto l0       = arg0;
+            if(arg0->get_shape().lens() != out_lens)
+                l0 = prog.add_instruction(op::multibroadcast{out_lens}, arg0);
+
+            auto l1 = arg1;
+            if(arg1->get_shape().lens() != out_lens)
+                l1 = prog.add_instruction(op::multibroadcast{out_lens}, arg1);
+
             return prog.add_instruction(x, l0, l1);
         }
         else
@@ -1694,6 +1701,9 @@ struct onnx_parser
                            }
                            return d.dim_value();
                        });
+        if (dims.empty())
+            return {shape_type};
+            
         return {shape_type, dims};
     }
 

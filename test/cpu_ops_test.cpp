@@ -324,6 +324,19 @@ TEST_CASE(squeeze_test)
         auto result = p.eval({});
         EXPECT(result.get_shape() == s2);
     }
+
+    {
+        migraphx::program p;
+        std::vector<float> data(4 * 3 * 3);
+        migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
+        migraphx::shape s2{migraphx::shape::float_type, {4, 1, 3, 3}};
+        auto l0 = p.add_literal(migraphx::literal{s1, data});
+        p.add_instruction(migraphx::op::squeeze{{-2}}, l0);
+        p.compile(migraphx::cpu::target{});
+        auto result = p.eval({});
+        EXPECT(result.get_shape() == s2);
+    }
+
     {
         migraphx::program p;
         std::vector<float> data(4 * 3 * 3);

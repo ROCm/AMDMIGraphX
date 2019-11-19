@@ -144,8 +144,8 @@ struct cpu_lrn
             int height          = output_shape.lens()[2];
             int width           = output_shape.lens()[3];
             float alphaoverarea = op.alpha / float(op.size);
-            int radius_lower          = (op.size - 1) / 2;
-            int radius_upper = op.size / 2 + 1;
+            int radius_lower    = (op.size - 1) / 2;
+            int radius_upper    = op.size / 2 + 1;
 
             par_dfor(n_batch, height, width)([&](int b, int h, int w) {
                 float scale = 0;

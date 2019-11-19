@@ -144,13 +144,14 @@ struct cpu_lrn
             int height          = output_shape.lens()[2];
             int width           = output_shape.lens()[3];
             float alphaoverarea = op.alpha / float(op.size);
-            int radius          = (op.size - 1) / 2;
+            int radius_lower          = (op.size - 1) / 2;
+            int radius_upper = op.size / 2 + 1;
 
             par_dfor(n_batch, height, width)([&](int b, int h, int w) {
                 float scale = 0;
                 dfor(channels)([&](int c) {
-                    auto start = (c - radius) < 0 ? 0 : (c - radius);
-                    auto end   = (c + radius) > channels ? channels : (c + radius);
+                    auto start = (c - radius_lower) < 0 ? 0 : (c - radius_lower);
+                    auto end   = (c + radius_upper) > channels ? channels : (c + radius_upper);
                     for(auto k = start; k < end; ++k)
                     {
                         scale += std::pow(input(b, k, h, w), 2);

@@ -62,7 +62,9 @@ bool has_finalize(const operation& x);
 
 #else
 
-namespace operation_stream {
+namespace detail {
+
+namespace operation_operators {
 
 template <class T>
 auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
@@ -80,10 +82,6 @@ auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
     return os;
 }
 
-} // namespace operation_stream
-
-namespace operation_equal {
-
 template <class T, class U>
 auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
 {
@@ -95,7 +93,7 @@ auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
     return reflect_tie(x) == reflect_tie(yy);
 }
 
-} // namespace operation_equal
+} // namespace operation_operators
 
 template <class T>
 auto compute_op(rank<2>,
@@ -177,22 +175,9 @@ auto is_context_free_op(const T& x) -> decltype(is_context_free_op(
 }
 
 template <class T>
-std::ptrdiff_t output_alias_op(rank<0>, const T&, const std::vector<shape>&)
+std::ptrdiff_t output_alias_op(const T&, const std::vector<shape>&)
 {
     return -1;
-}
-
-template <class T>
-auto output_alias_op(rank<1>, const T& x, const std::vector<shape>& shapes)
-    -> decltype(x.output_alias(shapes))
-{
-    return x.output_alias(shapes);
-}
-
-template <class T>
-std::ptrdiff_t output_alias_op(const T& x, const std::vector<shape>& shapes)
-{
-    return output_alias_op(rank<1>{}, x, shapes);
 }
 
 template <class T>
@@ -232,6 +217,8 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
 {
     return {};
 }
+
+} // namespace detail
 
 /*
  * Type-erased interface for:
@@ -396,6 +383,110 @@ struct operation
         virtual bool operator==(const operation& y) const                                       = 0;
     };
 
+    template <class T>
+    static auto private_detail_te_default_is_context_free(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.is_context_free())
+    {
+        return private_detail_te_self.is_context_free();
+    }
+
+    template <class T>
+    static bool private_detail_te_default_is_context_free(float, T&& private_detail_te_self)
+    {
+        return detail::is_context_free_op(private_detail_te_self);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_has_finalize(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.has_finalize())
+    {
+        return private_detail_te_self.has_finalize();
+    }
+
+    template <class T>
+    static bool private_detail_te_default_has_finalize(float, T&& private_detail_te_self)
+    {
+        return detail::has_finalize_op(private_detail_te_self);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_output_alias(char,
+                                                       T&& private_detail_te_self,
+                                                       const std::vector<shape>& input)
+        -> decltype(private_detail_te_self.output_alias(input))
+    {
+        return private_detail_te_self.output_alias(input);
+    }
+
+    template <class T>
+    static std::ptrdiff_t private_detail_te_default_output_alias(float,
+                                                                 T&& private_detail_te_self,
+                                                                 const std::vector<shape>& input)
+    {
+        return detail::output_alias_op(private_detail_te_self, input);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_finalize(char,
+                                                   T&& private_detail_te_self,
+                                                   context& ctx,
+                                                   const shape& output,
+                                                   const std::vector<shape>& input)
+        -> decltype(private_detail_te_self.finalize(ctx, output, input))
+    {
+        private_detail_te_self.finalize(ctx, output, input);
+    }
+
+    template <class T>
+    static void private_detail_te_default_finalize(float,
+                                                   T&& private_detail_te_self,
+                                                   context& ctx,
+                                                   const shape& output,
+                                                   const std::vector<shape>& input)
+    {
+        detail::finalize_op(private_detail_te_self, ctx, output, input);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_compute(char,
+                                                  T&& private_detail_te_self,
+                                                  context& ctx,
+                                                  const shape& output,
+                                                  const std::vector<argument>& input)
+        -> decltype(private_detail_te_self.compute(ctx, output, input))
+    {
+        return private_detail_te_self.compute(ctx, output, input);
+    }
+
+    template <class T>
+    static argument private_detail_te_default_compute(float,
+                                                      T&& private_detail_te_self,
+                                                      context& ctx,
+                                                      const shape& output,
+                                                      const std::vector<argument>& input)
+    {
+        return detail::compute_op(private_detail_te_self, ctx, output, input);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_compute(char,
+                                                  T&& private_detail_te_self,
+                                                  const shape& output,
+                                                  const std::vector<argument>& input)
+        -> decltype(private_detail_te_self.compute(output, input))
+    {
+        return private_detail_te_self.compute(output, input);
+    }
+
+    template <class T>
+    static argument private_detail_te_default_compute(float,
+                                                      T&& private_detail_te_self,
+                                                      const shape& output,
+                                                      const std::vector<argument>& input)
+    {
+        return detail::compute_op(private_detail_te_self, output, input);
+    }
+
     template <typename PrivateDetailTypeErasedT>
     struct private_detail_te_handle_type : private_detail_te_handle_base_type
     {
@@ -429,21 +520,26 @@ struct operation
         bool is_context_free() const override
         {
 
-            return is_context_free_op(private_detail_te_value);
+            return private_detail_te_default_is_context_free(char(0), private_detail_te_value);
         }
 
-        bool has_finalize() const override { return has_finalize_op(private_detail_te_value); }
+        bool has_finalize() const override
+        {
+
+            return private_detail_te_default_has_finalize(char(0), private_detail_te_value);
+        }
 
         std::ptrdiff_t output_alias(const std::vector<shape>& input) const override
         {
 
-            return output_alias_op(private_detail_te_value, input);
+            return private_detail_te_default_output_alias(char(0), private_detail_te_value, input);
         }
 
         void finalize(context& ctx, const shape& output, const std::vector<shape>& input) override
         {
 
-            finalize_op(private_detail_te_value, ctx, output, input);
+            private_detail_te_default_finalize(
+                char(0), private_detail_te_value, ctx, output, input);
         }
 
         shape compute_shape(const std::vector<shape>& input) const override
@@ -457,24 +553,26 @@ struct operation
                          const std::vector<argument>& input) const override
         {
 
-            return compute_op(private_detail_te_value, ctx, output, input);
+            return private_detail_te_default_compute(
+                char(0), private_detail_te_value, ctx, output, input);
         }
 
         argument compute(const shape& output, const std::vector<argument>& input) const override
         {
 
-            return compute_op(private_detail_te_value, output, input);
+            return private_detail_te_default_compute(
+                char(0), private_detail_te_value, output, input);
         }
 
         std::ostream& operator_shift_left(std::ostream& os) const override
         {
-            using migraphx::operation_stream::operator<<;
+            using migraphx::detail::operation_operators::operator<<;
             return os << private_detail_te_value;
         }
 
         bool operator==(const operation& y) const override
         {
-            using migraphx::operation_equal::operator==;
+            using migraphx::detail::operation_operators::operator==;
             return private_detail_te_value == y;
         }
 
@@ -550,7 +648,7 @@ inline bool is_context_free(const operation& op) { return op.is_context_free(); 
 template <class T>
 bool is_context_free(const T& x)
 {
-    return is_context_free_op(x);
+    return detail::is_context_free_op(x);
 }
 
 inline bool has_finalize(const operation& op) { return op.has_finalize(); }
@@ -558,7 +656,7 @@ inline bool has_finalize(const operation& op) { return op.has_finalize(); }
 template <class T>
 bool has_finalize(const T& x)
 {
-    return has_finalize_op(x);
+    return detail::has_finalize_op(x);
 }
 
 #endif

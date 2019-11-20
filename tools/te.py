@@ -255,7 +255,8 @@ def generate_call(m, friend, indirect):
         return string.Template('${name}(${args})').substitute(m)
     if indirect:
         return string.Template(
-            'private_detail_te_default_${internal_name}(char(0), private_detail_te_value ${comma} ${args})').substitute(m)
+            'private_detail_te_default_${internal_name}(char(0), private_detail_te_value ${comma} ${args})'
+        ).substitute(m)
     return string.Template(
         'private_detail_te_value.${name}(${args})').substitute(m)
 

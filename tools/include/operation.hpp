@@ -224,7 +224,8 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
  interface(
      'operation',
      virtual('name', returns = 'std::string', const = True),
-     virtual('is_context_free', returns = 'bool', const = True, default = 'detail::is_context_free_op'),
+     virtual(
+         'is_context_free', returns = 'bool', const = True, default = 'detail::is_context_free_op'),
      virtual('has_finalize', returns = 'bool', const = True, default = 'detail::has_finalize_op'),
      virtual('output_alias',
              returns = 'std::ptrdiff_t',

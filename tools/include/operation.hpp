@@ -62,7 +62,9 @@ bool has_finalize(const operation& x);
 
 #else
 
-namespace operation_stream {
+namespace detail {
+
+namespace operation_operators {
 
 template <class T>
 auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
@@ -80,10 +82,6 @@ auto operator<<(std::ostream& os, const T& x) -> decltype(os << x.name())
     return os;
 }
 
-} // namespace operation_stream
-
-namespace operation_equal {
-
 template <class T, class U>
 auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
 {
@@ -95,7 +93,7 @@ auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
     return reflect_tie(x) == reflect_tie(yy);
 }
 
-} // namespace operation_equal
+} // namespace operation_operators
 
 template <class T>
 auto compute_op(rank<2>,
@@ -177,22 +175,9 @@ auto is_context_free_op(const T& x) -> decltype(is_context_free_op(
 }
 
 template <class T>
-std::ptrdiff_t output_alias_op(rank<0>, const T&, const std::vector<shape>&)
+std::ptrdiff_t output_alias_op(const T&, const std::vector<shape>&)
 {
     return -1;
-}
-
-template <class T>
-auto output_alias_op(rank<1>, const T& x, const std::vector<shape>& shapes)
-    -> decltype(x.output_alias(shapes))
-{
-    return x.output_alias(shapes);
-}
-
-template <class T>
-std::ptrdiff_t output_alias_op(const T& x, const std::vector<shape>& shapes)
-{
-    return output_alias_op(rank<1>{}, x, shapes);
 }
 
 template <class T>
@@ -233,22 +218,24 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
     return {};
 }
 
+} // namespace detail
+
 <%
  interface(
      'operation',
      virtual('name', returns = 'std::string', const = True),
-     virtual('is_context_free', returns = 'bool', const = True, default = 'is_context_free_op'),
-     virtual('has_finalize', returns = 'bool', const = True, default = 'has_finalize_op'),
+     virtual('is_context_free', returns = 'bool', const = True, default = 'detail::is_context_free_op'),
+     virtual('has_finalize', returns = 'bool', const = True, default = 'detail::has_finalize_op'),
      virtual('output_alias',
              returns = 'std::ptrdiff_t',
              input   = 'const std::vector<shape>&',
              const   = True,
-             default = 'output_alias_op'),
+             default = 'detail::output_alias_op'),
      virtual('finalize',
              ctx     = 'context&',
              output  = 'const shape&',
              input   = 'const std::vector<shape>&',
-             default = 'finalize_op'),
+             default = 'detail::finalize_op'),
      virtual('compute_shape', returns = 'shape', input = 'const std::vector<shape>&', const = True),
      virtual('compute',
              returns = 'argument',
@@ -256,23 +243,23 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
              output  = 'const shape&',
              input   = 'const std::vector<argument>&',
              const   = True,
-             default = 'compute_op'),
+             default = 'detail::compute_op'),
      virtual('compute',
              returns = 'argument',
              output  = 'const shape&',
              input   = 'const std::vector<argument>&',
              const   = True,
-             default = 'compute_op'),
+             default = 'detail::compute_op'),
      friend('operator<<',
             returns = 'std::ostream &',
             os      = 'std::ostream &',
             op      = 'const operation &',
-            using   = 'migraphx::operation_stream::operator<<'),
+            using   = 'migraphx::detail::operation_operators::operator<<'),
      friend('operator==',
             returns = 'bool',
             x       = 'const operation &',
             y       = 'const operation &',
-            using   = 'migraphx::operation_equal::operator==')) %>
+            using   = 'migraphx::detail::operation_operators::operator==')) %>
 
     inline bool operator!=(const operation& x, const operation& y)
 {
@@ -284,7 +271,7 @@ inline bool is_context_free(const operation& op) { return op.is_context_free(); 
 template <class T>
 bool is_context_free(const T& x)
 {
-    return is_context_free_op(x);
+    return detail::is_context_free_op(x);
 }
 
 inline bool has_finalize(const operation& op) { return op.has_finalize(); }
@@ -292,7 +279,7 @@ inline bool has_finalize(const operation& op) { return op.has_finalize(); }
 template <class T>
 bool has_finalize(const T& x)
 {
-    return has_finalize_op(x);
+    return detail::has_finalize_op(x);
 }
 
 #endif

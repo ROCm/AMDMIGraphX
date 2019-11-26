@@ -99,7 +99,7 @@ inline pooling_descriptor make_pooling(const migraphx::op::pooling& op)
     miopenPoolingMode_t mode;
     if(op.mode == "max")
         mode = miopenPoolingMax;
-    else if (op.mode == "average")
+    else if(op.mode == "average")
         mode = miopenPoolingAverage;
     else
         MIGRAPHX_THROW("Unknown mode for pooling: " + op.mode);

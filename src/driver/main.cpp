@@ -31,9 +31,9 @@ struct loader
     std::string file;
     std::string file_type;
     unsigned batch = 1;
-    bool is_nhwc  = true;
-    unsigned trim = 0;
-    bool optimize = false;
+    bool is_nhwc   = true;
+    unsigned trim  = 0;
+    bool optimize  = false;
 
     void parse(argument_parser& ap)
     {
@@ -51,7 +51,7 @@ struct loader
     program load()
     {
         program p;
-        if (model.empty())
+        if(model.empty())
         {
             if(file_type.empty())
             {
@@ -68,7 +68,7 @@ struct loader
         }
         else
         {
-            if (model == "resnet50")
+            if(model == "resnet50")
                 p = resnet50(batch);
             else
                 MIGRAPHX_THROW("Unknown model: " + model);

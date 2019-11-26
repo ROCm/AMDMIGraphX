@@ -138,7 +138,7 @@ struct compiler
 struct read : command<read>
 {
     loader l;
-    bool cpp = false;
+    bool cpp      = false;
     bool graphviz = false;
     bool brief    = false;
     std::string output;

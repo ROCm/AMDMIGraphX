@@ -182,6 +182,7 @@ struct shape
     }
 
     std::string type_string() const;
+
     private:
     std::shared_ptr<const shape_impl> impl;
 

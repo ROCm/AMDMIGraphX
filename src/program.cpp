@@ -681,7 +681,7 @@ void program::print_cpp(std::ostream& os) const
         auto op = cpp_op_var(names.at(ins), ins);
         if(ins->name().front() != '@')
         {
-            os << "migraphx::op::" << ins->name() << " " << op << std::endl;
+            os << "migraphx::op::" << ins->name() << " " << op << ";" << std::endl;
             print_op_attributes(os, op, ins->get_operator());
         }
         os << "auto " << cpp_var_name(names.at(ins)) << " = ";
@@ -699,7 +699,8 @@ void program::print_cpp(std::ostream& os) const
             os << ", " << seed << ")";
             if(use_abs)
                 os << ")";
-            os << ";" << std::endl;
+            os << ");" << std::endl;
+            seed++;
         }
         else if(ins->name() == "@param")
         {

@@ -5,6 +5,7 @@
 #include <numeric>
 #include <string>
 #include <sstream>
+#include <vector>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -41,6 +42,18 @@ inline std::string join_strings(Strings strings, const std::string& delim)
     return std::accumulate(nit, strings.end(), *it, [&](std::string x, std::string y) {
         return std::move(x) + delim + std::move(y);
     });
+}
+
+inline std::vector<std::string> split_string(const std::string &s, char delim) 
+{
+    std::vector<std::string> elems;
+    std::stringstream ss(s+' ');
+    std::string item;
+    while(std::getline(ss, item, delim)) 
+    {
+        elems.push_back(item);
+    }
+    return elems;
 }
 
 template <class F>

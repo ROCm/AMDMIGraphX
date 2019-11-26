@@ -138,6 +138,7 @@ struct compiler
 struct read : command<read>
 {
     loader l;
+    bool cpp = false;
     bool graphviz = false;
     bool brief    = false;
     std::string output;
@@ -149,6 +150,7 @@ struct read : command<read>
            ap.help("Print out a graphviz representation."),
            ap.set_value(true));
         ap(brief, {"--brief"}, ap.help("Make the output brief."), ap.set_value(true));
+        ap(cpp, {"--cpp"}, ap.help("Print out the program as cpp program."), ap.set_value(true));
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
     }
 
@@ -164,7 +166,9 @@ struct read : command<read>
             os = &fs;
         }
 
-        if(graphviz)
+        if(cpp)
+            p.print_cpp(*os);
+        else if(graphviz)
             p.print_graph(*os, brief);
         else
             *os << p << std::endl;

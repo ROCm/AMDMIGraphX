@@ -55,8 +55,20 @@ elseif(MIGRAPHX_ENABLE_GPU)
 endif()
 rocm_enable_clang_tidy(
     CHECKS
-        *
-        -android-cloexec-fopen
+        boost-*
+        bugprone-*
+        cert-*
+        clang-analyzer-*
+        clang-diagnostic-*
+        cppcoreguidelines-*
+        google-*
+        hicpp-multiway-paths-covered
+        hicpp-signed-bitwise
+        llvm-namespace-comment
+        misc-*
+        modernize-*
+        performance-*
+        readability-*
         -clang-analyzer-alpha.core.CastToStruct
         -clang-analyzer-optin.performance.Padding
         -clang-diagnostic-deprecated-declarations
@@ -72,21 +84,9 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-union-access
         -cppcoreguidelines-pro-type-vararg
         -cppcoreguidelines-special-member-functions
-        -fuchsia-*
-        -google-readability-braces-around-statements
-        -google-readability-todo
+        -google-readability-*
         -google-runtime-int
         -google-runtime-references
-        -hicpp-braces-around-statements
-        -hicpp-explicit-conversions
-        -hicpp-member-init
-        -hicpp-no-array-decay
-        -hicpp-special-member-functions
-        -hicpp-uppercase-literal-suffix
-        -hicpp-use-override
-        # This check is broken
-        -llvm-header-guard
-        -llvm-include-order
         -misc-macro-parentheses
         -modernize-concat-nested-namespaces
         -modernize-pass-by-value

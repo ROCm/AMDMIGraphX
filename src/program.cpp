@@ -639,8 +639,8 @@ static void print_op_attributes(std::ostream& os, const std::string& name, const
     std::string x = to_string(op);
     if(contains(x, "["))
     {
-        auto start                 = x.find("[");
-        auto end                   = x.find("]");
+        auto start                 = x.find('[');
+        auto end                   = x.find(']');
         std::string attribute_text = x.substr(start + 1, end - start - 1);
         std::vector<std::string> attributes;
         for(auto&& attribute : split_string(attribute_text, ','))
@@ -676,6 +676,7 @@ static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
 void program::print_cpp(std::ostream& os) const
 {
     os << "migraphx::program p;" << std::endl;
+    // cppcheck-suppress variableScope
     unsigned long seed = 0;
     print_program(*this, [&](auto ins, const auto& names) {
         auto op = cpp_op_var(names.at(ins), ins);

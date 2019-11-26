@@ -7,7 +7,7 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-migraphx::program alexnet(unsigned batch)
+migraphx::program alexnet(unsigned batch) // NOLINT(readability-function-size)
 {
     migraphx::program p;
     auto m0 =

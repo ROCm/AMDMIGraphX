@@ -7,7 +7,7 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-migraphx::program inceptionv3(unsigned batch)
+migraphx::program inceptionv3(unsigned batch) // NOLINT(readability-function-size)
 {
     migraphx::program p;
     auto m0 =

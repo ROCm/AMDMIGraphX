@@ -658,7 +658,7 @@ static void print_op_attributes(std::ostream& os, const std::string& name, const
             if(contains({"bn_mode", "padding_mode"}, key))
                 continue;
             if(key == "mode")
-                value = enclose_name(value);
+                value = enclose_name(trim(value));
             os << name << "." << key << " = " << value << ";" << std::endl;
         }
     }

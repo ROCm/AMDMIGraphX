@@ -993,7 +993,7 @@ migraphx::program inceptionv3(unsigned batch)
     migraphx::op::relu relu492;
     auto mx492 = p.add_instruction(relu492, mx491);
     migraphx::op::pooling pooling493;
-    pooling493.mode    = "max ";
+    pooling493.mode    = "max";
     pooling493.padding = {0, 0};
     pooling493.stride  = {2, 2};
     pooling493.lengths = {3, 3};
@@ -1023,7 +1023,7 @@ migraphx::program inceptionv3(unsigned batch)
     migraphx::op::relu relu499;
     auto mx499 = p.add_instruction(relu499, mx498);
     migraphx::op::pooling pooling500;
-    pooling500.mode    = "max ";
+    pooling500.mode    = "max";
     pooling500.padding = {0, 0};
     pooling500.stride  = {2, 2};
     pooling500.lengths = {3, 3};
@@ -1101,7 +1101,7 @@ migraphx::program inceptionv3(unsigned batch)
     migraphx::op::relu relu518;
     auto mx518 = p.add_instruction(relu518, mx517);
     migraphx::op::pooling pooling519;
-    pooling519.mode    = "average ";
+    pooling519.mode    = "average";
     pooling519.padding = {1, 1};
     pooling519.stride  = {1, 1};
     pooling519.lengths = {3, 3};
@@ -1194,7 +1194,7 @@ migraphx::program inceptionv3(unsigned batch)
     migraphx::op::relu relu541;
     auto mx541 = p.add_instruction(relu541, mx540);
     migraphx::op::pooling pooling542;
-    pooling542.mode    = "average ";
+    pooling542.mode    = "average";
     pooling542.padding = {1, 1};
     pooling542.stride  = {1, 1};
     pooling542.lengths = {3, 3};
@@ -1287,7 +1287,7 @@ migraphx::program inceptionv3(unsigned batch)
     migraphx::op::relu relu564;
     auto mx564 = p.add_instruction(relu564, mx563);
     migraphx::op::pooling pooling565;
-    pooling565.mode    = "average ";
+    pooling565.mode    = "average";
     pooling565.padding = {1, 1};
     pooling565.stride  = {1, 1};
     pooling565.lengths = {3, 3};
@@ -1356,7 +1356,7 @@ migraphx::program inceptionv3(unsigned batch)
     migraphx::op::relu relu581;
     auto mx581 = p.add_instruction(relu581, mx580);
     migraphx::op::pooling pooling582;
-    pooling582.mode    = "max ";
+    pooling582.mode    = "max";
     pooling582.padding = {0, 0};
     pooling582.stride  = {2, 2};
     pooling582.lengths = {3, 3};
@@ -1473,7 +1473,7 @@ migraphx::program inceptionv3(unsigned batch)
     migraphx::op::relu relu610;
     auto mx610 = p.add_instruction(relu610, mx609);
     migraphx::op::pooling pooling611;
-    pooling611.mode    = "average ";
+    pooling611.mode    = "average";
     pooling611.padding = {1, 1};
     pooling611.stride  = {1, 1};
     pooling611.lengths = {3, 3};
@@ -1602,7 +1602,7 @@ migraphx::program inceptionv3(unsigned batch)
     migraphx::op::relu relu642;
     auto mx642 = p.add_instruction(relu642, mx641);
     migraphx::op::pooling pooling643;
-    pooling643.mode    = "average ";
+    pooling643.mode    = "average";
     pooling643.padding = {1, 1};
     pooling643.stride  = {1, 1};
     pooling643.lengths = {3, 3};
@@ -1731,7 +1731,7 @@ migraphx::program inceptionv3(unsigned batch)
     migraphx::op::relu relu674;
     auto mx674 = p.add_instruction(relu674, mx673);
     migraphx::op::pooling pooling675;
-    pooling675.mode    = "average ";
+    pooling675.mode    = "average";
     pooling675.padding = {1, 1};
     pooling675.stride  = {1, 1};
     pooling675.lengths = {3, 3};
@@ -1860,7 +1860,7 @@ migraphx::program inceptionv3(unsigned batch)
     migraphx::op::relu relu706;
     auto mx706 = p.add_instruction(relu706, mx705);
     migraphx::op::pooling pooling707;
-    pooling707.mode    = "average ";
+    pooling707.mode    = "average";
     pooling707.padding = {1, 1};
     pooling707.stride  = {1, 1};
     pooling707.lengths = {3, 3};
@@ -1953,7 +1953,7 @@ migraphx::program inceptionv3(unsigned batch)
     migraphx::op::relu relu729;
     auto mx729 = p.add_instruction(relu729, mx728);
     migraphx::op::pooling pooling730;
-    pooling730.mode    = "max ";
+    pooling730.mode    = "max";
     pooling730.padding = {0, 0};
     pooling730.stride  = {2, 2};
     pooling730.lengths = {3, 3};
@@ -2064,7 +2064,7 @@ migraphx::program inceptionv3(unsigned batch)
     concat757.axis = 1;
     auto mx757     = p.add_instruction(concat757, mx753, mx756);
     migraphx::op::pooling pooling758;
-    pooling758.mode    = "average ";
+    pooling758.mode    = "average";
     pooling758.padding = {1, 1};
     pooling758.stride  = {1, 1};
     pooling758.lengths = {3, 3};
@@ -2187,7 +2187,7 @@ migraphx::program inceptionv3(unsigned batch)
     concat788.axis = 1;
     auto mx788     = p.add_instruction(concat788, mx784, mx787);
     migraphx::op::pooling pooling789;
-    pooling789.mode    = "average ";
+    pooling789.mode    = "average";
     pooling789.padding = {1, 1};
     pooling789.stride  = {1, 1};
     pooling789.lengths = {3, 3};
@@ -2208,7 +2208,7 @@ migraphx::program inceptionv3(unsigned batch)
     concat793.axis = 1;
     auto mx793     = p.add_instruction(concat793, mx765, mx775, mx788, mx792);
     migraphx::op::pooling pooling794;
-    pooling794.mode    = "average ";
+    pooling794.mode    = "average";
     pooling794.padding = {0, 0};
     pooling794.stride  = {8, 8};
     pooling794.lengths = {8, 8};

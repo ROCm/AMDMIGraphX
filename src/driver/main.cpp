@@ -72,6 +72,8 @@ struct loader
                 p = resnet50(batch);
             else if(model == "inceptionv3")
                 p = inceptionv3(batch);
+            else if(model == "alexnet")
+                p = alexnet(batch);
             else
                 MIGRAPHX_THROW("Unknown model: " + model);
         }

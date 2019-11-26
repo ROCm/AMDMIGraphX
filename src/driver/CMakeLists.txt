@@ -5,6 +5,7 @@ add_executable(driver
     perf.cpp
     resnet50.cpp
     inceptionv3.cpp
+    alexnet.cpp
 )
 rocm_clang_tidy_check(driver)
 target_link_libraries(driver migraphx_cpu migraphx_onnx migraphx_tf)

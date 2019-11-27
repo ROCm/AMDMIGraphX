@@ -87,6 +87,35 @@ struct value_parser
     }
 };
 
+template<class T>
+struct type_name
+{
+    static const std::string& apply()
+    {
+        return migraphx::get_type_name<T>();
+    }
+};
+
+template<>
+struct type_name<std::string>
+{
+    static const std::string& apply()
+    {
+        static const std::string name = "std::string";
+        return name;
+    }
+};
+
+template<class T>
+struct type_name<std::vector<T>>
+{
+    static const std::string& apply()
+    {
+        static const std::string name = "std::vector<" + type_name<T>::apply() + ">";
+        return name;
+    }
+};
+
 struct argument_parser
 {
     struct argument
@@ -123,7 +152,7 @@ struct argument_parser
                              }});
 
         argument& arg     = arguments.back();
-        arg.type          = migraphx::get_type_name<T>();
+        arg.type          = type_name<T>::apply();
         arg.default_value = as_string_value(x);
         migraphx::each_args([&](auto f) { f(x, arg); }, fs...);
     }

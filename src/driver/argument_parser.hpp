@@ -87,16 +87,13 @@ struct value_parser
     }
 };
 
-template<class T>
+template <class T>
 struct type_name
 {
-    static const std::string& apply()
-    {
-        return migraphx::get_type_name<T>();
-    }
+    static const std::string& apply() { return migraphx::get_type_name<T>(); }
 };
 
-template<>
+template <>
 struct type_name<std::string>
 {
     static const std::string& apply()
@@ -106,7 +103,7 @@ struct type_name<std::string>
     }
 };
 
-template<class T>
+template <class T>
 struct type_name<std::vector<T>>
 {
     static const std::string& apply()

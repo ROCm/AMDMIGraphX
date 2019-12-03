@@ -181,11 +181,12 @@ struct shape
 #undef MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL
     }
 
+    std::string type_string() const;
+
     private:
     std::shared_ptr<const shape_impl> impl;
 
     std::size_t element_space() const;
-    std::string type_string() const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

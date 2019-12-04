@@ -22,8 +22,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BATCH_SIZE)
-
 struct tf_parser
 {
     using attribute_map = std::unordered_map<std::string, tensorflow::AttrValue>;
@@ -1021,7 +1019,9 @@ struct tf_parser
             {
                 reorder_data(dims);
             }
-            std::transform(dims.begin(), dims.end(), dims.begin(), [&](auto dim){return dim == -1 ? batch_size: dim;});
+            std::transform(dims.begin(), dims.end(), dims.begin(), [&](auto dim) {
+                return dim == -1 ? batch_size : dim;
+            });
             shape s            = shape{shape_type, dims};
             instructions[name] = to_nhwc(prog.add_parameter(name, s));
         }
@@ -1396,11 +1396,6 @@ program parse_tf(const std::string& name, bool is_nhwc, unsigned int batch_size)
     parser.to_nchw(std::prev(parser.prog.end()));
     return std::move(parser.prog);
 }
-
-// program parse_tf(const std::string& name, bool is_nhwc)
-// {
-//     return parse_tf(name, is_nhwc, 1);
-// }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

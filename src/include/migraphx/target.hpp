@@ -64,58 +64,22 @@ struct target
 #else
 
 template <class T>
-auto target_allocate(rank<1>, T& x, const shape& s) -> decltype(x.allocate(s))
-{
-    return x.allocate(s);
-}
-
-template <class T>
-argument target_allocate(rank<0>, T& x, const shape&)
+argument target_allocate(T& x, const shape&)
 {
     std::string name = x.name();
     MIGRAPHX_THROW("Not computable: " + name);
 }
 
 template <class T>
-argument target_allocate(T& x, const shape& s)
-{
-    return target_allocate(rank<1>{}, x, s);
-}
-
-template <class T>
-auto copy_to_target(rank<1>, T& x, const argument& arg) -> decltype(x.copy_to(arg))
-{
-    return x.copy_to(arg);
-}
-
-template <class T>
-argument copy_to_target(rank<0>, T&, const argument& arg)
+argument copy_to_target(T&, const argument& arg)
 {
     return arg;
 }
 
 template <class T>
-argument copy_to_target(T& x, const argument& arg)
-{
-    return copy_to_target(rank<1>{}, x, arg);
-}
-
-template <class T>
-auto copy_from_target(rank<1>, T& x, const argument& arg) -> decltype(x.copy_from(arg))
-{
-    return x.copy_from(arg);
-}
-
-template <class T>
-argument copy_from_target(rank<0>, T&, const argument& arg)
+argument copy_from_target(T&, const argument& arg)
 {
     return arg;
-}
-
-template <class T>
-argument copy_from_target(T& x, const argument& arg)
-{
-    return copy_from_target(rank<1>{}, x, arg);
 }
 
 /*
@@ -248,6 +212,50 @@ struct target
         virtual argument allocate(const shape& s) const                            = 0;
     };
 
+    template <class T>
+    static auto
+    private_detail_te_default_copy_to(char, T&& private_detail_te_self, const argument& input)
+        -> decltype(private_detail_te_self.copy_to(input))
+    {
+        return private_detail_te_self.copy_to(input);
+    }
+
+    template <class T>
+    static argument
+    private_detail_te_default_copy_to(float, T&& private_detail_te_self, const argument& input)
+    {
+        return copy_to_target(private_detail_te_self, input);
+    }
+
+    template <class T>
+    static auto
+    private_detail_te_default_copy_from(char, T&& private_detail_te_self, const argument& input)
+        -> decltype(private_detail_te_self.copy_from(input))
+    {
+        return private_detail_te_self.copy_from(input);
+    }
+
+    template <class T>
+    static argument
+    private_detail_te_default_copy_from(float, T&& private_detail_te_self, const argument& input)
+    {
+        return copy_from_target(private_detail_te_self, input);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_allocate(char, T&& private_detail_te_self, const shape& s)
+        -> decltype(private_detail_te_self.allocate(s))
+    {
+        return private_detail_te_self.allocate(s);
+    }
+
+    template <class T>
+    static argument
+    private_detail_te_default_allocate(float, T&& private_detail_te_self, const shape& s)
+    {
+        return target_allocate(private_detail_te_self, s);
+    }
+
     template <typename PrivateDetailTypeErasedT>
     struct private_detail_te_handle_type : private_detail_te_handle_base_type
     {
@@ -289,19 +297,19 @@ struct target
         argument copy_to(const argument& input) const override
         {
 
-            return copy_to_target(private_detail_te_value, input);
+            return private_detail_te_default_copy_to(char(0), private_detail_te_value, input);
         }
 
         argument copy_from(const argument& input) const override
         {
 
-            return copy_from_target(private_detail_te_value, input);
+            return private_detail_te_default_copy_from(char(0), private_detail_te_value, input);
         }
 
         argument allocate(const shape& s) const override
         {
 
-            return target_allocate(private_detail_te_value, s);
+            return private_detail_te_default_allocate(char(0), private_detail_te_value, s);
         }
 
         PrivateDetailTypeErasedT private_detail_te_value;

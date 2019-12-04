@@ -34,8 +34,8 @@ struct tf_parser
     node_map nodes;
     std::vector<tensorflow::NodeDef> input_nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog = program();
-    bool is_nhwc = true;
+    program prog            = program();
+    bool is_nhwc            = true;
     unsigned int batch_size = 1;
 
     std::unordered_map<std::string, op_func> ops;
@@ -1382,7 +1382,7 @@ program parse_tf(const std::string& name, bool is_nhwc, unsigned int batch_size)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     tf_parser parser;
-    parser.is_nhwc = is_nhwc;
+    parser.is_nhwc    = is_nhwc;
     parser.batch_size = batch_size;
 
 #ifndef NDEBUG

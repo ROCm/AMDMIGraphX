@@ -28,8 +28,8 @@ struct onnx_parser
         std::function<std::vector<instruction_ref>(attribute_map, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog    = program();
-    bool is_pytorch = false;
+    program prog            = program();
+    bool is_pytorch         = false;
     unsigned int batch_size = 1;
 
     std::unordered_map<std::string, op_func> ops;

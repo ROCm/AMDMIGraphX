@@ -28,9 +28,9 @@ struct loader
 {
     std::string file;
     std::string file_type;
-    bool is_nhwc  = true;
-    unsigned trim = 0;
-    bool optimize = false;
+    bool is_nhwc            = true;
+    unsigned trim           = 0;
+    bool optimize           = false;
     unsigned int batch_size = 1;
 
     void parse(argument_parser& ap)

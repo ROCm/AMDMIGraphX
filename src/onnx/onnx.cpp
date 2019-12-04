@@ -1687,12 +1687,13 @@ struct onnx_parser
         std::transform(tensor_dims.begin(),
                        tensor_dims.end(),
                        std::back_inserter(dims),
-                       [batch_size](auto&& d) -> std::size_t {
-                           if(not d.has_dim_value())
-                           {
-                               return batch_size;
-                           }
-                           return d.dim_value();
+                       [&](auto&& d) -> std::size_t {
+                           return d.has_dim_value() ? d.dim_value() : batch_size;
+                        //    if(not d.has_dim_value())
+                        //    {
+                        //        return batch_size;
+                        //    }
+                        //    return d.dim_value();
                        });
         return {shape_type, dims};
     }

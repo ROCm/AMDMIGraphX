@@ -176,8 +176,12 @@ PYBIND11_MODULE(migraphx, m)
           &migraphx::parse_tf,
           "Parse tf protobuf (default format is nhwc)",
           py::arg("filename"),
-          py::arg("is_nhwc") = true);
-    m.def("parse_onnx", &migraphx::parse_onnx);
+          py::arg("is_nhwc") = true,
+          py::arg("batch_size") = 1);
+    m.def("parse_onnx", &migraphx::parse_onnx,
+          "Parse onnx file",
+          py::arg("filename"),
+          py::arg("batch_size") = 1);
 
     m.def("get_target", [](const std::string& name) -> migraphx::target {
         if(name == "cpu")

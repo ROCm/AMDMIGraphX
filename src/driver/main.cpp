@@ -31,6 +31,7 @@ struct loader
     bool is_nhwc  = true;
     unsigned trim = 0;
     bool optimize = false;
+    unsigned int batch_size = 1;
 
     void parse(argument_parser& ap)
     {
@@ -41,6 +42,7 @@ struct loader
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
+        ap(batch_size, {"--batch_size", "-b"}, ap.help("Set batch size for dynamic graph input"));
     }
 
     program load()
@@ -55,9 +57,9 @@ struct loader
         }
         std::cout << "Reading: " << file << std::endl;
         if(file_type == "onnx")
-            p = parse_onnx(file);
+            p = parse_onnx(file, batch_size);
         else if(file_type == "tf")
-            p = parse_tf(file, is_nhwc);
+            p = parse_tf(file, is_nhwc, batch_size);
         if(trim > 0)
         {
             auto last = std::prev(p.end(), trim);

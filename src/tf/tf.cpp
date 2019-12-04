@@ -36,6 +36,7 @@ struct tf_parser
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog = program();
     bool is_nhwc = true;
+    unsigned int batch_size = 1;
 
     std::unordered_map<std::string, op_func> ops;
 
@@ -1024,11 +1025,7 @@ struct tf_parser
             {
                 if(x == -1)
                 {
-                    auto batch_size = value_of(MIGRAPHX_BATCH_SIZE{});
-                    if(batch_size > 0)
-                        x = batch_size;
-                    else
-                        x = 1;
+                    x = batch_size;
                 }
             }
             shape s            = shape{shape_type, dims};
@@ -1381,11 +1378,12 @@ struct tf_parser
     }
 };
 
-program parse_tf(const std::string& name, bool is_nhwc)
+program parse_tf(const std::string& name, bool is_nhwc, unsigned int batch_size)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     tf_parser parser;
     parser.is_nhwc = is_nhwc;
+    parser.batch_size = batch_size;
 
 #ifndef NDEBUG
     // Log the program when it can't be parsed
@@ -1404,6 +1402,11 @@ program parse_tf(const std::string& name, bool is_nhwc)
     parser.to_nchw(std::prev(parser.prog.end()));
     return std::move(parser.prog);
 }
+
+// program parse_tf(const std::string& name, bool is_nhwc)
+// {
+//     return parse_tf(name, is_nhwc, 1);
+// }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

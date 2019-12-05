@@ -71,12 +71,12 @@ struct argmin_op
 template <class Op>
 void arg_op(Op op, hipStream_t stream, const argument& result, const argument& arg, int64_t axis)
 {
-    auto arg_shape        = arg.get_shape();
-    auto lens             = arg_shape.lens();
-    auto batch_lens       = lens;
-    auto tuned_axis = (axis < 0) ? axis + lens.size() : axis;
-    size_t batch_item_num = lens[tuned_axis];
-    batch_lens[tuned_axis]      = 1;
+    auto arg_shape         = arg.get_shape();
+    auto lens              = arg_shape.lens();
+    auto batch_lens        = lens;
+    auto tuned_axis        = (axis < 0) ? axis + lens.size() : axis;
+    size_t batch_item_num  = lens[tuned_axis];
+    batch_lens[tuned_axis] = 1;
     migraphx::shape batch_shape{arg_shape.type(), batch_lens};
 
     hip_visit_all(arg, arg_shape, batch_shape)([&](auto input, auto arg_s, auto batch_s) {

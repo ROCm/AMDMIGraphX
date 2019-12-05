@@ -33,20 +33,23 @@ struct argmin
         }
 
         int64_t tuned_axis = (axis < 0) ? axis + n_dim : axis;
-        lens[tuned_axis] = 1;
+        lens[tuned_axis]   = 1;
 
         return {shape::int64_type, lens};
     }
 
     template <class T>
-    int64_t calc_argmin(T& input, int64_t tuned_axis, std::vector<std::size_t>& indices, size_t item_num) const
+    int64_t calc_argmin(T& input,
+                        int64_t tuned_axis,
+                        std::vector<std::size_t>& indices,
+                        size_t item_num) const
     {
         auto min_val      = input(indices.begin(), indices.end());
         int64_t min_index = 0;
         for(std::size_t i = 1; i < item_num; ++i)
         {
             indices[tuned_axis] = i;
-            auto cur_val  = input(indices.begin(), indices.end());
+            auto cur_val        = input(indices.begin(), indices.end());
             if(min_val > cur_val)
             {
                 min_val   = cur_val;
@@ -60,8 +63,8 @@ struct argmin
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        auto n_dim = args.front().get_shape().lens().size();
-        auto tuned_axis = axis < 0 ? axis + n_dim : axis;
+        auto n_dim                 = args.front().get_shape().lens().size();
+        auto tuned_axis            = axis < 0 ? axis + n_dim : axis;
         std::size_t batch_item_num = args.front().get_shape().lens()[tuned_axis];
 
         result.visit([&](auto output) {

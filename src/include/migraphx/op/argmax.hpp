@@ -40,14 +40,17 @@ struct argmax
     }
 
     template <class T>
-    int64_t calc_argmax(T& input, int64_t tuned_axis, std::vector<std::size_t>& indices, size_t item_num) const
+    int64_t calc_argmax(T& input,
+                        int64_t tuned_axis,
+                        std::vector<std::size_t>& indices,
+                        size_t item_num) const
     {
         auto max_val      = input(indices.begin(), indices.end());
         int64_t max_index = 0;
         for(std::size_t i = 1; i < item_num; ++i)
         {
             indices[tuned_axis] = i;
-            auto cur_val  = input(indices.begin(), indices.end());
+            auto cur_val        = input(indices.begin(), indices.end());
             if(max_val < cur_val)
             {
                 max_val   = cur_val;
@@ -61,8 +64,8 @@ struct argmax
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        auto n_dim = args.front().get_shape().lens().size();
-        auto tuned_axis = axis < 0 ? axis + n_dim : axis;
+        auto n_dim          = args.front().get_shape().lens().size();
+        auto tuned_axis     = axis < 0 ? axis + n_dim : axis;
         auto batch_item_num = args.front().get_shape().lens()[tuned_axis];
 
         result.visit([&](auto output) {

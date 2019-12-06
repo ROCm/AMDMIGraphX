@@ -599,9 +599,9 @@ struct cpu_softmax
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        auto batch_lens     = output_shape.lens();
+        auto batch_lens    = output_shape.lens();
         int64_t tuned_axis = (op.axis < 0) ? op.axis + args[0].get_shape().lens().size() : op.axis;
-        std::size_t n_dims  = batch_lens[tuned_axis];
+        std::size_t n_dims = batch_lens[tuned_axis];
         batch_lens[tuned_axis] = 1;
         shape batch_shape{shape::int32_type, batch_lens};
 
@@ -615,12 +615,12 @@ struct cpu_softmax
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
                     idx[tuned_axis] = j;
-                    batch_max[i] = std::max(batch_max[i], input(idx.begin(), idx.end()));
+                    batch_max[i]    = std::max(batch_max[i], input(idx.begin(), idx.end()));
                 }
 
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
-                    idx[tuned_axis]      = j;
+                    idx[tuned_axis]   = j;
                     std::size_t index = output_shape.index(idx);
                     output[index]     = std::exp(input[index] - batch_max[i]);
                 }

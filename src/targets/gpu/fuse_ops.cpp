@@ -151,7 +151,7 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 
     // Do not fuse non-symmetric input
     auto input_lens = ins->inputs().at(0)->get_shape().lens();
-    if (input_lens[2] != input_lens[3] or wei.lens()[2] != wei.lens()[3])
+    if(input_lens[2] != input_lens[3] or wei.lens()[2] != wei.lens()[3])
         return false;
 
     auto op = conv.op;

@@ -51,7 +51,7 @@ TEST_CASE(add_bcast_test)
 TEST_CASE(argmax_test)
 {
     migraphx::program p;
-    auto l0  = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
     p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {2}});
     auto ins = p.add_instruction(migraphx::op::argmax{2}, l0);
     p.add_instruction(migraphx::op::squeeze{{2}}, ins);

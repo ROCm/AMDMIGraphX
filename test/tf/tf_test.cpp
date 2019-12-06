@@ -48,6 +48,18 @@ TEST_CASE(add_bcast_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(argmax_test)
+{
+    migraphx::program p;
+    auto l0  = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {2}});
+    auto ins = p.add_instruction(migraphx::op::argmax{2}, l0);
+    p.add_instruction(migraphx::op::squeeze{{2}}, ins);
+    auto prog = migraphx::parse_tf("argmax_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(assert_less_equal_test)
 {
     migraphx::program p;
@@ -632,6 +644,16 @@ TEST_CASE(transpose_test)
     p.add_literal(migraphx::literal{s0, {0, 2, 3, 1}});
     p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, l0);
     auto prog = optimize_tf("transpose_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(variable_batch_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    p.add_instruction(migraphx::op::identity{}, l0);
+    auto prog = optimize_tf("variable_batch_test.pb", false);
 
     EXPECT(p == prog);
 }

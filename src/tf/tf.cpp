@@ -1020,7 +1020,7 @@ struct tf_parser
                 reorder_data(dims);
             }
             std::transform(dims.begin(), dims.end(), dims.begin(), [&](auto dim) {
-                return dim == -1 ? batch_size : dim;
+                return static_cast<int>(dim) <= 0 ? batch_size : dim;
             });
             shape s            = shape{shape_type, dims};
             instructions[name] = to_nhwc(prog.add_parameter(name, s));

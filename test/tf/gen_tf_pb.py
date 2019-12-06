@@ -31,6 +31,13 @@ def add_bcast_test(g1):
 
 
 @tf_test
+def argmax_test(g1):
+    with g1.as_default():
+        g1_input = tf.placeholder(tf.float32, shape=(3, 4, 5, 6), name='0')
+        tf.argmax(g1_input, axis=2, name='argmax1')
+
+
+@tf_test
 def assert_less_equal_test(g1):
     with g1.as_default():
         g1_input = tf.placeholder(tf.float32, shape=(2, 3), name='0')
@@ -361,3 +368,10 @@ def transpose_test(g1):
     with g1.as_default():
         g1_input = tf.placeholder(tf.float32, shape=(1, 3, 16, 16), name='0')
         tf.transpose(g1_input, perm=[0, 2, 3, 1], name='transpose')
+
+
+@tf_test
+def variable_batch_test(g1):
+    with g1.as_default():
+        g1_input = tf.placeholder(tf.float32, shape=(0, 3, 16, 16), name='0')
+        tf.identity(g1_input, name='identity')

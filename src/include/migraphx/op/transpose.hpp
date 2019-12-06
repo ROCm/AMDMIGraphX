@@ -34,9 +34,9 @@ struct transpose
         auto input_lens    = input.lens();
         auto input_strides = input.strides();
         auto t             = input.type();
-        auto tuned_dims = dims;
+        auto tuned_dims    = dims;
         // if not perm provided, reverse the dims
-        if (tuned_dims.empty())
+        if(tuned_dims.empty())
         {
             tuned_dims.resize(input_lens.size());
             std::iota(tuned_dims.begin(), tuned_dims.end(), 0);

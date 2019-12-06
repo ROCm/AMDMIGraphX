@@ -600,8 +600,9 @@ struct cpu_softmax
     {
         argument result{output_shape};
         auto batch_lens     = output_shape.lens();
-        std::size_t n_dims  = batch_lens[op.axis];
-        batch_lens[op.axis] = 1;
+        int64_t tuned_axis = (op.axis < 0) ? op.axis + args[0].get_shape().lens().size() : op.axis;
+        std::size_t n_dims  = batch_lens[tuned_axis];
+        batch_lens[tuned_axis] = 1;
         shape batch_shape{shape::int32_type, batch_lens};
 
         visit_all(result, args[0])([&](auto output, auto input) {
@@ -613,26 +614,26 @@ struct cpu_softmax
                 auto idx = batch_shape.multi(i);
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
-                    idx[op.axis] = j;
+                    idx[tuned_axis] = j;
                     batch_max[i] = std::max(batch_max[i], input(idx.begin(), idx.end()));
                 }
 
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
-                    idx[op.axis]      = j;
+                    idx[tuned_axis]      = j;
                     std::size_t index = output_shape.index(idx);
                     output[index]     = std::exp(input[index] - batch_max[i]);
                 }
 
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
-                    idx[op.axis] = j;
+                    idx[tuned_axis] = j;
                     batch_sum[i] += output(idx.begin(), idx.end());
                 }
 
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
-                    idx[op.axis] = j;
+                    idx[tuned_axis] = j;
                     output(idx.begin(), idx.end()) =
                         op.output()(output(idx.begin(), idx.end()), batch_sum[i]);
                 }

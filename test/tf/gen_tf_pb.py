@@ -267,6 +267,13 @@ def rsqrt_test(g1):
 
 
 @tf_test
+def shape_test(g1):
+    with g1.as_default():
+        g1_input = tf.placeholder(tf.float32, shape=(1, 3, 16, 16), name='0')
+        tf.shape(g1_input, 'shape')
+
+
+@tf_test
 def slice_test(g1):
     with g1.as_default():
         g1_input = tf.placeholder(tf.float32, shape=(5, 10), name='0')

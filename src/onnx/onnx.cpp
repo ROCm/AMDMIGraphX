@@ -1695,7 +1695,6 @@ struct onnx_parser
                                return d.dim_value();
                            }
                            return batch_size;
-                           //    return d.has_dim_value() ? d.dim_value() : batch_size;
                        });
         return {shape_type, dims};
     }

@@ -271,10 +271,7 @@ def rsqrt_test(g1):
 def shape_test(g1):
     with g1.as_default():
         g1_input = tf.placeholder(tf.float32, shape=(1, 3, 16, 16), name='0')
-    g1.create_op(
-        op_type = 'Shape',
-        inputs=[g1_input]
-    )
+    g1.create_op(op_type='Shape', inputs=[g1_input])
 
 
 @tf_test

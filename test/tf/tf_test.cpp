@@ -11,7 +11,6 @@
 #include <migraphx/tf.hpp>
 #include "test.hpp"
 
-
 migraphx::program parse_tf(const std::string& name, bool is_nhwc)
 {
     return migraphx::parse_tf(name, migraphx::tf_options{is_nhwc, 1});

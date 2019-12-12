@@ -7,7 +7,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct onnx_options{
+struct onnx_options
+{
     unsigned int batch_size = 1;
 };
 

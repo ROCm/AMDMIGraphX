@@ -9,7 +9,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct tf_options
 {
-    bool is_nhwc = false;
+    bool is_nhwc            = false;
     unsigned int batch_size = 1;
 };
 

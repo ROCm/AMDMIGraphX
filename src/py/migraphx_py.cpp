@@ -173,7 +173,7 @@ PYBIND11_MODULE(migraphx, m)
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
 
     m.def("parse_tf",
-          [](const std::string& filename, bool is_nhwc, unsigned int batch_size){
+          [](const std::string& filename, bool is_nhwc, unsigned int batch_size) {
               return migraphx::parse_tf(filename, migraphx::tf_options{is_nhwc, batch_size});
           },
           "Parse tf protobuf (default format is nhwc)",
@@ -181,7 +181,7 @@ PYBIND11_MODULE(migraphx, m)
           py::arg("is_nhwc")    = true,
           py::arg("batch_size") = 1);
     m.def("parse_onnx",
-          [](const std::string& filename, unsigned int batch_size){
+          [](const std::string& filename, unsigned int batch_size) {
               return migraphx::parse_onnx(filename, migraphx::onnx_options{batch_size});
           },
           "Parse onnx file",

@@ -1372,12 +1372,12 @@ struct tf_parser
     }
 };
 
-program parse_tf(const std::string& name, bool is_nhwc, unsigned int batch_size)
+program parse_tf(const std::string& name, tf_options options)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     tf_parser parser;
-    parser.is_nhwc    = is_nhwc;
-    parser.batch_size = batch_size;
+    parser.is_nhwc    = options.is_nhwc;
+    parser.batch_size = options.batch_size;
 
 #ifndef NDEBUG
     // Log the program when it can't be parsed

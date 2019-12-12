@@ -53,7 +53,7 @@ int main(int argc, char const* argv[])
     std::string gpu_cpu  = argv[1];
     std::string file     = argv[2];
     std::string datafile = argv[3];
-    auto prog            = migraphx::parse_onnx(file);
+    auto prog            = migraphx::parse_onnx(file, migraphx::onnx_options{});
     std::cout << prog << std::endl;
     auto imageset = read_cifar10_images(datafile);
 

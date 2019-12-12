@@ -1730,11 +1730,11 @@ struct onnx_parser
     }
 };
 
-program parse_onnx(const std::string& name, unsigned int batch_size)
+program parse_onnx(const std::string& name, onnx_options options)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     onnx_parser parser;
-    parser.batch_size = batch_size;
+    parser.batch_size = options.batch_size;
 #ifndef NDEBUG
     // Log the program when it can't be parsed
     try

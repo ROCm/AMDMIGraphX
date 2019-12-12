@@ -118,7 +118,7 @@ int main(int argc, char const* argv[])
         std::vector<int32_t> labels = read_mnist_labels(labelfile, nlabels);
 
         std::string file = argv[1];
-        auto prog        = migraphx::parse_onnx(file);
+        auto prog        = migraphx::parse_onnx(file, migraphx::onnx_options{});
         std::cout << prog << std::endl << std::endl;
         prog.compile(migraphx::gpu::target{});
         auto s = migraphx::shape{migraphx::shape::float_type, {1, 1, 28, 28}};

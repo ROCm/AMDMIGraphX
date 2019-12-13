@@ -490,6 +490,21 @@ TEST_CASE(test_argmin)
     }
 }
 
+TEST_CASE(test_squeeze)
+{
+    {
+        migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
+        migraphx::shape s2{migraphx::shape::float_type, {4, 1, 3, 3}};
+        expect_shape(s2, migraphx::op::squeeze{{-2}}, s1);
+    }
+
+    {
+        migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
+        migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
+        expect_shape(s2, migraphx::op::unsqueeze{{-2}}, s1);
+    }
+}
+
 template <class T>
 void test_reduce_ops()
 {

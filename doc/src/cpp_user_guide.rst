@@ -1,5 +1,5 @@
-User Guide
-==========
+C++ User Guide
+==============
 
 .. toctree::
    :maxdepth: 2

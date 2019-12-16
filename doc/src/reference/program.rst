@@ -22,3 +22,8 @@ parse_onnx
 ----------
 
 .. doxygenfunction:: migraphx::MIGRAPHX_INLINE_NS::parse_onnx
+
+parse_tf
+--------
+
+.. doxygenfunction:: migraphx::MIGRAPHX_INLINE_NS::parse_tf

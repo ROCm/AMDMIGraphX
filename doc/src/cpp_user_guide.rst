@@ -10,4 +10,5 @@ C++ User Guide
    reference/operators
    reference/program
    reference/targets
+   reference/quantization
    reference/pass

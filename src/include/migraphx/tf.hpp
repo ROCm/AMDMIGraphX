@@ -7,6 +7,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+/// struct to pass in tf options to parser
 struct tf_options
 {
     bool is_nhwc            = false;

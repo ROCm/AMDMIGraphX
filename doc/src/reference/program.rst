@@ -27,3 +27,13 @@ parse_tf
 --------
 
 .. doxygenfunction:: migraphx::MIGRAPHX_INLINE_NS::parse_tf
+
+onnx_options
+------------
+
+.. doxygenstruct:: migraphx::onnx_options
+
+tf_options
+----------
+
+.. doxygenstruct:: migraphx::tf_options

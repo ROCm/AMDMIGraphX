@@ -7,6 +7,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+
+/// struct to pass in onnx options to parser
 struct onnx_options
 {
     unsigned int batch_size = 1;

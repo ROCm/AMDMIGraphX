@@ -197,6 +197,7 @@ parse_onnx
     Load and parse an onnx file.
 
     :param str filename: Path to file.
+    :param str batch_size: default batch size to use (if not specified in onnx file).
 
     :rtype: program
 
@@ -209,6 +210,7 @@ parse_tf
 
     :param str filename: Path to file.
     :param bool is_nhwc: Use nhwc as default format.
+    :param str batch_size: default batch size to use (if not specified in protobuf).
 
     :rtype: program
 

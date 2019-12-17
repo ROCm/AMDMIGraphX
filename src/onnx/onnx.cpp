@@ -1464,14 +1464,14 @@ struct onnx_parser
             std::vector<instruction_ref> args;
             for(auto&& input : node.input())
             {
-                if(nodes.count(input) > 0)
+                if(input.empty())
+                {
+                    this->parse_undefined(input);
+                }
+                else if(nodes.count(input) > 0)
                 {
                     assert(name != input);
                     this->parse_node(input);
-                }
-                else if(input.empty())
-                {
-                    this->parse_undefined(input);
                 }
                 args.push_back(instructions.at(input));
             }
@@ -1491,12 +1491,37 @@ struct onnx_parser
             }
             else
             {
-                assert(node.output().size() >= result.size());
-                std::transform(result.begin(),
-                               result.end(),
-                               node.output().begin(),
-                               std::inserter(instructions, instructions.end()),
-                               [](auto&& x, auto&& y) { return std::make_pair(y, x); });
+                std::vector<instruction_ref> vec_ins_refs;
+                auto size = std::min<std::size_t>(node.output().size(), result.size());
+                if (size < result.size())
+                {
+                    for (std::size_t i = size; i < result.size(); ++i)
+                    {
+                        vec_ins_refs.push_back(result.at(i));
+                    }
+                }
+
+                for (auto i = 0; i < size; ++i)
+                {
+                    auto&& x = result.at(i);
+                    auto&& y = node.output()[i];
+                    if (!y.empty())
+                    {
+                        instructions[y] = x;
+                    }
+                    else
+                    {
+                        vec_ins_refs.push_back(x);
+                    }
+                }
+
+                for (auto ins : vec_ins_refs)
+                {
+                    if (ins->outputs().empty())
+                    {
+                        prog.remove_instruction(ins);
+                    }
+                }
             }
         }
     }

@@ -192,7 +192,7 @@ program
 parse_onnx
 ----------
 
-.. py:function:: parse_onnx(filename)
+.. py:function:: parse_onnx(filename, batch_size=1)
 
     Load and parse an onnx file.
 
@@ -204,7 +204,7 @@ parse_onnx
 parse_tf
 ----------
 
-.. py:function:: parse_tf(filename, is_nhwc=True)
+.. py:function:: parse_tf(filename, is_nhwc=True, batch_size=1)
 
     Load and parse an tensorflow protobuf file file.
 

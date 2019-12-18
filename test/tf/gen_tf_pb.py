@@ -39,6 +39,13 @@ def argmax_test(g1):
 
 
 @tf_test
+def argmin_test(g1):
+    with g1.as_default():
+        g1_input = tf.placeholder(tf.float32, shape=(3, 4, 5, 6), name='0')
+        tf.argmin(g1_input, axis=2, name='argmin1')
+
+
+@tf_test
 def assert_less_equal_test(g1):
     with g1.as_default():
         g1_input = tf.placeholder(tf.float32, shape=(2, 3), name='0')

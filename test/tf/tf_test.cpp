@@ -65,6 +65,18 @@ TEST_CASE(argmax_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(argmin_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {2}});
+    auto ins = p.add_instruction(migraphx::op::argmin{2}, l0);
+    p.add_instruction(migraphx::op::squeeze{{2}}, ins);
+    auto prog = parse_tf("argmin_test.pb", false);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(assert_less_equal_test)
 {
     migraphx::program p;

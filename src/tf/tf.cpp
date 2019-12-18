@@ -191,6 +191,7 @@ struct tf_parser
         add_binary_op("Sub", op::sub{});
 
         add_mem_op("ArgMax", &tf_parser::parse_arg_op<op::argmax>, false);
+        add_mem_op("ArgMin", &tf_parser::parse_arg_op<op::argmin>, false);
         add_mem_op("AvgPool", &tf_parser::parse_pooling);
         add_mem_op("BatchMatMul", &tf_parser::parse_matmul, false);
         add_mem_op("BatchMatMulV2", &tf_parser::parse_matmul, false);

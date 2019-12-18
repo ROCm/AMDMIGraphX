@@ -7,7 +7,6 @@
 #include <migraphx/onnx.hpp>
 #include "test.hpp"
 
-
 TEST_CASE(rnn_test_bidirectional)
 {
     std::size_t sl = 5;  // sequence len

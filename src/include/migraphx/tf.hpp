@@ -15,7 +15,7 @@ struct tf_options
 };
 
 /// Create a program from a tf pb file (default is nhwc format)
-program parse_tf(const std::string& name, tf_options=tf_options{});
+program parse_tf(const std::string& name, tf_options = tf_options{});
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

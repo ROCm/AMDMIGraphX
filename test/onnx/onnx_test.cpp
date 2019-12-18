@@ -8,7 +8,6 @@
 #include <migraphx/onnx.hpp>
 #include "test.hpp"
 
-
 TEST_CASE(acos_test)
 {
     migraphx::program p;

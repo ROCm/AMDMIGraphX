@@ -1116,4 +1116,25 @@ TEST_CASE(unknown_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(variable_batch_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    p.add_instruction(migraphx::op::identity{}, l0);
+    auto prog = migraphx::parse_onnx("variable_batch_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(variable_batch_leq_zero_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    p.add_instruction(migraphx::op::add{}, l0, l1);
+    auto prog = migraphx::parse_onnx("variable_batch_leq_zero_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

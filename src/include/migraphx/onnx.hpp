@@ -7,8 +7,14 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+/// struct to pass in onnx options to parser
+struct onnx_options
+{
+    unsigned int batch_size = 1;
+};
+
 /// Create a program from an onnx file
-program parse_onnx(const std::string& name);
+program parse_onnx(const std::string& name, onnx_options = onnx_options{});
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

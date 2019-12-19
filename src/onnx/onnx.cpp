@@ -28,8 +28,9 @@ struct onnx_parser
         std::function<std::vector<instruction_ref>(attribute_map, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog    = program();
-    bool is_pytorch = false;
+    program prog            = program();
+    bool is_pytorch         = false;
+    unsigned int batch_size = 1;
 
     std::unordered_map<std::string, op_func> ops;
     std::unordered_map<std::string, operation> map_actv_funcs;
@@ -1445,7 +1446,7 @@ struct onnx_parser
             if(!contains(instructions, name))
             {
                 // TODO: Get shape of input parameter
-                shape s            = parse_type(input.type());
+                shape s            = parse_type(input.type(), batch_size);
                 instructions[name] = prog.add_parameter(name, s);
             }
         }
@@ -1665,7 +1666,7 @@ struct onnx_parser
         return literal{{shape_type, dims}, data.begin(), data.end()};
     }
 
-    static shape parse_type(const onnx::TypeProto& t)
+    static shape parse_type(const onnx::TypeProto& t, const unsigned int batch_size)
     {
         shape::type_t shape_type{};
         switch(t.tensor_type().elem_type())
@@ -1693,13 +1694,14 @@ struct onnx_parser
         std::transform(tensor_dims.begin(),
                        tensor_dims.end(),
                        std::back_inserter(dims),
-                       [](auto&& d) -> std::size_t {
-                           if(not d.has_dim_value())
+                       [&](auto&& d) -> std::size_t {
+                           if(d.has_dim_value())
                            {
-                               long default_batch_size = 1; // FIXME
-                               return default_batch_size;
+                               if(static_cast<int>(d.dim_value()) <= 0)
+                                   return batch_size;
+                               return d.dim_value();
                            }
-                           return d.dim_value();
+                           return batch_size;
                        });
         if(dims.empty())
             return {shape_type};
@@ -1738,10 +1740,11 @@ struct onnx_parser
     }
 };
 
-program parse_onnx(const std::string& name)
+program parse_onnx(const std::string& name, onnx_options options)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     onnx_parser parser;
+    parser.batch_size = options.batch_size;
 #ifndef NDEBUG
     // Log the program when it can't be parsed
     try

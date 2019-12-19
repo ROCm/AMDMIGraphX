@@ -10,7 +10,8 @@ Welcome to AMD MIGraphX's documentation!
    :maxdepth: 3
    :caption: Contents:
 
-   user_guide
+   py_user_guide
+   cpp_user_guide
    developer_guide
 
 

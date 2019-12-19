@@ -1428,23 +1428,6 @@ def sum_test():
     a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
     c = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
-
-    y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [3])
-
-    node = onnx.helper.make_node(
-        'Sum',
-        inputs=['0', '1', '2'],
-        outputs=['3'],
-    )
-
-    return ([node], [a, b, c], [y])
-
-
-@onnx_test
-def sum_test():
-    a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
-    b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
-    c = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [3])
 
     node = onnx.helper.make_node(
@@ -1533,7 +1516,9 @@ def transpose_gather_test():
 def unknown_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 4])
-    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2, 3, 4, 5])
+
+    helper.make_tensor_value_info('2', TensorProto.FLOAT, [2, 3, 4, 5])
+
     a = helper.make_tensor_value_info('3', TensorProto.FLOAT, [2, 3, 4, 5])
 
     node = onnx.helper.make_node('Unknown', inputs=['0', '1'], outputs=['2'])
@@ -1541,3 +1526,26 @@ def unknown_test():
     node2 = onnx.helper.make_node('Unknown', inputs=['2'], outputs=['3'])
 
     return ([node, node2], [x, y], [a])
+
+
+@onnx_test
+def variable_batch_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [None, 3, 16, 16])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT,
+                                      [None, 3, 16, 16])
+
+    node = onnx.helper.make_node('Identity', inputs=['0'], outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def variable_batch_leq_zero_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [0, 3, 16, 16])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [-1, 3, 16, 16])
+
+    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [-1, 3, 16, 16])
+    node = onnx.helper.make_node('Add', inputs=['0', '1'], outputs=['2'])
+
+    return ([node], [x, y], [z])

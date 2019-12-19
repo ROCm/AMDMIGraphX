@@ -78,7 +78,7 @@ ENV LD_LIBRARY_PATH=$PREFIX/lib
 
 # Install doc requirements
 ADD doc/requirements.txt /doc-requirements.txt
-RUN pip install -r /doc-requirements.txt
+RUN pip3 install -r /doc-requirements.txt
 
 # Setup ubsan environment to printstacktrace
 RUN ln -s /usr/bin/llvm-symbolizer-5.0 /usr/local/bin/llvm-symbolizer

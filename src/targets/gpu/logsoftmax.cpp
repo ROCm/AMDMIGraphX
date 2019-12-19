@@ -18,7 +18,9 @@ shape hip_logsoftmax::compute_shape(const std::vector<shape>& inputs) const
 argument
 hip_logsoftmax::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    device::logsoftmax(ctx.get_stream().get(), args.back(), args.front(), op.axis);
+    auto n_dim = args.front().get_shape().lens().size();
+    auto tuned_axis = (op.axis < 0) ? op.axis + n_dim : op.axis;
+    device::logsoftmax(ctx.get_stream().get(), args.back(), args.front(), tuned_axis);
     return args.back();
 }
 

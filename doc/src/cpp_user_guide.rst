@@ -1,5 +1,5 @@
-User Guide
-==========
+C++ User Guide
+==============
 
 .. toctree::
    :maxdepth: 2
@@ -10,4 +10,5 @@ User Guide
    reference/operators
    reference/program
    reference/targets
+   reference/quantization
    reference/pass

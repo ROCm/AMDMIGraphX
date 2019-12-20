@@ -39,7 +39,12 @@ constexpr void visit_tensor_size(index_int n, F f)
         f(std::integral_constant<index_int, 5>{});
         break;
     }
-    default: throw std::runtime_error("Unknown tensor size");
+    case 6:
+    {
+        f(std::integral_constant<index_int, 6>{});
+        break;
+    }
+    default: throw std::runtime_error("Tensor size dim out of range");
     }
 }
 

@@ -34,13 +34,22 @@ struct transpose
         auto input_lens    = input.lens();
         auto input_strides = input.strides();
         auto t             = input.type();
-        if(dims.size() != input_lens.size())
+        auto tuned_dims    = dims;
+        // if not perm provided, reverse the dims
+        if(tuned_dims.empty())
+        {
+            tuned_dims.resize(input_lens.size());
+            std::iota(tuned_dims.begin(), tuned_dims.end(), 0);
+            std::reverse(tuned_dims.begin(), tuned_dims.end());
+        }
+
+        if(tuned_dims.size() != input_lens.size())
         {
             MIGRAPHX_THROW("Permutation has wrong number of axes");
         }
-        std::vector<int64_t> axes(dims.size());
+        std::vector<int64_t> axes(tuned_dims.size());
         std::iota(axes.begin(), axes.end(), 0);
-        if(!std::is_permutation(axes.begin(), axes.end(), dims.begin()))
+        if(!std::is_permutation(axes.begin(), axes.end(), tuned_dims.begin()))
         {
             MIGRAPHX_THROW("Invalid permutation");
         }
@@ -48,8 +57,8 @@ struct transpose
         std::vector<size_t> output_strides(input_lens.size());
         for(std::size_t i = 0; i < output_lens.size(); i++)
         {
-            output_lens[i]    = input_lens[dims[i]];
-            output_strides[i] = input_strides[dims[i]];
+            output_lens[i]    = input_lens[tuned_dims[i]];
+            output_strides[i] = input_strides[tuned_dims[i]];
         }
         return {t, output_lens, output_strides};
     }

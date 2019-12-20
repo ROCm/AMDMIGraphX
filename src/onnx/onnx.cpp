@@ -231,8 +231,15 @@ struct onnx_parser
             auto s0       = arg0->get_shape().lens();
             auto s1       = arg1->get_shape().lens();
             auto out_lens = compute_broadcasted_lens(s0, s1);
-            auto l0       = prog.add_instruction(op::multibroadcast{out_lens}, arg0);
-            auto l1       = prog.add_instruction(op::multibroadcast{out_lens}, arg1);
+
+            auto l0 = arg0;
+            if(arg0->get_shape().lens() != out_lens)
+                l0 = prog.add_instruction(op::multibroadcast{out_lens}, arg0);
+
+            auto l1 = arg1;
+            if(arg1->get_shape().lens() != out_lens)
+                l1 = prog.add_instruction(op::multibroadcast{out_lens}, arg1);
+
             return prog.add_instruction(x, l0, l1);
         }
         else
@@ -283,7 +290,7 @@ struct onnx_parser
                                   const attribute_map& attributes,
                                   std::vector<instruction_ref> args)
     {
-        int axis = 1;
+        int64_t axis = 1;
         if(contains(attributes, "axis"))
         {
             axis = parse_value(attributes.at("axis")).at<int>();
@@ -463,7 +470,7 @@ struct onnx_parser
     instruction_ref
     parse_flatten(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        uint64_t axis = 1;
+        int64_t axis = 1;
         if(contains(attributes, "axis"))
         {
             axis = parse_value(attributes.at("axis")).at<int>();
@@ -1696,6 +1703,9 @@ struct onnx_parser
                            }
                            return batch_size;
                        });
+        if(dims.empty())
+            return {shape_type};
+
         return {shape_type, dims};
     }
 

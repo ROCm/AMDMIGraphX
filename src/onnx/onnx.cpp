@@ -28,8 +28,9 @@ struct onnx_parser
         std::function<std::vector<instruction_ref>(attribute_map, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog    = program();
-    bool is_pytorch = false;
+    program prog            = program();
+    bool is_pytorch         = false;
+    unsigned int batch_size = 1;
 
     std::unordered_map<std::string, op_func> ops;
     std::unordered_map<std::string, operation> map_actv_funcs;
@@ -230,8 +231,15 @@ struct onnx_parser
             auto s0       = arg0->get_shape().lens();
             auto s1       = arg1->get_shape().lens();
             auto out_lens = compute_broadcasted_lens(s0, s1);
-            auto l0       = prog.add_instruction(op::multibroadcast{out_lens}, arg0);
-            auto l1       = prog.add_instruction(op::multibroadcast{out_lens}, arg1);
+
+            auto l0 = arg0;
+            if(arg0->get_shape().lens() != out_lens)
+                l0 = prog.add_instruction(op::multibroadcast{out_lens}, arg0);
+
+            auto l1 = arg1;
+            if(arg1->get_shape().lens() != out_lens)
+                l1 = prog.add_instruction(op::multibroadcast{out_lens}, arg1);
+
             return prog.add_instruction(x, l0, l1);
         }
         else
@@ -282,7 +290,7 @@ struct onnx_parser
                                   const attribute_map& attributes,
                                   std::vector<instruction_ref> args)
     {
-        int axis = 1;
+        int64_t axis = 1;
         if(contains(attributes, "axis"))
         {
             axis = parse_value(attributes.at("axis")).at<int>();
@@ -462,7 +470,7 @@ struct onnx_parser
     instruction_ref
     parse_flatten(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        uint64_t axis = 1;
+        int64_t axis = 1;
         if(contains(attributes, "axis"))
         {
             axis = parse_value(attributes.at("axis")).at<int>();
@@ -1438,7 +1446,7 @@ struct onnx_parser
             if(!contains(instructions, name))
             {
                 // TODO: Get shape of input parameter
-                shape s            = parse_type(input.type());
+                shape s            = parse_type(input.type(), batch_size);
                 instructions[name] = prog.add_parameter(name, s);
             }
         }
@@ -1683,7 +1691,7 @@ struct onnx_parser
         return literal{{shape_type, dims}, data.begin(), data.end()};
     }
 
-    static shape parse_type(const onnx::TypeProto& t)
+    static shape parse_type(const onnx::TypeProto& t, const unsigned int batch_size)
     {
         shape::type_t shape_type{};
         switch(t.tensor_type().elem_type())
@@ -1711,14 +1719,18 @@ struct onnx_parser
         std::transform(tensor_dims.begin(),
                        tensor_dims.end(),
                        std::back_inserter(dims),
-                       [](auto&& d) -> std::size_t {
-                           if(not d.has_dim_value())
+                       [&](auto&& d) -> std::size_t {
+                           if(d.has_dim_value())
                            {
-                               long default_batch_size = 1; // FIXME
-                               return default_batch_size;
+                               if(static_cast<int>(d.dim_value()) <= 0)
+                                   return batch_size;
+                               return d.dim_value();
                            }
-                           return d.dim_value();
+                           return batch_size;
                        });
+        if(dims.empty())
+            return {shape_type};
+
         return {shape_type, dims};
     }
 
@@ -1753,10 +1765,11 @@ struct onnx_parser
     }
 };
 
-program parse_onnx(const std::string& name)
+program parse_onnx(const std::string& name, onnx_options options)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     onnx_parser parser;
+    parser.batch_size = options.batch_size;
 #ifndef NDEBUG
     // Log the program when it can't be parsed
     try

@@ -50,9 +50,8 @@ TEST_CASE(add_scalar_test)
     migraphx::program p;
     auto l1 = p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1}});
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
-    auto m0 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l0);
     auto m1 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l1);
-    p.add_instruction(migraphx::op::add{}, m0, m1);
+    p.add_instruction(migraphx::op::add{}, l0, m1);
     auto prog = migraphx::parse_onnx("add_scalar_test.onnx");
 
     EXPECT(p == prog);
@@ -439,14 +438,15 @@ TEST_CASE(gather_test)
 TEST_CASE(gemm_test)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {5, 7}});
-    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {11, 5}});
-    p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {}});
+    auto l0    = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {5, 7}});
+    auto l1    = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {11, 5}});
+    auto l2    = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type});
     auto t0    = p.add_instruction(migraphx::op::transpose{{1, 0}}, l0);
     auto t1    = p.add_instruction(migraphx::op::transpose{{1, 0}}, l1);
+    auto bl2   = p.add_instruction(migraphx::op::multibroadcast{{7, 11}}, l2);
     auto alpha = 2.f;
     auto beta  = 2.0f;
-    p.add_instruction(migraphx::op::dot{alpha, beta}, t0, t1);
+    p.add_instruction(migraphx::op::dot{alpha, beta}, t0, t1, bl2);
     auto prog = migraphx::parse_onnx("gemm_test.onnx");
 
     EXPECT(p == prog);
@@ -548,9 +548,8 @@ TEST_CASE(implicit_add_bcast_test)
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
     auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 4, 1}});
-    auto l2 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l0);
     auto l3 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l1);
-    p.add_instruction(migraphx::op::add{}, l2, l3);
+    p.add_instruction(migraphx::op::add{}, l0, l3);
 
     auto prog = migraphx::parse_onnx("implicit_add_bcast_test.onnx");
 
@@ -562,9 +561,8 @@ TEST_CASE(implicit_pow_bcast_test)
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
     auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {3, 4, 1}});
-    auto l2 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l0);
     auto l3 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l1);
-    p.add_instruction(migraphx::op::pow{}, l2, l3);
+    p.add_instruction(migraphx::op::pow{}, l0, l3);
 
     auto prog = migraphx::parse_onnx("implicit_pow_bcast_test.onnx");
 
@@ -576,9 +574,8 @@ TEST_CASE(implicit_sub_bcast_test)
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
     auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {4, 5}});
-    auto l2 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l0);
     auto l3 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l1);
-    p.add_instruction(migraphx::op::sub{}, l2, l3);
+    p.add_instruction(migraphx::op::sub{}, l0, l3);
 
     auto prog = migraphx::parse_onnx("implicit_sub_bcast_test.onnx");
 
@@ -1028,9 +1025,8 @@ TEST_CASE(sub_scalar_test)
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
     auto l1 =
         p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1}});
-    auto m0 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l0);
     auto m1 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l1);
-    p.add_instruction(migraphx::op::sub{}, m0, m1);
+    p.add_instruction(migraphx::op::sub{}, l0, m1);
     auto prog = migraphx::parse_onnx("sub_scalar_test.onnx");
 
     EXPECT(p == prog);
@@ -1116,6 +1112,27 @@ TEST_CASE(unknown_test)
     auto l2 = p.add_instruction(migraphx::op::unknown{"Unknown"}, l0, l1);
     p.add_instruction(migraphx::op::unknown{"Unknown"}, l2);
     auto prog = migraphx::parse_onnx("unknown_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(variable_batch_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    p.add_instruction(migraphx::op::identity{}, l0);
+    auto prog = migraphx::parse_onnx("variable_batch_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(variable_batch_leq_zero_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    p.add_instruction(migraphx::op::add{}, l0, l1);
+    auto prog = migraphx::parse_onnx("variable_batch_leq_zero_test.onnx");
 
     EXPECT(p == prog);
 }

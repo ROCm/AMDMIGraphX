@@ -438,11 +438,18 @@ struct onnx_parser
         if(contains(attributes, "auto_pad"))
         {
             auto s = attributes["auto_pad"].s();
-            if(s.find("SAME_UPPER") == std::string::npos)
+            if (s == std::string("SAME_UPPER"))
             {
-                MIGRAPHX_THROW("auto_pad only supports SAME_UPPER for pooling");
+                op.padding_mode = op::padding_mode_t::default_;                
             }
-            op.padding_mode = op::padding_mode_t::same;
+            else
+            {
+                if(s.find("SAME_UPPER") == std::string::npos)
+                {
+                    MIGRAPHX_THROW("auto_pad only supports SAME_UPPER for pooling");
+                }
+                op.padding_mode = op::padding_mode_t::same;
+            }
         }
 
         return prog.add_instruction(op, l0);

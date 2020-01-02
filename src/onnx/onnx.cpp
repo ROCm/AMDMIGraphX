@@ -438,9 +438,9 @@ struct onnx_parser
         if(contains(attributes, "auto_pad"))
         {
             auto s = attributes["auto_pad"].s();
-            if (s == std::string("SAME_UPPER"))
+            if(s == std::string("SAME_UPPER"))
             {
-                op.padding_mode = op::padding_mode_t::default_;                
+                op.padding_mode = op::padding_mode_t::default_;
             }
             else
             {

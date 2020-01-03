@@ -82,6 +82,7 @@ struct onnx_parser
         add_mem_op("Expand", &onnx_parser::parse_expand);
         add_mem_op("Constant", &onnx_parser::parse_constant);
         add_mem_op("Conv", &onnx_parser::parse_conv);
+        add_mem_op("ConvTranspose", &onnx_parser::parse_conv_transpose);
         add_mem_op("MaxPool", &onnx_parser::parse_pooling);
         add_mem_op("AveragePool", &onnx_parser::parse_pooling);
         add_mem_op("GlobalMaxPool", &onnx_parser::parse_pooling);
@@ -324,6 +325,75 @@ struct onnx_parser
     parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         op::convolution op;
+        auto l0 = args[0];
+        if(contains(attributes, "pads"))
+        {
+            if(contains(attributes, "auto_pad"))
+            {
+                auto s = attributes["auto_pad"].s();
+                if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
+                {
+                    MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                }
+            }
+            std::vector<std::int64_t> padding;
+            copy(attributes["pads"].ints(), std::back_inserter(padding));
+            if(padding.size() != 4)
+            {
+                MIGRAPHX_THROW("padding should have 4 values");
+            }
+            if(padding[0] != padding[2] || padding[1] != padding[3])
+            {
+                // insert zeros for pad op (args[0] has 4 dims)
+                padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
+                l0      = prog.add_instruction(op::pad{padding}, l0);
+            }
+            else
+            {
+                op.padding[0] = padding[0];
+                op.padding[1] = padding[1];
+            }
+        }
+        if(contains(attributes, "strides"))
+        {
+            copy(attributes["strides"].ints(), op.stride.begin());
+        }
+        if(contains(attributes, "dilations"))
+        {
+            copy(attributes["dilations"].ints(), op.dilation.begin());
+        }
+        if(contains(attributes, "auto_pad"))
+        {
+            auto s = attributes["auto_pad"].s();
+            if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
+            {
+                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+            }
+
+            if(s.find("SAME") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::same;
+            }
+        }
+        if(contains(attributes, "group"))
+        {
+            op.group = parse_value(attributes.at("group")).at<int>();
+        }
+        if(args.size() == 3)
+        {
+            uint64_t axis = 1;
+            auto l1       = prog.add_instruction(op, l0, args[1]);
+            auto l2 = prog.add_instruction(op::broadcast{axis, l1->get_shape().lens()}, args[2]);
+            return prog.add_instruction(op::add{}, l1, l2);
+        }
+        return prog.add_instruction(op, l0, args[1]);
+    }
+
+    instruction_ref parse_conv_transpose(const std::string&,
+                                         attribute_map attributes,
+                                         std::vector<instruction_ref> args)
+    {
+        op::conv_transpose op;
         auto l0 = args[0];
         if(contains(attributes, "pads"))
         {

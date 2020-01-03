@@ -21,6 +21,7 @@
 #include <migraphx/op/contiguous.hpp>
 #include <migraphx/op/convert.hpp>
 #include <migraphx/op/convolution.hpp>
+#include <migraphx/op/conv_transpose.hpp>
 #include <migraphx/op/cosh.hpp>
 #include <migraphx/op/cos.hpp>
 #include <migraphx/op/div.hpp>

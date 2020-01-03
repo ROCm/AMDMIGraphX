@@ -529,6 +529,21 @@ def conv_relu_maxpool_x2_test():
 
 
 @onnx_test
+def conv_transpose_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 3])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 2, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 5, 5])
+
+    node = onnx.helper.make_node(
+        'ConvTranspose',
+        inputs=['x', 'w'],
+        outputs=['y']
+    )
+
+    return ([node], [x, w], [y])
+
+
+@onnx_test
 def cos_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])

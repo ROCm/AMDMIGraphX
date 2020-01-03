@@ -50,7 +50,7 @@ struct pooling
 
         // for padding mode same (either same_upper or same lower)
         // output shape is computed as:
-        if (padding_mode == same)
+        if(padding_mode == same)
         {
             std::array<std::size_t, 4> out_lens;
             out_lens[0] = input.lens()[0];

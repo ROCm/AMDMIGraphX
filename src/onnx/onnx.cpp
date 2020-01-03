@@ -448,16 +448,8 @@ struct onnx_parser
                 {
                     MIGRAPHX_THROW("PARSE_POOLING: auto_pad only supports SAME_UPPER for pooling");
                 }
-                // for auto_pad to be SAME_UPPER or SAME_LOWER, padding is computed as:
-                // pad_shape[i] = (output_spatial_shape[i] - 1) * strides_spatial_shape[i] +
-                // ((kernel_spatial_shape[i] - 1) * dilations[i] + 1) - input_spatial_shape[i]
-                auto in_lens = args[0]->get_shape().lens();
-                std::array<std::size_t, 2> out_lens;
-                out_lens[0]   = (in_lens[2] + op.stride[0] - 1) / op.stride[0];
-                out_lens[1]   = (in_lens[3] + op.stride[1] - 1) / op.stride[1];
-                op.padding[0] = ((out_lens[0] - 1) * op.stride[0] + op.lengths[0] - in_lens[2]) / 2;
-                op.padding[1] = ((out_lens[1] - 1) * op.stride[1] + op.lengths[1] - in_lens[3]) / 2;
-
+                // for auto_pad to be SAME_UPPER or SAME_LOWER, output shape is the same
+                // as input shape
                 op.padding_mode = op::padding_mode_t::same;
             }
         }

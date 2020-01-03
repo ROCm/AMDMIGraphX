@@ -48,6 +48,18 @@ struct pooling
         assert(lengths[0] <= (input.lens()[2] + 2 * padding[0]));
         assert(lengths[1] <= (input.lens()[3] + 2 * padding[1]));
 
+        // for padding mode same (either same_upper or same lower)
+        // output shape is computed as:
+        if (padding_mode == same)
+        {
+            std::array<std::size_t, 4> out_lens;
+            out_lens[0] = input.lens()[0];
+            out_lens[1] = input.lens()[1];
+            out_lens[2] = (input.lens()[2] + stride[0] - 1) / stride[0];
+            out_lens[3] = (input.lens()[3] + stride[1] - 1) / stride[1];
+            return {t, out_lens};
+        }
+
         return {t,
                 {
                     input.lens()[0],

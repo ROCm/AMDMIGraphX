@@ -412,7 +412,7 @@ struct onnx_parser
             copy(attributes["pads"].ints(), std::back_inserter(padding));
             if(padding.size() != 4)
             {
-                MIGRAPHX_THROW("padding should have 4 values");
+                MIGRAPHX_THROW("PARSE_POOLING: padding should have 4 values");
             }
             if(padding[0] != padding[2] || padding[1] != padding[3])
             {
@@ -446,8 +446,18 @@ struct onnx_parser
             {
                 if(s.find("SAME_UPPER") == std::string::npos)
                 {
-                    MIGRAPHX_THROW("auto_pad only supports SAME_UPPER for pooling");
+                    MIGRAPHX_THROW("PARSE_POOLING: auto_pad only supports SAME_UPPER for pooling");
                 }
+                // for auto_pad to be SAME_UPPER or SAME_LOWER, padding is computed as:
+                // pad_shape[i] = (output_spatial_shape[i] - 1) * strides_spatial_shape[i] + 
+                // ((kernel_spatial_shape[i] - 1) * dilations[i] + 1) - input_spatial_shape[i]
+                auto in_lens = args[0]->get_shape().lens();
+                std::array<std::size_t, 2> out_lens;
+                out_lens[0] = (in_lens[2] + op.stride[0] - 1) / op.stride[0];
+                out_lens[1] = (in_lens[3] + op.stride[1] - 1) / op.stride[1];
+                op.padding[0] = ((out_lens[0] - 1) * op.stride[0] + op.lengths[0] - in_lens[2]) / 2;
+                op.padding[1] = ((out_lens[1] - 1) * op.stride[1] + op.lengths[1] - in_lens[3]) / 2;
+
                 op.padding_mode = op::padding_mode_t::same;
             }
         }

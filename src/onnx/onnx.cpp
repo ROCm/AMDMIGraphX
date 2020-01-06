@@ -406,8 +406,18 @@ struct onnx_parser
             auto lens  = args.front()->get_shape().lens();
             op.lengths = {lens[2], lens[3]};
         }
+
         if(contains(attributes, "pads"))
         {
+            if(contains(attributes, "auto_pad"))
+            {
+                auto s = attributes["auto_pad"].s();
+                if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
+                {
+                    MIGRAPHX_THROW("PARSE_POOLING: auto_pad and padding cannot be specified simultaneously");
+                }
+            }
+
             std::vector<std::int64_t> padding;
             copy(attributes["pads"].ints(), std::back_inserter(padding));
             if(padding.size() != 4)
@@ -418,8 +428,7 @@ struct onnx_parser
             {
                 // insert zeros for pad op (args[0] has 4 dims)
                 padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
-                l0 = prog.add_instruction(op::pad{padding, std::numeric_limits<float>::lowest()},
-                                          l0);
+                l0      = prog.add_instruction(op::pad{padding}, l0);
             }
             else
             {
@@ -427,6 +436,7 @@ struct onnx_parser
                 op.padding[1] = padding[1];
             }
         }
+
         if(contains(attributes, "strides"))
         {
             copy(attributes["strides"].ints(), op.stride.begin());
@@ -435,21 +445,17 @@ struct onnx_parser
         {
             copy(attributes["kernel_shape"].ints(), op.lengths.begin());
         }
+
         if(contains(attributes, "auto_pad"))
         {
             auto s = attributes["auto_pad"].s();
-            if(s == std::string("NOTSET"))
+            if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
             {
-                op.padding_mode = op::padding_mode_t::default_;
+                MIGRAPHX_THROW("PARSE_POOLING: auto_pad and padding cannot be specified simultaneously");
             }
-            else
+
+            if(s.find("SAME") != std::string::npos)
             {
-                if(s.find("SAME_UPPER") == std::string::npos)
-                {
-                    MIGRAPHX_THROW("PARSE_POOLING: auto_pad only supports SAME_UPPER for pooling");
-                }
-                // for auto_pad to be SAME_UPPER or SAME_LOWER, output shape is the same
-                // as input shape
                 op.padding_mode = op::padding_mode_t::same;
             }
         }

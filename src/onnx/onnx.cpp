@@ -460,9 +460,9 @@ struct onnx_parser
             {
                 // calculate the padding
                 std::array<std::size_t, 2> out_lens;
-                auto in_lens = args[0]->get_shape().lens();
-                out_lens[0] = (in_lens[2] + op.stride[0] - 1) / op.stride[0];
-                out_lens[1] = (in_lens[3] + op.stride[1] - 1) / op.stride[1];
+                auto in_lens  = args[0]->get_shape().lens();
+                out_lens[0]   = (in_lens[2] + op.stride[0] - 1) / op.stride[0];
+                out_lens[1]   = (in_lens[3] + op.stride[1] - 1) / op.stride[1];
                 op.padding[0] = ((out_lens[0] - 1) * op.stride[0] + op.lengths[0] - in_lens[2]) / 2;
                 op.padding[1] = ((out_lens[1] - 1) * op.stride[1] + op.lengths[1] - in_lens[3]) / 2;
                 op.padding_mode = op::padding_mode_t::same;

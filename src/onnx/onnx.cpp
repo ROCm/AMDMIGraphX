@@ -414,7 +414,8 @@ struct onnx_parser
                 auto s = attributes["auto_pad"].s();
                 if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
                 {
-                    MIGRAPHX_THROW("PARSE_POOLING: auto_pad and padding cannot be specified simultaneously");
+                    MIGRAPHX_THROW(
+                        "PARSE_POOLING: auto_pad and padding cannot be specified simultaneously");
                 }
             }
 
@@ -451,7 +452,8 @@ struct onnx_parser
             auto s = attributes["auto_pad"].s();
             if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
             {
-                MIGRAPHX_THROW("PARSE_POOLING: auto_pad and padding cannot be specified simultaneously");
+                MIGRAPHX_THROW(
+                    "PARSE_POOLING: auto_pad and padding cannot be specified simultaneously");
             }
 
             if(s.find("SAME") != std::string::npos)

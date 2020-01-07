@@ -1,0 +1,19 @@
+averagepool_same_upper_test:°
+W
+xy"AveragePool*
+auto_pad"
+SAME_UPPER *
+kernel_shape@@ *
+strides@@ averagepool_same_upper_testZ
+x
+
+
+
+
+b
+y
+
+
+
+
+B

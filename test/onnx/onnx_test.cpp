@@ -101,6 +101,30 @@ TEST_CASE(atan_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(averagepool_notset_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
+    std::vector<int64_t> pads = {0, 0, 0, 0, 0, 0, 1, 1};
+    auto ins_pad = p.add_instruction(migraphx::op::pad{pads}, input);
+    p.add_instruction(migraphx::op::pooling{"average", {0, 0}, {2, 2}, {6, 6}}, ins_pad);
+
+    auto prog = migraphx::parse_onnx("averagepool_notset_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(averagepool_same_upper_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
+    p.add_instruction(migraphx::op::pooling{"average", {1, 1}, {2, 2}, {3, 3}, migraphx::op::padding_mode_t::same}, input);
+
+    auto prog = migraphx::parse_onnx("averagepool_same_upper_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(cast_test)
 {
     migraphx::program p;
@@ -743,6 +767,20 @@ TEST_CASE(max_test)
     p.add_instruction(migraphx::op::max{}, l0, input2);
 
     migraphx::parse_onnx("max_test.onnx");
+}
+
+TEST_CASE(maxpool_notset_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
+    std::vector<int64_t> pads = {0, 0, 0, 0, 0, 0, 1, 1};
+    float val = std::numeric_limits<float>::lowest();
+    auto ins_pad = p.add_instruction(migraphx::op::pad{pads, val}, input);
+    p.add_instruction(migraphx::op::pooling{"max", {0, 0}, {2, 2}, {6, 6}}, ins_pad);
+
+    auto prog = migraphx::parse_onnx("maxpool_notset_test.onnx");
+
+    EXPECT(p == prog);
 }
 
 TEST_CASE(min_test)

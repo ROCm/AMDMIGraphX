@@ -1462,8 +1462,11 @@ struct onnx_parser
         auto oit         = std::find_if(prog_output.rbegin(), prog_output.rend(), [](auto& node) {
             return !node.name().empty();
         });
-        assert(instructions.count(oit->name()) > 0);
-        prog.add_instruction(op::identity{}, instructions[oit->name()]);
+        
+        if (instructions.count(oit->name()) > 0)
+        {
+            prog.add_instruction(op::identity{}, instructions[oit->name()]);
+        }
     }
 
     void parse_undefined(const std::string& name)

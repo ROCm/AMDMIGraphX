@@ -13,9 +13,8 @@
 migraphx::program optimize_onnx(const std::string& name, bool eliminate_deadcode = true)
 {
     auto prog = migraphx::parse_onnx(name);
-    if (eliminate_deadcode)
-    migraphx::run_passes(prog,
-                        {migraphx::dead_code_elimination{}});
+    if(eliminate_deadcode)
+        migraphx::run_passes(prog, {migraphx::dead_code_elimination{}});
 
     // remove the last identity instruction
     auto last_ins = std::prev(prog.end());

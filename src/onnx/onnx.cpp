@@ -1459,7 +1459,9 @@ struct onnx_parser
         // as the program output, and add an identity instruction at
         // the program end
         auto prog_output = graph.output();
-        auto oit = std::find_if(prog_output.rbegin(), prog_output.rend(), [](auto& node) { return !node.name().empty(); });
+        auto oit         = std::find_if(prog_output.rbegin(), prog_output.rend(), [](auto& node) {
+            return !node.name().empty();
+        });
         assert(instructions.count(oit->name()) > 0);
         prog.add_instruction(op::identity{}, instructions[oit->name()]);
     }
@@ -1512,7 +1514,7 @@ struct onnx_parser
                                node.output().end(),
                                result.begin(),
                                std::inserter(instructions, instructions.end()),
-                               [](auto&& x, auto&& y) { return std::make_pair(x, y); });                
+                               [](auto&& x, auto&& y) { return std::make_pair(x, y); });
                 // std::vector<instruction_ref> vec_ins_refs;
                 // auto size = std::min<std::size_t>(node.output().size(), result.size());
                 // if(size < result.size())

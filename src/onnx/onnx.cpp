@@ -1454,6 +1454,14 @@ struct onnx_parser
         {
             this->parse_node(output.name());
         }
+
+        // For now, the last output with a valid name is considered
+        // as the program output, and add an identity instruction at
+        // the program end
+        auto prog_output = graph.output();
+        auto oit = std::find_if(prog_output.rbegin(), prog_output.rend(), [](auto& node) { return !node.name().empty(); });
+        assert(instructions.count(oit->name()) > 0);
+        prog.add_instruction(op::identity{}, instructions[oit->name()]);
     }
 
     void parse_undefined(const std::string& name)
@@ -1499,37 +1507,43 @@ struct onnx_parser
             }
             else
             {
-                std::vector<instruction_ref> vec_ins_refs;
-                auto size = std::min<std::size_t>(node.output().size(), result.size());
-                if(size < result.size())
-                {
-                    for(std::size_t i = size; i < result.size(); ++i)
-                    {
-                        vec_ins_refs.push_back(result.at(i));
-                    }
-                }
+                assert(node.output().size() <= result.size());
+                std::transform(node.output().begin(),
+                               node.output().end(),
+                               result.begin(),
+                               std::inserter(instructions, instructions.end()),
+                               [](auto&& x, auto&& y) { return std::make_pair(x, y); });                
+                // std::vector<instruction_ref> vec_ins_refs;
+                // auto size = std::min<std::size_t>(node.output().size(), result.size());
+                // if(size < result.size())
+                // {
+                //     for(std::size_t i = size; i < result.size(); ++i)
+                //     {
+                //         vec_ins_refs.push_back(result.at(i));
+                //     }
+                // }
 
-                for(auto i = 0; i < size; ++i)
-                {
-                    auto&& x = result.at(i);
-                    auto&& y = node.output()[i];
-                    if(!y.empty())
-                    {
-                        instructions[y] = x;
-                    }
-                    else
-                    {
-                        vec_ins_refs.push_back(x);
-                    }
-                }
+                // for(auto i = 0; i < size; ++i)
+                // {
+                //     auto&& x = result.at(i);
+                //     auto&& y = node.output()[i];
+                //     if(!y.empty())
+                //     {
+                //         instructions[y] = x;
+                //     }
+                //     else
+                //     {
+                //         vec_ins_refs.push_back(x);
+                //     }
+                // }
 
-                for(auto ins : vec_ins_refs)
-                {
-                    if(ins->outputs().empty())
-                    {
-                        prog.remove_instruction(ins);
-                    }
-                }
+                // for(auto ins : vec_ins_refs)
+                // {
+                //     if(ins->outputs().empty())
+                //     {
+                //         prog.remove_instruction(ins);
+                //     }
+                // }
             }
         }
     }

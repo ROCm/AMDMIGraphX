@@ -327,10 +327,13 @@ struct onnx_parser
         }
     }
 
-    template<class Op>
-    instruction_ref process_auto_pad_attribute(instruction_ref ins, attribute_map& attributes, Op& op, const std::vector<std::size_t>& in_lens)
+    template <class Op>
+    instruction_ref process_auto_pad_attribute(instruction_ref ins,
+                                               attribute_map& attributes,
+                                               Op& op,
+                                               const std::vector<std::size_t>& in_lens)
     {
-        if (!contains(attributes, "auto_pad"))
+        if(!contains(attributes, "auto_pad"))
         {
             return ins;
         }
@@ -340,8 +343,8 @@ struct onnx_parser
         {
             // calculate the padding
             std::array<std::size_t, 2> out_lens;
-            out_lens[0]  = (in_lens[2] + op.stride[0] - 1) / op.stride[0];
-            out_lens[1]  = (in_lens[3] + op.stride[1] - 1) / op.stride[1];
+            out_lens[0] = (in_lens[2] + op.stride[0] - 1) / op.stride[0];
+            out_lens[1] = (in_lens[3] + op.stride[1] - 1) / op.stride[1];
 
             std::array<std::size_t, 2> explicit_pads;
             explicit_pads[0] = (out_lens[0] - 1) * op.stride[0] + op.lengths[0] - in_lens[2];
@@ -367,8 +370,8 @@ struct onnx_parser
                 // MaxPool
                 if(op.mode == "max")
                 {
-                    ins = prog.add_instruction(
-                        op::pad{pads, std::numeric_limits<float>::lowest()}, ins);
+                    ins = prog.add_instruction(op::pad{pads, std::numeric_limits<float>::lowest()},
+                                               ins);
                 }
                 // AveragePool
                 else
@@ -513,10 +516,10 @@ struct onnx_parser
             copy(attributes["kernel_shape"].ints(), op.lengths.begin());
         }
 
-        if (contains(attributes, "auto_pad"))
+        if(contains(attributes, "auto_pad"))
         {
             auto in_lens = args[0]->get_shape().lens();
-            l0 = process_auto_pad_attribute(l0, attributes, op, in_lens);
+            l0           = process_auto_pad_attribute(l0, attributes, op, in_lens);
         }
 
         return prog.add_instruction(op, l0);

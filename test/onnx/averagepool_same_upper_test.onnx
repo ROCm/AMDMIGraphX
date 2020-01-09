@@ -1,10 +1,9 @@
-averagepool_same_upper_test:°
-W
+averagepool_same_upper_test:ž
+E
 xy"AveragePool*
 auto_pad"
 SAME_UPPER *
-kernel_shape@@ *
-strides@@ averagepool_same_upper_testZ
+kernel_shape@@ averagepool_same_upper_testZ
 x
 
 
@@ -15,5 +14,5 @@ SAME_UPPER *
 
 
 
-
-B
+
+B

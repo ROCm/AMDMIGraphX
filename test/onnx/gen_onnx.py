@@ -159,6 +159,7 @@ def averagepool_notset_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def averagepool_same_lower_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 5, 5])
@@ -1078,6 +1079,7 @@ def maxpool_notset_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def maxpool_same_upper_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 5, 5])
@@ -1090,6 +1092,7 @@ def maxpool_same_upper_test():
                                  auto_pad='SAME_UPPER')
 
     return ([node], [x], [y])
+
 
 @onnx_test
 def min_test():

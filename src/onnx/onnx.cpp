@@ -444,6 +444,13 @@ struct onnx_parser
                 op.padding_mode = op::padding_mode_t::same;
             }
         }
+
+        // std::vector<size_t> pads
+        // if(contains(attributes, "output_padding"))
+        // {
+
+        // }
+
         if(contains(attributes, "group"))
         {
             op.group = parse_value(attributes.at("group")).at<int>();

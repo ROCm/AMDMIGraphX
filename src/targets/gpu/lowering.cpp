@@ -16,6 +16,7 @@
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
+#include <migraphx/gpu/conv_transpose.hpp>
 #include <migraphx/gpu/quant_convolution.hpp>
 #include <migraphx/gpu/contiguous.hpp>
 #include <migraphx/gpu/relu.hpp>
@@ -153,6 +154,7 @@ struct miopen_apply
 
         add_lrn_op();
         add_convolution_op();
+        add_conv_transpose_op();
         add_quant_convolution_op();
         add_pooling_op();
         add_batch_norm_inference_op();
@@ -208,6 +210,22 @@ struct miopen_apply
             auto&& op = any_cast<op::convolution>(ins->get_operator());
 
             auto conv = miopen_convolution{op, make_conv(op)};
+            auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
+
+            auto workspace = insert_allocation(ins, ws, "workspace");
+            auto output    = insert_allocation(ins, ins->get_shape());
+
+            return prog->replace_instruction(
+                ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
+        });
+    }
+
+    void add_conv_transpose_op()
+    {
+        apply_map.emplace("conv_transpose", [=](instruction_ref ins) {
+            auto&& op = any_cast<op::conv_transpose>(ins->get_operator());
+
+            auto conv = miopen_conv_transpose{op, make_conv_transpose(op)};
             auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
             auto workspace = insert_allocation(ins, ws, "workspace");

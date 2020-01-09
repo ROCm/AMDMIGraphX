@@ -239,8 +239,17 @@ struct cpu_conv_transpose
         argument result{output_shape};
         result.visit([&](auto output) {
             using type = typename decltype(output)::value_type;
+
+            std::fill(output.begin(), output.end(), type{0});
             visit_all(args[0], args[1])([&](auto input, auto weights) {
+
+                auto out_lens  = output_shape.lens();
+                auto out_h = out_lens[2];
+                auto out_w = out_lens[3];
+
                 auto in   = input.get_shape().lens();
+                auto in_n = in[0];
+                auto in_c = in[1];
                 auto in_h = in[2];
                 auto in_w = in[3];
 
@@ -250,24 +259,23 @@ struct cpu_conv_transpose
                 auto wei_h = wei[2];
                 auto wei_w = wei[3];
 
-                par_dfor(output_shape.lens()[0],
-                         output_shape.lens()[1],
-                         output_shape.lens()[2],
-                         output_shape.lens()[3])(
-                    [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
-                        const auto start_x  = i * op.stride[0] - op.padding[0];
-                        const auto start_y  = j * op.stride[1] - op.padding[1];
-                        const auto group_id = w / (wei_n / op.group);
+                par_dfor(in_n, wei_c)(
+                    [&](std::size_t o, std::size_t k) {
 
-                        type acc = type{0};
-                        dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t y) {
-                            const auto in_x  = start_x + x - wei_w + 1;
-                            const auto in_y  = start_y + y - wei_h + 1;
+                        dfor(in_c, in_h, in_w, wei_h, wei_w)([&](std::size_t w, std::size_t i, std::size_t j, std::size_t x, std::size_t y) {
+                            const int start_x = i * op.stride[0] - op.padding[0];
+                            const int start_y = j * op.stride[1] - op.padding[1];
+                            const int out_x    = start_x + x * op.dilation[0];
+                            const int out_y    = start_y + y * op.dilation[1];
+
+                            const auto group_id = w / (wei_n / op.group);
                             const auto in_ch = group_id * wei_c + k;
-                            if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
-                                acc += input(o, in_ch, in_x, in_y) * weights(w, k, x, y);
+                            
+                            if(out_x >= 0 && out_x < out_h && out_y >= 0 && out_y < out_w)
+                            {
+                                output(o, in_ch, out_x, out_y) += input(o, w, i, j) * weights(w, k, x, y);
+                            }
                         });
-                        output(o, w, i, j) = acc;
                     });
             });
         });

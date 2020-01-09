@@ -530,18 +530,62 @@ def conv_relu_maxpool_x2_test():
 
 @onnx_test
 def conv_transpose_test():
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 3])
-    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 2, 3, 3])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 5, 5])
+    x_val = np.array([[[[0, 1, 2],
+                 [3, 4, 5],
+                 [6, 7, 8]]]])
+    w_val = np.array([[[[2, 1, 1],
+                 [1, 1, 1],
+                 [1, 1, 1]]]])
 
-    node = onnx.helper.make_node(
-        'ConvTranspose',
-        inputs=['x', 'w'],
-        outputs=['y']
+    x_tensor = helper.make_tensor(name='x_tensor',
+                           data_type=TensorProto.FLOAT,
+                           dims=x_val.shape,
+                           vals=x_val.flatten().astype(np.float))
+
+    w_tensor = helper.make_tensor(name='w_tensor',
+                           data_type=TensorProto.FLOAT,
+                           dims=w_val.shape,
+                           vals=w_val.flatten().astype(np.float))
+  
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 5, 5])
+
+    node = onnx.helper.make_node('ConvTranspose',
+                                 name='conv1',
+                                 inputs=['x_tensor', 'w_tensor'],
+                                 outputs=['y'])
+
+    return ([node], [], [y], [x_tensor, w_tensor])
+
+
+@onnx_test
+def conv_transpose_rand_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 3])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 1, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 5, 5])
+
+    node = onnx.helper.make_node('ConvTranspose',
+                                 name='conv1',
+                                 inputs=['x', 'w'],
+                                 outputs=['y']
     )
 
     return ([node], [x, w], [y])
 
+
+@onnx_test
+def conv_transpose_attr_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 3])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 2, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 7, 3])
+
+    node = onnx.helper.make_node('ConvTranspose',
+                                 inputs=['x', 'w'],
+                                 outputs=['y'],
+                                 strides=[3, 2],
+                                #  pads=[1,2,1,2]
+    )
+
+    return ([node], [x,w], [y])
 
 @onnx_test
 def cos_test():
@@ -1256,7 +1300,7 @@ def shape_test():
 @onnx_test
 def shape_gather_test():
     values = np.array([1])
-    value = helper.make_tensor_value_info('value', TensorProto.INT32, [1])
+    # value = helper.make_tensor_value_info('value', TensorProto.INT32, [1])
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [7, 3, 10])
     y = helper.make_tensor_value_info('y', TensorProto.INT64, [3])
     z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [1])

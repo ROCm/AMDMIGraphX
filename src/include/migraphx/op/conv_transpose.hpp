@@ -52,11 +52,11 @@ struct conv_transpose
                     std::size_t(std::max<std::ptrdiff_t>(
                         1,
                         stride[0] * (input.lens()[2] - 1) +
-                            ((weights.lens()[2] - 1) * dilation[0] + 1) - padding[0])),
+                            ((weights.lens()[2] - 1) * dilation[0] + 1) - 2 * padding[0])), 
                     std::size_t(std::max<std::ptrdiff_t>(
                         1,
                         stride[1] * (input.lens()[3] - 1) +
-                            ((weights.lens()[3] - 1) * dilation[1] + 1) - padding[1])),
+                            ((weights.lens()[3] - 1) * dilation[1] + 1) - 2 * padding[1])),
                 }};
     }
 };

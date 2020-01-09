@@ -464,26 +464,26 @@ struct onnx_parser
             {
                 // calculate the padding
                 std::array<std::size_t, 2> out_lens;
-                auto in_lens  = args[0]->get_shape().lens();
-                out_lens[0]   = (in_lens[2] + op.stride[0] - 1) / op.stride[0];
-                out_lens[1]   = (in_lens[3] + op.stride[1] - 1) / op.stride[1];
+                auto in_lens = args[0]->get_shape().lens();
+                out_lens[0]  = (in_lens[2] + op.stride[0] - 1) / op.stride[0];
+                out_lens[1]  = (in_lens[3] + op.stride[1] - 1) / op.stride[1];
                 std::array<std::size_t, 2> explicit_pads;
 
                 explicit_pads[0] = (out_lens[0] - 1) * op.stride[0] + op.lengths[0] - in_lens[2];
                 explicit_pads[1] = (out_lens[1] - 1) * op.stride[1] + op.lengths[1] - in_lens[3];
-                op.padding[0] = explicit_pads[0] / 2;
-                op.padding[1] = explicit_pads[1] / 2;
+                op.padding[0]    = explicit_pads[0] / 2;
+                op.padding[1]    = explicit_pads[1] / 2;
                 explicit_pads[0] -= 2 * op.padding[0];
                 explicit_pads[1] -= 2 * op.padding[1];
                 std::vector<std::int64_t> pads(8, 0);
-                if (explicit_pads[0] != 0 or explicit_pads[1] != 0)
+                if(explicit_pads[0] != 0 or explicit_pads[1] != 0)
                 {
-                    if (s == "SAME_UPPER")
+                    if(s == "SAME_UPPER")
                     {
                         pads[6] = explicit_pads[0];
                         pads[7] = explicit_pads[1];
                     }
-                    else if (s == "SAME_LOWER")
+                    else if(s == "SAME_LOWER")
                     {
                         pads[2] = explicit_pads[0];
                         pads[3] = explicit_pads[1];

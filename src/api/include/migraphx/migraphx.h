@@ -5,10 +5,10 @@
 
 /*! Constructs type name from a struct */
 #define MIGRAPHX_DECLARE_OBJECT(name) \
-    typedef struct                     \
-    {                               \
-        void* handle; \
-    } name;                            
+    typedef struct                    \
+    {                                 \
+        void* handle;                 \
+    } name;
 
 // Add new types here
 // clang-format off
@@ -32,13 +32,13 @@ extern "C" {
 
 // return code, more to be added later
 typedef enum {
-    migraphx_status_success = 0,
-    migraphx_status_bad_param = 1,
+    migraphx_status_success       = 0,
+    migraphx_status_bad_param     = 1,
     migraphx_status_unknown_error = 2,
 
 } migraphx_status;
 
-#define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) migraphx_shape_ ## x,
+#define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) migraphx_shape_##x,
 typedef enum {
     MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES)
 } migraphx_shape_datatype_t;
@@ -46,29 +46,27 @@ typedef enum {
 
 MIGRAPHX_DECLARE_OBJECT(migraphx_shape)
 
-migraphx_status migraphx_shape_create(migraphx_shape* shape, 
+migraphx_status migraphx_shape_create(migraphx_shape* shape,
                                       migraphx_shape_datatype_t type,
                                       const size_t dim_num,
-                                      const size_t *dims,
-                                      const size_t *strides);
+                                      const size_t* dims,
+                                      const size_t* strides);
 
 migraphx_status migraphx_shape_destroy(migraphx_shape shape);
 
 migraphx_status migraphx_shape_get(migraphx_shape shape,
-                                      migraphx_shape_datatype_t * type,
-                                      size_t * dim_num,
-                                      const size_t **dims,
-                                      const size_t **strides);
+                                   migraphx_shape_datatype_t* type,
+                                   size_t* dim_num,
+                                   const size_t** dims,
+                                   const size_t** strides);
 
 MIGRAPHX_DECLARE_OBJECT(migraphx_target)
 
-migraphx_status migraphx_target_create(migraphx_target* target, 
-                                      const char* name);
+migraphx_status migraphx_target_create(migraphx_target* target, const char* name);
 
 migraphx_status migraphx_target_destroy(migraphx_target target);
 
 MIGRAPHX_DECLARE_OBJECT(migraphx_program)
-
 
 #ifdef __cplusplus
 }

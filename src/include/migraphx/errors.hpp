@@ -13,7 +13,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct exception : std::runtime_error
 {
     unsigned int error;
-    exception(unsigned int e = 0, const std::string& msg = "") : std::runtime_error(msg), error(e) {}
+    exception(unsigned int e = 0, const std::string& msg = "") : std::runtime_error(msg), error(e)
+    {
+    }
 };
 
 /**
@@ -28,7 +30,8 @@ inline exception make_exception(const std::string& context, const std::string& m
     return {0, context + ": " + message};
 }
 
-inline exception make_exception(const std::string& context, unsigned int e, const std::string& message = "")
+inline exception
+make_exception(const std::string& context, unsigned int e, const std::string& message = "")
 {
     return {e, context + ": " + message};
 }

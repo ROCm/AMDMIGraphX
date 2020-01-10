@@ -57,6 +57,15 @@ TEST_CASE(operation_copy_test)
     EXPECT(op2 == op1);
 }
 
+TEST_CASE(operation_copy_assign_test)
+{
+    simple_operation s{};
+    migraphx::operation op;
+    op = s;
+    // cppcheck-suppress duplicateExpression
+    EXPECT(s == op);
+}
+
 TEST_CASE(operation_equal_test)
 {
     simple_operation s{};

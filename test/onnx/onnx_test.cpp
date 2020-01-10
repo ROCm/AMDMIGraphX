@@ -128,7 +128,7 @@ TEST_CASE(averagepool_notset_test)
     auto ins_pad              = p.add_instruction(migraphx::op::pad{pads}, input);
     p.add_instruction(migraphx::op::pooling{"average", {0, 0}, {2, 2}, {6, 6}}, ins_pad);
 
-    auto prog = migraphx::parse_onnx("averagepool_notset_test.onnx");
+    auto prog = optimize_onnx("averagepool_notset_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -144,7 +144,7 @@ TEST_CASE(averagepool_same_lower_test)
             "average", {0, 0}, {1, 1}, {2, 2}, migraphx::op::padding_mode_t::same},
         ins_pad);
 
-    auto prog = migraphx::parse_onnx("averagepool_same_lower_test.onnx");
+    auto prog = optimize_onnx("averagepool_same_lower_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -160,7 +160,7 @@ TEST_CASE(averagepool_same_upper_test)
             "average", {0, 0}, {1, 1}, {2, 2}, migraphx::op::padding_mode_t::same},
         ins_pad);
 
-    auto prog = migraphx::parse_onnx("averagepool_same_upper_test.onnx");
+    auto prog = optimize_onnx("averagepool_same_upper_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -818,7 +818,7 @@ TEST_CASE(maxpool_notset_test)
     auto ins_pad              = p.add_instruction(migraphx::op::pad{pads, val}, input);
     p.add_instruction(migraphx::op::pooling{"max", {0, 0}, {2, 2}, {6, 6}}, ins_pad);
 
-    auto prog = migraphx::parse_onnx("maxpool_notset_test.onnx");
+    auto prog = optimize_onnx("maxpool_notset_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -834,7 +834,7 @@ TEST_CASE(maxpool_same_upper_test)
         migraphx::op::pooling{"max", {0, 0}, {1, 1}, {2, 2}, migraphx::op::padding_mode_t::same},
         ins_pad);
 
-    auto prog = migraphx::parse_onnx("maxpool_same_upper_test.onnx");
+    auto prog = optimize_onnx("maxpool_same_upper_test.onnx");
 
     EXPECT(p == prog);
 }

@@ -1531,6 +1531,19 @@ struct onnx_parser
         {
             this->parse_node(output.name());
         }
+
+        // For now, the last output with a valid name is considered
+        // as the program output, and add an identity instruction at
+        // the program end
+        auto prog_output = graph.output();
+        auto oit         = std::find_if(prog_output.rbegin(), prog_output.rend(), [](auto& node) {
+            return !node.name().empty();
+        });
+
+        if(instructions.count(oit->name()) > 0)
+        {
+            prog.add_instruction(op::identity{}, instructions[oit->name()]);
+        }
     }
 
     void parse_undefined(const std::string& name)
@@ -1549,14 +1562,14 @@ struct onnx_parser
             std::vector<instruction_ref> args;
             for(auto&& input : node.input())
             {
-                if(nodes.count(input) > 0)
+                if(input.empty())
+                {
+                    this->parse_undefined(input);
+                }
+                else if(nodes.count(input) > 0)
                 {
                     assert(name != input);
                     this->parse_node(input);
-                }
-                else if(input.empty())
-                {
-                    this->parse_undefined(input);
                 }
                 args.push_back(instructions.at(input));
             }
@@ -1576,12 +1589,12 @@ struct onnx_parser
             }
             else
             {
-                assert(node.output().size() >= result.size());
-                std::transform(result.begin(),
-                               result.end(),
-                               node.output().begin(),
+                assert(node.output().size() <= result.size());
+                std::transform(node.output().begin(),
+                               node.output().end(),
+                               result.begin(),
                                std::inserter(instructions, instructions.end()),
-                               [](auto&& x, auto&& y) { return std::make_pair(y, x); });
+                               [](auto&& x, auto&& y) { return std::make_pair(x, y); });
             }
         }
     }

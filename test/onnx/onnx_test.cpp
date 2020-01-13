@@ -883,6 +883,54 @@ TEST_CASE(pow_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(reducel1_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto abs_l0 = p.add_instruction(migraphx::op::abs{}, l0);
+    auto sum_l0 = p.add_instruction(migraphx::op::reduce_sum{{-2}}, abs_l0);
+    p.add_instruction(migraphx::op::squeeze{{-2}}, sum_l0);
+    auto prog = optimize_onnx("reducel1_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(reducel2_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto square_l0 = p.add_instruction(migraphx::op::mul{}, l0, l0);
+    auto sum_l0 = p.add_instruction(migraphx::op::reduce_sum{{-1}}, square_l0);
+    auto squ_l0 = p.add_instruction(migraphx::op::squeeze{{-1}}, sum_l0);
+    p.add_instruction(migraphx::op::sqrt{}, squ_l0);
+    auto prog = optimize_onnx("reducel2_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(reduce_log_sum_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto sum_l0 = p.add_instruction(migraphx::op::reduce_sum{{-3}}, l0);
+    p.add_instruction(migraphx::op::log{}, sum_l0);
+    auto prog = optimize_onnx("reduce_log_sum_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(reduce_log_sum_exp_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto exp_l0 = p.add_instruction(migraphx::op::exp{}, l0);
+    auto sum_l0 = p.add_instruction(migraphx::op::reduce_sum{{-4}}, exp_l0);
+    p.add_instruction(migraphx::op::log{}, sum_l0);
+    auto prog = optimize_onnx("reduce_log_sum_exp_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(reducemax_test)
 {
     migraphx::program p;
@@ -925,6 +973,16 @@ TEST_CASE(reducemin_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(reduceprod_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    p.add_instruction(migraphx::op::reduce_prod{{2}}, l0);
+    auto prog = optimize_onnx("reduceprod_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(reducesum_test)
 {
     migraphx::program p;
@@ -953,6 +1011,18 @@ TEST_CASE(reducesum_keepdims_test)
     auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
     p.add_instruction(migraphx::op::reduce_sum{{2, 3}}, l0);
     auto prog = optimize_onnx("reducesum_keepdims_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(reducesum_square_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto squ_l0 = p.add_instruction(migraphx::op::mul{}, l0, l0);
+    auto sum_l0 = p.add_instruction(migraphx::op::reduce_sum{{-2}}, squ_l0);
+    p.add_instruction(migraphx::op::squeeze{{-2}}, sum_l0);
+    auto prog = optimize_onnx("reducesum_square_test.onnx");
 
     EXPECT(p == prog);
 }

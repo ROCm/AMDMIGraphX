@@ -40,6 +40,15 @@ struct zero
     }
 };
 
+struct one
+{
+    template<class T>
+    operator T() const
+    {
+        return T{1};
+    }
+};
+
 template <class Derived>
 struct reduce_op : op_name<Derived>
 {

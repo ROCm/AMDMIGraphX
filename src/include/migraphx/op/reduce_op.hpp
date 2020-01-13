@@ -42,7 +42,7 @@ struct zero
 
 struct one
 {
-    template<class T>
+    template <class T>
     operator T() const
     {
         return T{1};

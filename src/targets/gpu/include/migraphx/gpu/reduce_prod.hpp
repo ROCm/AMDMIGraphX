@@ -11,7 +11,7 @@ namespace gpu {
 
 struct context;
 
-struct hip_reduce_prod: reduce_op<hip_reduce_prod, op::reduce_prod, device::reduce_prod>
+struct hip_reduce_prod : reduce_op<hip_reduce_prod, op::reduce_prod, device::reduce_prod>
 {
     hip_reduce_prod() {}
     hip_reduce_prod(const op::reduce_prod& op_ref) : reduce_op(op_ref) {}

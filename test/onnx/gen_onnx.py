@@ -1151,6 +1151,7 @@ def pow_test():
 
     return ([node], [arg0, arg1], [arg_out])
 
+
 @onnx_test
 def reducel1_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
@@ -1164,6 +1165,7 @@ def reducel1_test():
                                  keepdims=0)
 
     return ([node], [x], [y])
+
 
 @onnx_test
 def reducel2_test():
@@ -1179,6 +1181,7 @@ def reducel2_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def reduce_log_sum_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
@@ -1193,6 +1196,7 @@ def reduce_log_sum_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def reduce_log_sum_exp_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
@@ -1206,7 +1210,6 @@ def reduce_log_sum_exp_test():
                                  keepdims=1)
 
     return ([node], [x], [y])
-
 
 
 @onnx_test
@@ -1268,6 +1271,7 @@ def reducemin_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def reduceprod_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
@@ -1281,6 +1285,7 @@ def reduceprod_test():
                                  keepdims=1)
 
     return ([node], [x], [y])
+
 
 @onnx_test
 def reducesum_test():
@@ -1296,6 +1301,7 @@ def reducesum_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def reducesum_keepdims_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
@@ -1309,6 +1315,7 @@ def reducesum_keepdims_test():
                                  keepdims=1)
 
     return ([node], [x], [y])
+
 
 @onnx_test
 def reducesum_multiaxis_test():
@@ -1338,6 +1345,7 @@ def reducesum_square_test():
                                  keepdims=0)
 
     return ([node], [x], [y])
+
 
 @onnx_test
 def reshape_test():

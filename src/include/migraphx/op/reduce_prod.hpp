@@ -17,10 +17,7 @@ struct reduce_prod : reduce_op<reduce_prod>
         return [=](auto x, auto y) { return x * y; };
     }
 
-    auto init() const
-    {
-        return one();
-    }
+    auto init() const { return one(); }
 };
 
 } // namespace op

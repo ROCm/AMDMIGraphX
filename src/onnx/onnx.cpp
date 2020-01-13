@@ -1499,27 +1499,30 @@ struct onnx_parser
     parse_reduce_l2(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
-        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, attributes, {square_ins});
+        auto sum_ins    = parse_reduce_oper<op::reduce_sum>({}, attributes, {square_ins});
         return prog.add_instruction(op::sqrt{}, sum_ins);
     }
 
-    instruction_ref
-    parse_reduce_log_sum(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_reduce_log_sum(const std::string&,
+                                         attribute_map attributes,
+                                         std::vector<instruction_ref> args)
     {
         auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, attributes, args);
         return prog.add_instruction(op::log{}, sum_ins);
     }
 
-    instruction_ref
-    parse_reduce_log_sum_exp(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_reduce_log_sum_exp(const std::string&,
+                                             attribute_map attributes,
+                                             std::vector<instruction_ref> args)
     {
         auto exp_ins = prog.add_instruction(op::exp{}, args[0]);
         auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, attributes, {exp_ins});
         return prog.add_instruction(op::log{}, sum_ins);
     }
 
-    instruction_ref
-    parse_reduce_sum_square(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_reduce_sum_square(const std::string&,
+                                            attribute_map attributes,
+                                            std::vector<instruction_ref> args)
     {
         auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
         return parse_reduce_oper<op::reduce_sum>({}, attributes, {square_ins});

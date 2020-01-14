@@ -1,20 +1,16 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/operators.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/generate.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
-struct simplify_reshapes_target
+void run_pass(migraphx::program& p)
 {
-    std::string name() const { return "simplify_reshapes"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const
-    {
-        return {migraphx::simplify_reshapes{}, migraphx::dead_code_elimination{}};
-    }
-    migraphx::context get_context() const { return {}; }
-};
+    migraphx::run_passes(p, {migraphx::simplify_reshapes{}, migraphx::dead_code_elimination{}});
+}
 
 TEST_CASE(double_contig)
 {
@@ -26,7 +22,7 @@ TEST_CASE(double_contig)
     p.add_instruction(pass_op{}, c2);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
     EXPECT(std::distance(p.begin(), p.end()) == 4);
@@ -43,7 +39,7 @@ TEST_CASE(double_transpose)
     p.add_instruction(pass_op{}, t2);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
     EXPECT(std::distance(p.begin(), p.end()) == 2);
@@ -62,7 +58,7 @@ TEST_CASE(double_transpose_contig)
     p.add_instruction(pass_op{}, c2);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
     EXPECT(std::distance(p.begin(), p.end()) == 2);
@@ -78,7 +74,7 @@ TEST_CASE(single_transpose)
     p.add_instruction(pass_op{}, t1);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().transposed());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().transposed());
     EXPECT(std::distance(p.begin(), p.end()) == 3);
@@ -94,7 +90,7 @@ TEST_CASE(double_transpose_sin_pass)
     p.add_instruction(migraphx::op::transpose{{1, 0}}, t1);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape().standard());
     EXPECT(not p.get_shape().transposed());
     // TODO: Fix this
@@ -110,7 +106,7 @@ TEST_CASE(single_transpose_sin_pass)
     p.add_instruction(migraphx::op::transpose{{1, 0}}, l);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().transposed());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(not p.get_shape().standard());
     EXPECT(p.get_shape().transposed());
     EXPECT(std::distance(p.begin(), p.end()) == 2);
@@ -130,7 +126,7 @@ TEST_CASE(reshape_transpose)
     p.add_instruction(pass_op{}, r2);
     EXPECT(p.get_shape() == s);
     auto n = std::distance(p.begin(), p.end());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape() == s);
     EXPECT(std::distance(p.begin(), p.end()) == n);
 }
@@ -145,7 +141,7 @@ TEST_CASE(transpose_contiguous)
     p.add_instruction(pass_op{}, c1);
     auto out_shape = p.get_shape();
     auto n         = std::distance(p.begin(), p.end());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape() == out_shape);
     EXPECT(std::distance(p.begin(), p.end()) == n);
 }
@@ -161,7 +157,7 @@ TEST_CASE(transpose_double_contiguous)
     p.add_instruction(pass_op{}, c2);
     auto out_shape = p.get_shape();
     auto n         = std::distance(p.begin(), p.end());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape() == out_shape);
     EXPECT(std::distance(p.begin(), p.end()) == n - 1);
     EXPECT(p.has_instruction(t));
@@ -177,7 +173,7 @@ TEST_CASE(transpose_partial1)
     p.add_instruction(pass_op{}, t2);
     auto out_shape = p.get_shape();
     auto n         = std::distance(p.begin(), p.end());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape() == out_shape);
     EXPECT(std::distance(p.begin(), p.end()) == n - 1);
 }
@@ -193,7 +189,7 @@ TEST_CASE(transpose_partial2)
     p.add_instruction(pass_op{}, t3);
     auto out_shape = p.get_shape();
     auto n         = std::distance(p.begin(), p.end());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape() == out_shape);
     EXPECT(std::distance(p.begin(), p.end()) == n - 2);
 }
@@ -210,7 +206,7 @@ TEST_CASE(transpose_partial3)
     p.add_instruction(pass_op{}, t4);
     auto out_shape = p.get_shape();
     auto n         = std::distance(p.begin(), p.end());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape() == out_shape);
     EXPECT(std::distance(p.begin(), p.end()) == n - 3);
 }
@@ -224,7 +220,7 @@ TEST_CASE(nop_transpose1)
     p.add_instruction(pass_op{}, t);
     auto out_shape = p.get_shape();
     auto n         = std::distance(p.begin(), p.end());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape() == out_shape);
     EXPECT(std::distance(p.begin(), p.end()) == n - 1);
 }
@@ -241,7 +237,7 @@ TEST_CASE(nop_transpose2)
     p.add_instruction(pass_op{}, t4);
     auto out_shape = p.get_shape();
     auto n         = std::distance(p.begin(), p.end());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape() == out_shape);
     EXPECT(std::distance(p.begin(), p.end()) == n - 4);
 }
@@ -258,7 +254,7 @@ TEST_CASE(nop_transpose3)
     p.add_instruction(pass_op{}, t2);
     auto out_shape = p.get_shape();
     auto n         = std::distance(p.begin(), p.end());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape() == out_shape);
     EXPECT(std::distance(p.begin(), p.end()) == n - 1);
 }
@@ -276,7 +272,7 @@ TEST_CASE(concat_transpose1)
     p.add_instruction(pass_op{}, t);
     auto out_shape = p.get_shape();
     auto n         = std::distance(p.begin(), p.end());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape().lens() == out_shape.lens());
     EXPECT(std::distance(p.begin(), p.end()) == n - 3);
     auto new_concat =
@@ -298,7 +294,7 @@ TEST_CASE(concat_transpose2)
     p.add_instruction(pass_op{}, t);
     auto out_shape = p.get_shape();
     auto n         = std::distance(p.begin(), p.end());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape().lens() == out_shape.lens());
     EXPECT(std::distance(p.begin(), p.end()) == n - 2);
     auto new_concat =
@@ -320,7 +316,7 @@ TEST_CASE(concat_transpose3)
     p.add_instruction(pass_op{}, t);
     auto out_shape = p.get_shape();
     auto n         = std::distance(p.begin(), p.end());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape().lens() == out_shape.lens());
     EXPECT(std::distance(p.begin(), p.end()) == n - 2);
     auto new_concat =
@@ -341,7 +337,7 @@ TEST_CASE(nested_concat)
     p.add_instruction(pass_op{}, concat3);
     auto out_shape = p.get_shape();
     auto n         = std::distance(p.begin(), p.end());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape().lens() == out_shape.lens());
     EXPECT(std::distance(p.begin(), p.end()) == n - 2);
     EXPECT(std::count_if(p.begin(), p.end(), [](auto ins) { return ins.name() == "concat"; }) == 1);
@@ -361,7 +357,7 @@ TEST_CASE(nested_concat_partial)
     p.add_instruction(pass_op{}, concat3);
     auto out_shape = p.get_shape();
     auto n         = std::distance(p.begin(), p.end());
-    p.compile(simplify_reshapes_target{});
+    run_pass(p);
     EXPECT(p.get_shape().lens() == out_shape.lens());
     EXPECT(std::distance(p.begin(), p.end()) == n - 2);
     EXPECT(std::count_if(p.begin(), p.end(), [](auto ins) { return ins.name() == "concat"; }) == 1);

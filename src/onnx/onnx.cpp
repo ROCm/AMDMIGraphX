@@ -28,8 +28,9 @@ struct onnx_parser
         std::function<std::vector<instruction_ref>(attribute_map, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog    = program();
-    bool is_pytorch = false;
+    program prog            = program();
+    bool is_pytorch         = false;
+    unsigned int batch_size = 1;
 
     std::unordered_map<std::string, op_func> ops;
     std::unordered_map<std::string, operation> map_actv_funcs;
@@ -230,8 +231,15 @@ struct onnx_parser
             auto s0       = arg0->get_shape().lens();
             auto s1       = arg1->get_shape().lens();
             auto out_lens = compute_broadcasted_lens(s0, s1);
-            auto l0       = prog.add_instruction(op::multibroadcast{out_lens}, arg0);
-            auto l1       = prog.add_instruction(op::multibroadcast{out_lens}, arg1);
+
+            auto l0 = arg0;
+            if(arg0->get_shape().lens() != out_lens)
+                l0 = prog.add_instruction(op::multibroadcast{out_lens}, arg0);
+
+            auto l1 = arg1;
+            if(arg1->get_shape().lens() != out_lens)
+                l1 = prog.add_instruction(op::multibroadcast{out_lens}, arg1);
+
             return prog.add_instruction(x, l0, l1);
         }
         else
@@ -282,7 +290,7 @@ struct onnx_parser
                                   const attribute_map& attributes,
                                   std::vector<instruction_ref> args)
     {
-        int axis = 1;
+        int64_t axis = 1;
         if(contains(attributes, "axis"))
         {
             axis = parse_value(attributes.at("axis")).at<int>();
@@ -317,6 +325,65 @@ struct onnx_parser
         {
             return prog.add_instruction(Op{axis}, std::move(args));
         }
+    }
+
+    template <class Op>
+    instruction_ref process_auto_pad_attribute(instruction_ref ins,
+                                               attribute_map& attributes,
+                                               Op& op,
+                                               const std::vector<std::size_t>& in_lens)
+    {
+        if(!contains(attributes, "auto_pad"))
+        {
+            return ins;
+        }
+
+        auto auto_pad = attributes["auto_pad"].s();
+        if(auto_pad.find("SAME") != std::string::npos)
+        {
+            // calculate the padding
+            std::array<std::size_t, 2> out_lens;
+            out_lens[0] = (in_lens[2] + op.stride[0] - 1) / op.stride[0];
+            out_lens[1] = (in_lens[3] + op.stride[1] - 1) / op.stride[1];
+
+            std::array<std::size_t, 2> explicit_pads;
+            explicit_pads[0] = (out_lens[0] - 1) * op.stride[0] + op.lengths[0] - in_lens[2];
+            explicit_pads[1] = (out_lens[1] - 1) * op.stride[1] + op.lengths[1] - in_lens[3];
+            op.padding[0]    = explicit_pads[0] / 2;
+            op.padding[1]    = explicit_pads[1] / 2;
+            explicit_pads[0] -= 2 * op.padding[0];
+            explicit_pads[1] -= 2 * op.padding[1];
+            std::vector<std::int64_t> pads(8, 0);
+            if(explicit_pads[0] != 0 or explicit_pads[1] != 0)
+            {
+                if(auto_pad == "SAME_UPPER")
+                {
+                    pads[6] = explicit_pads[0];
+                    pads[7] = explicit_pads[1];
+                }
+                else if(auto_pad == "SAME_LOWER")
+                {
+                    pads[2] = explicit_pads[0];
+                    pads[3] = explicit_pads[1];
+                }
+
+                // MaxPool
+                if(op.mode == "max")
+                {
+                    ins = prog.add_instruction(op::pad{pads, std::numeric_limits<float>::lowest()},
+                                               ins);
+                }
+                // AveragePool
+                else
+                {
+                    ins = prog.add_instruction(op::pad{pads}, ins);
+                }
+            }
+
+            op.padding_mode = op::padding_mode_t::same;
+        }
+
+        return ins;
     }
 
     instruction_ref
@@ -398,20 +465,40 @@ struct onnx_parser
             auto lens  = args.front()->get_shape().lens();
             op.lengths = {lens[2], lens[3]};
         }
+
         if(contains(attributes, "pads"))
         {
+            if(contains(attributes, "auto_pad"))
+            {
+                auto s = attributes["auto_pad"].s();
+                if(to_upper(s) != "NOTSET")
+                {
+                    MIGRAPHX_THROW(
+                        "PARSE_POOLING: auto_pad and padding cannot be specified simultaneously");
+                }
+            }
+
             std::vector<std::int64_t> padding;
             copy(attributes["pads"].ints(), std::back_inserter(padding));
             if(padding.size() != 4)
             {
-                MIGRAPHX_THROW("padding should have 4 values");
+                MIGRAPHX_THROW("PARSE_POOLING: padding should have 4 values");
             }
             if(padding[0] != padding[2] || padding[1] != padding[3])
             {
                 // insert zeros for pad op (args[0] has 4 dims)
                 padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
-                l0 = prog.add_instruction(op::pad{padding, std::numeric_limits<float>::lowest()},
-                                          l0);
+                // MaxPool
+                if(op.mode == "max")
+                {
+                    l0 = prog.add_instruction(
+                        op::pad{padding, std::numeric_limits<float>::lowest()}, l0);
+                }
+                // AveragePool
+                else
+                {
+                    l0 = prog.add_instruction(op::pad{padding}, l0);
+                }
             }
             else
             {
@@ -419,6 +506,7 @@ struct onnx_parser
                 op.padding[1] = padding[1];
             }
         }
+
         if(contains(attributes, "strides"))
         {
             copy(attributes["strides"].ints(), op.stride.begin());
@@ -427,14 +515,11 @@ struct onnx_parser
         {
             copy(attributes["kernel_shape"].ints(), op.lengths.begin());
         }
+
         if(contains(attributes, "auto_pad"))
         {
-            auto s = attributes["auto_pad"].s();
-            if(s.find("SAME_UPPER") == std::string::npos)
-            {
-                MIGRAPHX_THROW("auto_pad only supports SAME_UPPER for pooling");
-            }
-            op.padding_mode = op::padding_mode_t::same;
+            auto in_lens = args[0]->get_shape().lens();
+            l0           = process_auto_pad_attribute(l0, attributes, op, in_lens);
         }
 
         return prog.add_instruction(op, l0);
@@ -462,7 +547,7 @@ struct onnx_parser
     instruction_ref
     parse_flatten(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        uint64_t axis = 1;
+        int64_t axis = 1;
         if(contains(attributes, "axis"))
         {
             axis = parse_value(attributes.at("axis")).at<int>();
@@ -491,7 +576,13 @@ struct onnx_parser
     instruction_ref
     parse_concat(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        std::size_t axis = parse_value(attributes.at("axis")).at<int>();
+        // change to hande axis to be negative values
+        if(!contains(attributes, "axis"))
+        {
+            MIGRAPHX_THROW("PARSE_CONCAT: attribute axis is required!");
+        }
+
+        int axis = parse_value(attributes.at("axis")).at<int>();
         op::concat op{axis};
         return prog.add_instruction(op, std::move(args));
     }
@@ -1422,30 +1513,36 @@ struct onnx_parser
     void parse_graph(const onnx::GraphProto& graph)
     {
         nodes = get_nodes(graph);
-        std::unordered_map<std::string, onnx::TensorProto> initializer_data;
         for(auto&& f : graph.initializer())
-        {
-            initializer_data[f.name()] = f;
-        }
+            instructions[f.name()] = prog.add_literal(parse_tensor(f));
+
         for(auto&& input : graph.input())
         {
             const std::string& name = input.name();
-            // Does the input have an initializer?
-            if(contains(initializer_data, name))
-            {
-                auto t             = initializer_data[name];
-                instructions[name] = prog.add_literal(parse_tensor(t));
-            }
-            else
+            // input not in initializer_data, so it is a real input
+            if(!contains(instructions, name))
             {
                 // TODO: Get shape of input parameter
-                shape s            = parse_type(input.type());
+                shape s            = parse_type(input.type(), batch_size);
                 instructions[name] = prog.add_parameter(name, s);
             }
         }
         for(auto&& output : graph.output())
         {
             this->parse_node(output.name());
+        }
+
+        // For now, the last output with a valid name is considered
+        // as the program output, and add an identity instruction at
+        // the program end
+        auto prog_output = graph.output();
+        auto oit         = std::find_if(prog_output.rbegin(), prog_output.rend(), [](auto& node) {
+            return !node.name().empty();
+        });
+
+        if(instructions.count(oit->name()) > 0)
+        {
+            prog.add_instruction(op::identity{}, instructions[oit->name()]);
         }
     }
 
@@ -1465,14 +1562,14 @@ struct onnx_parser
             std::vector<instruction_ref> args;
             for(auto&& input : node.input())
             {
-                if(nodes.count(input) > 0)
+                if(input.empty())
+                {
+                    this->parse_undefined(input);
+                }
+                else if(nodes.count(input) > 0)
                 {
                     assert(name != input);
                     this->parse_node(input);
-                }
-                else if(input.empty())
-                {
-                    this->parse_undefined(input);
                 }
                 args.push_back(instructions.at(input));
             }
@@ -1492,12 +1589,12 @@ struct onnx_parser
             }
             else
             {
-                assert(node.output().size() >= result.size());
-                std::transform(result.begin(),
-                               result.end(),
-                               node.output().begin(),
+                assert(node.output().size() <= result.size());
+                std::transform(node.output().begin(),
+                               node.output().end(),
+                               result.begin(),
                                std::inserter(instructions, instructions.end()),
-                               [](auto&& x, auto&& y) { return std::make_pair(y, x); });
+                               [](auto&& x, auto&& y) { return std::make_pair(x, y); });
             }
         }
     }
@@ -1659,7 +1756,7 @@ struct onnx_parser
         return literal{{shape_type, dims}, data.begin(), data.end()};
     }
 
-    static shape parse_type(const onnx::TypeProto& t)
+    static shape parse_type(const onnx::TypeProto& t, const unsigned int batch_size)
     {
         shape::type_t shape_type{};
         switch(t.tensor_type().elem_type())
@@ -1687,14 +1784,18 @@ struct onnx_parser
         std::transform(tensor_dims.begin(),
                        tensor_dims.end(),
                        std::back_inserter(dims),
-                       [](auto&& d) -> std::size_t {
-                           if(not d.has_dim_value())
+                       [&](auto&& d) -> std::size_t {
+                           if(d.has_dim_value())
                            {
-                               long default_batch_size = 1; // FIXME
-                               return default_batch_size;
+                               if(static_cast<int>(d.dim_value()) <= 0)
+                                   return batch_size;
+                               return d.dim_value();
                            }
-                           return d.dim_value();
+                           return batch_size;
                        });
+        if(dims.empty())
+            return {shape_type};
+
         return {shape_type, dims};
     }
 
@@ -1729,10 +1830,11 @@ struct onnx_parser
     }
 };
 
-program parse_onnx(const std::string& name)
+program parse_onnx(const std::string& name, onnx_options options)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     onnx_parser parser;
+    parser.batch_size = options.batch_size;
 #ifndef NDEBUG
     // Log the program when it can't be parsed
     try

@@ -145,6 +145,50 @@ def atan_test():
 
 
 @onnx_test
+def averagepool_notset_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 1, 1])
+
+    node = onnx.helper.make_node('AveragePool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[6, 6],
+                                 strides=[2, 2],
+                                 pads=[0, 0, 1, 1],
+                                 auto_pad='NOTSET')
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def averagepool_same_lower_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 5, 5])
+
+    node = onnx.helper.make_node('AveragePool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[2, 2],
+                                 auto_pad='SAME_LOWER')
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def averagepool_same_upper_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 5, 5])
+
+    node = onnx.helper.make_node('AveragePool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[2, 2],
+                                 auto_pad='SAME_UPPER')
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def cast_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -839,6 +883,26 @@ def implicit_sub_bcast_test():
 
 
 @onnx_test
+def initializer_not_an_input():
+    values = np.array([[1, 2, 3, 4], [5, 6, 7, 8]])
+    w = helper.make_tensor(name='w',
+                           data_type=TensorProto.FLOAT,
+                           dims=values.shape,
+                           vals=values.flatten().astype(np.float))
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [5, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5, 4])
+
+    node = onnx.helper.make_node(
+        'Gemm',
+        inputs=['x', 'w'],
+        outputs=['y'],
+    )
+
+    return ([node], [x], [y], [w])
+
+
+@onnx_test
 def leaky_relu_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
@@ -998,6 +1062,36 @@ def max_test():
     )
 
     return ([node], [a, b, c], [y])
+
+
+@onnx_test
+def maxpool_notset_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 1, 1])
+
+    node = onnx.helper.make_node('MaxPool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[6, 6],
+                                 strides=[2, 2],
+                                 pads=[0, 0, 1, 1],
+                                 auto_pad='NOTSET')
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def maxpool_same_upper_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 5, 5])
+
+    node = onnx.helper.make_node('MaxPool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[2, 2],
+                                 auto_pad='SAME_UPPER')
+
+    return ([node], [x], [y])
 
 
 @onnx_test
@@ -1408,23 +1502,6 @@ def sum_test():
     a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
     c = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
-
-    y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [3])
-
-    node = onnx.helper.make_node(
-        'Sum',
-        inputs=['0', '1', '2'],
-        outputs=['3'],
-    )
-
-    return ([node], [a, b, c], [y])
-
-
-@onnx_test
-def sum_test():
-    a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
-    b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
-    c = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [3])
 
     node = onnx.helper.make_node(
@@ -1513,7 +1590,9 @@ def transpose_gather_test():
 def unknown_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 4])
-    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2, 3, 4, 5])
+
+    helper.make_tensor_value_info('2', TensorProto.FLOAT, [2, 3, 4, 5])
+
     a = helper.make_tensor_value_info('3', TensorProto.FLOAT, [2, 3, 4, 5])
 
     node = onnx.helper.make_node('Unknown', inputs=['0', '1'], outputs=['2'])
@@ -1521,3 +1600,26 @@ def unknown_test():
     node2 = onnx.helper.make_node('Unknown', inputs=['2'], outputs=['3'])
 
     return ([node, node2], [x, y], [a])
+
+
+@onnx_test
+def variable_batch_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                      [None, 3, 16, 16])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT,
+                                      [None, 3, 16, 16])
+
+    node = onnx.helper.make_node('Identity', inputs=['0'], outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def variable_batch_leq_zero_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [0, 3, 16, 16])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [-1, 3, 16, 16])
+
+    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [-1, 3, 16, 16])
+    node = onnx.helper.make_node('Add', inputs=['0', '1'], outputs=['2'])
+
+    return ([node], [x, y], [z])

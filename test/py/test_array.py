@@ -52,9 +52,9 @@ def check_shapes(r, m):
 def run(p):
     params = {}
     for key, value in p.get_parameter_shapes().items():
-        params[key] = migraphx.to_gpu(migraphx.generate_argument(value))
+        params[key] = migraphx.generate_argument(value)
 
-    return migraphx.from_gpu(p.run(params))
+    return p.run(params)
 
 
 def test_shape(shape):

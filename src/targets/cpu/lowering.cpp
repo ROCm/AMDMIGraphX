@@ -144,13 +144,14 @@ struct cpu_lrn
             int height          = output_shape.lens()[2];
             int width           = output_shape.lens()[3];
             float alphaoverarea = op.alpha / float(op.size);
-            int radius          = (op.size - 1) / 2;
+            int radius_lower    = (op.size - 1) / 2;
+            int radius_upper    = op.size / 2 + 1;
 
             par_dfor(n_batch, height, width)([&](int b, int h, int w) {
                 float scale = 0;
                 dfor(channels)([&](int c) {
-                    auto start = (c - radius) < 0 ? 0 : (c - radius);
-                    auto end   = (c + radius) > channels ? channels : (c + radius);
+                    auto start = (c - radius_lower) < 0 ? 0 : (c - radius_lower);
+                    auto end   = (c + radius_upper) > channels ? channels : (c + radius_upper);
                     for(auto k = start; k < end; ++k)
                     {
                         scale += std::pow(input(b, k, h, w), 2);
@@ -166,9 +167,10 @@ struct cpu_lrn
     }
 };
 
+template <class Op>
 struct cpu_convolution
 {
-    op::convolution op;
+    Op op;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -176,99 +178,45 @@ struct cpu_convolution
         return migraphx::reflect(self.op, f);
     }
 
-    std::string name() const { return "cpu::convolution"; }
+    std::string name() const { return "cpu::" + op.name(); }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
-            auto in   = input.get_shape().lens();
-            auto in_h = in[2];
-            auto in_w = in[3];
+        result.visit([&](auto output) {
+            using type = typename decltype(output)::value_type;
+            visit_all(args[0], args[1])([&](auto input, auto weights) {
+                auto in   = input.get_shape().lens();
+                auto in_h = in[2];
+                auto in_w = in[3];
 
-            auto wei   = weights.get_shape().lens();
-            auto wei_n = wei[0];
-            auto wei_c = wei[1];
-            auto wei_h = wei[2];
-            auto wei_w = wei[3];
+                auto wei   = weights.get_shape().lens();
+                auto wei_n = wei[0];
+                auto wei_c = wei[1];
+                auto wei_h = wei[2];
+                auto wei_w = wei[3];
 
-            par_dfor(output_shape.lens()[0],
-                     output_shape.lens()[1],
-                     output_shape.lens()[2],
-                     output_shape.lens()[3])(
-                [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
-                    const auto start_x  = i * op.stride[0] - op.padding[0];
-                    const auto start_y  = j * op.stride[1] - op.padding[1];
-                    const auto group_id = w / (wei_n / op.group);
+                par_dfor(output_shape.lens()[0],
+                         output_shape.lens()[1],
+                         output_shape.lens()[2],
+                         output_shape.lens()[3])(
+                    [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
+                        const auto start_x  = i * op.stride[0] - op.padding[0];
+                        const auto start_y  = j * op.stride[1] - op.padding[1];
+                        const auto group_id = w / (wei_n / op.group);
 
-                    double acc = 0;
-                    dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t y) {
-                        const auto in_x  = start_x + x;
-                        const auto in_y  = start_y + y;
-                        const auto in_ch = group_id * wei_c + k;
-                        if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
-                        {
-                            acc += input(o, in_ch, in_x, in_y) * weights(w, k, x, y);
-                        }
+                        type acc = type{0};
+                        dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t y) {
+                            const auto in_x  = start_x + x;
+                            const auto in_y  = start_y + y;
+                            const auto in_ch = group_id * wei_c + k;
+                            if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
+                                acc += input(o, in_ch, in_x, in_y) * weights(w, k, x, y);
+                        });
+                        output(o, w, i, j) = acc;
                     });
-                    output(o, w, i, j) = acc;
-                });
+            });
         });
-        return result;
-    }
-};
-
-struct cpu_quant_convolution
-{
-    op::quant_convolution op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "cpu::quant_convolution"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        auto output = result.get<int32_t>();
-        visit_all(args[0], args[1])([&](auto input, auto weights) {
-            auto in   = input.get_shape().lens();
-            auto in_h = in[2];
-            auto in_w = in[3];
-
-            auto wei   = weights.get_shape().lens();
-            auto wei_n = wei[0];
-            auto wei_c = wei[1];
-            auto wei_h = wei[2];
-            auto wei_w = wei[3];
-
-            par_dfor(output_shape.lens()[0],
-                     output_shape.lens()[1],
-                     output_shape.lens()[2],
-                     output_shape.lens()[3])(
-                [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
-                    const auto start_x  = i * op.stride[0] - op.padding[0];
-                    const auto start_y  = j * op.stride[1] - op.padding[1];
-                    const auto group_id = w / (wei_n / op.group);
-
-                    int32_t acc = 0;
-                    dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t y) {
-                        const auto in_x  = start_x + x;
-                        const auto in_y  = start_y + y;
-                        const auto in_ch = group_id * wei_c + k;
-                        if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
-                        {
-                            acc += static_cast<int32_t>(input(o, in_ch, in_x, in_y)) *
-                                   weights(w, k, x, y);
-                        }
-                    });
-                    output(o, w, i, j) = acc;
-                });
-        });
-
         return result;
     }
 };
@@ -620,41 +568,25 @@ struct cpu_unary
     {
         check_shapes{inputs}.has(1);
         auto s = inputs.at(0);
-        if(s.packed())
-        {
-            return s;
-        }
-        else
-        {
-            return {s.type(), s.lens()};
-        }
+        return {s.type(), s.lens()};
     }
 
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        result.visit([&](auto output) {
-            args[0].visit([&](auto input) {
-                if(input.get_shape().standard())
-                {
-                    std::transform(input.begin(), input.end(), output.begin(), op.fcn());
-                }
-                else
-                {
-                    shape_for_each(output.get_shape(), [&](const auto& idx) {
-                        output(idx.begin(), idx.end()) = op.fcn()(input(idx.begin(), idx.end()));
-                    });
-                }
-            });
+        visit_all(result, args[0])([&](auto output, auto input) {
+            assert(input.get_shape().standard());
+            std::transform(input.begin(), input.end(), output.begin(), op.fcn());
         });
 
         return result;
     }
 };
 
+template <class Op>
 struct cpu_softmax
 {
-    op::softmax op;
+    Op op;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -662,14 +594,15 @@ struct cpu_softmax
         return migraphx::reflect(self.op, f);
     }
 
-    std::string name() const { return "cpu::softmax"; }
+    std::string name() const { return "cpu::" + op.name(); }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        auto batch_lens     = output_shape.lens();
-        std::size_t n_dims  = batch_lens[op.axis];
-        batch_lens[op.axis] = 1;
+        auto batch_lens    = output_shape.lens();
+        int64_t tuned_axis = (op.axis < 0) ? op.axis + args[0].get_shape().lens().size() : op.axis;
+        std::size_t n_dims = batch_lens[tuned_axis];
+        batch_lens[tuned_axis] = 1;
         shape batch_shape{shape::int32_type, batch_lens};
 
         visit_all(result, args[0])([&](auto output, auto input) {
@@ -681,90 +614,28 @@ struct cpu_softmax
                 auto idx = batch_shape.multi(i);
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
-                    idx[op.axis] = j;
-                    batch_max[i] = std::max(batch_max[i], input(idx.begin(), idx.end()));
+                    idx[tuned_axis] = j;
+                    batch_max[i]    = std::max(batch_max[i], input(idx.begin(), idx.end()));
                 }
 
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
-                    idx[op.axis]      = j;
+                    idx[tuned_axis]   = j;
                     std::size_t index = output_shape.index(idx);
                     output[index]     = std::exp(input[index] - batch_max[i]);
                 }
 
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
-                    idx[op.axis] = j;
+                    idx[tuned_axis] = j;
                     batch_sum[i] += output(idx.begin(), idx.end());
                 }
 
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
-                    idx[op.axis] = j;
-                    output(idx.begin(), idx.end()) /= batch_sum[i];
-                }
-            });
-        });
-
-        return result;
-    }
-};
-
-struct cpu_logsoftmax
-{
-    op::logsoftmax op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "cpu::logsoftmax"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        auto batch_lens     = output_shape.lens();
-        std::size_t n_dims  = batch_lens[op.axis];
-        batch_lens[op.axis] = 1;
-        shape batch_shape{shape::int32_type, batch_lens};
-
-        // use a parallel implementation to acheive better performance
-        // one thread for one batch
-        visit_all(result, args[0])([&](auto output, auto input) {
-            using value_type = typename decltype(input)::value_type;
-            std::vector<value_type> batch_max(batch_shape.elements(),
-                                              std::numeric_limits<value_type>::lowest());
-            std::vector<value_type> batch_sum(batch_shape.elements(), value_type(0));
-
-            par_for(batch_shape.elements(), [&](auto i) {
-                auto idx = batch_shape.multi(i);
-                for(std::size_t j = 0; j < n_dims; ++j)
-                {
-                    idx[op.axis] = j;
-                    batch_max[i] = std::max(batch_max[i], input(idx.begin(), idx.end()));
-                }
-
-                for(std::size_t j = 0; j < n_dims; ++j)
-                {
-                    idx[op.axis]      = j;
-                    std::size_t index = output_shape.index(idx);
-                    output[index]     = input[index] - batch_max[i];
-                }
-
-                for(std::size_t j = 0; j < n_dims; ++j)
-                {
-                    idx[op.axis] = j;
-                    batch_sum[i] += std::exp(output(idx.begin(), idx.end()));
-                }
-
-                batch_sum[i] = std::log(batch_sum[i]);
-
-                for(std::size_t j = 0; j < n_dims; ++j)
-                {
-                    idx[op.axis] = j;
-                    output(idx.begin(), idx.end()) -= batch_sum[i];
+                    idx[tuned_axis] = j;
+                    output(idx.begin(), idx.end()) =
+                        op.output()(output(idx.begin(), idx.end()), batch_sum[i]);
                 }
             });
         });
@@ -794,17 +665,18 @@ struct cpu_apply
     {
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
-        apply_map["convolution"]       = extend_op<cpu_convolution, op::convolution>();
-        apply_map["dot"]               = extend_op<cpu_gemm, op::dot>();
-        apply_map["quant_dot"]         = extend_op<cpu_quant_gemm, op::quant_dot>();
-        apply_map["quant_convolution"] = extend_op<cpu_quant_convolution, op::quant_convolution>();
-        apply_map["elu"]               = extend_op<cpu_unary<elu_op>, op::elu>();
-        apply_map["im2col"]            = extend_op<cpu_im2col, op::im2col>();
-        apply_map["leaky_relu"]        = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
-        apply_map["logsoftmax"]        = extend_op<cpu_logsoftmax, op::logsoftmax>();
-        apply_map["lrn"]               = extend_op<cpu_lrn, op::lrn>();
-        apply_map["pad"]               = extend_op<cpu_pad, op::pad>();
-        apply_map["softmax"]           = extend_op<cpu_softmax, op::softmax>();
+        apply_map["convolution"] = extend_op<cpu_convolution<op::convolution>, op::convolution>();
+        apply_map["dot"]         = extend_op<cpu_gemm, op::dot>();
+        apply_map["quant_dot"]   = extend_op<cpu_quant_gemm, op::quant_dot>();
+        apply_map["quant_convolution"] =
+            extend_op<cpu_convolution<op::quant_convolution>, op::quant_convolution>();
+        apply_map["elu"]        = extend_op<cpu_unary<elu_op>, op::elu>();
+        apply_map["im2col"]     = extend_op<cpu_im2col, op::im2col>();
+        apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
+        apply_map["logsoftmax"] = extend_op<cpu_softmax<op::logsoftmax>, op::logsoftmax>();
+        apply_map["lrn"]        = extend_op<cpu_lrn, op::lrn>();
+        apply_map["pad"]        = extend_op<cpu_pad, op::pad>();
+        apply_map["softmax"]    = extend_op<cpu_softmax<op::softmax>, op::softmax>();
     }
 
     void apply()

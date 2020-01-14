@@ -744,11 +744,15 @@ template struct test_arg_ops<migraphx::op::argmax, 0>;
 template struct test_arg_ops<migraphx::op::argmax, 1>;
 template struct test_arg_ops<migraphx::op::argmax, 2>;
 template struct test_arg_ops<migraphx::op::argmax, 3>;
+template struct test_arg_ops<migraphx::op::argmax, -1>;
+template struct test_arg_ops<migraphx::op::argmax, -2>;
 
 template struct test_arg_ops<migraphx::op::argmin, 0>;
 template struct test_arg_ops<migraphx::op::argmin, 1>;
 template struct test_arg_ops<migraphx::op::argmin, 2>;
 template struct test_arg_ops<migraphx::op::argmin, 3>;
+template struct test_arg_ops<migraphx::op::argmin, -3>;
+template struct test_arg_ops<migraphx::op::argmin, -4>;
 
 struct test_conv : verify_program<test_conv>
 {

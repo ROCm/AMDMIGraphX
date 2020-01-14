@@ -11,11 +11,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void logsoftmax(hipStream_t stream, const argument& result, const argument& arg, int axis)
+void logsoftmax(hipStream_t stream, const argument& result, const argument& arg, int64_t axis)
 {
-    auto lens                = result.get_shape().lens();
-    auto batch_lens          = lens;
-    index_int batch_item_num = lens[axis];
+    auto batch_lens          = result.get_shape().lens();
+    index_int batch_item_num = batch_lens[axis];
     batch_lens[axis]         = 1;
     migraphx::shape batch_shape{result.get_shape().type(), batch_lens};
 

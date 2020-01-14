@@ -18,7 +18,7 @@ namespace op {
 
 struct flatten
 {
-    uint64_t axis = 0;
+    int64_t axis = 1;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -30,16 +30,19 @@ struct flatten
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs}.has(1);
-        auto&& lens = inputs.front().lens();
-
-        if(axis > lens.size())
+        auto&& lens   = inputs.front().lens();
+        int64_t n_dim = static_cast<int64_t>(lens.size());
+        if(axis > n_dim or axis < -n_dim)
         {
-            MIGRAPHX_THROW("axis for flatten must be less than tensor rank");
+            MIGRAPHX_THROW("FLATTEN: axis for flatten is out of range");
         }
-        auto x =
-            std::accumulate(lens.begin(), lens.begin() + axis, std::size_t{1}, std::multiplies<>{});
-        auto y =
-            std::accumulate(lens.begin() + axis, lens.end(), std::size_t{1}, std::multiplies<>{});
+
+        auto tuned_axis = (axis < 0) ? axis + n_dim : axis;
+
+        auto x = std::accumulate(
+            lens.begin(), lens.begin() + tuned_axis, std::size_t{1}, std::multiplies<>{});
+        auto y = std::accumulate(
+            lens.begin() + tuned_axis, lens.end(), std::size_t{1}, std::multiplies<>{});
         return {inputs.at(0).type(), {x, y}};
     }
     argument compute(shape output_shape, std::vector<argument> args) const

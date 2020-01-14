@@ -102,6 +102,7 @@ TEST_CASE(transpose_shape)
     migraphx::shape output{migraphx::shape::float_type, {2, 2}, {1, 2}};
     expect_shape(input, migraphx::op::transpose{{0, 1}}, input);
     expect_shape(output, migraphx::op::transpose{{1, 0}}, input);
+    expect_shape(output, migraphx::op::transpose{}, input);
     throws_shape(migraphx::op::transpose{{1, 2}}, input);
 }
 
@@ -157,8 +158,14 @@ TEST_CASE(flatten_shape)
     expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 2 * 4 * 6 * 8}},
                  migraphx::op::flatten{0},
                  input);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 2 * 4 * 6 * 8}},
+                 migraphx::op::flatten{-4},
+                 input);
     expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 4 * 6 * 8}},
                  migraphx::op::flatten{1},
+                 input);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 4 * 6 * 8}},
+                 migraphx::op::flatten{-3},
                  input);
     expect_shape(migraphx::shape{migraphx::shape::float_type, {2 * 4, 6 * 8}},
                  migraphx::op::flatten{2},
@@ -170,6 +177,7 @@ TEST_CASE(flatten_shape)
                  migraphx::op::flatten{4},
                  input);
     throws_shape(migraphx::op::flatten{5}, input);
+    throws_shape(migraphx::op::flatten{-5}, input);
 }
 
 TEST_CASE(slice_shape)
@@ -479,6 +487,21 @@ TEST_CASE(test_argmin)
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
         throws_shape(migraphx::op::argmin{4}, input);
+    }
+}
+
+TEST_CASE(test_squeeze)
+{
+    {
+        migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
+        migraphx::shape s2{migraphx::shape::float_type, {4, 1, 3, 3}};
+        expect_shape(s2, migraphx::op::squeeze{{-2}}, s1);
+    }
+
+    {
+        migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
+        migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
+        expect_shape(s2, migraphx::op::unsqueeze{{-2}}, s1);
     }
 }
 

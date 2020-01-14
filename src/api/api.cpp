@@ -2,6 +2,7 @@
 #include <migraphx/migraphx.h>
 #include <migraphx/rank.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/cpu/target.hpp>
 
@@ -100,9 +101,25 @@ migraphx_status destroy_object(T& x)
 }
 
 template <class R, class... Ts>
-migraphx_status create_object(R* r, Ts... xs)
+migraphx_status allocate_object(R* r, Ts... xs)
 {
     return try_([&] { deref(r).handle = new object_type<R>(xs...); });
+}
+
+template<class T, class F>
+migraphx_status create_object(T* x, F f)
+{
+    return try_([&] {
+        deref(x).handle = new object_type<T>(f());
+    });
+}
+
+template<class T, class F>
+migraphx_status set_object(T* x, F f)
+{
+    return try_([&] {
+        deref(x).handle = std::addressof(f());
+    });
 }
 
 template <class T>
@@ -141,10 +158,12 @@ migraphx_shape_datatype_t to_shape_type(shape::type_t t)
 
 } // namespace migraphx
 
-using migraphx::create_object;
+using migraphx::allocate_object;
 using migraphx::deref;
 using migraphx::destroy_object;
 using migraphx::get_object;
+using migraphx::create_object;
+using migraphx::set_object;
 using migraphx::to_shape_type;
 using migraphx::to_vector;
 using migraphx::try_;
@@ -158,10 +177,10 @@ extern "C" migraphx_status migraphx_shape_create(migraphx_shape* shape,
                                                  const size_t* strides)
 {
     if(strides)
-        return create_object(
+        return allocate_object(
             shape, to_shape_type(type), to_vector(dims, dim_num), to_vector(strides, dim_num));
     else
-        return create_object(shape, to_shape_type(type), to_vector(dims, dim_num));
+        return allocate_object(shape, to_shape_type(type), to_vector(dims, dim_num));
 }
 
 extern "C" migraphx_status migraphx_shape_destroy(migraphx_shape shape)
@@ -183,6 +202,20 @@ extern "C" migraphx_status migraphx_shape_get(migraphx_shape shape,
     });
 }
 
+MIGRAPHX_DEFINE_OBJECT(migraphx_argument, migraphx::argument)
+
+extern "C" migraphx_status migraphx_argument_create(migraphx_argument* argument, migraphx_shape shape, void *buffer)
+{
+    return allocate_object(argument, get_object(shape), buffer);
+}
+
+extern "C" migraphx_status migraphx_argument_destroy(migraphx_argument argument)
+{
+    return destroy_object(argument);
+}
+
+MIGRAPHX_DEFINE_OBJECT(migraphx_target, migraphx::target)
+
 extern "C" migraphx_status migraphx_target_create(migraphx_target* target, const char* name)
 {
     return try_([&] {
@@ -190,12 +223,12 @@ extern "C" migraphx_status migraphx_target_create(migraphx_target* target, const
         migraphx::target t;
         if(tname == "cpu")
             t = migraphx::cpu::target();
-#if HAVE_GPU
+#ifdef HAVE_GPU
         else if(tname == "gpu")
             t = migraphx::gpu::target();
 #endif
         else
-            MIGRAPHX_THROW("Unknown target");
+            MIGRAPHX_THROW(migraphx_status_unknown_target, "Unknown target");
         deref(target).handle = new migraphx::target(t);
     });
 }
@@ -203,4 +236,110 @@ extern "C" migraphx_status migraphx_target_create(migraphx_target* target, const
 extern "C" migraphx_status migraphx_target_destroy(migraphx_target target)
 {
     return destroy_object(target);
+}
+
+extern "C" migraphx_status migraphx_target_copy_to(migraphx_target target, migraphx_argument src, migraphx_argument* dst)
+{
+    return create_object(dst, [&] {
+        return get_object(target).copy_to(get_object(src));
+    });
+}
+
+extern "C" migraphx_status migraphx_target_copy_from(migraphx_target target, migraphx_argument src, migraphx_argument* dst)
+{
+    return create_object(dst, [&] {
+        return get_object(target).copy_from(get_object(src));
+    });
+}
+
+MIGRAPHX_DEFINE_OBJECT(migraphx_program, migraphx::program)
+
+extern "C" migraphx_status migraphx_program_create(migraphx_program* program)
+{
+    return allocate_object(program);
+}
+
+extern "C" migraphx_status migraphx_program_destroy(migraphx_program program)
+{
+    return destroy_object(program);
+}
+
+extern "C" migraphx_status migraphx_program_compile(migraphx_program program, migraphx_target target, migraphx_compile_options* options)
+{
+    return try_([&] {
+        migraphx::compile_options o{};
+        if (options)
+        {
+            o.offload_copy = options->offload_copy;
+        }
+        get_object(program).compile(get_object(target), o);
+    });
+}
+
+MIGRAPHX_DEFINE_OBJECT(migraphx_program_parameter_shapes, std::unordered_map<std::string, migraphx::shape>)
+
+extern "C" migraphx_status migraphx_program_parameter_shapes_create(migraphx_program_parameter_shapes* program_parameter_shapes, migraphx_program program)
+{
+    return create_object(program_parameter_shapes, [&] {
+        return get_object(program).get_parameter_shapes();
+    });
+}
+
+extern "C" migraphx_status migraphx_program_parameter_shapes_destroy(migraphx_program_parameter_shapes program_parameter_shapes)
+{
+    return destroy_object(program_parameter_shapes);
+}
+
+extern "C" migraphx_status migraphx_program_parameter_shapes_size(migraphx_program_parameter_shapes program_parameter_shapes, size_t * size)
+{
+    return try_([&] {
+        deref(size) = get_object(program_parameter_shapes).size();
+    });
+}
+
+extern "C" migraphx_status migraphx_program_parameter_shapes_names(migraphx_program_parameter_shapes program_parameter_shapes, const char ** names)
+{
+    return try_([&] {
+        if (not names)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Derefencing null pointer");
+        int i = 0;
+        for(auto&& p:get_object(program_parameter_shapes))
+        {
+            names[i] = p.first.c_str();
+            i++;
+        }
+    });
+}
+
+extern "C" migraphx_status migraphx_program_parameter_shapes_get_shape(migraphx_program_parameter_shapes program_parameter_shapes, const char * name, migraphx_shape* shape)
+{
+    return set_object(shape, [&]() -> decltype(auto) {
+        return get_object(program_parameter_shapes).at(name);
+    });
+}
+
+MIGRAPHX_DEFINE_OBJECT(migraphx_program_parameters, migraphx::program::parameter_map)
+
+extern "C" migraphx_status migraphx_program_parameters_create(migraphx_program_parameters* program_parameters)
+{
+    return allocate_object(program_parameters);
+}
+
+extern "C" migraphx_status migraphx_program_parameters_destroy(migraphx_program_parameters program_parameters)
+{
+    return destroy_object(program_parameters);
+}
+
+extern "C" migraphx_status migraphx_program_parameters_add(migraphx_program_parameters program_parameters, const char* name, migraphx_argument argument)
+{
+    return try_([&] {
+        get_object(program_parameters)[name] = get_object(argument);
+    });
+}
+
+extern "C" migraphx_status migraphx_program_run(migraphx_program program, migraphx_program_parameters program_parameters, migraphx_argument* output)
+{
+    return create_object(output, [&] {
+        return get_object(program).eval(get_object(program_parameters));
+    });
 }

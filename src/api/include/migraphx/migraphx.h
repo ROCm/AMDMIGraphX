@@ -32,10 +32,10 @@ extern "C" {
 
 // return code, more to be added later
 typedef enum {
-    migraphx_status_success       = 0,
-    migraphx_status_bad_param     = 1,
+    migraphx_status_success        = 0,
+    migraphx_status_bad_param      = 1,
     migraphx_status_unknown_target = 3,
-    migraphx_status_unknown_error = 4,
+    migraphx_status_unknown_error  = 4,
 
 } migraphx_status;
 
@@ -63,7 +63,8 @@ migraphx_status migraphx_shape_get(migraphx_shape shape,
 
 MIGRAPHX_DECLARE_OBJECT(migraphx_argument)
 
-migraphx_status migraphx_argument_create(migraphx_argument* argument, migraphx_shape shape, void *buffer);
+migraphx_status
+migraphx_argument_create(migraphx_argument* argument, migraphx_shape shape, void* buffer);
 
 migraphx_status migraphx_argument_destroy(migraphx_argument argument);
 
@@ -73,9 +74,11 @@ migraphx_status migraphx_target_create(migraphx_target* target, const char* name
 
 migraphx_status migraphx_target_destroy(migraphx_target target);
 
-migraphx_status migraphx_target_copy_to(migraphx_target target, migraphx_argument src, migraphx_argument* dst);
+migraphx_status
+migraphx_target_copy_to(migraphx_target target, migraphx_argument src, migraphx_argument* dst);
 
-migraphx_status migraphx_target_copy_from(migraphx_target target, migraphx_argument src, migraphx_argument* dst);
+migraphx_status
+migraphx_target_copy_from(migraphx_target target, migraphx_argument src, migraphx_argument* dst);
 
 MIGRAPHX_DECLARE_OBJECT(migraphx_program)
 
@@ -90,15 +93,24 @@ typedef struct
 
 MIGRAPHX_DECLARE_OBJECT(migraphx_program_parameter_shapes)
 
-migraphx_status migraphx_program_parameter_shapes_create(migraphx_program_parameter_shapes* program_parameter_shapes, migraphx_program program);
+migraphx_status migraphx_program_parameter_shapes_create(
+    migraphx_program_parameter_shapes* program_parameter_shapes, migraphx_program program);
 
-migraphx_status migraphx_program_parameter_shapes_destroy(migraphx_program_parameter_shapes program_parameter_shapes);
+migraphx_status migraphx_program_parameter_shapes_destroy(
+    migraphx_program_parameter_shapes program_parameter_shapes);
 
-migraphx_status migraphx_program_parameter_shapes_size(migraphx_program_parameter_shapes program_parameter_shapes, size_t * size);
+migraphx_status
+migraphx_program_parameter_shapes_size(migraphx_program_parameter_shapes program_parameter_shapes,
+                                       size_t* size);
 
-migraphx_status migraphx_program_parameter_shapes_names(migraphx_program_parameter_shapes program_parameter_shapes, const char ** names);
+migraphx_status
+migraphx_program_parameter_shapes_names(migraphx_program_parameter_shapes program_parameter_shapes,
+                                        const char** names);
 
-migraphx_status migraphx_program_parameter_shapes_get_shape(migraphx_program_parameter_shapes program_parameter_shapes, const char * name, migraphx_shape* shape);
+migraphx_status migraphx_program_parameter_shapes_get_shape(
+    migraphx_program_parameter_shapes program_parameter_shapes,
+    const char* name,
+    migraphx_shape* shape);
 
 MIGRAPHX_DECLARE_OBJECT(migraphx_program_parameters)
 
@@ -106,9 +118,13 @@ migraphx_status migraphx_program_parameters_create(migraphx_program_parameters* 
 
 migraphx_status migraphx_program_parameters_destroy(migraphx_program_parameters program_parameters);
 
-migraphx_status migraphx_program_parameters_add(migraphx_program_parameters program_parameters, const char* name, migraphx_argument argument);
+migraphx_status migraphx_program_parameters_add(migraphx_program_parameters program_parameters,
+                                                const char* name,
+                                                migraphx_argument argument);
 
-migraphx_status migraphx_program_run(migraphx_program program, migraphx_program_parameters program_parameters, migraphx_argument* output);
+migraphx_status migraphx_program_run(migraphx_program program,
+                                     migraphx_program_parameters program_parameters,
+                                     migraphx_argument* output);
 
 #ifdef __cplusplus
 }

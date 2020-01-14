@@ -455,16 +455,20 @@ struct onnx_parser
             auto l2 = prog.add_instruction(op::broadcast{axis, l1->get_shape().lens()}, args[2]);
             return prog.add_instruction(op::add{}, l1, l2);
         }
-        auto l1 = prog.add_instruction(op, l0, args[1]);
+        auto l1                  = prog.add_instruction(op, l0, args[1]);
         std::vector<size_t> dims = l1->get_shape().lens();
-        std::vector<int64_t> curr_shape{static_cast<int64_t>(dims[2]), static_cast<int64_t>(dims[3])};
+        std::vector<int64_t> curr_shape{static_cast<int64_t>(dims[2]),
+                                        static_cast<int64_t>(dims[3])};
         if(asymm_padding)
         {
             op::slice slice_op;
-            slice_op.axes = {0, 1, 2, 3};
+            slice_op.axes   = {0, 1, 2, 3};
             slice_op.starts = {0, 0, 0 + padding[0], 0 + padding[1]};
-            slice_op.ends = {static_cast<int64_t>(dims[0]), static_cast<int64_t>(dims[1]), curr_shape[0] - padding[2], curr_shape[1] - padding[3]};
-            
+            slice_op.ends   = {static_cast<int64_t>(dims[0]),
+                             static_cast<int64_t>(dims[1]),
+                             curr_shape[0] - padding[2],
+                             curr_shape[1] - padding[3]};
+
             l1 = prog.add_instruction(slice_op, l1);
         }
 
@@ -473,18 +477,25 @@ struct onnx_parser
             std::vector<int64_t> output_padding;
             copy(attributes["output_padding"].ints(), std::back_inserter(output_padding));
             output_padding = {0, 0, 0, 0, 0, 0, output_padding[0], output_padding[1]};
-            l1      = prog.add_instruction(op::pad{output_padding}, l1);
+            l1             = prog.add_instruction(op::pad{output_padding}, l1);
         }
 
         if(contains(attributes, "output_shape"))
         {
             std::vector<int64_t> output_shape;
             copy(attributes["output_shape"].ints(), std::back_inserter(output_shape));
-            dims = l1->get_shape().lens();
-            curr_shape  = {static_cast<int64_t>(dims[2]), static_cast<int64_t>(dims[3])};
+            dims       = l1->get_shape().lens();
+            curr_shape = {static_cast<int64_t>(dims[2]), static_cast<int64_t>(dims[3])};
             if(curr_shape != output_shape)
             {
-                std::vector<int64_t> target_padding = {0, 0, 0, 0, 0, 0, output_shape[0] - curr_shape[0], output_shape[1] - curr_shape[1]};
+                std::vector<int64_t> target_padding = {0,
+                                                       0,
+                                                       0,
+                                                       0,
+                                                       0,
+                                                       0,
+                                                       output_shape[0] - curr_shape[0],
+                                                       output_shape[1] - curr_shape[1]};
                 l1 = prog.add_instruction(op::pad{target_padding}, l1);
             }
         }

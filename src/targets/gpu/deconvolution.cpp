@@ -12,8 +12,8 @@ shape miopen_deconvolution::compute_shape(const std::vector<shape>& inputs) cons
     return op.compute_shape({inputs.at(0), inputs.at(1)});
 }
 argument miopen_deconvolution::compute(context& ctx,
-                                        const shape& output_shape,
-                                        const std::vector<argument>& args) const
+                                       const shape& output_shape,
+                                       const std::vector<argument>& args) const
 {
     auto x_desc = make_tensor(args[0].get_shape());
     auto w_desc = make_tensor(args[1].get_shape());
@@ -40,8 +40,8 @@ argument miopen_deconvolution::compute(context& ctx,
 }
 
 shape miopen_deconvolution::compile(context& ctx,
-                                     const shape& output_shape,
-                                     std::vector<shape> inputs)
+                                    const shape& output_shape,
+                                    std::vector<shape> inputs)
 {
     shape workspace_shape{};
     auto x_desc = make_tensor(inputs[0]);
@@ -86,8 +86,8 @@ shape miopen_deconvolution::compile(context& ctx,
 }
 
 void miopen_deconvolution::finalize(context& ctx,
-                                     const shape& output_shape,
-                                     std::vector<shape> inputs)
+                                    const shape& output_shape,
+                                    std::vector<shape> inputs)
 {
     if(handle == ctx.get_stream().get_miopen())
         return;

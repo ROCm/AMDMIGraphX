@@ -79,7 +79,7 @@ add_library(migraphx_gpu
     lowering.cpp
     pooling.cpp
     convolution.cpp
-    conv_transpose.cpp
+    deconvolution.cpp
     quant_convolution.cpp
     softmax.cpp
     logsoftmax.cpp

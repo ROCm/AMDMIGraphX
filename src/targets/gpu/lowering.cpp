@@ -16,7 +16,7 @@
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
-#include <migraphx/gpu/conv_transpose.hpp>
+#include <migraphx/gpu/deconvolution.hpp>
 #include <migraphx/gpu/quant_convolution.hpp>
 #include <migraphx/gpu/contiguous.hpp>
 #include <migraphx/gpu/relu.hpp>
@@ -154,7 +154,7 @@ struct miopen_apply
 
         add_lrn_op();
         add_convolution_op();
-        add_conv_transpose_op();
+        add_deconvolution_op();
         add_quant_convolution_op();
         add_pooling_op();
         add_batch_norm_inference_op();
@@ -220,12 +220,12 @@ struct miopen_apply
         });
     }
 
-    void add_conv_transpose_op()
+    void add_deconvolution_op()
     {
-        apply_map.emplace("conv_transpose", [=](instruction_ref ins) {
-            auto&& op = any_cast<op::conv_transpose>(ins->get_operator());
+        apply_map.emplace("deconvolution", [=](instruction_ref ins) {
+            auto&& op = any_cast<op::deconvolution>(ins->get_operator());
 
-            auto conv = miopen_conv_transpose{op, make_conv_transpose(op)};
+            auto conv = miopen_deconvolution{op, make_deconv(op)};
             auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
             auto workspace = insert_allocation(ins, ws, "workspace");

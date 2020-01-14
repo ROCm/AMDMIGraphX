@@ -1,8 +1,8 @@
-#ifndef MIGRAPHX_GUARD_RTGLIB_CONV_TRANSPOSE_HPP
-#define MIGRAPHX_GUARD_RTGLIB_CONV_TRANSPOSE_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_DECONVOLUTION_HPP
+#define MIGRAPHX_GUARD_RTGLIB_DECONVOLUTION_HPP
 
 #include <migraphx/shape.hpp>
-#include <migraphx/op/conv_transpose.hpp>
+#include <migraphx/op/deconvolution.hpp>
 #include <migraphx/gpu/miopen.hpp>
 
 namespace migraphx {
@@ -11,9 +11,9 @@ namespace gpu {
 
 struct context;
 
-struct miopen_conv_transpose
+struct miopen_deconvolution
 {
-    op::conv_transpose op;
+    op::deconvolution op;
     shared<convolution_descriptor> cd;
     miopenConvFwdAlgorithm_t algo{};
     miopenHandle_t handle = nullptr;
@@ -25,7 +25,7 @@ struct miopen_conv_transpose
         return op::convolution::reflect(self.op, f);
     }
 
-    std::string name() const { return "gpu::conv_transpose"; }
+    std::string name() const { return "gpu::deconv"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;

@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_OPERATORS_CONV_TRANSPOSE_HPP
-#define MIGRAPHX_GUARD_OPERATORS_CONV_TRANSPOSE_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_DECONVOLUTION_HPP
+#define MIGRAPHX_GUARD_OPERATORS_DECONVOLUTION_HPP
 
 #include <array>
 #include <migraphx/op/common.hpp>
@@ -17,7 +17,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct conv_transpose
+struct deconvolution
 {
     std::array<std::size_t, 2> padding  = {{0, 0}};
     std::array<std::size_t, 2> stride   = {{1, 1}};
@@ -36,7 +36,7 @@ struct conv_transpose
                     f(self.group, "group"));
     }
 
-    std::string name() const { return "conv_transpose"; }
+    std::string name() const { return "deconvolution"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2).same_type().same_ndims().only_dims(4);
@@ -52,7 +52,7 @@ struct conv_transpose
                     std::size_t(std::max<std::ptrdiff_t>(
                         1,
                         stride[0] * (input.lens()[2] - 1) +
-                            ((weights.lens()[2] - 1) * dilation[0] + 1) - 2 * padding[0])), 
+                            ((weights.lens()[2] - 1) * dilation[0] + 1) - 2 * padding[0])),
                     std::size_t(std::max<std::ptrdiff_t>(
                         1,
                         stride[1] * (input.lens()[3] - 1) +

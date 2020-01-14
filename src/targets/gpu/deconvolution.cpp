@@ -1,4 +1,4 @@
-#include <migraphx/gpu/conv_transpose.hpp>
+#include <migraphx/gpu/deconvolution.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/generate.hpp>
 
@@ -6,14 +6,14 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-shape miopen_conv_transpose::compute_shape(const std::vector<shape>& inputs) const
+shape miopen_deconvolution::compute_shape(const std::vector<shape>& inputs) const
 {
     check_shapes{inputs, *this}.has(4).standard();
     return op.compute_shape({inputs.at(0), inputs.at(1)});
 }
-argument miopen_conv_transpose::compute(context& ctx,
-                                     const shape& output_shape,
-                                     const std::vector<argument>& args) const
+argument miopen_deconvolution::compute(context& ctx,
+                                        const shape& output_shape,
+                                        const std::vector<argument>& args) const
 {
     auto x_desc = make_tensor(args[0].get_shape());
     auto w_desc = make_tensor(args[1].get_shape());
@@ -35,13 +35,13 @@ argument miopen_conv_transpose::compute(context& ctx,
                                            args[2].implicit(),
                                            args[2].get_shape().bytes());
     if(status != miopenStatusSuccess)
-        MIGRAPHX_THROW("Running conv_transpose failed");
+        MIGRAPHX_THROW("Running deconvolution failed");
     return args[3];
 }
 
-shape miopen_conv_transpose::compile(context& ctx,
-                                  const shape& output_shape,
-                                  std::vector<shape> inputs)
+shape miopen_deconvolution::compile(context& ctx,
+                                     const shape& output_shape,
+                                     std::vector<shape> inputs)
 {
     shape workspace_shape{};
     auto x_desc = make_tensor(inputs[0]);
@@ -79,15 +79,15 @@ shape miopen_conv_transpose::compile(context& ctx,
                                                         workspace_size,
                                                         false);
     if(status != miopenStatusSuccess)
-        MIGRAPHX_THROW("Find conv_transpose failed");
+        MIGRAPHX_THROW("Find deconvolution failed");
     handle = ctx.get_stream().get_miopen();
     algo   = perf.fwd_algo;
     return shape{shape::int8_type, {perf.memory}};
 }
 
-void miopen_conv_transpose::finalize(context& ctx,
-                                  const shape& output_shape,
-                                  std::vector<shape> inputs)
+void miopen_deconvolution::finalize(context& ctx,
+                                     const shape& output_shape,
+                                     std::vector<shape> inputs)
 {
     if(handle == ctx.get_stream().get_miopen())
         return;

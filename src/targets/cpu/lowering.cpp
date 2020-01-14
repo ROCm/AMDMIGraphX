@@ -4,7 +4,7 @@
 #include <migraphx/dfor.hpp>
 #include <migraphx/op/batch_norm.hpp>
 #include <migraphx/op/convolution.hpp>
-#include <migraphx/op/conv_transpose.hpp>
+#include <migraphx/op/deconvolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
@@ -222,7 +222,7 @@ struct cpu_convolution
 };
 
 template <class Op>
-struct cpu_conv_transpose
+struct cpu_deconvolution
 {
     Op op;
 
@@ -243,9 +243,9 @@ struct cpu_conv_transpose
             std::fill(output.begin(), output.end(), type{0});
             visit_all(args[0], args[1])([&](auto input, auto weights) {
 
-                auto out_lens  = output_shape.lens();
-                auto out_h = out_lens[2];
-                auto out_w = out_lens[3];
+                auto out_lens = output_shape.lens();
+                auto out_h    = out_lens[2];
+                auto out_w    = out_lens[3];
 
                 auto in   = input.get_shape().lens();
                 auto in_n = in[0];
@@ -259,24 +259,28 @@ struct cpu_conv_transpose
                 auto wei_h = wei[2];
                 auto wei_w = wei[3];
 
-                par_dfor(in_n, wei_c)(
-                    [&](std::size_t o, std::size_t k) {
+                par_dfor(in_n, wei_c)([&](std::size_t o, std::size_t k) {
 
-                        dfor(in_c, in_h, in_w, wei_h, wei_w)([&](std::size_t w, std::size_t i, std::size_t j, std::size_t x, std::size_t y) {
-                            const int start_x = i * op.stride[0] - op.padding[0];
-                            const int start_y = j * op.stride[1] - op.padding[1];
-                            const int out_x    = start_x + x * op.dilation[0];
-                            const int out_y    = start_y + y * op.dilation[1];
+                    dfor(in_c, in_h, in_w, wei_h, wei_w)([&](std::size_t w,
+                                                             std::size_t i,
+                                                             std::size_t j,
+                                                             std::size_t x,
+                                                             std::size_t y) {
+                        const int start_x = i * op.stride[0] - op.padding[0];
+                        const int start_y = j * op.stride[1] - op.padding[1];
+                        const int out_x   = start_x + x * op.dilation[0];
+                        const int out_y   = start_y + y * op.dilation[1];
 
-                            const auto group_id = w / (wei_n / op.group);
-                            const auto in_ch = group_id * wei_c + k;
-                            
-                            if(out_x >= 0 && out_x < out_h && out_y >= 0 && out_y < out_w)
-                            {
-                                output(o, in_ch, out_x, out_y) += input(o, w, i, j) * weights(w, k, x, y);
-                            }
-                        });
+                        const auto group_id = w / (wei_n / op.group);
+                        const auto in_ch    = group_id * wei_c + k;
+
+                        if(out_x >= 0 && out_x < out_h && out_y >= 0 && out_y < out_w)
+                        {
+                            output(o, in_ch, out_x, out_y) +=
+                                input(o, w, i, j) * weights(w, k, x, y);
+                        }
                     });
+                });
             });
         });
         return result;
@@ -727,8 +731,8 @@ struct cpu_apply
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["convolution"] = extend_op<cpu_convolution<op::convolution>, op::convolution>();
-        apply_map["conv_transpose"] =
-            extend_op<cpu_conv_transpose<op::conv_transpose>, op::conv_transpose>();
+        apply_map["deconvolution"] =
+            extend_op<cpu_deconvolution<op::deconvolution>, op::deconvolution>();
         apply_map["dot"]       = extend_op<cpu_gemm, op::dot>();
         apply_map["quant_dot"] = extend_op<cpu_quant_gemm, op::quant_dot>();
         apply_map["quant_convolution"] =

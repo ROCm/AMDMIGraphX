@@ -1507,7 +1507,8 @@ struct onnx_parser
                                          attribute_map attributes,
                                          std::vector<instruction_ref> args)
     {
-        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), std::move(args));
+        auto sum_ins =
+            parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), std::move(args));
         return prog.add_instruction(op::log{}, sum_ins);
     }
 

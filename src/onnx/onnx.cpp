@@ -1492,14 +1492,14 @@ struct onnx_parser
     parse_reduce_l1(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         auto abs_ins = prog.add_instruction(op::abs{}, args[0]);
-        return parse_reduce_oper<op::reduce_sum>({}, attributes, {abs_ins});
+        return parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {abs_ins});
     }
 
     instruction_ref
     parse_reduce_l2(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
-        auto sum_ins    = parse_reduce_oper<op::reduce_sum>({}, attributes, {square_ins});
+        auto sum_ins    = parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {square_ins});
         return prog.add_instruction(op::sqrt{}, sum_ins);
     }
 
@@ -1507,7 +1507,7 @@ struct onnx_parser
                                          attribute_map attributes,
                                          std::vector<instruction_ref> args)
     {
-        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, attributes, args);
+        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), args);
         return prog.add_instruction(op::log{}, sum_ins);
     }
 
@@ -1516,7 +1516,7 @@ struct onnx_parser
                                              std::vector<instruction_ref> args)
     {
         auto exp_ins = prog.add_instruction(op::exp{}, args[0]);
-        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, attributes, {exp_ins});
+        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {exp_ins});
         return prog.add_instruction(op::log{}, sum_ins);
     }
 
@@ -1525,7 +1525,7 @@ struct onnx_parser
                                             std::vector<instruction_ref> args)
     {
         auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
-        return parse_reduce_oper<op::reduce_sum>({}, attributes, {square_ins});
+        return parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {square_ins});
     }
 
     instruction_ref

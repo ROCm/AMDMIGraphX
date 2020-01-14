@@ -1499,7 +1499,7 @@ struct onnx_parser
     parse_reduce_l2(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
-        auto sum_ins    = parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {square_ins});
+        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {square_ins});
         return prog.add_instruction(op::sqrt{}, sum_ins);
     }
 

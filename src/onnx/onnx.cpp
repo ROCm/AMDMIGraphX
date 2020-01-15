@@ -91,6 +91,7 @@ struct onnx_parser
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
         add_mem_op("MatMul", &onnx_parser::parse_matmul);
         add_mem_op("BatchNormalization", &onnx_parser::parse_batchnorm);
+        add_mem_op("InstanceNormalization", &onnx_parser::parse_instancenorm);
         add_mem_op("Softmax", &onnx_parser::parse_softmax<op::softmax>);
         add_mem_op("LogSoftmax", &onnx_parser::parse_softmax<op::logsoftmax>);
         add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
@@ -786,6 +787,34 @@ struct onnx_parser
         }
         op::batch_norm_inference op{epsilon, momentum, bn_mode};
         return prog.add_instruction(op, std::move(args));
+    }
+
+    instruction_ref
+    parse_instancenorm(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        // y = scale * ( x - mean ) / sqrt ( variance + epsilon ) + bias
+        // mean = reduce_mean({H, W}, x)
+        // variance = reduce_mean({H, W}, (x - mean)^2)
+
+        float epsilon = 1e-5f;
+        if(contains(attributes, "epsilon"))
+        {
+            epsilon = parse_value(attributes.at("epsilon")).at<float>();
+        }
+        auto x = args[0];
+        auto scale = args[1];
+        auto bias = args[2];
+
+        auto mean = prog.add_instruction(op::reduce_mean{{2,3}}, x);
+        auto l0 = add_broadcastable_binary_op(x, mean, op::sqdiff{});
+        auto variance = prog.add_instruction(op::reduce_mean{{2,3}}, l0);
+        auto l1 = add_broadcastable_binary_op(x, variance, op::sub{});
+        auto epsilon_literal = prog.add_literal(epsilon);
+        auto l2 = add_broadcastable_binary_op(variance, epsilon_literal, op::add{});
+        auto l3 = prog.add_instruction(op::rsqrt{}, l2);
+        auto l4 = add_broadcastable_binary_op(l1, l3, op::mul{});
+        auto l5 = add_broadcastable_binary_op(l4, scale, op::mul{});
+        return add_broadcastable_binary_op(l5, bias, op::add{});
     }
 
     instruction_ref parse_leaky_relu(const std::string&,

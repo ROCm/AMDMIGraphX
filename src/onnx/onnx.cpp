@@ -805,17 +805,23 @@ struct onnx_parser
         auto x     = args[0];
         auto scale = args[1];
         auto bias  = args[2];
+        auto dims  = x->get_shape().lens();
 
         auto mean            = prog.add_instruction(op::reduce_mean{{2, 3}}, x);
-        auto l0              = add_broadcastable_binary_op(x, mean, op::sqdiff{});
+        auto mean_bcast      = prog.add_instruction(op::multibroadcast{dims}, mean);
+        auto l0              = prog.add_instruction(op::sqdiff{}, x, mean_bcast);
         auto variance        = prog.add_instruction(op::reduce_mean{{2, 3}}, l0);
-        auto l1              = add_broadcastable_binary_op(x, variance, op::sub{});
+        auto l1              = prog.add_instruction(op::sub{}, x, mean_bcast);
         auto epsilon_literal = prog.add_literal(epsilon);
-        auto l2              = add_broadcastable_binary_op(variance, epsilon_literal, op::add{});
+        auto epsilon_bcast   = prog.add_instruction(op::multibroadcast{dims}, epsilon_literal);
+        auto variance_bcast  = prog.add_instruction(op::multibroadcast{dims}, variance);
+        auto l2              = prog.add_instruction(op::add{}, variance_bcast, epsilon_bcast);
         auto l3              = prog.add_instruction(op::rsqrt{}, l2);
-        auto l4              = add_broadcastable_binary_op(l1, l3, op::mul{});
-        auto l5              = add_broadcastable_binary_op(l4, scale, op::mul{});
-        return add_broadcastable_binary_op(l5, bias, op::add{});
+        auto l4              = prog.add_instruction(op::mul{}, l1, l3);
+        auto scale_bcast     = prog.add_instruction(op::multibroadcast{dims}, scale);
+        auto bias_bcast      = prog.add_instruction(op::multibroadcast{dims}, bias);
+        auto l5              = prog.add_instruction(op::mul{}, l4, scale_bcast);
+        return prog.add_instruction(op::add{}, l5, bias_bcast);
     }
 
     instruction_ref parse_leaky_relu(const std::string&,

@@ -908,16 +908,6 @@ def instance_norm_test():
     scale = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1])
     bias = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1])
     y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1, 1, 3, 3])
-    # scale_val = np.ones((1))
-    # bias_val = np.zeros((0))
-    # scale = helper.make_tensor(name='scale',
-    #                            data_type=TensorProto.FLOAT,
-    #                            dims=scale_val.shape,
-    #                            vals=scale_val.flatten().astype(np.float))
-    # bias = helper.make_tensor(name='bias',
-    #                            data_type=TensorProto.FLOAT,
-    #                            dims=bias_val.shape,
-    #                            vals=bias_val.flatten().astype(np.float))
 
     node = onnx.helper.make_node('InstanceNormalization',
                                  inputs=['0', '1', '2'],

@@ -576,6 +576,58 @@ TEST_CASE(batch_norm_inference_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+TEST_CASE(instance_norm_test)
+{
+    migraphx::program p;
+    std::vector<float> x_data = {0, 1, 2, 3, 4, 5, 6, 7, 8};
+    std::vector<float> scale_data = {1};
+    std::vector<float> bias_data = {0};
+    migraphx::shape s1{migraphx::shape::float_type, {1, 1, 3, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {1}};
+
+
+    auto x = p.add_literal(migraphx::literal{s1, x_data});
+    auto scale = p.add_literal(migraphx::literal{s2, scale_data});
+    auto bias = p.add_literal(migraphx::literal{s2, bias_data});
+
+    auto mean            = p.add_instruction(migraphx::op::reduce_mean{{2, 3}}, x);
+    auto mean_bcast = p.add_instruction(migraphx::op::multibroadcast{{1, 1, 3, 3}}, mean);
+    auto l0 =             p.add_instruction(migraphx::op::sqdiff{}, x, mean_bcast);
+    auto variance        = p.add_instruction(migraphx::op::reduce_mean{{2, 3}}, l0);
+    auto l1              = p.add_instruction(migraphx::op::sub{}, x, mean_bcast);
+    auto epsilon_literal = p.add_literal(1e-5f);
+    auto epsilon_bcast = p.add_instruction(migraphx::op::multibroadcast{{1, 1, 3, 3}}, epsilon_literal);
+    auto variance_bcast = p.add_instruction(migraphx::op::multibroadcast{{1, 1, 3, 3}}, variance);
+    auto l2              = p.add_instruction(migraphx::op::add{}, variance_bcast, epsilon_bcast);
+    auto l3              = p.add_instruction(migraphx::op::rsqrt{}, l2);
+    auto l4              = p.add_instruction(migraphx::op::mul{}, l1, l3);
+    auto scale_bcast = p.add_instruction(migraphx::op::multibroadcast{{1, 1, 3, 3}}, scale);
+    auto bias_bcast = p.add_instruction(migraphx::op::multibroadcast{{1, 1, 3, 3}}, bias);
+    auto l5              = p.add_instruction(migraphx::op::mul{}, l4, scale_bcast);
+    p.add_instruction(migraphx::op::add{}, l5, bias_bcast);
+
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> result_vector(9);
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {-1.54919218,
+                               -1.16189413,
+                               -0.77459609,
+                               -0.38729804,
+                               0,
+                               0.38729804,
+                               0.77459609,
+                               1.16189413,
+                               1.16189413 
+                                };
+    for (auto i : result_vector)
+    {
+        std::cout << i << std::endl;
+    }
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 TEST_CASE(im2col_3x3_with_channels_identity_test)
 {
     std::size_t f[2]    = {3, 3};

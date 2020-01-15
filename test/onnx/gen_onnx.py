@@ -904,10 +904,10 @@ def initializer_not_an_input():
 
 @onnx_test
 def instance_norm_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1,1,3,3])
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 1, 3, 3])
     scale = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1])
     bias = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1])
-    y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1,1,3,3])
+    y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1, 1, 3, 3])
     # scale_val = np.ones((1))
     # bias_val = np.zeros((0))
     # scale = helper.make_tensor(name='scale',
@@ -918,14 +918,13 @@ def instance_norm_test():
     #                            data_type=TensorProto.FLOAT,
     #                            dims=bias_val.shape,
     #                            vals=bias_val.flatten().astype(np.float))
-    
-    node = onnx.helper.make_node(
-        'InstanceNormalization',
-        inputs=['0', '1', '2'],
-        outputs=['3']
-    )
+
+    node = onnx.helper.make_node('InstanceNormalization',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['3'])
 
     return ([node], [x, scale, bias], [y])
+
 
 @onnx_test
 def leaky_relu_test():

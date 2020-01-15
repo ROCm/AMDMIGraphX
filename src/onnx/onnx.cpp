@@ -789,8 +789,9 @@ struct onnx_parser
         return prog.add_instruction(op, std::move(args));
     }
 
-    instruction_ref
-    parse_instancenorm(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_instancenorm(const std::string&,
+                                       attribute_map attributes,
+                                       std::vector<instruction_ref> args)
     {
         // y = scale * ( x - mean ) / sqrt ( variance + epsilon ) + bias
         // mean = reduce_mean({H, W}, x)
@@ -801,19 +802,19 @@ struct onnx_parser
         {
             epsilon = parse_value(attributes.at("epsilon")).at<float>();
         }
-        auto x = args[0];
+        auto x     = args[0];
         auto scale = args[1];
-        auto bias = args[2];
+        auto bias  = args[2];
 
-        auto mean = prog.add_instruction(op::reduce_mean{{2,3}}, x);
-        auto l0 = add_broadcastable_binary_op(x, mean, op::sqdiff{});
-        auto variance = prog.add_instruction(op::reduce_mean{{2,3}}, l0);
-        auto l1 = add_broadcastable_binary_op(x, variance, op::sub{});
+        auto mean            = prog.add_instruction(op::reduce_mean{{2, 3}}, x);
+        auto l0              = add_broadcastable_binary_op(x, mean, op::sqdiff{});
+        auto variance        = prog.add_instruction(op::reduce_mean{{2, 3}}, l0);
+        auto l1              = add_broadcastable_binary_op(x, variance, op::sub{});
         auto epsilon_literal = prog.add_literal(epsilon);
-        auto l2 = add_broadcastable_binary_op(variance, epsilon_literal, op::add{});
-        auto l3 = prog.add_instruction(op::rsqrt{}, l2);
-        auto l4 = add_broadcastable_binary_op(l1, l3, op::mul{});
-        auto l5 = add_broadcastable_binary_op(l4, scale, op::mul{});
+        auto l2              = add_broadcastable_binary_op(variance, epsilon_literal, op::add{});
+        auto l3              = prog.add_instruction(op::rsqrt{}, l2);
+        auto l4              = add_broadcastable_binary_op(l1, l3, op::mul{});
+        auto l5              = add_broadcastable_binary_op(l4, scale, op::mul{});
         return add_broadcastable_binary_op(l5, bias, op::add{});
     }
 

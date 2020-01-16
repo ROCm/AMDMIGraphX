@@ -413,8 +413,8 @@ TEST_CASE(cosh_test)
 TEST_CASE(deconv_test)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 1, 3, 3}});
-    auto l1 = p.add_parameter("1", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
     p.add_instruction(migraphx::op::deconvolution{}, l0, l1);
 
     auto prog = optimize_onnx("deconv_test.onnx");
@@ -424,9 +424,9 @@ TEST_CASE(deconv_test)
 TEST_CASE(deconv_bias_test)
 {
     migraphx::program p;
-    auto l0       = p.add_parameter("0", {migraphx::shape::float_type, {1, 1, 3, 3}});
-    auto l1       = p.add_parameter("1", {migraphx::shape::float_type, {1, 1, 3, 3}});
-    auto l2       = p.add_parameter("2", {migraphx::shape::float_type, {1}});
+    auto l0       = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto l1       = p.add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto l2       = p.add_parameter("b", {migraphx::shape::float_type, {1}});
     uint64_t axis = 1;
     auto l3       = p.add_instruction(migraphx::op::deconvolution{}, l0, l1);
     auto l4       = p.add_instruction(migraphx::op::broadcast{axis, l3->get_shape().lens()}, l2);
@@ -439,8 +439,8 @@ TEST_CASE(deconv_bias_test)
 TEST_CASE(deconv_input_pads_strides_test)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 1, 3, 3}});
-    auto l1 = p.add_parameter("1", {migraphx::shape::float_type, {1, 2, 3, 3}});
+    auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     p.add_instruction(migraphx::op::deconvolution{{1, 1}, {3, 2}}, l0, l1);
 
     auto prog = optimize_onnx("deconv_input_pads_strides_test.onnx");
@@ -450,8 +450,8 @@ TEST_CASE(deconv_input_pads_strides_test)
 TEST_CASE(deconv_input_pads_asymm_test)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 1, 3, 3}});
-    auto l1 = p.add_parameter("1", {migraphx::shape::float_type, {1, 2, 3, 3}});
+    auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     auto l2 = p.add_instruction(migraphx::op::deconvolution{{1, 1}, {3, 2}}, l0, l1);
     p.add_instruction(migraphx::op::slice{{0, 1, 2, 3}, {0, 0, 0, 0}, {1, 2, 8, 6}}, l2);
 
@@ -462,8 +462,8 @@ TEST_CASE(deconv_input_pads_asymm_test)
 TEST_CASE(deconv_output_shape_test)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 1, 3, 3}});
-    auto l1 = p.add_parameter("1", {migraphx::shape::float_type, {1, 2, 3, 3}});
+    auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     auto l2 = p.add_instruction(migraphx::op::deconvolution{{1, 1}, {3, 2}}, l0, l1);
     p.add_instruction(migraphx::op::pad{{0, 0, 0, 0, 0, 0, 1, 1}}, l2);
 
@@ -474,8 +474,8 @@ TEST_CASE(deconv_output_shape_test)
 TEST_CASE(deconv_output_padding_test)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 1, 3, 3}});
-    auto l1 = p.add_parameter("1", {migraphx::shape::float_type, {1, 2, 3, 3}});
+    auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     auto l2 = p.add_instruction(migraphx::op::deconvolution{{1, 1}, {3, 2}}, l0, l1);
     p.add_instruction(migraphx::op::pad{{0, 0, 0, 0, 0, 0, 1, 1}}, l2);
 

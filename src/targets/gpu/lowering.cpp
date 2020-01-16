@@ -41,6 +41,9 @@
 #include <migraphx/gpu/asin.hpp>
 #include <migraphx/gpu/acos.hpp>
 #include <migraphx/gpu/atan.hpp>
+#include <migraphx/gpu/asinh.hpp>
+#include <migraphx/gpu/acosh.hpp>
+#include <migraphx/gpu/atanh.hpp>
 #include <migraphx/gpu/mul.hpp>
 #include <migraphx/gpu/max.hpp>
 #include <migraphx/gpu/min.hpp>
@@ -119,6 +122,9 @@ struct miopen_apply
         add_generic_op<hip_asin>("asin");
         add_generic_op<hip_acos>("acos");
         add_generic_op<hip_atan>("atan");
+        add_generic_op<hip_asinh>("asinh");
+        add_generic_op<hip_acosh>("acosh");
+        add_generic_op<hip_atanh>("atanh");
         add_generic_op<hip_sqrt>("sqrt");
         add_generic_op<hip_mul>("mul");
         add_generic_op<hip_div>("div");

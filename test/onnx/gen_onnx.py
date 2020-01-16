@@ -918,30 +918,29 @@ def instance_norm_test():
 
 @onnx_test
 def instance_norm_val_test():
-    x = np.array([[[[0, 1, 2],
-                        [3, 4, 5],
-                        [6, 7, 8]]]])
+    x = np.array([[[[0, 1, 2], [3, 4, 5], [6, 7, 8]]]])
     scale = np.array([1])
     bias = np.array([0])
 
     x_tensor = helper.make_tensor(name='x_tensor',
-                           data_type=TensorProto.FLOAT,
-                           dims=x.shape,
-                           vals=x.flatten().astype(np.float))
+                                  data_type=TensorProto.FLOAT,
+                                  dims=x.shape,
+                                  vals=x.flatten().astype(np.float))
     scale_tensor = helper.make_tensor(name='scale_tensor',
-                           data_type=TensorProto.FLOAT,
-                           dims=scale.shape,
-                           vals=scale.flatten().astype(np.float))
+                                      data_type=TensorProto.FLOAT,
+                                      dims=scale.shape,
+                                      vals=scale.flatten().astype(np.float))
     bias_tensor = helper.make_tensor(name='bias_tensor',
-                           data_type=TensorProto.FLOAT,
-                           dims=bias.shape,
-                           vals=bias.flatten().astype(np.float))
+                                     data_type=TensorProto.FLOAT,
+                                     dims=bias.shape,
+                                     vals=bias.flatten().astype(np.float))
 
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 3, 3])
 
-    node = onnx.helper.make_node('InstanceNormalization',
-                                 inputs=['x_tensor', 'scale_tensor', 'bias_tensor'],
-                                 outputs=['y'])
+    node = onnx.helper.make_node(
+        'InstanceNormalization',
+        inputs=['x_tensor', 'scale_tensor', 'bias_tensor'],
+        outputs=['y'])
 
     return ([node], [], [y], [x_tensor, scale_tensor, bias_tensor])
 

@@ -18,17 +18,9 @@ TEST_CASE(instance_norm_test)
     std::vector<float> result_vector(9);
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {-1.54919,
-                               -1.16189,
-                               -0.774596,
-                               -0.387298,
-                               0,
-                               0.387298,
-                               0.774596,
-                               1.16189,
-                               1.54919};
+    std::vector<float> gold = {
+        -1.54919, -1.16189, -0.774596, -0.387298, 0, 0.387298, 0.774596, 1.16189, 1.54919};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }
-

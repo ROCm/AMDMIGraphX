@@ -469,7 +469,7 @@ struct test_acosh : verify_program<test_acosh>
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {16}};
-        auto x = p.add_parameter("x", s);
+        auto x  = p.add_parameter("x", s);
         auto cx = p.add_instruction(migraphx::op::clip{100.0f, 1.1f}, x);
         p.add_instruction(migraphx::op::acosh{}, cx);
         return p;
@@ -482,7 +482,7 @@ struct test_atanh : verify_program<test_atanh>
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::double_type, {16}};
-        auto x = p.add_parameter("x", s);
+        auto x  = p.add_parameter("x", s);
         auto cx = p.add_instruction(migraphx::op::clip{0.95f, -0.95f}, x);
         p.add_instruction(migraphx::op::atanh{}, cx);
         return p;

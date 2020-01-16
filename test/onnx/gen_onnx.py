@@ -37,6 +37,7 @@ def acos_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def acosh_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
@@ -49,7 +50,6 @@ def acosh_test():
     )
 
     return ([node], [x], [y])
-
 
 
 @onnx_test
@@ -143,6 +143,7 @@ def asin_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def asinh_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
@@ -156,6 +157,7 @@ def asinh_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def atan_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
@@ -168,6 +170,7 @@ def atan_test():
     )
 
     return ([node], [x], [y])
+
 
 @onnx_test
 def atanh_test():
@@ -610,6 +613,7 @@ def conv_relu_maxpool_x2_test():
 
     return ([node1, node2, node3, node4, node5, node6], [x, y, z, m, n], [out])
 
+
 @onnx_test
 def convinteger_bias_test():
     x = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 3, 32, 32])
@@ -624,7 +628,6 @@ def convinteger_bias_test():
                                  strides=[1, 1])
 
     return ([node], [x, y, z], [out])
-
 
 
 @onnx_test
@@ -1101,6 +1104,7 @@ def matmul_vv_test():
     )
 
     return ([node], [m1, m2], [y])
+
 
 @onnx_test
 def matmulinteger_test():

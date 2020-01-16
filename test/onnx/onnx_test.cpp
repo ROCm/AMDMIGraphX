@@ -805,7 +805,7 @@ TEST_CASE(matmul_vbm_test)
     auto l1   = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {5, 7, 8}});
     auto sl0  = p.add_instruction(migraphx::op::unsqueeze{{0}}, l0);
     auto bsl0 = p.add_instruction(migraphx::op::multibroadcast{{5, 1, 7}}, sl0);
-    auto res = p.add_instruction(migraphx::op::dot{1.0f, 0.0f}, bsl0, l1);
+    auto res  = p.add_instruction(migraphx::op::dot{1.0f, 0.0f}, bsl0, l1);
     p.add_instruction(migraphx::op::squeeze{{1}}, res);
 
     auto prog = optimize_onnx("matmul_vbm_test.onnx");
@@ -846,8 +846,8 @@ TEST_CASE(matmul_vv_test)
 TEST_CASE(matmulinteger_test)
 {
     migraphx::program p;
-    auto l0  = p.add_parameter("1", migraphx::shape{migraphx::shape::int8_type, {3, 6, 16}});
-    auto l1  = p.add_parameter("2", migraphx::shape{migraphx::shape::int8_type, {3, 16, 8}});
+    auto l0 = p.add_parameter("1", migraphx::shape{migraphx::shape::int8_type, {3, 6, 16}});
+    auto l1 = p.add_parameter("2", migraphx::shape{migraphx::shape::int8_type, {3, 16, 8}});
     p.add_instruction(migraphx::op::quant_dot{1, 0}, l0, l1);
 
     auto prog = optimize_onnx("matmulinteger_test.onnx");

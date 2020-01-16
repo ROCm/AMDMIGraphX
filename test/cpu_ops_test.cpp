@@ -819,7 +819,7 @@ TEST_CASE(atanh_test)
     auto result = p.eval({});
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0.476664424,  0.728852153,  0.328261733};
+    std::vector<float> gold = {0.476664424, 0.728852153, 0.328261733};
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 

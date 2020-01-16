@@ -64,7 +64,6 @@ struct onnx_parser
         add_generic_op("Tan", op::tan{});
         add_generic_op("Tanh", op::tanh{});
 
-
         add_binary_op("Add", op::add{});
         add_binary_op("Div", op::div{});
         add_binary_op("Mul", op::mul{});
@@ -392,7 +391,7 @@ struct onnx_parser
         return ins;
     }
 
-    template<class Op>
+    template <class Op>
     instruction_ref
     parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
@@ -708,7 +707,7 @@ struct onnx_parser
         return prog.add_instruction(op::dot{alpha, beta}, l1, l2);
     }
 
-    template<class Op>
+    template <class Op>
     instruction_ref
     parse_matmul(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {

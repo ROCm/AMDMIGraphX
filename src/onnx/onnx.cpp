@@ -270,6 +270,13 @@ struct onnx_parser
         });
     }
 
+    template <class T>
+    std::vector<int64_t> to_int64_vector(std::vector<T> input_vector)
+    {
+        std::vector<int64_t> output_vector(input_vector.begin(), input_vector.end());
+        return output_vector;
+    }
+
     instruction_ref parse_clip(const std::string&,
                                const attribute_map& attributes,
                                std::vector<instruction_ref> args)
@@ -522,16 +529,14 @@ struct onnx_parser
             return prog.add_instruction(op::add{}, l1, l2);
         }
         auto l1                  = prog.add_instruction(op, l0, args[1]);
-        std::vector<size_t> dims = l1->get_shape().lens();
-        std::vector<int64_t> curr_shape{static_cast<int64_t>(dims[2]),
-                                        static_cast<int64_t>(dims[3])};
+        std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
+        std::vector<int64_t> curr_shape{dims[2], dims[3]};
         if(asymm_padding)
         {
             op::slice slice_op;
             slice_op.axes   = {0, 1, 2, 3};
             slice_op.starts = {0, 0, 0 + padding[0], 0 + padding[1]};
-            slice_op.ends   = {static_cast<int64_t>(dims[0]),
-                             static_cast<int64_t>(dims[1]),
+            slice_op.ends   = {dims[0],dims[1],
                              curr_shape[0] - padding[2],
                              curr_shape[1] - padding[3]};
 
@@ -550,8 +555,8 @@ struct onnx_parser
         {
             std::vector<int64_t> output_shape;
             copy(attributes["output_shape"].ints(), std::back_inserter(output_shape));
-            dims       = l1->get_shape().lens();
-            curr_shape = {static_cast<int64_t>(dims[2]), static_cast<int64_t>(dims[3])};
+            dims       = to_int64_vector(l1->get_shape().lens());
+            curr_shape = {dims[2], dims[3]};
             if(curr_shape != output_shape)
             {
                 std::vector<int64_t> target_padding = {0,

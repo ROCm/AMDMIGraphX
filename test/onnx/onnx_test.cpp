@@ -38,6 +38,17 @@ TEST_CASE(acos_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(acosh_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::acosh{}, input);
+
+    auto prog = optimize_onnx("acosh_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(add_bcast_test)
 {
     migraphx::program p;
@@ -109,6 +120,17 @@ TEST_CASE(asin_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(asinh_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::asinh{}, input);
+
+    auto prog = optimize_onnx("asinh_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(atan_test)
 {
     migraphx::program p;
@@ -116,6 +138,17 @@ TEST_CASE(atan_test)
     p.add_instruction(migraphx::op::atan{}, input);
 
     auto prog = optimize_onnx("atan_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(atanh_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10}});
+    p.add_instruction(migraphx::op::atanh{}, input);
+
+    auto prog = optimize_onnx("atanh_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -386,6 +419,21 @@ TEST_CASE(conv_relu_maxpool_x2_test)
 
     auto prog = optimize_onnx("conv_relu_maxpool_x2_test.onnx");
 
+    EXPECT(p == prog);
+}
+
+TEST_CASE(convinteger_bias_test)
+{
+    migraphx::program p;
+    auto l0       = p.add_parameter("0", {migraphx::shape::int8_type, {1, 3, 32, 32}});
+    auto l1       = p.add_parameter("1", {migraphx::shape::int8_type, {1, 3, 5, 5}});
+    auto l2       = p.add_parameter("2", {migraphx::shape::int32_type, {1}});
+    uint64_t axis = 1;
+    auto l3       = p.add_instruction(migraphx::op::quant_convolution{}, l0, l1);
+    auto l4       = p.add_instruction(migraphx::op::broadcast{axis, l3->get_shape().lens()}, l2);
+    p.add_instruction(migraphx::op::add{}, l3, l4);
+
+    auto prog = optimize_onnx("convinteger_bias_test.onnx");
     EXPECT(p == prog);
 }
 
@@ -757,9 +805,7 @@ TEST_CASE(matmul_vbm_test)
     auto l1   = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {5, 7, 8}});
     auto sl0  = p.add_instruction(migraphx::op::unsqueeze{{0}}, l0);
     auto bsl0 = p.add_instruction(migraphx::op::multibroadcast{{5, 1, 7}}, sl0);
-    std::cout << "ONNX_TEST" << std::endl;
     auto res = p.add_instruction(migraphx::op::dot{1.0f, 0.0f}, bsl0, l1);
-    std::cout << "After Dot" << std::endl;
     p.add_instruction(migraphx::op::squeeze{{1}}, res);
 
     auto prog = optimize_onnx("matmul_vbm_test.onnx");
@@ -793,6 +839,18 @@ TEST_CASE(matmul_vv_test)
     p.add_instruction(migraphx::op::squeeze{{0}}, sr0);
 
     auto prog = optimize_onnx("matmul_vv_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(matmulinteger_test)
+{
+    migraphx::program p;
+    auto l0  = p.add_parameter("1", migraphx::shape{migraphx::shape::int8_type, {3, 6, 16}});
+    auto l1  = p.add_parameter("2", migraphx::shape{migraphx::shape::int8_type, {3, 16, 8}});
+    p.add_instruction(migraphx::op::quant_dot{1, 0}, l0, l1);
+
+    auto prog = optimize_onnx("matmulinteger_test.onnx");
 
     EXPECT(p == prog);
 }

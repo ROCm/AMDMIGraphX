@@ -79,5 +79,4 @@ target get_target(std::string name)
 
 } // namespace migraphx
 
-
 <% generate_c_api_body() %>

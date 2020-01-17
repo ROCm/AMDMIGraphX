@@ -9,8 +9,10 @@ try_wrap = ''
 c_header_preamble = []
 c_api_body_preamble = []
 
+
 def bad_param_error(msg):
     return 'throw std::runtime_error("{}")'.format(msg)
+
 
 class Type:
     def __init__(self, name):
@@ -28,12 +30,11 @@ class Type:
     def add_pointer(self):
         return Type(self.name + '*')
 
-
     def inner_type(self):
         i = self.name.find('<')
         j = self.name.rfind('>')
         if i > 0 and j > 0:
-            return Type(self.name[i+1:j])
+            return Type(self.name[i + 1:j])
         else:
             return None
 
@@ -80,6 +81,7 @@ extern "C" ${error_type} ${name}(${params})
 }
 ''')
 
+
 class CFunction:
     def __init__(self, name):
         self.name = name
@@ -93,12 +95,11 @@ class CFunction:
         self.body.append(stmt)
 
     def substitute(self, form):
-        return form.substitute(error_type=error_type, 
-                            try_wrap=try_wrap, 
-                            name=self.name, 
-                            params=', '.join(self.params),
-                            body=";\n        ".join(self.body)
-                        )
+        return form.substitute(error_type=error_type,
+                               try_wrap=try_wrap,
+                               name=self.name,
+                               params=', '.join(self.params),
+                               body=";\n        ".join(self.body))
 
     def generate_header(self):
         return self.substitute(header_function)
@@ -106,10 +107,12 @@ class CFunction:
     def generate_body(self):
         return self.substitute(c_api_impl)
 
+
 class BadParam:
     def __init__(self, cond, msg):
         self.cond = cond
         self.msg = msg
+
 
 class Parameter:
     def __init__(self, name, type, optional=False, returns=False):
@@ -125,7 +128,10 @@ class Parameter:
         self.bad_param_check = None
 
     def substitute(self, s, result=None):
-        return string.Template(s).safe_substitute(name=self.name, type=self.type.str(), size=self.size_name, result=result or '')
+        return string.Template(s).safe_substitute(name=self.name,
+                                                  type=self.type.str(),
+                                                  size=self.size_name,
+                                                  result=result or '')
 
     def add_param(self, t, name=None):
         if not isinstance(t, str):
@@ -164,7 +170,8 @@ class Parameter:
             else:
                 self.add_param(self.type.remove_reference())
         if isinstance(self.write, str):
-            raise ValueError("Error for {}: write cannot be a string".format(self.type.str()))
+            raise ValueError("Error for {}: write cannot be a string".format(
+                self.type.str()))
 
     def input(self):
         return '(' + self.substitute(self.read) + ')'
@@ -176,24 +183,38 @@ class Parameter:
         for t, name in self.cparams:
             cfunction.add_param(self.substitute(t), self.substitute(name))
         if self.bad_param_check:
-            msg = 'Bad parameter {name}: {msg}'.format(name=self.name, msg=self.bad_param_check.msg)
-            cfunction.add_statement('if ({cond}) {body}'.format(cond=self.substitute(self.bad_param_check.cond), body=bad_param_error(msg)))
+            msg = 'Bad parameter {name}: {msg}'.format(
+                name=self.name, msg=self.bad_param_check.msg)
+            cfunction.add_statement('if ({cond}) {body}'.format(
+                cond=self.substitute(self.bad_param_check.cond),
+                body=bad_param_error(msg)))
+
 
 def template_var(s):
     return '${' + s + '}'
 
+
 def to_template_vars(params):
     return ', '.join([template_var(p.name) for p in params])
 
+
 class Function:
-    def __init__(self, name, params=None, shared_size=False, returns=None, invoke=None, return_name=None, **kwargs):
+    def __init__(self,
+                 name,
+                 params=None,
+                 shared_size=False,
+                 returns=None,
+                 invoke=None,
+                 return_name=None,
+                 **kwargs):
         self.name = name
         self.params = params or []
         self.shared_size = False
         self.cfunction = None
         self.invoke = invoke
         self.return_name = return_name or 'out'
-        self.returns = Parameter(self.return_name, returns, returns=True) if returns else None
+        self.returns = Parameter(self.return_name, returns,
+                                 returns=True) if returns else None
 
     def share_params(self):
         if self.shared_size == True:
@@ -223,7 +244,8 @@ class Function:
         return string.Template(self.invoke).safe_substitute(self.input_map())
 
     def write_to_tmp_var(self):
-        return len(self.returns.write) > 1 or self.returns.write[0].count('${result}') > 1
+        return len(self.returns.write) > 1 or self.returns.write[0].count(
+            '${result}') > 1
 
     def create_cfunction(self):
         self.cfunction = CFunction(self.name)
@@ -258,8 +280,10 @@ def params(virtual=None, **kwargs):
         result.append(Parameter(name, kwargs[name]))
     return result
 
+
 def add_function(name, *args, **kwargs):
     functions.append(Function(name, *args, **kwargs))
+
 
 def once(f):
     @wraps(f)
@@ -267,34 +291,45 @@ def once(f):
         if not decorated.has_run:
             decorated.has_run = True
             return f(*args, **kwargs)
+
     decorated.has_run = False
     return decorated
+
 
 @once
 def process_functions():
     for f in functions:
         f.update()
 
+
 def generate_lines(p):
     return '\n'.join(p)
 
+
 def generate_c_header():
     process_functions()
-    return generate_lines(c_header_preamble + [f.cfunction.generate_header() for f in functions])
+    return generate_lines(c_header_preamble +
+                          [f.cfunction.generate_header() for f in functions])
 
 
 def generate_c_api_body():
     process_functions()
-    return generate_lines(c_api_body_preamble + [f.cfunction.generate_body() for f in functions])
+    return generate_lines(c_api_body_preamble +
+                          [f.cfunction.generate_body() for f in functions])
+
 
 def cwrap(name):
     def with_cwrap(f):
         type_map[name] = f
+
         @wraps(f)
         def decorated(*args, **kwargs):
             return f(*args, **kwargs)
+
         return decorated
+
     return with_cwrap
+
 
 handle_template = string.Template('''
 typedef struct
@@ -316,9 +351,11 @@ const T* object_cast(const void* x)
 }
 '''
 
+
 @once
 def add_handle_preamble():
     c_api_body_preamble.append(handle_preamble)
+
 
 def add_handle(name, ctype, cpptype, destroy=None):
     def handle_wrap(p):
@@ -333,10 +370,15 @@ def add_handle(name, ctype, cpptype, destroy=None):
             p.add_param(ctype)
             p.bad_param('${name}.handle == nullptr', 'Null pointer')
             p.read = '*object_cast<${type}>(${name}.handle)'
+
     type_map[cpptype] = handle_wrap
-    add_function(destroy or ctype + '_' + 'destroy', params({name: ctype}), invoke='delete object_cast<{ctype}>({name}.handle)'.format(ctype=ctype, name=name))
+    add_function(destroy or ctype + '_' + 'destroy',
+                 params({name: ctype}),
+                 invoke='delete object_cast<{ctype}>({name}.handle)'.format(
+                     ctype=ctype, name=name))
     c_header_preamble.append(handle_template.substitute(name=ctype))
     add_handle_preamble()
+
 
 @cwrap('std::vector')
 def vector_c_wrap(p):
@@ -345,17 +387,23 @@ def vector_c_wrap(p):
         if p.type.is_reference():
             p.add_param(t.add_pointer())
             p.add_size_param()
-            p.bad_param('${name} == nullptr or ${size} == nullptr', 'Null pointer')
-            p.write = ['*${name} = ${result}.data()', '*${size} = ${result}.size()']
+            p.bad_param('${name} == nullptr or ${size} == nullptr',
+                        'Null pointer')
+            p.write = [
+                '*${name} = ${result}.data()', '*${size} = ${result}.size()'
+            ]
         else:
             p.add_param(t)
             p.bad_param('${name} == nullptr', 'Null pointer')
-            p.write = ['std::copy(${result}.begin(), ${result}.end(), ${name})']
+            p.write = [
+                'std::copy(${result}.begin(), ${result}.end(), ${name})'
+            ]
     else:
         p.add_param(t)
         p.add_size_param()
         p.bad_param('${name} == nullptr', 'Null pointer')
         p.read = '${type}(${name}, ${name}+${size})'
+
 
 class Handle:
     def __init__(self, name, ctype, cpptype):
@@ -367,35 +415,42 @@ class Handle:
     def cname(self, name):
         return self.ctype + '_' + name
 
-    def constructor(self, name, params=None, fname=None, invoke=None, **kwargs):
+    def constructor(self, name, params=None, fname=None, invoke=None,
+                    **kwargs):
         args = to_template_vars(params or [])
-        create = 'new {cpptype}({args})'.format(cpptype=self.cpptype, args=args)
+        create = 'new {cpptype}({args})'.format(cpptype=self.cpptype,
+                                                args=args)
         if fname:
-            create = 'new {cpptype}({fname}({args}))'.format(cpptype=self.cpptype, args=args, fname=fname)
+            create = 'new {cpptype}({fname}({args}))'.format(
+                cpptype=self.cpptype, args=args, fname=fname)
 
-        add_function(self.cname(name), 
-                    params=params, 
-                    invoke=invoke or create, 
-                    returns=self.cpptype,
-                    return_name=self.name,
-                    **kwargs)
+        add_function(self.cname(name),
+                     params=params,
+                     invoke=invoke or create,
+                     returns=self.cpptype,
+                     return_name=self.name,
+                     **kwargs)
         return self
 
     def method(self, name, params=None, fname=None, invoke=None, **kwargs):
         args = to_template_vars(params or [])
         p = Parameter(self.name, self.cpptype)
-        add_function(self.cname(name), 
-                    params=[p] + (params or []), 
-                    invoke=invoke or '{var}.{fname}({args})'.format(var=template_var(self.name), fname=fname or name, args=args), 
-                    **kwargs)
+        add_function(
+            self.cname(name),
+            params=[p] + (params or []),
+            invoke=invoke or '{var}.{fname}({args})'.format(
+                var=template_var(self.name), fname=fname or name, args=args),
+            **kwargs)
         return self
 
     def function(self, name, params=None, fname=None, invoke=None, **kwargs):
         args = to_template_vars(params or [])
-        add_function(self.cname(name), 
-                    params=params, 
-                    invoke=invoke or '{fname}({args})'.format(fname=fname or name, args=args), 
-                    **kwargs)
+        add_function(
+            self.cname(name),
+            params=params,
+            invoke=invoke
+            or '{fname}({args})'.format(fname=fname or name, args=args),
+            **kwargs)
         return self
 
 
@@ -404,10 +459,13 @@ def handle(ctype, cpptype, name=None):
         n = name or f.__name__
         h = Handle(n, ctype, cpptype)
         f(h)
+
         @wraps(f)
         def decorated(*args, **kwargs):
             return f(*args, **kwargs)
+
         return decorated
+
     return with_handle
 
 
@@ -423,6 +481,7 @@ def template_eval(template, **kwargs):
         template = template.replace(start + item + end, str(e))
     return template
 
+
 def run():
     runpy.run_path(sys.argv[1])
     if len(sys.argv) > 2:
@@ -432,6 +491,7 @@ def run():
     else:
         sys.stdout.write(generate_c_header())
         sys.stdout.write(generate_c_api_body())
+
 
 if __name__ == "__main__":
     sys.modules['api'] = sys.modules['__main__']

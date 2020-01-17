@@ -661,25 +661,29 @@ TEST_CASE(initializer_not_an_input)
 
 TEST_CASE(instance_norm_test)
 {
+    std::vector<size_t> dims{1, 2, 3, 3};
+    migraphx::shape s1{migraphx::shape::float_type, dims};
+    migraphx::shape s2{migraphx::shape::float_type, {2}};
+
     migraphx::program p;
-    auto x     = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
-    auto scale = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1}});
-    auto bias  = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1}});
+    auto x     = p.add_parameter("0", s1);
+    auto scale = p.add_parameter("1", s2);
+    auto bias  = p.add_parameter("2", s2);
 
     auto mean            = p.add_instruction(migraphx::op::reduce_mean{{2, 3}}, x);
-    auto mean_bcast      = p.add_instruction(migraphx::op::multibroadcast{{1, 1, 3, 3}}, mean);
+    auto mean_bcast      = p.add_instruction(migraphx::op::multibroadcast{dims}, mean);
     auto l0              = p.add_instruction(migraphx::op::sqdiff{}, x, mean_bcast);
     auto variance        = p.add_instruction(migraphx::op::reduce_mean{{2, 3}}, l0);
     auto l1              = p.add_instruction(migraphx::op::sub{}, x, mean_bcast);
     auto epsilon_literal = p.add_literal(1e-5f);
     auto epsilon_bcast =
-        p.add_instruction(migraphx::op::multibroadcast{{1, 1, 3, 3}}, epsilon_literal);
-    auto variance_bcast = p.add_instruction(migraphx::op::multibroadcast{{1, 1, 3, 3}}, variance);
+        p.add_instruction(migraphx::op::multibroadcast{dims}, epsilon_literal);
+    auto variance_bcast = p.add_instruction(migraphx::op::multibroadcast{dims}, variance);
     auto l2             = p.add_instruction(migraphx::op::add{}, variance_bcast, epsilon_bcast);
     auto l3             = p.add_instruction(migraphx::op::rsqrt{}, l2);
     auto l4             = p.add_instruction(migraphx::op::mul{}, l1, l3);
-    auto scale_bcast    = p.add_instruction(migraphx::op::multibroadcast{{1, 1, 3, 3}}, scale);
-    auto bias_bcast     = p.add_instruction(migraphx::op::multibroadcast{{1, 1, 3, 3}}, bias);
+    auto scale_bcast    = p.add_instruction(migraphx::op::broadcast{1, dims}, scale);
+    auto bias_bcast     = p.add_instruction(migraphx::op::broadcast{1, dims}, bias);
     auto l5             = p.add_instruction(migraphx::op::mul{}, l4, scale_bcast);
     p.add_instruction(migraphx::op::add{}, l5, bias_bcast);
 

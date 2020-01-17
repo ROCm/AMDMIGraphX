@@ -1637,9 +1637,9 @@ struct onnx_parser
             }
             else
             {
-                assert(node.output().size() <= result.size());
+                auto output_num = std::min<std::size_t>(node.output().size(), result.size());
                 std::transform(node.output().begin(),
-                               node.output().end(),
+                               node.output().begin() + output_num,
                                result.begin(),
                                std::inserter(instructions, instructions.end()),
                                [](auto&& x, auto&& y) { return std::make_pair(x, y); });

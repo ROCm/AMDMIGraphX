@@ -919,8 +919,8 @@ def instance_norm_test():
 @onnx_test
 def instance_norm_val_test():
     x = np.array([[[[0, 1, 2], [3, 4, 5], [6, 7, 8]],
-                    [[0, 1, 2], [3, 4, 5], [6, 7, 8]]]])
-    scale = np.array([1, 2] )
+                   [[0, 1, 2], [3, 4, 5], [6, 7, 8]]]])
+    scale = np.array([1, 2])
     bias = np.array([0, 1])
 
     x_tensor = helper.make_tensor(name='x_tensor',

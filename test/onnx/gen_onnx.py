@@ -918,9 +918,10 @@ def instance_norm_test():
 
 @onnx_test
 def instance_norm_val_test():
-    x = np.array([[[[0, 1, 2], [3, 4, 5], [6, 7, 8]]]])
-    scale = np.array([1])
-    bias = np.array([0])
+    x = np.array([[[[0, 1, 2], [3, 4, 5], [6, 7, 8]],
+                    [[0, 1, 2], [3, 4, 5], [6, 7, 8]]]])
+    scale = np.array([1, 2])
+    bias = np.array([0, 1])
 
     x_tensor = helper.make_tensor(name='x_tensor',
                                   data_type=TensorProto.FLOAT,
@@ -935,7 +936,7 @@ def instance_norm_val_test():
                                      dims=bias.shape,
                                      vals=bias.flatten().astype(np.float))
 
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 3, 3])
 
     node = onnx.helper.make_node(
         'InstanceNormalization',

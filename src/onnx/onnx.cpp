@@ -818,8 +818,8 @@ struct onnx_parser
         auto l2              = prog.add_instruction(op::add{}, variance_bcast, epsilon_bcast);
         auto l3              = prog.add_instruction(op::rsqrt{}, l2);
         auto l4              = prog.add_instruction(op::mul{}, l1, l3);
-        auto scale_bcast     = prog.add_instruction(op::multibroadcast{dims}, scale);
-        auto bias_bcast      = prog.add_instruction(op::multibroadcast{dims}, bias);
+        auto scale_bcast     = prog.add_instruction(op::broadcast{1, dims}, scale);;
+        auto bias_bcast      = prog.add_instruction(op::broadcast{1, dims}, bias);
         auto l5              = prog.add_instruction(op::mul{}, l4, scale_bcast);
         return prog.add_instruction(op::add{}, l5, bias_bcast);
     }

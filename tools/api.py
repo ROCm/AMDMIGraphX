@@ -72,7 +72,6 @@ class Type:
             return self.add_const()
         return self
 
-
     def str(self):
         return self.name
 
@@ -380,13 +379,16 @@ def add_handle_preamble():
 
 def add_handle(name, ctype, cpptype, destroy=None):
     opaque_type = ctype + '_t'
+
     def handle_wrap(p):
         t = Type(opaque_type)
         if p.type.is_const():
             t = Type('const_' + opaque_type)
         if p.returns:
+
             def write(x):
                 p.write = [x.replace('ctype', ctype)]
+
             p.add_param(t.add_pointer())
             if p.type.is_reference():
                 write('*${name} = object_cast<ctype>(&(${result}))')

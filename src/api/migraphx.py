@@ -49,7 +49,7 @@ def shape(h):
 
 @auto_handle
 def argument(h):
-    h.constructor('create', api.params(shape='migraphx::shape',
+    h.constructor('create', api.params(shape='const migraphx::shape&',
                                        buffer='void*'))
     h.method('shape', fname='get_shape', returns='const migraphx::shape&')
     h.method('buffer', fname='data', returns='char*')
@@ -68,6 +68,7 @@ def program_parameter_shapes(h):
     h.method('size', returns='size_t')
     h.method('get',
              api.params(name='const char*'),
+             fname='at',
              returns='const migraphx::shape&')
     h.method('names',
              invoke='migraphx::get_names(${program_parameter_shapes})',
@@ -93,4 +94,5 @@ def program(h):
     h.method('run',
              api.params(
                  params='std::unordered_map<std::string, migraphx::argument>'),
+             fname='eval',
              returns='migraphx::argument')

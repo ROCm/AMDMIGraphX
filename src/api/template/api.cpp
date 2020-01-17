@@ -78,6 +78,23 @@ target get_target(std::string name)
     return t;
 }
 
+migraphx::compile_options to_compile_options(const migraphx_compile_options& options)
+{
+    migraphx::compile_options result{};
+    result.offload_copy = options.offload_copy;
+    return result;
+}
+
+template<class Value>
+std::vector<const char*> get_names(const std::unordered_map<std::string, Value>& m)
+{
+    std::vector<const char*> result;
+    std::transform(m.begin(), m.end(), std::back_inserter(result), [](auto&& p) {
+        return p.first.c_str();
+    });
+    return result;
+}
+
 } // namespace migraphx
 
 <% generate_c_api_body() %>

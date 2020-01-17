@@ -86,7 +86,7 @@ migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out, migraphx_sha
 migraphx_status migraphx_argument_destroy(migraphx_argument_t argument);
 
 migraphx_status
-migraphx_argument_create(migraphx_argument_t* argument, migraphx_shape_t shape, void* buffer);
+migraphx_argument_create(migraphx_argument_t* argument, const_migraphx_shape_t shape, void* buffer);
 
 migraphx_status migraphx_argument_shape(const_migraphx_shape_t* out, migraphx_argument_t argument);
 

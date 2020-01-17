@@ -89,7 +89,7 @@ def program(h):
         'compile',
         api.params(target='migraphx::target',
                    options='migraphx::compile_options'))
-    h.method('parameter_shapes', fname='get_parameter_shapes')
+    h.method('get_parameter_shapes')
     h.method('run',
              api.params(
                  params='std::unordered_map<std::string, migraphx::argument>'),

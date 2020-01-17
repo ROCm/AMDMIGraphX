@@ -47,32 +47,37 @@ typedef enum {
 
 typedef struct
 {
-    void* handle
+    bool offload_copy;
+} migraphx_compile_options;
+
+typedef struct
+{
+    void* handle;
 } migraphx_shape;
 
 typedef struct
 {
-    void* handle
+    void* handle;
 } migraphx_argument;
 
 typedef struct
 {
-    void* handle
+    void* handle;
 } migraphx_target;
 
 typedef struct
 {
-    void* handle
+    void* handle;
 } migraphx_program_parameter_shapes;
 
 typedef struct
 {
-    void* handle
+    void* handle;
 } migraphx_program_parameters;
 
 typedef struct
 {
-    void* handle
+    void* handle;
 } migraphx_program;
 
 migraphx_status migraphx_shape_destroy(migraphx_shape shape);
@@ -82,9 +87,9 @@ migraphx_status migraphx_shape_create(migraphx_shape* shape,
                                       size_t* lengths,
                                       size_t lengths_size);
 
-migraphx_status migraphx_shape_lengths(size_t** out, size_t* out_size, migraphx_shape shape);
+migraphx_status migraphx_shape_lengths(const size_t** out, size_t* out_size, migraphx_shape shape);
 
-migraphx_status migraphx_shape_strides(size_t** out, size_t* out_size, migraphx_shape shape);
+migraphx_status migraphx_shape_strides(const size_t** out, size_t* out_size, migraphx_shape shape);
 
 migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out, migraphx_shape shape);
 
@@ -131,7 +136,7 @@ migraphx_status migraphx_program_compile(migraphx_program program,
                                          migraphx_target target,
                                          migraphx_compile_options* options);
 
-migraphx_status migraphx_program_parameter_shapes(migraphx_program program);
+migraphx_status migraphx_program_get_parameter_shapes(migraphx_program program);
 
 migraphx_status migraphx_program_run(migraphx_argument* out,
                                      migraphx_program program,

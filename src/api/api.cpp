@@ -75,6 +75,7 @@ target get_target(std::string name)
 #endif
     else
         MIGRAPHX_THROW(migraphx_status_unknown_target, "Unknown target: " + name);
+    return t;
 }
 
 } // namespace migraphx
@@ -111,7 +112,7 @@ extern "C" migraphx_status migraphx_shape_create(migraphx_shape* shape,
 }
 
 extern "C" migraphx_status
-migraphx_shape_lengths(size_t** out, size_t* out_size, migraphx_shape shape)
+migraphx_shape_lengths(const size_t** out, size_t* out_size, migraphx_shape shape)
 {
     return migraphx::try_([&] {
         if(out == nullptr or out_size == nullptr)
@@ -125,7 +126,7 @@ migraphx_shape_lengths(size_t** out, size_t* out_size, migraphx_shape shape)
 }
 
 extern "C" migraphx_status
-migraphx_shape_strides(size_t** out, size_t* out_size, migraphx_shape shape)
+migraphx_shape_strides(const size_t** out, size_t* out_size, migraphx_shape shape)
 {
     return migraphx::try_([&] {
         if(out == nullptr or out_size == nullptr)
@@ -174,7 +175,7 @@ extern "C" migraphx_status migraphx_argument_shape(migraphx_shape* out, migraphx
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
         if(argument.handle == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter argument: Null pointer");
-        out->handle = (*object_cast<migraphx::argument>(argument.handle)).get_shape();
+        out->handle = &((*object_cast<migraphx::argument>(argument.handle)).get_shape());
     });
 }
 
@@ -234,9 +235,9 @@ migraphx_program_parameter_shapes_get(migraphx_shape* out,
         if(program_parameter_shapes.handle == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param,
                            "Bad parameter program_parameter_shapes: Null pointer");
-        out->handle = (*object_cast<std::unordered_map<std::string, migraphx::shape>>(
-                           program_parameter_shapes.handle))
-                          .get((name));
+        out->handle = &((*object_cast<std::unordered_map<std::string, migraphx::shape>>(
+                             program_parameter_shapes.handle))
+                            .get((name)));
     });
 }
 
@@ -311,7 +312,7 @@ extern "C" migraphx_status migraphx_program_compile(migraphx_program program,
     });
 }
 
-extern "C" migraphx_status migraphx_program_parameter_shapes(migraphx_program program)
+extern "C" migraphx_status migraphx_program_get_parameter_shapes(migraphx_program program)
 {
     return migraphx::try_([&] {
         if(program.handle == nullptr)
@@ -331,8 +332,9 @@ extern "C" migraphx_status migraphx_program_run(migraphx_argument* out,
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
         if(params.handle == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
-        out->handle = (*object_cast<migraphx::program>(program.handle))
-                          .run((*object_cast<std::unordered_map<std::string, migraphx::argument>>(
-                              params.handle)));
+        out->handle = new migraphx::argument(
+            (*object_cast<migraphx::program>(program.handle))
+                .run((*object_cast<std::unordered_map<std::string, migraphx::argument>>(
+                    params.handle))));
     });
 }

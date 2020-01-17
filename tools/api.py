@@ -30,6 +30,9 @@ class Type:
     def add_pointer(self):
         return Type(self.name + '*')
 
+    def add_const(self):
+        return Type('const ' + self.name)
+
     def inner_type(self):
         i = self.name.find('<')
         j = self.name.rfind('>')
@@ -334,7 +337,7 @@ def cwrap(name):
 handle_template = string.Template('''
 typedef struct
 {
-    void* handle
+    void* handle;
 } ${name};
 ''')
 
@@ -362,7 +365,9 @@ def add_handle(name, ctype, cpptype, destroy=None):
         if p.returns:
             p.add_param(ctype + '*')
             p.bad_param('${name} == nullptr', 'Null pointer')
-            if p.type.is_reference:
+            if p.type.is_reference():
+                p.write = ['${name}->handle = &(${result})']
+            elif p.type.is_pointer():
                 p.write = ['${name}->handle = ${result}']
             else:
                 p.write = ['${name}->handle = new ${type}(${result})']
@@ -385,6 +390,8 @@ def vector_c_wrap(p):
     t = p.type.inner_type().add_pointer()
     if p.returns:
         if p.type.is_reference():
+            if p.type.is_const():
+                t = t.add_const()
             p.add_param(t.add_pointer())
             p.add_size_param()
             p.bad_param('${name} == nullptr or ${size} == nullptr',
@@ -427,7 +434,7 @@ class Handle:
         add_function(self.cname(name),
                      params=params,
                      invoke=invoke or create,
-                     returns=self.cpptype,
+                     returns=self.cpptype + '*',
                      return_name=self.name,
                      **kwargs)
         return self

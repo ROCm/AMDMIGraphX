@@ -75,6 +75,7 @@ target get_target(std::string name)
 #endif
     else
         MIGRAPHX_THROW(migraphx_status_unknown_target, "Unknown target: " + name);
+    return t;
 }
 
 } // namespace migraphx

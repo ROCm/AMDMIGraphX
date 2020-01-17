@@ -45,6 +45,11 @@ typedef enum {
 } migraphx_shape_datatype_t;
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
+typedef struct
+{
+    bool offload_copy;
+} migraphx_compile_options;
+
 <% generate_c_header() %>
 
 #ifdef __cplusplus

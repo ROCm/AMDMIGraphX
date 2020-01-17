@@ -1197,9 +1197,69 @@ def pow_test():
 
 
 @onnx_test
+def reducel1_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 6])
+    axes = [-2]
+
+    node = onnx.helper.make_node('ReduceL1',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axes=axes,
+                                 keepdims=0)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reducel2_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 5])
+    axes = [-1]
+
+    node = onnx.helper.make_node('ReduceL2',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axes=axes,
+                                 keepdims=0)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reduce_log_sum_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 1, 5, 6])
+    axes = [-3]
+
+    node = onnx.helper.make_node('ReduceLogSum',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axes=axes,
+                                 keepdims=1)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reduce_log_sum_exp_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4, 5, 6])
+    axes = [-4]
+
+    node = onnx.helper.make_node('ReduceLogSumExp',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axes=axes,
+                                 keepdims=1)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def reducemax_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 6])
     axes = [2]
 
     node = onnx.helper.make_node('ReduceMax',
@@ -1257,10 +1317,40 @@ def reducemin_test():
 
 
 @onnx_test
+def reduceprod_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 6])
+    axes = [2]
+
+    node = onnx.helper.make_node('ReduceProd',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axes=axes,
+                                 keepdims=1)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def reducesum_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 6])
     axes = [2]
+
+    node = onnx.helper.make_node('ReduceSum',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axes=axes,
+                                 keepdims=0)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reducesum_keepdims_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 1])
+    axes = [2, 3]
 
     node = onnx.helper.make_node('ReduceSum',
                                  inputs=['x'],
@@ -1287,16 +1377,16 @@ def reducesum_multiaxis_test():
 
 
 @onnx_test
-def reducesum_keepdims_test():
+def reducesum_square_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 1])
-    axes = [2, 3]
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 6])
+    axes = [-2]
 
-    node = onnx.helper.make_node('ReduceSum',
+    node = onnx.helper.make_node('ReduceSumSquare',
                                  inputs=['x'],
                                  outputs=['y'],
                                  axes=axes,
-                                 keepdims=1)
+                                 keepdims=0)
 
     return ([node], [x], [y])
 

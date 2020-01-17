@@ -50,97 +50,87 @@ typedef struct
     bool offload_copy;
 } migraphx_compile_options;
 
-typedef struct
-{
-    void* handle;
-} migraphx_shape;
+typedef struct migraphx_shape* migraphx_shape_t;
+typedef const struct migraphx_shape* const_migraphx_shape_t;
 
-typedef struct
-{
-    void* handle;
-} migraphx_argument;
+typedef struct migraphx_argument* migraphx_argument_t;
+typedef const struct migraphx_argument* const_migraphx_argument_t;
 
-typedef struct
-{
-    void* handle;
-} migraphx_target;
+typedef struct migraphx_target* migraphx_target_t;
+typedef const struct migraphx_target* const_migraphx_target_t;
 
-typedef struct
-{
-    void* handle;
-} migraphx_program_parameter_shapes;
+typedef struct migraphx_program_parameter_shapes* migraphx_program_parameter_shapes_t;
+typedef const struct migraphx_program_parameter_shapes* const_migraphx_program_parameter_shapes_t;
 
-typedef struct
-{
-    void* handle;
-} migraphx_program_parameters;
+typedef struct migraphx_program_parameters* migraphx_program_parameters_t;
+typedef const struct migraphx_program_parameters* const_migraphx_program_parameters_t;
 
-typedef struct
-{
-    void* handle;
-} migraphx_program;
+typedef struct migraphx_program* migraphx_program_t;
+typedef const struct migraphx_program* const_migraphx_program_t;
 
-migraphx_status migraphx_shape_destroy(migraphx_shape shape);
+migraphx_status migraphx_shape_destroy(migraphx_shape_t shape);
 
-migraphx_status migraphx_shape_create(migraphx_shape* shape,
+migraphx_status migraphx_shape_create(migraphx_shape_t* shape,
                                       migraphx_shape_datatype_t type,
                                       size_t* lengths,
                                       size_t lengths_size);
 
-migraphx_status migraphx_shape_lengths(const size_t** out, size_t* out_size, migraphx_shape shape);
-
-migraphx_status migraphx_shape_strides(const size_t** out, size_t* out_size, migraphx_shape shape);
-
-migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out, migraphx_shape shape);
-
-migraphx_status migraphx_argument_destroy(migraphx_argument argument);
+migraphx_status
+migraphx_shape_lengths(const size_t** out, size_t* out_size, migraphx_shape_t shape);
 
 migraphx_status
-migraphx_argument_create(migraphx_argument* argument, migraphx_shape shape, void* buffer);
+migraphx_shape_strides(const size_t** out, size_t* out_size, migraphx_shape_t shape);
 
-migraphx_status migraphx_argument_shape(migraphx_shape* out, migraphx_argument argument);
+migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out, migraphx_shape_t shape);
 
-migraphx_status migraphx_argument_buffer(char** out, migraphx_argument argument);
+migraphx_status migraphx_argument_destroy(migraphx_argument_t argument);
 
-migraphx_status migraphx_target_destroy(migraphx_target target);
+migraphx_status
+migraphx_argument_create(migraphx_argument_t* argument, migraphx_shape_t shape, void* buffer);
 
-migraphx_status migraphx_target_create(migraphx_target* target, const char* name);
+migraphx_status migraphx_argument_shape(const_migraphx_shape_t* out, migraphx_argument_t argument);
+
+migraphx_status migraphx_argument_buffer(char** out, migraphx_argument_t argument);
+
+migraphx_status migraphx_target_destroy(migraphx_target_t target);
+
+migraphx_status migraphx_target_create(migraphx_target_t* target, const char* name);
 
 migraphx_status migraphx_program_parameter_shapes_destroy(
-    migraphx_program_parameter_shapes program_parameter_shapes);
+    migraphx_program_parameter_shapes_t program_parameter_shapes);
+
+migraphx_status migraphx_program_parameter_shapes_size(
+    size_t* out, migraphx_program_parameter_shapes_t program_parameter_shapes);
 
 migraphx_status
-migraphx_program_parameter_shapes_size(size_t* out,
-                                       migraphx_program_parameter_shapes program_parameter_shapes);
-
-migraphx_status
-migraphx_program_parameter_shapes_get(migraphx_shape* out,
-                                      migraphx_program_parameter_shapes program_parameter_shapes,
+migraphx_program_parameter_shapes_get(const_migraphx_shape_t* out,
+                                      migraphx_program_parameter_shapes_t program_parameter_shapes,
                                       const char* name);
 
+migraphx_status migraphx_program_parameter_shapes_names(
+    const char** out, migraphx_program_parameter_shapes_t program_parameter_shapes);
+
 migraphx_status
-migraphx_program_parameter_shapes_names(const char** out,
-                                        migraphx_program_parameter_shapes program_parameter_shapes);
+migraphx_program_parameters_destroy(migraphx_program_parameters_t program_parameters);
 
-migraphx_status migraphx_program_parameters_destroy(migraphx_program_parameters program_parameters);
+migraphx_status
+migraphx_program_parameters_create(migraphx_program_parameters_t* program_parameters);
 
-migraphx_status migraphx_program_parameters_create(migraphx_program_parameters* program_parameters);
-
-migraphx_status migraphx_program_parameters_add(migraphx_program_parameters program_parameters,
+migraphx_status migraphx_program_parameters_add(migraphx_program_parameters_t program_parameters,
                                                 const char* name,
-                                                migraphx_argument argument);
+                                                migraphx_argument_t argument);
 
-migraphx_status migraphx_program_destroy(migraphx_program program);
+migraphx_status migraphx_program_destroy(migraphx_program_t program);
 
-migraphx_status migraphx_program_compile(migraphx_program program,
-                                         migraphx_target target,
+migraphx_status migraphx_program_compile(migraphx_program_t program,
+                                         migraphx_target_t target,
                                          migraphx_compile_options* options);
 
-migraphx_status migraphx_program_get_parameter_shapes(migraphx_program program);
+migraphx_status migraphx_program_get_parameter_shapes(migraphx_program_t program);
 
-migraphx_status migraphx_program_run(migraphx_argument* out,
-                                     migraphx_program program,
-                                     migraphx_program_parameters params);
+migraphx_status migraphx_program_run(migraphx_argument_t* out,
+                                     migraphx_program_t program,
+                                     migraphx_program_parameters_t params);
 
 #ifdef __cplusplus
 }

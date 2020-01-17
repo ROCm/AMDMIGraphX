@@ -67,6 +67,12 @@ class Type:
     def basic(self):
         return self.remove_pointer().remove_const().remove_reference()
 
+    def const_compatible(self, t):
+        if t.is_const():
+            return self.add_const()
+        return self
+
+
     def str(self):
         return self.name
 
@@ -334,21 +340,33 @@ def cwrap(name):
     return with_cwrap
 
 
-handle_template = string.Template('''
-typedef struct
-{
-    void* handle;
-} ${name};
+handle_typedef = string.Template('''
+typedef struct ${ctype} * ${ctype}_t;
+typedef const struct ${ctype} * const_${ctype}_t;
 ''')
 
+handle_definition = string.Template('''
+extern "C"
+struct ${ctype} {
+    ${cpptype} object;
+};
+''')
+
+# handle_template = string.Template('''
+# typedef struct
+# {
+#     void* handle;
+# } ${name};
+# ''')
+
 handle_preamble = '''
-template<class T>
-T* object_cast(void* x)
+template<class T, class U>
+T* object_cast(U* x)
 {
     return reinterpret_cast<T*>(x);
 }
-template<class T>
-const T* object_cast(const void* x)
+template<class T, class U>
+const T* object_cast(const U* x)
 {
     return reinterpret_cast<const T*>(x);
 }
@@ -361,28 +379,36 @@ def add_handle_preamble():
 
 
 def add_handle(name, ctype, cpptype, destroy=None):
+    opaque_type = ctype + '_t'
     def handle_wrap(p):
+        t = Type(opaque_type)
+        if p.type.is_const():
+            t = Type('const_' + opaque_type)
         if p.returns:
-            p.add_param(ctype + '*')
-            p.bad_param('${name} == nullptr', 'Null pointer')
+            def write(x):
+                p.write = [x.replace('ctype', ctype)]
+            p.add_param(t.add_pointer())
             if p.type.is_reference():
-                p.write = ['${name}->handle = &(${result})']
+                write('*${name} = object_cast<ctype>(&(${result}))')
+                # p.write = ['${name} = &(${result})']
             elif p.type.is_pointer():
-                p.write = ['${name}->handle = ${result}']
+                write('*${name} = object_cast<ctype>(${result})')
+                # p.write = ['${name} = object_cast<ctype>(${result})']
             else:
-                p.write = ['${name}->handle = new ${type}(${result})']
+                write('*${name} = new ctype({${result}})')
+                # p.write = ['${name} = new ctype({${result}})'.replace('ctype', ctype)]
         else:
-            p.add_param(ctype)
-            p.bad_param('${name}.handle == nullptr', 'Null pointer')
-            p.read = '*object_cast<${type}>(${name}.handle)'
+            p.add_param(t)
+            p.bad_param('${name} == nullptr', 'Null pointer')
+            p.read = '${name}->object'
 
     type_map[cpptype] = handle_wrap
     add_function(destroy or ctype + '_' + 'destroy',
-                 params({name: ctype}),
-                 invoke='delete object_cast<{ctype}>({name}.handle)'.format(
-                     ctype=ctype, name=name))
-    c_header_preamble.append(handle_template.substitute(name=ctype))
+                 params({name: opaque_type}),
+                 invoke='delete {name}'.format(name=name))
     add_handle_preamble()
+    c_header_preamble.append(handle_typedef.substitute(locals()))
+    c_api_body_preamble.append(handle_definition.substitute(locals()))
 
 
 @cwrap('std::vector')

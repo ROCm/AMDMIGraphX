@@ -54,8 +54,8 @@ do
         then
             if $use_yapf
             then
-                echo "python3 -m $yapf_format $file"
-                "python3 -m $yapf_format" -i "$file"
+                echo "$yapf_format $file"
+                "$yapf_format" -i "$file"
             fi
         else
             echo "$format $file"

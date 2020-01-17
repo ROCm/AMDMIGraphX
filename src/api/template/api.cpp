@@ -85,13 +85,12 @@ migraphx::compile_options to_compile_options(const migraphx_compile_options& opt
     return result;
 }
 
-template<class Value>
+template <class Value>
 std::vector<const char*> get_names(const std::unordered_map<std::string, Value>& m)
 {
     std::vector<const char*> result;
-    std::transform(m.begin(), m.end(), std::back_inserter(result), [](auto&& p) {
-        return p.first.c_str();
-    });
+    std::transform(
+        m.begin(), m.end(), std::back_inserter(result), [](auto&& p) { return p.first.c_str(); });
     return result;
 }
 

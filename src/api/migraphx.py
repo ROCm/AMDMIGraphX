@@ -49,8 +49,8 @@ def shape(h):
 
 @auto_handle
 def argument(h):
-    h.constructor('create', api.params(shape='const migraphx::shape&',
-                                       buffer='void*'))
+    h.constructor('create',
+                  api.params(shape='const migraphx::shape&', buffer='void*'))
     h.method('shape', fname='get_shape', returns='const migraphx::shape&')
     h.method('buffer', fname='data', returns='char*')
 

@@ -45,86 +45,97 @@ typedef enum {
 } migraphx_shape_datatype_t;
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
-MIGRAPHX_DECLARE_OBJECT(migraphx_shape)
+typedef struct
+{
+    void* handle
+} migraphx_shape;
 
-migraphx_status migraphx_shape_create(migraphx_shape* shape,
-                                      migraphx_shape_datatype_t type,
-                                      const size_t dim_num,
-                                      const size_t* dims,
-                                      const size_t* strides);
+typedef struct
+{
+    void* handle
+} migraphx_argument;
+
+typedef struct
+{
+    void* handle
+} migraphx_target;
+
+typedef struct
+{
+    void* handle
+} migraphx_program_parameter_shapes;
+
+typedef struct
+{
+    void* handle
+} migraphx_program_parameters;
+
+typedef struct
+{
+    void* handle
+} migraphx_program;
 
 migraphx_status migraphx_shape_destroy(migraphx_shape shape);
 
-migraphx_status migraphx_shape_get(migraphx_shape shape,
-                                   migraphx_shape_datatype_t* type,
-                                   size_t* dim_num,
-                                   const size_t** dims,
-                                   const size_t** strides);
+migraphx_status migraphx_shape_create(migraphx_shape* shape,
+                                      migraphx_shape_datatype_t type,
+                                      size_t* lengths,
+                                      size_t lengths_size);
 
-MIGRAPHX_DECLARE_OBJECT(migraphx_argument)
+migraphx_status migraphx_shape_lengths(size_t** out, size_t* out_size, migraphx_shape shape);
+
+migraphx_status migraphx_shape_strides(size_t** out, size_t* out_size, migraphx_shape shape);
+
+migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out, migraphx_shape shape);
+
+migraphx_status migraphx_argument_destroy(migraphx_argument argument);
 
 migraphx_status
 migraphx_argument_create(migraphx_argument* argument, migraphx_shape shape, void* buffer);
 
-migraphx_status migraphx_argument_destroy(migraphx_argument argument);
+migraphx_status migraphx_argument_shape(migraphx_shape* out, migraphx_argument argument);
 
-MIGRAPHX_DECLARE_OBJECT(migraphx_target)
-
-migraphx_status migraphx_target_create(migraphx_target* target, const char* name);
+migraphx_status migraphx_argument_buffer(char** out, migraphx_argument argument);
 
 migraphx_status migraphx_target_destroy(migraphx_target target);
 
-migraphx_status
-migraphx_target_copy_to(migraphx_target target, migraphx_argument src, migraphx_argument* dst);
-
-migraphx_status
-migraphx_target_copy_from(migraphx_target target, migraphx_argument src, migraphx_argument* dst);
-
-MIGRAPHX_DECLARE_OBJECT(migraphx_program)
-
-migraphx_status migraphx_program_create(migraphx_program* program);
-
-migraphx_status migraphx_program_destroy(migraphx_program program);
-
-typedef struct
-{
-    bool offload_copy;
-} migraphx_compile_options;
-
-MIGRAPHX_DECLARE_OBJECT(migraphx_program_parameter_shapes)
-
-migraphx_status migraphx_program_parameter_shapes_create(
-    migraphx_program_parameter_shapes* program_parameter_shapes, migraphx_program program);
+migraphx_status migraphx_target_create(migraphx_target* target, const char* name);
 
 migraphx_status migraphx_program_parameter_shapes_destroy(
     migraphx_program_parameter_shapes program_parameter_shapes);
 
 migraphx_status
-migraphx_program_parameter_shapes_size(migraphx_program_parameter_shapes program_parameter_shapes,
-                                       size_t* size);
+migraphx_program_parameter_shapes_size(size_t* out,
+                                       migraphx_program_parameter_shapes program_parameter_shapes);
 
 migraphx_status
-migraphx_program_parameter_shapes_names(migraphx_program_parameter_shapes program_parameter_shapes,
-                                        const char** names);
+migraphx_program_parameter_shapes_get(migraphx_shape* out,
+                                      migraphx_program_parameter_shapes program_parameter_shapes,
+                                      const char* name);
 
-migraphx_status migraphx_program_parameter_shapes_get_shape(
-    migraphx_program_parameter_shapes program_parameter_shapes,
-    const char* name,
-    migraphx_shape* shape);
-
-MIGRAPHX_DECLARE_OBJECT(migraphx_program_parameters)
-
-migraphx_status migraphx_program_parameters_create(migraphx_program_parameters* program_parameters);
+migraphx_status
+migraphx_program_parameter_shapes_names(const char** out,
+                                        migraphx_program_parameter_shapes program_parameter_shapes);
 
 migraphx_status migraphx_program_parameters_destroy(migraphx_program_parameters program_parameters);
+
+migraphx_status migraphx_program_parameters_create(migraphx_program_parameters* program_parameters);
 
 migraphx_status migraphx_program_parameters_add(migraphx_program_parameters program_parameters,
                                                 const char* name,
                                                 migraphx_argument argument);
 
-migraphx_status migraphx_program_run(migraphx_program program,
-                                     migraphx_program_parameters program_parameters,
-                                     migraphx_argument* output);
+migraphx_status migraphx_program_destroy(migraphx_program program);
+
+migraphx_status migraphx_program_compile(migraphx_program program,
+                                         migraphx_target target,
+                                         migraphx_compile_options* options);
+
+migraphx_status migraphx_program_parameter_shapes(migraphx_program program);
+
+migraphx_status migraphx_program_run(migraphx_argument* out,
+                                     migraphx_program program,
+                                     migraphx_program_parameters params);
 
 #ifdef __cplusplus
 }

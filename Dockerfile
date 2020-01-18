@@ -39,7 +39,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python-dev \
     python3-dev \
     python-pip \
-    python3-pip
+    python3-pip \
     rocm-device-libs \
     rocm-opencl \
     rocm-opencl-dev \

@@ -13,6 +13,7 @@ c_api_body_preamble = []
 def bad_param_error(msg):
     return 'throw std::runtime_error("{}")'.format(msg)
 
+
 class Template(string.Template):
     idpattern = '[_a-zA-Z0-9@]+'
 
@@ -143,10 +144,10 @@ class Parameter:
         if len(self.cparams) > 0:
             ctype = Type(self.cparams[0][0]).basic().str()
         return Template(s).safe_substitute(name=self.name,
-                                                  type=self.type.str(),
-                                                  ctype=ctype or '',
-                                                  size=self.size_name,
-                                                  result=result or '')
+                                           type=self.type.str(),
+                                           ctype=ctype or '',
+                                           size=self.size_name,
+                                           result=result or '')
 
     def add_param(self, t, name=None):
         if not isinstance(t, str):
@@ -468,13 +469,17 @@ class Handle:
         return self.ctype + '_' + name
 
     def substitute(self, s, **kwargs):
-        return Template(s).safe_substitute(name=self.name, ctype=self.ctype, cpptype=self.cpptype, **kwargs)
+        return Template(s).safe_substitute(name=self.name,
+                                           ctype=self.ctype,
+                                           cpptype=self.cpptype,
+                                           **kwargs)
 
     def constructor(self, name, params=None, fname=None, invoke=None,
                     **kwargs):
         create = self.substitute('allocate<${cpptype}>($@)')
         if fname:
-            create = self.substitute('allocate<${cpptype}>(${fname}($@))', fname=fname)
+            create = self.substitute('allocate<${cpptype}>(${fname}($@))',
+                                     fname=fname)
 
         add_function(self.cname(name),
                      params=params,
@@ -487,18 +492,18 @@ class Handle:
     def method(self, name, params=None, fname=None, invoke=None, **kwargs):
         p = Parameter(self.name, self.cpptype)
         args = to_template_vars(params or [])
-        add_function(
-            self.cname(name),
-            params=[p] + (params or []),
-            invoke=invoke or self.substitute('${var}.${fname}(${args})', var=template_var(self.name), fname=fname or name, args=args),
-            **kwargs)
+        add_function(self.cname(name),
+                     params=[p] + (params or []),
+                     invoke=invoke
+                     or self.substitute('${var}.${fname}(${args})',
+                                        var=template_var(self.name),
+                                        fname=fname or name,
+                                        args=args),
+                     **kwargs)
         return self
 
     def function(self, name, params=None, **kwargs):
-        add_function(
-            self.cname(name),
-            params=params,
-            **kwargs)
+        add_function(self.cname(name), params=params, **kwargs)
         return self
 
 

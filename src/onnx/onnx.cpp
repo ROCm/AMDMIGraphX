@@ -107,10 +107,17 @@ struct onnx_parser
         add_mem_op("GRU", &onnx_parser::parse_gru);
         add_mem_op("LSTM", &onnx_parser::parse_lstm);
         add_mem_op("Pad", &onnx_parser::parse_pad);
-        add_mem_op("ReduceSum", &onnx_parser::parse_reduce_oper<op::reduce_sum>);
+
+        add_mem_op("ReduceL1", &onnx_parser::parse_reduce_l1);
+        add_mem_op("ReduceL2", &onnx_parser::parse_reduce_l2);
+        add_mem_op("ReduceLogSum", &onnx_parser::parse_reduce_log_sum);
+        add_mem_op("ReduceLogSumExp", &onnx_parser::parse_reduce_log_sum_exp);
+        add_mem_op("ReduceMax", &onnx_parser::parse_reduce_oper<op::reduce_max>);
         add_mem_op("ReduceMean", &onnx_parser::parse_reduce_oper<op::reduce_mean>);
         add_mem_op("ReduceMin", &onnx_parser::parse_reduce_oper<op::reduce_min>);
-        add_mem_op("ReduceMax", &onnx_parser::parse_reduce_oper<op::reduce_max>);
+        add_mem_op("ReduceProd", &onnx_parser::parse_reduce_oper<op::reduce_prod>);
+        add_mem_op("ReduceSum", &onnx_parser::parse_reduce_oper<op::reduce_sum>);
+        add_mem_op("ReduceSumSquare", &onnx_parser::parse_reduce_sum_square);
 
         // init the activation function map
         init_actv_func();
@@ -1516,6 +1523,47 @@ struct onnx_parser
             auto ins = prog.add_instruction(T{axes}, std::move(args));
             return prog.add_instruction(op::squeeze{axes}, ins);
         }
+    }
+
+    instruction_ref
+    parse_reduce_l1(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        auto abs_ins = prog.add_instruction(op::abs{}, args[0]);
+        return parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {abs_ins});
+    }
+
+    instruction_ref
+    parse_reduce_l2(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
+        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {square_ins});
+        return prog.add_instruction(op::sqrt{}, sum_ins);
+    }
+
+    instruction_ref parse_reduce_log_sum(const std::string&,
+                                         attribute_map attributes,
+                                         std::vector<instruction_ref> args)
+    {
+        auto sum_ins =
+            parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), std::move(args));
+        return prog.add_instruction(op::log{}, sum_ins);
+    }
+
+    instruction_ref parse_reduce_log_sum_exp(const std::string&,
+                                             attribute_map attributes,
+                                             std::vector<instruction_ref> args)
+    {
+        auto exp_ins = prog.add_instruction(op::exp{}, args[0]);
+        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {exp_ins});
+        return prog.add_instruction(op::log{}, sum_ins);
+    }
+
+    instruction_ref parse_reduce_sum_square(const std::string&,
+                                            attribute_map attributes,
+                                            std::vector<instruction_ref> args)
+    {
+        auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
+        return parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {square_ins});
     }
 
     instruction_ref

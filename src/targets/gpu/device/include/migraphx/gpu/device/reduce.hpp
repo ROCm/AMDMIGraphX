@@ -20,6 +20,15 @@ struct sum
     }
 };
 
+struct product
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    {
+        return x * y;
+    }
+};
+
 struct id
 {
     template <class T>

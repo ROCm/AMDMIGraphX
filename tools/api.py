@@ -13,6 +13,9 @@ c_api_body_preamble = []
 def bad_param_error(msg):
     return 'throw std::runtime_error("{}")'.format(msg)
 
+class Template(string.Template):
+    idpattern = '[_a-zA-Z0-9@]+'
+
 
 class Type:
     def __init__(self, name):
@@ -25,7 +28,7 @@ class Type:
         return self.name.endswith('&')
 
     def is_const(self):
-        return self.name.startswith('const')
+        return self.name.startswith('const ')
 
     def add_pointer(self):
         return Type(self.name + '*')
@@ -76,11 +79,11 @@ class Type:
         return self.name
 
 
-header_function = string.Template('''
+header_function = Template('''
 ${error_type} ${name}(${params});
 ''')
 
-c_api_impl = string.Template('''
+c_api_impl = Template('''
 extern "C" ${error_type} ${name}(${params})
 {
     return ${try_wrap}([&] {
@@ -136,8 +139,12 @@ class Parameter:
         self.bad_param_check = None
 
     def substitute(self, s, result=None):
-        return string.Template(s).safe_substitute(name=self.name,
+        ctype = None
+        if len(self.cparams) > 0:
+            ctype = Type(self.cparams[0][0]).basic().str()
+        return Template(s).safe_substitute(name=self.name,
                                                   type=self.type.str(),
+                                                  ctype=ctype or '',
                                                   size=self.size_name,
                                                   result=result or '')
 
@@ -213,13 +220,15 @@ class Function:
                  shared_size=False,
                  returns=None,
                  invoke=None,
+                 fname=None,
                  return_name=None,
                  **kwargs):
         self.name = name
         self.params = params or []
         self.shared_size = False
         self.cfunction = None
-        self.invoke = invoke
+        self.fname = fname
+        self.invoke = invoke or '${__fname__}($@)'
         self.return_name = return_name or 'out'
         self.returns = Parameter(self.return_name, returns,
                                  returns=True) if returns else None
@@ -242,14 +251,20 @@ class Function:
             self.returns.update()
         self.create_cfunction()
 
+    def inputs(self):
+        return ', '.join([p.input() for p in self.params])
+
     def input_map(self):
         m = {}
         for p in self.params:
             m[p.name] = p.input()
+        m['return'] = self.return_name
+        m['@'] = self.inputs()
+        m['__fname__'] = self.fname
         return m
 
     def get_invoke(self):
-        return string.Template(self.invoke).safe_substitute(self.input_map())
+        return Template(self.invoke).safe_substitute(self.input_map())
 
     def write_to_tmp_var(self):
         return len(self.returns.write) > 1 or self.returns.write[0].count(
@@ -339,35 +354,44 @@ def cwrap(name):
     return with_cwrap
 
 
-handle_typedef = string.Template('''
+handle_typedef = Template('''
 typedef struct ${ctype} * ${ctype}_t;
 typedef const struct ${ctype} * const_${ctype}_t;
 ''')
 
-handle_definition = string.Template('''
-extern "C"
+handle_definition = Template('''
+extern "C" struct ${ctype};
 struct ${ctype} {
+    template<class... Ts>
+    ${ctype}(Ts&&... xs)
+    : object(std::forward<Ts>(xs)...)
+    {}
     ${cpptype} object;
 };
 ''')
 
-# handle_template = string.Template('''
-# typedef struct
-# {
-#     void* handle;
-# } ${name};
-# ''')
-
 handle_preamble = '''
-template<class T, class U>
-T* object_cast(U* x)
+template<class T, class U, class Target=std::remove_pointer_t<T>>
+Target* object_cast(U* x)
 {
-    return reinterpret_cast<T*>(x);
+    return reinterpret_cast<Target*>(x);
 }
-template<class T, class U>
-const T* object_cast(const U* x)
+template<class T, class U, class Target=std::remove_pointer_t<T>>
+const Target* object_cast(const U* x)
 {
-    return reinterpret_cast<const T*>(x);
+    return reinterpret_cast<const Target*>(x);
+}
+
+template<class T, class... Ts, class Target=std::remove_pointer_t<T>>
+Target* allocate(Ts&&... xs)
+{
+    return new Target(std::forward<Ts>(xs)...); // NOLINT
+}
+
+template<class T>
+void destroy(T* x)
+{
+    delete x; // NOLINT
 }
 '''
 
@@ -385,20 +409,13 @@ def add_handle(name, ctype, cpptype, destroy=None):
         if p.type.is_const():
             t = Type('const_' + opaque_type)
         if p.returns:
-
-            def write(x):
-                p.write = [x.replace('ctype', ctype)]
-
             p.add_param(t.add_pointer())
             if p.type.is_reference():
-                write('*${name} = object_cast<ctype>(&(${result}))')
-                # p.write = ['${name} = &(${result})']
+                p.write = ['*${name} = object_cast<${ctype}>(&(${result}))']
             elif p.type.is_pointer():
-                write('*${name} = object_cast<ctype>(${result})')
-                # p.write = ['${name} = object_cast<ctype>(${result})']
+                p.write = ['*${name} = object_cast<${ctype}>(${result})']
             else:
-                write('*${name} = new ctype({${result}})')
-                # p.write = ['${name} = new ctype({${result}})'.replace('ctype', ctype)]
+                p.write = ['*${name} = allocate<${ctype}>(${result})']
         else:
             p.add_param(t)
             p.bad_param('${name} == nullptr', 'Null pointer')
@@ -407,7 +424,7 @@ def add_handle(name, ctype, cpptype, destroy=None):
     type_map[cpptype] = handle_wrap
     add_function(destroy or ctype + '_' + 'destroy',
                  params({name: opaque_type}),
-                 invoke='delete {name}'.format(name=name))
+                 fname='destroy')
     add_handle_preamble()
     c_header_preamble.append(handle_typedef.substitute(locals()))
     c_api_body_preamble.append(handle_definition.substitute(locals()))
@@ -450,14 +467,14 @@ class Handle:
     def cname(self, name):
         return self.ctype + '_' + name
 
+    def substitute(self, s, **kwargs):
+        return Template(s).safe_substitute(name=self.name, ctype=self.ctype, cpptype=self.cpptype, **kwargs)
+
     def constructor(self, name, params=None, fname=None, invoke=None,
                     **kwargs):
-        args = to_template_vars(params or [])
-        create = 'new {cpptype}({args})'.format(cpptype=self.cpptype,
-                                                args=args)
+        create = self.substitute('allocate<${cpptype}>($@)')
         if fname:
-            create = 'new {cpptype}({fname}({args}))'.format(
-                cpptype=self.cpptype, args=args, fname=fname)
+            create = self.substitute('allocate<${cpptype}>(${fname}($@))', fname=fname)
 
         add_function(self.cname(name),
                      params=params,
@@ -468,23 +485,19 @@ class Handle:
         return self
 
     def method(self, name, params=None, fname=None, invoke=None, **kwargs):
-        args = to_template_vars(params or [])
         p = Parameter(self.name, self.cpptype)
+        args = to_template_vars(params or [])
         add_function(
             self.cname(name),
             params=[p] + (params or []),
-            invoke=invoke or '{var}.{fname}({args})'.format(
-                var=template_var(self.name), fname=fname or name, args=args),
+            invoke=invoke or self.substitute('${var}.${fname}(${args})', var=template_var(self.name), fname=fname or name, args=args),
             **kwargs)
         return self
 
-    def function(self, name, params=None, fname=None, invoke=None, **kwargs):
-        args = to_template_vars(params or [])
+    def function(self, name, params=None, **kwargs):
         add_function(
             self.cname(name),
             params=params,
-            invoke=invoke
-            or '{fname}({args})'.format(fname=fname or name, args=args),
             **kwargs)
         return self
 

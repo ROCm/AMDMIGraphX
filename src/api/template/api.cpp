@@ -12,7 +12,7 @@
 namespace migraphx {
 
 template <class F>
-migraphx_status try_(F f, bool output = true)
+migraphx_status try_(F f, bool output = true) // NOLINT
 {
     try
     {
@@ -64,7 +64,7 @@ migraphx_shape_datatype_t to_shape_type(shape::type_t t)
     MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown type");
 }
 
-target get_target(std::string name)
+target get_target(const std::string& name)
 {
     migraphx::target t;
     if(name == "cpu")

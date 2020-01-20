@@ -47,6 +47,7 @@ add_library(migraphx_device
     device/reduce_mean.cpp
     device/reduce_min.cpp
     device/reduce_sum.cpp
+    device/reduce_prod.cpp
     device/relu.cpp
     device/round.cpp
     device/rsqrt.cpp

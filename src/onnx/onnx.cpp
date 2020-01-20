@@ -92,6 +92,7 @@ struct onnx_parser
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
         add_mem_op("MatMul", &onnx_parser::parse_matmul);
         add_mem_op("BatchNormalization", &onnx_parser::parse_batchnorm);
+        add_mem_op("InstanceNormalization", &onnx_parser::parse_instancenorm);
         add_mem_op("Softmax", &onnx_parser::parse_softmax<op::softmax>);
         add_mem_op("LogSoftmax", &onnx_parser::parse_softmax<op::logsoftmax>);
         add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
@@ -107,10 +108,17 @@ struct onnx_parser
         add_mem_op("GRU", &onnx_parser::parse_gru);
         add_mem_op("LSTM", &onnx_parser::parse_lstm);
         add_mem_op("Pad", &onnx_parser::parse_pad);
-        add_mem_op("ReduceSum", &onnx_parser::parse_reduce_oper<op::reduce_sum>);
+
+        add_mem_op("ReduceL1", &onnx_parser::parse_reduce_l1);
+        add_mem_op("ReduceL2", &onnx_parser::parse_reduce_l2);
+        add_mem_op("ReduceLogSum", &onnx_parser::parse_reduce_log_sum);
+        add_mem_op("ReduceLogSumExp", &onnx_parser::parse_reduce_log_sum_exp);
+        add_mem_op("ReduceMax", &onnx_parser::parse_reduce_oper<op::reduce_max>);
         add_mem_op("ReduceMean", &onnx_parser::parse_reduce_oper<op::reduce_mean>);
         add_mem_op("ReduceMin", &onnx_parser::parse_reduce_oper<op::reduce_min>);
-        add_mem_op("ReduceMax", &onnx_parser::parse_reduce_oper<op::reduce_max>);
+        add_mem_op("ReduceProd", &onnx_parser::parse_reduce_oper<op::reduce_prod>);
+        add_mem_op("ReduceSum", &onnx_parser::parse_reduce_oper<op::reduce_sum>);
+        add_mem_op("ReduceSumSquare", &onnx_parser::parse_reduce_sum_square);
 
         // init the activation function map
         init_actv_func();
@@ -906,6 +914,42 @@ struct onnx_parser
         return prog.add_instruction(op, std::move(args));
     }
 
+    instruction_ref parse_instancenorm(const std::string&,
+                                       attribute_map attributes,
+                                       std::vector<instruction_ref> args)
+    {
+        // y = scale * ( x - mean ) / sqrt ( variance + epsilon ) + bias
+        // mean = reduce_mean({H, W}, x)
+        // variance = reduce_mean({H, W}, (x - mean)^2)
+
+        float epsilon = 1e-5f;
+        if(contains(attributes, "epsilon"))
+        {
+            epsilon = parse_value(attributes.at("epsilon")).at<float>();
+        }
+        auto x     = args[0];
+        auto scale = args[1];
+        auto bias  = args[2];
+        auto dims  = x->get_shape().lens();
+
+        auto mean            = prog.add_instruction(op::reduce_mean{{2, 3}}, x);
+        auto mean_bcast      = prog.add_instruction(op::multibroadcast{dims}, mean);
+        auto l0              = prog.add_instruction(op::sqdiff{}, x, mean_bcast);
+        auto variance        = prog.add_instruction(op::reduce_mean{{2, 3}}, l0);
+        auto l1              = prog.add_instruction(op::sub{}, x, mean_bcast);
+        auto epsilon_literal = prog.add_literal(epsilon);
+        auto epsilon_bcast   = prog.add_instruction(op::multibroadcast{dims}, epsilon_literal);
+        auto variance_bcast  = prog.add_instruction(op::multibroadcast{dims}, variance);
+        auto l2              = prog.add_instruction(op::add{}, variance_bcast, epsilon_bcast);
+        auto l3              = prog.add_instruction(op::rsqrt{}, l2);
+        auto l4              = prog.add_instruction(op::mul{}, l1, l3);
+        auto scale_bcast     = prog.add_instruction(op::broadcast{1, dims}, scale);
+        ;
+        auto bias_bcast = prog.add_instruction(op::broadcast{1, dims}, bias);
+        auto l5         = prog.add_instruction(op::mul{}, l4, scale_bcast);
+        return prog.add_instruction(op::add{}, l5, bias_bcast);
+    }
+
     instruction_ref parse_leaky_relu(const std::string&,
                                      attribute_map attributes,
                                      std::vector<instruction_ref> args)
@@ -1597,6 +1641,47 @@ struct onnx_parser
             auto ins = prog.add_instruction(T{axes}, std::move(args));
             return prog.add_instruction(op::squeeze{axes}, ins);
         }
+    }
+
+    instruction_ref
+    parse_reduce_l1(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        auto abs_ins = prog.add_instruction(op::abs{}, args[0]);
+        return parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {abs_ins});
+    }
+
+    instruction_ref
+    parse_reduce_l2(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
+        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {square_ins});
+        return prog.add_instruction(op::sqrt{}, sum_ins);
+    }
+
+    instruction_ref parse_reduce_log_sum(const std::string&,
+                                         attribute_map attributes,
+                                         std::vector<instruction_ref> args)
+    {
+        auto sum_ins =
+            parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), std::move(args));
+        return prog.add_instruction(op::log{}, sum_ins);
+    }
+
+    instruction_ref parse_reduce_log_sum_exp(const std::string&,
+                                             attribute_map attributes,
+                                             std::vector<instruction_ref> args)
+    {
+        auto exp_ins = prog.add_instruction(op::exp{}, args[0]);
+        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {exp_ins});
+        return prog.add_instruction(op::log{}, sum_ins);
+    }
+
+    instruction_ref parse_reduce_sum_square(const std::string&,
+                                            attribute_map attributes,
+                                            std::vector<instruction_ref> args)
+    {
+        auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
+        return parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {square_ins});
     }
 
     instruction_ref

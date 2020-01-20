@@ -50,6 +50,11 @@ typedef struct
     bool offload_copy;
 } migraphx_compile_options;
 
+typedef struct
+{
+    size_t batch_size;
+} migraphx_onnx_options;
+
 <% generate_c_header() %>
 
 #ifdef __cplusplus

@@ -2,6 +2,7 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/onnx.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/cpu/target.hpp>
 
@@ -82,6 +83,14 @@ migraphx::compile_options to_compile_options(const migraphx_compile_options& opt
 {
     migraphx::compile_options result{};
     result.offload_copy = options.offload_copy;
+    return result;
+}
+
+
+migraphx::onnx_options to_onnx_options(const migraphx_onnx_options& options)
+{
+    migraphx::onnx_options result{};
+    result.batch_size = options.batch_size;
     return result;
 }
 

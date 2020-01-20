@@ -75,6 +75,13 @@ class Type:
     def basic(self):
         return self.remove_pointer().remove_const().remove_reference()
 
+    def decay(self):
+        t = self.remove_reference()
+        if t.is_pointer():
+            return t
+        else:
+            return t.remove_const()
+
     def const_compatible(self, t):
         if t.is_const():
             return self.add_const()
@@ -141,7 +148,7 @@ class Parameter:
         self.read = '${name}'
         self.write = ['*${name} = ${result}']
         self.cpp_read = '${name}'
-        self.cpp_write = ''
+        self.cpp_write = '${name}'
         self.returns = returns
         self.bad_param_check = None
 
@@ -156,6 +163,8 @@ class Parameter:
             return cpp_type_map[self.type.basic().str()]
         elif self.type.basic().str() in cpp_type_map:
             return cpp_type_map[self.type.basic().str()]
+        elif self.returns:
+            return self.type.decay().str()
         else:
             return self.type.str()
 
@@ -216,6 +225,11 @@ class Parameter:
     def cpp_arg(self, prefix=None):
         return self.substitute(self.cpp_read, prefix=prefix)
 
+    def cpp_output_args(self, prefix=None):
+        return [
+            '&{prefix}{n}'.format(prefix=prefix, n=n) for t, n in self.cparams
+        ]
+
     def output_declarations(self, prefix=None):
         return [
             '{type} {prefix}{n};'.format(type=Type(t).remove_pointer().str(),
@@ -227,6 +241,10 @@ class Parameter:
         return [
             '&{prefix}{n};'.format(prefix=prefix, n=n) for t, n in self.cparams
         ]
+
+    def cpp_output(self, prefix=None):
+        return self.substitute(self.cpp_write, prefix=prefix)
+
 
     def input(self, prefix=None):
         return '(' + self.substitute(self.read, prefix=prefix) + ')'
@@ -351,9 +369,8 @@ struct ${name} : handle_base<${ctype}, decltype(&${destroy}), ${destroy}>
 ''')
 
 cpp_class_method_template = Template('''
-    ${return_type} ${name}(${params})
+    ${return_type} ${name}(${params}) const
     {
-        assert(m_handle != nullptr);
         ${outputs}
         this->call_handle(${args});
         return ${result};
@@ -361,15 +378,14 @@ cpp_class_method_template = Template('''
 ''')
 
 cpp_class_void_method_template = Template('''
-    void ${name}(${params})
+    void ${name}(${params}) const
     {
-        assert(m_handle != nullptr);
         this->call_handle(${args});
     }
 ''')
 
 cpp_class_constructor_template = Template('''
-    ${name}(${args})
+    ${name}(${params})
     : m_handle(nullptr)
     {
         m_handle = this->make_handle(${args});
@@ -391,8 +407,12 @@ class CPPMember:
             return self.function.params
 
     def get_args(self):
+        output_args = []
+        if self.function.returns:
+            output_args = self.function.returns.cpp_output_args(self.prefix)
         return ', '.join(
             ['&{}'.format(self.function.cfunction.name)] +
+            output_args +
             [p.cpp_arg(self.prefix) for p in self.get_function_params()])
 
     def get_params(self):
@@ -413,11 +433,12 @@ class CPPMember:
 
     def generate_method(self):
         if self.function.returns:
-            return_type = self.function.returns.type.str()
+            return_type = self.function.returns.get_cpp_type()
             return cpp_class_method_template.safe_substitute(
                 return_type=return_type,
                 name=self.name,
                 cfunction=self.function.cfunction.name,
+                result=self.function.returns.cpp_output(self.prefix),
                 params=self.get_params(),
                 outputs=self.get_return_declarations(),
                 args=self.get_args(),
@@ -430,9 +451,9 @@ class CPPMember:
                 args=self.get_args(),
                 success=success_type)
 
-    def generate_constructor(self):
+    def generate_constructor(self, name):
         return cpp_class_constructor_template.safe_substitute(
-            name=self.name,
+            name=name,
             cfunction=self.function.cfunction.name,
             params=self.get_params(),
             args=self.get_args(),
@@ -458,7 +479,7 @@ class CPPClass:
 
     def generate_constructors(self):
         return '\n    '.join(
-            [m.generate_constructor() for m in self.constructors])
+            [m.generate_constructor(self.name) for m in self.constructors])
 
     def substitute(self, s, **kwargs):
         t = s
@@ -603,8 +624,7 @@ struct handle_base
     template<class F, class... Ts>
     void call_handle(F f, Ts&&... xs)
     {
-        assert(m_handle != nullptr);
-        auto e = F(this->get_handle().get(), std::forward<Ts>(xs)...);
+        auto e = F(this->get_handle_ptr(), std::forward<Ts>(xs)...);
         if (e != ${success})
             throw std::runtime_error("Failed to call function");
     }
@@ -612,6 +632,12 @@ struct handle_base
     const std::shared_ptr<T>& get_handle() const
     {
         return m_handle;
+    }
+
+    T* get_handle_ptr() const
+    {
+        assert(m_handle != nullptr);
+        return get_handle().get();
     }
 
     void set_handle(T* ptr, bool own = true)
@@ -658,7 +684,7 @@ def add_handle(name, ctype, cpptype, destroy=None):
             p.add_param(t)
             p.bad_param('${name} == nullptr', 'Null pointer')
             p.read = '${name}->object'
-            p.cpp_read = '${name}.get_handle().get()'
+            p.cpp_read = '${name}.get_handle_ptr()'
 
     type_map[cpptype] = handle_wrap
     add_function(destroy or ctype + '_' + 'destroy',
@@ -680,12 +706,14 @@ def vector_c_wrap(p):
             p.add_size_param()
             p.bad_param('${name} == nullptr or ${size} == nullptr',
                         'Null pointer')
+            p.cpp_write = '${type}(${name}, ${name}+${size})'
             p.write = [
                 '*${name} = ${result}.data()', '*${size} = ${result}.size()'
             ]
         else:
             p.add_param(t)
             p.bad_param('${name} == nullptr', 'Null pointer')
+            p.cpp_write = '${type}(${name}, ${name}+${size})'
             p.write = [
                 'std::copy(${result}.begin(), ${result}.end(), ${name})'
             ]
@@ -730,7 +758,7 @@ class Handle:
         self.cpp_class.add_constructor(name, f)
         return self
 
-    def method(self, name, params=None, fname=None, invoke=None, **kwargs):
+    def method(self, name, params=None, fname=None, invoke=None, cpp_name=None, **kwargs):
         p = Parameter(self.name, self.cpptype)
         args = to_template_vars(params or [])
         f = add_function(self.cname(name),
@@ -741,7 +769,7 @@ class Handle:
                                             fname=fname or name,
                                             args=args),
                          **kwargs)
-        self.cpp_class.add_method(name, f)
+        self.cpp_class.add_method(cpp_name or name, f)
         return self
 
     def function(self, name, params=None, **kwargs):

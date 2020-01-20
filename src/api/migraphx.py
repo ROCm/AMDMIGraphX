@@ -32,6 +32,16 @@ def compile_options_type_wrap(p):
         p.add_param('migraphx_compile_options *')
         p.read = '${name} ? migraphx::to_compile_options(*${name}) : migraphx::compile_options{}'
 
+@api.cwrap('migraphx::onnx_options')
+def onnx_options_type_wrap(p):
+    if p.returns:
+        p.add_param('migraphx_onnx_options *')
+        p.bad_param('${name} == nullptr', 'Null pointer')
+        p.write = ['*${name} = migraphx::to_onnx_options(${result})']
+    else:
+        p.add_param('migraphx_onnx_options *')
+        p.read = '${name} ? migraphx::to_onnx_options(*${name}) : migraphx::onnx_options{}'
+
 
 def auto_handle(f):
     return api.handle('migraphx_' + f.__name__, 'migraphx::' + f.__name__)(f)
@@ -52,8 +62,8 @@ def shape(h):
 def argument(h):
     h.constructor('create',
                   api.params(shape='const migraphx::shape&', buffer='void*'))
-    h.method('shape', fname='get_shape', returns='const migraphx::shape&')
-    h.method('buffer', fname='data', returns='char*')
+    h.method('shape', fname='get_shape', cpp_name='get_shape', returns='const migraphx::shape&')
+    h.method('buffer', fname='data', cpp_name='data', returns='char*')
 
 
 @auto_handle
@@ -70,6 +80,7 @@ def program_parameter_shapes(h):
     h.method('get',
              api.params(name='const char*'),
              fname='at',
+             cpp_name='operator[]',
              returns='const migraphx::shape&')
     h.method('names',
              invoke='migraphx::get_names(${program_parameter_shapes})',
@@ -91,9 +102,11 @@ def program(h):
         'compile',
         api.params(target='migraphx::target',
                    options='migraphx::compile_options'))
-    h.method('get_parameter_shapes')
+    h.method('get_parameter_shapes', returns='std::unordered_map<std::string, migraphx::shape>')
     h.method('run',
              api.params(
                  params='std::unordered_map<std::string, migraphx::argument>'),
              fname='eval',
              returns='migraphx::argument')
+
+api.add_function('migraphx_parse_onnx', api.params(name='const char*', options='migraphx::onnx_options'), fname='migraphx::parse_onnx', returns='migraphx::program')

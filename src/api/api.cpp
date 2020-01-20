@@ -2,6 +2,7 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/onnx.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/cpu/target.hpp>
 
@@ -82,6 +83,13 @@ migraphx::compile_options to_compile_options(const migraphx_compile_options& opt
 {
     migraphx::compile_options result{};
     result.offload_copy = options.offload_copy;
+    return result;
+}
+
+migraphx::onnx_options to_onnx_options(const migraphx_onnx_options& options)
+{
+    migraphx::onnx_options result{};
+    result.batch_size = options.batch_size;
     return result;
 }
 
@@ -383,12 +391,15 @@ extern "C" migraphx_status migraphx_program_compile(migraphx_program_t program,
     });
 }
 
-extern "C" migraphx_status migraphx_program_get_parameter_shapes(migraphx_program_t program)
+extern "C" migraphx_status
+migraphx_program_get_parameter_shapes(migraphx_program_parameter_shapes_t* out,
+                                      migraphx_program_t program)
 {
     return migraphx::try_([&] {
         if(program == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
-        (program->object).get_parameter_shapes();
+        *out =
+            allocate<migraphx_program_parameter_shapes_t>((program->object).get_parameter_shapes());
     });
 }
 
@@ -402,5 +413,14 @@ extern "C" migraphx_status migraphx_program_run(migraphx_argument_t* out,
         if(params == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
         *out = allocate<migraphx_argument_t>((program->object).eval((params->object)));
+    });
+}
+
+extern "C" migraphx_status
+migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options* options)
+{
+    return migraphx::try_([&] {
+        *out = allocate<migraphx_program_t>(migraphx::parse_onnx(
+            (name), (options ? migraphx::to_onnx_options(*options) : migraphx::onnx_options{})));
     });
 }

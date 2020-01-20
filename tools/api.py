@@ -245,7 +245,6 @@ class Parameter:
     def cpp_output(self, prefix=None):
         return self.substitute(self.cpp_write, prefix=prefix)
 
-
     def input(self, prefix=None):
         return '(' + self.substitute(self.read, prefix=prefix) + ')'
 
@@ -411,8 +410,7 @@ class CPPMember:
         if self.function.returns:
             output_args = self.function.returns.cpp_output_args(self.prefix)
         return ', '.join(
-            ['&{}'.format(self.function.cfunction.name)] +
-            output_args +
+            ['&{}'.format(self.function.cfunction.name)] + output_args +
             [p.cpp_arg(self.prefix) for p in self.get_function_params()])
 
     def get_params(self):
@@ -758,7 +756,13 @@ class Handle:
         self.cpp_class.add_constructor(name, f)
         return self
 
-    def method(self, name, params=None, fname=None, invoke=None, cpp_name=None, **kwargs):
+    def method(self,
+               name,
+               params=None,
+               fname=None,
+               invoke=None,
+               cpp_name=None,
+               **kwargs):
         p = Parameter(self.name, self.cpptype)
         args = to_template_vars(params or [])
         f = add_function(self.cname(name),

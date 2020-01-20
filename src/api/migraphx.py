@@ -54,7 +54,10 @@ def shape(h):
         'create',
         api.params(type='migraphx::shape::type_t',
                    lengths='std::vector<size_t>'))
-    h.method('lengths', fname='lens', returns='const std::vector<size_t>&', const=True)
+    h.method('lengths',
+             fname='lens',
+             returns='const std::vector<size_t>&',
+             const=True)
     h.method('strides', returns='const std::vector<size_t>&', const=True)
     h.method('type', returns='migraphx::shape::type_t', const=True)
 
@@ -66,8 +69,13 @@ def argument(h):
     h.method('shape',
              fname='get_shape',
              cpp_name='get_shape',
-             returns='const migraphx::shape&', const=True)
-    h.method('buffer', fname='data', cpp_name='data', returns='char*', const=True)
+             returns='const migraphx::shape&',
+             const=True)
+    h.method('buffer',
+             fname='data',
+             cpp_name='data',
+             returns='char*',
+             const=True)
 
 
 @auto_handle

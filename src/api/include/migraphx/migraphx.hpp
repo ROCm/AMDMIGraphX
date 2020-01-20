@@ -10,44 +10,43 @@
 namespace migraphx {
 inline namespace api {
 
-template<class T, class F, class... Ts>
+template <class T, class F, class... Ts>
 T* make(F f, Ts&&... xs)
 {
     T* result = nullptr;
-    auto e = f(&result, std::forward<Ts>(xs)...);
-    if (e != migraphx_status_success)
+    auto e    = f(&result, std::forward<Ts>(xs)...);
+    if(e != migraphx_status_success)
         throw std::runtime_error("Failed to call function");
     return result;
 }
 
-template<class F, class... Ts>
+template <class F, class... Ts>
 void call(F f, Ts&&... xs)
 {
     auto e = f(std::forward<Ts>(xs)...);
-    if (e != migraphx_status_success)
+    if(e != migraphx_status_success)
         throw std::runtime_error("Failed to call function");
 }
 
-struct own {};
-struct borrow {};
+struct own
+{
+};
+struct borrow
+{
+};
 
-template<class T, class Deleter, Deleter deleter>
+template <class T, class Deleter, Deleter deleter>
 struct handle_base
 {
-    handle_base()
-    : m_handle(nullptr)
-    {}
-    template<class F, class... Ts>
+    handle_base() : m_handle(nullptr) {}
+    template <class F, class... Ts>
     void make_handle(F f, Ts&&... xs)
     {
         using type = typename std::remove_cv<T>::type;
         set_handle(make<type>(f, std::forward<Ts>(xs)...), own{});
     }
 
-    const std::shared_ptr<T>& get_handle() const
-    {
-        return m_handle;
-    }
+    const std::shared_ptr<T>& get_handle() const { return m_handle; }
 
     T* get_handle_ptr() const
     {
@@ -55,237 +54,189 @@ struct handle_base
         return get_handle().get();
     }
 
-    template<class U>
+    template <class U>
     void set_handle(U* ptr, own)
     {
         m_handle = std::shared_ptr<U>{ptr, deleter};
     }
 
-    template<class U>
+    template <class U>
     void set_handle(U* ptr, borrow)
     {
         m_handle = std::shared_ptr<U>{ptr, [](U*) {}};
     }
 
-protected:
+    protected:
     std::shared_ptr<T> m_handle;
 };
 
-#define MIGRAPHX_HANDLE_BASE(name, const_)                                       \
-    handle_base<const_ migraphx_##name,                      \
-                              decltype(&migraphx_##name##_destroy), \
-                              migraphx_##name##_destroy>
+#define MIGRAPHX_HANDLE_BASE(name, const_)            \
+    handle_base<const_ migraphx_##name,               \
+                decltype(&migraphx_##name##_destroy), \
+                migraphx_##name##_destroy>
 
-#define MIGRAPHX_HANDLE(name) \
-struct name : MIGRAPHX_HANDLE_BASE(name,)
+#define MIGRAPHX_HANDLE(name) struct name : MIGRAPHX_HANDLE_BASE(name, )
 
-#define MIGRAPHX_CONST_HANDLE(name) \
-struct name : MIGRAPHX_HANDLE_BASE(name, const)
+#define MIGRAPHX_CONST_HANDLE(name) struct name : MIGRAPHX_HANDLE_BASE(name, const)
 
-MIGRAPHX_CONST_HANDLE(shape)
+MIGRAPHX_CONST_HANDLE(shape){shape(){}
+
+                             shape(const migraphx_shape* p){this->set_handle(p, borrow{});
+} // namespace api
+
+shape(migraphx_shape* p, own) { this->set_handle(p, own{}); }
+
+shape(migraphx_shape* p, borrow) { this->set_handle(p, borrow{}); }
+
+shape(migraphx_shape_datatype_t type, std::vector<size_t> plengths)
 {
-    shape()
-    {}
+    this->make_handle(&migraphx_shape_create, type, plengths.data(), plengths.size());
+}
 
-    shape(const migraphx_shape* p)
-    {
-        this->set_handle(p, borrow{});
-    }
-
-    shape(migraphx_shape* p, own)
-    {
-        this->set_handle(p, own{});
-    }
-
-    shape(migraphx_shape* p, borrow)
-    {
-        this->set_handle(p, borrow{});
-    }
-    
-    shape(migraphx_shape_datatype_t type, std::vector<size_t> plengths)
-    {
-        this->make_handle(&migraphx_shape_create, type, plengths.data(), plengths.size());
-    }
-
-    std::vector<size_t> lengths() const
-    {
-        const size_t* pout;
-        size_t pout_size;
-        call(&migraphx_shape_lengths, &pout, &pout_size, this->get_handle_ptr());
-        return std::vector<size_t>(pout, pout+pout_size);
-    }
-
-    std::vector<size_t> strides() const
-    {
-        const size_t* pout;
-        size_t pout_size;
-        call(&migraphx_shape_strides, &pout, &pout_size, this->get_handle_ptr());
-        return std::vector<size_t>(pout, pout+pout_size);
-    }
-
-    migraphx_shape_datatype_t type() const
-    {
-        migraphx_shape_datatype_t pout;
-        call(&migraphx_shape_type, &pout, this->get_handle_ptr());
-        return pout;
-    }
-};
-
-MIGRAPHX_HANDLE(argument)
+std::vector<size_t> lengths() const
 {
-    argument()
-    {}
-    argument(migraphx_argument* p, borrow)
-    {
-        this->set_handle(p, borrow{});
-    }
+    const size_t* pout;
+    size_t pout_size;
+    call(&migraphx_shape_lengths, &pout, &pout_size, this->get_handle_ptr());
+    return std::vector<size_t>(pout, pout + pout_size);
+}
 
-    argument(migraphx_argument* p, own)
-    {
-        this->set_handle(p, own{});
-    }
-    
-    argument(shape pshape, void* pbuffer)
-    {
-        this->make_handle(&migraphx_argument_create, pshape.get_handle_ptr(), pbuffer);
-    }
-
-    shape get_shape() const
-    {
-        const_migraphx_shape_t pout;
-        call(&migraphx_argument_shape, &pout, this->get_handle_ptr());
-        return shape(pout);
-    }
-    
-    char* data() const
-    {
-        char* pout;
-        call(&migraphx_argument_buffer, &pout, this->get_handle_ptr());
-        return pout;
-    }
-
-};
-
-MIGRAPHX_HANDLE(target)
+std::vector<size_t> strides() const
 {
-    target()
-    {}
-    target(migraphx_target* p, own)
-    {
-        this->set_handle(p, own{});
-    }
+    const size_t* pout;
+    size_t pout_size;
+    call(&migraphx_shape_strides, &pout, &pout_size, this->get_handle_ptr());
+    return std::vector<size_t>(pout, pout + pout_size);
+}
 
-    target(migraphx_target* p, borrow)
-    {
-        this->set_handle(p, borrow{});
-    }
-    
-    target(const char* name)
-    {
-        this->make_handle(&migraphx_target_create, name);
-    }
-};
-
-MIGRAPHX_HANDLE(program_parameter_shapes)
+migraphx_shape_datatype_t type() const
 {
-    program_parameter_shapes()
-    {}
+    migraphx_shape_datatype_t pout;
+    call(&migraphx_shape_type, &pout, this->get_handle_ptr());
+    return pout;
+}
+}; // namespace migraphx
 
-    program_parameter_shapes(migraphx_program_parameter_shapes* p, own)
-    {
-        this->set_handle(p, own{});
-    }
+MIGRAPHX_HANDLE(argument){
+    argument(){} argument(migraphx_argument * p, borrow){this->set_handle(p, borrow{});
+}
 
-    program_parameter_shapes(migraphx_program_parameter_shapes* p, borrow)
-    {
-        this->set_handle(p, borrow{});
-    }
-    
-    size_t size() const
-    {
-        size_t pout;
-        call(&migraphx_program_parameter_shapes_size, &pout, this->get_handle_ptr());
-        return pout;
-    }
-    
-    shape operator[](const char* pname) const
-    {
-        const_migraphx_shape_t pout;
-        call(&migraphx_program_parameter_shapes_get, &pout, this->get_handle_ptr(), pname);
-        return shape(pout);
-    }
-    
-    std::vector<const char*> names() const
-    {
-        std::vector<const char*> result(this->size());
-        call(&migraphx_program_parameter_shapes_names, result.data(), this->get_handle_ptr());
-        return result;
-    }
-};
+argument(migraphx_argument* p, own) { this->set_handle(p, own{}); }
 
-MIGRAPHX_HANDLE(program_parameters)
+argument(shape pshape, void* pbuffer)
 {
-    program_parameters(migraphx_program_parameters* p, own)
-    {
-        this->set_handle(p, own{});
-    }
+    this->make_handle(&migraphx_argument_create, pshape.get_handle_ptr(), pbuffer);
+}
 
-    program_parameters(migraphx_program_parameters* p, borrow)
-    {
-        this->set_handle(p, borrow{});
-    }
-    
-    program_parameters()
-    {
-        this->make_handle(&migraphx_program_parameters_create);
-    }
-    
-    void add(const char* pname, argument pargument) const
-    {
-        call(&migraphx_program_parameters_add, this->get_handle_ptr(), pname, pargument.get_handle_ptr());
-    }
-
-};
-
-MIGRAPHX_HANDLE(program)
+shape get_shape() const
 {
-    program()
-    {}
+    const_migraphx_shape_t pout;
+    call(&migraphx_argument_shape, &pout, this->get_handle_ptr());
+    return shape(pout);
+}
 
-    program(migraphx_program* p, own)
-    {
-        this->set_handle(p, own{});
-    }
+char* data() const
+{
+    char* pout;
+    call(&migraphx_argument_buffer, &pout, this->get_handle_ptr());
+    return pout;
+}
+}
+;
 
-    program(migraphx_program* p, borrow)
-    {
-        this->set_handle(p, borrow{});
-    }
-    
-    void compile(target ptarget, migraphx_compile_options poptions) const
-    {
-        call(&migraphx_program_compile, this->get_handle_ptr(), ptarget.get_handle_ptr(), &poptions);
-    }
+MIGRAPHX_HANDLE(target){target(){} target(migraphx_target * p, own){this->set_handle(p, own{});
+}
 
-    void compile(target ptarget) const
-    {
-        call(&migraphx_program_compile, this->get_handle_ptr(), ptarget.get_handle_ptr(), nullptr);
-    }
-    
-    program_parameter_shapes get_parameter_shapes() const
-    {
-        migraphx_program_parameter_shapes_t pout;
-        call(&migraphx_program_get_parameter_shapes, &pout, this->get_handle_ptr());
-        return program_parameter_shapes(pout, own{});
-    }
+target(migraphx_target* p, borrow) { this->set_handle(p, borrow{}); }
 
-    argument eval(program_parameters pparams) const
-    {
-        migraphx_argument_t pout;
-        call(&migraphx_program_run, &pout, this->get_handle_ptr(), pparams.get_handle_ptr());
-        return argument(pout, own{});
-    }
-};
+target(const char* name) { this->make_handle(&migraphx_target_create, name); }
+}
+;
+
+MIGRAPHX_HANDLE(program_parameter_shapes){
+    program_parameter_shapes(){}
+
+    program_parameter_shapes(migraphx_program_parameter_shapes * p, own){this->set_handle(p, own{});
+}
+
+program_parameter_shapes(migraphx_program_parameter_shapes* p, borrow)
+{
+    this->set_handle(p, borrow{});
+}
+
+size_t size() const
+{
+    size_t pout;
+    call(&migraphx_program_parameter_shapes_size, &pout, this->get_handle_ptr());
+    return pout;
+}
+
+shape operator[](const char* pname) const
+{
+    const_migraphx_shape_t pout;
+    call(&migraphx_program_parameter_shapes_get, &pout, this->get_handle_ptr(), pname);
+    return shape(pout);
+}
+
+std::vector<const char*> names() const
+{
+    std::vector<const char*> result(this->size());
+    call(&migraphx_program_parameter_shapes_names, result.data(), this->get_handle_ptr());
+    return result;
+}
+}
+;
+
+MIGRAPHX_HANDLE(program_parameters){
+    program_parameters(migraphx_program_parameters * p, own){this->set_handle(p, own{});
+}
+
+program_parameters(migraphx_program_parameters* p, borrow) { this->set_handle(p, borrow{}); }
+
+program_parameters() { this->make_handle(&migraphx_program_parameters_create); }
+
+void add(const char* pname, argument pargument) const
+{
+    call(&migraphx_program_parameters_add,
+         this->get_handle_ptr(),
+         pname,
+         pargument.get_handle_ptr());
+}
+}
+;
+
+MIGRAPHX_HANDLE(program){program(){}
+
+                         program(migraphx_program * p, own){this->set_handle(p, own{});
+}
+
+program(migraphx_program* p, borrow) { this->set_handle(p, borrow{}); }
+
+void compile(target ptarget, migraphx_compile_options poptions) const
+{
+    call(&migraphx_program_compile, this->get_handle_ptr(), ptarget.get_handle_ptr(), &poptions);
+}
+
+void compile(target ptarget) const
+{
+    call(&migraphx_program_compile, this->get_handle_ptr(), ptarget.get_handle_ptr(), nullptr);
+}
+
+program_parameter_shapes get_parameter_shapes() const
+{
+    migraphx_program_parameter_shapes_t pout;
+    call(&migraphx_program_get_parameter_shapes, &pout, this->get_handle_ptr());
+    return program_parameter_shapes(pout, own{});
+}
+
+argument eval(program_parameters pparams) const
+{
+    migraphx_argument_t pout;
+    call(&migraphx_program_run, &pout, this->get_handle_ptr(), pparams.get_handle_ptr());
+    return argument(pout, own{});
+}
+}
+;
 
 program parse_onnx(const char* filename, migraphx_onnx_options options)
 {
@@ -301,4 +252,3 @@ program parse_onnx(const char* filename)
 } // namespace migraphx
 
 #endif
-

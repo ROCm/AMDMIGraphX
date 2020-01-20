@@ -6,6 +6,7 @@ def bad_param_error(msg):
 
 
 api.error_type = 'migraphx_status'
+api.success_type = 'migraphx_status_success'
 api.try_wrap = 'migraphx::try_'
 api.bad_param_error = bad_param_error
 

@@ -2,12 +2,16 @@ import string, sys, re, os, runpy
 from functools import wraps
 
 type_map = {}
+cpp_type_map = {}
 functions = []
+cpp_classes = []
 error_type = ''
+success_type = ''
 try_wrap = ''
 
 c_header_preamble = []
 c_api_body_preamble = []
+cpp_header_preamble = []
 
 
 def bad_param_error(msg):
@@ -136,16 +140,33 @@ class Parameter:
         self.size_name = ''
         self.read = '${name}'
         self.write = ['*${name} = ${result}']
+        self.cpp_read = '${name}'
+        self.cpp_write = ''
         self.returns = returns
         self.bad_param_check = None
 
-    def substitute(self, s, result=None):
+    def get_name(self, prefix=None):
+        if prefix:
+            return prefix + self.name
+        else:
+            return self.name
+
+    def get_cpp_type(self):
+        if self.type.str() in cpp_type_map:
+            return cpp_type_map[self.type.basic().str()]
+        elif self.type.basic().str() in cpp_type_map:
+            return cpp_type_map[self.type.basic().str()]
+        else:
+            return self.type.str()
+
+    def substitute(self, s, prefix=None, result=None):
         ctype = None
         if len(self.cparams) > 0:
             ctype = Type(self.cparams[0][0]).basic().str()
-        return Template(s).safe_substitute(name=self.name,
+        return Template(s).safe_substitute(name=self.get_name(prefix),
                                            type=self.type.str(),
                                            ctype=ctype or '',
+                                           cpptype=self.get_cpp_type(),
                                            size=self.size_name,
                                            result=result or '')
 
@@ -189,11 +210,23 @@ class Parameter:
             raise ValueError("Error for {}: write cannot be a string".format(
                 self.type.str()))
 
-    def input(self):
-        return '(' + self.substitute(self.read) + ')'
+    def cpp_param(self, prefix=None):
+        return self.substitute('${cpptype} ${name}', prefix=prefix)
+
+    def cpp_arg(self, prefix=None):
+        return self.substitute(self.cpp_read, prefix=prefix)
+
+    def output_declarations(self, prefix=None):
+        return ['{type} {prefix}{n};'.format(type=Type(t).remove_pointer().str(), prefix=prefix, n=n) for t, n in self.cparams]
+
+    def output_args(self, prefix=None):
+        return ['&{prefix}{n};'.format(prefix=prefix, n=n) for t, n in self.cparams]
+
+    def input(self, prefix=None):
+        return '(' + self.substitute(self.read, prefix=prefix) + ')'
 
     def outputs(self, result=None):
-        return [self.substitute(w, result) for w in self.write]
+        return [self.substitute(w, result=result) for w in self.write]
 
     def add_to_cfunction(self, cfunction):
         for t, name in self.cparams:
@@ -296,6 +329,132 @@ class Function:
             self.cfunction.add_statement(assign)
 
 
+cpp_class_template = Template('''
+
+struct ${name} : handle_base<${ctype}, decltype(&${destroy}), ${destroy}>
+{
+    ${name}(${ctype} p, bool own = true)
+    : m_handle(nullptr)
+    {
+        this->set_handle(p, own);
+    }
+    ${constructors}
+
+    ${methods}
+};
+''')
+
+cpp_class_method_template = Template('''
+    ${return_type} ${name}(${params})
+    {
+        assert(m_handle != nullptr);
+        ${outputs}
+        this->call_handle(${args});
+        return ${result};
+    }
+''')
+
+cpp_class_void_method_template = Template('''
+    void ${name}(${params})
+    {
+        assert(m_handle != nullptr);
+        this->call_handle(${args});
+    }
+''')
+
+cpp_class_constructor_template = Template('''
+    ${name}(${args})
+    : m_handle(nullptr)
+    {
+        m_handle = this->make_handle(${args});
+    }
+''')
+
+class CPPMember:
+    def __init__(self, name, function, prefix, method=True):
+        self.name = name
+        self.function = function
+        self.prefix = prefix
+        self.method = method
+
+    def get_function_params(self):
+        if self.method:
+            return self.function.params[1:]
+        else:
+            return self.function.params
+
+    def get_args(self):
+        return ', '.join(['&{}'.format(self.function.cfunction.name)] + [p.cpp_arg(self.prefix) for p in self.get_function_params()])
+
+    def get_params(self):
+        return ', '.join([p.cpp_param(self.prefix) for p in self.get_function_params()])
+
+    def get_return_declarations(self):
+        if self.function.returns:
+            return '\n        '.join([d for d in self.function.returns.output_declarations(self.prefix)])
+        else:
+            return ''
+
+    def get_result(self):
+        return self.function.returns.input(self.prefix)
+
+    def generate_method(self):
+        if self.function.returns:
+            return_type = self.function.returns.type.str()
+            return cpp_class_method_template.safe_substitute(return_type=return_type,
+                name=self.name,
+                cfunction=self.function.cfunction.name,
+                params=self.get_params(),
+                outputs=self.get_return_declarations(),
+                args=self.get_args(),
+                success=success_type)
+        else:
+            return cpp_class_void_method_template.safe_substitute(name=self.name,
+                cfunction=self.function.cfunction.name,
+                params=self.get_params(),
+                args=self.get_args(),
+                success=success_type)
+
+    def generate_constructor(self):
+        return cpp_class_constructor_template.safe_substitute(
+            name=self.name,
+            cfunction=self.function.cfunction.name,
+            params=self.get_params(),
+            args=self.get_args(),
+            success=success_type)
+
+
+class CPPClass:
+    def __init__(self, name, ctype):
+        self.name = name
+        self.ctype = ctype
+        self.constructors = []
+        self.methods = []
+        self.prefix = 'p'
+
+    def add_method(self, name, f):
+        self.methods.append(CPPMember(name, f, self.prefix, method=True))
+
+    def add_constructor(self, name, f):
+        self.constructors.append(CPPMember(name, f, self.prefix, method=True))
+
+    def generate_methods(self):
+        return '\n    '.join([m.generate_method() for m in self.methods])
+
+    def generate_constructors(self):
+        return '\n    '.join([m.generate_constructor() for m in self.constructors])
+
+    def substitute(self, s, **kwargs):
+        t = s
+        if isinstance(s, str):
+            t = string.Template(s)
+        destroy = self.ctype + '_destroy'
+        return t.safe_substitute(name=self.name, ctype=self.ctype, destroy=destroy, **kwargs)
+
+    def generate(self):
+        return self.substitute(cpp_class_template, constructors=self.substitute(self.generate_constructors()),
+            methods=self.substitute(self.generate_methods()))
+
 def params(virtual=None, **kwargs):
     result = []
     for name in virtual or {}:
@@ -306,7 +465,9 @@ def params(virtual=None, **kwargs):
 
 
 def add_function(name, *args, **kwargs):
-    functions.append(Function(name, *args, **kwargs))
+    f = Function(name, *args, **kwargs)
+    functions.append(f)
+    return f
 
 
 def once(f):
@@ -340,6 +501,11 @@ def generate_c_api_body():
     process_functions()
     return generate_lines(c_api_body_preamble +
                           [f.cfunction.generate_body() for f in functions])
+
+def generate_cpp_header():
+    process_functions()
+    return generate_lines(cpp_header_preamble +
+                          [c.generate() for c in cpp_classes])
 
 
 def cwrap(name):
@@ -396,10 +562,54 @@ void destroy(T* x)
 }
 '''
 
+cpp_handle_preamble = '''
+template<class T, class Deleter, Deleter deleter>
+struct handle_base
+{
+
+    template<class F, class... Ts>
+    void make_handle(F f, Ts&&... xs)
+    {
+        T* result = nullptr;
+        auto e = F(&result, std::forward<Ts>(xs)...);
+        if (e != ${success})
+            throw std::runtime_error("Failed to call function");
+        set_handle(result);
+    }
+
+    template<class F, class... Ts>
+    void call_handle(F f, Ts&&... xs)
+    {
+        assert(m_handle != nullptr);
+        auto e = F(this->get_handle().get(), std::forward<Ts>(xs)...);
+        if (e != ${success})
+            throw std::runtime_error("Failed to call function");
+    }
+
+    const std::shared_ptr<T>& get_handle() const
+    {
+        return m_handle;
+    }
+
+    void set_handle(T* ptr, bool own = true)
+    {
+        if (own)
+            m_handle = std::shared_ptr<T>{ptr, deleter};
+        else
+            m_handle = std::shared_ptr<T>{ptr, [](T*) {}};
+    }
+
+protected:
+    std::shared_ptr<T> m_handle;
+};
+
+'''
+
 
 @once
 def add_handle_preamble():
     c_api_body_preamble.append(handle_preamble)
+    cpp_header_preamble.append(string.Template(cpp_handle_preamble).substitute(success=success_type))
 
 
 def add_handle(name, ctype, cpptype, destroy=None):
@@ -412,15 +622,19 @@ def add_handle(name, ctype, cpptype, destroy=None):
         if p.returns:
             p.add_param(t.add_pointer())
             if p.type.is_reference():
+                p.cpp_write = '${cpptype}(${name}, false)'
                 p.write = ['*${name} = object_cast<${ctype}>(&(${result}))']
             elif p.type.is_pointer():
+                p.cpp_write = '${cpptype}(${name}, false)'
                 p.write = ['*${name} = object_cast<${ctype}>(${result})']
             else:
+                p.cpp_write = '${cpptype}(${name})'
                 p.write = ['*${name} = allocate<${ctype}>(${result})']
         else:
             p.add_param(t)
             p.bad_param('${name} == nullptr', 'Null pointer')
             p.read = '${name}->object'
+            p.cpp_read = '${name}.get_handle().get()'
 
     type_map[cpptype] = handle_wrap
     add_function(destroy or ctype + '_' + 'destroy',
@@ -463,7 +677,9 @@ class Handle:
         self.name = name
         self.ctype = ctype
         self.cpptype = cpptype
+        self.cpp_class = CPPClass(name, ctype)
         add_handle(name, ctype, cpptype)
+        cpp_type_map[cpptype] = name
 
     def cname(self, name):
         return self.ctype + '_' + name
@@ -481,18 +697,19 @@ class Handle:
             create = self.substitute('allocate<${cpptype}>(${fname}($@))',
                                      fname=fname)
 
-        add_function(self.cname(name),
+        f = add_function(self.cname(name),
                      params=params,
                      invoke=invoke or create,
                      returns=self.cpptype + '*',
                      return_name=self.name,
                      **kwargs)
+        self.cpp_class.add_constructor(name, f)
         return self
 
     def method(self, name, params=None, fname=None, invoke=None, **kwargs):
         p = Parameter(self.name, self.cpptype)
         args = to_template_vars(params or [])
-        add_function(self.cname(name),
+        f = add_function(self.cname(name),
                      params=[p] + (params or []),
                      invoke=invoke
                      or self.substitute('${var}.${fname}(${args})',
@@ -500,11 +717,15 @@ class Handle:
                                         fname=fname or name,
                                         args=args),
                      **kwargs)
+        self.cpp_class.add_method(name, f)
         return self
 
     def function(self, name, params=None, **kwargs):
         add_function(self.cname(name), params=params, **kwargs)
         return self
+
+    def add_cpp_class(self):
+        cpp_classes.append(self.cpp_class)
 
 
 def handle(ctype, cpptype, name=None):
@@ -512,6 +733,7 @@ def handle(ctype, cpptype, name=None):
         n = name or f.__name__
         h = Handle(n, ctype, cpptype)
         f(h)
+        h.add_cpp_class()
 
         @wraps(f)
         def decorated(*args, **kwargs):
@@ -544,6 +766,7 @@ def run():
     else:
         sys.stdout.write(generate_c_header())
         sys.stdout.write(generate_c_api_body())
+        sys.stdout.write(generate_cpp_header())
 
 
 if __name__ == "__main__":

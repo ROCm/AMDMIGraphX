@@ -903,6 +903,50 @@ def initializer_not_an_input():
 
 
 @onnx_test
+def instance_norm_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 2, 3, 3])
+    scale = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2])
+    bias = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1, 2, 3, 3])
+
+    node = onnx.helper.make_node('InstanceNormalization',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['3'])
+
+    return ([node], [x, scale, bias], [y])
+
+
+@onnx_test
+def instance_norm_val_test():
+    x = np.array([[[[0, 1, 2], [3, 4, 5], [6, 7, 8]],
+                   [[0, 1, 2], [3, 4, 5], [6, 7, 8]]]])
+    scale = np.array([1, 2])
+    bias = np.array([0, 1])
+
+    x_tensor = helper.make_tensor(name='x_tensor',
+                                  data_type=TensorProto.FLOAT,
+                                  dims=x.shape,
+                                  vals=x.flatten().astype(np.float))
+    scale_tensor = helper.make_tensor(name='scale_tensor',
+                                      data_type=TensorProto.FLOAT,
+                                      dims=scale.shape,
+                                      vals=scale.flatten().astype(np.float))
+    bias_tensor = helper.make_tensor(name='bias_tensor',
+                                     data_type=TensorProto.FLOAT,
+                                     dims=bias.shape,
+                                     vals=bias.flatten().astype(np.float))
+
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 3, 3])
+
+    node = onnx.helper.make_node(
+        'InstanceNormalization',
+        inputs=['x_tensor', 'scale_tensor', 'bias_tensor'],
+        outputs=['y'])
+
+    return ([node], [], [y], [x_tensor, scale_tensor, bias_tensor])
+
+
+@onnx_test
 def leaky_relu_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])

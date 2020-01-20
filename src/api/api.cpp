@@ -207,7 +207,7 @@ extern "C" migraphx_status migraphx_shape_create(migraphx_shape_t* shape,
 }
 
 extern "C" migraphx_status
-migraphx_shape_lengths(const size_t** out, size_t* out_size, migraphx_shape_t shape)
+migraphx_shape_lengths(const size_t** out, size_t* out_size, const_migraphx_shape_t shape)
 {
     return migraphx::try_([&] {
         if(out == nullptr or out_size == nullptr)
@@ -221,7 +221,7 @@ migraphx_shape_lengths(const size_t** out, size_t* out_size, migraphx_shape_t sh
 }
 
 extern "C" migraphx_status
-migraphx_shape_strides(const size_t** out, size_t* out_size, migraphx_shape_t shape)
+migraphx_shape_strides(const size_t** out, size_t* out_size, const_migraphx_shape_t shape)
 {
     return migraphx::try_([&] {
         if(out == nullptr or out_size == nullptr)
@@ -235,7 +235,7 @@ migraphx_shape_strides(const size_t** out, size_t* out_size, migraphx_shape_t sh
 }
 
 extern "C" migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out,
-                                               migraphx_shape_t shape)
+                                               const_migraphx_shape_t shape)
 {
     return migraphx::try_([&] {
         if(out == nullptr)
@@ -263,7 +263,7 @@ migraphx_argument_create(migraphx_argument_t* argument, const_migraphx_shape_t s
 }
 
 extern "C" migraphx_status migraphx_argument_shape(const_migraphx_shape_t* out,
-                                                   migraphx_argument_t argument)
+                                                   const_migraphx_argument_t argument)
 {
     return migraphx::try_([&] {
         if(argument == nullptr)
@@ -272,7 +272,7 @@ extern "C" migraphx_status migraphx_argument_shape(const_migraphx_shape_t* out,
     });
 }
 
-extern "C" migraphx_status migraphx_argument_buffer(char** out, migraphx_argument_t argument)
+extern "C" migraphx_status migraphx_argument_buffer(char** out, const_migraphx_argument_t argument)
 {
     return migraphx::try_([&] {
         if(argument == nullptr)

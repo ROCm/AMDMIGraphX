@@ -38,6 +38,9 @@ class Type:
     def add_pointer(self):
         return Type(self.name + '*')
 
+    def add_reference(self):
+        return Type(self.name + '&')
+
     def add_const(self):
         return Type('const ' + self.name)
 
@@ -762,8 +765,12 @@ class Handle:
                fname=None,
                invoke=None,
                cpp_name=None,
+               const=None,
                **kwargs):
-        p = Parameter(self.name, self.cpptype)
+        cpptype = self.cpptype
+        if const:
+            cpptype = Type(cpptype).add_const().str()
+        p = Parameter(self.name, cpptype)
         args = to_template_vars(params or [])
         f = add_function(self.cname(name),
                          params=[p] + (params or []),

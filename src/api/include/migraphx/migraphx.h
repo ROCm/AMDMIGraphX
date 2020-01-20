@@ -81,21 +81,22 @@ migraphx_status migraphx_shape_create(migraphx_shape_t* shape,
                                       size_t lengths_size);
 
 migraphx_status
-migraphx_shape_lengths(const size_t** out, size_t* out_size, migraphx_shape_t shape);
+migraphx_shape_lengths(const size_t** out, size_t* out_size, const_migraphx_shape_t shape);
 
 migraphx_status
-migraphx_shape_strides(const size_t** out, size_t* out_size, migraphx_shape_t shape);
+migraphx_shape_strides(const size_t** out, size_t* out_size, const_migraphx_shape_t shape);
 
-migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out, migraphx_shape_t shape);
+migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out, const_migraphx_shape_t shape);
 
 migraphx_status migraphx_argument_destroy(migraphx_argument_t argument);
 
 migraphx_status
 migraphx_argument_create(migraphx_argument_t* argument, const_migraphx_shape_t shape, void* buffer);
 
-migraphx_status migraphx_argument_shape(const_migraphx_shape_t* out, migraphx_argument_t argument);
+migraphx_status migraphx_argument_shape(const_migraphx_shape_t* out,
+                                        const_migraphx_argument_t argument);
 
-migraphx_status migraphx_argument_buffer(char** out, migraphx_argument_t argument);
+migraphx_status migraphx_argument_buffer(char** out, const_migraphx_argument_t argument);
 
 migraphx_status migraphx_target_destroy(migraphx_target_t target);
 

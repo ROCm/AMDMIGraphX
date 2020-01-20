@@ -79,10 +79,13 @@ struct handle_base
 
 #define MIGRAPHX_CONST_HANDLE(name) struct name : MIGRAPHX_HANDLE_BASE(name, const)
 
-MIGRAPHX_CONST_HANDLE(shape){shape(){}
+// clang-format off
+MIGRAPHX_CONST_HANDLE(shape)
+// clang-format on
+{shape(){}
 
                              shape(const migraphx_shape* p){this->set_handle(p, borrow{});
-} // namespace api
+}
 
 shape(migraphx_shape* p, own) { this->set_handle(p, own{}); }
 
@@ -115,9 +118,12 @@ migraphx_shape_datatype_t type() const
     call(&migraphx_shape_type, &pout, this->get_handle_ptr());
     return pout;
 }
-}; // namespace migraphx
+};
 
-MIGRAPHX_HANDLE(argument){
+// clang-format off
+MIGRAPHX_HANDLE(argument)
+// clang-format on
+{
     argument(){} argument(migraphx_argument * p, borrow){this->set_handle(p, borrow{});
 }
 
@@ -144,7 +150,10 @@ char* data() const
 }
 ;
 
-MIGRAPHX_HANDLE(target){target(){} target(migraphx_target * p, own){this->set_handle(p, own{});
+// clang-format off
+MIGRAPHX_HANDLE(target)
+// clang-format on
+{target(){} target(migraphx_target * p, own){this->set_handle(p, own{});
 }
 
 target(migraphx_target* p, borrow) { this->set_handle(p, borrow{}); }
@@ -153,7 +162,10 @@ target(const char* name) { this->make_handle(&migraphx_target_create, name); }
 }
 ;
 
-MIGRAPHX_HANDLE(program_parameter_shapes){
+// clang-format off
+MIGRAPHX_HANDLE(program_parameter_shapes)
+// clang-format on
+{
     program_parameter_shapes(){}
 
     program_parameter_shapes(migraphx_program_parameter_shapes * p, own){this->set_handle(p, own{});
@@ -187,7 +199,10 @@ std::vector<const char*> names() const
 }
 ;
 
-MIGRAPHX_HANDLE(program_parameters){
+// clang-format off
+MIGRAPHX_HANDLE(program_parameters)
+// clang-format on
+{
     program_parameters(migraphx_program_parameters * p, own){this->set_handle(p, own{});
 }
 
@@ -205,7 +220,10 @@ void add(const char* pname, argument pargument) const
 }
 ;
 
-MIGRAPHX_HANDLE(program){program(){}
+// clang-format off
+MIGRAPHX_HANDLE(program)
+// clang-format on
+{program(){}
 
                          program(migraphx_program * p, own){this->set_handle(p, own{});
 }

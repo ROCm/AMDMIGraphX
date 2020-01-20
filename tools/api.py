@@ -217,10 +217,16 @@ class Parameter:
         return self.substitute(self.cpp_read, prefix=prefix)
 
     def output_declarations(self, prefix=None):
-        return ['{type} {prefix}{n};'.format(type=Type(t).remove_pointer().str(), prefix=prefix, n=n) for t, n in self.cparams]
+        return [
+            '{type} {prefix}{n};'.format(type=Type(t).remove_pointer().str(),
+                                         prefix=prefix,
+                                         n=n) for t, n in self.cparams
+        ]
 
     def output_args(self, prefix=None):
-        return ['&{prefix}{n};'.format(prefix=prefix, n=n) for t, n in self.cparams]
+        return [
+            '&{prefix}{n};'.format(prefix=prefix, n=n) for t, n in self.cparams
+        ]
 
     def input(self, prefix=None):
         return '(' + self.substitute(self.read, prefix=prefix) + ')'
@@ -370,6 +376,7 @@ cpp_class_constructor_template = Template('''
     }
 ''')
 
+
 class CPPMember:
     def __init__(self, name, function, prefix, method=True):
         self.name = name
@@ -384,14 +391,20 @@ class CPPMember:
             return self.function.params
 
     def get_args(self):
-        return ', '.join(['&{}'.format(self.function.cfunction.name)] + [p.cpp_arg(self.prefix) for p in self.get_function_params()])
+        return ', '.join(
+            ['&{}'.format(self.function.cfunction.name)] +
+            [p.cpp_arg(self.prefix) for p in self.get_function_params()])
 
     def get_params(self):
-        return ', '.join([p.cpp_param(self.prefix) for p in self.get_function_params()])
+        return ', '.join(
+            [p.cpp_param(self.prefix) for p in self.get_function_params()])
 
     def get_return_declarations(self):
         if self.function.returns:
-            return '\n        '.join([d for d in self.function.returns.output_declarations(self.prefix)])
+            return '\n        '.join([
+                d
+                for d in self.function.returns.output_declarations(self.prefix)
+            ])
         else:
             return ''
 
@@ -401,7 +414,8 @@ class CPPMember:
     def generate_method(self):
         if self.function.returns:
             return_type = self.function.returns.type.str()
-            return cpp_class_method_template.safe_substitute(return_type=return_type,
+            return cpp_class_method_template.safe_substitute(
+                return_type=return_type,
                 name=self.name,
                 cfunction=self.function.cfunction.name,
                 params=self.get_params(),
@@ -409,7 +423,8 @@ class CPPMember:
                 args=self.get_args(),
                 success=success_type)
         else:
-            return cpp_class_void_method_template.safe_substitute(name=self.name,
+            return cpp_class_void_method_template.safe_substitute(
+                name=self.name,
                 cfunction=self.function.cfunction.name,
                 params=self.get_params(),
                 args=self.get_args(),
@@ -442,18 +457,25 @@ class CPPClass:
         return '\n    '.join([m.generate_method() for m in self.methods])
 
     def generate_constructors(self):
-        return '\n    '.join([m.generate_constructor() for m in self.constructors])
+        return '\n    '.join(
+            [m.generate_constructor() for m in self.constructors])
 
     def substitute(self, s, **kwargs):
         t = s
         if isinstance(s, str):
             t = string.Template(s)
         destroy = self.ctype + '_destroy'
-        return t.safe_substitute(name=self.name, ctype=self.ctype, destroy=destroy, **kwargs)
+        return t.safe_substitute(name=self.name,
+                                 ctype=self.ctype,
+                                 destroy=destroy,
+                                 **kwargs)
 
     def generate(self):
-        return self.substitute(cpp_class_template, constructors=self.substitute(self.generate_constructors()),
+        return self.substitute(
+            cpp_class_template,
+            constructors=self.substitute(self.generate_constructors()),
             methods=self.substitute(self.generate_methods()))
+
 
 def params(virtual=None, **kwargs):
     result = []
@@ -501,6 +523,7 @@ def generate_c_api_body():
     process_functions()
     return generate_lines(c_api_body_preamble +
                           [f.cfunction.generate_body() for f in functions])
+
 
 def generate_cpp_header():
     process_functions()
@@ -609,7 +632,8 @@ protected:
 @once
 def add_handle_preamble():
     c_api_body_preamble.append(handle_preamble)
-    cpp_header_preamble.append(string.Template(cpp_handle_preamble).substitute(success=success_type))
+    cpp_header_preamble.append(
+        string.Template(cpp_handle_preamble).substitute(success=success_type))
 
 
 def add_handle(name, ctype, cpptype, destroy=None):
@@ -698,11 +722,11 @@ class Handle:
                                      fname=fname)
 
         f = add_function(self.cname(name),
-                     params=params,
-                     invoke=invoke or create,
-                     returns=self.cpptype + '*',
-                     return_name=self.name,
-                     **kwargs)
+                         params=params,
+                         invoke=invoke or create,
+                         returns=self.cpptype + '*',
+                         return_name=self.name,
+                         **kwargs)
         self.cpp_class.add_constructor(name, f)
         return self
 
@@ -710,13 +734,13 @@ class Handle:
         p = Parameter(self.name, self.cpptype)
         args = to_template_vars(params or [])
         f = add_function(self.cname(name),
-                     params=[p] + (params or []),
-                     invoke=invoke
-                     or self.substitute('${var}.${fname}(${args})',
-                                        var=template_var(self.name),
-                                        fname=fname or name,
-                                        args=args),
-                     **kwargs)
+                         params=[p] + (params or []),
+                         invoke=invoke
+                         or self.substitute('${var}.${fname}(${args})',
+                                            var=template_var(self.name),
+                                            fname=fname or name,
+                                            args=args),
+                         **kwargs)
         self.cpp_class.add_method(name, f)
         return self
 

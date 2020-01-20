@@ -91,6 +91,7 @@ struct onnx_parser
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
         add_mem_op("MatMul", &onnx_parser::parse_matmul);
         add_mem_op("BatchNormalization", &onnx_parser::parse_batchnorm);
+        add_mem_op("InstanceNormalization", &onnx_parser::parse_instancenorm);
         add_mem_op("Softmax", &onnx_parser::parse_softmax<op::softmax>);
         add_mem_op("LogSoftmax", &onnx_parser::parse_softmax<op::logsoftmax>);
         add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
@@ -793,6 +794,42 @@ struct onnx_parser
         }
         op::batch_norm_inference op{epsilon, momentum, bn_mode};
         return prog.add_instruction(op, std::move(args));
+    }
+
+    instruction_ref parse_instancenorm(const std::string&,
+                                       attribute_map attributes,
+                                       std::vector<instruction_ref> args)
+    {
+        // y = scale * ( x - mean ) / sqrt ( variance + epsilon ) + bias
+        // mean = reduce_mean({H, W}, x)
+        // variance = reduce_mean({H, W}, (x - mean)^2)
+
+        float epsilon = 1e-5f;
+        if(contains(attributes, "epsilon"))
+        {
+            epsilon = parse_value(attributes.at("epsilon")).at<float>();
+        }
+        auto x     = args[0];
+        auto scale = args[1];
+        auto bias  = args[2];
+        auto dims  = x->get_shape().lens();
+
+        auto mean            = prog.add_instruction(op::reduce_mean{{2, 3}}, x);
+        auto mean_bcast      = prog.add_instruction(op::multibroadcast{dims}, mean);
+        auto l0              = prog.add_instruction(op::sqdiff{}, x, mean_bcast);
+        auto variance        = prog.add_instruction(op::reduce_mean{{2, 3}}, l0);
+        auto l1              = prog.add_instruction(op::sub{}, x, mean_bcast);
+        auto epsilon_literal = prog.add_literal(epsilon);
+        auto epsilon_bcast   = prog.add_instruction(op::multibroadcast{dims}, epsilon_literal);
+        auto variance_bcast  = prog.add_instruction(op::multibroadcast{dims}, variance);
+        auto l2              = prog.add_instruction(op::add{}, variance_bcast, epsilon_bcast);
+        auto l3              = prog.add_instruction(op::rsqrt{}, l2);
+        auto l4              = prog.add_instruction(op::mul{}, l1, l3);
+        auto scale_bcast     = prog.add_instruction(op::broadcast{1, dims}, scale);
+        ;
+        auto bias_bcast = prog.add_instruction(op::broadcast{1, dims}, bias);
+        auto l5         = prog.add_instruction(op::mul{}, l4, scale_bcast);
+        return prog.add_instruction(op::add{}, l5, bias_bcast);
     }
 
     instruction_ref parse_leaky_relu(const std::string&,

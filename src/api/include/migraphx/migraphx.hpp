@@ -68,10 +68,8 @@ struct handle_base
     std::shared_ptr<T> m_handle;
 };
 
-#define MIGRAPHX_HANDLE_BASE(name)                                       \
-    handle_base<migraphx_##name,                      \
-                              decltype(&migraphx_##name##_destroy), \
-                              migraphx_##name##_destroy>
+#define MIGRAPHX_HANDLE_BASE(name) \
+    handle_base<migraphx_##name, decltype(&migraphx_##name##_destroy), migraphx_##name##_destroy>
 
 #define MIGRAPHX_HANDLE(name)                                       \
     struct name : handle_base<migraphx_##name,                      \

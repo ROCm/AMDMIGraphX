@@ -130,7 +130,9 @@ MIGRAPHX_CONST_HANDLE(shape)
 
 MIGRAPHX_HANDLE(argument)
 {
-    argument() {} argument(migraphx_argument * p, borrow)
+    argument() {}
+
+    argument(migraphx_argument * p, borrow)
     {
         this->set_handle(p, borrow{});
     }
@@ -162,7 +164,9 @@ MIGRAPHX_HANDLE(argument)
 
 MIGRAPHX_HANDLE(target)
 {
-    target() {} target(migraphx_target * p, own)
+    target() {}
+
+    target(migraphx_target * p, own)
     {
         this->set_handle(p, own{});
     }

@@ -109,6 +109,12 @@ bool equal(const T& x, const T& y)
     return x == y;
 }
 
+std::vector<argument> run(program& p, const program::parameter_map& params)
+{
+    auto a = p.eval(params);
+    return {a};
+} 
+
 } // namespace migraphx
 
 <% generate_c_api_body() %>

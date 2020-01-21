@@ -70,6 +70,9 @@ typedef const struct migraphx_program_parameter_shapes* const_migraphx_program_p
 typedef struct migraphx_program_parameters* migraphx_program_parameters_t;
 typedef const struct migraphx_program_parameters* const_migraphx_program_parameters_t;
 
+typedef struct migraphx_arguments* migraphx_arguments_t;
+typedef const struct migraphx_arguments* const_migraphx_arguments_t;
+
 typedef struct migraphx_program* migraphx_program_t;
 typedef const struct migraphx_program* const_migraphx_program_t;
 
@@ -133,7 +136,14 @@ migraphx_program_parameters_create(migraphx_program_parameters_t* program_parame
 
 migraphx_status migraphx_program_parameters_add(migraphx_program_parameters_t program_parameters,
                                                 const char* name,
-                                                migraphx_argument_t argument);
+                                                const_migraphx_argument_t argument);
+
+migraphx_status migraphx_arguments_destroy(migraphx_arguments_t arguments);
+
+migraphx_status migraphx_arguments_size(size_t* out, migraphx_arguments_t arguments);
+
+migraphx_status
+migraphx_arguments_get(const_migraphx_argument_t* out, migraphx_arguments_t arguments, size_t idx);
 
 migraphx_status migraphx_program_destroy(migraphx_program_t program);
 
@@ -144,7 +154,7 @@ migraphx_status migraphx_program_compile(migraphx_program_t program,
 migraphx_status migraphx_program_get_parameter_shapes(migraphx_program_parameter_shapes_t* out,
                                                       migraphx_program_t program);
 
-migraphx_status migraphx_program_run(migraphx_argument_t* out,
+migraphx_status migraphx_program_run(migraphx_arguments_t* out,
                                      migraphx_program_t program,
                                      migraphx_program_parameters_t params);
 

@@ -28,6 +28,91 @@ void call(F f, Ts&&... xs)
         throw std::runtime_error("Failed to call function");
 }
 
+
+template<class F, class Iterator=std::size_t>
+struct iota_iterator
+{
+    Iterator index;
+    F f;
+
+    using difference_type = std::ptrdiff_t;
+    using reference = decltype(f(std::declval<Iterator>()));
+    using value_type = typename std::remove_reference<reference>::type;
+    using pointer = typename std::add_pointer<value_type>::type;
+    using iterator_category = std::input_iterator_tag;
+
+    iota_iterator& operator+=(int n)
+    {
+        index += n;
+        return *this;
+    }
+
+    iota_iterator& operator-=(int n)
+    {
+        index += n;
+        return *this;
+    }
+
+    iota_iterator& operator++()
+    {
+        index++;
+        return *this;
+    }
+
+    iota_iterator& operator--()
+    {
+        index--;
+        return *this;
+    }
+
+    iota_iterator operator++(int)
+    {
+        iota_iterator it = *this;
+        index++;
+        return it;
+    }
+
+    iota_iterator operator--(int)
+    {
+        iota_iterator it = *this;
+        index--;
+        return it;
+    }
+    // TODO: operator->
+    reference operator*() const
+    {
+        return (*f)(index);
+    }
+};
+
+template<class F, class Iterator>
+inline iota_iterator<F, Iterator>
+operator +(iota_iterator<F, Iterator> x, iota_iterator<F, Iterator> y)
+{
+    return iota_iterator<F, Iterator>(x.index + y.index, x.f);
+}
+
+template<class F, class Iterator>
+inline iota_iterator<F, Iterator>
+operator -(iota_iterator<F, Iterator> x, iota_iterator<F, Iterator> y)
+{
+    return iota_iterator<F, Iterator>(x.index - y.index, x.f);
+}
+
+template<class F, class Iterator>
+inline bool
+operator ==(iota_iterator<F, Iterator> x, iota_iterator<F, Iterator> y)
+{
+    return x.index == y.index;
+}
+
+template<class F, class Iterator>
+inline bool
+operator !=(iota_iterator<F, Iterator> x, iota_iterator<F, Iterator> y)
+{
+    return x.index != y.index;
+}
+
 struct own
 {
 };
@@ -143,7 +228,7 @@ MIGRAPHX_CONST_HANDLE(shape)
     }
 };
 
-MIGRAPHX_HANDLE(argument)
+MIGRAPHX_CONST_HANDLE(argument)
 {
     argument() {}
 
@@ -155,6 +240,11 @@ MIGRAPHX_HANDLE(argument)
     argument(migraphx_argument* p, own)
     {
         this->set_handle(p, own{});
+    }
+
+    argument(const migraphx_argument * p)
+    {
+        this->set_handle(p, borrow{});
     }
 
     argument(shape pshape, void* pbuffer)
@@ -276,6 +366,66 @@ MIGRAPHX_HANDLE(program_parameters)
     }
 };
 
+MIGRAPHX_HANDLE(arguments)
+{
+    arguments(migraphx_arguments * p, own)
+    {
+        this->set_handle(p, own{});
+    }
+
+    arguments(migraphx_arguments* p, borrow)
+    {
+        this->set_handle(p, borrow{});
+    }
+    
+    size_t size() const
+    {
+        size_t pout;
+        call(&migraphx_arguments_size, &pout, this->get_handle_ptr());
+        return pout;
+    }
+    
+    argument operator[](size_t pidx) const
+    {
+        const_migraphx_argument_t pout;
+        call(&migraphx_arguments_get, &pout, this->get_handle_ptr(), pidx);
+        return argument(pout);
+    }
+
+    argument front() const
+    {
+        return (*this)[0];
+    }
+
+    argument back() const
+    {
+        return (*this)[this->size()-1];
+    }
+
+    struct iterator_read
+    {
+        migraphx_arguments* self;
+        argument operator()(size_t pidx) const
+        {
+            const_migraphx_argument_t pout;
+            call(&migraphx_arguments_get, &pout, self, pidx);
+            return argument(pout);
+        }
+    };
+    using iterator = iota_iterator<iterator_read>;
+    using const_iterator = iterator;
+    iterator begin() const
+    {
+        return {0, {this->get_handle_ptr()}};
+    }
+
+    iterator end() const
+    {
+        return {size(), {this->get_handle_ptr()}};
+    }
+};
+
+
 MIGRAPHX_HANDLE(program)
 {
     program() {}
@@ -307,11 +457,11 @@ MIGRAPHX_HANDLE(program)
         return program_parameter_shapes(pout, own{});
     }
 
-    argument eval(const program_parameters& pparams) const
+    arguments eval(const program_parameters& pparams) const
     {
-        migraphx_argument_t pout;
+        migraphx_arguments_t pout;
         call(&migraphx_program_run, &pout, this->get_handle_ptr(), pparams.get_handle_ptr());
-        return argument(pout, own{});
+        return arguments(pout, own{});
     }
 
     friend bool operator==(const program& px, const program& py)

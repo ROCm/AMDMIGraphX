@@ -338,6 +338,26 @@ inline program parse_onnx(const char* filename)
     return program(make<migraphx_program>(&migraphx_parse_onnx, filename, nullptr), own{});
 }
 
+inline program parse_onnx_buffer(const void* data, size_t size, migraphx_onnx_options options)
+{
+    return program(make<migraphx_program>(&migraphx_parse_onnx_buffer, data, size, &options), own{});
+}
+
+inline program parse_onnx_buffer(const void* data, size_t size)
+{
+    return program(make<migraphx_program>(&migraphx_parse_onnx_buffer, data, size, nullptr), own{});
+}
+
+inline program parse_onnx_buffer(const std::string& buffer, migraphx_onnx_options options)
+{
+    return program(make<migraphx_program>(&migraphx_parse_onnx_buffer, buffer.data(), buffer.size(), &options), own{});
+}
+
+inline program parse_onnx_buffer(const std::string& buffer)
+{
+    return program(make<migraphx_program>(&migraphx_parse_onnx_buffer, buffer.data(), buffer.size(), nullptr), own{});
+}
+
 } // namespace api
 } // namespace migraphx
 

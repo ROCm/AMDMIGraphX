@@ -149,3 +149,10 @@ api.add_function('migraphx_parse_onnx',
                             options='migraphx::onnx_options'),
                  fname='migraphx::parse_onnx',
                  returns='migraphx::program')
+
+api.add_function('migraphx_parse_onnx_buffer',
+                 api.params(data='const void*',
+                            size='size_t',
+                            options='migraphx::onnx_options'),
+                 fname='migraphx::parse_onnx_buffer',
+                 returns='migraphx::program')

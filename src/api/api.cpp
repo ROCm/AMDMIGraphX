@@ -478,3 +478,16 @@ migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_opt
             (options != nullptr ? migraphx::to_onnx_options(*options) : migraphx::onnx_options{})));
     });
 }
+
+extern "C" migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
+                                                      const void* data,
+                                                      size_t size,
+                                                      migraphx_onnx_options* options)
+{
+    return migraphx::try_([&] {
+        *out = allocate<migraphx_program_t>(migraphx::parse_onnx_buffer(
+            (data),
+            (size),
+            (options != nullptr ? migraphx::to_onnx_options(*options) : migraphx::onnx_options{})));
+    });
+}

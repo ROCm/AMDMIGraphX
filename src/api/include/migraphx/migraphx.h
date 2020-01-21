@@ -154,6 +154,11 @@ migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migrap
 migraphx_status
 migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options* options);
 
+migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
+                                           const void* data,
+                                           size_t size,
+                                           migraphx_onnx_options* options);
+
 #ifdef __cplusplus
 }
 #endif

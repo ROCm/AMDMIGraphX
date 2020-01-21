@@ -1756,7 +1756,7 @@ struct onnx_parser
     }
 };
 
-template<class... Ts>
+template <class... Ts>
 program parse_onnx_from(onnx_options options, Ts&&... xs)
 {
     onnx_parser parser;

@@ -261,25 +261,22 @@ struct cpu_deconvolution
 
             par_dfor(in_n, wei_c)([&](std::size_t o, std::size_t k) {
 
-                dfor(in_c, in_h, in_w, wei_h, wei_w)([&](std::size_t w,
-                                                            std::size_t i,
-                                                            std::size_t j,
-                                                            std::size_t x,
-                                                            std::size_t y) {
-                    const int start_x = i * op.stride[0] - op.padding[0];
-                    const int start_y = j * op.stride[1] - op.padding[1];
-                    const int out_x   = start_x + x * op.dilation[0];
-                    const int out_y   = start_y + y * op.dilation[1];
+                dfor(in_c, in_h, in_w, wei_h, wei_w)(
+                    [&](std::size_t w, std::size_t i, std::size_t j, std::size_t x, std::size_t y) {
+                        const int start_x = i * op.stride[0] - op.padding[0];
+                        const int start_y = j * op.stride[1] - op.padding[1];
+                        const int out_x   = start_x + x * op.dilation[0];
+                        const int out_y   = start_y + y * op.dilation[1];
 
-                    const auto group_id = w / (wei_n / op.group);
-                    const auto in_ch    = group_id * wei_c + k;
+                        const auto group_id = w / (wei_n / op.group);
+                        const auto in_ch    = group_id * wei_c + k;
 
-                    if(out_x >= 0 && out_x < out_h && out_y >= 0 && out_y < out_w)
-                    {
-                        output(o, in_ch, out_x, out_y) +=
-                            input(o, w, i, j) * weights(w, k, x, y);
-                    }
-                });
+                        if(out_x >= 0 && out_x < out_h && out_y >= 0 && out_y < out_w)
+                        {
+                            output(o, in_ch, out_x, out_y) +=
+                                input(o, w, i, j) * weights(w, k, x, y);
+                        }
+                    });
             });
         });
         return result;

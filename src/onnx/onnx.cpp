@@ -285,11 +285,13 @@ struct onnx_parser
         return output_vector;
     }
 
-    instruction_ref add_bias(std::vector<instruction_ref> args, instruction_ref curr_ins, uint64_t axis)
+    instruction_ref
+    add_bias(std::vector<instruction_ref> args, instruction_ref curr_ins, uint64_t axis)
     {
         if(args.size() == 3)
         {
-            auto bias_bcast = prog.add_instruction(op::broadcast{axis, curr_ins->get_shape().lens()}, args[2]);
+            auto bias_bcast =
+                prog.add_instruction(op::broadcast{axis, curr_ins->get_shape().lens()}, args[2]);
             return prog.add_instruction(op::add{}, curr_ins, bias_bcast);
         }
         return curr_ins;
@@ -534,7 +536,7 @@ struct onnx_parser
         {
             op.group = parse_value(attributes.at("group")).at<int>();
         }
-        
+
         auto l1                   = prog.add_instruction(op, l0, args[1]);
         std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
         std::vector<int64_t> curr_shape{dims[2], dims[3]};

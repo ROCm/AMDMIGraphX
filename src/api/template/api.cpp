@@ -46,10 +46,10 @@ shape::type_t to_shape_type(migraphx_shape_datatype_t t)
 {
     switch(t)
     {
-#define MIGRAPHX_SHAPE_CASE_CONVERT(x, y) \
+#define MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT(x, y) \
     case migraphx_shape_##x: return shape::x;
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_CASE_CONVERT)
-#undef MIGRAPHX_SHAPE_CASE_CONVERT
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT)
+#undef MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT
     }
     MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown type");
 }
@@ -58,10 +58,10 @@ migraphx_shape_datatype_t to_shape_type(shape::type_t t)
 {
     switch(t)
     {
-#define MIGRAPHX_SHAPE_CASE_CONVERT(x, y) \
+#define MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT(x, y) \
     case shape::x: return migraphx_shape_##x;
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_CASE_CONVERT)
-#undef MIGRAPHX_SHAPE_CASE_CONVERT
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT)
+#undef MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT
     }
     MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown type");
 }

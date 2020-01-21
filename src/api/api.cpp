@@ -46,10 +46,10 @@ shape::type_t to_shape_type(migraphx_shape_datatype_t t)
 {
     switch(t)
     {
-#define MIGRAPHX_SHAPE_CASE_CONVERT(x, y) \
+#define MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT(x, y) \
     case migraphx_shape_##x: return shape::x;
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_CASE_CONVERT)
-#undef MIGRAPHX_SHAPE_CASE_CONVERT
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT)
+#undef MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT
     }
     MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown type");
 }
@@ -58,10 +58,10 @@ migraphx_shape_datatype_t to_shape_type(shape::type_t t)
 {
     switch(t)
     {
-#define MIGRAPHX_SHAPE_CASE_CONVERT(x, y) \
+#define MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT(x, y) \
     case shape::x: return migraphx_shape_##x;
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_CASE_CONVERT)
-#undef MIGRAPHX_SHAPE_CASE_CONVERT
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT)
+#undef MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT
     }
     MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown type");
 }
@@ -426,9 +426,9 @@ extern "C" migraphx_status migraphx_program_compile(migraphx_program_t program,
         if(target == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter target: Null pointer");
         (program->object)
-            .compile(
-                (target->object),
-                (options ? migraphx::to_compile_options(*options) : migraphx::compile_options{}));
+            .compile((target->object),
+                     (options != nullptr ? migraphx::to_compile_options(*options)
+                                         : migraphx::compile_options{}));
     });
 }
 
@@ -474,6 +474,7 @@ migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_opt
 {
     return migraphx::try_([&] {
         *out = allocate<migraphx_program_t>(migraphx::parse_onnx(
-            (name), (options ? migraphx::to_onnx_options(*options) : migraphx::onnx_options{})));
+            (name),
+            (options != nullptr ? migraphx::to_onnx_options(*options) : migraphx::onnx_options{})));
     });
 }

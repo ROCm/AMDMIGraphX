@@ -30,7 +30,7 @@ def compile_options_type_wrap(p):
         p.write = ['*${name} = migraphx::to_compile_options(${result})']
     else:
         p.add_param('migraphx_compile_options *')
-        p.read = '${name} ? migraphx::to_compile_options(*${name}) : migraphx::compile_options{}'
+        p.read = '${name} != nullptr ? migraphx::to_compile_options(*${name}) : migraphx::compile_options{}'
 
 
 @api.cwrap('migraphx::onnx_options')
@@ -41,7 +41,7 @@ def onnx_options_type_wrap(p):
         p.write = ['*${name} = migraphx::to_onnx_options(${result})']
     else:
         p.add_param('migraphx_onnx_options *')
-        p.read = '${name} ? migraphx::to_onnx_options(*${name}) : migraphx::onnx_options{}'
+        p.read = '${name} != nullptr ? migraphx::to_onnx_options(*${name}) : migraphx::onnx_options{}'
 
 
 def auto_handle(f):

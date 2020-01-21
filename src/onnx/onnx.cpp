@@ -285,6 +285,16 @@ struct onnx_parser
         return output_vector;
     }
 
+    instruction_ref add_bias(std::vector<instruction_ref> args, instruction_ref curr_ins, uint64_t axis)
+    {
+        if(args.size() == 3)
+        {
+            auto bias_bcast = prog.add_instruction(op::broadcast{axis, curr_ins->get_shape().lens()}, args[2]);
+            return prog.add_instruction(op::add{}, curr_ins, bias_bcast);
+        }
+        return curr_ins;
+    }
+
     instruction_ref parse_clip(const std::string&,
                                const attribute_map& attributes,
                                std::vector<instruction_ref> args)
@@ -460,14 +470,9 @@ struct onnx_parser
         {
             op.group = parse_value(attributes.at("group")).at<int>();
         }
-        if(args.size() == 3)
-        {
-            uint64_t axis = 1;
-            auto l1       = prog.add_instruction(op, l0, args[1]);
-            auto l2 = prog.add_instruction(op::broadcast{axis, l1->get_shape().lens()}, args[2]);
-            return prog.add_instruction(op::add{}, l1, l2);
-        }
-        return prog.add_instruction(op, l0, args[1]);
+
+        auto l1 = prog.add_instruction(op, l0, args[1]);
+        return add_bias(args, l1, 1);
     }
 
     instruction_ref parse_conv_transpose(const std::string&,
@@ -529,13 +534,7 @@ struct onnx_parser
         {
             op.group = parse_value(attributes.at("group")).at<int>();
         }
-        if(args.size() == 3)
-        {
-            uint64_t axis = 1;
-            auto l1       = prog.add_instruction(op, l0, args[1]);
-            auto l2 = prog.add_instruction(op::broadcast{axis, l1->get_shape().lens()}, args[2]);
-            return prog.add_instruction(op::add{}, l1, l2);
-        }
+        
         auto l1                   = prog.add_instruction(op, l0, args[1]);
         std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
         std::vector<int64_t> curr_shape{dims[2], dims[3]};
@@ -577,7 +576,8 @@ struct onnx_parser
                 l1 = prog.add_instruction(op::pad{target_padding}, l1);
             }
         }
-        return l1;
+
+        return add_bias(args, l1, 1);
     }
 
     instruction_ref parse_pooling(const std::string& name,

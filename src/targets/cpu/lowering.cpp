@@ -238,49 +238,47 @@ struct cpu_deconvolution
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        result.visit([&](auto output) {
+        visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
             using type = typename decltype(output)::value_type;
 
             std::fill(output.begin(), output.end(), type{0});
-            visit_all(args[0], args[1])([&](auto input, auto weights) {
 
-                auto out_lens = output_shape.lens();
-                auto out_h    = out_lens[2];
-                auto out_w    = out_lens[3];
+            auto out_lens = output_shape.lens();
+            auto out_h    = out_lens[2];
+            auto out_w    = out_lens[3];
 
-                auto in   = input.get_shape().lens();
-                auto in_n = in[0];
-                auto in_c = in[1];
-                auto in_h = in[2];
-                auto in_w = in[3];
+            auto in   = input.get_shape().lens();
+            auto in_n = in[0];
+            auto in_c = in[1];
+            auto in_h = in[2];
+            auto in_w = in[3];
 
-                auto wei   = weights.get_shape().lens();
-                auto wei_n = wei[0];
-                auto wei_c = wei[1];
-                auto wei_h = wei[2];
-                auto wei_w = wei[3];
+            auto wei   = weights.get_shape().lens();
+            auto wei_n = wei[0];
+            auto wei_c = wei[1];
+            auto wei_h = wei[2];
+            auto wei_w = wei[3];
 
-                par_dfor(in_n, wei_c)([&](std::size_t o, std::size_t k) {
+            par_dfor(in_n, wei_c)([&](std::size_t o, std::size_t k) {
 
-                    dfor(in_c, in_h, in_w, wei_h, wei_w)([&](std::size_t w,
-                                                             std::size_t i,
-                                                             std::size_t j,
-                                                             std::size_t x,
-                                                             std::size_t y) {
-                        const int start_x = i * op.stride[0] - op.padding[0];
-                        const int start_y = j * op.stride[1] - op.padding[1];
-                        const int out_x   = start_x + x * op.dilation[0];
-                        const int out_y   = start_y + y * op.dilation[1];
+                dfor(in_c, in_h, in_w, wei_h, wei_w)([&](std::size_t w,
+                                                            std::size_t i,
+                                                            std::size_t j,
+                                                            std::size_t x,
+                                                            std::size_t y) {
+                    const int start_x = i * op.stride[0] - op.padding[0];
+                    const int start_y = j * op.stride[1] - op.padding[1];
+                    const int out_x   = start_x + x * op.dilation[0];
+                    const int out_y   = start_y + y * op.dilation[1];
 
-                        const auto group_id = w / (wei_n / op.group);
-                        const auto in_ch    = group_id * wei_c + k;
+                    const auto group_id = w / (wei_n / op.group);
+                    const auto in_ch    = group_id * wei_c + k;
 
-                        if(out_x >= 0 && out_x < out_h && out_y >= 0 && out_y < out_w)
-                        {
-                            output(o, in_ch, out_x, out_y) +=
-                                input(o, w, i, j) * weights(w, k, x, y);
-                        }
-                    });
+                    if(out_x >= 0 && out_x < out_h && out_y >= 0 && out_y < out_w)
+                    {
+                        output(o, in_ch, out_x, out_y) +=
+                            input(o, w, i, j) * weights(w, k, x, y);
+                    }
                 });
             });
         });

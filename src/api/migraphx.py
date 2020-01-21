@@ -120,12 +120,12 @@ def program_parameter_shapes(h):
 def program_parameters(h):
     h.constructor('create')
     h.method('add',
-             api.params(name='const char*', argument='const migraphx::argument&'),
+             api.params(name='const char*',
+                        argument='const migraphx::argument&'),
              invoke='${program_parameters}[${name}] = ${argument}')
 
 
-@api.handle('migraphx_arguments',
-            'std::vector<migraphx::argument>')
+@api.handle('migraphx_arguments', 'std::vector<migraphx::argument>')
 def arguments(h):
     h.method('size', returns='size_t')
     h.method('get',

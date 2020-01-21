@@ -113,7 +113,7 @@ std::vector<argument> run(program& p, const program::parameter_map& params)
 {
     auto a = p.eval(params);
     return {a};
-} 
+}
 
 } // namespace migraphx
 

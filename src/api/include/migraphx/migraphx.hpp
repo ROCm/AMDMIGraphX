@@ -28,17 +28,16 @@ void call(F f, Ts&&... xs)
         throw std::runtime_error("Failed to call function");
 }
 
-
-template<class F, class Iterator=std::size_t>
+template <class F, class Iterator = std::size_t>
 struct iota_iterator
 {
     Iterator index;
     F f;
 
-    using difference_type = std::ptrdiff_t;
-    using reference = decltype(f(std::declval<Iterator>()));
-    using value_type = typename std::remove_reference<reference>::type;
-    using pointer = typename std::add_pointer<value_type>::type;
+    using difference_type   = std::ptrdiff_t;
+    using reference         = decltype(f(std::declval<Iterator>()));
+    using value_type        = typename std::remove_reference<reference>::type;
+    using pointer           = typename std::add_pointer<value_type>::type;
     using iterator_category = std::input_iterator_tag;
 
     iota_iterator& operator+=(int n)
@@ -79,36 +78,31 @@ struct iota_iterator
         return it;
     }
     // TODO: operator->
-    reference operator*() const
-    {
-        return (*f)(index);
-    }
+    reference operator*() const { return (*f)(index); }
 };
 
-template<class F, class Iterator>
-inline iota_iterator<F, Iterator>
-operator +(iota_iterator<F, Iterator> x, iota_iterator<F, Iterator> y)
+template <class F, class Iterator>
+inline iota_iterator<F, Iterator> operator+(iota_iterator<F, Iterator> x,
+                                            iota_iterator<F, Iterator> y)
 {
     return iota_iterator<F, Iterator>(x.index + y.index, x.f);
 }
 
-template<class F, class Iterator>
-inline iota_iterator<F, Iterator>
-operator -(iota_iterator<F, Iterator> x, iota_iterator<F, Iterator> y)
+template <class F, class Iterator>
+inline iota_iterator<F, Iterator> operator-(iota_iterator<F, Iterator> x,
+                                            iota_iterator<F, Iterator> y)
 {
     return iota_iterator<F, Iterator>(x.index - y.index, x.f);
 }
 
-template<class F, class Iterator>
-inline bool
-operator ==(iota_iterator<F, Iterator> x, iota_iterator<F, Iterator> y)
+template <class F, class Iterator>
+inline bool operator==(iota_iterator<F, Iterator> x, iota_iterator<F, Iterator> y)
 {
     return x.index == y.index;
 }
 
-template<class F, class Iterator>
-inline bool
-operator !=(iota_iterator<F, Iterator> x, iota_iterator<F, Iterator> y)
+template <class F, class Iterator>
+inline bool operator!=(iota_iterator<F, Iterator> x, iota_iterator<F, Iterator> y)
 {
     return x.index != y.index;
 }

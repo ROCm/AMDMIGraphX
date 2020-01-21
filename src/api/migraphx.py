@@ -60,6 +60,7 @@ def shape(h):
              const=True)
     h.method('strides', returns='const std::vector<size_t>&', const=True)
     h.method('type', returns='migraphx::shape::type_t', const=True)
+    h.method('equal', api.params(x='const migraphx::shape&'), invoke='migraphx::equal($@)', returns='bool', const=True)
 
 
 @auto_handle
@@ -76,6 +77,13 @@ def argument(h):
              cpp_name='data',
              returns='char*',
              const=True)
+    h.method('equal', api.params(x='const migraphx::argument&'), invoke='migraphx::equal($@)', returns='bool', const=True)
+
+api.add_function('migraphx_argument_generate',
+                 api.params(s='const migraphx::shape&',
+                            seed='size_t'),
+                 fname='migraphx::generate_argument',
+                 returns='migraphx::argument')
 
 
 @auto_handle
@@ -121,6 +129,7 @@ def program(h):
                  params='std::unordered_map<std::string, migraphx::argument>'),
              fname='eval',
              returns='migraphx::argument')
+    h.method('equal', api.params(x='const migraphx::program&'), invoke='migraphx::equal($@)', returns='bool', const=True)
 
 
 api.add_function('migraphx_parse_onnx',

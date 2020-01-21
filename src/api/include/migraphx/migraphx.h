@@ -88,6 +88,9 @@ migraphx_shape_strides(const size_t** out, size_t* out_size, const_migraphx_shap
 
 migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out, const_migraphx_shape_t shape);
 
+migraphx_status
+migraphx_shape_equal(bool* out, const_migraphx_shape_t shape, const_migraphx_shape_t x);
+
 migraphx_status migraphx_argument_destroy(migraphx_argument_t argument);
 
 migraphx_status
@@ -97,6 +100,12 @@ migraphx_status migraphx_argument_shape(const_migraphx_shape_t* out,
                                         const_migraphx_argument_t argument);
 
 migraphx_status migraphx_argument_buffer(char** out, const_migraphx_argument_t argument);
+
+migraphx_status
+migraphx_argument_equal(bool* out, const_migraphx_argument_t argument, const_migraphx_argument_t x);
+
+migraphx_status
+migraphx_argument_generate(migraphx_argument_t* out, const_migraphx_shape_t s, size_t seed);
 
 migraphx_status migraphx_target_destroy(migraphx_target_t target);
 
@@ -138,6 +147,9 @@ migraphx_status migraphx_program_get_parameter_shapes(migraphx_program_parameter
 migraphx_status migraphx_program_run(migraphx_argument_t* out,
                                      migraphx_program_t program,
                                      migraphx_program_parameters_t params);
+
+migraphx_status
+migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migraphx_program_t x);
 
 migraphx_status
 migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options* options);

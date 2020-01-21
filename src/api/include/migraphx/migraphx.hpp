@@ -126,6 +126,18 @@ MIGRAPHX_CONST_HANDLE(shape)
         call(&migraphx_shape_type, &pout, this->get_handle_ptr());
         return pout;
     }
+
+    friend bool operator==(const shape& px, const shape& py)
+    {
+        bool pout;
+        call(&migraphx_shape_equal, &pout, px.get_handle_ptr(), py.get_handle_ptr());
+        return pout;
+    }
+
+    friend bool operator!=(const shape& px, const shape& py)
+    {
+        return !(px == py);
+    }
 };
 
 MIGRAPHX_HANDLE(argument)
@@ -159,6 +171,23 @@ MIGRAPHX_HANDLE(argument)
         char* pout;
         call(&migraphx_argument_buffer, &pout, this->get_handle_ptr());
         return pout;
+    }
+
+    static argument generate(shape ps, size_t pseed = 0)
+    {
+        return argument(make<migraphx_argument>(&migraphx_argument_generate, ps.get_handle_ptr(), pseed), own{});
+    }
+
+    friend bool operator==(const argument& px, const argument& py)
+    {
+        bool pout;
+        call(&migraphx_argument_equal, &pout, px.get_handle_ptr(), py.get_handle_ptr());
+        return pout;
+    }
+
+    friend bool operator!=(const argument& px, const argument& py)
+    {
+        return !(px == py);
     }
 };
 
@@ -280,6 +309,18 @@ MIGRAPHX_HANDLE(program)
         migraphx_argument_t pout;
         call(&migraphx_program_run, &pout, this->get_handle_ptr(), pparams.get_handle_ptr());
         return argument(pout, own{});
+    }
+
+    friend bool operator==(const program& px, const program& py)
+    {
+        bool pout;
+        call(&migraphx_program_equal, &pout, px.get_handle_ptr(), py.get_handle_ptr());
+        return pout;
+    }
+
+    friend bool operator!=(const program& px, const program& py)
+    {
+        return !(px == py);
     }
 };
 // clang-format on

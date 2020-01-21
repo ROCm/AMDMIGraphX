@@ -12,5 +12,6 @@ endfunction()
 
 add_api_test(cpu test_cpu.cpp)
 if(MIGRAPHX_ENABLE_GPU)
+add_api_test(gpu test_gpu.cpp)
 # GPU-based tests
 endif()

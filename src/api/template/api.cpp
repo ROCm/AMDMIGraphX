@@ -4,6 +4,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/target.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/cpu/target.hpp>
 
 #ifdef HAVE_GPU
@@ -100,6 +101,12 @@ std::vector<const char*> get_names(const std::unordered_map<std::string, Value>&
     std::transform(
         m.begin(), m.end(), std::back_inserter(result), [](auto&& p) { return p.first.c_str(); });
     return result;
+}
+
+template<class T>
+bool equal(const T& x, const T& y)
+{
+    return x == y;
 }
 
 } // namespace migraphx

@@ -8,7 +8,7 @@
 #include <cassert>
 
 namespace migraphx {
-inline namespace api {
+inline namespace api { // NOLINT
 
 template <class T, class F, class... Ts>
 T* make(F f, Ts&&... xs)
@@ -70,13 +70,16 @@ struct handle_base
     std::shared_ptr<T> m_handle;
 };
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_HANDLE_BASE(name, const_)            \
     handle_base<const_ migraphx_##name,               \
                 decltype(&migraphx_##name##_destroy), \
                 migraphx_##name##_destroy>
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_HANDLE(name) struct name : MIGRAPHX_HANDLE_BASE(name, )
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_CONST_HANDLE(name) struct name : MIGRAPHX_HANDLE_BASE(name, const)
 
 // clang-format off

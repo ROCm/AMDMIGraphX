@@ -33,7 +33,7 @@ argument run_cpu(program p)
     return out;
 }
 
-argument run_gpu(program p)
+argument run_gpu(const program& p)
 {
 #ifdef HAVE_GPU
     p.compile(gpu::target{});

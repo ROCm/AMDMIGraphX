@@ -35,7 +35,7 @@ struct borrow
 {
 };
 
-template <class T, class Deleter, Deleter deleter>
+template <class T, class D, D Deleter>
 struct handle_base
 {
     handle_base() : m_handle(nullptr) {}
@@ -57,7 +57,7 @@ struct handle_base
     template <class U>
     void set_handle(U* ptr, own)
     {
-        m_handle = std::shared_ptr<U>{ptr, deleter};
+        m_handle = std::shared_ptr<U>{ptr, Deleter};
     }
 
     template <class U>
@@ -264,7 +264,7 @@ MIGRAPHX_HANDLE(program_parameters)
         this->make_handle(&migraphx_program_parameters_create);
     }
 
-    void add(const char* pname, argument pargument) const
+    void add(const char* pname, const argument& pargument) const
     {
         call(&migraphx_program_parameters_add,
              this->get_handle_ptr(),
@@ -287,12 +287,12 @@ MIGRAPHX_HANDLE(program)
         this->set_handle(p, borrow{});
     }
 
-    void compile(target ptarget, migraphx_compile_options poptions) const
+    void compile(const target& ptarget, migraphx_compile_options poptions) const
     {
         call(&migraphx_program_compile, this->get_handle_ptr(), ptarget.get_handle_ptr(), &poptions);
     }
 
-    void compile(target ptarget) const
+    void compile(const target& ptarget) const
     {
         call(&migraphx_program_compile, this->get_handle_ptr(), ptarget.get_handle_ptr(), nullptr);
     }
@@ -304,7 +304,7 @@ MIGRAPHX_HANDLE(program)
         return program_parameter_shapes(pout, own{});
     }
 
-    argument eval(program_parameters pparams) const
+    argument eval(const program_parameters& pparams) const
     {
         migraphx_argument_t pout;
         call(&migraphx_program_run, &pout, this->get_handle_ptr(), pparams.get_handle_ptr());
@@ -325,12 +325,12 @@ MIGRAPHX_HANDLE(program)
 };
 // clang-format on
 
-program parse_onnx(const char* filename, migraphx_onnx_options options)
+inline program parse_onnx(const char* filename, migraphx_onnx_options options)
 {
     return program(make<migraphx_program>(&migraphx_parse_onnx, filename, &options), own{});
 }
 
-program parse_onnx(const char* filename)
+inline program parse_onnx(const char* filename)
 {
     return program(make<migraphx_program>(&migraphx_parse_onnx, filename, nullptr), own{});
 }

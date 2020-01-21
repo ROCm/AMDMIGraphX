@@ -7,10 +7,8 @@
 #include <vector>
 #include <cassert>
 
-namespace migraphx
-{
-inline namespace api
-{
+namespace migraphx {
+inline namespace api {
 
 template <class T, class F, class... Ts>
 T* make(F f, Ts&&... xs)
@@ -48,10 +46,7 @@ struct handle_base
         set_handle(make<type>(f, std::forward<Ts>(xs)...), own{});
     }
 
-    const std::shared_ptr<T>& get_handle() const
-    {
-        return m_handle;
-    }
+    const std::shared_ptr<T>& get_handle() const { return m_handle; }
 
     T* get_handle_ptr() const
     {
@@ -62,16 +57,16 @@ struct handle_base
     template <class U>
     void set_handle(U* ptr, own)
     {
-        m_handle = std::shared_ptr<U> {ptr, deleter};
+        m_handle = std::shared_ptr<U>{ptr, deleter};
     }
 
     template <class U>
     void set_handle(U* ptr, borrow)
     {
-        m_handle = std::shared_ptr<U> {ptr, [](U*) {}};
+        m_handle = std::shared_ptr<U>{ptr, [](U*) {}};
     }
 
-protected:
+    protected:
     std::shared_ptr<T> m_handle;
 };
 

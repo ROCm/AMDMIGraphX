@@ -279,7 +279,7 @@ struct onnx_parser
     }
 
     template <class T>
-    std::vector<int64_t> to_int64_vector(std::vector<T> input_vector)
+    std::vector<int64_t> to_int64_vector(const std::vector<T>& input_vector)
     {
         std::vector<int64_t> output_vector(input_vector.begin(), input_vector.end());
         return output_vector;

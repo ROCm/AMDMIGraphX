@@ -467,8 +467,8 @@ extern "C" migraphx_status migraphx_program_compile(migraphx_program_t program,
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter target: Null pointer");
         (program->object)
             .compile((target->object),
-                     (options != nullptr ? migraphx::to_compile_options(*options)
-                                         : migraphx::compile_options{}));
+                     (options == nullptr ? migraphx::compile_options{}
+                                         : migraphx::to_compile_options(*options)));
     });
 }
 
@@ -515,7 +515,7 @@ migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_opt
     return migraphx::try_([&] {
         *out = allocate<migraphx_program_t>(migraphx::parse_onnx(
             (name),
-            (options != nullptr ? migraphx::to_onnx_options(*options) : migraphx::onnx_options{})));
+            (options == nullptr ? migraphx::onnx_options{} : migraphx::to_onnx_options(*options))));
     });
 }
 
@@ -528,6 +528,6 @@ extern "C" migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
         *out = allocate<migraphx_program_t>(migraphx::parse_onnx_buffer(
             (data),
             (size),
-            (options != nullptr ? migraphx::to_onnx_options(*options) : migraphx::onnx_options{})));
+            (options == nullptr ? migraphx::onnx_options{} : migraphx::to_onnx_options(*options))));
     });
 }

@@ -14,6 +14,9 @@ template <class T, class F, class... Ts>
 T* make(F f, Ts&&... xs)
 {
     T* result = nullptr;
+    // cppcheck-suppress redundantInitialization
+    // cppcheck-suppress redundantAssignment
+    // cppcheck-suppress unreadVariable
     auto e    = f(&result, std::forward<Ts>(xs)...);
     if(e != migraphx_status_success)
         throw std::runtime_error("Failed to call function");
@@ -23,6 +26,9 @@ T* make(F f, Ts&&... xs)
 template <class F, class... Ts>
 void call(F f, Ts&&... xs)
 {
+    // cppcheck-suppress redundantInitialization
+    // cppcheck-suppress redundantAssignment
+    // cppcheck-suppress unreadVariable
     auto e = f(std::forward<Ts>(xs)...);
     if(e != migraphx_status_success)
         throw std::runtime_error("Failed to call function");

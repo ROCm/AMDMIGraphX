@@ -286,7 +286,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    add_bias(std::vector<instruction_ref> args, instruction_ref curr_ins, uint64_t axis)
+    add_bias(const std::vector<instruction_ref>& args, instruction_ref curr_ins, uint64_t axis)
     {
         if(args.size() == 3)
         {

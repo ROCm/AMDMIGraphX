@@ -1,12 +1,13 @@
 
 function(add_api_test TEST_NAME TEST_SRC)
-    add_executable(${TEST_NAME} EXCLUDE_FROM_ALL ${TEST_SRC})
-    rocm_clang_tidy_check(${TEST_NAME})
-    target_link_libraries(${TEST_NAME} migraphx_c)
-    target_include_directories(${TEST_NAME} PUBLIC ../include)
-    add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> WORKING_DIRECTORY ${TEST_ONNX_DIR}) 
-    add_dependencies(tests ${TEST_NAME})
-    add_dependencies(check ${TEST_NAME})
+    set(NAME test_api_${TEST_NAME})
+    add_executable(${NAME} EXCLUDE_FROM_ALL ${TEST_SRC})
+    rocm_clang_tidy_check(${NAME})
+    target_link_libraries(${NAME} migraphx_c)
+    target_include_directories(${NAME} PUBLIC ../include)
+    add_test(NAME ${NAME} COMMAND $<TARGET_FILE:${NAME}> WORKING_DIRECTORY ${TEST_ONNX_DIR}) 
+    add_dependencies(tests ${NAME})
+    add_dependencies(check ${NAME})
 endfunction()
 
 

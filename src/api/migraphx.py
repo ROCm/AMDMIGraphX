@@ -135,6 +135,7 @@ def arguments(h):
              cpp_name='operator[]',
              returns='const migraphx::argument&')
 
+
 @api.handle('migraphx_shapes', 'std::vector<migraphx::shape>')
 def shapes(h):
     h.method('size', returns='size_t')

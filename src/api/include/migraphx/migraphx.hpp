@@ -113,39 +113,36 @@ inline bool operator!=(iota_iterator<F, Iterator> x, iota_iterator<F, Iterator> 
     return x.index != y.index;
 }
 
-template<class Derived>
+template <class Derived>
 struct array_base
 {
-    const Derived& derived() const
-    {
-        return static_cast<const Derived&>(*this);
-    }
+    const Derived& derived() const { return static_cast<const Derived&>(*this); }
 
-    template<class T>
+    template <class T>
     using value_type_t = decltype(std::declval<T>()[0]);
 
-    template<class T>
+    template <class T>
     using iterator_t = iota_iterator<typename T::iterator_read>;
 
-    template<class D=Derived>
+    template <class D = Derived>
     value_type_t<D> front() const
     {
         return derived()[0];
     }
 
-    template<class D=Derived>
+    template <class D = Derived>
     value_type_t<D> back() const
     {
-        return derived()[derived().size()-1];
+        return derived()[derived().size() - 1];
     }
 
-    template<class D=Derived>
+    template <class D = Derived>
     iterator_t<D> begin() const
     {
         return {0, {derived().get_handle_ptr()}};
     }
 
-    template<class D=Derived>
+    template <class D = Derived>
     iterator_t<D> end() const
     {
         return {derived().size(), {derived().get_handle_ptr()}};
@@ -194,7 +191,7 @@ struct handle_base
     std::shared_ptr<T> m_handle;
 };
 
-#define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_)            \
+#define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_)     \
     handle_base<const_ migraphx_##name,               \
                 decltype(&migraphx_##name##_destroy), \
                 migraphx_##name##_destroy>

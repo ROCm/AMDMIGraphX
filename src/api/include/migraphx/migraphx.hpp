@@ -201,7 +201,6 @@ struct handle_base
 // NOLINTNEXTLINE
 #define MIGRAPHX_CONST_HANDLE_BASE(name) MIGRAPHX_DETAIL_HANDLE_BASE(name, const)
 
-// clang-format off
 struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
 {
     shape() {}
@@ -534,7 +533,6 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
         return !(px == py);
     }
 };
-// clang-format on
 
 inline program parse_onnx(const char* filename, migraphx_onnx_options options)
 {

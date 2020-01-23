@@ -157,8 +157,7 @@ def program(h):
     h.method('get_output_shapes',
              invoke='migraphx::get_output_shapes($@)',
              returns='std::vector<migraphx::shape>')
-    h.method('print',
-             invoke='migraphx::print($@)')
+    h.method('print', invoke='migraphx::print($@)')
     h.method('run',
              api.params(
                  params='std::unordered_map<std::string, migraphx::argument>'),

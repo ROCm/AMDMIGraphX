@@ -470,10 +470,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
         return arguments(pout, own{});
     }
 
-    void print() const
-    {
-        call(&migraphx_program_print, this->get_handle_ptr());
-    }
+    void print() const { call(&migraphx_program_print, this->get_handle_ptr()); }
 
     friend bool operator==(const program& px, const program& py)
     {

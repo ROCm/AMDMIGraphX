@@ -113,6 +113,45 @@ inline bool operator!=(iota_iterator<F, Iterator> x, iota_iterator<F, Iterator> 
     return x.index != y.index;
 }
 
+template<class Derived>
+struct array_base
+{
+    const Derived& derived() const
+    {
+        return static_cast<const Derived&>(*this);
+    }
+
+    template<class T>
+    using value_type_t = decltype(std::declval<T>()[0]);
+
+    template<class T>
+    using iterator_t = iota_iterator<typename T::iterator_read>;
+
+    template<class D=Derived>
+    value_type_t<D> front() const
+    {
+        return derived()[0];
+    }
+
+    template<class D=Derived>
+    value_type_t<D> back() const
+    {
+        return derived()[derived().size()-1];
+    }
+
+    template<class D=Derived>
+    iterator_t<D> begin() const
+    {
+        return {0, {derived().get_handle_ptr()}};
+    }
+
+    template<class D=Derived>
+    iterator_t<D> end() const
+    {
+        return {derived().size(), {derived().get_handle_ptr()}};
+    }
+};
+
 struct own
 {
 };
@@ -155,20 +194,18 @@ struct handle_base
     std::shared_ptr<T> m_handle;
 };
 
-// NOLINTNEXTLINE
-#define MIGRAPHX_HANDLE_BASE(name, const_)            \
+#define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_)            \
     handle_base<const_ migraphx_##name,               \
                 decltype(&migraphx_##name##_destroy), \
                 migraphx_##name##_destroy>
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_HANDLE(name) struct name : MIGRAPHX_HANDLE_BASE(name, )
-
+#define MIGRAPHX_HANDLE_BASE(name) MIGRAPHX_DETAIL_HANDLE_BASE(name, )
 // NOLINTNEXTLINE
-#define MIGRAPHX_CONST_HANDLE(name) struct name : MIGRAPHX_HANDLE_BASE(name, const)
+#define MIGRAPHX_CONST_HANDLE_BASE(name) MIGRAPHX_DETAIL_HANDLE_BASE(name, const)
 
 // clang-format off
-MIGRAPHX_CONST_HANDLE(shape)
+struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
 {
     shape() {}
 
@@ -228,7 +265,7 @@ MIGRAPHX_CONST_HANDLE(shape)
     }
 };
 
-MIGRAPHX_CONST_HANDLE(argument)
+struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
 {
     argument() {}
 
@@ -284,7 +321,7 @@ MIGRAPHX_CONST_HANDLE(argument)
     }
 };
 
-MIGRAPHX_HANDLE(target)
+struct target : MIGRAPHX_HANDLE_BASE(target)
 {
     target() {}
 
@@ -304,7 +341,7 @@ MIGRAPHX_HANDLE(target)
     }
 };
 
-MIGRAPHX_HANDLE(program_parameter_shapes)
+struct program_parameter_shapes : MIGRAPHX_HANDLE_BASE(program_parameter_shapes)
 {
     program_parameter_shapes() {}
 
@@ -340,7 +377,7 @@ MIGRAPHX_HANDLE(program_parameter_shapes)
     }
 };
 
-MIGRAPHX_HANDLE(program_parameters)
+struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
 {
     program_parameters(migraphx_program_parameters * p, own)
     {
@@ -366,7 +403,7 @@ MIGRAPHX_HANDLE(program_parameters)
     }
 };
 
-MIGRAPHX_HANDLE(arguments)
+struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
 {
     arguments(migraphx_arguments * p, own)
     {
@@ -392,16 +429,6 @@ MIGRAPHX_HANDLE(arguments)
         return argument(pout);
     }
 
-    argument front() const
-    {
-        return (*this)[0];
-    }
-
-    argument back() const
-    {
-        return (*this)[this->size()-1];
-    }
-
     struct iterator_read
     {
         migraphx_arguments* self;
@@ -412,21 +439,48 @@ MIGRAPHX_HANDLE(arguments)
             return argument(pout);
         }
     };
-    using iterator = iota_iterator<iterator_read>;
-    using const_iterator = iterator;
-    iterator begin() const
+};
+
+struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
+{
+    shapes(migraphx_shapes * p, own)
     {
-        return {0, {this->get_handle_ptr()}};
+        this->set_handle(p, own{});
     }
 
-    iterator end() const
+    shapes(migraphx_shapes* p, borrow)
     {
-        return {size(), {this->get_handle_ptr()}};
+        this->set_handle(p, borrow{});
     }
+    
+    size_t size() const
+    {
+        size_t pout;
+        call(&migraphx_shapes_size, &pout, this->get_handle_ptr());
+        return pout;
+    }
+    
+    shape operator[](size_t pidx) const
+    {
+        const_migraphx_shape_t pout;
+        call(&migraphx_shapes_get, &pout, this->get_handle_ptr(), pidx);
+        return shape(pout);
+    }
+
+    struct iterator_read
+    {
+        migraphx_shapes* self;
+        shape operator()(size_t pidx) const
+        {
+            const_migraphx_shape_t pout;
+            call(&migraphx_shapes_get, &pout, self, pidx);
+            return shape(pout);
+        }
+    };
 };
 
 
-MIGRAPHX_HANDLE(program)
+struct program : MIGRAPHX_HANDLE_BASE(program)
 {
     program() {}
 
@@ -455,6 +509,13 @@ MIGRAPHX_HANDLE(program)
         migraphx_program_parameter_shapes_t pout;
         call(&migraphx_program_get_parameter_shapes, &pout, this->get_handle_ptr());
         return program_parameter_shapes(pout, own{});
+    }
+
+    shapes get_output_shapes() const
+    {
+        migraphx_shapes_t pout;
+        call(&migraphx_program_get_output_shapes, &pout, this->get_handle_ptr());
+        return shapes(pout, own{});
     }
 
     arguments eval(const program_parameters& pparams) const

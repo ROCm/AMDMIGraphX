@@ -60,6 +60,7 @@ def shape(h):
              const=True)
     h.method('strides', returns='const std::vector<size_t>&', const=True)
     h.method('type', returns='migraphx::shape::type_t', const=True)
+    h.method('bytes', returns='size_t', const=True)
     h.method('equal',
              api.params(x='const migraphx::shape&'),
              invoke='migraphx::equal($@)',
@@ -134,6 +135,15 @@ def arguments(h):
              cpp_name='operator[]',
              returns='const migraphx::argument&')
 
+@api.handle('migraphx_shapes', 'std::vector<migraphx::shape>')
+def shapes(h):
+    h.method('size', returns='size_t')
+    h.method('get',
+             api.params(idx='size_t'),
+             fname='at',
+             cpp_name='operator[]',
+             returns='const migraphx::shape&')
+
 
 @auto_handle
 def program(h):
@@ -143,6 +153,9 @@ def program(h):
                    options='migraphx::compile_options'))
     h.method('get_parameter_shapes',
              returns='std::unordered_map<std::string, migraphx::shape>')
+    h.method('get_output_shapes',
+             invoke='migraphx::get_output_shapes($@)',
+             returns='std::vector<migraphx::shape>')
     h.method('run',
              api.params(
                  params='std::unordered_map<std::string, migraphx::argument>'),

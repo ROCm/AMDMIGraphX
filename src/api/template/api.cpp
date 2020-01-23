@@ -115,6 +115,13 @@ std::vector<argument> run(program& p, const program::parameter_map& params)
     return {a};
 }
 
+std::vector<shape> get_output_shapes(program& p)
+{
+    auto a = p.get_shape();
+    return {a};
+}
+
+
 } // namespace migraphx
 
 <% generate_c_api_body() %>

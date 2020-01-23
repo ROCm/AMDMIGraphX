@@ -4,7 +4,7 @@
 
 TEST_CASE(load_and_run)
 {
-    auto p = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
+    auto p             = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
     auto shapes_before = p.get_output_shapes();
     p.compile(migraphx::target("cpu"));
     auto shapes_after = p.get_output_shapes();
@@ -20,7 +20,6 @@ TEST_CASE(load_and_run)
     auto outputs = p.eval(pp);
     CHECK(shapes_before.size() == outputs.size());
     CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
-
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

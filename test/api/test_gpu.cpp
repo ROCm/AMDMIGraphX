@@ -4,7 +4,7 @@
 
 TEST_CASE(load_and_run)
 {
-    auto p = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
+    auto p             = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
     auto shapes_before = p.get_output_shapes();
     migraphx_compile_options options;
     options.offload_copy = true;

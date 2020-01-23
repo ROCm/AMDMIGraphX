@@ -205,20 +205,11 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
 {
     shape() {}
 
-    shape(const migraphx_shape* p)
-    {
-        this->set_handle(p, borrow{});
-    }
+    shape(const migraphx_shape* p) { this->set_handle(p, borrow{}); }
 
-    shape(migraphx_shape* p, own)
-    {
-        this->set_handle(p, own{});
-    }
+    shape(migraphx_shape* p, own) { this->set_handle(p, own{}); }
 
-    shape(migraphx_shape* p, borrow)
-    {
-        this->set_handle(p, borrow{});
-    }
+    shape(migraphx_shape* p, borrow) { this->set_handle(p, borrow{}); }
 
     shape(migraphx_shape_datatype_t type, std::vector<size_t> plengths)
     {
@@ -255,30 +246,18 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         return pout;
     }
 
-    friend bool operator!=(const shape& px, const shape& py)
-    {
-        return !(px == py);
-    }
+    friend bool operator!=(const shape& px, const shape& py) { return !(px == py); }
 };
 
 struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
 {
     argument() {}
 
-    argument(migraphx_argument * p, borrow)
-    {
-        this->set_handle(p, borrow{});
-    }
+    argument(migraphx_argument* p, borrow) { this->set_handle(p, borrow{}); }
 
-    argument(migraphx_argument* p, own)
-    {
-        this->set_handle(p, own{});
-    }
+    argument(migraphx_argument* p, own) { this->set_handle(p, own{}); }
 
-    argument(const migraphx_argument * p)
-    {
-        this->set_handle(p, borrow{});
-    }
+    argument(const migraphx_argument* p) { this->set_handle(p, borrow{}); }
 
     argument(shape pshape, void* pbuffer)
     {
@@ -301,7 +280,9 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
 
     static argument generate(shape ps, size_t pseed = 0)
     {
-        return argument(make<migraphx_argument>(&migraphx_argument_generate, ps.get_handle_ptr(), pseed), own{});
+        return argument(
+            make<migraphx_argument>(&migraphx_argument_generate, ps.get_handle_ptr(), pseed),
+            own{});
     }
 
     friend bool operator==(const argument& px, const argument& py)
@@ -311,37 +292,25 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
         return pout;
     }
 
-    friend bool operator!=(const argument& px, const argument& py)
-    {
-        return !(px == py);
-    }
+    friend bool operator!=(const argument& px, const argument& py) { return !(px == py); }
 };
 
 struct target : MIGRAPHX_HANDLE_BASE(target)
 {
     target() {}
 
-    target(migraphx_target * p, own)
-    {
-        this->set_handle(p, own{});
-    }
+    target(migraphx_target* p, own) { this->set_handle(p, own{}); }
 
-    target(migraphx_target* p, borrow)
-    {
-        this->set_handle(p, borrow{});
-    }
+    target(migraphx_target* p, borrow) { this->set_handle(p, borrow{}); }
 
-    target(const char* name)
-    {
-        this->make_handle(&migraphx_target_create, name);
-    }
+    target(const char* name) { this->make_handle(&migraphx_target_create, name); }
 };
 
 struct program_parameter_shapes : MIGRAPHX_HANDLE_BASE(program_parameter_shapes)
 {
     program_parameter_shapes() {}
 
-    program_parameter_shapes(migraphx_program_parameter_shapes * p, own)
+    program_parameter_shapes(migraphx_program_parameter_shapes* p, own)
     {
         this->set_handle(p, own{});
     }
@@ -375,20 +344,11 @@ struct program_parameter_shapes : MIGRAPHX_HANDLE_BASE(program_parameter_shapes)
 
 struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
 {
-    program_parameters(migraphx_program_parameters * p, own)
-    {
-        this->set_handle(p, own{});
-    }
+    program_parameters(migraphx_program_parameters* p, own) { this->set_handle(p, own{}); }
 
-    program_parameters(migraphx_program_parameters* p, borrow)
-    {
-        this->set_handle(p, borrow{});
-    }
+    program_parameters(migraphx_program_parameters* p, borrow) { this->set_handle(p, borrow{}); }
 
-    program_parameters()
-    {
-        this->make_handle(&migraphx_program_parameters_create);
-    }
+    program_parameters() { this->make_handle(&migraphx_program_parameters_create); }
 
     void add(const char* pname, const argument& pargument) const
     {
@@ -401,23 +361,17 @@ struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
 
 struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
 {
-    arguments(migraphx_arguments * p, own)
-    {
-        this->set_handle(p, own{});
-    }
+    arguments(migraphx_arguments* p, own) { this->set_handle(p, own{}); }
 
-    arguments(migraphx_arguments* p, borrow)
-    {
-        this->set_handle(p, borrow{});
-    }
-    
+    arguments(migraphx_arguments* p, borrow) { this->set_handle(p, borrow{}); }
+
     size_t size() const
     {
         size_t pout;
         call(&migraphx_arguments_size, &pout, this->get_handle_ptr());
         return pout;
     }
-    
+
     argument operator[](size_t pidx) const
     {
         const_migraphx_argument_t pout;
@@ -439,23 +393,17 @@ struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
 
 struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
 {
-    shapes(migraphx_shapes * p, own)
-    {
-        this->set_handle(p, own{});
-    }
+    shapes(migraphx_shapes* p, own) { this->set_handle(p, own{}); }
 
-    shapes(migraphx_shapes* p, borrow)
-    {
-        this->set_handle(p, borrow{});
-    }
-    
+    shapes(migraphx_shapes* p, borrow) { this->set_handle(p, borrow{}); }
+
     size_t size() const
     {
         size_t pout;
         call(&migraphx_shapes_size, &pout, this->get_handle_ptr());
         return pout;
     }
-    
+
     shape operator[](size_t pidx) const
     {
         const_migraphx_shape_t pout;
@@ -475,24 +423,18 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
     };
 };
 
-
 struct program : MIGRAPHX_HANDLE_BASE(program)
 {
     program() {}
 
-    program(migraphx_program * p, own)
-    {
-        this->set_handle(p, own{});
-    }
+    program(migraphx_program* p, own) { this->set_handle(p, own{}); }
 
-    program(migraphx_program* p, borrow)
-    {
-        this->set_handle(p, borrow{});
-    }
+    program(migraphx_program* p, borrow) { this->set_handle(p, borrow{}); }
 
     void compile(const target& ptarget, migraphx_compile_options poptions) const
     {
-        call(&migraphx_program_compile, this->get_handle_ptr(), ptarget.get_handle_ptr(), &poptions);
+        call(
+            &migraphx_program_compile, this->get_handle_ptr(), ptarget.get_handle_ptr(), &poptions);
     }
 
     void compile(const target& ptarget) const
@@ -528,10 +470,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
         return pout;
     }
 
-    friend bool operator!=(const program& px, const program& py)
-    {
-        return !(px == py);
-    }
+    friend bool operator!=(const program& px, const program& py) { return !(px == py); }
 };
 
 inline program parse_onnx(const char* filename, migraphx_onnx_options options)

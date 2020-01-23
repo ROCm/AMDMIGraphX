@@ -1717,11 +1717,8 @@ TEST_CASE(deconv_test)
     std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
     std::vector<float> w_data{1, 1, 1, 1, 1, 1, 1, 1, 1};
 
-    std::vector<float> gold{0, 1, 3, 3, 2,
-                            3, 8, 15, 12, 7,
-                            9, 21, 36, 27, 15,
-                            9, 20, 33, 24, 13,
-                            6, 13, 21, 15, 8};
+    std::vector<float> gold{0,  1,  3, 3,  2,  3,  8,  15, 12, 7,  9,  21, 36,
+                            27, 15, 9, 20, 33, 24, 13, 6,  13, 21, 15, 8};
 
     migraphx::program p;
     auto x = p.add_literal(migraphx::literal{s, x_data});

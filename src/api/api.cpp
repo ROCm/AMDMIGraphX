@@ -121,6 +121,8 @@ std::vector<shape> get_output_shapes(program& p)
     return {a};
 }
 
+void print(program& p) { std::cout << p << std::endl; }
+
 } // namespace migraphx
 
 template <class T, class U, class Target = std::remove_pointer_t<T>>
@@ -540,6 +542,15 @@ extern "C" migraphx_status migraphx_program_get_output_shapes(migraphx_shapes_t*
         if(program == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
         *out = allocate<migraphx_shapes_t>(migraphx::get_output_shapes((program->object)));
+    });
+}
+
+extern "C" migraphx_status migraphx_program_print(migraphx_program_t program)
+{
+    return migraphx::try_([&] {
+        if(program == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        migraphx::print((program->object));
     });
 }
 

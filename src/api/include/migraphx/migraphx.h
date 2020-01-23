@@ -3,13 +3,6 @@
 
 #include <stdlib.h>
 
-/*! Constructs type name from a struct */
-#define MIGRAPHX_DECLARE_OBJECT(name) \
-    typedef struct                    \
-    {                                 \
-        void* handle;                 \
-    } name;
-
 // Add new types here
 // clang-format off
 #define MIGRAPHX_SHAPE_VISIT_TYPES(m) \
@@ -168,6 +161,8 @@ migraphx_status migraphx_program_get_parameter_shapes(migraphx_program_parameter
 
 migraphx_status migraphx_program_get_output_shapes(migraphx_shapes_t* out,
                                                    migraphx_program_t program);
+
+migraphx_status migraphx_program_print(migraphx_program_t program);
 
 migraphx_status migraphx_program_run(migraphx_arguments_t* out,
                                      migraphx_program_t program,

@@ -3,13 +3,6 @@
 
 #include <stdlib.h>
 
-/*! Constructs type name from a struct */
-#define MIGRAPHX_DECLARE_OBJECT(name) \
-    typedef struct                    \
-    {                                 \
-        void* handle;                 \
-    } name;
-
 // Add new types here
 // clang-format off
 #define MIGRAPHX_SHAPE_VISIT_TYPES(m) \

@@ -239,6 +239,13 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         return pout;
     }
 
+    size_t bytes() const
+    {
+        size_t pout;
+        call(&migraphx_shape_bytes, &pout, this->get_handle_ptr());
+        return pout;
+    }
+
     friend bool operator==(const shape& px, const shape& py)
     {
         bool pout;
@@ -461,6 +468,11 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
         migraphx_arguments_t pout;
         call(&migraphx_program_run, &pout, this->get_handle_ptr(), pparams.get_handle_ptr());
         return arguments(pout, own{});
+    }
+
+    void print() const
+    {
+        call(&migraphx_program_print, this->get_handle_ptr());
     }
 
     friend bool operator==(const program& px, const program& py)

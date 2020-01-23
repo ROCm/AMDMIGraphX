@@ -121,6 +121,11 @@ std::vector<shape> get_output_shapes(program& p)
     return {a};
 }
 
+void print(program& p)
+{
+    std::cout << p << std::endl;
+}
+
 } // namespace migraphx
 
 <% generate_c_api_body() %>

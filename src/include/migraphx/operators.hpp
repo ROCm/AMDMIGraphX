@@ -26,6 +26,7 @@
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/cosh.hpp>
 #include <migraphx/op/cos.hpp>
+#include <migraphx/op/deconvolution.hpp>
 #include <migraphx/op/div.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/elu.hpp>

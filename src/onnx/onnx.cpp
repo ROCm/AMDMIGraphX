@@ -86,6 +86,7 @@ struct onnx_parser
         add_mem_op("ConstantOfShape", &onnx_parser::parse_constant_of_shape);
         add_mem_op("Conv", &onnx_parser::parse_conv<op::convolution>);
         add_mem_op("ConvInteger", &onnx_parser::parse_conv<op::quant_convolution>);
+        add_mem_op("ConvTranspose", &onnx_parser::parse_conv_transpose);
         add_mem_op("Elu", &onnx_parser::parse_elu);
         add_mem_op("Expand", &onnx_parser::parse_expand);
         add_mem_op("Flatten", &onnx_parser::parse_flatten);
@@ -95,6 +96,7 @@ struct onnx_parser
         add_mem_op("GlobalMaxPool", &onnx_parser::parse_pooling);
         add_mem_op("GRU", &onnx_parser::parse_gru);
         add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
+        add_mem_op("InstanceNormalization", &onnx_parser::parse_instancenorm);
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
         add_mem_op("LogSoftmax", &onnx_parser::parse_softmax<op::logsoftmax>);
         add_mem_op("LRN", &onnx_parser::parse_lrn);
@@ -280,6 +282,25 @@ struct onnx_parser
         });
     }
 
+    template <class T>
+    std::vector<int64_t> to_int64_vector(const std::vector<T>& input_vector)
+    {
+        std::vector<int64_t> output_vector(input_vector.begin(), input_vector.end());
+        return output_vector;
+    }
+
+    instruction_ref
+    add_bias(const std::vector<instruction_ref>& args, instruction_ref curr_ins, uint64_t axis)
+    {
+        if(args.size() == 3)
+        {
+            auto bias_bcast =
+                prog.add_instruction(op::broadcast{axis, curr_ins->get_shape().lens()}, args[2]);
+            return prog.add_instruction(op::add{}, curr_ins, bias_bcast);
+        }
+        return curr_ins;
+    }
+
     instruction_ref parse_clip(const std::string&,
                                const attribute_map& attributes,
                                std::vector<instruction_ref> args)
@@ -456,14 +477,114 @@ struct onnx_parser
         {
             op.group = parse_value(attributes.at("group")).at<int>();
         }
-        if(args.size() == 3)
+
+        auto l1 = prog.add_instruction(op, l0, args[1]);
+        return add_bias(args, l1, 1);
+    }
+
+    instruction_ref parse_conv_transpose(const std::string&,
+                                         attribute_map attributes,
+                                         std::vector<instruction_ref> args)
+    {
+        op::deconvolution op;
+        auto l0 = args[0];
+        std::vector<std::int64_t> padding;
+        bool asymm_padding = false;
+        if(contains(attributes, "pads"))
         {
-            uint64_t axis = 1;
-            auto l1       = prog.add_instruction(op, l0, args[1]);
-            auto l2 = prog.add_instruction(op::broadcast{axis, l1->get_shape().lens()}, args[2]);
-            return prog.add_instruction(op::add{}, l1, l2);
+            if(contains(attributes, "auto_pad"))
+            {
+                auto s = attributes["auto_pad"].s();
+                if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
+                {
+                    MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                }
+            }
+            copy(attributes["pads"].ints(), std::back_inserter(padding));
+            if(padding.size() != 4)
+            {
+                MIGRAPHX_THROW("padding should have 4 values");
+            }
+            if(padding[0] != padding[2] || padding[1] != padding[3])
+            {
+                asymm_padding = true;
+            }
+            else
+            {
+                op.padding[0] = padding[0];
+                op.padding[1] = padding[1];
+            }
         }
-        return prog.add_instruction(op, l0, args[1]);
+        if(contains(attributes, "strides"))
+        {
+            copy(attributes["strides"].ints(), op.stride.begin());
+        }
+        if(contains(attributes, "dilations"))
+        {
+            copy(attributes["dilations"].ints(), op.dilation.begin());
+        }
+        if(contains(attributes, "auto_pad"))
+        {
+            auto s = attributes["auto_pad"].s();
+            if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
+            {
+                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+            }
+
+            if(s.find("SAME") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::same;
+            }
+        }
+
+        if(contains(attributes, "group"))
+        {
+            op.group = parse_value(attributes.at("group")).at<int>();
+        }
+
+        auto l1                   = prog.add_instruction(op, l0, args[1]);
+        std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
+        std::vector<int64_t> curr_shape{dims[2], dims[3]};
+        if(asymm_padding)
+        {
+            op::slice slice_op;
+            slice_op.axes   = {0, 1, 2, 3};
+            slice_op.starts = {0, 0, 0 + padding[0], 0 + padding[1]};
+            slice_op.ends   = {
+                dims[0], dims[1], curr_shape[0] - padding[2], curr_shape[1] - padding[3]};
+
+            l1 = prog.add_instruction(slice_op, l1);
+        }
+
+        if(contains(attributes, "output_padding"))
+        {
+            std::vector<int64_t> output_padding;
+            copy(attributes["output_padding"].ints(), std::back_inserter(output_padding));
+            output_padding = {0, 0, 0, 0, 0, 0, output_padding[0], output_padding[1]};
+            l1             = prog.add_instruction(op::pad{output_padding}, l1);
+        }
+
+        if(contains(attributes, "output_shape"))
+        {
+            std::vector<int64_t> output_shape;
+            copy(attributes["output_shape"].ints(), std::back_inserter(output_shape));
+            dims       = to_int64_vector(l1->get_shape().lens());
+            curr_shape = {dims[2], dims[3]};
+            if(curr_shape != output_shape)
+            {
+                std::vector<int64_t> target_padding = {0,
+                                                       0,
+                                                       0,
+                                                       0,
+                                                       0,
+                                                       0,
+                                                       output_shape[0] - curr_shape[0],
+                                                       output_shape[1] - curr_shape[1]};
+                l1 = prog.add_instruction(op::pad{target_padding}, l1);
+            }
+        }
+
+        return add_bias(args, l1, 1);
     }
 
     instruction_ref parse_pooling(const std::string& name,
@@ -799,6 +920,42 @@ struct onnx_parser
         }
         op::batch_norm_inference op{epsilon, momentum, bn_mode};
         return prog.add_instruction(op, std::move(args));
+    }
+
+    instruction_ref parse_instancenorm(const std::string&,
+                                       attribute_map attributes,
+                                       std::vector<instruction_ref> args)
+    {
+        // y = scale * ( x - mean ) / sqrt ( variance + epsilon ) + bias
+        // mean = reduce_mean({H, W}, x)
+        // variance = reduce_mean({H, W}, (x - mean)^2)
+
+        float epsilon = 1e-5f;
+        if(contains(attributes, "epsilon"))
+        {
+            epsilon = parse_value(attributes.at("epsilon")).at<float>();
+        }
+        auto x     = args[0];
+        auto scale = args[1];
+        auto bias  = args[2];
+        auto dims  = x->get_shape().lens();
+
+        auto mean            = prog.add_instruction(op::reduce_mean{{2, 3}}, x);
+        auto mean_bcast      = prog.add_instruction(op::multibroadcast{dims}, mean);
+        auto l0              = prog.add_instruction(op::sqdiff{}, x, mean_bcast);
+        auto variance        = prog.add_instruction(op::reduce_mean{{2, 3}}, l0);
+        auto l1              = prog.add_instruction(op::sub{}, x, mean_bcast);
+        auto epsilon_literal = prog.add_literal(epsilon);
+        auto epsilon_bcast   = prog.add_instruction(op::multibroadcast{dims}, epsilon_literal);
+        auto variance_bcast  = prog.add_instruction(op::multibroadcast{dims}, variance);
+        auto l2              = prog.add_instruction(op::add{}, variance_bcast, epsilon_bcast);
+        auto l3              = prog.add_instruction(op::rsqrt{}, l2);
+        auto l4              = prog.add_instruction(op::mul{}, l1, l3);
+        auto scale_bcast     = prog.add_instruction(op::broadcast{1, dims}, scale);
+        ;
+        auto bias_bcast = prog.add_instruction(op::broadcast{1, dims}, bias);
+        auto l5         = prog.add_instruction(op::mul{}, l4, scale_bcast);
+        return prog.add_instruction(op::add{}, l5, bias_bcast);
     }
 
     instruction_ref parse_leaky_relu(const std::string&,

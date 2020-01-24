@@ -458,6 +458,79 @@ TEST_CASE(cosh_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(deconv_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    p.add_instruction(migraphx::op::deconvolution{}, l0, l1);
+
+    auto prog = optimize_onnx("deconv_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(deconv_bias_test)
+{
+    migraphx::program p;
+    auto l0       = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto l1       = p.add_parameter("w", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto l2       = p.add_parameter("b", {migraphx::shape::float_type, {1}});
+    uint64_t axis = 1;
+    auto l3       = p.add_instruction(migraphx::op::deconvolution{}, l0, l1);
+    auto l4       = p.add_instruction(migraphx::op::broadcast{axis, l3->get_shape().lens()}, l2);
+    p.add_instruction(migraphx::op::add{}, l3, l4);
+
+    auto prog = optimize_onnx("deconv_bias_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(deconv_input_pads_strides_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
+    p.add_instruction(migraphx::op::deconvolution{{1, 1}, {3, 2}}, l0, l1);
+
+    auto prog = optimize_onnx("deconv_input_pads_strides_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(deconv_input_pads_asymm_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
+    auto l2 = p.add_instruction(migraphx::op::deconvolution{{0, 0}, {3, 2}}, l0, l1);
+    p.add_instruction(migraphx::op::slice{{0, 1, 2, 3}, {0, 0, 0, 0}, {1, 2, 8, 6}}, l2);
+
+    auto prog = optimize_onnx("deconv_input_pads_asymm_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(deconv_output_shape_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
+    auto l2 = p.add_instruction(migraphx::op::deconvolution{{0, 0}, {3, 2}}, l0, l1);
+    p.add_instruction(migraphx::op::pad{{0, 0, 0, 0, 0, 0, 1, 1}}, l2);
+
+    auto prog = optimize_onnx("deconv_output_shape_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(deconv_output_padding_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
+    auto l2 = p.add_instruction(migraphx::op::deconvolution{{0, 0}, {3, 2}}, l0, l1);
+    p.add_instruction(migraphx::op::pad{{0, 0, 0, 0, 0, 0, 1, 1}}, l2);
+
+    auto prog = optimize_onnx("deconv_output_padding_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(dropout_test)
 {
     migraphx::program p;
@@ -703,6 +776,38 @@ TEST_CASE(initializer_not_an_input)
     p.add_instruction(migraphx::op::dot{}, l0, l1);
 
     auto prog = optimize_onnx("initializer_not_an_input.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(instance_norm_test)
+{
+    std::vector<size_t> dims{1, 2, 3, 3};
+    migraphx::shape s1{migraphx::shape::float_type, dims};
+    migraphx::shape s2{migraphx::shape::float_type, {2}};
+
+    migraphx::program p;
+    auto x     = p.add_parameter("0", s1);
+    auto scale = p.add_parameter("1", s2);
+    auto bias  = p.add_parameter("2", s2);
+
+    auto mean            = p.add_instruction(migraphx::op::reduce_mean{{2, 3}}, x);
+    auto mean_bcast      = p.add_instruction(migraphx::op::multibroadcast{dims}, mean);
+    auto l0              = p.add_instruction(migraphx::op::sqdiff{}, x, mean_bcast);
+    auto variance        = p.add_instruction(migraphx::op::reduce_mean{{2, 3}}, l0);
+    auto l1              = p.add_instruction(migraphx::op::sub{}, x, mean_bcast);
+    auto epsilon_literal = p.add_literal(1e-5f);
+    auto epsilon_bcast   = p.add_instruction(migraphx::op::multibroadcast{dims}, epsilon_literal);
+    auto variance_bcast  = p.add_instruction(migraphx::op::multibroadcast{dims}, variance);
+    auto l2              = p.add_instruction(migraphx::op::add{}, variance_bcast, epsilon_bcast);
+    auto l3              = p.add_instruction(migraphx::op::rsqrt{}, l2);
+    auto l4              = p.add_instruction(migraphx::op::mul{}, l1, l3);
+    auto scale_bcast     = p.add_instruction(migraphx::op::broadcast{1, dims}, scale);
+    auto bias_bcast      = p.add_instruction(migraphx::op::broadcast{1, dims}, bias);
+    auto l5              = p.add_instruction(migraphx::op::mul{}, l4, scale_bcast);
+    p.add_instruction(migraphx::op::add{}, l5, bias_bcast);
+
+    auto prog = optimize_onnx("instance_norm_test.onnx");
 
     EXPECT(p == prog);
 }

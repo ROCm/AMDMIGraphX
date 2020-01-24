@@ -162,7 +162,7 @@ migraphx_status migraphx_program_get_parameter_shapes(migraphx_program_parameter
 migraphx_status migraphx_program_get_output_shapes(migraphx_shapes_t* out,
                                                    migraphx_program_t program);
 
-migraphx_status migraphx_program_print(migraphx_program_t program);
+migraphx_status migraphx_program_print(const_migraphx_program_t program);
 
 migraphx_status migraphx_program_run(migraphx_arguments_t* out,
                                      migraphx_program_t program,

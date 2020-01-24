@@ -121,7 +121,7 @@ std::vector<shape> get_output_shapes(program& p)
     return {a};
 }
 
-void print(program& p) { std::cout << p << std::endl; }
+void print(const program& p) { std::cout << p << std::endl; }
 
 } // namespace migraphx
 
@@ -545,7 +545,7 @@ extern "C" migraphx_status migraphx_program_get_output_shapes(migraphx_shapes_t*
     });
 }
 
-extern "C" migraphx_status migraphx_program_print(migraphx_program_t program)
+extern "C" migraphx_status migraphx_program_print(const_migraphx_program_t program)
 {
     return migraphx::try_([&] {
         if(program == nullptr)

@@ -109,6 +109,20 @@ bool equal(const T& x, const T& y)
     return x == y;
 }
 
+std::vector<argument> run(program& p, const program::parameter_map& params)
+{
+    auto a = p.eval(params);
+    return {a};
+}
+
+std::vector<shape> get_output_shapes(program& p)
+{
+    auto a = p.get_shape();
+    return {a};
+}
+
+void print(const program& p) { std::cout << p << std::endl; }
+
 } // namespace migraphx
 
 template <class T, class U, class Target = std::remove_pointer_t<T>>
@@ -184,6 +198,26 @@ struct migraphx_program_parameters
     std::unordered_map<std::string, migraphx::argument> object;
 };
 
+extern "C" struct migraphx_arguments;
+struct migraphx_arguments
+{
+    template <class... Ts>
+    migraphx_arguments(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    {
+    }
+    std::vector<migraphx::argument> object;
+};
+
+extern "C" struct migraphx_shapes;
+struct migraphx_shapes
+{
+    template <class... Ts>
+    migraphx_shapes(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    {
+    }
+    std::vector<migraphx::shape> object;
+};
+
 extern "C" struct migraphx_program;
 struct migraphx_program
 {
@@ -250,6 +284,15 @@ extern "C" migraphx_status migraphx_shape_type(migraphx_shape_datatype_t* out,
         if(shape == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
         *out = migraphx::to_shape_type((shape->object).type());
+    });
+}
+
+extern "C" migraphx_status migraphx_shape_bytes(size_t* out, const_migraphx_shape_t shape)
+{
+    return migraphx::try_([&] {
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        *out = (shape->object).bytes();
     });
 }
 
@@ -399,7 +442,7 @@ migraphx_program_parameters_create(migraphx_program_parameters_t* program_parame
 extern "C" migraphx_status
 migraphx_program_parameters_add(migraphx_program_parameters_t program_parameters,
                                 const char* name,
-                                migraphx_argument_t argument)
+                                const_migraphx_argument_t argument)
 {
     return migraphx::try_([&] {
         if(program_parameters == nullptr)
@@ -408,6 +451,54 @@ migraphx_program_parameters_add(migraphx_program_parameters_t program_parameters
         if(argument == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter argument: Null pointer");
         (program_parameters->object)[(name)] = (argument->object);
+    });
+}
+
+extern "C" migraphx_status migraphx_arguments_destroy(migraphx_arguments_t arguments)
+{
+    return migraphx::try_([&] { destroy((arguments)); });
+}
+
+extern "C" migraphx_status migraphx_arguments_size(size_t* out, migraphx_arguments_t arguments)
+{
+    return migraphx::try_([&] {
+        if(arguments == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter arguments: Null pointer");
+        *out = (arguments->object).size();
+    });
+}
+
+extern "C" migraphx_status
+migraphx_arguments_get(const_migraphx_argument_t* out, migraphx_arguments_t arguments, size_t idx)
+{
+    return migraphx::try_([&] {
+        if(arguments == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter arguments: Null pointer");
+        *out = object_cast<const_migraphx_argument_t>(&((arguments->object).at((idx))));
+    });
+}
+
+extern "C" migraphx_status migraphx_shapes_destroy(migraphx_shapes_t shapes)
+{
+    return migraphx::try_([&] { destroy((shapes)); });
+}
+
+extern "C" migraphx_status migraphx_shapes_size(size_t* out, migraphx_shapes_t shapes)
+{
+    return migraphx::try_([&] {
+        if(shapes == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shapes: Null pointer");
+        *out = (shapes->object).size();
+    });
+}
+
+extern "C" migraphx_status
+migraphx_shapes_get(const_migraphx_shape_t* out, migraphx_shapes_t shapes, size_t idx)
+{
+    return migraphx::try_([&] {
+        if(shapes == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shapes: Null pointer");
+        *out = object_cast<const_migraphx_shape_t>(&((shapes->object).at((idx))));
     });
 }
 
@@ -427,8 +518,8 @@ extern "C" migraphx_status migraphx_program_compile(migraphx_program_t program,
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter target: Null pointer");
         (program->object)
             .compile((target->object),
-                     (options != nullptr ? migraphx::to_compile_options(*options)
-                                         : migraphx::compile_options{}));
+                     (options == nullptr ? migraphx::compile_options{}
+                                         : migraphx::to_compile_options(*options)));
     });
 }
 
@@ -444,7 +535,26 @@ migraphx_program_get_parameter_shapes(migraphx_program_parameter_shapes_t* out,
     });
 }
 
-extern "C" migraphx_status migraphx_program_run(migraphx_argument_t* out,
+extern "C" migraphx_status migraphx_program_get_output_shapes(migraphx_shapes_t* out,
+                                                              migraphx_program_t program)
+{
+    return migraphx::try_([&] {
+        if(program == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        *out = allocate<migraphx_shapes_t>(migraphx::get_output_shapes((program->object)));
+    });
+}
+
+extern "C" migraphx_status migraphx_program_print(const_migraphx_program_t program)
+{
+    return migraphx::try_([&] {
+        if(program == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        migraphx::print((program->object));
+    });
+}
+
+extern "C" migraphx_status migraphx_program_run(migraphx_arguments_t* out,
                                                 migraphx_program_t program,
                                                 migraphx_program_parameters_t params)
 {
@@ -453,7 +563,7 @@ extern "C" migraphx_status migraphx_program_run(migraphx_argument_t* out,
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
         if(params == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
-        *out = allocate<migraphx_argument_t>((program->object).eval((params->object)));
+        *out = allocate<migraphx_arguments_t>(migraphx::run((program->object), (params->object)));
     });
 }
 
@@ -475,7 +585,7 @@ migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_opt
     return migraphx::try_([&] {
         *out = allocate<migraphx_program_t>(migraphx::parse_onnx(
             (name),
-            (options != nullptr ? migraphx::to_onnx_options(*options) : migraphx::onnx_options{})));
+            (options == nullptr ? migraphx::onnx_options{} : migraphx::to_onnx_options(*options))));
     });
 }
 
@@ -488,6 +598,6 @@ extern "C" migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
         *out = allocate<migraphx_program_t>(migraphx::parse_onnx_buffer(
             (data),
             (size),
-            (options != nullptr ? migraphx::to_onnx_options(*options) : migraphx::onnx_options{})));
+            (options == nullptr ? migraphx::onnx_options{} : migraphx::to_onnx_options(*options))));
     });
 }

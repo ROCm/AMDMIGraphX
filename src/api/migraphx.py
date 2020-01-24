@@ -30,7 +30,7 @@ def compile_options_type_wrap(p):
         p.write = ['*${name} = migraphx::to_compile_options(${result})']
     else:
         p.add_param('migraphx_compile_options *')
-        p.read = '${name} != nullptr ? migraphx::to_compile_options(*${name}) : migraphx::compile_options{}'
+        p.read = '${name} == nullptr ? migraphx::compile_options{} : migraphx::to_compile_options(*${name})'
 
 
 @api.cwrap('migraphx::onnx_options')
@@ -41,7 +41,7 @@ def onnx_options_type_wrap(p):
         p.write = ['*${name} = migraphx::to_onnx_options(${result})']
     else:
         p.add_param('migraphx_onnx_options *')
-        p.read = '${name} != nullptr ? migraphx::to_onnx_options(*${name}) : migraphx::onnx_options{}'
+        p.read = '${name} == nullptr ? migraphx::onnx_options{} : migraphx::to_onnx_options(*${name})'
 
 
 def auto_handle(f):
@@ -60,6 +60,7 @@ def shape(h):
              const=True)
     h.method('strides', returns='const std::vector<size_t>&', const=True)
     h.method('type', returns='migraphx::shape::type_t', const=True)
+    h.method('bytes', returns='size_t', const=True)
     h.method('equal',
              api.params(x='const migraphx::shape&'),
              invoke='migraphx::equal($@)',
@@ -120,8 +121,29 @@ def program_parameter_shapes(h):
 def program_parameters(h):
     h.constructor('create')
     h.method('add',
-             api.params(name='const char*', argument='migraphx::argument'),
+             api.params(name='const char*',
+                        argument='const migraphx::argument&'),
              invoke='${program_parameters}[${name}] = ${argument}')
+
+
+@api.handle('migraphx_arguments', 'std::vector<migraphx::argument>')
+def arguments(h):
+    h.method('size', returns='size_t')
+    h.method('get',
+             api.params(idx='size_t'),
+             fname='at',
+             cpp_name='operator[]',
+             returns='const migraphx::argument&')
+
+
+@api.handle('migraphx_shapes', 'std::vector<migraphx::shape>')
+def shapes(h):
+    h.method('size', returns='size_t')
+    h.method('get',
+             api.params(idx='size_t'),
+             fname='at',
+             cpp_name='operator[]',
+             returns='const migraphx::shape&')
 
 
 @auto_handle
@@ -132,11 +154,15 @@ def program(h):
                    options='migraphx::compile_options'))
     h.method('get_parameter_shapes',
              returns='std::unordered_map<std::string, migraphx::shape>')
+    h.method('get_output_shapes',
+             invoke='migraphx::get_output_shapes($@)',
+             returns='std::vector<migraphx::shape>')
+    h.method('print', invoke='migraphx::print($@)', const=True)
     h.method('run',
              api.params(
                  params='std::unordered_map<std::string, migraphx::argument>'),
-             fname='eval',
-             returns='migraphx::argument')
+             invoke='migraphx::run($@)',
+             returns='std::vector<migraphx::argument>')
     h.method('equal',
              api.params(x='const migraphx::program&'),
              invoke='migraphx::equal($@)',

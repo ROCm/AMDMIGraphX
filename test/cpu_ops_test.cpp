@@ -1711,6 +1711,28 @@ TEST_CASE(quant_conv2d_padding_stride_test)
     EXPECT(migraphx::verify_range(results_vector, s));
 }
 
+TEST_CASE(deconv_test)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+    std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
+    std::vector<float> w_data{1, 1, 1, 1, 1, 1, 1, 1, 1};
+
+    std::vector<float> gold{0,  1,  3, 3,  2,  3,  8,  15, 12, 7,  9,  21, 36,
+                            27, 15, 9, 20, 33, 24, 13, 6,  13, 21, 15, 8};
+
+    migraphx::program p;
+    auto x = p.add_literal(migraphx::literal{s, x_data});
+    auto w = p.add_literal(migraphx::literal{s, w_data});
+
+    p.add_instruction(migraphx::op::deconvolution{}, x, w);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(transpose_test)
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 2, 2, 3}};
@@ -1973,6 +1995,21 @@ TEST_CASE(clip_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0.0, 0.0, 6.0};
     EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(reduce_prod_axis0)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {4, 2, 2}};
+    auto input = migraphx::literal{s, {1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 3, 2, 3}};
+    auto l0    = p.add_literal(input);
+    p.add_instruction(migraphx::op::reduce_prod{{0}}, l0);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({});
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{6, 18, 12, 18};
+    EXPECT(results_vector == gold);
 }
 
 TEST_CASE(reduce_sum_axis0)

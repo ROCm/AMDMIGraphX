@@ -4095,10 +4095,11 @@ struct test_reduce_op_large : verify_program<test_reduce_op_large<Op, Axis, T>>
     };
 };
 
-template struct test_reduce_op_large<migraphx::op::reduce_sum, 1, migraphx::shape::float_type>;
-template struct test_reduce_op_large<migraphx::op::reduce_mean, 1, migraphx::shape::float_type>;
 template struct test_reduce_op_large<migraphx::op::reduce_max, 1, migraphx::shape::float_type>;
+template struct test_reduce_op_large<migraphx::op::reduce_mean, 1, migraphx::shape::float_type>;
 template struct test_reduce_op_large<migraphx::op::reduce_min, 1, migraphx::shape::float_type>;
+template struct test_reduce_op_large<migraphx::op::reduce_prod, 2, migraphx::shape::float_type>;
+template struct test_reduce_op_large<migraphx::op::reduce_sum, 1, migraphx::shape::float_type>;
 
 template <class Op, int Axis, migraphx::shape::type_t T>
 struct test_reduce_op_small : verify_program<test_reduce_op_small<Op, Axis, T>>
@@ -4121,6 +4122,7 @@ template struct test_reduce_op_small<migraphx::op::reduce_sum, 2, migraphx::shap
 template struct test_reduce_op_small<migraphx::op::reduce_mean, 2, migraphx::shape::half_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_max, 2, migraphx::shape::half_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_min, 2, migraphx::shape::half_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_prod, -2, migraphx::shape::half_type>;
 
 struct test_rsqrt : verify_program<test_rsqrt>
 {

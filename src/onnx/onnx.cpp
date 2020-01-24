@@ -91,6 +91,7 @@ struct onnx_parser
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
         add_mem_op("MatMul", &onnx_parser::parse_matmul);
         add_mem_op("BatchNormalization", &onnx_parser::parse_batchnorm);
+        add_mem_op("InstanceNormalization", &onnx_parser::parse_instancenorm);
         add_mem_op("Softmax", &onnx_parser::parse_softmax<op::softmax>);
         add_mem_op("LogSoftmax", &onnx_parser::parse_softmax<op::logsoftmax>);
         add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
@@ -106,10 +107,17 @@ struct onnx_parser
         add_mem_op("GRU", &onnx_parser::parse_gru);
         add_mem_op("LSTM", &onnx_parser::parse_lstm);
         add_mem_op("Pad", &onnx_parser::parse_pad);
-        add_mem_op("ReduceSum", &onnx_parser::parse_reduce_oper<op::reduce_sum>);
+
+        add_mem_op("ReduceL1", &onnx_parser::parse_reduce_l1);
+        add_mem_op("ReduceL2", &onnx_parser::parse_reduce_l2);
+        add_mem_op("ReduceLogSum", &onnx_parser::parse_reduce_log_sum);
+        add_mem_op("ReduceLogSumExp", &onnx_parser::parse_reduce_log_sum_exp);
+        add_mem_op("ReduceMax", &onnx_parser::parse_reduce_oper<op::reduce_max>);
         add_mem_op("ReduceMean", &onnx_parser::parse_reduce_oper<op::reduce_mean>);
         add_mem_op("ReduceMin", &onnx_parser::parse_reduce_oper<op::reduce_min>);
-        add_mem_op("ReduceMax", &onnx_parser::parse_reduce_oper<op::reduce_max>);
+        add_mem_op("ReduceProd", &onnx_parser::parse_reduce_oper<op::reduce_prod>);
+        add_mem_op("ReduceSum", &onnx_parser::parse_reduce_oper<op::reduce_sum>);
+        add_mem_op("ReduceSumSquare", &onnx_parser::parse_reduce_sum_square);
 
         // init the activation function map
         init_actv_func();
@@ -327,6 +335,65 @@ struct onnx_parser
         }
     }
 
+    template <class Op>
+    instruction_ref process_auto_pad_attribute(instruction_ref ins,
+                                               attribute_map& attributes,
+                                               Op& op,
+                                               const std::vector<std::size_t>& in_lens)
+    {
+        if(!contains(attributes, "auto_pad"))
+        {
+            return ins;
+        }
+
+        auto auto_pad = attributes["auto_pad"].s();
+        if(auto_pad.find("SAME") != std::string::npos)
+        {
+            // calculate the padding
+            std::array<std::size_t, 2> out_lens;
+            out_lens[0] = (in_lens[2] + op.stride[0] - 1) / op.stride[0];
+            out_lens[1] = (in_lens[3] + op.stride[1] - 1) / op.stride[1];
+
+            std::array<std::size_t, 2> explicit_pads;
+            explicit_pads[0] = (out_lens[0] - 1) * op.stride[0] + op.lengths[0] - in_lens[2];
+            explicit_pads[1] = (out_lens[1] - 1) * op.stride[1] + op.lengths[1] - in_lens[3];
+            op.padding[0]    = explicit_pads[0] / 2;
+            op.padding[1]    = explicit_pads[1] / 2;
+            explicit_pads[0] -= 2 * op.padding[0];
+            explicit_pads[1] -= 2 * op.padding[1];
+            std::vector<std::int64_t> pads(8, 0);
+            if(explicit_pads[0] != 0 or explicit_pads[1] != 0)
+            {
+                if(auto_pad == "SAME_UPPER")
+                {
+                    pads[6] = explicit_pads[0];
+                    pads[7] = explicit_pads[1];
+                }
+                else if(auto_pad == "SAME_LOWER")
+                {
+                    pads[2] = explicit_pads[0];
+                    pads[3] = explicit_pads[1];
+                }
+
+                // MaxPool
+                if(op.mode == "max")
+                {
+                    ins = prog.add_instruction(op::pad{pads, std::numeric_limits<float>::lowest()},
+                                               ins);
+                }
+                // AveragePool
+                else
+                {
+                    ins = prog.add_instruction(op::pad{pads}, ins);
+                }
+            }
+
+            op.padding_mode = op::padding_mode_t::same;
+        }
+
+        return ins;
+    }
+
     instruction_ref
     parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
@@ -406,20 +473,40 @@ struct onnx_parser
             auto lens  = args.front()->get_shape().lens();
             op.lengths = {lens[2], lens[3]};
         }
+
         if(contains(attributes, "pads"))
         {
+            if(contains(attributes, "auto_pad"))
+            {
+                auto s = attributes["auto_pad"].s();
+                if(to_upper(s) != "NOTSET")
+                {
+                    MIGRAPHX_THROW(
+                        "PARSE_POOLING: auto_pad and padding cannot be specified simultaneously");
+                }
+            }
+
             std::vector<std::int64_t> padding;
             copy(attributes["pads"].ints(), std::back_inserter(padding));
             if(padding.size() != 4)
             {
-                MIGRAPHX_THROW("padding should have 4 values");
+                MIGRAPHX_THROW("PARSE_POOLING: padding should have 4 values");
             }
             if(padding[0] != padding[2] || padding[1] != padding[3])
             {
                 // insert zeros for pad op (args[0] has 4 dims)
                 padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
-                l0 = prog.add_instruction(op::pad{padding, std::numeric_limits<float>::lowest()},
-                                          l0);
+                // MaxPool
+                if(op.mode == "max")
+                {
+                    l0 = prog.add_instruction(
+                        op::pad{padding, std::numeric_limits<float>::lowest()}, l0);
+                }
+                // AveragePool
+                else
+                {
+                    l0 = prog.add_instruction(op::pad{padding}, l0);
+                }
             }
             else
             {
@@ -427,6 +514,7 @@ struct onnx_parser
                 op.padding[1] = padding[1];
             }
         }
+
         if(contains(attributes, "strides"))
         {
             copy(attributes["strides"].ints(), op.stride.begin());
@@ -435,14 +523,11 @@ struct onnx_parser
         {
             copy(attributes["kernel_shape"].ints(), op.lengths.begin());
         }
+
         if(contains(attributes, "auto_pad"))
         {
-            auto s = attributes["auto_pad"].s();
-            if(s.find("SAME_UPPER") == std::string::npos)
-            {
-                MIGRAPHX_THROW("auto_pad only supports SAME_UPPER for pooling");
-            }
-            op.padding_mode = op::padding_mode_t::same;
+            auto in_lens = args[0]->get_shape().lens();
+            l0           = process_auto_pad_attribute(l0, attributes, op, in_lens);
         }
 
         return prog.add_instruction(op, l0);
@@ -709,6 +794,42 @@ struct onnx_parser
         }
         op::batch_norm_inference op{epsilon, momentum, bn_mode};
         return prog.add_instruction(op, std::move(args));
+    }
+
+    instruction_ref parse_instancenorm(const std::string&,
+                                       attribute_map attributes,
+                                       std::vector<instruction_ref> args)
+    {
+        // y = scale * ( x - mean ) / sqrt ( variance + epsilon ) + bias
+        // mean = reduce_mean({H, W}, x)
+        // variance = reduce_mean({H, W}, (x - mean)^2)
+
+        float epsilon = 1e-5f;
+        if(contains(attributes, "epsilon"))
+        {
+            epsilon = parse_value(attributes.at("epsilon")).at<float>();
+        }
+        auto x     = args[0];
+        auto scale = args[1];
+        auto bias  = args[2];
+        auto dims  = x->get_shape().lens();
+
+        auto mean            = prog.add_instruction(op::reduce_mean{{2, 3}}, x);
+        auto mean_bcast      = prog.add_instruction(op::multibroadcast{dims}, mean);
+        auto l0              = prog.add_instruction(op::sqdiff{}, x, mean_bcast);
+        auto variance        = prog.add_instruction(op::reduce_mean{{2, 3}}, l0);
+        auto l1              = prog.add_instruction(op::sub{}, x, mean_bcast);
+        auto epsilon_literal = prog.add_literal(epsilon);
+        auto epsilon_bcast   = prog.add_instruction(op::multibroadcast{dims}, epsilon_literal);
+        auto variance_bcast  = prog.add_instruction(op::multibroadcast{dims}, variance);
+        auto l2              = prog.add_instruction(op::add{}, variance_bcast, epsilon_bcast);
+        auto l3              = prog.add_instruction(op::rsqrt{}, l2);
+        auto l4              = prog.add_instruction(op::mul{}, l1, l3);
+        auto scale_bcast     = prog.add_instruction(op::broadcast{1, dims}, scale);
+        ;
+        auto bias_bcast = prog.add_instruction(op::broadcast{1, dims}, bias);
+        auto l5         = prog.add_instruction(op::mul{}, l4, scale_bcast);
+        return prog.add_instruction(op::add{}, l5, bias_bcast);
     }
 
     instruction_ref parse_leaky_relu(const std::string&,
@@ -1405,6 +1526,47 @@ struct onnx_parser
     }
 
     instruction_ref
+    parse_reduce_l1(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        auto abs_ins = prog.add_instruction(op::abs{}, args[0]);
+        return parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {abs_ins});
+    }
+
+    instruction_ref
+    parse_reduce_l2(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
+        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {square_ins});
+        return prog.add_instruction(op::sqrt{}, sum_ins);
+    }
+
+    instruction_ref parse_reduce_log_sum(const std::string&,
+                                         attribute_map attributes,
+                                         std::vector<instruction_ref> args)
+    {
+        auto sum_ins =
+            parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), std::move(args));
+        return prog.add_instruction(op::log{}, sum_ins);
+    }
+
+    instruction_ref parse_reduce_log_sum_exp(const std::string&,
+                                             attribute_map attributes,
+                                             std::vector<instruction_ref> args)
+    {
+        auto exp_ins = prog.add_instruction(op::exp{}, args[0]);
+        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {exp_ins});
+        return prog.add_instruction(op::log{}, sum_ins);
+    }
+
+    instruction_ref parse_reduce_sum_square(const std::string&,
+                                            attribute_map attributes,
+                                            std::vector<instruction_ref> args)
+    {
+        auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
+        return parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {square_ins});
+    }
+
+    instruction_ref
     parse_cast(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         if(!contains(attributes, "to"))
@@ -1470,6 +1632,19 @@ struct onnx_parser
         {
             this->parse_node(output.name());
         }
+
+        // For now, the last output with a valid name is considered
+        // as the program output, and add an identity instruction at
+        // the program end
+        auto prog_output = graph.output();
+        auto oit         = std::find_if(prog_output.rbegin(), prog_output.rend(), [](auto& node) {
+            return !node.name().empty();
+        });
+
+        if(instructions.count(oit->name()) > 0)
+        {
+            prog.add_instruction(op::identity{}, instructions[oit->name()]);
+        }
     }
 
     void parse_undefined(const std::string& name)
@@ -1488,14 +1663,14 @@ struct onnx_parser
             std::vector<instruction_ref> args;
             for(auto&& input : node.input())
             {
-                if(nodes.count(input) > 0)
+                if(input.empty())
+                {
+                    this->parse_undefined(input);
+                }
+                else if(nodes.count(input) > 0)
                 {
                     assert(name != input);
                     this->parse_node(input);
-                }
-                else if(input.empty())
-                {
-                    this->parse_undefined(input);
                 }
                 args.push_back(instructions.at(input));
             }
@@ -1515,12 +1690,12 @@ struct onnx_parser
             }
             else
             {
-                assert(node.output().size() >= result.size());
-                std::transform(result.begin(),
-                               result.end(),
-                               node.output().begin(),
+                assert(node.output().size() <= result.size());
+                std::transform(node.output().begin(),
+                               node.output().end(),
+                               result.begin(),
                                std::inserter(instructions, instructions.end()),
-                               [](auto&& x, auto&& y) { return std::make_pair(y, x); });
+                               [](auto&& x, auto&& y) { return std::make_pair(x, y); });
             }
         }
     }

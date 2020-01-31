@@ -16,7 +16,7 @@ TEST_CASE(instance_norm_test)
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({});
     std::vector<float> result_vector(9);
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    result.back().visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {-1.54919,
                                -1.16189,

@@ -93,7 +93,7 @@ struct program
 
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
-    argument eval(parameter_map params) const;
+    std::vector<argument> eval(parameter_map params) const;
 
     bool has_instruction(instruction_ref ins) const;
 
@@ -101,7 +101,7 @@ struct program
     instruction_ref begin() const;
     instruction_ref end() const;
 
-    shape get_shape() const;
+    std::vector<shape> get_output_shapes() const;
 
     context& get_context() const;
 

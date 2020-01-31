@@ -334,7 +334,10 @@ std::size_t program::size() const { return impl->instructions.size(); }
 instruction_ref program::begin() const { return impl->instructions.begin(); }
 instruction_ref program::end() const { return impl->instructions.end(); }
 
-shape program::get_shape() const { return impl->instructions.back().get_shape(); }
+std::vector<shape> program::get_output_shapes() const 
+{ 
+    return {impl->instructions.back().get_shape()}; 
+}
 
 context& program::get_context() const { return impl->ctx; }
 
@@ -372,7 +375,7 @@ void program::finalize()
 }
 
 template <class F>
-argument generic_eval(const program& p,
+std::vector<argument> generic_eval(const program& p,
                       context& ctx,
                       std::unordered_map<std::string, argument> params,
                       F trace)
@@ -421,10 +424,10 @@ argument generic_eval(const program& p,
         }
         assert(results.find(ins) != results.end());
     }
-    return results.at(std::prev(p.end()));
+    return {results.at(std::prev(p.end()))};
 }
 
-argument program::eval(std::unordered_map<std::string, argument> params) const
+std::vector<argument> program::eval(std::unordered_map<std::string, argument> params) const
 {
     auto& ctx = this->impl->ctx;
 #ifndef NDEBUG

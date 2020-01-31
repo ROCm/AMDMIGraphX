@@ -607,7 +607,7 @@ TEST_CASE(literal_test)
     p.add_literal(lit);
     run_pass(p);
     auto result = p.eval({});
-    CHECK(lit == result);
+    CHECK(lit == result.back());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

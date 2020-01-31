@@ -131,7 +131,8 @@ int main(int argc, char const* argv[])
         {
             std::cout << "label: " << labels[i] << "  ---->  ";
             m["0"]      = migraphx::gpu::to_gpu(migraphx::argument{s, &ptr[784 * i]});
-            auto result = migraphx::gpu::from_gpu(prog.eval(m));
+            auto results = prog.eval(m);
+            auto result = migraphx::gpu::from_gpu(results.back());
             std::vector<float> logits;
             result.visit([&](auto output) { logits.assign(output.begin(), output.end()); });
             std::vector<float> probs = softmax(logits);

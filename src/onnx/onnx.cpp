@@ -1740,15 +1740,15 @@ struct onnx_parser
         // Find instructions corresponding to the output
         auto prog_output = graph.output();
         std::vector<instruction_ref> output_ins;
-        for (auto& node : prog_output)
+        for(auto& node : prog_output)
         {
             auto& node_name = node.name();
-            if ((!node_name.empty()) and instructions.count(node_name) > 0)
+            if((!node_name.empty()) and instructions.count(node_name) > 0)
             {
                 output_ins.push_back(instructions[node_name]);
             }
         }
-        
+
         prog.add_instruction(op::ret{}, output_ins);
     }
 

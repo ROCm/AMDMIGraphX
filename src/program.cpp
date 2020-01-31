@@ -336,14 +336,14 @@ instruction_ref program::end() const { return impl->instructions.end(); }
 
 // shape program::get_shape() const { return impl->instructions.back().get_shape(); }
 
-std::vector<shape> program::get_shapes() const {
+std::vector<shape> program::get_shapes() const
+{
     auto& output_ins = impl->instructions.back().inputs();
     std::vector<shape> output_shapes;
-    std::transform(output_ins.begin(), output_ins.end(),
-        std::back_inserter(output_shapes),
-        [](auto& ins) {
-            return ins->get_shape();
-        });
+    std::transform(output_ins.begin(),
+                   output_ins.end(),
+                   std::back_inserter(output_shapes),
+                   [](auto& ins) { return ins->get_shape(); });
 
     return output_shapes;
 }
@@ -385,9 +385,9 @@ void program::finalize()
 
 template <class F>
 std::vector<argument> generic_eval(const program& p,
-                      context& ctx,
-                      std::unordered_map<std::string, argument> params,
-                      F trace)
+                                   context& ctx,
+                                   std::unordered_map<std::string, argument> params,
+                                   F trace)
 {
     assert(p.validate() == p.end());
     std::unordered_map<instruction_ref, argument> ins_results;
@@ -418,15 +418,19 @@ std::vector<argument> generic_eval(const program& p,
         }
         else if(name == "@outline")
         {
-            ins_results.emplace(ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
+            ins_results.emplace(ins, trace(ins, [&] {
+                                    return argument{ins->get_shape(), nullptr};
+                                }));
         }
         else if(name == "ret")
         {
-            std::transform(ins->inputs().begin(), ins->inputs().end(), 
-                std::back_inserter(prog_outputs), [&](instruction_ref i) {
-                    assert(ins_results.find(i) != ins_results.end());
-                    return ins_results[i];
-                });
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           std::back_inserter(prog_outputs),
+                           [&](instruction_ref i) {
+                               assert(ins_results.find(i) != ins_results.end());
+                               return ins_results[i];
+                           });
         }
         else
         {
@@ -437,8 +441,9 @@ std::vector<argument> generic_eval(const program& p,
                     return ins_results[i];
                 });
             ins_results.emplace(ins, trace(ins, [&] {
-                                return ins->get_operator().compute(ctx, ins->get_shape(), values);
-                            }));
+                                    return ins->get_operator().compute(
+                                        ctx, ins->get_shape(), values);
+                                }));
         }
         assert(ins_results.find(ins) != ins_results.end());
     }
@@ -471,7 +476,8 @@ std::vector<argument> generic_eval(const program& p,
 //             this->debug_print(ins);
 //             auto result = check_context(f);
 //             ctx.finish();
-//             if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and ins->name() != "ret")
+//             if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
+//             ins->name() != "ret")
 //                 std::cout << "Ouput: " << result << std::endl;
 //             return result;
 //         });
@@ -511,7 +517,8 @@ std::vector<argument> program::eval(parameter_map params) const
             this->debug_print(ins);
             auto result = check_context(f);
             ctx.finish();
-            if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and ins->name() != "ret")
+            if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
+               ins->name() != "ret")
                 std::cout << "Ouput: " << result << std::endl;
             return result;
         });

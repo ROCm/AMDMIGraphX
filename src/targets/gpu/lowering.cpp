@@ -100,7 +100,7 @@ struct miopen_apply
     {
         assert(prog != nullptr);
         assert(pass != nullptr);
-        //this->last = instruction::get_output_alias(std::prev(prog->end()));
+        // this->last = instruction::get_output_alias(std::prev(prog->end()));
         // Last is the ret instruction
         this->last = std::prev(prog->end());
 
@@ -183,17 +183,17 @@ struct miopen_apply
         }
 
         // return instruction
-        auto ret = std::prev(prog->end());
+        auto ret     = std::prev(prog->end());
         auto& inputs = ret->inputs();
 
         // each input of ret need to be copied from gpu to host
         std::vector<instruction_ref> ret_inputs;
-        for (auto& in : inputs)
+        for(auto& in : inputs)
         {
             auto p_output = prog->insert_instruction(ret, hip_copy_from_gpu{}, in);
             ret_inputs.push_back(p_output);
         }
-        
+
         // Use copy result on host as program output
         prog->replace_instruction(ret, op::ret{}, ret_inputs);
     }

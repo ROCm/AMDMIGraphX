@@ -47,8 +47,8 @@ std::vector<argument> run_gpu(program p)
     std::vector<argument> output(gpu_out.size());
     std::cout << p << std::endl;
     std::transform(gpu_out.begin(), gpu_out.end(), output.begin(), [&](auto& argu) {
-            return gpu::from_gpu(argu);
-        });
+        return gpu::from_gpu(argu);
+    });
     return output;
 
 #else
@@ -63,7 +63,7 @@ void verify_program(const std::string& name, const program& p, double tolerance)
     auto y = run_gpu(p);
 
     std::size_t output_num = x.size();
-    for (std::size_t i = 0; i < output_num; ++i)
+    for(std::size_t i = 0; i < output_num; ++i)
     {
         verify_args(name, x[i], y[i], tolerance);
     }

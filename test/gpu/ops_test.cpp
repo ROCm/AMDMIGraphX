@@ -146,7 +146,7 @@ std::vector<migraphx::argument> run_gpu(migraphx::program& p)
     std::vector<migraphx::argument> res(gpu_res.size());
     std::transform(gpu_res.begin(), gpu_res.end(), res.begin(), [&](auto& argu) {
         return migraphx::gpu::from_gpu(argu);
-        });
+    });
 
     return res;
 }
@@ -163,9 +163,9 @@ void run_verify_program()
     auto cpu_arg   = cpu_arg_f.get();
 
     std::size_t num = cpu_arg.size();
-    for (std::size_t i = 0; i < num; ++i)
+    for(std::size_t i = 0; i < num; ++i)
     {
-        bool passed    = verify_args(migraphx::get_type_name<V>(), cpu_arg[i], gpu_arg[i]);
+        bool passed = verify_args(migraphx::get_type_name<V>(), cpu_arg[i], gpu_arg[i]);
         if(not passed)
         {
             V v;

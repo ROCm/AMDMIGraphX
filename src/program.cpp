@@ -337,7 +337,7 @@ instruction_ref program::end() const { return impl->instructions.end(); }
 std::vector<shape> program::get_output_shapes() const
 {
     auto last_ins = impl->instructions.back();
-    if (last_ins.name() == "ret")
+    if(last_ins.name() == "ret")
     {
         auto& output_ins = last_ins.inputs();
         std::vector<shape> output_shapes;

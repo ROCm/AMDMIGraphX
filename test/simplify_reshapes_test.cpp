@@ -363,4 +363,17 @@ TEST_CASE(nested_concat_partial)
     EXPECT(std::count_if(p.begin(), p.end(), [](auto ins) { return ins.name() == "concat"; }) == 1);
 }
 
+TEST_CASE(multibroadcast_simplify)
+{
+    migraphx::program p;
+    std::vector<size_t> s_lens{1, 2, 3, 4};
+    auto s = migraphx::shape{migraphx::shape::float_type, s_lens};
+    auto x = p.add_parameter("x", s);
+    auto y = p.add_instruction(migraphx::op::multibroadcast{s_lens}, x);
+    p.add_instruction(migraphx::op::mul{}, y, y);
+    auto n = std::distance(p.begin(), p.end());
+    run_pass(p); 
+    EXPECT(std::distance(p.begin(), p.end()) == n - 1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

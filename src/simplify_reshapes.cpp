@@ -21,7 +21,8 @@ const auto& reshaper_names()
         "reshape",
         "contiguous",
         "squeeze",
-        "unsqueeze"
+        "unsqueeze",
+        "mulibroadcast"
     };
     // clang-format on
     return names;

@@ -334,18 +334,25 @@ std::size_t program::size() const { return impl->instructions.size(); }
 instruction_ref program::begin() const { return impl->instructions.begin(); }
 instruction_ref program::end() const { return impl->instructions.end(); }
 
-// shape program::get_shape() const { return impl->instructions.back().get_shape(); }
-
-std::vector<shape> program::get_shapes() const
+std::vector<shape> program::get_output_shapes() const
 {
-    auto& output_ins = impl->instructions.back().inputs();
-    std::vector<shape> output_shapes;
-    std::transform(output_ins.begin(),
-                   output_ins.end(),
-                   std::back_inserter(output_shapes),
-                   [](auto& ins) { return ins->get_shape(); });
+    auto last_ins = impl->instructions.back();
+    if (last_ins.name() == "ret")
+    {
+        auto& output_ins = last_ins.inputs();
+        std::vector<shape> output_shapes;
+        std::transform(output_ins.begin(),
+                       output_ins.end(),
+                       std::back_inserter(output_shapes),
+                       [](auto& ins) { return ins->get_shape(); });
 
-    return output_shapes;
+        return output_shapes;
+    }
+    // The else branch is to provide backward compatibility
+    else
+    {
+        return {last_ins.get_shape()};
+    }
 }
 
 context& program::get_context() const { return impl->ctx; }
@@ -391,7 +398,6 @@ std::vector<argument> generic_eval(const program& p,
 {
     assert(p.validate() == p.end());
     std::unordered_map<instruction_ref, argument> ins_results;
-    std::vector<argument> prog_outputs;
     ins_results.reserve(p.size() * 2);
     std::vector<argument> values;
     values.reserve(16);
@@ -424,6 +430,7 @@ std::vector<argument> generic_eval(const program& p,
         }
         else if(name == "ret")
         {
+            std::vector<argument> prog_outputs;
             std::transform(ins->inputs().begin(),
                            ins->inputs().end(),
                            std::back_inserter(prog_outputs),
@@ -431,6 +438,8 @@ std::vector<argument> generic_eval(const program& p,
                                assert(ins_results.find(i) != ins_results.end());
                                return ins_results[i];
                            });
+
+            return prog_outputs;
         }
         else
         {
@@ -448,49 +457,8 @@ std::vector<argument> generic_eval(const program& p,
         assert(ins_results.find(ins) != ins_results.end());
     }
 
-    return prog_outputs;
+    return {ins_results.at(std::prev(p.end()))};
 }
-
-// argument program::eval(std::unordered_map<std::string, argument> params) const
-// {
-//     auto& ctx = this->impl->ctx;
-// #ifndef NDEBUG
-//     auto sctx          = ctx;
-//     auto check_context = [&](auto f) {
-//         assert(is_shared(ctx, sctx));
-//         auto x = f();
-//         sctx   = ctx;
-//         return x;
-//     };
-// #else
-//     auto check_context = [](auto f) { return f(); };
-// #endif
-
-//     auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
-
-//     if(trace_level > 0)
-//     {
-//         auto outputs = generic_eval(*this, ctx, std::move(params), [&](auto& ins, auto f) {
-//             ctx.finish();
-//             std::cout << "Run instruction: ";
-//             this->debug_print(ins);
-//             auto result = check_context(f);
-//             ctx.finish();
-//             if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
-//             ins->name() != "ret")
-//                 std::cout << "Ouput: " << result << std::endl;
-//             return result;
-//         });
-
-//         return outputs.back();
-//     }
-//     else
-//     {
-//         auto outputs = generic_eval(
-//             *this, ctx, std::move(params), [&](auto&, auto f) { return check_context(f); });
-//         return outputs.back();
-//     }
-// }
 
 std::vector<argument> program::eval(parameter_map params) const
 {

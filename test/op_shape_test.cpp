@@ -14,10 +14,10 @@ void expect_shape(const migraphx::shape& expected, const migraphx::operation& op
     std::transform(
         shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) { return p.add_outline(s); });
     p.add_instruction(op, args);
-    if(p.get_shape() != expected)
+    if(p.get_output_shapes().back() != expected)
     {
         std::cout << "FAILED: Incorrect shape for " << op.name() << ": ";
-        std::cout << expected << " != " << p.get_shape() << std::endl;
+        std::cout << expected << " != " << p.get_output_shapes().back() << std::endl;
         for(auto&& s : shapes)
             std::cout << "    " << s << std::endl;
     }

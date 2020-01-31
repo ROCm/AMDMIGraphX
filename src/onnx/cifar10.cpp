@@ -73,8 +73,9 @@ int main(int argc, char const* argv[])
         for(int i = 0; i < 10; i++)
         {
             std::cout << "label: " << static_cast<uint32_t>(labels[i]) << "  ---->  ";
-            m["0"]      = migraphx::gpu::to_gpu(migraphx::argument{s, &ptr[3072 * i]});
-            auto result = migraphx::gpu::from_gpu(prog.eval(m));
+            m["0"]          = migraphx::gpu::to_gpu(migraphx::argument{s, &ptr[3072 * i]});
+            auto gpu_result = prog.eval(m);
+            auto result     = migraphx::gpu::from_gpu(gpu_result.back());
             std::vector<float> logits;
             result.visit([&](auto output) { logits.assign(output.begin(), output.end()); });
             std::vector<float> probs = softmax<float>(logits);
@@ -97,7 +98,7 @@ int main(int argc, char const* argv[])
             auto input3 = migraphx::argument{s, &ptr[3072 * i]};
             auto result = prog.eval({{"0", input3}});
             std::vector<float> logits;
-            result.visit([&](auto output) { logits.assign(output.begin(), output.end()); });
+            result.back().visit([&](auto output) { logits.assign(output.begin(), output.end()); });
             std::vector<float> probs = softmax<float>(logits);
             for(auto x : probs)
                 std::cout << x << "    ";

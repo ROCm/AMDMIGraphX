@@ -1715,6 +1715,22 @@ struct onnx_parser
         }
     }
 
+    void parse_from(const void* data, std::size_t size)
+    {
+        onnx::ModelProto model;
+        if(model.ParseFromArray(data, size))
+        {
+            if(model.has_graph())
+            {
+                this->parse_graph(model.graph());
+            }
+        }
+        else
+        {
+            MIGRAPHX_THROW("Failed reading onnx file.");
+        }
+    }
+
     void parse_graph(const onnx::GraphProto& graph)
     {
         nodes = get_nodes(graph);
@@ -2036,16 +2052,16 @@ struct onnx_parser
     }
 };
 
-program parse_onnx(const std::string& name, onnx_options options)
+template <class... Ts>
+program parse_onnx_from(onnx_options options, Ts&&... xs)
 {
-    std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     onnx_parser parser;
     parser.batch_size = options.batch_size;
 #ifndef NDEBUG
     // Log the program when it can't be parsed
     try
     {
-        parser.parse_from(input);
+        parser.parse_from(std::forward<Ts>(xs)...);
     }
     catch(...)
     {
@@ -2053,9 +2069,25 @@ program parse_onnx(const std::string& name, onnx_options options)
         throw;
     }
 #else
-    parser.parse_from(input);
+    parser.parse_from(std::forward<Ts>(xs)...);
 #endif
     return std::move(parser.prog);
+}
+
+program parse_onnx(const std::string& name, onnx_options options)
+{
+    std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
+    return parse_onnx_from(options, input);
+}
+
+program parse_onnx_buffer(const std::string& buffer, onnx_options options)
+{
+    return parse_onnx_from(options, buffer.data(), buffer.size());
+}
+
+program parse_onnx_buffer(const void* data, std::size_t size, onnx_options options)
+{
+    return parse_onnx_from(options, data, size);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -135,8 +135,8 @@ TEST_CASE(literal_test1)
     auto two = p.add_literal(2);
     p.add_instruction(sum_op{}, one, two);
     auto result = p.eval({});
-    EXPECT(result == migraphx::literal{3});
-    EXPECT(result != migraphx::literal{4});
+    EXPECT(result.back() == migraphx::literal{3});
+    EXPECT(result.back() != migraphx::literal{4});
 }
 
 TEST_CASE(literal_test2)
@@ -149,8 +149,8 @@ TEST_CASE(literal_test2)
     p.add_instruction(sum_op{}, sum1, two);
 
     auto result = p.eval({});
-    EXPECT(result == migraphx::literal{5});
-    EXPECT(result != migraphx::literal{3});
+    EXPECT(result.back() == migraphx::literal{5});
+    EXPECT(result.back() != migraphx::literal{3});
 }
 
 TEST_CASE(print_test)
@@ -177,8 +177,8 @@ TEST_CASE(param_test)
     p.add_instruction(sum_op{}, x, y);
     auto result = p.eval(
         {{"x", migraphx::literal{1}.get_argument()}, {"y", migraphx::literal{2}.get_argument()}});
-    EXPECT(result == migraphx::literal{3});
-    EXPECT(result != migraphx::literal{4});
+    EXPECT(result.back() == migraphx::literal{3});
+    EXPECT(result.back() != migraphx::literal{4});
 }
 
 TEST_CASE(param_error_test)
@@ -259,8 +259,8 @@ TEST_CASE(replace_test)
     EXPECT(bool{p.validate() == p.end()});
 
     auto result = p.eval({});
-    EXPECT(result == migraphx::literal{1});
-    EXPECT(result != migraphx::literal{3});
+    EXPECT(result.back() == migraphx::literal{1});
+    EXPECT(result.back() != migraphx::literal{3});
 }
 
 TEST_CASE(replace_ins_test)
@@ -275,8 +275,8 @@ TEST_CASE(replace_ins_test)
     EXPECT(bool{p.validate() == p.end()});
 
     auto result = p.eval({});
-    EXPECT(result == migraphx::literal{1});
-    EXPECT(result != migraphx::literal{3});
+    EXPECT(result.back() == migraphx::literal{1});
+    EXPECT(result.back() != migraphx::literal{3});
 }
 
 TEST_CASE(replace_ins_test2)
@@ -292,8 +292,8 @@ TEST_CASE(replace_ins_test2)
     EXPECT(bool{p.validate() == p.end()});
 
     auto result = p.eval({});
-    EXPECT(result == migraphx::literal{2});
-    EXPECT(result != migraphx::literal{3});
+    EXPECT(result.back() == migraphx::literal{2});
+    EXPECT(result.back() != migraphx::literal{3});
 }
 
 TEST_CASE(replace_op_test)
@@ -307,8 +307,8 @@ TEST_CASE(replace_op_test)
     EXPECT(bool{p.validate() == p.end()});
 
     auto result = p.eval({});
-    EXPECT(result == migraphx::literal{1});
-    EXPECT(result != migraphx::literal{3});
+    EXPECT(result.back() == migraphx::literal{1});
+    EXPECT(result.back() != migraphx::literal{3});
 }
 
 TEST_CASE(replace_op_recompute_shape_throw)
@@ -335,8 +335,8 @@ TEST_CASE(insert_replace_test)
     EXPECT(bool{p.validate() == p.end()});
 
     auto result = p.eval({});
-    EXPECT(result == migraphx::literal{4});
-    EXPECT(result != migraphx::literal{5});
+    EXPECT(result.back() == migraphx::literal{4});
+    EXPECT(result.back() != migraphx::literal{5});
 }
 
 TEST_CASE(remove_test1)
@@ -351,8 +351,8 @@ TEST_CASE(remove_test1)
     EXPECT(bool{p.validate() == p.end()});
 
     auto result = p.eval({});
-    EXPECT(result == migraphx::literal{3});
-    EXPECT(result != migraphx::literal{1});
+    EXPECT(result.back() == migraphx::literal{3});
+    EXPECT(result.back() != migraphx::literal{1});
 }
 
 TEST_CASE(remove_test2)
@@ -367,8 +367,8 @@ TEST_CASE(remove_test2)
     EXPECT(bool{p.validate() == p.end()});
 
     auto result = p.eval({});
-    EXPECT(result == migraphx::literal{3});
-    EXPECT(result != migraphx::literal{1});
+    EXPECT(result.back() == migraphx::literal{3});
+    EXPECT(result.back() != migraphx::literal{1});
 }
 
 TEST_CASE(target_test)
@@ -380,8 +380,8 @@ TEST_CASE(target_test)
     p.add_instruction(sum_op{}, one, two);
     p.compile(id_target{});
     auto result = p.eval({});
-    EXPECT(result == migraphx::literal{3});
-    EXPECT(result != migraphx::literal{4});
+    EXPECT(result.back() == migraphx::literal{3});
+    EXPECT(result.back() != migraphx::literal{4});
 }
 
 TEST_CASE(invert_target_test)
@@ -393,8 +393,8 @@ TEST_CASE(invert_target_test)
     p.add_instruction(sum_op{}, two, one);
     p.compile(invert_target{});
     auto result = p.eval({});
-    EXPECT(result == migraphx::literal{1});
-    EXPECT(result != migraphx::literal{4});
+    EXPECT(result.back() == migraphx::literal{1});
+    EXPECT(result.back() != migraphx::literal{4});
 }
 
 TEST_CASE(double_invert_target_test)
@@ -406,8 +406,8 @@ TEST_CASE(double_invert_target_test)
     p.add_instruction(sum_op{}, two, one);
     p.compile(double_invert_target{});
     auto result = p.eval({});
-    EXPECT(result == migraphx::literal{3});
-    EXPECT(result != migraphx::literal{4});
+    EXPECT(result.back() == migraphx::literal{3});
+    EXPECT(result.back() != migraphx::literal{4});
 }
 
 TEST_CASE(reverse_target_test)

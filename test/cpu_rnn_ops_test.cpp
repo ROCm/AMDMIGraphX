@@ -85,7 +85,7 @@ TEST_CASE(rnn_forward)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{0.37780784,
                                         0.61055139,
@@ -130,7 +130,8 @@ TEST_CASE(rnn_forward)
 
         auto last_output = p.eval({});
         std::vector<float> last_output_data;
-        last_output.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
+        last_output.back().visit(
+            [&](auto out) { last_output_data.assign(out.begin(), out.end()); });
 
         std::vector<float> last_output_data_gold{0.03445704,
                                                  0.19167931,
@@ -167,7 +168,8 @@ TEST_CASE(rnn_forward)
 
         auto last_output = p.eval({});
         std::vector<float> last_output_data;
-        last_output.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
+        last_output.back().visit(
+            [&](auto out) { last_output_data.assign(out.begin(), out.end()); });
 
         std::vector<float> last_output_data_gold{0.03445704,
                                                  0.19167931,
@@ -197,7 +199,8 @@ TEST_CASE(rnn_forward)
 
         auto last_output = p.eval({});
         std::vector<float> last_output_data;
-        last_output.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
+        last_output.back().visit(
+            [&](auto out) { last_output_data.assign(out.begin(), out.end()); });
 
         std::vector<float> last_output_data_gold{
             0.2935145, -0.23719997, -0.31123261, -0.18357255, 0., 0., 0., 0.};
@@ -232,7 +235,7 @@ TEST_CASE(rnn_forward)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{0.37780784,
                                         0.61055139,
@@ -313,7 +316,7 @@ TEST_CASE(rnn_reverse)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{-0.29385301,
                                         0.16796815,
@@ -358,7 +361,8 @@ TEST_CASE(rnn_reverse)
 
         auto last_output = p.eval({});
         std::vector<float> last_output_data;
-        last_output.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
+        last_output.back().visit(
+            [&](auto out) { last_output_data.assign(out.begin(), out.end()); });
 
         std::vector<float> last_output_data_gold{-0.29385301,
                                                  0.16796815,
@@ -438,7 +442,7 @@ TEST_CASE(rnn_bidirectional)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{
             0.37780784,  0.61055139,  0.55168478,  -0.5888475, -0.37144644, 0.31708236,
@@ -477,7 +481,8 @@ TEST_CASE(rnn_bidirectional)
 
         auto last_output = p.eval({});
         std::vector<float> last_output_data;
-        last_output.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
+        last_output.back().visit(
+            [&](auto out) { last_output_data.assign(out.begin(), out.end()); });
 
         std::vector<float> last_output_data_gold{0.03445704,
                                                  0.19167931,
@@ -522,7 +527,8 @@ TEST_CASE(rnn_bidirectional)
 
         auto last_output = p.eval({});
         std::vector<float> last_output_data;
-        last_output.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
+        last_output.back().visit(
+            [&](auto out) { last_output_data.assign(out.begin(), out.end()); });
 
         std::vector<float> last_output_data_gold{0.03445704,
                                                  0.19167931,
@@ -562,7 +568,8 @@ TEST_CASE(rnn_bidirectional)
 
         auto last_output = p.eval({});
         std::vector<float> last_output_data;
-        last_output.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
+        last_output.back().visit(
+            [&](auto out) { last_output_data.assign(out.begin(), out.end()); });
 
         std::vector<float> last_output_data_gold{
             0.6570473,   0.36392266,  0.45342238,  -0.45127486, 0., 0., 0., 0.,
@@ -598,7 +605,7 @@ TEST_CASE(rnn_bidirectional)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{0.37780784,
                                         0.61055139,
@@ -701,7 +708,7 @@ TEST_CASE(gru_forward)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{
             -0.27298412, 0.42363745,  -0.09368783, 0.4823072,   -0.02183238, -0.6873896,
@@ -738,7 +745,7 @@ TEST_CASE(gru_forward)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{-0.3969709,
                                         0.43360898,
@@ -780,7 +787,7 @@ TEST_CASE(gru_forward)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{-0.3969709,
                                         0.43360898,
@@ -821,7 +828,7 @@ TEST_CASE(gru_forward)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{-0.53291196,
                                         0.50160867,
@@ -913,7 +920,7 @@ TEST_CASE(gru_forward_args)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{-0.114674, -0.129581,  -0.218156,  -0.140788,  -0.114242,
                                         -0.346569, 0.321367,   -0.0838253, 0.102097,   0.00232137,
@@ -945,7 +952,7 @@ TEST_CASE(gru_forward_args)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{-0.273619, 0.0931375, -0.104717,  0.0203752, -0.0797887,
                                         -0.493948, 0.472118,  -0.0336318, 0.332706,  0.0182268,
@@ -980,7 +987,7 @@ TEST_CASE(gru_forward_args)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{-0.0801064, 0.27025,   -0.20704,   0.333579,   -0.0452438,
                                         -0.56265,   0.061061,  0.262172,   0.405193,   0.775226,
@@ -1071,7 +1078,7 @@ TEST_CASE(gru_forward_actv_funcs)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{-0.3969709,
                                         0.43360898,
@@ -1110,7 +1117,7 @@ TEST_CASE(gru_forward_actv_funcs)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{0.26905832, 0.5669211,  0.20464146, 0.67195725, 0.24752215,
                                         0.11411376, 0.12353572, 0.4245067,  0.73908687, 0.8644615,
@@ -1144,7 +1151,7 @@ TEST_CASE(gru_forward_actv_funcs)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{-0.49333298,
                                         -0.06104589,
@@ -1188,7 +1195,7 @@ TEST_CASE(gru_forward_actv_funcs)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{-0.27298412,
                                         0.42363745,
@@ -1286,7 +1293,7 @@ TEST_CASE(gru_reverse)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{-0.263403, 0.317655,  -0.00634162, 0.200443, -0.349125,
                                         -0.600874, 0.542386,  -0.0856531,  0.55703,  0.54711,
@@ -1323,7 +1330,7 @@ TEST_CASE(gru_reverse)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{-0.263403,
                                         0.317655,
@@ -1364,7 +1371,7 @@ TEST_CASE(gru_reverse)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{-0.388654,
                                         0.384975,
@@ -1400,7 +1407,7 @@ TEST_CASE(gru_reverse)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{-0.263403, 0.317655,  -0.00634162, 0.200443, -0.349125,
                                         -0.600874, 0.542386,  -0.0856531,  0.55703,  0.54711,
@@ -1440,7 +1447,7 @@ TEST_CASE(gru_reverse)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{-0.272984,
                                         0.423637,
@@ -1556,7 +1563,7 @@ TEST_CASE(gru_bidirectional)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{
             0.0352243, 0.0146756,  0.00570925, 0.152446,  0.208683,   0.214342,   -0.0454273,
@@ -1597,7 +1604,7 @@ TEST_CASE(gru_bidirectional)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{-0.0959787, 0.0794681, 0.241526,  0.321104,  0.00693533,
                                         -0.311839,  -0.12802,  -0.16643,  -0.393849, 0.648851,
@@ -1632,7 +1639,7 @@ TEST_CASE(gru_bidirectional)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{
             -0.09280921, 0.18506107, 0.32247013, 0.17034212, -0.00115255, -0.29865006, -0.04513004,
@@ -1736,7 +1743,7 @@ TEST_CASE(gru_bidirectional_args)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{
             0.0863793,  -0.227845,  0.0283059, -0.258645, 0.14187,    0.43541,     0.190748,
@@ -1772,7 +1779,7 @@ TEST_CASE(gru_bidirectional_args)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{
             -0.156667, -0.248473,  0.0255282,  -0.24566,  0.211589,   0.192707,   0.253025,
@@ -1811,7 +1818,7 @@ TEST_CASE(gru_bidirectional_args)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{
             0.248571,   0.0982155,  0.00808877, 0.0986508,   0.0969705, 0.434692,  -0.141696,
@@ -1923,7 +1930,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{-0.0959787, 0.0794681, 0.241526,  0.321104,  0.00693533,
                                         -0.311839,  -0.12802,  -0.16643,  -0.393849, 0.648851,
@@ -1956,7 +1963,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{
             0.325495, 0.469214, 0.164517, 0.585327, 0.328398, 0.457928, 0.065011, 0.35986,
@@ -1993,7 +2000,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{
             0.0919632, -0.398302,   -0.0267752, -0.326771,  0.401983,  0.949841,   0.557779,
@@ -2034,7 +2041,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{0.351019, 0.474363, 0.570719,  0.717703,   0.468843,
                                         1.15142,  0.457633, 0.300962,  0.361245,   0.666199,
@@ -2070,7 +2077,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{
             0.0352243, 0.0146756,  0.00570925, 0.152446,  0.208683,   0.214342,   -0.0454273,
@@ -2114,7 +2121,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{0.0352243,  0.0146756,  0.00570925, 0.152446,   0.208683,
                                         0.214342,   -0.0454273, -0.135177,  -0.0800739, 0.903659,
@@ -2238,7 +2245,7 @@ TEST_CASE(lstm_forward)
 
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{
             0.0417273, -0.272355,  0.206765,   0.223879,    0.138193,   -0.0322939, -0.0891815,
@@ -2282,7 +2289,8 @@ TEST_CASE(lstm_forward)
 
         auto last_hs = p.eval({});
         std::vector<float> output_data;
-        last_hs.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        last_hs.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
 
         std::vector<float> output_data_gold{-0.0847427,
                                             0.0874114,
@@ -2330,7 +2338,8 @@ TEST_CASE(lstm_forward)
 
         auto last_hs = p.eval({});
         std::vector<float> output_data;
-        last_hs.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        last_hs.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
 
         std::vector<float> output_data_gold{-0.111454,
                                             0.247794,
@@ -2451,7 +2460,8 @@ TEST_CASE(lstm_forward_more)
 
         auto last_hs = p.eval({});
         std::vector<float> output_data;
-        last_hs.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        last_hs.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
 
         std::vector<float> output_data_gold{
             -0.0327039, -0.0543852, 0.114378,   -0.0768855, 0.0319021,  -0.00298698, -0.0623361,
@@ -2495,7 +2505,7 @@ TEST_CASE(lstm_forward_more)
 
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{
             0.079753,   -0.289854,  0.160043,   0.115056,  0.294074,   -0.0319677, -0.0955337,
@@ -2544,7 +2554,7 @@ TEST_CASE(lstm_forward_more)
 
         auto hs_concat = p.eval({});
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{0.079753,
                                         -0.289854,
@@ -2674,7 +2684,8 @@ TEST_CASE(lstm_reverse)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{
             -0.120174, 0.043157,  0.117138,   -0.222188, 0.789732,   0.128538,   0.20909,
             0.0553812, -0.224905, 0.32421,    0.344048,  0.271694,   -0.175114,  -0.00543549,
@@ -2706,7 +2717,8 @@ TEST_CASE(lstm_reverse)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{-0.443077,
                                             -0.325425,
                                             -0.249367,
@@ -2738,7 +2750,8 @@ TEST_CASE(lstm_reverse)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{-0.443077,
                                             -0.325425,
                                             -0.249367,
@@ -2772,7 +2785,8 @@ TEST_CASE(lstm_reverse)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{
             0.246078, 0.199709, 0.303753, 0.301178, 0.264634, 0.304661, 0.349371, 0.288934,
             0.405483, 0.445586, 0.515814, 0.473186, 0.301937, 0.264893, 0.254353, 0.269231,
@@ -2803,7 +2817,8 @@ TEST_CASE(lstm_reverse)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{-0.132123,
                                             -0.37531,
                                             -0.12943,
@@ -2844,7 +2859,8 @@ TEST_CASE(lstm_reverse)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{-0.104351,
                                             -0.0471426,
                                             -0.0905753,
@@ -2963,7 +2979,8 @@ TEST_CASE(lstm_bidirectional)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{
             0.079753,   -0.289854,  0.160043,    0.115056,   0.294074,   -0.0319677, -0.0955337,
             0.104168,   0.022618,   -0.121195,   -0.4065,    -0.252054,  -0.120174,  0.043157,
@@ -3012,7 +3029,8 @@ TEST_CASE(lstm_bidirectional)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{
             -0.058052, 0.0795391, 0.266617,  -0.0128746, 0.0309878, 0.0971544, 0.149294, -0.0492549,
             0.187761,  0.0501726, -0.121584, 0.0606723,  -0.120174, 0.043157,  0.117138, -0.222188,
@@ -3050,7 +3068,8 @@ TEST_CASE(lstm_bidirectional)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{
             -0.077353, 0.245616, 0.361023,  -0.0443759, 0.0685243, 0.20465,  0.277867, -0.112934,
             0.67312,   0.120508, -0.726968, 0.113845,   -0.889294, 0.182463, 0.186512, -0.402334,
@@ -3077,7 +3096,8 @@ TEST_CASE(lstm_bidirectional)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{
             -0.0327039, -0.0543852, 0.114378,  -0.0768855, 0.0319021,   -0.00298698, -0.0623361,
             0.0598866,  0.101585,   0.0687269, -0.161725,  -0.25617,    -0.162851,   -0.102647,
@@ -3119,7 +3139,8 @@ TEST_CASE(lstm_bidirectional)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{
             -0.0327039, -0.0543852, 0.114378,   -0.0768855, 0.0319021, -0.00298698,
             -0.0623361, 0.0598866,  0.101585,   0.0687269,  -0.161725, -0.25617,
@@ -3188,7 +3209,8 @@ TEST_CASE(lstm_bidirectional_actv_func)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{
             -0.0327039, -0.0543852, 0.114378,  -0.0768855, 0.0319021,   -0.00298698, -0.0623361,
             0.0598866,  0.101585,   0.0687269, -0.161725,  -0.25617,    -0.162851,   -0.102647,
@@ -3224,7 +3246,8 @@ TEST_CASE(lstm_bidirectional_actv_func)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{
             0.227861, 0.328562, 0.277867, 0.272945, 0.204389, 0.296123, 0.223834, 0.311113,
             0.424666, 0.173974, 0.40628,  0.286631, 0.246078, 0.199709, 0.303753, 0.301178,
@@ -3260,7 +3283,8 @@ TEST_CASE(lstm_bidirectional_actv_func)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{
             -0.165194, -0.0372928,  0.273786,    -0.100877,  -0.0458544, -0.0401315,
             0.0737483, -0.064505,   0.136898,    0.00160891, -0.184812,  0.147774,
@@ -3290,7 +3314,8 @@ TEST_CASE(lstm_bidirectional_actv_func)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{
             -0.165194, -0.0372928, 0.273786, -0.100877,  -0.0458544, -0.0401315,
             0.0737483, -0.064505,  0.136898, 0.00160891, -0.184812,  0.147774,
@@ -3321,7 +3346,8 @@ TEST_CASE(lstm_bidirectional_actv_func)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{
             -0.165194, -0.0372928,  0.273786,    -0.100877,  -0.0458544, -0.0401315,
             0.0737483, -0.064505,   0.136898,    0.00160891, -0.184812,  0.147774,
@@ -3353,7 +3379,8 @@ TEST_CASE(lstm_bidirectional_actv_func)
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({});
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        hs_concat.back().visit(
+            [&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{
             -0.165194, -0.0372928,  0.273786,    -0.100877,  -0.0458544, -0.0401315,
             0.0737483, -0.064505,   0.136898,    0.00160891, -0.184812,  0.147774,

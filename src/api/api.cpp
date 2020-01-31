@@ -117,8 +117,7 @@ std::vector<argument> run(program& p, const program::parameter_map& params)
 
 std::vector<shape> get_output_shapes(program& p)
 {
-    auto a = p.get_shape();
-    return {a};
+    return p.get_output_shapes();
 }
 
 void print(const program& p) { std::cout << p << std::endl; }

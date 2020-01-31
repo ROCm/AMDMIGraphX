@@ -372,7 +372,7 @@ TEST_CASE(multibroadcast_simplify)
     auto y = p.add_instruction(migraphx::op::multibroadcast{s_lens}, x);
     p.add_instruction(migraphx::op::mul{}, y, y);
     auto n = std::distance(p.begin(), p.end());
-    run_pass(p); 
+    run_pass(p);
     EXPECT(std::distance(p.begin(), p.end()) == n - 1);
 }
 

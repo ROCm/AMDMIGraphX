@@ -100,7 +100,9 @@ struct miopen_apply
     {
         assert(prog != nullptr);
         assert(pass != nullptr);
-        this->last = instruction::get_output_alias(std::prev(prog->end()));
+        //this->last = instruction::get_output_alias(std::prev(prog->end()));
+        // Last is the ret instruction
+        this->last = std::prev(prog->end());
 
         add_miopen_simple_op<miopen_abs>("abs", make_abs);
 
@@ -166,17 +168,34 @@ struct miopen_apply
     {
         if(not pass->offload_copy)
             return;
+
         for(auto ins : iterator_for(*prog))
         {
             if(ins->name() != "@param")
                 continue;
+
+            std::cout << "ins_name = " << ins->name() << std::endl;
+
             auto pos = std::next(ins);
             auto a   = insert_allocation(pos, ins->get_shape());
             auto c   = prog->insert_instruction(pos, hip_copy_to_gpu{}, ins, a);
             prog->replace_instruction(ins, c);
         }
-        auto end = std::prev(prog->end());
-        prog->add_instruction(hip_copy_from_gpu{}, end);
+
+        // return instruction
+        auto ret = std::prev(prog->end());
+        auto& inputs = ret->inputs();
+
+        // each input of ret need to be copied from gpu to host
+        std::vector<instruction_ref> ret_inputs;
+        for (auto& in : inputs)
+        {
+            auto p_output = prog->insert_instruction(ret, hip_copy_from_gpu{}, in);
+            ret_inputs.push_back(p_output);
+        }
+        
+        // Use copy result on host as program output
+        prog->replace_instruction(ret, op::ret{}, ret_inputs);
     }
 
     void apply()
@@ -190,14 +209,17 @@ struct miopen_apply
                 check_shape(s, apply_map.at(it->name())(it));
             }
         }
+
         copy_params();
     }
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
     {
-        if(not pass->offload_copy and ins == last and tag.empty())
+        // Instruction's output is an input of the ret instruction
+        if(not pass->offload_copy and contains(ins->outputs(), last))
         {
-            return prog->add_parameter("output", s);
+            std::string output_name = "migraphx_output_" + ins->name();
+            return prog->add_parameter(output_name, s);
         }
         else
         {

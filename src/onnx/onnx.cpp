@@ -1737,18 +1737,19 @@ struct onnx_parser
             this->parse_node(output.name());
         }
 
-        // For now, the last output with a valid name is considered
-        // as the program output, and add an identity instruction at
-        // the program end
+        // Find instructions corresponding to the output
         auto prog_output = graph.output();
-        auto oit         = std::find_if(prog_output.rbegin(), prog_output.rend(), [](auto& node) {
-            return !node.name().empty();
-        });
-
-        if(instructions.count(oit->name()) > 0)
+        std::vector<instruction_ref> output_ins;
+        for (auto& node : prog_output)
         {
-            prog.add_instruction(op::identity{}, instructions[oit->name()]);
+            auto& node_name = node.name();
+            if ((!node_name.empty()) and instructions.count(node_name) > 0)
+            {
+                output_ins.push_back(instructions[node_name]);
+            }
         }
+        
+        prog.add_instruction(op::ret{}, output_ins);
     }
 
     void parse_undefined(const std::string& name)

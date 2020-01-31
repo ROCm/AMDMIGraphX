@@ -334,7 +334,19 @@ std::size_t program::size() const { return impl->instructions.size(); }
 instruction_ref program::begin() const { return impl->instructions.begin(); }
 instruction_ref program::end() const { return impl->instructions.end(); }
 
-shape program::get_shape() const { return impl->instructions.back().get_shape(); }
+// shape program::get_shape() const { return impl->instructions.back().get_shape(); }
+
+std::vector<shape> program::get_shapes() const {
+    auto& output_ins = impl->instructions.back().inputs();
+    std::vector<shape> output_shapes;
+    std::transform(output_ins.begin(), output_ins.end(),
+        std::back_inserter(output_shapes),
+        [](auto& ins) {
+            return ins->get_shape();
+        });
+
+    return output_shapes;
+}
 
 context& program::get_context() const { return impl->ctx; }
 
@@ -372,14 +384,15 @@ void program::finalize()
 }
 
 template <class F>
-argument generic_eval(const program& p,
+std::vector<argument> generic_eval(const program& p,
                       context& ctx,
                       std::unordered_map<std::string, argument> params,
                       F trace)
 {
     assert(p.validate() == p.end());
-    std::unordered_map<instruction_ref, argument> results;
-    results.reserve(p.size() * 2);
+    std::unordered_map<instruction_ref, argument> ins_results;
+    std::vector<argument> prog_outputs;
+    ins_results.reserve(p.size() * 2);
     std::vector<argument> values;
     values.reserve(16);
     for(auto ins : iterator_for(p))
@@ -387,11 +400,11 @@ argument generic_eval(const program& p,
         const auto& name = ins->name();
         if(name == "@literal")
         {
-            results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
+            ins_results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
         }
         else if(name == "@param")
         {
-            results.emplace(
+            ins_results.emplace(
                 ins, trace(ins, [&] {
                     auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
                     if(not contains(params, param_name))
@@ -405,26 +418,75 @@ argument generic_eval(const program& p,
         }
         else if(name == "@outline")
         {
-            results.emplace(ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
+            ins_results.emplace(ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
+        }
+        else if(name == "ret")
+        {
+            std::transform(ins->inputs().begin(), ins->inputs().end(), 
+                std::back_inserter(prog_outputs), [&](instruction_ref i) {
+                    assert(ins_results.find(i) != ins_results.end());
+                    return ins_results[i];
+                });
         }
         else
         {
             values.resize(ins->inputs().size());
             std::transform(
                 ins->inputs().begin(), ins->inputs().end(), values.begin(), [&](instruction_ref i) {
-                    assert(results.find(i) != results.end());
-                    return results[i];
+                    assert(ins_results.find(i) != ins_results.end());
+                    return ins_results[i];
                 });
-            results.emplace(ins, trace(ins, [&] {
+            ins_results.emplace(ins, trace(ins, [&] {
                                 return ins->get_operator().compute(ctx, ins->get_shape(), values);
                             }));
         }
-        assert(results.find(ins) != results.end());
+        assert(ins_results.find(ins) != ins_results.end());
     }
-    return results.at(std::prev(p.end()));
+
+    return prog_outputs;
 }
 
-argument program::eval(std::unordered_map<std::string, argument> params) const
+// argument program::eval(std::unordered_map<std::string, argument> params) const
+// {
+//     auto& ctx = this->impl->ctx;
+// #ifndef NDEBUG
+//     auto sctx          = ctx;
+//     auto check_context = [&](auto f) {
+//         assert(is_shared(ctx, sctx));
+//         auto x = f();
+//         sctx   = ctx;
+//         return x;
+//     };
+// #else
+//     auto check_context = [](auto f) { return f(); };
+// #endif
+
+//     auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
+
+//     if(trace_level > 0)
+//     {
+//         auto outputs = generic_eval(*this, ctx, std::move(params), [&](auto& ins, auto f) {
+//             ctx.finish();
+//             std::cout << "Run instruction: ";
+//             this->debug_print(ins);
+//             auto result = check_context(f);
+//             ctx.finish();
+//             if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and ins->name() != "ret")
+//                 std::cout << "Ouput: " << result << std::endl;
+//             return result;
+//         });
+
+//         return outputs.back();
+//     }
+//     else
+//     {
+//         auto outputs = generic_eval(
+//             *this, ctx, std::move(params), [&](auto&, auto f) { return check_context(f); });
+//         return outputs.back();
+//     }
+// }
+
+std::vector<argument> program::eval(parameter_map params) const
 {
     auto& ctx = this->impl->ctx;
 #ifndef NDEBUG
@@ -449,7 +511,7 @@ argument program::eval(std::unordered_map<std::string, argument> params) const
             this->debug_print(ins);
             auto result = check_context(f);
             ctx.finish();
-            if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load")
+            if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and ins->name() != "ret")
                 std::cout << "Ouput: " << result << std::endl;
             return result;
         });

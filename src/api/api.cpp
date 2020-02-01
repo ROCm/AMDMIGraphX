@@ -111,8 +111,7 @@ bool equal(const T& x, const T& y)
 
 std::vector<argument> run(program& p, const program::parameter_map& params)
 {
-    auto a = p.eval(params);
-    return {a};
+    return p.eval(params);
 }
 
 std::vector<shape> get_output_shapes(program& p) { return p.get_output_shapes(); }

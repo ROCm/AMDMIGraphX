@@ -183,8 +183,8 @@ struct miopen_apply
         }
 
         // return instruction
-        auto ret     = std::prev(prog->end());
-        if (ret->name() == "ret")
+        auto ret = std::prev(prog->end());
+        if(ret->name() == "ret")
         {
             auto& inputs = ret->inputs();
 
@@ -224,29 +224,28 @@ struct miopen_apply
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
     {
         // Instruction's output is an input of the ret instruction
-        if(pass->offload_copy) 
+        if(pass->offload_copy)
         {
             auto result = prog->insert_instruction(ins, hip_allocate{s, std::move(tag)});
             return result;
         }
 
-        if (last->name() == "ret")
+        if(last->name() == "ret")
         {
             std::vector<instruction_ref> inputs_alias(last->inputs().size());
             auto& ret_inputs = last->inputs();
-            std::transform(ret_inputs.begin(), ret_inputs.end(), inputs_alias.begin(),
-                [](auto& i) { 
-                    return instruction::get_output_alias(i); 
-                });
+            std::transform(ret_inputs.begin(), ret_inputs.end(), inputs_alias.begin(), [](auto& i) {
+                return instruction::get_output_alias(i);
+            });
 
-            if (contains(inputs_alias, ins))
+            if(contains(inputs_alias, ins))
             {
                 std::cout << "last_name = " << last->name() << std::endl;
                 std::string output_name = "migraphx_output_" + ins->name();
                 return prog->add_parameter(output_name, s);
             }
         }
-        else if (ins == last and tag.empty())
+        else if(ins == last and tag.empty())
         {
             return prog->add_parameter("output", s);
         }

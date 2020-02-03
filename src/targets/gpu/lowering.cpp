@@ -100,9 +100,7 @@ struct miopen_apply
     {
         assert(prog != nullptr);
         assert(pass != nullptr);
-        // this->last = instruction::get_output_alias(std::prev(prog->end()));
-        // Last is the ret instruction
-        this->last = std::prev(prog->end());
+        this->last = instruction::get_output_alias(std::prev(prog->end()));
 
         add_miopen_simple_op<miopen_abs>("abs", make_abs);
 

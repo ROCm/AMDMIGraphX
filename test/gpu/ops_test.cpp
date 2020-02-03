@@ -133,7 +133,7 @@ std::vector<migraphx::argument> run_gpu(migraphx::program& p)
             migraphx::gpu::to_gpu(migraphx::generate_argument(x.second, get_hash(x.first)));
     }
     // Program should have an output parameter
-    EXPECT(bool{m.find("ret") != m.end()});
+    EXPECT(bool{m.find("output") != m.end()});
     // Ensure the program doesn't modify the context in a dry run
     auto ctx = p.get_context();
     assert(&ctx != &p.get_context());

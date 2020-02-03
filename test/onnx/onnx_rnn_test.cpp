@@ -887,6 +887,7 @@ TEST_CASE(lstm_forward)
             ih,
             und,
             und);
+        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
         p.add_instruction(migraphx::op::lstm_last_cell_output{}, out_hs);
         auto prog = optimize_onnx("onnx_lstm_f6args.onnx");
 
@@ -920,6 +921,7 @@ TEST_CASE(lstm_forward)
             ih,
             ic,
             und);
+        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
         p.add_instruction(migraphx::op::lstm_last_cell_output{}, out_hs);
         auto prog = optimize_onnx("onnx_lstm_f7args.onnx");
 
@@ -1026,6 +1028,7 @@ TEST_CASE(lstm_forward_actv_func)
             und,
             und,
             und);
+        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
         p.add_instruction(migraphx::op::lstm_last_cell_output{}, out_hs);
         auto prog = optimize_onnx("onnx_lstm_f2af.onnx");
 
@@ -1106,6 +1109,7 @@ TEST_CASE(lstm_reverse)
             und,
             und,
             und);
+        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
         p.add_instruction(migraphx::op::lstm_last_cell_output{}, out_hs);
         auto prog = optimize_onnx("onnx_lstm_r5args.onnx");
 

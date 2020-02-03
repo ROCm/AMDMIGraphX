@@ -428,7 +428,7 @@ std::vector<argument> generic_eval(const program& p,
                                     return argument{ins->get_shape(), nullptr};
                                 }));
         }
-        else if(name == "ret")
+        else if(name == "ret" or name == "cpu::ret")
         {
             std::vector<argument> prog_outputs;
             std::transform(ins->inputs().begin(),

@@ -14,9 +14,9 @@ TEST_CASE(instance_norm_test)
     migraphx::program p = migraphx::parse_onnx("instance_norm_val_test.onnx");
 
     p.compile(migraphx::cpu::target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     std::vector<float> result_vector(9);
-    result.back().visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {-1.54919,
                                -1.16189,

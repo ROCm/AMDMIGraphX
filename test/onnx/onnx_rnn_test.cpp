@@ -18,7 +18,10 @@ migraphx::program optimize_onnx(const std::string& name, bool eliminate_deadcode
 
     // remove the last identity instruction
     auto last_ins = std::prev(prog.end());
-    prog.remove_instruction(last_ins);
+    if(last_ins->name() == "ret")
+    {
+        prog.remove_instruction(last_ins);
+    }
 
     return prog;
 }
@@ -851,6 +854,7 @@ TEST_CASE(lstm_forward)
             und,
             und,
             und);
+        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
         p.add_instruction(migraphx::op::lstm_last_cell_output{}, out_hs);
         auto prog = optimize_onnx("onnx_lstm_f5args.onnx");
 

@@ -775,8 +775,8 @@ struct stream_info
 
                 std::cout << "conflict_table size = " << conflict_table.size() << std::endl;
 =======
-            }
-        });
+                    }
+                });
 
         // merge thread_conflict_tables together
         for(auto& tbl : thread_conflict_tables)

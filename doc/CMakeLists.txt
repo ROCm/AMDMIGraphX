@@ -5,11 +5,15 @@ set(DOXYGEN_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/doxygen/)
 add_doxygen_doc(
     OUTPUT_DIRECTORY ${DOXYGEN_OUTPUT}
     INPUT 
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src
+        ${PROJECT_SOURCE_DIR}/src
     INCLUDE_PATH
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src/targets/cpu/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src/targets/gpu/include
+        ${PROJECT_SOURCE_DIR}/src/include
+        ${PROJECT_SOURCE_DIR}/src/targets/cpu/include
+        ${PROJECT_SOURCE_DIR}/src/targets/gpu/include
+    STRIP_FROM_INC_PATH
+        ${PROJECT_SOURCE_DIR}/src/include
+        ${PROJECT_SOURCE_DIR}/src/targets/cpu/include
+        ${PROJECT_SOURCE_DIR}/src/targets/gpu/include
     SEARCH_INCLUDES YES
     MACRO_EXPANSION YES
     RECURSIVE YES

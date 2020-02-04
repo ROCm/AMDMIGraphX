@@ -7,6 +7,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/permutation.hpp>
 #include <unordered_set>
 
 namespace migraphx {
@@ -16,6 +17,7 @@ const auto& reshaper_names()
 {
     // clang-format off
     static const std::unordered_set<std::string> names = {
+        "flatten",
         "reshape",
         "contiguous",
         "squeeze",
@@ -43,17 +45,6 @@ auto get_transpose_dims(instruction_ref ins)
     return any_cast<const op::transpose&>(ins->get_operator()).dims;
 }
 
-std::vector<int64_t> reorder_dims(std::vector<int64_t> dims, std::vector<int64_t> permutation)
-{
-    std::vector<int64_t> result(dims.size());
-    assert(dims.size() == permutation.size());
-    for(std::size_t i = 0; i < dims.size(); i++)
-    {
-        result[i] = dims[permutation[i]];
-    }
-    return result;
-}
-
 bool is_no_transpose(const std::vector<int64_t>& dims)
 {
     if(dims.empty())
@@ -62,25 +53,6 @@ bool is_no_transpose(const std::vector<int64_t>& dims)
         return false;
     return std::adjacent_find(
                dims.begin(), dims.end(), [](auto x, auto y) { return (y - x) != 1; }) == dims.end();
-}
-
-template <class Vector, class Op>
-std::vector<int64_t> sort_permutation(const Vector& data, Op op)
-{
-    std::vector<std::int64_t> result(data.size());
-    std::iota(result.begin(), result.end(), 0);
-    std::sort(result.begin(), result.end(), [&](auto x, auto y) { return op(data[x], data[y]); });
-    return result;
-}
-
-std::vector<int64_t> invert_permutation(const std::vector<int64_t>& permutation)
-{
-    return sort_permutation(permutation, std::less<>{});
-}
-
-std::vector<int64_t> find_permutation(const shape& s)
-{
-    return sort_permutation(s.strides(), std::greater<>{});
 }
 
 struct find_reshaper
@@ -127,8 +99,13 @@ struct find_nop_reshapes
     auto matcher() const
     {
         auto reshapes = reshaper_names();
-        reshapes.insert("transpose");
+        reshapes.insert("as_shape");
+        reshapes.insert("broadcast");
+        reshapes.insert("concat");
+        reshapes.insert("multibroadcast");
+        reshapes.insert("pad");
         reshapes.insert("slice");
+        reshapes.insert("transpose");
         return match::name(reshapes)(match::same_shape(match::arg(0)));
     }
 
@@ -202,6 +179,38 @@ struct find_concat_transpose
     }
 };
 
+struct find_nested_concat
+{
+    auto matcher() const
+    {
+        return match::name("concat")(match::any_of[match::inputs()](match::name("concat")));
+    }
+
+    static std::size_t get_axis(instruction_ref ins)
+    {
+        auto op = any_cast<op::concat>(ins->get_operator());
+        return op.axis;
+    }
+
+    void apply(program& p, const match::matcher_result& mr) const
+    {
+        auto ins  = mr.result;
+        auto axis = get_axis(ins);
+        std::vector<instruction_ref> args;
+        fix([&](auto self, auto&& inputs) {
+            for(auto&& i : inputs)
+            {
+                if(i->name() == "concat" and get_axis(i) == axis and i->outputs().size() == 1)
+                    self(i->inputs());
+                else
+                    args.push_back(i);
+            }
+
+        })(ins->inputs());
+        p.replace_instruction(ins, ins->get_operator(), args);
+    }
+};
+
 void simplify_reshapes::apply(program& p) const
 {
     for(int i = 0; i < 2; i++)
@@ -219,7 +228,8 @@ void simplify_reshapes::apply(program& p) const
                                 find_nop_reshapes{},
                                 find_reshaper{},
                                 find_transpose{},
-                                find_concat_transpose{});
+                                find_concat_transpose{},
+                                find_nested_concat{});
         }
     }
 }

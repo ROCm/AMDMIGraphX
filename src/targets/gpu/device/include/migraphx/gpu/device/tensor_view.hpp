@@ -9,7 +9,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-template <class T, std::size_t N>
+template <class T, index_int N>
 struct hip_tensor_view
 {
     using value_type                      = T;
@@ -20,7 +20,7 @@ struct hip_tensor_view
 
     MIGRAPHX_DEVICE_CONSTEXPR const hip_shape<N>& get_shape() const { return s; }
 
-    MIGRAPHX_DEVICE_CONSTEXPR std::size_t size() const { return s.elements(); }
+    MIGRAPHX_DEVICE_CONSTEXPR index_int size() const { return s.elements(); }
 
     MIGRAPHX_DEVICE_CONSTEXPR value_type* data() const { return d; }
 
@@ -39,13 +39,13 @@ struct hip_tensor_view
     hip_shape<N> s{};
 };
 
-template <std::size_t N, class T>
+template <index_int N, class T>
 hip_tensor_view<T, N> make_hip_view(const shape& s, T* x)
 {
     return {x, s};
 }
 
-template <std::size_t N, class T>
+template <index_int N, class T>
 hip_tensor_view<T, N> make_hip_view(tensor_view<T> x)
 {
     return {x};

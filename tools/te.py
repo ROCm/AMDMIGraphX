@@ -1,10 +1,6 @@
 import string, sys, re, os
 
-
-trivial = [
-    'std::size_t',
-    'instruction_ref'
-]
+trivial = ['std::size_t', 'instruction_ref']
 
 headers = '''
 #include <algorithm>
@@ -91,6 +87,8 @@ private:
 
         ${pure_virtual_members}
     };
+
+    ${default_members}
 
     template <typename PrivateDetailTypeErasedT>
     struct private_detail_te_handle_type :
@@ -194,7 +192,9 @@ ${friend} ${return_type} ${name}(${params}) ${const}
 }
 ''')
 
-pure_virtual_member = string.Template("virtual ${return_type} ${internal_name}(${member_params}) ${member_const} = 0;\n")
+pure_virtual_member = string.Template(
+    "virtual ${return_type} ${internal_name}(${member_params}) ${member_const} = 0;\n"
+)
 
 virtual_member = string.Template('''
 ${return_type} ${internal_name}(${member_params}) ${member_const} override
@@ -204,7 +204,24 @@ ${return_type} ${internal_name}(${member_params}) ${member_const} override
 }
 ''')
 
-comment_member = string.Template('''*     ${friend} ${return_type} ${name}(${params}) ${const};''')
+comment_member = string.Template(
+    '''*     ${friend} ${return_type} ${name}(${params}) ${const};''')
+
+default_member = string.Template('''
+template<class T>
+static auto private_detail_te_default_${name}(char, T&& private_detail_te_self ${comma} ${member_params})
+-> decltype(private_detail_te_self.${name}(${args}))
+{
+    ${return_} private_detail_te_self.${name}(${args});
+}
+
+template<class T>
+static ${return_type} private_detail_te_default_${internal_name}(float, T&& private_detail_te_self ${comma} ${member_params})
+{
+    ${return_} ${default}(private_detail_te_self ${comma} ${args});
+}
+''')
+
 
 def trim_type_name(name):
     n = name.strip()
@@ -213,6 +230,7 @@ def trim_type_name(name):
     if n.endswith(('&', '*')):
         return trim_type_name(n[0:-1])
     return n
+
 
 def internal_name(name):
     internal_names = {
@@ -223,6 +241,7 @@ def internal_name(name):
         return internal_names[name]
     else:
         return name
+
 
 def generate_call(m, friend, indirect):
     if m['name'].startswith('operator'):
@@ -235,15 +254,16 @@ def generate_call(m, friend, indirect):
     if friend:
         return string.Template('${name}(${args})').substitute(m)
     if indirect:
-        if m['args']:
-            return string.Template('${default}(private_detail_te_value, ${args})').substitute(m)
-        else:
-            return string.Template('${default}(private_detail_te_value)').substitute(m)
-    return string.Template('private_detail_te_value.${name}(${args})').substitute(m)
+        return string.Template(
+            'private_detail_te_default_${internal_name}(char(0), private_detail_te_value ${comma} ${args})'
+        ).substitute(m)
+    return string.Template(
+        'private_detail_te_value.${name}(${args})').substitute(m)
+
 
 def convert_member(d, struct_name):
     for name in d:
-        member = { 
+        member = {
             'name': name,
             'internal_name': internal_name(name),
             'const': '',
@@ -270,7 +290,8 @@ def convert_member(d, struct_name):
             t = d[name][x]
             if x == 'return':
                 member['return_type'] = t if t else 'void'
-                if member['return_type'] != 'void': member['return_'] = 'return'
+                if member['return_type'] != 'void':
+                    member['return_'] = 'return'
             elif x == 'const':
                 member['const'] = 'const'
                 member['member_const'] = 'const'
@@ -285,9 +306,9 @@ def convert_member(d, struct_name):
             elif x.startswith('__') and x.endswith('__'):
                 continue
             else:
-                use_member = not(skip and struct_name == trim_type_name(t))
+                use_member = not (skip and struct_name == trim_type_name(t))
                 arg_name = x
-                if not use_member: 
+                if not use_member:
                     arg_name = 'private_detail_te_value'
                     member['this'] = x
                     if 'const' in t:
@@ -296,16 +317,18 @@ def convert_member(d, struct_name):
                     if use_member: member_args.append(x)
                     args.append(arg_name)
                 else:
-                    if use_member: member_args.append('std::move({})'.format(x))
+                    if use_member:
+                        member_args.append('std::move({})'.format(x))
                     args.append('std::move({})'.format(arg_name))
-                params.append(t+' '+x)
-                if use_member: member_params.append(t+' '+x)
+                params.append(t + ' ' + x)
+                if use_member: member_params.append(t + ' ' + x)
                 else: skip = False
         member['args'] = ','.join(args)
         member['member_args'] = ','.join(member_args)
         member['params'] = ','.join(params)
         member['params'] = ','.join(params)
         member['member_params'] = ','.join(member_params)
+        member['comma'] = ',' if len(args) > 0 else ''
         member['call'] = generate_call(member, friend, indirect)
         return member
     return None
@@ -316,36 +339,41 @@ def generate_form(name, members):
     pure_virtual_members = []
     virtual_members = []
     comment_members = []
+    default_members = []
     for member in members:
         m = convert_member(member, name)
         nonvirtual_members.append(nonvirtual_member.substitute(m))
         pure_virtual_members.append(pure_virtual_member.substitute(m))
         virtual_members.append(virtual_member.substitute(m))
         comment_members.append(comment_member.substitute(m))
-    return form.substitute(
-        nonvirtual_members=''.join(nonvirtual_members),
-        pure_virtual_members=''.join(pure_virtual_members),
-        virtual_members=''.join(virtual_members),
-        comment_members='\n'.join(comment_members),
-        struct_name=name
-    )
+        if 'default' in m:
+            default_members.append(default_member.substitute(m))
+    return form.substitute(nonvirtual_members=''.join(nonvirtual_members),
+                           pure_virtual_members=''.join(pure_virtual_members),
+                           virtual_members=''.join(virtual_members),
+                           default_members=''.join(default_members),
+                           comment_members='\n'.join(comment_members),
+                           struct_name=name)
+
 
 def virtual(name, returns=None, **kwargs):
     args = kwargs
     args['return'] = returns
-    return { name: args }
+    return {name: args}
+
 
 def friend(name, returns=None, **kwargs):
     args = kwargs
     args['return'] = returns
     args['friend'] = 'friend'
-    return { name: args }
+    return {name: args}
 
 
 def interface(name, *members):
     return generate_form(name, members)
 
-def template_eval(template,**kwargs):
+
+def template_eval(template, **kwargs):
     start = '<%'
     end = '%>'
     escaped = (re.escape(start), re.escape(end))
@@ -353,8 +381,10 @@ def template_eval(template,**kwargs):
     for key in kwargs:
         exec('%s = %s' % (key, kwargs[key]))
     for item in mark.findall(template):
-        template = template.replace(start+item+end, str(eval(item.strip())))
+        template = template.replace(start + item + end,
+                                    str(eval(item.strip())))
     return template
+
 
 f = open(sys.argv[1]).read()
 r = template_eval(f)

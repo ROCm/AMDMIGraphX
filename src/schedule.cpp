@@ -9,12 +9,17 @@
 #include <migraphx/ranges.hpp>
 #include <unordered_map>
 #include <unordered_set>
+#include <queue>
+#include <thread>
+#include <mutex>
 #include <set>
 #include <deque>
 #include <chrono>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_SCHEDULE)
 
 auto get_inputs()
 {
@@ -248,6 +253,17 @@ struct stream_info
         })(last);
     }
 
+    template <class Compare>
+    void sort_args_by_weight(std::vector<instruction_ref>& args, Compare compare) const
+    {
+        if(args.size() < 2)
+            return;
+        std::sort(args.begin(), args.end(), by(compare, [this](auto x) {
+                      return std::make_tuple(
+                          this->weights.at(x), x->inputs().size(), std::addressof(*x));
+                  }));
+    }
+
     std::vector<instruction_ref>::iterator sort_args(std::vector<instruction_ref>& args)
     {
         if(args.size() < 2)
@@ -255,11 +271,8 @@ struct stream_info
             return args.end();
         }
 
-        const std::size_t min_partition_threshold = 2;
-        auto compare                              = by(std::greater<>{}, [&](auto x) {
-            return std::make_tuple(this->weights[x], x->inputs().size());
-        });
-        std::sort(args.begin(), args.end(), compare);
+        const std::size_t min_partition_threshold = 1;
+        sort_args_by_weight(args, std::greater<>{});
 
         auto it = std::lower_bound(std::next(args.begin()),
                                    args.end(),
@@ -283,8 +296,9 @@ struct stream_info
         }
     };
 
-    void assign_streams(program& p, std::size_t n)
+    std::size_t assign_streams(program& p, std::size_t n)
     {
+        assert(n > 0);
         partition critical;
         std::unordered_map<instruction_ref, std::deque<partition>> partitions;
         partitions.reserve(weights.size());
@@ -320,19 +334,77 @@ struct stream_info
 
         // Set the critical partition to stream 0
         set_stream(critical, 0);
-        std::vector<std::size_t> streams(n - 1);
-        // Assign streams for the other partitions
-        for(auto&& ins_part : partitions)
+        if(n == 1)
         {
-            std::sort(
-                ins_part.second.begin(), ins_part.second.end(), by(std::greater<>{}, [](auto&& x) {
-                    return std::make_tuple(x.weight, x.instructions.size());
-                }));
-            for(auto&& part : ins_part.second)
+            // Assign streams for the other partitions
+            for(auto&& ins_part : partitions)
+                for(auto&& part : ins_part.second)
+                    set_stream(part, 0);
+            return 1;
+        }
+        else
+        {
+            std::vector<std::size_t> streams(n - 1);
+            // Assign streams for the other partitions
+            for(auto&& ins_part : partitions)
             {
-                auto stream = std::min_element(streams.begin(), streams.end()) - streams.begin();
-                set_stream(part, stream + 1);
-                streams[stream] += part.weight;
+                std::sort(ins_part.second.begin(),
+                          ins_part.second.end(),
+                          by(std::greater<>{}, [](auto&& x) {
+                              return std::make_tuple(x.weight, x.instructions.size());
+                          }));
+                for(auto&& part : ins_part.second)
+                {
+                    auto stream =
+                        std::min_element(streams.begin(), streams.end()) - streams.begin();
+                    set_stream(part, stream + 1);
+                    streams[stream] += part.weight;
+                }
+            }
+            return 1 + std::count_if(streams.begin(), streams.end(), [](auto x) { return x > 0; });
+        }
+    }
+
+    using weight_ins = std::pair<std::size_t, instruction_ref>;
+    struct compare_weight_ins
+    {
+        bool operator()(const weight_ins& x, const weight_ins& y) const
+        {
+            return std::make_pair(x.first, std::addressof(*x.second)) <
+                   std::make_pair(y.first, std::addressof(*y.second));
+        }
+    };
+
+    void sort(program& p, std::size_t) const
+    {
+        std::set<weight_ins, compare_weight_ins> children;
+        std::unordered_map<instruction_ref, std::size_t> visited;
+        auto last      = std::prev(p.end());
+        auto mw        = this->weights.at(last);
+        auto nw        = mw / (p.size() + 1);
+        auto add_child = [&](auto ins) {
+            auto x  = 1 + (mw - this->weights.at(ins)) / (nw + 1);
+            auto w  = x * this->iweights.at(ins);
+            auto& v = visited[ins];
+            auto it = children.find(std::make_pair(v * w, ins));
+            if(it == children.end())
+            {
+                v++;
+                children.insert(std::make_pair(v * w, ins));
+            }
+        };
+        add_child(last);
+
+        while(not children.empty())
+        {
+            // Pop the first element
+            auto top = children.begin()->second;
+            children.erase(children.begin());
+
+            p.move_instruction(top, p.begin());
+            for(auto ins : top->inputs())
+            {
+                add_child(ins);
             }
         }
     }
@@ -620,35 +692,54 @@ struct stream_info
     std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>
     get_conflicts(program& p)
     {
-        using namespace std::chrono;
-        high_resolution_clock::time_point t1 = high_resolution_clock::now();
-        std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> conflict_table;
-        auto concur_ins = this->find_concurrent_instructions_forward(p);
-        for(auto&& merge : concur_ins)
-        {
-            std::cout << "ins_name = " << merge.first->name() << std::endl;
-            std::cout << "size = " << merge.second.size() << std::endl;
-            for(auto st : merge.second)
-            {
-                std::cout << "\tsub_size = " << st.size() << std::endl;
-            }
+        using conflict_table_type =
+            std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
+        conflict_table_type conflict_table;
+        auto concur_ins = this->find_concurrent_instructions(p);
 
-            int size = static_cast<int>(merge.second.size());
-            std::unordered_set<instruction_ref> checked_ins1_set;
-            for(int i = 0; i < size - 1; ++i)
+        std::vector<conflict_table_type> thread_conflict_tables(
+            std::thread::hardware_concurrency());
+        std::vector<instruction_ref> index_to_ins;
+        index_to_ins.reserve(concur_ins.size());
+        std::transform(concur_ins.begin(),
+                       concur_ins.end(),
+                       std::back_inserter(index_to_ins),
+                       [](auto&& it) { return it.first; });
+
+        par_for(concur_ins.size(), [&](auto ins_index, auto tid) {
+            auto merge_first = index_to_ins[ins_index];
+            assert(concur_ins.count(merge_first) > 0);
+            auto& merge_second = concur_ins.at(merge_first);
+
+            // ensure there are enough elements for different threads
+            assert(tid < thread_conflict_tables.size());
+            auto& thrd_table = thread_conflict_tables.at(tid);
+
+            std::unordered_set<instruction_ref> checked_ins_set;
+            auto range_i = range(merge_second.begin(), std::prev(merge_second.end()));
+            for(auto it_i : iterator_for(range_i))
             {
                 std::unordered_set<instruction_ref> ins1_set;
-                for(auto ins1 : merge.second[i])
-                {
-                    if(checked_ins1_set.count(ins1) == 0)
-                        ins1_set.insert(ins1);
-                }
-                checked_ins1_set.insert(ins1_set.begin(), ins1_set.end());
+                std::copy_if(it_i->begin(),
+                             it_i->end(),
+                             std::inserter(ins1_set, ins1_set.end()),
+                             [&](auto i) { return not contains(checked_ins_set, i); });
+                checked_ins_set.insert(ins1_set.begin(), ins1_set.end());
 
+                auto range_j = range(std::next(it_i), merge_second.end());
                 std::unordered_set<instruction_ref> ins2_set;
-                for(auto j = i + 1; j < size; ++j)
+                for(auto it_j : iterator_for(range_j))
                 {
-                    for(auto ins2 : merge.second[j])
+                    std::copy_if(it_j->begin(),
+                                 it_j->end(),
+                                 std::inserter(ins2_set, ins2_set.end()),
+                                 [&](auto i) { return not contains(checked_ins_set, i); });
+                }
+
+                for(auto ins1 : ins1_set)
+                {
+                    auto p1 = std::distance(ins1, merge_first);
+                    for(auto ins2 : ins2_set)
                     {
                         if(checked_ins1_set.count(ins2) == 0)
                             ins2_set.insert(ins2);
@@ -672,16 +763,28 @@ struct stream_info
                     {
                         if(ins1 == ins2)
                             continue;
-                        auto p2 = std::distance(ins2, merge.first);
+                        auto p2 = std::distance(ins2, merge_first);
                         // The smaller distance means the instruction occurs later
                         if(p1 > p2)
-                            conflict_table[ins2].insert(ins1);
+                            thrd_table[ins2].insert(ins1);
                         else
-                            conflict_table[ins1].insert(ins2);
+                            thrd_table[ins1].insert(ins2);
                     }
                 }
+<<<<<<< HEAD
 
                 std::cout << "conflict_table size = " << conflict_table.size() << std::endl;
+=======
+            }
+        });
+
+        // merge thread_conflict_tables together
+        for(auto& tbl : thread_conflict_tables)
+        {
+            for(auto& it : tbl)
+            {
+                conflict_table[it.first].insert(it.second.begin(), it.second.end());
+>>>>>>> 24f74e72f11535bc73b0af9bea33be534fb21181
             }
         }
 
@@ -694,10 +797,13 @@ struct stream_info
                     conflict_table[ins2].erase(ins1);
         }
 
+<<<<<<< HEAD
         high_resolution_clock::time_point t2 = high_resolution_clock::now();
         duration<double> time_span           = duration_cast<duration<double>>(t2 - t1);
         std::cout << "get_conflict_time = " << time_span.count() << " seconds!" << std::endl;
 
+=======
+>>>>>>> 24f74e72f11535bc73b0af9bea33be534fb21181
         return conflict_table;
     }
 };
@@ -709,9 +815,10 @@ void schedule::apply(program& p) const
     stream_info si;
     auto last = std::prev(p.end());
     si.accumulate_weights(last, model);
-    si.assign_streams(p, model.concurrency());
+    auto nstreams = si.assign_streams(p, model.concurrency());
+    si.sort(p, model.concurrency());
 
-    if(enabled(MIGRAPHX_TRACE_COMPILE{}))
+    if(enabled(MIGRAPHX_TRACE_COMPILE{}) or enabled(MIGRAPHX_TRACE_SCHEDULE{}))
     {
         p.annotate(std::cout, [&](auto ins) {
             std::cout << ":";
@@ -727,6 +834,10 @@ void schedule::apply(program& p) const
         });
         std::cout << std::endl;
     }
+
+    // No concurrency
+    if(nstreams < 2)
+        return;
 
     // Schedule instructions
     std::size_t wait_id = 0;

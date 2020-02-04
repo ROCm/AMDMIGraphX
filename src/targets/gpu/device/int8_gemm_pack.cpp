@@ -4,7 +4,6 @@
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/types.hpp>
 #include <migraphx/gpu/device/tensor.hpp>
-#include <migraphx/gpu/hip.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -68,8 +67,6 @@ void int8_gemm_pack_b(hipStream_t stream, const argument& result, const argument
         });
     });
 }
-
-void sync_stream(hipStream_t stream) { hipStreamSynchronize(stream); }
 
 } // namespace device
 } // namespace gpu

@@ -1,18 +1,15 @@
 #include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/op/add.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
-struct cse_target
+void run_pass(migraphx::program& p)
 {
-    std::string name() const { return "dce"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const
-    {
-        return {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}};
-    }
-    migraphx::context get_context() const { return {}; }
-};
+    migraphx::run_passes(
+        p, {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
+}
 
 TEST_CASE(cse_test1)
 {
@@ -25,7 +22,7 @@ TEST_CASE(cse_test1)
         auto sum3 = p1.add_instruction(migraphx::op::add{}, sum1, sum2);
         p1.add_instruction(pass_op{}, sum3);
     }
-    p1.compile(cse_target{});
+    run_pass(p1);
 
     migraphx::program p2;
     {
@@ -49,7 +46,7 @@ TEST_CASE(cse_test2)
         auto sum3 = p1.add_instruction(migraphx::op::add{}, sum1, sum2);
         p1.add_instruction(pass_op{}, sum3);
     }
-    p1.compile(cse_target{});
+    run_pass(p1);
 
     migraphx::program p2;
     {
@@ -74,7 +71,7 @@ TEST_CASE(cse_test3)
         auto sum3 = p1.add_instruction(migraphx::op::add{}, sum1, sum2);
         p1.add_instruction(pass_op{}, sum3);
     }
-    p1.compile(cse_target{});
+    run_pass(p1);
 
     migraphx::program p2;
     {
@@ -99,7 +96,7 @@ TEST_CASE(cse_test4)
         auto sum5 = p1.add_instruction(migraphx::op::add{}, sum4, sum3);
         p1.add_instruction(pass_op{}, sum5);
     }
-    p1.compile(cse_target{});
+    run_pass(p1);
 
     migraphx::program p2;
     {

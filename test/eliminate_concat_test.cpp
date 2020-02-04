@@ -1,5 +1,6 @@
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/load.hpp>
 #include <migraphx/op/identity.hpp>
@@ -43,17 +44,12 @@ struct concat_test_optimization
     }
 };
 
-struct eliminate_concat_target
+void run_pass(migraphx::program& p)
 {
-    std::size_t align = 32;
-    std::string name() const { return "eliminate_target"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const
-    {
-        return {migraphx::eliminate_concat{concat_test_optimization{}},
-                migraphx::dead_code_elimination{}};
-    }
-    migraphx::context get_context() const { return {}; }
-};
+    migraphx::run_passes(p,
+                         {migraphx::eliminate_concat{concat_test_optimization{}},
+                          migraphx::dead_code_elimination{}});
+}
 
 struct allocate
 {
@@ -131,7 +127,7 @@ TEST_CASE(simple)
 
     auto p1 = create_test_program();
     auto p2 = create_control_program();
-    p1.compile(eliminate_concat_target{});
+    run_pass(p1);
 
     EXPECT(p1 == p2);
 }
@@ -176,7 +172,7 @@ TEST_CASE(nested)
 
     auto p1 = create_test_program();
     auto p2 = create_control_program();
-    p1.compile(eliminate_concat_target{});
+    run_pass(p1);
 
     EXPECT(p1 == p2);
 }
@@ -219,7 +215,7 @@ TEST_CASE(basic)
 
     auto p1 = create_test_program();
     auto p2 = create_control_program();
-    p1.compile(eliminate_concat_target{});
+    run_pass(p1);
 
     EXPECT(p1 == p2);
 }
@@ -263,7 +259,7 @@ TEST_CASE(wont_work)
 
     auto p1 = create_test_program();
     auto p2 = create_control_program();
-    p1.compile(eliminate_concat_target{});
+    run_pass(p1);
 
     EXPECT(p1 == p2);
 }

@@ -15,20 +15,16 @@
 #include <basic_ops.hpp>
 #include <test.hpp>
 
-struct lowering_target
+void run_lowering(migraphx::program& p)
 {
-    std::string name() const { return "gpu::lowering"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context& gctx) const
-    {
-        auto& ctx = migraphx::any_cast<migraphx::gpu::context>(gctx);
-        return {migraphx::auto_contiguous{},
-                migraphx::gpu::lowering{ctx},
-                migraphx::dead_code_elimination{},
-                migraphx::eliminate_contiguous{},
-                migraphx::dead_code_elimination{}};
-    }
-    migraphx::gpu::context get_context() const { return migraphx::gpu::context{}; }
-};
+    auto ctx = migraphx::gpu::context{};
+    migraphx::run_passes(p,
+                         {migraphx::auto_contiguous{},
+                          migraphx::gpu::lowering{&ctx, false},
+                          migraphx::dead_code_elimination{},
+                          migraphx::eliminate_contiguous{},
+                          migraphx::dead_code_elimination{}});
+}
 
 TEST_CASE(tanh_shape)
 {
@@ -48,8 +44,8 @@ TEST_CASE(tanh_shape)
     auto p2 = create_program();
     EXPECT(p1 == p2);
 
-    p1.compile(lowering_target{});
-    p2.compile(lowering_target());
+    run_lowering(p1);
+    run_lowering(p2);
 
     EXPECT(p1 == p2);
 

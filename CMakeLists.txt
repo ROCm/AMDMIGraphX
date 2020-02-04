@@ -22,7 +22,8 @@ find_package(ROCM REQUIRED)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 0.4)
+rocm_setup_version(VERSION 0.5)
+set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 
@@ -46,10 +47,28 @@ add_compile_options(-std=c++14)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)
 include(ROCMClangTidy)
+if(CMAKE_CXX_COMPILER MATCHES ".*hcc")
+    set(MIGRAPHX_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
+# Enable tidy on hip
+elseif(MIGRAPHX_ENABLE_GPU)
+    set(MIGRAPHX_TIDY_ERRORS ALL)
+endif()
 rocm_enable_clang_tidy(
     CHECKS
-        *
-        -android-cloexec-fopen
+        boost-*
+        bugprone-*
+        cert-*
+        clang-analyzer-*
+        clang-diagnostic-*
+        cppcoreguidelines-*
+        google-*
+        hicpp-multiway-paths-covered
+        hicpp-signed-bitwise
+        llvm-namespace-comment
+        misc-*
+        modernize-*
+        performance-*
+        readability-*
         -clang-analyzer-alpha.core.CastToStruct
         -clang-analyzer-optin.performance.Padding
         -clang-diagnostic-deprecated-declarations
@@ -65,24 +84,15 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-union-access
         -cppcoreguidelines-pro-type-vararg
         -cppcoreguidelines-special-member-functions
-        -fuchsia-*
-        -google-readability-braces-around-statements
-        -google-readability-todo
+        -google-readability-*
         -google-runtime-int
         -google-runtime-references
-        -hicpp-braces-around-statements
-        -hicpp-explicit-conversions
-        -hicpp-no-array-decay
-        -hicpp-special-member-functions
-        -hicpp-uppercase-literal-suffix
-        -hicpp-use-override
-        # This check is broken
-        -llvm-header-guard
-        -llvm-include-order
         -misc-macro-parentheses
-        -modernize-use-override
+        -modernize-concat-nested-namespaces
         -modernize-pass-by-value
         -modernize-use-default-member-init
+        -modernize-use-nodiscard
+        -modernize-use-override
         -modernize-use-trailing-return-type
         -modernize-use-transparent-functors
         -performance-type-promotion-in-math-fn
@@ -97,15 +107,19 @@ rocm_enable_clang_tidy(
         -*-use-auto
         -*-use-emplace
         -*-use-equals-default
-    ERRORS
-        *
-        -readability-inconsistent-declaration-parameter-name
+    ${MIGRAPHX_TIDY_ERRORS}
     HEADER_FILTER
         ".*hpp"
     EXTRA_ARGS
+        -UNDEBUG
         -DMIGRAPHX_USE_CLANG_TIDY
         "-Dmain\\\\(...\\\\)=main\\\\(__VA_ARGS__\\\\) // NOLINT"
-
+    # CLANG_ARGS
+    #     -analyzer-config optin.cplusplus.UninitializedObject:Pedantic=true
+    #     -analyzer-config widen-loops=true
+    #     -analyzer-config unroll-loops=true
+    #     -analyzer-config cfg-lifetime=true
+    #     -analyzer-config cfg-scopes=true
 )
 include(ROCMCppCheck)
 rocm_enable_cppcheck(
@@ -142,6 +156,8 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
         CPPCHECK=1
+        __device__=
+        __host__=
 )
 
 enable_testing()

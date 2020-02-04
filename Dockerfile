@@ -35,8 +35,11 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libpthread-stubs0-dev \
     libssl-dev \
     python \
+    python3 \
     python-dev \
+    python3-dev \
     python-pip \
+    python3-pip \
     rocm-device-libs \
     rocm-opencl \
     rocm-opencl-dev \
@@ -51,6 +54,9 @@ RUN pip install cget
 
 # Install rclone
 RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
+
+# Install yapf
+RUN pip3 install yapf==0.28.0
 
 # Install hcc
 RUN rclone -b roc-2.6.x -c 0f4c96b7851af2663a7f3ac16ecfb76c7c78a5bf https://github.com/RadeonOpenCompute/hcc.git /hcc

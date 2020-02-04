@@ -270,6 +270,12 @@ instruction_ref program::add_parameter(std::string name, shape s)
     return impl->instructions.begin();
 }
 
+instruction_ref program::add_return(std::vector<instruction_ref> args)
+{
+    auto result = insert_instruction(impl->instructions.end(), builtin::add_return{}, args);
+    return result;
+}
+
 shape program::get_parameter_shape(std::string name) const
 {
     auto ins = std::find_if(
@@ -337,7 +343,7 @@ instruction_ref program::end() const { return impl->instructions.end(); }
 std::vector<shape> program::get_output_shapes() const
 {
     auto last_ins = impl->instructions.back();
-    if(last_ins.name() == "ret" or last_ins.name() == "cpu::ret")
+    if(last_ins.name() == "@add_return")
     {
         auto& output_ins = last_ins.inputs();
         std::vector<shape> output_shapes;
@@ -428,7 +434,7 @@ std::vector<argument> generic_eval(const program& p,
                                     return argument{ins->get_shape(), nullptr};
                                 }));
         }
-        else if(name == "ret" or name == "cpu::ret")
+        else if(name == "@add_return")
         {
             std::vector<argument> prog_outputs;
             std::transform(ins->inputs().begin(),
@@ -486,7 +492,7 @@ std::vector<argument> program::eval(parameter_map params) const
             auto result = check_context(f);
             ctx.finish();
             if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
-               ins->name() != "ret")
+               ins->name() != "@add_return")
                 std::cout << "Ouput: " << result << std::endl;
             return result;
         });

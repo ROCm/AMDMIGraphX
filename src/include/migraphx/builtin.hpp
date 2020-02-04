@@ -63,6 +63,16 @@ struct param
     }
 };
 
+struct add_return
+{
+    std::string name() const { return "@add_return"; }
+    shape compute_shape(const std::vector<shape>&) const { return {}; }
+    argument compute(context&, const shape&, const std::vector<argument>&) const
+    {
+        return {};
+    }
+};
+
 } // namespace builtin
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

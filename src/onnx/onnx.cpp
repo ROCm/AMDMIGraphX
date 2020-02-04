@@ -1765,7 +1765,8 @@ struct onnx_parser
             }
         }
 
-        prog.add_instruction(op::ret{}, output_ins);
+        // add the return instuction
+        prog.add_return(output_ins);
     }
 
     void parse_undefined(const std::string& name)

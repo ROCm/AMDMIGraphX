@@ -59,7 +59,6 @@
 #include <migraphx/op/reduce_sum.hpp>
 #include <migraphx/op/relu.hpp>
 #include <migraphx/op/reshape.hpp>
-#include <migraphx/op/ret.hpp>
 #include <migraphx/op/rnn.hpp>
 #include <migraphx/op/rnn_last_cell_output.hpp>
 #include <migraphx/op/rnn_last_output.hpp>

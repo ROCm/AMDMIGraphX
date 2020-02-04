@@ -172,8 +172,6 @@ struct miopen_apply
             if(ins->name() != "@param")
                 continue;
 
-            std::cout << "ins_name = " << ins->name() << std::endl;
-
             auto pos = std::next(ins);
             auto a   = insert_allocation(pos, ins->get_shape());
             auto c   = prog->insert_instruction(pos, hip_copy_to_gpu{}, ins, a);
@@ -182,7 +180,7 @@ struct miopen_apply
 
         // return instruction
         auto ret = std::prev(prog->end());
-        if(ret->name() == "ret")
+        if(ret->name() == "@add_return")
         {
             auto& inputs = ret->inputs();
 
@@ -195,7 +193,7 @@ struct miopen_apply
             }
 
             // Use copy result on host as program output
-            prog->replace_instruction(ret, op::ret{}, ret_inputs);
+            prog->replace_instruction(ret, builtin::add_return{}, ret_inputs);
         }
         // else branch to handle legacy program without the return instruction
         else
@@ -228,7 +226,7 @@ struct miopen_apply
             return result;
         }
 
-        if(last->name() == "ret")
+        if(last->name() == "@add_return")
         {
             std::vector<instruction_ref> inputs_alias(last->inputs().size());
             auto& ret_inputs = last->inputs();
@@ -238,7 +236,6 @@ struct miopen_apply
 
             if(contains(inputs_alias, ins))
             {
-                std::cout << "last_name = " << last->name() << std::endl;
                 std::string output_name = "migraphx_output_" + ins->name();
                 return prog->add_parameter(output_name, s);
             }

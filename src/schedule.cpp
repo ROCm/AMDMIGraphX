@@ -695,7 +695,7 @@ struct stream_info
         using conflict_table_type =
             std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
         conflict_table_type conflict_table;
-        auto concur_ins = this->find_concurrent_instructions(p);
+        auto concur_ins = this->find_concurrent_instructions_forward(p);
 
         std::vector<conflict_table_type> thread_conflict_tables(
             std::thread::hardware_concurrency());
@@ -741,7 +741,7 @@ struct stream_info
                     auto p1 = std::distance(ins1, merge_first);
                     for(auto ins2 : ins2_set)
                     {
-                        if(checked_ins1_set.count(ins2) == 0)
+                        if(checked_ins_set.count(ins2) == 0)
                             ins2_set.insert(ins2);
                     }
                 }
@@ -758,7 +758,7 @@ struct stream_info
                         }
                     }
 
-                    auto p1 = std::distance(ins1, merge.first);
+                    auto p1 = std::distance(ins1, merge_first);
                     for(auto ins2 : cleaned_ins2_set)
                     {
                         if(ins1 == ins2)
@@ -771,12 +771,8 @@ struct stream_info
                             thrd_table[ins1].insert(ins2);
                     }
                 }
-<<<<<<< HEAD
-
-                std::cout << "conflict_table size = " << conflict_table.size() << std::endl;
-=======
-                    }
-                });
+            }
+        });
 
         // merge thread_conflict_tables together
         for(auto& tbl : thread_conflict_tables)
@@ -784,7 +780,6 @@ struct stream_info
             for(auto& it : tbl)
             {
                 conflict_table[it.first].insert(it.second.begin(), it.second.end());
->>>>>>> 24f74e72f11535bc73b0af9bea33be534fb21181
             }
         }
 
@@ -797,13 +792,6 @@ struct stream_info
                     conflict_table[ins2].erase(ins1);
         }
 
-<<<<<<< HEAD
-        high_resolution_clock::time_point t2 = high_resolution_clock::now();
-        duration<double> time_span           = duration_cast<duration<double>>(t2 - t1);
-        std::cout << "get_conflict_time = " << time_span.count() << " seconds!" << std::endl;
-
-=======
->>>>>>> 24f74e72f11535bc73b0af9bea33be534fb21181
         return conflict_table;
     }
 };

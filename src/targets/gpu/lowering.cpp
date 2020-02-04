@@ -180,7 +180,7 @@ struct miopen_apply
 
         // return instruction
         auto ret = std::prev(prog->end());
-        if(ret->name() == "@add_return")
+        if(ret->name() == "add_return")
         {
             auto& inputs = ret->inputs();
 
@@ -226,7 +226,7 @@ struct miopen_apply
             return result;
         }
 
-        if(last->name() == "@add_return")
+        if(last->name() == "add_return")
         {
             std::vector<instruction_ref> inputs_alias(last->inputs().size());
             auto& ret_inputs = last->inputs();

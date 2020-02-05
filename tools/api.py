@@ -743,7 +743,11 @@ class Handle:
                                            cpptype=self.cpptype,
                                            **kwargs)
 
-    def constructor(self, name, params=None, fname=None, invoke=None,
+    def constructor(self,
+                    name,
+                    params=None,
+                    fname=None,
+                    invoke=None,
                     **kwargs):
         create = self.substitute('allocate<${cpptype}>($@)')
         if fname:

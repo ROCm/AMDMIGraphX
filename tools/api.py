@@ -817,7 +817,7 @@ def template_eval(template, **kwargs):
     escaped = (re.escape(start), re.escape(end))
     mark = re.compile('%s(.*?)%s' % escaped, re.DOTALL)
     for key in kwargs:
-        exec ('%s = %s' % (key, kwargs[key]))
+        exec('%s = %s' % (key, kwargs[key]))
     for item in mark.findall(template):
         e = eval(item.strip())
         template = template.replace(start + item + end, str(e))

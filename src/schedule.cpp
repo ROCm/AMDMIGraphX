@@ -580,7 +580,7 @@ struct stream_info
         {
             for(auto&& output : ins->outputs())
             {
-                if(is_merge_point_mei(output))
+                if(is_merge_point(output))
                     merge_to[ins].insert(output);
                 merge_to[ins].insert(merge_to[output].begin(), merge_to[output].end());
             }
@@ -740,26 +740,6 @@ struct stream_info
                 {
                     auto p1 = std::distance(ins1, merge_first);
                     for(auto ins2 : ins2_set)
-                    {
-                        if(checked_ins_set.count(ins2) == 0)
-                            ins2_set.insert(ins2);
-                    }
-                }
-
-                for(auto ins1 : ins1_set)
-                {
-                    auto& conflict_ins1 = conflict_table[ins1];
-                    std::unordered_set<instruction_ref> cleaned_ins2_set;
-                    for(auto ins2 : ins2_set)
-                    {
-                        if(conflict_ins1.count(ins2) == 0)
-                        {
-                            cleaned_ins2_set.insert(ins2);
-                        }
-                    }
-
-                    auto p1 = std::distance(ins1, merge_first);
-                    for(auto ins2 : cleaned_ins2_set)
                     {
                         if(ins1 == ins2)
                             continue;

@@ -578,14 +578,24 @@ struct stream_info
         merge_to.reserve(p.size());
         for(auto ins : reverse_iterator_for(p))
         {
+            std::cout << "ins_name = " << ins->name() << std::endl;
+            std::cout << "outputs: " << std::endl;
             for(auto&& output : ins->outputs())
             {
-                if(is_merge_point(output))
+                std::cout << output->name() << " ";
+                if(is_merge_point(output)) {
+                    std::cout << "is a merge point" << std::endl;
                     merge_to[ins].insert(output);
+                }
+                else
+                {
+                    std::cout << "NOT a merge point" << std::endl;
+                }
+                
                 merge_to[ins].insert(merge_to[output].begin(), merge_to[output].end());
             }
 
-            assert(merge_to.find(ins) != merge_to.end());
+            // assert(merge_to.find(ins) != merge_to.end());
             std::unordered_set<instruction_ref> del_set;
             for(auto merge : merge_to[ins])
             {
@@ -695,7 +705,7 @@ struct stream_info
         using conflict_table_type =
             std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
         conflict_table_type conflict_table;
-        auto concur_ins = this->find_concurrent_instructions_forward(p);
+        auto concur_ins = this->find_concurrent_instructions_reverse(p);
 
         std::vector<conflict_table_type> thread_conflict_tables(
             std::thread::hardware_concurrency());
@@ -802,6 +812,8 @@ void schedule::apply(program& p) const
         });
         std::cout << std::endl;
     }
+
+    // auto conflict_table_tmp = si.get_conflicts(p);
 
     // No concurrency
     if(nstreams < 2)

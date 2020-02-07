@@ -583,7 +583,8 @@ struct stream_info
             for(auto&& output : ins->outputs())
             {
                 std::cout << output->name() << " ";
-                if(is_merge_point(output)) {
+                if(is_merge_point(output))
+                {
                     std::cout << "is a merge point" << std::endl;
                     merge_to[ins].insert(output);
                 }
@@ -591,7 +592,7 @@ struct stream_info
                 {
                     std::cout << "NOT a merge point" << std::endl;
                 }
-                
+
                 merge_to[ins].insert(merge_to[output].begin(), merge_to[output].end());
             }
 

@@ -70,14 +70,14 @@ struct iota_iterator
         return *this;
     }
 
-    iota_iterator operator++(int)
+    iota_iterator operator++(int) // NOLINT
     {
         iota_iterator it = *this;
         index++;
         return it;
     }
 
-    iota_iterator operator--(int)
+    iota_iterator operator--(int) // NOLINT
     {
         iota_iterator it = *this;
         index--;

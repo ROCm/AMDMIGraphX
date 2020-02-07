@@ -257,11 +257,17 @@ struct operation
     template <typename PrivateDetailTypeErasedT>
     operation& operator=(PrivateDetailTypeErasedT value)
     {
-        if(private_detail_te_handle_mem_var.unique())
-            *private_detail_te_handle_mem_var = std::forward<PrivateDetailTypeErasedT>(value);
-        else if(!private_detail_te_handle_mem_var)
-            private_detail_te_handle_mem_var = std::make_shared<PrivateDetailTypeErasedT>(
-                std::forward<PrivateDetailTypeErasedT>(value));
+        using std::swap;
+        auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
+        if(derived and private_detail_te_handle_mem_var.unique())
+        {
+            *derived = std::forward<PrivateDetailTypeErasedT>(value);
+        }
+        else
+        {
+            operation rhs(value);
+            swap(private_detail_te_handle_mem_var, rhs.private_detail_te_handle_mem_var);
+        }
         return *this;
     }
 
@@ -269,7 +275,7 @@ struct operation
     template <typename PrivateDetailTypeErasedT>
     PrivateDetailTypeErasedT* any_cast()
     {
-        return private_detail_te_get_handle().type() == typeid(PrivateDetailTypeErasedT)
+        return this->type_id() == typeid(PrivateDetailTypeErasedT)
                    ? std::addressof(static_cast<private_detail_te_handle_type<
                                         typename std::remove_cv<PrivateDetailTypeErasedT>::type>&>(
                                         private_detail_te_get_handle())
@@ -280,7 +286,7 @@ struct operation
     template <typename PrivateDetailTypeErasedT>
     const typename std::remove_cv<PrivateDetailTypeErasedT>::type* any_cast() const
     {
-        return private_detail_te_get_handle().type() == typeid(PrivateDetailTypeErasedT)
+        return this->type_id() == typeid(PrivateDetailTypeErasedT)
                    ? std::addressof(static_cast<const private_detail_te_handle_type<
                                         typename std::remove_cv<PrivateDetailTypeErasedT>::type>&>(
                                         private_detail_te_get_handle())

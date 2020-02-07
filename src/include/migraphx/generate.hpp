@@ -78,20 +78,18 @@ struct xorshift_generator
 };
 
 template <class T>
-std::vector<T> generate_tensor_data(const migraphx::shape& s, unsigned long seed = 0)
+auto generate_tensor_data(const migraphx::shape& s, unsigned long seed = 0)
 {
-    std::vector<T> result(s.elements());
-    std::generate(result.begin(), result.end(), xorshf96_generator<T>{seed});
-    // std::generate(result.begin(), result.end(), [&]{ return seed % 7; });
-    // std::generate(result.begin(), result.end(), []{ return 1; });
+    auto result = make_shared_array<T>(s.elements());
+    std::generate(result.get(), result.get() + s.elements(), xorshf96_generator<T>{seed});
     return result;
 }
 
 template <class T>
-std::vector<T> fill_tensor_data(const migraphx::shape& s, unsigned long value = 0)
+auto fill_tensor_data(const migraphx::shape& s, unsigned long value = 0)
 {
-    std::vector<T> result(s.elements());
-    std::generate(result.begin(), result.end(), [=] { return value; });
+    auto result = make_shared_array<T>(s.elements());
+    std::generate(result.get(), result.get() + s.elements(), [=] { return value; });
     return result;
 }
 

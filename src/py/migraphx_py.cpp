@@ -159,18 +159,34 @@ PYBIND11_MODULE(migraphx, m)
         .def("clone", [](migraphx::program& p) { return *(new migraphx::program(p)); })
         .def("get_parameter_shapes", &migraphx::program::get_parameter_shapes)
         .def("get_shape", &migraphx::program::get_shape)
-        .def("compile", [](migraphx::program& p, const migraphx::target& t) { p.compile(t); })
+        .def("compile",
+             [](migraphx::program& p, const migraphx::target& t, bool offload_copy) {
+                 migraphx::compile_options options;
+                 options.offload_copy = offload_copy;
+                 p.compile(t, options);
+             },
+             py::arg("t"),
+             py::arg("offload_copy") = true)
         .def("run", &migraphx::program::eval)
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
 
     m.def("parse_tf",
-          &migraphx::parse_tf,
+          [](const std::string& filename, bool is_nhwc, unsigned int batch_size) {
+              return migraphx::parse_tf(filename, migraphx::tf_options{is_nhwc, batch_size});
+          },
           "Parse tf protobuf (default format is nhwc)",
           py::arg("filename"),
-          py::arg("is_nhwc") = true);
-    m.def("parse_onnx", &migraphx::parse_onnx);
+          py::arg("is_nhwc")    = true,
+          py::arg("batch_size") = 1);
+    m.def("parse_onnx",
+          [](const std::string& filename, unsigned int batch_size) {
+              return migraphx::parse_onnx(filename, migraphx::onnx_options{batch_size});
+          },
+          "Parse onnx file",
+          py::arg("filename"),
+          py::arg("batch_size") = 1);
 
     m.def("get_target", [](const std::string& name) -> migraphx::target {
         if(name == "cpu")
@@ -199,7 +215,6 @@ PYBIND11_MODULE(migraphx, m)
     m.def("to_gpu", &migraphx::gpu::to_gpu, py::arg("arg"), py::arg("host") = false);
     m.def("from_gpu", &migraphx::gpu::from_gpu);
     m.def("gpu_sync", &migraphx::gpu::gpu_sync);
-    m.def("copy_to_gpu", &migraphx::gpu::copy_to_gpu);
 #endif
 
 #ifdef VERSION_INFO

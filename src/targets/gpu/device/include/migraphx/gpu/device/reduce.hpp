@@ -4,6 +4,7 @@
 
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/visit.hpp>
+#include <migraphx/gpu/device/multi_index.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -16,6 +17,15 @@ struct sum
     MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
     {
         return x + y;
+    }
+};
+
+struct product
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    {
+        return x * y;
     }
 };
 
@@ -176,13 +186,18 @@ __device__ inline void dpp_reduce(float& x, sum)
 #endif
 }
 
-template <index_int N, class Op, class T, class F>
-__device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
+template <index_int N,
+          class Op,
+          class T,
+          class ForStride,
+          class F,
+          MIGRAPHX_REQUIRES(not std::is_integral<ForStride>{})>
+__device__ auto block_reduce(index idx, Op op, T init, ForStride fs, F f)
 {
-    using type = decltype(f(idx.local));
+    using type = decltype(f(deduce_for_stride(fs)));
     MIGRAPHX_DEVICE_SHARED type buffer[N / 64];
     type x = init;
-    idx.local_stride(n, [&](auto i) { x = op(x, f(i)); });
+    fs([&](auto i) { x = op(x, f(i)); });
     dpp_reduce(x, op);
 
     const auto ldsidx = idx.local / 64;
@@ -199,6 +214,18 @@ __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
     }
     return y;
 }
+
+template <index_int N, class Op, class T, class F>
+__device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
+{
+    auto midx = make_multi_index(idx.local, idx.nlocal());
+    // Workaround hcc, create a local array
+    auto fs = midx.id;
+    fs[0]   = n;
+    return block_reduce<N>(
+        idx, op, init, midx.for_stride(fs), [&](auto mi) __device__ { return f(mi[0]); });
+}
+
 #endif
 constexpr index_int compute_block_size(index_int n, index_int max_block_size)
 {
@@ -219,21 +246,21 @@ void reduce_multi_impl(hipStream_t stream,
                        const shape& reduce_slice)
 {
     hip_visit_all(result, arg, reduce_slice)([&](auto output, auto input, auto reduce_shape) {
-        auto nelements = result.get_shape().elements();
         auto relements = reduce_slice.elements();
 
         const index_int max_block_size = 256;
         const index_int block_size     = compute_block_size(relements, max_block_size);
-        gs_launch(stream, nelements * block_size, block_size)([=](auto i, auto idx) __device__ {
-            const auto out_idx = i / block_size;
-            auto base_idx      = output.get_shape().multi(out_idx);
-            auto r = block_reduce<max_block_size>(idx, op, init, relements, [&](auto j) __device__ {
-                auto reduce_idx = reduce_shape.multi(j);
-                return read_input(input[reduce_idx + base_idx]);
+        mi_launch(stream, output.get_shape(), reduce_shape, block_size)(
+            [=](auto idx, auto global, auto local) __device__ {
+                global([&](auto i) __device__ {
+                    auto r =
+                        block_reduce<max_block_size>(idx, op, init, local, [&](auto j) __device__ {
+                            return read_input(input[i + j]);
+                        });
+                    if(idx.local == 0)
+                        output[i] = read_output(r);
+                });
             });
-            if(idx.local == 0)
-                output.data()[out_idx] = read_output(r);
-        });
     });
 }
 

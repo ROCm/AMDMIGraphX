@@ -76,6 +76,7 @@ rocm_enable_clang_tidy(
         -clang-diagnostic-disabled-macro-expansion
         -clang-diagnostic-unused-command-line-argument
         -cppcoreguidelines-explicit-virtual-functions
+        -cppcoreguidelines-init-variables
         -cppcoreguidelines-pro-bounds-array-to-pointer-decay
         -cppcoreguidelines-pro-bounds-constant-array-index
         -cppcoreguidelines-pro-bounds-pointer-arithmetic
@@ -97,6 +98,7 @@ rocm_enable_clang_tidy(
         -modernize-use-transparent-functors
         -performance-type-promotion-in-math-fn
         -readability-braces-around-statements
+        -readability-convert-member-functions-to-static
         -readability-else-after-return
         -readability-named-parameter
         -readability-uppercase-literal-suffix,

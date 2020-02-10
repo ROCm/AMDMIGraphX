@@ -469,44 +469,26 @@ struct stream_info
         return result;
     }
 
-    // In the forward direction
     std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>>
     find_concurrent_instructions(program& p)
     {
         std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> result;
-        std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> split_from;
-        dominator_info di{&p, ins2stream, {}};
-        di.compute_dominator();
-
+        std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> merge_from;
         result.reserve(p.size());
-        split_from.reserve(p.size());
-        for(auto ins : iterator_for(p))
+        merge_from.reserve(p.size());
+        for(auto ins : reverse_iterator_for(p))
         {
-            for(auto&& input : ins->inputs())
+            for(auto&& arg : ins->outputs())
             {
-                if(is_split_point(input))
-                    split_from[ins].insert(input);
-                split_from[ins].insert(split_from[input].begin(), split_from[input].end());
-            }
-
-            assert(split_from.find(ins) != split_from.end());
-            std::unordered_set<instruction_ref> del_set;
-            for(auto split : split_from[ins])
-            {
-                if(di.strictly_dominate(ins, split))
-                {
-                    del_set.insert(split);
-                }
-            }
-
-            for(auto del_ins : del_set)
-            {
-                split_from[ins].erase(del_ins);
+                if(is_merge_point(arg))
+                    merge_from[ins].insert(arg);
+                merge_from[ins].insert(merge_from[arg].begin(), merge_from[arg].end());
             }
 
             auto streams = this->get_streams(ins);
+
             // Collect concur instructions for each merge point.
-            for(auto& merge : split_from[ins])
+            for(auto& merge : merge_from[ins])
             {
                 for(auto stream : streams)
                 {
@@ -529,6 +511,67 @@ struct stream_info
         }
         return result;
     }
+
+    // In the forward direction
+    // std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>>
+    // find_concurrent_instructions(program& p)
+    // {
+    //     std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> result;
+    //     std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> split_from;
+    //     dominator_info di{&p, ins2stream, {}};
+    //     di.compute_dominator();
+
+    //     result.reserve(p.size());
+    //     split_from.reserve(p.size());
+    //     for(auto ins : iterator_for(p))
+    //     {
+    //         for(auto&& input : ins->inputs())
+    //         {
+    //             if(is_split_point(input))
+    //                 split_from[ins].insert(input);
+    //             split_from[ins].insert(split_from[input].begin(), split_from[input].end());
+    //         }
+
+    //         assert(split_from.find(ins) != split_from.end());
+    //         std::unordered_set<instruction_ref> del_set;
+    //         for(auto split : split_from[ins])
+    //         {
+    //             if(di.strictly_dominate(ins, split))
+    //             {
+    //                 del_set.insert(split);
+    //             }
+    //         }
+
+    //         for(auto del_ins : del_set)
+    //         {
+    //             split_from[ins].erase(del_ins);
+    //         }
+
+    //         auto streams = this->get_streams(ins);
+    //         // Collect concur instructions for each merge point.
+    //         for(auto& merge : split_from[ins])
+    //         {
+    //             for(auto stream : streams)
+    //             {
+    //                 if(result[merge].size() <= stream)
+    //                     result[merge].resize(stream + 1);
+    //                 auto&& r = result[merge][stream];
+    //                 r.push_back(ins);
+    //                 // Copy inputs if they dont have a stream(and are not a builtin and context
+    //                 // free). Inputs without a stream can have a implicit dependency
+    //                 std::copy_if(ins->inputs().begin(),
+    //                              ins->inputs().end(),
+    //                              std::back_inserter(r),
+    //                              [&](auto x) {
+    //                                  return not this->has_stream(x) and
+    //                                         not is_context_free(x->get_operator()) and
+    //                                         x->name().front() != '@';
+    //                              });
+    //             }
+    //         }
+    //     }
+    //     return result;
+    // }
 
     std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>
     get_conflicts(program& p)

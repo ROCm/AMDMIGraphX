@@ -272,7 +272,7 @@ struct dominator_info
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> split_from;
 
         std::size_t ins_num = 0;
-        const program& p = *p_prog;
+        const program& p    = *p_prog;
         for(auto ins : iterator_for(p))
         {
             std::cout << "ins_num = " << ins_num++ << ", name = " << ins->name() << std::endl;

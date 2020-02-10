@@ -71,7 +71,7 @@ struct dominator_info
     // compute post dominators
     void compute_dominator_reverse()
     {
-        const program& p = *p_prog;
+        const program& p    = *p_prog;
         std::size_t num_ins = p.size();
         if(num_ins == 0)
         {
@@ -135,7 +135,7 @@ struct dominator_info
     // compute prev dominators
     void compute_dominator_forward()
     {
-        const program& p = *p_prog;
+        const program& p    = *p_prog;
         std::size_t num_ins = p.size();
         if(num_ins == 0)
         {
@@ -262,21 +262,21 @@ struct dominator_info
         return false;
     }
 
-    using concur_ins = std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>>;
+    using concur_ins =
+        std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>>;
     concur_ins compute_concur_instructions()
     {
         concur_ins result;
         std::unordered_map<instruction_ref, bool> is_split;
         std::unordered_map<instruction_ref, bool> is_merge;
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> split_from;
-        
+
         const program& p = *p_prog;
         for(auto ins : iterator_for(p))
         {
-            if (!contains(ins2stream, ins))
+            if(!contains(ins2stream, ins))
                 continue;
 
-            
             auto stream = ins2stream[ins];
 
             is_split[ins] = is_split_point(ins);
@@ -297,7 +297,7 @@ struct dominator_info
                     // compute union
                     else
                     {
-                        for (auto&& arg_ins : split_from[arg])
+                        for(auto&& arg_ins : split_from[arg])
                         {
                             split_from[ins].insert(arg_ins);
                         }
@@ -318,9 +318,9 @@ struct dominator_info
 
                 // compute intersection
                 std::unordered_set<instruction_ref> inter_set;
-                for (auto&& arg_ins : split_from[ins])
+                for(auto&& arg_ins : split_from[ins])
                 {
-                    if (contains(del_set, arg_ins))
+                    if(contains(del_set, arg_ins))
                     {
                         inter_set.insert(arg_ins);
                     }
@@ -336,7 +336,7 @@ struct dominator_info
                     if(result.find(split) == result.end())
                     {
                         std::vector<std::vector<instruction_ref>> instr_stack;
-                        if (instr_stack.size() <= stream)
+                        if(instr_stack.size() <= stream)
                         {
                             instr_stack.resize(stream + 1);
                         }
@@ -350,7 +350,7 @@ struct dominator_info
         return result;
     }
 
-    const program *p_prog;
+    const program* p_prog;
     std::unordered_map<instruction_ref, std::size_t> ins2stream;
     std::unordered_map<instruction_ref, instruction_ref> ins2idom;
 };
@@ -665,10 +665,10 @@ struct stream_info
         di.compute_dominator_forward();
 
         std::cout << "merge_point_info = " << std::endl;
-        for (auto ins : iterator_for(p))
+        for(auto ins : iterator_for(p))
         {
             std::cout << "\t" << std::setw(20) << ins->name() << " is ";
-            if (!is_merge_point(ins))
+            if(!is_merge_point(ins))
             {
                 std::cout << "NOT ";
             }
@@ -803,7 +803,7 @@ struct stream_info
             std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
         conflict_table_type conflict_table;
         dominator_info di{&p, ins2stream, {}};
-        //auto concur_ins = this->find_concurrent_instructions_reverse(p);
+        // auto concur_ins = this->find_concurrent_instructions_reverse(p);
         auto concur_ins = di.compute_concur_instructions();
 
         std::vector<conflict_table_type> thread_conflict_tables(

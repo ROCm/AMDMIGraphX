@@ -230,7 +230,7 @@ struct miopen_apply
         {
             std::vector<instruction_ref> inputs_alias(last->inputs().size());
             auto& ret_inputs = last->inputs();
-            std::transform(ret_inputs.begin(), ret_inputs.end(), inputs_alias.begin(), [](auto& i) {
+            std::transform(ret_inputs.begin(), ret_inputs.end(), inputs_alias.begin(), [](const auto& i) {
                 return instruction::get_output_alias(i);
             });
 

@@ -183,13 +183,7 @@ struct dominator_info
             }
 
             ins2dominators[ins].insert(ins);
-            std::cout << "doms_size = " << ins2dominators[ins].size() << std::endl;
         }
-
-        std::cout << "dom_tree_size = " << ins_dom_tree.size() << std::endl;
-        std::cout << "dom_tree = " << std::endl;
-        print_dom_tree(ins_dom_tree);
-        std::cout << std::endl;
     }
 
     void find_dominator_tree(
@@ -222,138 +216,6 @@ struct dominator_info
                 ins_dom_tree[ins] = iter1;
             }
         }
-    }
-
-    bool is_split_point(instruction_ref ins)
-    {
-        int stream = -1;
-        for(auto&& arg : ins->outputs())
-        {
-            if(!contains(ins2stream, arg))
-                continue;
-
-            int arg_stream = ins2stream[arg];
-            if(arg_stream < 0)
-                continue;
-            if((stream >= 0) && (arg_stream != stream))
-                return true;
-            stream = arg_stream;
-        }
-        return false;
-    }
-
-    // Identify merge points.  A merge point has more than one
-    // inputs that are executed in different streams.
-    bool is_merge_point(instruction_ref ins)
-    {
-        int stream = -1;
-        for(auto&& arg : ins->inputs())
-        {
-            if(!contains(ins2stream, arg))
-                continue;
-
-            int arg_stream = ins2stream[arg];
-            if(arg_stream < 0)
-                continue;
-            if((stream >= 0) && (arg_stream != stream))
-                return true;
-            stream = arg_stream;
-        }
-        return false;
-    }
-
-    using concur_ins =
-        std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>>;
-    concur_ins compute_concur_instructions()
-    {
-        compute_dominator_reverse();
-
-        concur_ins result;
-        std::unordered_map<instruction_ref, bool> is_split;
-        std::unordered_map<instruction_ref, bool> is_merge;
-        std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> split_from;
-
-        std::size_t ins_num = 0;
-        const program& p    = *p_prog;
-        for(auto ins : iterator_for(p))
-        {
-            std::cout << "ins_num = " << ins_num++ << ", name = " << ins->name() << std::endl;
-            if(!contains(ins2stream, ins))
-                continue;
-
-            auto stream = ins2stream[ins];
-
-            is_split[ins] = is_split_point(ins);
-            is_merge[ins] = is_merge_point(ins);
-
-            for(auto&& arg : ins->inputs())
-            {
-                // Input is a split point.
-                if(is_split.find(arg) != is_split.end() and is_split[ins])
-                    split_from[ins].insert(arg);
-
-                // Union inputs' split points.
-                if((split_from.find(arg) != split_from.end()) && !split_from[arg].empty())
-                {
-                    if(split_from.find(ins) == split_from.end())
-                    {
-                        split_from[ins] = split_from[arg];
-                    }
-                    // compute union
-                    else
-                    {
-                        for(auto&& arg_ins : split_from[arg])
-                        {
-                            split_from[ins].insert(arg_ins);
-                        }
-                    }
-                }
-            }
-
-            if(is_merge[ins])
-            {
-                // assert(split_from.find(ins) != split_from.end());
-                std::unordered_set<instruction_ref> del_set;
-
-                // post-dominator kills split point.
-                for(auto& split : split_from[ins])
-                {
-                    if(strictly_dominate(ins, split))
-                        del_set.insert(split);
-                }
-
-                // compute difference
-                std::unordered_set<instruction_ref> inter_set = split_from[ins];
-                for(auto&& arg_ins : split_from[ins])
-                {
-                    if(contains(del_set, arg_ins))
-                    {
-                        inter_set.erase(arg_ins);
-                    }
-                }
-                split_from[ins] = inter_set;
-            }
-
-            if(split_from.find(ins) != split_from.end())
-            {
-                // Collect concur instructions for each split point.
-                for(auto& split : split_from[ins])
-                {
-                    if(!contains(result, split))
-                    {
-                        result[split];
-                    }
-
-                    if(result[split].size() <= stream)
-                    {
-                        result[split].resize(stream + 1);
-                    }
-                    result[split][stream].push_back(ins);
-                }
-            }
-        }
-
-        return result;
     }
 
     const program* p_prog;
@@ -661,85 +523,6 @@ struct stream_info
         return result;
     }
 
-    // In the reverse direction
-    std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>>
-    find_concurrent_instructions_reverse(program& p)
-    {
-        std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> result;
-        std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> merge_to;
-        dominator_info di{&p, ins2stream, {}};
-        di.compute_dominator_forward();
-
-        std::cout << "merge_point_info = " << std::endl;
-        for(auto ins : iterator_for(p))
-        {
-            std::cout << "\t" << std::setw(20) << ins->name() << " is ";
-            if(!is_merge_point(ins))
-            {
-                std::cout << "NOT ";
-            }
-            std::cout << "a merge point" << std::endl;
-        }
-        std::cout << std::endl << std::endl;
-
-        result.reserve(p.size());
-        merge_to.reserve(p.size());
-        for(auto ins : reverse_iterator_for(p))
-        {
-            std::cout << "ins_name = " << ins->name() << std::endl;
-            std::cout << "\toutputs " << ins->outputs().size() << ": " << std::endl;
-            for(auto&& output : ins->outputs())
-            {
-                std::cout << "\t\t" << output->name();
-                if(is_merge_point(output))
-                    merge_to[ins].insert(output);
-
-                merge_to[ins].insert(merge_to[output].begin(), merge_to[output].end());
-            }
-            std::cout << std::endl;
-
-            // assert(merge_to.find(ins) != merge_to.end());
-            std::unordered_set<instruction_ref> del_set;
-            for(auto merge : merge_to[ins])
-            {
-                if(di.strictly_dominate(ins, merge))
-                {
-                    del_set.insert(merge);
-                }
-            }
-
-            std::cout << "\t\t\tdel_set size = " << del_set.size() << std::endl;
-            for(auto del_ins : del_set)
-            {
-                merge_to[ins].erase(del_ins);
-            }
-
-            auto streams = this->get_streams(ins);
-            // Collect concur instructions for each merge point.
-            for(auto& merge : merge_to[ins])
-            {
-                for(auto stream : streams)
-                {
-                    if(result[merge].size() <= stream)
-                        result[merge].resize(stream + 1);
-                    auto&& r = result[merge][stream];
-                    r.push_back(ins);
-                    // Copy inputs if they dont have a stream(and are not a builtin and context
-                    // free). Inputs without a stream can have a implicit dependency
-                    std::copy_if(ins->inputs().begin(),
-                                 ins->inputs().end(),
-                                 std::back_inserter(r),
-                                 [&](auto x) {
-                                     return not this->has_stream(x) and
-                                            not is_context_free(x->get_operator()) and
-                                            x->name().front() != '@';
-                                 });
-                }
-            }
-        }
-        return result;
-    }
-
     // In the forward direction
     std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>>
     find_concurrent_instructions_forward(program& p)
@@ -802,49 +585,6 @@ struct stream_info
         return result;
     }
 
-    std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>>
-    find_concurrent_instructions(program& p)
-    {
-        std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> result;
-        std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> merge_from;
-        result.reserve(p.size());
-        merge_from.reserve(p.size());
-        for(auto ins : reverse_iterator_for(p))
-        {
-            for(auto&& arg : ins->outputs())
-            {
-                if(is_merge_point(arg))
-                    merge_from[ins].insert(arg);
-                merge_from[ins].insert(merge_from[arg].begin(), merge_from[arg].end());
-            }
-
-            auto streams = this->get_streams(ins);
-
-            // Collect concur instructions for each merge point.
-            for(auto& merge : merge_from[ins])
-            {
-                for(auto stream : streams)
-                {
-                    if(result[merge].size() <= stream)
-                        result[merge].resize(stream + 1);
-                    auto&& r = result[merge][stream];
-                    r.push_back(ins);
-                    // Copy inputs if they dont have a stream(and are not a builtin and context
-                    // free). Inputs without a stream can have a implicit dependency
-                    std::copy_if(ins->inputs().begin(),
-                                 ins->inputs().end(),
-                                 std::back_inserter(r),
-                                 [&](auto x) {
-                                     return not this->has_stream(x) and
-                                            not is_context_free(x->get_operator()) and
-                                            x->name().front() != '@';
-                                 });
-                }
-            }
-        }
-        return result;
-    }
-
     std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>
     get_conflicts(program& p)
     {
@@ -852,9 +592,7 @@ struct stream_info
             std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
         conflict_table_type conflict_table;
         dominator_info di{&p, ins2stream, {}};
-        // auto concur_ins = this->find_concurrent_instructions_reverse(p);
         auto concur_ins = this->find_concurrent_instructions_forward(p);
-        // auto concur_ins = di.compute_concur_instructions();
 
         std::vector<conflict_table_type> thread_conflict_tables(
             std::thread::hardware_concurrency());

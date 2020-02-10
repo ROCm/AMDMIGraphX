@@ -175,8 +175,9 @@ TEST_CASE(param_test)
     auto y = p.add_parameter("y", {migraphx::shape::int32_type});
 
     p.add_instruction(sum_op{}, x, y);
-    auto result = p.eval(
-        {{"x", migraphx::literal{1}.get_argument()}, {"y", migraphx::literal{2}.get_argument()}}).back();
+    auto result = p.eval({{"x", migraphx::literal{1}.get_argument()},
+                          {"y", migraphx::literal{2}.get_argument()}})
+                      .back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }

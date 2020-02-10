@@ -169,7 +169,7 @@ void run_verify_program()
     {
         passed &= verify_args(migraphx::get_type_name<V>(), cpu_arg[i], gpu_arg[i]);
     }
-    
+
     if(not passed)
     {
         V v;

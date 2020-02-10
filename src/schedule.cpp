@@ -83,20 +83,20 @@ struct dominator_info
 
         for(auto ins : reverse_iterator_for(p))
         {
-            // if(!contains(ins2stream, ins))
-            // {
-            //     continue;
-            // }
+            if(!contains(ins2stream, ins))
+            {
+                continue;
+            }
 
             instruction_ref ins_tmp = p.end();
             int output_num          = 0;
             // find dominators
             for(auto& output : ins->outputs())
             {
-                // if(!contains(ins2stream, output))
-                // {
-                //     continue;
-                // }
+                if(!contains(ins2stream, output))
+                {
+                    continue;
+                }
 
                 output_num++;
                 if(ins_tmp == p.end())
@@ -271,9 +271,11 @@ struct dominator_info
         std::unordered_map<instruction_ref, bool> is_merge;
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> split_from;
 
+        std::size_t ins_num = 0;
         const program& p = *p_prog;
         for(auto ins : iterator_for(p))
         {
+            std::cout << "ins_num = " << ins_num++ << ", name = " << ins->name() << std::endl;
             if(!contains(ins2stream, ins))
                 continue;
 
@@ -285,8 +287,9 @@ struct dominator_info
             for(auto&& arg : ins->inputs())
             {
                 // Input is a split point.
-                if(is_split.find(arg) != is_split.end())
+                if(is_split.find(arg) != is_split.end() and is_split[ins])
                     split_from[ins].insert(arg);
+
                 // Union inputs' split points.
                 if((split_from.find(arg) != split_from.end()) && !split_from[arg].empty())
                 {
@@ -309,6 +312,7 @@ struct dominator_info
             {
                 assert(split_from.find(ins) != split_from.end());
                 std::unordered_set<instruction_ref> del_set;
+
                 // post-dominator kills split point.
                 for(auto& split : split_from[ins])
                 {
@@ -316,13 +320,13 @@ struct dominator_info
                         del_set.insert(split);
                 }
 
-                // compute intersection
+                // compute difference
                 std::unordered_set<instruction_ref> inter_set;
                 for(auto&& arg_ins : split_from[ins])
                 {
                     if(contains(del_set, arg_ins))
                     {
-                        inter_set.insert(arg_ins);
+                        inter_set.erase(arg_ins);
                     }
                 }
                 split_from[ins] = inter_set;

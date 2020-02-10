@@ -162,21 +162,24 @@ void run_verify_program()
     auto gpu_arg   = run_gpu<V>(gpu_prog);
     auto cpu_arg   = cpu_arg_f.get();
 
+    bool passed = true;
+    passed &= (cpu_arg.size() == gpu_arg.size());
     std::size_t num = cpu_arg.size();
-    for(std::size_t i = 0; i < num; ++i)
+    for(std::size_t i = 0; ((i < num) and passed); ++i)
     {
-        bool passed = verify_args(migraphx::get_type_name<V>(), cpu_arg[i], gpu_arg[i]);
-        if(not passed)
-        {
-            V v;
-            auto p = v.create_program();
-            std::cout << p << std::endl;
-            std::cout << "cpu:\n" << cpu_prog << std::endl;
-            std::cout << "gpu:\n" << gpu_prog << std::endl;
-            std::cout << std::endl;
-        }
-        std::set_terminate(nullptr);
+        passed &= verify_args(migraphx::get_type_name<V>(), cpu_arg[i], gpu_arg[i]);
     }
+    
+    if(not passed)
+    {
+        V v;
+        auto p = v.create_program();
+        std::cout << p << std::endl;
+        std::cout << "cpu:\n" << cpu_prog << std::endl;
+        std::cout << "gpu:\n" << gpu_prog << std::endl;
+        std::cout << std::endl;
+    }
+    std::set_terminate(nullptr);
 }
 
 template <class T>

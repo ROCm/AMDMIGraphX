@@ -787,7 +787,7 @@ TEST_CASE(asinh_test)
     auto l = p.add_literal(migraphx::literal{s, data});
     p.add_instruction(migraphx::op::asinh{}, l);
     p.compile(migraphx::cpu::target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {-0.481211841, 0, 0.808866858};
@@ -802,7 +802,7 @@ TEST_CASE(acosh_test)
     auto l = p.add_literal(migraphx::literal{s, data});
     p.add_instruction(migraphx::op::acosh{}, l);
     p.compile(migraphx::cpu::target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0.4435683, 0.6223626, 1.316958};
@@ -816,7 +816,7 @@ TEST_CASE(atanh_test)
     auto l = p.add_literal(migraphx::literal{s, {0.4435683, 0.6223626, 0.316958}});
     p.add_instruction(migraphx::op::atanh{}, l);
     p.compile(migraphx::cpu::target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0.476664424, 0.728852153, 0.328261733};

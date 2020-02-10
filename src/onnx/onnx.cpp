@@ -37,78 +37,72 @@ struct onnx_parser
 
     onnx_parser()
     {
-        add_generic_op("Relu", op::relu{});
-        add_generic_op("Sigmoid", op::sigmoid{});
+        // sort onnx operator alphabetically through name
         add_generic_op("Abs", op::abs{});
-        add_generic_op("Exp", op::exp{});
-        add_generic_op("Erf", op::erf{});
-        add_generic_op("Log", op::log{});
-        // disable dropout for inference
-        add_generic_op("Dropout", op::identity{});
-        add_generic_op("Identity", op::identity{});
-        add_generic_op("Sin", op::sin{});
-        add_generic_op("Cos", op::cos{});
-        add_generic_op("Tan", op::tan{});
-        add_generic_op("Sinh", op::sinh{});
-        add_generic_op("Cosh", op::cosh{});
-        add_generic_op("Tanh", op::tanh{});
-        add_generic_op("Asin", op::asin{});
         add_generic_op("Acos", op::acos{});
+        add_generic_op("Acosh", op::acosh{});
+        add_generic_op("Asin", op::asin{});
+        add_generic_op("Asinh", op::asinh{});
         add_generic_op("Atan", op::atan{});
-        add_generic_op("Sqrt", op::sqrt{});
-        add_generic_op("Round", op::round{});
-        add_generic_op("Sign", op::sign{});
+        add_generic_op("Atanh", op::atanh{});
         add_generic_op("Ceil", op::ceil{});
+        add_generic_op("Cos", op::cos{});
+        add_generic_op("Cosh", op::cosh{});
+        add_generic_op("Erf", op::erf{});
+        add_generic_op("Exp", op::exp{});
+        add_generic_op("Dropout", op::identity{});
+        add_generic_op("Log", op::log{});
         add_generic_op("Floor", op::floor{});
+        add_generic_op("Identity", op::identity{});
+        add_generic_op("Relu", op::relu{});
+        add_generic_op("Round", op::round{});
+        add_generic_op("Sigmoid", op::sigmoid{});
+        add_generic_op("Sign", op::sign{});
+        add_generic_op("Sin", op::sin{});
+        add_generic_op("Sinh", op::sinh{});
+        add_generic_op("Sqrt", op::sqrt{});
+        add_generic_op("Tan", op::tan{});
+        add_generic_op("Tanh", op::tanh{});
 
         add_binary_op("Add", op::add{});
         add_binary_op("Div", op::div{});
         add_binary_op("Mul", op::mul{});
-        add_binary_op("Sub", op::sub{});
         add_binary_op("Pow", op::pow{});
+        add_binary_op("Sub", op::sub{});
 
         add_variadic_op("Sum", op::add{});
         add_variadic_op("Max", op::max{});
         add_variadic_op("Min", op::min{});
 
+        add_mem_op("AveragePool", &onnx_parser::parse_pooling);
         add_mem_op("ArgMax", &onnx_parser::parse_arg_op<op::argmax>);
         add_mem_op("ArgMin", &onnx_parser::parse_arg_op<op::argmin>);
+        add_mem_op("BatchNormalization", &onnx_parser::parse_batchnorm);
         add_mem_op("Cast", &onnx_parser::parse_cast);
         add_mem_op("Clip", &onnx_parser::parse_clip);
-        add_mem_op("LRN", &onnx_parser::parse_lrn);
-        add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
-        add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
-        add_mem_op("Elu", &onnx_parser::parse_elu);
-        add_mem_op("Expand", &onnx_parser::parse_expand);
-        add_mem_op("Constant", &onnx_parser::parse_constant);
-        add_mem_op("Conv", &onnx_parser::parse_conv);
-        add_mem_op("ConvTranspose", &onnx_parser::parse_conv_transpose);
-        add_mem_op("MaxPool", &onnx_parser::parse_pooling);
-        add_mem_op("AveragePool", &onnx_parser::parse_pooling);
-        add_mem_op("GlobalMaxPool", &onnx_parser::parse_pooling);
-        add_mem_op("GlobalAveragePool", &onnx_parser::parse_pooling);
-        add_mem_op("Reshape", &onnx_parser::parse_reshape);
-        add_mem_op("Flatten", &onnx_parser::parse_flatten);
-        add_mem_op("Gemm", &onnx_parser::parse_gemm);
-        add_mem_op("MatMul", &onnx_parser::parse_matmul);
-        add_mem_op("BatchNormalization", &onnx_parser::parse_batchnorm);
-        add_mem_op("InstanceNormalization", &onnx_parser::parse_instancenorm);
-        add_mem_op("Softmax", &onnx_parser::parse_softmax<op::softmax>);
-        add_mem_op("LogSoftmax", &onnx_parser::parse_softmax<op::logsoftmax>);
-        add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
-        add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
-        add_mem_op("Slice", &onnx_parser::parse_slice);
         add_mem_op("Concat", &onnx_parser::parse_concat);
-        add_mem_op("Gather", &onnx_parser::parse_gather);
-        add_mem_op("Shape", &onnx_parser::parse_shape);
+        add_mem_op("Constant", &onnx_parser::parse_constant);
         add_mem_op("ConstantFill", &onnx_parser::parse_constant_fill);
         add_mem_op("ConstantOfShape", &onnx_parser::parse_constant_of_shape);
-        add_mem_op("Transpose", &onnx_parser::parse_transpose);
-        add_mem_op("RNN", &onnx_parser::parse_rnn);
+        add_mem_op("Conv", &onnx_parser::parse_conv<op::convolution>);
+        add_mem_op("ConvInteger", &onnx_parser::parse_conv<op::quant_convolution>);
+        add_mem_op("ConvTranspose", &onnx_parser::parse_conv_transpose);
+        add_mem_op("Elu", &onnx_parser::parse_elu);
+        add_mem_op("Expand", &onnx_parser::parse_expand);
+        add_mem_op("Flatten", &onnx_parser::parse_flatten);
+        add_mem_op("Gather", &onnx_parser::parse_gather);
+        add_mem_op("Gemm", &onnx_parser::parse_gemm);
+        add_mem_op("GlobalAveragePool", &onnx_parser::parse_pooling);
+        add_mem_op("GlobalMaxPool", &onnx_parser::parse_pooling);
         add_mem_op("GRU", &onnx_parser::parse_gru);
-        add_mem_op("LSTM", &onnx_parser::parse_lstm);
-        add_mem_op("Pad", &onnx_parser::parse_pad);
-
+        add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
+        add_mem_op("InstanceNormalization", &onnx_parser::parse_instancenorm);
+        add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
+        add_mem_op("LogSoftmax", &onnx_parser::parse_softmax<op::logsoftmax>);
+        add_mem_op("LRN", &onnx_parser::parse_lrn);
+        add_mem_op("MatMul", &onnx_parser::parse_matmul<op::dot>);
+        add_mem_op("MatMulInteger", &onnx_parser::parse_matmul<op::quant_dot>);
+        add_mem_op("MaxPool", &onnx_parser::parse_pooling);
         add_mem_op("ReduceL1", &onnx_parser::parse_reduce_l1);
         add_mem_op("ReduceL2", &onnx_parser::parse_reduce_l2);
         add_mem_op("ReduceLogSum", &onnx_parser::parse_reduce_log_sum);
@@ -119,6 +113,16 @@ struct onnx_parser
         add_mem_op("ReduceProd", &onnx_parser::parse_reduce_oper<op::reduce_prod>);
         add_mem_op("ReduceSum", &onnx_parser::parse_reduce_oper<op::reduce_sum>);
         add_mem_op("ReduceSumSquare", &onnx_parser::parse_reduce_sum_square);
+        add_mem_op("Reshape", &onnx_parser::parse_reshape);
+        add_mem_op("RNN", &onnx_parser::parse_rnn);
+        add_mem_op("Pad", &onnx_parser::parse_pad);
+        add_mem_op("Shape", &onnx_parser::parse_shape);
+        add_mem_op("Slice", &onnx_parser::parse_slice);
+        add_mem_op("Softmax", &onnx_parser::parse_softmax<op::softmax>);
+        add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
+        add_mem_op("Transpose", &onnx_parser::parse_transpose);
+        add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
+        add_mem_op("LSTM", &onnx_parser::parse_lstm);
 
         // init the activation function map
         init_actv_func();
@@ -414,10 +418,11 @@ struct onnx_parser
         return ins;
     }
 
+    template <class Op>
     instruction_ref
     parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        op::convolution op;
+        Op op;
         auto l0 = args[0];
         if(contains(attributes, "pads"))
         {
@@ -829,6 +834,7 @@ struct onnx_parser
         return prog.add_instruction(op::dot{alpha, beta}, l1, l2);
     }
 
+    template <class Op>
     instruction_ref
     parse_matmul(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
@@ -877,7 +883,7 @@ struct onnx_parser
             }
         }
 
-        auto dot_res     = prog.add_instruction(op::dot{1.0f, 0.0f}, bl0, bl1);
+        auto dot_res     = prog.add_instruction(Op{1, 0}, bl0, bl1);
         int64_t num_axis = static_cast<int64_t>(dot_res->get_shape().lens().size());
         if(is_a_prepended)
         {
@@ -1715,6 +1721,22 @@ struct onnx_parser
         }
     }
 
+    void parse_from(const void* data, std::size_t size)
+    {
+        onnx::ModelProto model;
+        if(model.ParseFromArray(data, size))
+        {
+            if(model.has_graph())
+            {
+                this->parse_graph(model.graph());
+            }
+        }
+        else
+        {
+            MIGRAPHX_THROW("Failed reading onnx file.");
+        }
+    }
+
     void parse_graph(const onnx::GraphProto& graph)
     {
         nodes = get_nodes(graph);
@@ -2035,16 +2057,16 @@ struct onnx_parser
     }
 };
 
-program parse_onnx(const std::string& name, onnx_options options)
+template <class... Ts>
+program parse_onnx_from(onnx_options options, Ts&&... xs)
 {
-    std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     onnx_parser parser;
     parser.batch_size = options.batch_size;
 #ifndef NDEBUG
     // Log the program when it can't be parsed
     try
     {
-        parser.parse_from(input);
+        parser.parse_from(std::forward<Ts>(xs)...);
     }
     catch(...)
     {
@@ -2052,9 +2074,25 @@ program parse_onnx(const std::string& name, onnx_options options)
         throw;
     }
 #else
-    parser.parse_from(input);
+    parser.parse_from(std::forward<Ts>(xs)...);
 #endif
     return std::move(parser.prog);
+}
+
+program parse_onnx(const std::string& name, onnx_options options)
+{
+    std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
+    return parse_onnx_from(options, input);
+}
+
+program parse_onnx_buffer(const std::string& buffer, onnx_options options)
+{
+    return parse_onnx_from(options, buffer.data(), buffer.size());
+}
+
+program parse_onnx_buffer(const void* data, std::size_t size, onnx_options options)
+{
+    return parse_onnx_from(options, data, size);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

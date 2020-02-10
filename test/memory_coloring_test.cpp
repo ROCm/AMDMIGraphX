@@ -606,8 +606,8 @@ TEST_CASE(literal_test)
     auto lit = generate_literal(migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
     p.add_literal(lit);
     run_pass(p);
-    auto result = p.eval({});
-    CHECK(lit == result.back());
+    auto result = p.eval({}).back();
+    CHECK(lit == result);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

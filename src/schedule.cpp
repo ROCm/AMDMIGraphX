@@ -312,7 +312,7 @@ struct dominator_info
 
             if(is_merge[ins])
             {
-                //assert(split_from.find(ins) != split_from.end());
+                // assert(split_from.find(ins) != split_from.end());
                 std::unordered_set<instruction_ref> del_set;
 
                 // post-dominator kills split point.
@@ -344,7 +344,7 @@ struct dominator_info
                         result[split];
                     }
 
-                    if (result[split].size() <= stream)
+                    if(result[split].size() <= stream)
                     {
                         result[split].resize(stream + 1);
                     }
@@ -852,9 +852,9 @@ struct stream_info
             std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
         conflict_table_type conflict_table;
         dominator_info di{&p, ins2stream, {}};
-        //auto concur_ins = this->find_concurrent_instructions_reverse(p);
+        // auto concur_ins = this->find_concurrent_instructions_reverse(p);
         auto concur_ins = this->find_concurrent_instructions_forward(p);
-        //auto concur_ins = di.compute_concur_instructions();
+        // auto concur_ins = di.compute_concur_instructions();
 
         std::vector<conflict_table_type> thread_conflict_tables(
             std::thread::hardware_concurrency());

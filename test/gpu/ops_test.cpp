@@ -162,21 +162,24 @@ void run_verify_program()
     auto gpu_arg   = run_gpu<V>(gpu_prog);
     auto cpu_arg   = cpu_arg_f.get();
 
+    bool passed = true;
+    passed &= (cpu_arg.size() == gpu_arg.size());
     std::size_t num = cpu_arg.size();
-    for(std::size_t i = 0; i < num; ++i)
+    for(std::size_t i = 0; ((i < num) and passed); ++i)
     {
-        bool passed = verify_args(migraphx::get_type_name<V>(), cpu_arg[i], gpu_arg[i]);
-        if(not passed)
-        {
-            V v;
-            auto p = v.create_program();
-            std::cout << p << std::endl;
-            std::cout << "cpu:\n" << cpu_prog << std::endl;
-            std::cout << "gpu:\n" << gpu_prog << std::endl;
-            std::cout << std::endl;
-        }
-        std::set_terminate(nullptr);
+        passed &= verify_args(migraphx::get_type_name<V>(), cpu_arg[i], gpu_arg[i]);
     }
+
+    if(not passed)
+    {
+        V v;
+        auto p = v.create_program();
+        std::cout << p << std::endl;
+        std::cout << "cpu:\n" << cpu_prog << std::endl;
+        std::cout << "gpu:\n" << gpu_prog << std::endl;
+        std::cout << std::endl;
+    }
+    std::set_terminate(nullptr);
 }
 
 template <class T>
@@ -459,6 +462,44 @@ struct test_atan : verify_program<test_atan>
         migraphx::shape s{migraphx::shape::double_type, {16}};
         auto x = p.add_parameter("x", s);
         p.add_instruction(migraphx::op::atan{}, x);
+        return p;
+    }
+};
+
+struct test_asinh : verify_program<test_asinh>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::asinh{}, x);
+        return p;
+    }
+};
+
+struct test_acosh : verify_program<test_acosh>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {16}};
+        auto x  = p.add_parameter("x", s);
+        auto cx = p.add_instruction(migraphx::op::clip{100.0f, 1.1f}, x);
+        p.add_instruction(migraphx::op::acosh{}, cx);
+        return p;
+    }
+};
+
+struct test_atanh : verify_program<test_atanh>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {16}};
+        auto x  = p.add_parameter("x", s);
+        auto cx = p.add_instruction(migraphx::op::clip{0.95f, -0.95f}, x);
+        p.add_instruction(migraphx::op::atanh{}, cx);
         return p;
     }
 };

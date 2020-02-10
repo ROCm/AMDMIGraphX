@@ -779,6 +779,50 @@ TEST_CASE(atan_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(asinh_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    std::vector<float> data{-0.5f, 0.0f, 0.9f};
+    auto l = p.add_literal(migraphx::literal{s, data});
+    p.add_instruction(migraphx::op::asinh{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {-0.481211841, 0, 0.808866858};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(acosh_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::double_type, {3}};
+    std::vector<float> data{1.1f, 1.2f, 2.0f};
+    auto l = p.add_literal(migraphx::literal{s, data});
+    p.add_instruction(migraphx::op::acosh{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {0.4435683, 0.6223626, 1.316958};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(atanh_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::double_type, {3}};
+    auto l = p.add_literal(migraphx::literal{s, {0.4435683, 0.6223626, 0.316958}});
+    p.add_instruction(migraphx::op::atanh{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {0.476664424, 0.728852153, 0.328261733};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(add_test)
 {
     migraphx::program p;

@@ -499,7 +499,6 @@ struct stream_info
                 }
             }
 
-            std::cout << "del_set size = " << del_set.size() << std::endl;
             for(auto del_ins : del_set)
             {
                 split_from[ins].erase(del_ins);

@@ -132,60 +132,6 @@ struct dominator_info
         }
     }
 
-    // compute prev dominators
-    void compute_dominator_forward()
-    {
-        const program& p    = *p_prog;
-        std::size_t num_ins = p.size();
-        if(num_ins == 0)
-        {
-            return;
-        }
-
-        std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> ins2dominators;
-        auto& ins_dom_tree = ins2idom;
-
-        for(auto ins : iterator_for(p))
-        {
-            instruction_ref ins_tmp = p.end();
-            int input_num           = 0;
-            // find dominators
-            for(auto& input : ins->inputs())
-            {
-                input_num++;
-                if(ins_tmp == p.end())
-                {
-                    ins2dominators[ins] = ins2dominators[input];
-                }
-                else
-                {
-                    std::unordered_set<instruction_ref> dom_set;
-                    // compute intersection of doms of ins and output
-                    for(auto& it : ins2dominators[ins])
-                    {
-                        if(ins2dominators[input].find(it) != ins2dominators[input].end())
-                        {
-                            dom_set.insert(it);
-                        }
-                    }
-                    ins2dominators[ins] = dom_set;
-                }
-                ins_tmp = input;
-            }
-
-            if(input_num == 1)
-            {
-                ins_dom_tree[ins] = ins_tmp;
-            }
-            else if(input_num > 0)
-            {
-                find_dominator_tree(ins2dominators, ins, ins2idom, ins2idom);
-            }
-
-            ins2dominators[ins].insert(ins);
-        }
-    }
-
     void find_dominator_tree(
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>& ins2dominators,
         instruction_ref ins,

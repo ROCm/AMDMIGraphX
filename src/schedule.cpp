@@ -69,7 +69,7 @@ struct dominator_info
     }
 
     // compute post dominators
-    void compute_dominator_reverse()
+    void compute_dominator()
     {
         const program& p    = *p_prog;
         std::size_t num_ins = p.size();
@@ -471,12 +471,12 @@ struct stream_info
 
     // In the forward direction
     std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>>
-    find_concurrent_instructions_forward(program& p)
+    find_concurrent_instructions(program& p)
     {
         std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> result;
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> split_from;
         dominator_info di{&p, ins2stream, {}};
-        di.compute_dominator_reverse();
+        di.compute_dominator();
 
         result.reserve(p.size());
         split_from.reserve(p.size());
@@ -538,7 +538,7 @@ struct stream_info
             std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
         conflict_table_type conflict_table;
         dominator_info di{&p, ins2stream, {}};
-        auto concur_ins = this->find_concurrent_instructions_forward(p);
+        auto concur_ins = this->find_concurrent_instructions(p);
 
         std::vector<conflict_table_type> thread_conflict_tables(
             std::thread::hardware_concurrency());

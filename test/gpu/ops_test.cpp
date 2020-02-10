@@ -451,6 +451,44 @@ struct test_atan : verify_program<test_atan>
     }
 };
 
+struct test_asinh : verify_program<test_asinh>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {16}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::asinh{}, x);
+        return p;
+    }
+};
+
+struct test_acosh : verify_program<test_acosh>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {16}};
+        auto x  = p.add_parameter("x", s);
+        auto cx = p.add_instruction(migraphx::op::clip{100.0f, 1.1f}, x);
+        p.add_instruction(migraphx::op::acosh{}, cx);
+        return p;
+    }
+};
+
+struct test_atanh : verify_program<test_atanh>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {16}};
+        auto x  = p.add_parameter("x", s);
+        auto cx = p.add_instruction(migraphx::op::clip{0.95f, -0.95f}, x);
+        p.add_instruction(migraphx::op::atanh{}, cx);
+        return p;
+    }
+};
+
 struct test_scale : verify_program<test_scale>
 {
     migraphx::program create_program() const

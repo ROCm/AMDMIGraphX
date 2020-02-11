@@ -81,27 +81,17 @@ struct dominator_info
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> ins2dominators;
         auto& ins_dom_tree = ins2idom;
 
-        for(auto ins : reverse_iterator_for(p))
+        for(auto ins : iterator_for(p))
         {
-            if(!contains(ins2stream, ins))
-            {
-                continue;
-            }
-
             instruction_ref ins_tmp = p.end();
-            int output_num          = 0;
+            int input_num           = 0;
             // find dominators
-            for(auto& output : ins->outputs())
+            for(auto& input : ins->inputs())
             {
-                if(!contains(ins2stream, output))
-                {
-                    continue;
-                }
-
-                output_num++;
+                input_num++;
                 if(ins_tmp == p.end())
                 {
-                    ins2dominators[ins] = ins2dominators[output];
+                    ins2dominators[ins] = ins2dominators[input];
                 }
                 else
                 {
@@ -109,21 +99,21 @@ struct dominator_info
                     // compute intersection of doms of ins and output
                     for(auto& it : ins2dominators[ins])
                     {
-                        if(contains(ins2dominators[output], it))
+                        if(ins2dominators[input].find(it) != ins2dominators[input].end())
                         {
                             dom_set.insert(it);
                         }
                     }
                     ins2dominators[ins] = dom_set;
                 }
-                ins_tmp = output;
+                ins_tmp = input;
             }
 
-            if(output_num == 1)
+            if(input_num == 1)
             {
                 ins_dom_tree[ins] = ins_tmp;
             }
-            else if(output_num > 0)
+            else if(input_num > 0)
             {
                 find_dominator_tree(ins2dominators, ins, ins2idom, ins2idom);
             }
@@ -474,6 +464,8 @@ struct stream_info
     {
         std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> result;
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> merge_from;
+        dominator_info di{&p, ins2stream, {}};
+        di.compute_dominator();
         result.reserve(p.size());
         merge_from.reserve(p.size());
         for(auto ins : reverse_iterator_for(p))
@@ -485,8 +477,21 @@ struct stream_info
                 merge_from[ins].insert(merge_from[arg].begin(), merge_from[arg].end());
             }
 
-            auto streams = this->get_streams(ins);
+            std::unordered_set<instruction_ref> del_set;
+            for(auto split : merge_from[ins])
+            {
+                if(di.strictly_dominate(ins, split))
+                {
+                    del_set.insert(split);
+                }
+            }
 
+            for(auto del_ins : del_set)
+            {
+                merge_from[ins].erase(del_ins);
+            }
+
+            auto streams = this->get_streams(ins);
             // Collect concur instructions for each merge point.
             for(auto& merge : merge_from[ins])
             {

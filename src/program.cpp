@@ -270,7 +270,8 @@ instruction_ref program::add_parameter(std::string name, shape s)
     return impl->instructions.begin();
 }
 
-instruction_ref program::add_return(const std::vector<std::string>& names, std::vector<instruction_ref> args)
+instruction_ref program::add_return(const std::vector<std::string>& names,
+                                    std::vector<instruction_ref> args)
 {
     auto result =
         insert_instruction(impl->instructions.end(), builtin::add_return{names}, std::move(args));

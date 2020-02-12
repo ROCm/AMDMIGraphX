@@ -103,7 +103,7 @@ struct miopen_apply
     void get_output_names()
     {
         this->last = instruction::get_output_alias(std::prev(prog->end()));
-        if (this->last->name() == "add_return")
+        if(this->last->name() == "add_return")
         {
             auto& prog_outputs = last->inputs();
             std::vector<instruction_ref> outputs_alias(prog_outputs.size());
@@ -114,12 +114,11 @@ struct miopen_apply
                            outputs_alias.begin(),
                            [](const auto& i) { return instruction::get_output_alias(i); });
 
-
             // if no output names, use name "output_1, 2, 3..."
-            if (output_names.empty())
+            if(output_names.empty())
             {
                 std::size_t index = 0;
-                for (auto ins : outputs_alias)
+                for(auto ins : outputs_alias)
                 {
                     prog_output_names[ins] = "output_" + std::to_string(index++);
                 }
@@ -128,7 +127,7 @@ struct miopen_apply
             {
                 assert(output_names.size() == outputs_alias.size());
                 auto num = output_names.size();
-                for (std::size_t i = 0; i < num; ++i)
+                for(std::size_t i = 0; i < num; ++i)
                 {
                     prog_output_names[outputs_alias[i]] = "output_" + output_names.at(i);
                 }
@@ -227,7 +226,7 @@ struct miopen_apply
         if(ret->name() == "add_return")
         {
             auto& inputs = ret->inputs();
-            auto&& op = any_cast<builtin::add_return>(ret->get_operator());
+            auto&& op    = any_cast<builtin::add_return>(ret->get_operator());
 
             // each input of ret need to be copied from gpu to host
             std::vector<instruction_ref> ret_inputs;

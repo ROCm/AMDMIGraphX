@@ -134,9 +134,8 @@ std::vector<migraphx::argument> run_gpu(migraphx::program& p)
             migraphx::gpu::to_gpu(migraphx::generate_argument(x.second, get_hash(x.first)));
     }
     // Program should have an output parameter
-    EXPECT(std::any_of(m.begin(), m.end(), [](auto& x) {
-        return migraphx::contains(x.first, "output");
-    }));
+    EXPECT(std::any_of(
+        m.begin(), m.end(), [](auto& x) { return migraphx::contains(x.first, "output"); }));
 
     // Ensure the program doesn't modify the context in a dry run
     auto ctx = p.get_context();
@@ -2468,17 +2467,16 @@ struct test_rnn_two_outputs : verify_program<test_rnn_two_outputs>
         auto ih   = p.add_parameter("ih", ih_shape);
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
-        auto hs =
-            p.add_instruction(migraphx::op::rnn{hidden_size,
-                                                {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::forward,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih);
+        auto hs      = p.add_instruction(migraphx::op::rnn{hidden_size,
+                                                      {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                      migraphx::op::rnn_direction::forward,
+                                                      clip},
+                                    seq,
+                                    w,
+                                    r,
+                                    bias,
+                                    und,
+                                    ih);
         auto last_hs = p.add_instruction(migraphx::op::rnn_last_output{}, hs);
         p.add_return({}, {hs, last_hs});
 
@@ -3026,7 +3024,7 @@ struct test_gru_two_outputs : verify_program<test_gru_two_outputs>
         auto seq = p.add_parameter("seq", in_shape);
         auto w   = p.add_parameter("w", w_shape);
         auto r   = p.add_parameter("r", r_shape);
-        auto hs = p.add_instruction(
+        auto hs  = p.add_instruction(
             migraphx::op::gru{hidden_size, {}, migraphx::op::rnn_direction::forward, clip},
             seq,
             w,
@@ -3608,7 +3606,7 @@ struct test_lstm_two_outputs : verify_program<test_lstm_two_outputs>
         auto seq = p.add_parameter("seq", in_shape);
         auto w   = p.add_parameter("w", w_shape);
         auto r   = p.add_parameter("r", r_shape);
-        auto hs = p.add_instruction(
+        auto hs  = p.add_instruction(
             migraphx::op::lstm{
                 hidden_size,
                 {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
@@ -3644,7 +3642,7 @@ struct test_lstm_three_outputs : verify_program<test_lstm_three_outputs>
         auto seq = p.add_parameter("seq", in_shape);
         auto w   = p.add_parameter("w", w_shape);
         auto r   = p.add_parameter("r", r_shape);
-        auto hs = p.add_instruction(
+        auto hs  = p.add_instruction(
             migraphx::op::lstm{
                 hidden_size,
                 {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
@@ -3653,7 +3651,7 @@ struct test_lstm_three_outputs : verify_program<test_lstm_three_outputs>
             seq,
             w,
             r);
-        auto last_hs = p.add_instruction(migraphx::op::rnn_last_output{}, hs);
+        auto last_hs   = p.add_instruction(migraphx::op::rnn_last_output{}, hs);
         auto last_cell = p.add_instruction(migraphx::op::lstm_last_cell_output{}, hs);
         p.add_return({}, {hs, last_hs, last_cell});
 

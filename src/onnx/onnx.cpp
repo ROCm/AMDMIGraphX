@@ -1761,23 +1761,24 @@ struct onnx_parser
 
         // Find instructions corresponding to the output
         auto prog_output = graph.output();
-        std::vector<std::string> output_names;
+        std::vector<std::string> all_output_names, prog_output_names;
         std::transform(prog_output.begin(),
                        prog_output.end(),
-                       std::back_inserter(output_names),
+                       std::back_inserter(all_output_names),
                        [](auto& node) { return node.name(); });
-        std::remove_if(output_names.begin(), output_names.end(), [&](auto& name) {
-            return name.empty() or instructions.count(name) == 0;
+        std::copy_if(all_output_names.begin(), all_output_names.end(), 
+            std::back_inserter(prog_output_names), [&](const auto& name) {
+            return !(name.empty() or instructions.count(name) == 0);
         });
 
         std::vector<instruction_ref> output_ins;
-        std::transform(output_names.begin(),
-                       output_names.end(),
+        std::transform(prog_output_names.begin(),
+                       prog_output_names.end(),
                        std::back_inserter(output_ins),
-                       [&](auto& name) { return instructions[name]; });
+                       [&](const auto& name) { return instructions[name]; });
 
         // add the return instuction
-        prog.add_return(output_names, output_ins);
+        prog.add_return(prog_output_names, output_ins);
     }
 
     void parse_undefined(const std::string& name)

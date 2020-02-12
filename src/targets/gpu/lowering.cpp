@@ -270,20 +270,16 @@ struct miopen_apply
             return result;
         }
 
-        if(last->name() == "return")
+        if(last->name() == "return" and tag.empty() and prog_output_names.count(ins) > 0)
         {
-            if(prog_output_names.count(ins) > 0)
-            {
-                return prog->add_parameter(prog_output_names[ins], s);
-            }
+            return prog->add_parameter(prog_output_names[ins], s);
         }
         else if(ins == last and tag.empty())
         {
             return prog->add_parameter("output", s);
         }
 
-        auto result = prog->insert_instruction(ins, hip_allocate{s, std::move(tag)});
-        return result;
+        return prog->insert_instruction(ins, hip_allocate{s, std::move(tag)});
     }
 
     void add_convolution_op()

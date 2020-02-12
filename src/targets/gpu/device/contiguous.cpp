@@ -9,7 +9,7 @@ namespace device {
 
 void contiguous(hipStream_t stream, argument result, argument arg)
 {
-    nary(stream, std::move(result), std::move(arg))([](auto x) { return x; });
+    nary(stream, std::move(result), std::move(arg))([](auto x) __device__ { return x; });
 }
 
 } // namespace device

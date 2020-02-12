@@ -52,7 +52,7 @@ static void print_instruction(std::ostream& os,
         os << ")";
     }
 
-    if (ins->name() != "add_return")
+    if(ins->name() != "add_return")
         os << " -> " << ins->get_shape();
 }
 

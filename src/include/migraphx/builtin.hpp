@@ -65,6 +65,13 @@ struct param
 
 struct add_return
 {
+    std::vector<std::string> output_names;
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.output_names, "output_names"));
+    }
+
     std::string name() const { return "add_return"; }
     shape compute_shape(const std::vector<shape>&) const { return {}; }
     argument compute(context&, const shape&, const std::vector<argument>&) const { return {}; }

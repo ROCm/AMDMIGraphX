@@ -84,6 +84,7 @@ struct miopen_apply
     const lowering* pass = nullptr;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
+    std::unordered_map<instruction_ref, std::string> prog_output_names{};
 
     context& get_context()
     {
@@ -99,11 +100,48 @@ struct miopen_apply
         (void)i;
     }
 
+    void get_output_names()
+    {
+        this->last = instruction::get_output_alias(std::prev(prog->end()));
+        if (this->last->name() == "add_return")
+        {
+            auto& prog_outputs = last->inputs();
+            std::vector<instruction_ref> outputs_alias(prog_outputs.size());
+            auto& output_names = any_cast<builtin::add_return>(last->get_operator()).output_names;
+
+            std::transform(prog_outputs.begin(),
+                           prog_outputs.end(),
+                           outputs_alias.begin(),
+                           [](const auto& i) { return instruction::get_output_alias(i); });
+
+
+            // if no output names, use name "output_1, 2, 3..."
+            if (output_names.empty())
+            {
+                std::size_t index = 0;
+                for (auto ins : outputs_alias)
+                {
+                    prog_output_names[ins] = "output_" + std::to_string(index++);
+                }
+            }
+            else
+            {
+                assert(output_names.size() == outputs_alias.size());
+                auto num = output_names.size();
+                for (std::size_t i = 0; i < num; ++i)
+                {
+                    prog_output_names[outputs_alias[i]] = "output_" + output_names.at(i);
+                }
+            }
+        }
+    }
+
     void init()
     {
         assert(prog != nullptr);
         assert(pass != nullptr);
-        this->last = instruction::get_output_alias(std::prev(prog->end()));
+
+        get_output_names();
 
         add_miopen_simple_op<miopen_abs>("abs", make_abs);
 
@@ -189,6 +227,7 @@ struct miopen_apply
         if(ret->name() == "add_return")
         {
             auto& inputs = ret->inputs();
+            auto&& op = any_cast<builtin::add_return>(ret->get_operator());
 
             // each input of ret need to be copied from gpu to host
             std::vector<instruction_ref> ret_inputs;
@@ -199,7 +238,7 @@ struct miopen_apply
             }
 
             // Use copy result on host as program output
-            prog->replace_instruction(ret, builtin::add_return{}, ret_inputs);
+            prog->replace_instruction(ret, builtin::add_return{op.output_names}, ret_inputs);
         }
         // else branch to handle legacy program without the return instruction
         else
@@ -234,17 +273,9 @@ struct miopen_apply
 
         if(last->name() == "add_return")
         {
-            std::vector<instruction_ref> inputs_alias(last->inputs().size());
-            auto& ret_inputs = last->inputs();
-            std::transform(ret_inputs.begin(),
-                           ret_inputs.end(),
-                           inputs_alias.begin(),
-                           [](const auto& i) { return instruction::get_output_alias(i); });
-
-            if(contains(inputs_alias, ins))
+            if(prog_output_names.count(ins) > 0)
             {
-                std::string output_name = "migraphx_output_" + ins->name();
-                return prog->add_parameter(output_name, s);
+                return prog->add_parameter(prog_output_names[ins], s);
             }
         }
         else if(ins == last and tag.empty())

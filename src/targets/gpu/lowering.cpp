@@ -103,7 +103,7 @@ struct miopen_apply
     void get_output_names()
     {
         this->last = instruction::get_output_alias(std::prev(prog->end()));
-        if(this->last->name() == "add_return")
+        if(this->last->name() == "return")
         {
             auto& prog_outputs = last->inputs();
             std::vector<instruction_ref> outputs_alias(prog_outputs.size());
@@ -223,7 +223,7 @@ struct miopen_apply
 
         // return instruction
         auto ret = std::prev(prog->end());
-        if(ret->name() == "add_return")
+        if(ret->name() == "return")
         {
             auto& inputs = ret->inputs();
             auto&& op    = any_cast<builtin::add_return>(ret->get_operator());
@@ -270,7 +270,7 @@ struct miopen_apply
             return result;
         }
 
-        if(last->name() == "add_return")
+        if(last->name() == "return")
         {
             if(prog_output_names.count(ins) > 0)
             {

@@ -70,7 +70,7 @@ bool instruction::valid() const
     {
         computed = result;
     }
-    else if(op.name() == "add_return")
+    else if(op.name() == "return")
     {
         computed = {};
     }

@@ -52,7 +52,7 @@ static void print_instruction(std::ostream& os,
         os << ")";
     }
 
-    if(ins->name() != "add_return")
+    if(ins->name() != "return")
         os << " -> " << ins->get_shape();
 }
 
@@ -346,7 +346,7 @@ instruction_ref program::end() const { return impl->instructions.end(); }
 std::vector<shape> program::get_output_shapes() const
 {
     auto last_ins = impl->instructions.back();
-    if(last_ins.name() == "add_return")
+    if(last_ins.name() == "return")
     {
         auto& output_ins = last_ins.inputs();
         std::vector<shape> output_shapes;
@@ -437,7 +437,7 @@ std::vector<argument> generic_eval(const program& p,
                                     return argument{ins->get_shape(), nullptr};
                                 }));
         }
-        else if(name == "add_return")
+        else if(name == "return")
         {
             std::vector<argument> prog_outputs;
             std::transform(ins->inputs().begin(),
@@ -495,7 +495,7 @@ std::vector<argument> program::eval(parameter_map params) const
             auto result = check_context(f);
             ctx.finish();
             if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
-               ins->name() != "add_return")
+               ins->name() != "return")
                 std::cout << "Ouput: " << result << std::endl;
             return result;
         });

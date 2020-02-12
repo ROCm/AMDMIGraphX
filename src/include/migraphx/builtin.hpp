@@ -72,7 +72,7 @@ struct add_return
         return pack(f(self.output_names, "output_names"));
     }
 
-    std::string name() const { return "add_return"; }
+    std::string name() const { return "return"; }
     shape compute_shape(const std::vector<shape>&) const { return {}; }
     argument compute(context&, const shape&, const std::vector<argument>&) const { return {}; }
 };

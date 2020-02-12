@@ -1766,10 +1766,11 @@ struct onnx_parser
                        prog_output.end(),
                        std::back_inserter(all_output_names),
                        [](auto& node) { return node.name(); });
-        std::copy_if(all_output_names.begin(), all_output_names.end(), 
-            std::back_inserter(prog_output_names), [&](const auto& name) {
-            return !(name.empty() or instructions.count(name) == 0);
-        });
+        std::copy_if(
+            all_output_names.begin(),
+            all_output_names.end(),
+            std::back_inserter(prog_output_names),
+            [&](const auto& name) { return !(name.empty() or instructions.count(name) == 0); });
 
         std::vector<instruction_ref> output_ins;
         std::transform(prog_output_names.begin(),

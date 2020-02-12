@@ -52,7 +52,8 @@ static void print_instruction(std::ostream& os,
         os << ")";
     }
 
-    os << " -> " << ins->get_shape();
+    if (ins->name() != "add_return")
+        os << " -> " << ins->get_shape();
 }
 
 template <class F>

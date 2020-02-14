@@ -69,6 +69,10 @@ void eliminate_contiguous::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
     {
+        // return instruction should have inputs with standard shape
+        if (ins->name() == "return")
+            continue;
+            
         // Make a copy so we can modify it while we iterate
         auto args = ins->inputs();
         for(auto arg : ins->inputs())

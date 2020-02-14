@@ -1761,7 +1761,8 @@ struct onnx_parser
 
         // Find instructions corresponding to the output
         auto prog_output = graph.output();
-        std::vector<std::string> all_output_names, prog_output_names;
+        std::vector<std::string> all_output_names;
+        std::vector<std::string> prog_output_names;
         std::transform(prog_output.begin(),
                        prog_output.end(),
                        std::back_inserter(all_output_names),

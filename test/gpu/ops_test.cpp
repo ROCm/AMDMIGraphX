@@ -97,7 +97,7 @@ void compile_check(migraphx::program& p, const migraphx::target& t, bool show_tr
     if(shapes.size() != p.get_output_shapes().size())
     {
         std::cout << ss.str() << std::endl;
-        throw std::runtime_error("Compiling program with " + name + " alters its shape");
+        throw std::runtime_error("Compiling program with " + name + " alters its number of outputs");
     }
 
     auto num = shapes.size();

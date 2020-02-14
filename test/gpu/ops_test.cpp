@@ -88,20 +88,20 @@ auto get_hash(const T& x)
 
 void compile_check(migraphx::program& p, const migraphx::target& t, bool show_trace = false)
 {
-    auto name = t.name();
-    auto shapes    = p.get_output_shapes();
+    auto name   = t.name();
+    auto shapes = p.get_output_shapes();
     std::stringstream ss;
     migraphx::compile_options options;
     options.trace = migraphx::tracer{ss};
     p.compile(t, options);
-    if (shapes.size() != p.get_output_shapes().size())
+    if(shapes.size() != p.get_output_shapes().size())
     {
         std::cout << ss.str() << std::endl;
         throw std::runtime_error("Compiling program with " + name + " alters its shape");
     }
 
     auto num = shapes.size();
-    for (std::size_t i = 0; i < num; ++i)
+    for(std::size_t i = 0; i < num; ++i)
     {
         if(p.get_output_shapes()[i].lens() != shapes[i].lens())
         {
@@ -3691,7 +3691,7 @@ struct test_lstm_three_outputs : verify_program<test_lstm_three_outputs>
             w,
             r);
         auto last_hs   = p.add_instruction(migraphx::op::rnn_last_output{}, hs);
-            auto last_cell = p.add_instruction(migraphx::op::lstm_last_cell_output{}, hs);
+        auto last_cell = p.add_instruction(migraphx::op::lstm_last_cell_output{}, hs);
         p.add_return({}, {hs, last_hs, last_cell});
 
         return p;

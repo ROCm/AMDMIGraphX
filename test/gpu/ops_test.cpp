@@ -89,16 +89,27 @@ auto get_hash(const T& x)
 void compile_check(migraphx::program& p, const migraphx::target& t, bool show_trace = false)
 {
     auto name = t.name();
-    auto s    = p.get_output_shapes().back();
+    auto shapes    = p.get_output_shapes();
     std::stringstream ss;
     migraphx::compile_options options;
     options.trace = migraphx::tracer{ss};
     p.compile(t, options);
-    if(p.get_output_shapes().back() != s)
+    if (shapes.size() != p.get_output_shapes().size())
     {
         std::cout << ss.str() << std::endl;
         throw std::runtime_error("Compiling program with " + name + " alters its shape");
     }
+
+    auto num = shapes.size();
+    for (std::size_t i = 0; i < num; ++i)
+    {
+        if(p.get_output_shapes()[i].lens() != shapes[i].lens())
+        {
+            std::cout << ss.str() << std::endl;
+            throw std::runtime_error("Compiling program with " + name + " alters its shape");
+        }
+    }
+
     if(show_trace)
     {
         std::cout << ss.str() << std::endl;
@@ -415,6 +426,21 @@ struct test_trans_tanh : verify_program<test_trans_tanh>
         auto tanhx = p.add_instruction(migraphx::op::tanh{}, tx);
         auto r     = p.add_instruction(migraphx::op::add{}, tanhx, tanhx);
         p.add_instruction(migraphx::op::contiguous{}, r);
+
+        return p;
+    }
+};
+
+struct test_trans_tanh1 : verify_program<test_trans_tanh1>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x  = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto tx = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
+        auto tanhx = p.add_instruction(migraphx::op::tanh{}, tx);
+        auto r     = p.add_instruction(migraphx::op::add{}, tanhx, tanhx);
+        p.add_return({}, {tx, r});
 
         return p;
     }
@@ -1818,6 +1844,19 @@ struct test_transpose : verify_program<test_transpose>
         std::vector<int64_t> perm = {0, 2, 3, 1};
         auto l                    = p.add_instruction(migraphx::op::transpose{perm}, x);
         p.add_instruction(migraphx::op::contiguous{}, l);
+        return p;
+    }
+};
+
+struct test_trans_ret : verify_program<test_trans_ret>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto x  = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto tx = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
+        p.add_return({}, {tx});
+
         return p;
     }
 };
@@ -3652,7 +3691,7 @@ struct test_lstm_three_outputs : verify_program<test_lstm_three_outputs>
             w,
             r);
         auto last_hs   = p.add_instruction(migraphx::op::rnn_last_output{}, hs);
-        auto last_cell = p.add_instruction(migraphx::op::lstm_last_cell_output{}, hs);
+            auto last_cell = p.add_instruction(migraphx::op::lstm_last_cell_output{}, hs);
         p.add_return({}, {hs, last_hs, last_cell});
 
         return p;

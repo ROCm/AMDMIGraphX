@@ -49,7 +49,7 @@ TEST_CASE(basic)
     p.add_instruction(pass_op{}, a3, p2);
 
     run_pass(p);
-    EXPECT(p.get_shape() == migraphx::shape{migraphx::shape::float_type, {200}});
+    EXPECT(p.get_output_shapes().back() == migraphx::shape{migraphx::shape::float_type, {200}});
     EXPECT(p.get_parameter_shape("memory").bytes() == (8 * 4 + 40 * 4 + 200 * 4));
 }
 
@@ -66,7 +66,7 @@ TEST_CASE(aligned)
     p.add_instruction(pass_op{}, a3, p2);
 
     run_pass(p);
-    EXPECT(p.get_shape() == migraphx::shape{migraphx::shape::float_type, {200}});
+    EXPECT(p.get_output_shapes().back() == migraphx::shape{migraphx::shape::float_type, {200}});
     EXPECT(p.get_parameter_shape("memory").bytes() == (32 + 32 + 200 * 4));
 }
 
@@ -83,7 +83,7 @@ TEST_CASE(unaligned)
     p.add_instruction(pass_op{}, a3, p2);
 
     run_pass(p, 1);
-    EXPECT(p.get_shape() == migraphx::shape{migraphx::shape::float_type, {200}});
+    EXPECT(p.get_output_shapes().back() == migraphx::shape{migraphx::shape::float_type, {200}});
     EXPECT(p.get_parameter_shape("memory").bytes() == (1 * 4 + 2 * 4 + 200 * 4));
 }
 
@@ -100,7 +100,7 @@ TEST_CASE(float_aligned)
     p.add_instruction(pass_op{}, a3, p2);
 
     run_pass(p, 4);
-    EXPECT(p.get_shape() == migraphx::shape{migraphx::shape::float_type, {200}});
+    EXPECT(p.get_output_shapes().back() == migraphx::shape{migraphx::shape::float_type, {200}});
     EXPECT(p.get_parameter_shape("memory").bytes() == (1 * 4 + 2 * 4 + 200 * 4));
 }
 

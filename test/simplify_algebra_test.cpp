@@ -271,9 +271,9 @@ TEST_CASE(simplify_add_conv1)
     auto conv2 = p.add_instruction(migraphx::op::convolution{}, y, v);
     auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
     p.add_instruction(pass_op{}, sum);
-    auto s = p.get_shape();
+    auto s = p.get_output_shapes().back();
     run_pass(p);
-    EXPECT(s == p.get_shape());
+    EXPECT(s == p.get_output_shapes().back());
     EXPECT(std::count_if(
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
 }
@@ -291,9 +291,9 @@ TEST_CASE(simplify_add_conv_no_fusion_7x7_diff_strides)
     auto conv2 = p.add_instruction(migraphx::op::convolution{{0, 0}, {3, 3}}, y, v);
     auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
     p.add_instruction(pass_op{}, sum);
-    auto s = p.get_shape();
+    auto s = p.get_output_shapes().back();
     run_pass(p);
-    EXPECT(s == p.get_shape());
+    EXPECT(s == p.get_output_shapes().back());
     // No fusion
     EXPECT(std::count_if(
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
@@ -312,9 +312,9 @@ TEST_CASE(simplify_add_conv_1x1_diff_strides1)
     auto conv2 = p.add_instruction(migraphx::op::convolution{{0, 0}, {2, 2}}, y, v);
     auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
     p.add_instruction(pass_op{}, sum);
-    auto s = p.get_shape();
+    auto s = p.get_output_shapes().back();
     run_pass(p);
-    EXPECT(s == p.get_shape());
+    EXPECT(s == p.get_output_shapes().back());
     EXPECT(std::count_if(
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
 }
@@ -332,9 +332,9 @@ TEST_CASE(simplify_add_conv_1x1_diff_strides2)
     auto conv2 = p.add_instruction(migraphx::op::convolution{}, y, v);
     auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
     p.add_instruction(pass_op{}, sum);
-    auto s = p.get_shape();
+    auto s = p.get_output_shapes().back();
     run_pass(p);
-    EXPECT(s == p.get_shape());
+    EXPECT(s == p.get_output_shapes().back());
     EXPECT(std::count_if(
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
 }
@@ -352,9 +352,9 @@ TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides1)
     auto conv2 = p.add_instruction(migraphx::op::convolution{}, y, v);
     auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
     p.add_instruction(pass_op{}, sum);
-    auto s = p.get_shape();
+    auto s = p.get_output_shapes().back();
     run_pass(p);
-    EXPECT(s == p.get_shape());
+    EXPECT(s == p.get_output_shapes().back());
     // No fusion
     EXPECT(std::count_if(
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
@@ -373,9 +373,9 @@ TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides2)
     auto conv2 = p.add_instruction(migraphx::op::convolution{{0, 0}, {2, 1}}, y, v);
     auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
     p.add_instruction(pass_op{}, sum);
-    auto s = p.get_shape();
+    auto s = p.get_output_shapes().back();
     run_pass(p);
-    EXPECT(s == p.get_shape());
+    EXPECT(s == p.get_output_shapes().back());
     // No fusion
     EXPECT(std::count_if(
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);

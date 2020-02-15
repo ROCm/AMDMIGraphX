@@ -13,8 +13,8 @@ TEST_CASE(simple_test)
     p.add_instruction(sum_op{}, one, two);
     EXPECT(bool{p.validate() == p.end()});
     auto result = p.eval({});
-    EXPECT(result == migraphx::literal{3});
-    EXPECT(result != migraphx::literal{4});
+    EXPECT(result.back() == migraphx::literal{3});
+    EXPECT(result.back() != migraphx::literal{4});
 }
 
 TEST_CASE(out_of_order)

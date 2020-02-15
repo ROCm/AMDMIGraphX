@@ -88,12 +88,12 @@ auto get_hash(const T& x)
 void compile_check(migraphx::program& p, const migraphx::target& t, bool show_trace = false)
 {
     auto name = t.name();
-    auto s    = p.get_shape();
+    auto s    = p.get_output_shapes().back();
     std::stringstream ss;
     migraphx::compile_options options;
     options.trace = migraphx::tracer{ss};
     p.compile(t, options);
-    if(p.get_shape() != s)
+    if(p.get_output_shapes().back() != s)
     {
         std::cout << ss.str() << std::endl;
         throw std::runtime_error("Compiling program with " + name + " alters its shape");
@@ -105,7 +105,7 @@ void compile_check(migraphx::program& p, const migraphx::target& t, bool show_tr
 }
 
 template <class V>
-migraphx::argument run_cpu(migraphx::program& p)
+std::vector<migraphx::argument> run_cpu(migraphx::program& p)
 {
     V v;
     p = v.create_program();
@@ -120,7 +120,7 @@ migraphx::argument run_cpu(migraphx::program& p)
 }
 
 template <class V>
-migraphx::argument run_gpu(migraphx::program& p)
+std::vector<migraphx::argument> run_gpu(migraphx::program& p)
 {
     V v;
     p = v.create_program();
@@ -141,7 +141,14 @@ migraphx::argument run_gpu(migraphx::program& p)
     p.dry_run(m);
     EXPECT(is_shared(ctx, p.get_context()));
     p.eval(m);
-    return migraphx::gpu::from_gpu(p.eval(m));
+
+    auto gpu_res = p.eval(m);
+    std::vector<migraphx::argument> res(gpu_res.size());
+    std::transform(gpu_res.begin(), gpu_res.end(), res.begin(), [&](auto& argu) {
+        return migraphx::gpu::from_gpu(argu);
+    });
+
+    return res;
 }
 
 template <class V>
@@ -154,7 +161,15 @@ void run_verify_program()
     auto cpu_arg_f = detach_async([&] { return run_cpu<V>(cpu_prog); });
     auto gpu_arg   = run_gpu<V>(gpu_prog);
     auto cpu_arg   = cpu_arg_f.get();
-    bool passed    = verify_args(migraphx::get_type_name<V>(), cpu_arg, gpu_arg);
+
+    bool passed = true;
+    passed &= (cpu_arg.size() == gpu_arg.size());
+    std::size_t num = cpu_arg.size();
+    for(std::size_t i = 0; ((i < num) and passed); ++i)
+    {
+        passed &= verify_args(migraphx::get_type_name<V>(), cpu_arg[i], gpu_arg[i]);
+    }
+
     if(not passed)
     {
         V v;
@@ -1759,7 +1774,7 @@ struct test_contiguous : verify_program<test_contiguous>
         migraphx::shape s{migraphx::shape::float_type, {4, 4, 4, 3}, {48, 4, 1, 16}};
         auto x = p.add_parameter("x", s);
         p.add_instruction(migraphx::op::contiguous{}, x);
-        EXPECT(p.get_shape().standard());
+        EXPECT(p.get_output_shapes().back().standard());
         return p;
     }
 };
@@ -1772,7 +1787,7 @@ struct test_contiguous_broadcast : verify_program<test_contiguous_broadcast>
         migraphx::shape s{migraphx::shape::float_type, {1, 2}, {0, 1}};
         auto x = p.add_parameter("x", s);
         p.add_instruction(migraphx::op::contiguous{}, x);
-        EXPECT(p.get_shape().standard());
+        EXPECT(p.get_output_shapes().back().standard());
         return p;
     }
 };
@@ -1785,7 +1800,7 @@ struct test_contiguous_broadcast_transpose : verify_program<test_contiguous_broa
         migraphx::shape s{migraphx::shape::float_type, {1, 3072, 768}, {0, 1, 3072}};
         auto x = p.add_parameter("x", s);
         p.add_instruction(migraphx::op::contiguous{}, x);
-        EXPECT(p.get_shape().standard());
+        EXPECT(p.get_output_shapes().back().standard());
         return p;
     }
 };
@@ -2270,7 +2285,7 @@ void manual_identity()
     {
         m[x.first] = migraphx::gpu::to_gpu(migraphx::generate_argument(x.second));
     }
-    auto result = migraphx::gpu::from_gpu(p.eval(m));
+    auto result = migraphx::gpu::from_gpu(p.eval(m).back());
     std::cout << result << std::endl;
 }
 
@@ -2299,7 +2314,7 @@ void manual_test_concat_relu()
     {
         m[x.first] = migraphx::gpu::to_gpu(migraphx::generate_argument(x.second));
     }
-    auto result = migraphx::gpu::from_gpu(p.eval(m));
+    auto result = migraphx::gpu::from_gpu(p.eval(m).back());
     std::cout << result << std::endl;
 }
 

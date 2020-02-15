@@ -56,7 +56,7 @@ TEST_CASE(int8_quantization)
             }
         }
 
-        auto result = t.copy_from(p.eval(m));
+        auto result = t.copy_from(p.eval(m).back());
         result.visit([&](auto v) { res.assign(v.begin(), v.end()); });
     };
 

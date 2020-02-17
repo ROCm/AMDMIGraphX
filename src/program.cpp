@@ -433,9 +433,7 @@ std::vector<argument> generic_eval(const program& p,
         }
         else if(name == "@outline")
         {
-            results.emplace(ins, trace(ins, [&] {
-                                    return argument{ins->get_shape(), nullptr};
-                                }));
+            results.emplace(ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
         }
         else if(name == "return")
         {
@@ -459,9 +457,8 @@ std::vector<argument> generic_eval(const program& p,
                     return results[i];
                 });
             results.emplace(ins, trace(ins, [&] {
-                                    return ins->get_operator().compute(
-                                        ctx, ins->get_shape(), values);
-                                }));
+                                return ins->get_operator().compute(ctx, ins->get_shape(), values);
+                            }));
         }
         assert(results.find(ins) != results.end());
     }

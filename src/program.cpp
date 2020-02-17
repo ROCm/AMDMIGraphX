@@ -406,8 +406,8 @@ std::vector<argument> generic_eval(const program& p,
                                    F trace)
 {
     assert(p.validate() == p.end());
-    std::unordered_map<instruction_ref, argument> ins_results;
-    ins_results.reserve(p.size() * 2);
+    std::unordered_map<instruction_ref, argument> results;
+    results.reserve(p.size() * 2);
     std::vector<argument> values;
     values.reserve(16);
     for(auto ins : iterator_for(p))
@@ -415,11 +415,11 @@ std::vector<argument> generic_eval(const program& p,
         const auto& name = ins->name();
         if(name == "@literal")
         {
-            ins_results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
+            results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
         }
         else if(name == "@param")
         {
-            ins_results.emplace(
+            results.emplace(
                 ins, trace(ins, [&] {
                     auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
                     if(not contains(params, param_name))
@@ -433,7 +433,7 @@ std::vector<argument> generic_eval(const program& p,
         }
         else if(name == "@outline")
         {
-            ins_results.emplace(ins, trace(ins, [&] {
+            results.emplace(ins, trace(ins, [&] {
                                     return argument{ins->get_shape(), nullptr};
                                 }));
         }
@@ -444,8 +444,8 @@ std::vector<argument> generic_eval(const program& p,
                            ins->inputs().end(),
                            std::back_inserter(prog_outputs),
                            [&](instruction_ref i) {
-                               assert(ins_results.find(i) != ins_results.end());
-                               return ins_results[i];
+                               assert(results.find(i) != results.end());
+                               return results[i];
                            });
 
             return prog_outputs;
@@ -455,18 +455,18 @@ std::vector<argument> generic_eval(const program& p,
             values.resize(ins->inputs().size());
             std::transform(
                 ins->inputs().begin(), ins->inputs().end(), values.begin(), [&](instruction_ref i) {
-                    assert(ins_results.find(i) != ins_results.end());
-                    return ins_results[i];
+                    assert(results.find(i) != results.end());
+                    return results[i];
                 });
-            ins_results.emplace(ins, trace(ins, [&] {
+            results.emplace(ins, trace(ins, [&] {
                                     return ins->get_operator().compute(
                                         ctx, ins->get_shape(), values);
                                 }));
         }
-        assert(ins_results.find(ins) != ins_results.end());
+        assert(results.find(ins) != results.end());
     }
 
-    return {ins_results.at(std::prev(p.end()))};
+    return {results.at(std::prev(p.end()))};
 }
 
 std::vector<argument> program::eval(parameter_map params) const

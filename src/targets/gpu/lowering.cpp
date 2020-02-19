@@ -100,37 +100,23 @@ struct miopen_apply
         (void)i;
     }
 
-    void get_output_names()
+    void create_output_names()
     {
         this->last = instruction::get_output_alias(std::prev(prog->end()));
         if(this->last->name() == "return")
         {
             auto& prog_outputs = last->inputs();
             std::vector<instruction_ref> outputs_alias(prog_outputs.size());
-            auto& output_names = any_cast<builtin::add_return>(last->get_operator()).output_names;
 
             std::transform(prog_outputs.begin(),
                            prog_outputs.end(),
                            outputs_alias.begin(),
                            [](const auto& i) { return instruction::get_output_alias(i); });
 
-            // if no output names, use name "output_1, 2, 3..."
-            if(output_names.empty())
+            std::size_t index = 0;
+            for(auto ins : outputs_alias)
             {
-                std::size_t index = 0;
-                for(auto ins : outputs_alias)
-                {
-                    prog_output_names[ins] = "output_" + std::to_string(index++);
-                }
-            }
-            else
-            {
-                assert(output_names.size() == outputs_alias.size());
-                auto num = output_names.size();
-                for(std::size_t i = 0; i < num; ++i)
-                {
-                    prog_output_names[outputs_alias[i]] = "output_" + output_names.at(i);
-                }
+                prog_output_names[ins] = "output_" + std::to_string(index++);
             }
         }
     }
@@ -140,7 +126,7 @@ struct miopen_apply
         assert(prog != nullptr);
         assert(pass != nullptr);
 
-        get_output_names();
+        create_output_names();
 
         add_miopen_simple_op<miopen_abs>("abs", make_abs);
 
@@ -237,7 +223,7 @@ struct miopen_apply
             }
 
             // Use copy result on host as program output
-            prog->replace_instruction(ret, builtin::add_return{op.output_names}, ret_inputs);
+            prog->replace_instruction(ret, builtin::add_return{}, ret_inputs);
         }
         // else branch to handle legacy program without the return instruction
         else

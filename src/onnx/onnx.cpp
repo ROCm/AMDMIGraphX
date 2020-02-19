@@ -1780,7 +1780,7 @@ struct onnx_parser
                        [&](const auto& name) { return instructions[name]; });
 
         // add the return instuction
-        prog.add_return(prog_output_names, output_ins);
+        prog.add_return(output_ins);
     }
 
     void parse_undefined(const std::string& name)

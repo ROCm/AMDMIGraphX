@@ -441,7 +441,7 @@ struct test_trans_tanh1 : verify_program<test_trans_tanh1>
         auto tx = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
         auto tanhx = p.add_instruction(migraphx::op::tanh{}, tx);
         auto r     = p.add_instruction(migraphx::op::add{}, tanhx, tanhx);
-        p.add_return({}, {tx, r});
+        p.add_return({tx, r});
 
         return p;
     }
@@ -1856,7 +1856,7 @@ struct test_trans_ret : verify_program<test_trans_ret>
         migraphx::program p;
         auto x  = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto tx = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
-        p.add_return({}, {tx});
+        p.add_return({tx});
 
         return p;
     }
@@ -2518,7 +2518,7 @@ struct test_rnn_two_outputs : verify_program<test_rnn_two_outputs>
                                     und,
                                     ih);
         auto last_hs = p.add_instruction(migraphx::op::rnn_last_output{}, hs);
-        p.add_return({}, {hs, last_hs});
+        p.add_return({hs, last_hs});
 
         return p;
     }
@@ -3070,7 +3070,7 @@ struct test_gru_two_outputs : verify_program<test_gru_two_outputs>
             w,
             r);
         auto last_hs = p.add_instruction(migraphx::op::rnn_last_output{}, hs);
-        p.add_return({}, {hs, last_hs});
+        p.add_return({hs, last_hs});
 
         return p;
     }
@@ -3656,7 +3656,7 @@ struct test_lstm_two_outputs : verify_program<test_lstm_two_outputs>
             w,
             r);
         auto last_hs = p.add_instruction(migraphx::op::rnn_last_output{}, hs);
-        p.add_return({}, {hs, last_hs});
+        p.add_return({hs, last_hs});
 
         return p;
     }
@@ -3693,7 +3693,7 @@ struct test_lstm_three_outputs : verify_program<test_lstm_three_outputs>
             r);
         auto last_hs   = p.add_instruction(migraphx::op::rnn_last_output{}, hs);
         auto last_cell = p.add_instruction(migraphx::op::lstm_last_cell_output{}, hs);
-        p.add_return({}, {hs, last_hs, last_cell});
+        p.add_return({hs, last_hs, last_cell});
 
         return p;
     }

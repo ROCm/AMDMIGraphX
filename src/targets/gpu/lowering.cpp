@@ -16,6 +16,7 @@
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
+#include <migraphx/gpu/deconvolution.hpp>
 #include <migraphx/gpu/quant_convolution.hpp>
 #include <migraphx/gpu/contiguous.hpp>
 #include <migraphx/gpu/relu.hpp>
@@ -41,6 +42,9 @@
 #include <migraphx/gpu/asin.hpp>
 #include <migraphx/gpu/acos.hpp>
 #include <migraphx/gpu/atan.hpp>
+#include <migraphx/gpu/asinh.hpp>
+#include <migraphx/gpu/acosh.hpp>
+#include <migraphx/gpu/atanh.hpp>
 #include <migraphx/gpu/mul.hpp>
 #include <migraphx/gpu/max.hpp>
 #include <migraphx/gpu/min.hpp>
@@ -53,15 +57,16 @@
 #include <migraphx/gpu/lrn.hpp>
 #include <migraphx/gpu/convert.hpp>
 #include <migraphx/gpu/clip.hpp>
-#include <migraphx/gpu/reduce_sum.hpp>
 #include <migraphx/gpu/round.hpp>
 #include <migraphx/gpu/ceil.hpp>
 #include <migraphx/gpu/floor.hpp>
 #include <migraphx/gpu/rsqrt.hpp>
 #include <migraphx/gpu/sqrt.hpp>
+#include <migraphx/gpu/reduce_max.hpp>
 #include <migraphx/gpu/reduce_mean.hpp>
 #include <migraphx/gpu/reduce_min.hpp>
-#include <migraphx/gpu/reduce_max.hpp>
+#include <migraphx/gpu/reduce_prod.hpp>
+#include <migraphx/gpu/reduce_sum.hpp>
 #include <migraphx/gpu/pow.hpp>
 #include <migraphx/gpu/sqdiff.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
@@ -119,6 +124,9 @@ struct miopen_apply
         add_generic_op<hip_asin>("asin");
         add_generic_op<hip_acos>("acos");
         add_generic_op<hip_atan>("atan");
+        add_generic_op<hip_asinh>("asinh");
+        add_generic_op<hip_acosh>("acosh");
+        add_generic_op<hip_atanh>("atanh");
         add_generic_op<hip_sqrt>("sqrt");
         add_generic_op<hip_mul>("mul");
         add_generic_op<hip_div>("div");
@@ -144,15 +152,17 @@ struct miopen_apply
         add_extend_op<hip_pad, op::pad>("pad");
         add_extend_op<hip_convert, op::convert>("convert");
         add_extend_op<hip_clip, op::clip>("clip");
-        add_extend_op<hip_reduce_sum, op::reduce_sum>("reduce_sum");
+        add_extend_op<hip_reduce_max, op::reduce_max>("reduce_max");
         add_extend_op<hip_reduce_mean, op::reduce_mean>("reduce_mean");
         add_extend_op<hip_reduce_min, op::reduce_min>("reduce_min");
-        add_extend_op<hip_reduce_max, op::reduce_max>("reduce_max");
+        add_extend_op<hip_reduce_prod, op::reduce_prod>("reduce_prod");
+        add_extend_op<hip_reduce_sum, op::reduce_sum>("reduce_sum");
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
 
         add_lrn_op();
         add_convolution_op();
+        add_deconvolution_op();
         add_quant_convolution_op();
         add_pooling_op();
         add_batch_norm_inference_op();
@@ -208,6 +218,22 @@ struct miopen_apply
             auto&& op = any_cast<op::convolution>(ins->get_operator());
 
             auto conv = miopen_convolution{op, make_conv(op)};
+            auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
+
+            auto workspace = insert_allocation(ins, ws, "workspace");
+            auto output    = insert_allocation(ins, ins->get_shape());
+
+            return prog->replace_instruction(
+                ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
+        });
+    }
+
+    void add_deconvolution_op()
+    {
+        apply_map.emplace("deconvolution", [=](instruction_ref ins) {
+            auto&& op = any_cast<op::deconvolution>(ins->get_operator());
+
+            auto conv = miopen_deconvolution{op, make_deconv(op)};
             auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
             auto workspace = insert_allocation(ins, ws, "workspace");

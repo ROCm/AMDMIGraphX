@@ -334,7 +334,10 @@ std::size_t program::size() const { return impl->instructions.size(); }
 instruction_ref program::begin() const { return impl->instructions.begin(); }
 instruction_ref program::end() const { return impl->instructions.end(); }
 
-shape program::get_shape() const { return impl->instructions.back().get_shape(); }
+std::vector<shape> program::get_output_shapes() const
+{
+    return {impl->instructions.back().get_shape()};
+}
 
 context& program::get_context() const { return impl->ctx; }
 
@@ -372,10 +375,10 @@ void program::finalize()
 }
 
 template <class F>
-argument generic_eval(const program& p,
-                      context& ctx,
-                      std::unordered_map<std::string, argument> params,
-                      F trace)
+std::vector<argument> generic_eval(const program& p,
+                                   context& ctx,
+                                   std::unordered_map<std::string, argument> params,
+                                   F trace)
 {
     assert(p.validate() == p.end());
     std::unordered_map<instruction_ref, argument> results;
@@ -421,10 +424,10 @@ argument generic_eval(const program& p,
         }
         assert(results.find(ins) != results.end());
     }
-    return results.at(std::prev(p.end()));
+    return {results.at(std::prev(p.end()))};
 }
 
-argument program::eval(std::unordered_map<std::string, argument> params) const
+std::vector<argument> program::eval(std::unordered_map<std::string, argument> params) const
 {
     auto& ctx = this->impl->ctx;
 #ifndef NDEBUG
@@ -622,6 +625,104 @@ void program::print_graph(std::ostream& os, bool brief) const
         }
     });
     os << "}" << std::endl;
+}
+
+static std::string cpp_var_name(const std::string& name)
+{
+    return "m" + replace_string(name, "@", "x");
+}
+
+static std::string cpp_op_var(const std::string& name, instruction_ref ins)
+{
+    return replace_string(name, "@", ins->name());
+}
+
+static void print_op_attributes(std::ostream& os, const std::string& name, const operation& op)
+{
+    std::string x = to_string(op);
+    if(contains(x, "["))
+    {
+        auto start                 = x.find('[');
+        auto end                   = x.find(']');
+        std::string attribute_text = x.substr(start + 1, end - start - 1);
+        std::vector<std::string> attributes;
+        for(auto&& attribute : split_string(attribute_text, ','))
+        {
+            if(contains(attribute, '='))
+                attributes.push_back(attribute);
+            else
+                attributes.back() += "," + attribute;
+        }
+        for(auto&& attribute : attributes)
+        {
+            auto p     = split_string(attribute, '=');
+            auto key   = p.front();
+            auto value = p.back();
+            if(contains({"bn_mode", "padding_mode"}, key))
+                continue;
+            if(key == "mode")
+                value = enclose_name(trim(value));
+            os << name << "." << key << " = " << value << ";" << std::endl;
+        }
+    }
+}
+
+static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
+{
+    os << "migraphx::shape{migraphx::shape::" << s.type_string();
+    os << ", {" << to_string_range(s.lens()) << "}";
+    if(not s.standard())
+        os << ", {" << to_string_range(s.strides()) << "}";
+    os << "}";
+}
+
+void program::print_cpp(std::ostream& os) const
+{
+    os << "migraphx::program p;" << std::endl;
+    // cppcheck-suppress variableScope
+    unsigned long seed = 0;
+    print_program(*this, [&](auto ins, const auto& names) {
+        auto op = cpp_op_var(names.at(ins), ins);
+        if(ins->name().front() != '@')
+        {
+            os << "migraphx::op::" << ins->name() << " " << op << ";" << std::endl;
+            print_op_attributes(os, op, ins->get_operator());
+        }
+        os << "auto " << cpp_var_name(names.at(ins)) << " = ";
+        if(ins->name() == "@literal")
+        {
+            os << "p.add_literal(";
+            bool use_abs = false;
+            ins->get_literal().visit([&](auto v) {
+                use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
+            });
+            if(use_abs)
+                os << "migraphx::abs(";
+            os << "migraphx::generate_literal(";
+            print_cpp_shape(os, ins->get_shape());
+            os << ", " << seed << ")";
+            if(use_abs)
+                os << ")";
+            os << ");" << std::endl;
+            seed++;
+        }
+        else if(ins->name() == "@param")
+        {
+            std::string name = any_cast<builtin::param>(ins->get_operator()).parameter;
+            os << "p.add_parameter(" << enclose_name(name) << ",";
+            print_cpp_shape(os, ins->get_shape());
+            os << ");" << std::endl;
+        }
+        else
+        {
+            os << "p.add_instruction(" << op;
+            for(auto input : ins->inputs())
+            {
+                os << ", " << cpp_var_name(names.at(input));
+            }
+            os << ");" << std::endl;
+        }
+    });
 }
 
 void program::dry_run(std::unordered_map<std::string, argument> params) const

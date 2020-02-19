@@ -4,6 +4,7 @@
 #include <migraphx/dfor.hpp>
 #include <migraphx/op/batch_norm.hpp>
 #include <migraphx/op/convolution.hpp>
+#include <migraphx/op/deconvolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
@@ -144,13 +145,14 @@ struct cpu_lrn
             int height          = output_shape.lens()[2];
             int width           = output_shape.lens()[3];
             float alphaoverarea = op.alpha / float(op.size);
-            int radius          = (op.size - 1) / 2;
+            int radius_lower    = (op.size - 1) / 2;
+            int radius_upper    = op.size / 2 + 1;
 
             par_dfor(n_batch, height, width)([&](int b, int h, int w) {
                 float scale = 0;
                 dfor(channels)([&](int c) {
-                    auto start = (c - radius) < 0 ? 0 : (c - radius);
-                    auto end   = (c + radius) > channels ? channels : (c + radius);
+                    auto start = (c - radius_lower) < 0 ? 0 : (c - radius_lower);
+                    auto end   = (c + radius_upper) > channels ? channels : (c + radius_upper);
                     for(auto k = start; k < end; ++k)
                     {
                         scale += std::pow(input(b, k, h, w), 2);
@@ -213,6 +215,67 @@ struct cpu_convolution
                                 acc += input(o, in_ch, in_x, in_y) * weights(w, k, x, y);
                         });
                         output(o, w, i, j) = acc;
+                    });
+            });
+        });
+        return result;
+    }
+};
+
+template <class Op>
+struct cpu_deconvolution
+{
+    Op op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
+    std::string name() const { return "cpu::" + op.name(); }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
+            using type = typename decltype(output)::value_type;
+
+            std::fill(output.begin(), output.end(), type{0});
+
+            auto out_lens = output_shape.lens();
+            auto out_h    = out_lens[2];
+            auto out_w    = out_lens[3];
+
+            auto in   = input.get_shape().lens();
+            auto in_n = in[0];
+            auto in_c = in[1];
+            auto in_h = in[2];
+            auto in_w = in[3];
+
+            auto wei   = weights.get_shape().lens();
+            auto wei_n = wei[0];
+            auto wei_c = wei[1];
+            auto wei_h = wei[2];
+            auto wei_w = wei[3];
+
+            par_dfor(in_n, wei_c)([&](std::size_t o, std::size_t k) {
+
+                dfor(in_c, in_h, in_w, wei_h, wei_w)(
+                    [&](std::size_t w, std::size_t i, std::size_t j, std::size_t x, std::size_t y) {
+                        const int start_x = i * op.stride[0] - op.padding[0];
+                        const int start_y = j * op.stride[1] - op.padding[1];
+                        const int out_x   = start_x + x * op.dilation[0];
+                        const int out_y   = start_y + y * op.dilation[1];
+
+                        const auto group_id = w / (wei_n / op.group);
+                        const auto in_ch    = group_id * wei_c + k;
+
+                        if(out_x >= 0 && out_x < out_h && out_y >= 0 && out_y < out_w)
+                        {
+                            output(o, in_ch, out_x, out_y) +=
+                                input(o, w, i, j) * weights(w, k, x, y);
+                        }
                     });
             });
         });
@@ -598,9 +661,10 @@ struct cpu_softmax
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        auto batch_lens     = output_shape.lens();
-        std::size_t n_dims  = batch_lens[op.axis];
-        batch_lens[op.axis] = 1;
+        auto batch_lens    = output_shape.lens();
+        int64_t tuned_axis = (op.axis < 0) ? op.axis + args[0].get_shape().lens().size() : op.axis;
+        std::size_t n_dims = batch_lens[tuned_axis];
+        batch_lens[tuned_axis] = 1;
         shape batch_shape{shape::int32_type, batch_lens};
 
         visit_all(result, args[0])([&](auto output, auto input) {
@@ -612,26 +676,26 @@ struct cpu_softmax
                 auto idx = batch_shape.multi(i);
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
-                    idx[op.axis] = j;
-                    batch_max[i] = std::max(batch_max[i], input(idx.begin(), idx.end()));
+                    idx[tuned_axis] = j;
+                    batch_max[i]    = std::max(batch_max[i], input(idx.begin(), idx.end()));
                 }
 
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
-                    idx[op.axis]      = j;
+                    idx[tuned_axis]   = j;
                     std::size_t index = output_shape.index(idx);
                     output[index]     = std::exp(input[index] - batch_max[i]);
                 }
 
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
-                    idx[op.axis] = j;
+                    idx[tuned_axis] = j;
                     batch_sum[i] += output(idx.begin(), idx.end());
                 }
 
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
-                    idx[op.axis] = j;
+                    idx[tuned_axis] = j;
                     output(idx.begin(), idx.end()) =
                         op.output()(output(idx.begin(), idx.end()), batch_sum[i]);
                 }
@@ -664,8 +728,10 @@ struct cpu_apply
         apply_map["batch_norm_inference"] =
             extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
         apply_map["convolution"] = extend_op<cpu_convolution<op::convolution>, op::convolution>();
-        apply_map["dot"]         = extend_op<cpu_gemm, op::dot>();
-        apply_map["quant_dot"]   = extend_op<cpu_quant_gemm, op::quant_dot>();
+        apply_map["deconvolution"] =
+            extend_op<cpu_deconvolution<op::deconvolution>, op::deconvolution>();
+        apply_map["dot"]       = extend_op<cpu_gemm, op::dot>();
+        apply_map["quant_dot"] = extend_op<cpu_quant_gemm, op::quant_dot>();
         apply_map["quant_convolution"] =
             extend_op<cpu_convolution<op::quant_convolution>, op::quant_convolution>();
         apply_map["elu"]        = extend_op<cpu_unary<elu_op>, op::elu>();

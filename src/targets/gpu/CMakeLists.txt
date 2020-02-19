@@ -12,6 +12,7 @@ endif()
 
 add_library(migraphx_device
     device/acos.cpp
+    device/acosh.cpp
     device/add.cpp
     device/add_clip.cpp
     device/add_relu.cpp
@@ -20,7 +21,9 @@ add_library(migraphx_device
     device/argmax.cpp
     device/argmin.cpp
     device/asin.cpp
+    device/asinh.cpp
     device/atan.cpp
+    device/atanh.cpp
     device/ceil.cpp
     device/clip.cpp
     device/concat.cpp
@@ -47,6 +50,7 @@ add_library(migraphx_device
     device/reduce_mean.cpp
     device/reduce_min.cpp
     device/reduce_sum.cpp
+    device/reduce_prod.cpp
     device/relu.cpp
     device/round.cpp
     device/rsqrt.cpp
@@ -79,6 +83,7 @@ add_library(migraphx_gpu
     lowering.cpp
     pooling.cpp
     convolution.cpp
+    deconvolution.cpp
     quant_convolution.cpp
     softmax.cpp
     logsoftmax.cpp

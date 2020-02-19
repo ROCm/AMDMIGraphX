@@ -4,12 +4,15 @@
 #include <migraphx/op/abnormal_ops.hpp>
 #include <migraphx/op/abs.hpp>
 #include <migraphx/op/acos.hpp>
+#include <migraphx/op/acosh.hpp>
 #include <migraphx/op/add.hpp>
 #include <migraphx/op/argmax.hpp>
 #include <migraphx/op/argmin.hpp>
 #include <migraphx/op/asin.hpp>
+#include <migraphx/op/asinh.hpp>
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/atan.hpp>
+#include <migraphx/op/atanh.hpp>
 #include <migraphx/op/batch_norm.hpp>
 #include <migraphx/op/binary.hpp>
 #include <migraphx/op/broadcast.hpp>
@@ -23,6 +26,7 @@
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/cosh.hpp>
 #include <migraphx/op/cos.hpp>
+#include <migraphx/op/deconvolution.hpp>
 #include <migraphx/op/div.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/elu.hpp>
@@ -51,10 +55,11 @@
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/op/pow.hpp>
-#include <migraphx/op/reduce_sum.hpp>
+#include <migraphx/op/reduce_max.hpp>
 #include <migraphx/op/reduce_mean.hpp>
 #include <migraphx/op/reduce_min.hpp>
-#include <migraphx/op/reduce_max.hpp>
+#include <migraphx/op/reduce_prod.hpp>
+#include <migraphx/op/reduce_sum.hpp>
 #include <migraphx/op/relu.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/rnn.hpp>

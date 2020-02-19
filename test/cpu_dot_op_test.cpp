@@ -50,7 +50,7 @@ void matmul_test()
     auto bl = p.add_literal(migraphx::literal{b_shape, b});
     p.add_instruction(migraphx::op::dot{}, al, bl);
     p.compile(migraphx::cpu::target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     std::vector<T> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(c, results_vector));
@@ -99,7 +99,7 @@ void matmul_test_ex()
     auto bl = p.add_literal(migraphx::literal{b_shape, b});
     p.add_instruction(migraphx::op::dot{}, al, bl);
     p.compile(migraphx::cpu::target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     std::vector<T> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(c, results_vector));
@@ -134,7 +134,7 @@ TEST_CASE(matmul_mutli_dim_2)
 
     p.add_instruction(migraphx::op::dot{}, l1, l2);
     p.compile(migraphx::cpu::target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     std::vector<float> m;
     result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
 
@@ -204,7 +204,7 @@ TEST_CASE(gemm_mutli_dim_2_beta0)
     float beta  = 0.0f;
     p.add_instruction(migraphx::op::dot{alpha, beta}, l1, l2, l3);
     p.compile(migraphx::cpu::target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     std::vector<float> m;
     result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
 
@@ -265,7 +265,7 @@ TEST_CASE(gemm_beta_0)
     float beta  = 0.0f;
     p.add_instruction(migraphx::op::dot{alpha, beta}, l1, l2, l3);
     p.compile(migraphx::cpu::target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     std::vector<float> m;
     result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
 
@@ -305,7 +305,7 @@ TEST_CASE(matmul_mutli_dim_2_3)
 
     p.add_instruction(migraphx::op::dot{}, l1, l2);
     p.compile(migraphx::cpu::target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     std::vector<float> m;
     result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
 
@@ -355,7 +355,7 @@ TEST_CASE(gemm_mutli_dim1_2_3)
     auto m3_beta   = p.add_instruction(migraphx::op::mul{}, b_beta, l3);
     p.add_instruction(migraphx::op::add{}, m3_beta, m12_alpha);
     p.compile(migraphx::cpu::target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     std::vector<float> m;
     result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
 
@@ -401,7 +401,7 @@ TEST_CASE(gemm_mutli_3args)
     float beta  = 0.41;
     p.add_instruction(migraphx::op::dot{alpha, beta}, l1, l2, l3);
     p.compile(migraphx::cpu::target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     std::vector<float> m;
     result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
 
@@ -469,7 +469,7 @@ TEST_CASE(gemm_3args)
                                    5.74736,
                                    4.22063};
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -505,7 +505,7 @@ TEST_CASE(matmul_vv_inner_product)
         p.add_instruction(migraphx::op::dot{}, ual, ubl);
         std::vector<float> gold = {-1.43461};
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -539,7 +539,7 @@ TEST_CASE(matmul_vv_inner_product)
         p.add_instruction(migraphx::op::dot{alpha}, ual, ubl);
         std::vector<float> gold = {-0.4590752};
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -575,7 +575,7 @@ TEST_CASE(matmul_vm)
         std::vector<float> gold = {-3.78111, -3.40007, -2.1972, -3.31448, -3.80326};
 
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -609,7 +609,7 @@ TEST_CASE(matmul_vm)
         std::vector<float> gold = {-1.89056, -1.70003, -1.0986, -1.65724, -1.90163};
 
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -653,7 +653,7 @@ TEST_CASE(matmul_vm)
                                    -2.45019,
                                    -1.35064};
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -697,7 +697,7 @@ TEST_CASE(matmul_vm)
                                    -0.514539,
                                    -0.283635};
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -734,7 +734,7 @@ TEST_CASE(matmul_mv)
         p.add_instruction(migraphx::op::dot{}, al, ubl);
         std::vector<float> gold = {1.31982, 1.19022, -1.96062};
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -769,7 +769,7 @@ TEST_CASE(matmul_mv)
         p.add_instruction(migraphx::op::dot{alpha}, al, ubl);
         std::vector<float> gold = {0.395946, 0.357067, -0.588187};
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -810,7 +810,7 @@ TEST_CASE(matmul_mv)
                                    3.29447,
                                    0.765651};
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -861,7 +861,7 @@ TEST_CASE(matmul_mm1)
                                    0.77227,   0.349659,  2.92759,  2.32384,   -2.90664, 0.0527679,
                                    -0.547761, -0.155467, 0.964619, 2.09133,   -4.44281, -1.3864};
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -911,7 +911,7 @@ TEST_CASE(matmul_mm1)
             -0.415107, 0.305138, 0.435993,  -0.107089, -0.767885,   -4.00837, 1.09921,   -2.02129,
             0.109717,  0.618422, 0.438342,  0.29602,   2.00928,     0.420871};
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -953,7 +953,7 @@ TEST_CASE(matmul_mm2)
             0.60740202,  0.95217761,  -1.06087445, -4.75868152, -3.6687713,  -1.26539821};
         p.add_instruction(migraphx::op::dot{}, al, bbl);
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -991,7 +991,7 @@ TEST_CASE(matmul_mm2)
             8.27398578e-01,  1.94406914e+00,  -2.39250915e-01, -1.77062701e+00, -6.46239534e-01,
             -7.95202750e-01};
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -1041,7 +1041,7 @@ TEST_CASE(matmul_mm2)
             0.63012062,  -0.25606052, -0.69419352, -1.78299913, -0.38572706, 1.92249442,
             0.3884186,   -0.48153048, 0.84932351,  0.67234919,  -1.07821322, -0.01208216};
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -1086,7 +1086,7 @@ TEST_CASE(matmul_mm2)
             1.92882983,  -0.30996324, 2.19736278,  2.32389426,  2.36741832,  1.62253915,
             0.26698225,  -0.00741609, -2.53680983, -0.0679954,  0.04499683,  0.85354276};
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -1113,7 +1113,7 @@ TEST_CASE(quant_dot_2args_multi4)
                                  724, 762, 688, 742, 796, 850, 904, 958, 1012, 1066};
 
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -1138,7 +1138,7 @@ TEST_CASE(quant_dot_2args_multi4)
                                  736, 768, 592, 628, 664, 700, 736, 772, 808, 844};
 
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -1163,7 +1163,7 @@ TEST_CASE(quant_dot_2args_multi4)
                                  974, 1126, 86,  302, 518, 734, 950, 1166, 1382, 1598};
 
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -1189,7 +1189,7 @@ TEST_CASE(quant_dot_2args_multi4)
                                  836, 964, 74,  218, 362, 506, 650, 794, 938, 1082};
 
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -1215,7 +1215,7 @@ TEST_CASE(quant_dot_2args_general)
             70, 76, 82, 88, 94, 190, 212, 234, 256, 278, 310, 348, 386, 424, 462};
 
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -1239,7 +1239,7 @@ TEST_CASE(quant_dot_2args_general)
             210, 228, 246, 264, 282, 240, 262, 284, 306, 328, 270, 296, 322, 348, 374};
 
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -1268,7 +1268,7 @@ TEST_CASE(quant_dot_2args_general)
             28, 76, 124, 172, 220, 76, 252, 428, 604, 780, 124, 428, 732, 1036, 1340};
 
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -1293,7 +1293,7 @@ TEST_CASE(quant_dot_2args_general)
             126, 342, 558, 774, 990, 144, 408, 672, 936, 1200, 162, 474, 786, 1098, 1410};
 
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -1323,7 +1323,7 @@ TEST_CASE(quant_dot_3args_general)
             982, 1011, 1040, 1069, 1098, 1127, 1156, 2557, 2650, 2743, 2836, 2929, 3022, 3115};
 
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -1350,7 +1350,7 @@ TEST_CASE(quant_dot_3args_general)
             70, 76, 82, 88, 94, 190, 212, 234, 256, 278, 310, 348, 386, 424, 462};
 
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -1378,7 +1378,7 @@ TEST_CASE(quant_dot_3args_general)
             1966, 2025, 2084, 2143, 2202, 2261, 2320, 2183, 2250, 2317, 2384, 2451, 2518, 2585};
 
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -1406,7 +1406,7 @@ TEST_CASE(quant_dot_3args_general)
             286, 737, 1188, 1639, 2090, 2541, 2992, 755, 2230, 3705, 5180, 6655, 8130, 9605};
 
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -1435,7 +1435,7 @@ TEST_CASE(quant_dot_3args_general)
             844, 2190, 3536, 4882, 6228, 7574, 8920, 942, 2480, 4018, 5556, 7094, 8632, 10170};
 
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -1469,7 +1469,7 @@ TEST_CASE(quant_dot_3args_batch)
             10386, 11288, 11408, 11528, 11648, 11768, 11888, 12008};
 
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));
@@ -1503,7 +1503,7 @@ TEST_CASE(quant_dot_3args_batch)
             24618, 25949, 27280, 28611, 29942, 31273, 25224, 26587, 27950, 29313, 30676, 32039};
 
         p.compile(migraphx::cpu::target{});
-        auto result = p.eval({});
+        auto result = p.eval({}).back();
         std::vector<float> m;
         result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(m, gold));

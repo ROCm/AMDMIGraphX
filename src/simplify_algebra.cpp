@@ -29,7 +29,7 @@ auto conv_const_weights()
 
 MIGRAPHX_PRED_MATCHER(args_has_same_ops, instruction_ref ins)
 {
-    if (ins->inputs().empty())
+    if(ins->inputs().empty())
         return true;
     return std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto j) {
         return j->get_operator() == ins->inputs().front()->get_operator();
@@ -189,8 +189,8 @@ struct find_concat_unary
     void apply(program& p, match::matcher_result r) const
     {
         auto ins = r.result;
-        auto x = r.instructions["x"];
-        auto op = x->get_operator();
+        auto x   = r.instructions["x"];
+        auto op  = x->get_operator();
 
         auto inputs = ins->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto i) {

@@ -8,6 +8,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/add.hpp>
+#include <migraphx/op/batch_norm.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

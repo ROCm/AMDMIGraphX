@@ -182,8 +182,7 @@ struct find_concat_unary
     {
         return match::name("concat")(
             args_has_same_ops(),
-            match::arg(0)(match::nargs(1), match::name("relu", "broadcast")).bind("x"),
-            match::used_once());
+            match::arg(0)(match::nargs(1), match::name("relu", "broadcast").bind("x"), match::used_once()));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -191,12 +190,23 @@ struct find_concat_unary
         auto ins = r.result;
         auto x   = r.instructions["x"];
         auto op  = x->get_operator();
+        auto axis = any_cast<op::concat>(ins->get_operator()).axis;
+        // Adjust broadcast lens
+        if (op.name() == "broadcast")
+        {
+            auto b = any_cast<op::broadcast>(op);
+            if (b.axis != axis)
+                return;
+            b.broadcast_lens = ins->get_shape().lens();
+            op = b;
+            axis = 0;
+        }
 
         auto inputs = ins->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto i) {
             return i->inputs().front();
         });
-        auto concat = p.insert_instruction(ins, ins->get_operator(), inputs);
+        auto concat = p.insert_instruction(ins, op::concat{axis}, inputs);
         p.replace_instruction(ins, op, concat);
     }
 };
@@ -207,8 +217,7 @@ struct find_concat_binary
     {
         return match::name("concat")(
             args_has_same_ops(),
-            match::arg(0)(match::nargs(2), match::name("add", "multiply")).bind("x"),
-            match::used_once());
+            match::arg(0)(match::nargs(2), match::name("add", "multiply").bind("x"), match::used_once()));
     }
 
     void apply(program& p, match::matcher_result r) const

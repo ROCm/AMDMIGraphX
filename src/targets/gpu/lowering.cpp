@@ -212,7 +212,6 @@ struct miopen_apply
         if(ret->name() == "return")
         {
             auto& inputs = ret->inputs();
-            auto&& op    = any_cast<builtin::add_return>(ret->get_operator());
 
             // each input of ret need to be copied from gpu to host
             std::vector<instruction_ref> ret_inputs;

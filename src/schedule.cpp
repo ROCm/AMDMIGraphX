@@ -477,18 +477,11 @@ struct stream_info
                 merge_from[ins].insert(merge_from[arg].begin(), merge_from[arg].end());
             }
 
-            std::unordered_set<instruction_ref> del_set;
-            for(auto split : merge_from[ins])
+            if (is_split_point(ins))
             {
-                if(di.strictly_dominate(ins, split))
-                {
-                    del_set.insert(split);
-                }
-            }
-
-            for(auto del_ins : del_set)
-            {
-                merge_from[ins].erase(del_ins);
+                erase_if(merge_from[ins], [&](auto merge) {
+                    return di.strictly_dominate(ins, merge);
+                });
             }
 
             auto streams = this->get_streams(ins);

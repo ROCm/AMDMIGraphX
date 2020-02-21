@@ -25,12 +25,19 @@ auto erase(R&& r, const T& value)
  *
  * @param r The container to erase elements from
  * @param pred Predicate function that selects which elements should be erased.
- * @return Returns iterator to erased element
  */
 template <class R, class P>
-auto erase_if(R&& r, P&& pred)
+void erase_if(R&& r, P&& pred)
 {
-    return r.erase(std::remove_if(r.begin(), r.end(), pred), r.end());
+    auto first = r.begin();
+    auto last = r.end();
+    while(first != last)
+    {
+        if(pred(*first))
+            first = r.erase(first);
+        else
+            first++;
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

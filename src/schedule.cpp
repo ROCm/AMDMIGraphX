@@ -34,7 +34,8 @@ auto get_outputs()
 
 struct dominator_info
 {
-    void print_dom_tree(const program& p, std::unordered_map<instruction_ref, instruction_ref>& dom_tree)
+    void print_dom_tree(const program& p,
+                        std::unordered_map<instruction_ref, instruction_ref>& dom_tree)
     {
         std::unordered_map<instruction_ref, int> ins_index;
         int count = 0;

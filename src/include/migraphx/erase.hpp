@@ -30,7 +30,7 @@ template <class R, class P>
 void erase_if(R&& r, P&& pred)
 {
     auto first = r.begin();
-    auto last = r.end();
+    auto last  = r.end();
     while(first != last)
     {
         if(pred(*first))

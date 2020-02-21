@@ -477,11 +477,10 @@ struct stream_info
                 merge_from[ins].insert(merge_from[arg].begin(), merge_from[arg].end());
             }
 
-            if (is_split_point(ins))
+            if(is_split_point(ins))
             {
-                erase_if(merge_from[ins], [&](auto merge) {
-                    return di.strictly_dominate(ins, merge);
-                });
+                erase_if(merge_from[ins],
+                         [&](auto merge) { return di.strictly_dominate(ins, merge); });
             }
 
             auto streams = this->get_streams(ins);

@@ -632,8 +632,6 @@ void schedule::apply(program& p) const
         std::cout << std::endl;
     }
 
-    // auto conflict_table_tmp = si.get_conflicts(p);
-
     // No concurrency
     if(nstreams < 2)
         return;

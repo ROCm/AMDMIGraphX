@@ -225,6 +225,8 @@ struct find_concat_binary
     void apply(program& p, match::matcher_result r) const
     {
         auto ins       = r.result;
+        auto x    = r.instructions["x"];
+        auto op   = x->get_operator();
         auto concat_op = ins->get_operator();
 
         auto xinputs = ins->inputs();
@@ -237,7 +239,7 @@ struct find_concat_binary
         });
         auto xconcat = p.insert_instruction(ins, concat_op, xinputs);
         auto yconcat = p.insert_instruction(ins, concat_op, yinputs);
-        p.replace_instruction(ins, op::add{}, xconcat, yconcat);
+        p.replace_instruction(ins, op, xconcat, yconcat);
     }
 };
 

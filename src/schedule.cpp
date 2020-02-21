@@ -34,9 +34,8 @@ auto get_outputs()
 
 struct dominator_info
 {
-    void print_dom_tree(std::unordered_map<instruction_ref, instruction_ref>& dom_tree)
+    void print_dom_tree(const program& p, std::unordered_map<instruction_ref, instruction_ref>& dom_tree)
     {
-        const program& p = *p_prog;
         std::unordered_map<instruction_ref, int> ins_index;
         int count = 0;
         for(auto ins : iterator_for(p))
@@ -69,9 +68,8 @@ struct dominator_info
     }
 
     // compute post dominators
-    void compute_dominator()
+    void compute_dominator(const program& p)
     {
-        const program& p    = *p_prog;
         std::size_t num_ins = p.size();
         if(num_ins == 0)
         {
@@ -154,8 +152,6 @@ struct dominator_info
         }
     }
 
-    const program* p_prog;
-    std::unordered_map<instruction_ref, std::size_t> ins2stream;
     std::unordered_map<instruction_ref, instruction_ref> ins2idom;
 };
 
@@ -464,8 +460,8 @@ struct stream_info
     {
         std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> result;
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> merge_from;
-        dominator_info di{&p, ins2stream, {}};
-        di.compute_dominator();
+        dominator_info di{};
+        di.compute_dominator(p);
         result.reserve(p.size());
         merge_from.reserve(p.size());
         for(auto ins : reverse_iterator_for(p))
@@ -515,7 +511,6 @@ struct stream_info
         using conflict_table_type =
             std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
         conflict_table_type conflict_table;
-        dominator_info di{&p, ins2stream, {}};
         auto concur_ins = this->find_concurrent_instructions(p);
 
         std::vector<conflict_table_type> thread_conflict_tables(

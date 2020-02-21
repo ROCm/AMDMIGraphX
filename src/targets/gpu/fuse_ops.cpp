@@ -337,64 +337,41 @@ struct find_layernorm
         return match::name("multibroadcast")(match::arg(0)(xs...));
     }
 
-    
     static auto layernorm_onnx()
     {
         return match::either_arg(0, 1)(
-                    match::name("gpu::mul")(
-                        match::arg(0)(multibroadcast_op().bind("scale")),
-                        match::arg(1)(
-                            match::name("gpu::div") (
-                                match::arg(0)(
-                                    match::name("gpu::sub") (
-                                        match::arg(0)(match::any().bind("x")),
-                                        match::arg(1)(multibroadcast_op(match::name("gpu::reduce_mean")))
-                                    )
-                                )
-                            )   
-                        )
-                    )
-                ,
-                    match::any_of(match::name("gpu::gemm"),multibroadcast_op()).bind("bias")
-                );  
+            match::name("gpu::mul")(
+                match::arg(0)(multibroadcast_op().bind("scale")),
+                match::arg(1)(match::name("gpu::div")(match::arg(0)(match::name("gpu::sub")(
+                    match::arg(0)(match::any().bind("x")),
+                    match::arg(1)(multibroadcast_op(match::name("gpu::reduce_mean")))))))),
+            match::any_of(match::name("gpu::gemm"), multibroadcast_op()).bind("bias"));
     }
 
     static auto layernorm_tf()
     {
-        return  match::either_arg(0, 1)(
-                    match::name("gpu::mul")(
-                        match::arg(0)(match::name("gpu::add").bind("x"))
-                    )
-                ,
-                    match::name("gpu::sub")(
-                        match::either_arg(0, 1)(
-                            multibroadcast_op().bind("bias"),
-                            match::name("gpu::mul")(
-                                match::arg(1)(
-                                    match::name("gpu::mul")(
-                                        match::arg(1)(multibroadcast_op().bind("scale"))
-                                    )
-                                    
-                                )
-                            )
-                        )
-                    )
-                );
-    }
+        return match::either_arg(0, 1)(
+            match::name("gpu::mul")(match::arg(0)(match::name("gpu::add").bind("x"))),
+            match::name("gpu::sub")(match::either_arg(0, 1)(
+                multibroadcast_op().bind("bias"),
+                match::name("gpu::mul")(match::arg(1)(
+                    match::name("gpu::mul")(match::arg(1)(multibroadcast_op().bind("scale")))
 
+                        )))));
+    }
 
     auto matcher() const
     {
-        return match::name("gpu::add")(match::any_of(layernorm_onnx(),layernorm_tf()));
+        return match::name("gpu::add")(match::any_of(layernorm_onnx(), layernorm_tf()));
     }
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto ins   = r.result;
+        auto ins       = r.result;
         auto scale_ins = r.instructions["scale"];
-        auto x_ins = r.instructions["x"];
-        auto bias_ins = r.instructions["bias"];
-        auto args  = ins->inputs();
+        auto x_ins     = r.instructions["x"];
+        auto bias_ins  = r.instructions["bias"];
+        auto args      = ins->inputs();
 
         p.replace_instruction(ins, hip_layernorm{}, x_ins, scale_ins, bias_ins, args.back());
     }

@@ -235,19 +235,20 @@ constexpr index_int compute_block_size(index_int n, index_int max_block_size)
     return block_size;
 }
 
-std::vector<index_int> get_reduce_lens(const std::vector<size_t>& input_lens, const std::vector<size_t>& output_lens)
+std::vector<index_int> get_reduce_lens(const std::vector<size_t>& input_lens,
+                                       const std::vector<size_t>& output_lens)
 {
     std::vector<index_int> reduce_lens;
     std::transform(output_lens.begin(),
-                    output_lens.end(),
-                    input_lens.begin(),
-                    std::back_inserter(reduce_lens),
-                    [](auto x, auto y) -> index_int {
-                        if(x == y)
-                            return 1;
-                        else
-                            return y;
-                    });
+                   output_lens.end(),
+                   input_lens.begin(),
+                   std::back_inserter(reduce_lens),
+                   [](auto x, auto y) -> index_int {
+                       if(x == y)
+                           return 1;
+                       else
+                           return y;
+                   });
     return reduce_lens;
 }
 
@@ -318,14 +319,12 @@ void reduce(hipStream_t stream,
 {
     auto&& output_shape = result.get_shape();
     auto&& input_shape  = arg.get_shape();
-    auto input_lens = input_shape.lens();
-    auto output_lens = output_shape.lens();
+    auto input_lens     = input_shape.lens();
+    auto output_lens    = output_shape.lens();
     assert(output_lens.size() == input_lens.size());
     if(input_shape.standard() and output_shape.standard() and
        output_lens.back() != input_lens.back() and
-       std::equal(output_lens.begin(),
-                  std::prev(output_lens.end()),
-                  input_lens.begin()))
+       std::equal(output_lens.begin(), std::prev(output_lens.end()), input_lens.begin()))
     {
         reduce_standard_impl(
             stream, result, arg, op, init, read_input, read_output, input_lens.back());

@@ -1067,19 +1067,20 @@ def layernorm_test():
     epsilon_tensor = helper.make_tensor(name='epsilon',
                                         data_type=TensorProto.FLOAT,
                                         dims=epsilon.shape,
-                                        vals=epsilon.flatten().astype(np.float))
+                                        vals=epsilon.flatten().astype(
+                                            np.float))
 
     mean = onnx.helper.make_node('ReduceMean',
                                  inputs=['0'],
                                  outputs=['mean_out'],
                                  axes=axes)
-    
+
     sub_mean = onnx.helper.make_node('Sub',
-                                     inputs=['0','mean_out'],
+                                     inputs=['0', 'mean_out'],
                                      outputs=['sub_out'])
-    
+
     sub_pow = onnx.helper.make_node('Pow',
-                                    inputs=['sub_out','pow'],
+                                    inputs=['sub_out', 'pow'],
                                     outputs=['pow_out'])
 
     var = onnx.helper.make_node('ReduceMean',
@@ -1102,14 +1103,14 @@ def layernorm_test():
     mul = onnx.helper.make_node('Mul',
                                 inputs=['scale', 'div_out'],
                                 outputs=['mul_out'])
-                    
+
     bias_add = onnx.helper.make_node('Add',
-                                inputs=['mul_out', 'bias'],
-                                outputs=['1'])
+                                     inputs=['mul_out', 'bias'],
+                                     outputs=['1'])
 
-    return([mean, sub_mean, sub_pow, var, add, sqrt, div, mul, bias_add], [x, scale, bias], [y], [pow_tensor, epsilon_tensor])
+    return ([mean, sub_mean, sub_pow, var, add, sqrt, div, mul,
+             bias_add], [x, scale, bias], [y], [pow_tensor, epsilon_tensor])
 
-    
 
 @onnx_test
 def leaky_relu_test():

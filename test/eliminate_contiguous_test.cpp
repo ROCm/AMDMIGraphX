@@ -118,7 +118,7 @@ TEST_CASE(non_standard_return_input)
     auto l  = p.add_literal(get_2x2());
     auto tl = p.add_instruction(migraphx::op::transpose{{1, 0}}, l);
     auto c  = p.add_instruction(migraphx::op::contiguous{}, tl);
-    p.add_instruction(migraphx::builtin::add_return{}, c);
+    p.add_return({c});
     auto count = std::distance(p.begin(), p.end());
     run_pass(p);
     EXPECT(std::distance(p.begin(), p.end()) == count);

@@ -103,7 +103,7 @@ struct miopen_apply
     void create_output_names()
     {
         this->last = instruction::get_output_alias(std::prev(prog->end()));
-        if(this->last->name() == "return")
+        if(this->last->name() == "@return")
         {
             auto& prog_outputs = last->inputs();
             std::vector<instruction_ref> outputs_alias(prog_outputs.size());
@@ -209,20 +209,17 @@ struct miopen_apply
 
         // return instruction
         auto ret = std::prev(prog->end());
-        if(ret->name() == "return")
+        if(ret->name() == "@return")
         {
             auto& inputs = ret->inputs();
 
-            // each input of ret need to be copied from gpu to host
-            std::vector<instruction_ref> ret_inputs;
+            // each input of ret need to be copied from gpu to host, and replace
+            // output with copy output
             for(auto& in : inputs)
             {
                 auto p_output = prog->insert_instruction(ret, hip_copy_from_gpu{}, in);
-                ret_inputs.push_back(p_output);
+                instruction::replace_argument(ret, in, p_output);
             }
-
-            // Use copy result on host as program output
-            prog->replace_instruction(ret, builtin::add_return{}, ret_inputs);
         }
         // else branch to handle legacy program without the return instruction
         else
@@ -256,7 +253,7 @@ struct miopen_apply
         }
 
         auto ins_alias = instruction::get_output_alias(ins);
-        if(last->name() == "return" and tag.empty() and prog_output_names.count(ins_alias) > 0)
+        if(last->name() == "@return" and tag.empty() and prog_output_names.count(ins_alias) > 0)
         {
             return prog->add_parameter(prog_output_names[ins_alias], s);
         }

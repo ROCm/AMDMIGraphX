@@ -65,9 +65,12 @@ struct param
 
 struct add_return
 {
-    std::string name() const { return "return"; }
+    std::string name() const { return "@return"; }
     shape compute_shape(const std::vector<shape>&) const { return {}; }
-    argument compute(context&, const shape&, const std::vector<argument>&) const { return {}; }
+    argument compute(context&, const shape&, const std::vector<argument>&) const 
+    { 
+        MIGRAPHX_THROW("builtin");
+    }
 };
 
 } // namespace builtin

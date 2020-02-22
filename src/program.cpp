@@ -52,7 +52,7 @@ static void print_instruction(std::ostream& os,
         os << ")";
     }
 
-    if(ins->name() != "return")
+    if(ins->name() != "@return")
         os << " -> " << ins->get_shape();
 }
 
@@ -148,7 +148,14 @@ void program::assign(const program& p)
             std::transform(inputs.begin(), inputs.end(), copy_inputs.begin(), [&](auto i) {
                 return ins_map[i];
             });
-            copy_ins = add_instruction(ins->get_operator(), copy_inputs);
+            if (ins->name() == "@return")
+            {
+                copy_ins = add_return(copy_inputs);
+            }
+            else
+            {
+                copy_ins = add_instruction(ins->get_operator(), copy_inputs);
+            }
         }
 
         ins_map[ins] = copy_ins;
@@ -273,8 +280,14 @@ instruction_ref program::add_parameter(std::string name, shape s)
 
 instruction_ref program::add_return(std::vector<instruction_ref> args)
 {
-    auto result =
-        insert_instruction(impl->instructions.end(), builtin::add_return{}, std::move(args));
+    assert(std::all_of(
+               args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
+           "Argument is not an exisiting instruction");
+    //auto result = impl->instructions.insert(impl->instructions.end(), {builtin::add_return{}, {}, std::move(args)});
+    impl->instructions.push_back({builtin::add_return{}, {}, args});
+    auto result = std::prev(impl->instructions.end());
+    instruction::backreference(result);
+    assert(result->valid(begin()));
     return result;
 }
 
@@ -345,7 +358,7 @@ instruction_ref program::end() const { return impl->instructions.end(); }
 std::vector<shape> program::get_output_shapes() const
 {
     auto last_ins = impl->instructions.back();
-    if(last_ins.name() == "return")
+    if(last_ins.name() == "@return")
     {
         auto& output_ins = last_ins.inputs();
         std::vector<shape> output_shapes;
@@ -434,7 +447,7 @@ std::vector<argument> generic_eval(const program& p,
         {
             results.emplace(ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
         }
-        else if(name == "return")
+        else if(name == "@return")
         {
             std::vector<argument> prog_outputs;
             std::transform(ins->inputs().begin(),
@@ -491,7 +504,7 @@ std::vector<argument> program::eval(parameter_map params) const
             auto result = check_context(f);
             ctx.finish();
             if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
-               ins->name() != "return")
+               ins->name() != "@return")
                 std::cout << "Ouput: " << result << std::endl;
             return result;
         });

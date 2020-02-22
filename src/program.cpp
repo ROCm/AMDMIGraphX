@@ -148,7 +148,7 @@ void program::assign(const program& p)
             std::transform(inputs.begin(), inputs.end(), copy_inputs.begin(), [&](auto i) {
                 return ins_map[i];
             });
-            if (ins->name() == "@return")
+            if(ins->name() == "@return")
             {
                 copy_ins = add_return(copy_inputs);
             }
@@ -283,7 +283,8 @@ instruction_ref program::add_return(std::vector<instruction_ref> args)
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
            "Argument is not an exisiting instruction");
-    //auto result = impl->instructions.insert(impl->instructions.end(), {builtin::add_return{}, {}, std::move(args)});
+    // auto result = impl->instructions.insert(impl->instructions.end(), {builtin::add_return{}, {},
+    // std::move(args)});
     impl->instructions.push_back({builtin::add_return{}, {}, args});
     auto result = std::prev(impl->instructions.end());
     instruction::backreference(result);

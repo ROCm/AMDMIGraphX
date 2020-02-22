@@ -63,7 +63,7 @@ struct param
     }
 };
 
-struct add_return
+struct returns
 {
     std::string name() const { return "@return"; }
     shape compute_shape(const std::vector<shape>&) const { return {}; }

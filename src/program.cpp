@@ -283,9 +283,7 @@ instruction_ref program::add_return(std::vector<instruction_ref> args)
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
            "Argument is not an exisiting instruction");
-    // auto result = impl->instructions.insert(impl->instructions.end(), {builtin::add_return{}, {},
-    // std::move(args)});
-    impl->instructions.push_back({builtin::add_return{}, {}, args});
+    impl->instructions.push_back({builtin::returns{}, {}, args});
     auto result = std::prev(impl->instructions.end());
     instruction::backreference(result);
     assert(result->valid(begin()));

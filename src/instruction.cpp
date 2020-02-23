@@ -22,7 +22,7 @@ void instruction::replace(const shape& r)
         result = r;
         for(auto&& ins : output)
         {
-            if (ins->name() == "@return")
+            if(ins->name() == "@return")
                 continue;
 
             assert(ins->name().front() != '@');

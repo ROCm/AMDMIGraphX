@@ -995,6 +995,7 @@ def imagescaler_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def imagescaler_half_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [1, 3, 16, 16])
@@ -1007,6 +1008,7 @@ def imagescaler_half_test():
                                  scale=0.5)
 
     return ([node], [x], [y])
+
 
 @onnx_test
 def implicit_add_bcast_test():

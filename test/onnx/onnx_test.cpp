@@ -732,9 +732,9 @@ TEST_CASE(imagescaler_half_test)
 {
     migraphx::program p;
     migraphx::shape s{migraphx::shape::half_type, {1, 3, 16, 16}};
-    auto l0        = p.add_parameter("0", s);
-    auto scale_val = p.add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {0.5f}});
+    auto l0 = p.add_parameter("0", s);
+    auto scale_val =
+        p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {0.5f}});
     auto bias_vals = p.add_literal(
         migraphx::literal{migraphx::shape{migraphx::shape::half_type, {3}}, {0.01, 0.02, 0.03}});
     auto scaled_tensor = p.add_instruction(migraphx::op::scalar{s.lens()}, scale_val);

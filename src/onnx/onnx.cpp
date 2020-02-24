@@ -1907,6 +1907,8 @@ struct onnx_parser
         case onnx::AttributeProto::STRING:
         case onnx::AttributeProto::STRINGS:
         case onnx::AttributeProto::TENSORS:
+        case onnx::AttributeProto::SPARSE_TENSOR:
+        case onnx::AttributeProto::SPARSE_TENSORS:
         case onnx::AttributeProto::GRAPHS: return {};
         }
         MIGRAPHX_THROW("Invalid attribute type");

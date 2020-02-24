@@ -116,7 +116,7 @@ struct miopen_apply
             std::size_t index = 0;
             for(auto ins : outputs_alias)
             {
-                prog_output_names[ins] = "output_" + std::to_string(index++);
+                prog_output_names[ins] = "#output_" + std::to_string(index++);
             }
         }
     }

@@ -69,7 +69,19 @@ rocm_enable_clang_tidy(
         modernize-*
         performance-*
         readability-*
-        -clang-analyzer-alpha.core.CastToStruct
+        # Disable all alpha checks by default
+        -clang-analyzer-alpha*
+        # Enable some alpha checks
+        clang-analyzer-alpha.core.CallAndMessageUnInitRefArg
+        clang-analyzer-alpha.core.Conversion
+        clang-analyzer-alpha.core.IdenticalExpr
+        clang-analyzer-alpha.core.PointerArithm
+        clang-analyzer-alpha.core.PointerSub
+        clang-analyzer-alpha.core.TestAfterDivZero
+        clang-analyzer-alpha.cplusplus.InvalidIterator
+        clang-analyzer-alpha.cplusplus.IteratorRange
+        clang-analyzer-alpha.cplusplus.MismatchedIterator
+        clang-analyzer-alpha.cplusplus.MisusedMovedObject
         -clang-analyzer-optin.performance.Padding
         -clang-diagnostic-deprecated-declarations
         -clang-diagnostic-extern-c-compat
@@ -117,11 +129,13 @@ rocm_enable_clang_tidy(
         -DMIGRAPHX_USE_CLANG_TIDY
         "-Dmain\\\\(...\\\\)=main\\\\(__VA_ARGS__\\\\) // NOLINT"
     # CLANG_ARGS
-    #     -analyzer-config optin.cplusplus.UninitializedObject:Pedantic=true
-    #     -analyzer-config widen-loops=true
-    #     -analyzer-config unroll-loops=true
-    #     -analyzer-config cfg-lifetime=true
-    #     -analyzer-config cfg-scopes=true
+        # -analyzer-max-loop 10
+        # -analyzer-inline-max-stack-depth 10
+        # -analyzer-config optin.cplusplus.UninitializedObject:Pedantic=true
+        # -analyzer-config widen-loops=true
+        # -analyzer-config unroll-loops=true
+        # -analyzer-config cfg-lifetime=true
+        # -analyzer-config cfg-scopes=true
 )
 include(ROCMCppCheck)
 rocm_enable_cppcheck(

@@ -21,6 +21,7 @@ add_library(migraphx
     instruction.cpp
     program.cpp
     quantization.cpp
+    remap.cpp
     shape.cpp
     schedule.cpp
     pass_manager.cpp

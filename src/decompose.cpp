@@ -8,11 +8,10 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/add.hpp>
-#include <migraphx/op/batch_norm.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
+namespace {
 struct find_dot_add
 {
     auto matcher() const { return match::name("dot")(match::nargs(3)); }
@@ -28,6 +27,8 @@ struct find_dot_add
         p.replace_instruction(ins, op::add{}, dot_ins, ins->inputs()[2]);
     }
 };
+
+}
 
 void decompose::apply(program& p) const { match::find_matches(p, find_dot_add{}); }
 

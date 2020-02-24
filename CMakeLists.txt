@@ -128,14 +128,14 @@ rocm_enable_clang_tidy(
         -UNDEBUG
         -DMIGRAPHX_USE_CLANG_TIDY
         "-Dmain\\\\(...\\\\)=main\\\\(__VA_ARGS__\\\\) // NOLINT"
-    # CLANG_ARGS
-        # -analyzer-max-loop 10
-        # -analyzer-inline-max-stack-depth 10
-        # -analyzer-config optin.cplusplus.UninitializedObject:Pedantic=true
-        # -analyzer-config widen-loops=true
-        # -analyzer-config unroll-loops=true
-        # -analyzer-config cfg-lifetime=true
-        # -analyzer-config cfg-scopes=true
+    CLANG_ARGS
+        -analyzer-max-loop 10
+        -analyzer-inline-max-stack-depth 10
+        -analyzer-config optin.cplusplus.UninitializedObject:Pedantic=true
+        -analyzer-config widen-loops=true
+        -analyzer-config unroll-loops=true
+        -analyzer-config cfg-lifetime=true
+        -analyzer-config cfg-scopes=true
 )
 include(ROCMCppCheck)
 rocm_enable_cppcheck(

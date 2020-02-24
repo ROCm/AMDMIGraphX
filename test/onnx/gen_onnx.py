@@ -995,6 +995,18 @@ def imagescaler_test():
 
     return ([node], [x], [y])
 
+@onnx_test
+def imagescaler_half_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [1, 3, 16, 16])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [1, 3, 16, 16])
+
+    node = onnx.helper.make_node('ImageScaler',
+                                 inputs=['0'],
+                                 outputs=['1'],
+                                 bias=[0.01, 0.02, 0.03],
+                                 scale=0.5)
+
+    return ([node], [x], [y])
 
 @onnx_test
 def implicit_add_bcast_test():

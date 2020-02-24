@@ -28,7 +28,7 @@ struct find_dot_add
     }
 };
 
-}
+} // namespace
 
 void decompose::apply(program& p) const { match::find_matches(p, find_dot_add{}); }
 

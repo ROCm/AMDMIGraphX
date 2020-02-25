@@ -1089,7 +1089,7 @@ def layernorm_test():
                                 axes=axes)
 
     add = onnx.helper.make_node('Add',
-                                inputs=['pow_out', 'epsilon'],
+                                inputs=['var_out', 'epsilon'],
                                 outputs=['add_out'])
 
     sqrt = onnx.helper.make_node('Sqrt',

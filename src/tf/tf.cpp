@@ -1395,8 +1395,6 @@ program parse_tf(const std::string& name, tf_options options)
     parser.parse_from(input);
 #endif
     parser.to_nchw(std::prev(parser.prog.end()));
-    // auto last = std::prev(parser.prog.end(), 2);
-    // parser.prog.remove_instructions(last, parser.prog.end());
     return std::move(parser.prog);
 }
 

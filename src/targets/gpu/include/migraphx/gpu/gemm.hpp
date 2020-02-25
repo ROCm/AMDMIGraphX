@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_RTGLIB_GEMM_HPP
-#define MIGRAPHX_GUARD_RTGLIB_GEMM_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_GPU_GEMM_HPP
+#define MIGRAPHX_GUARD_RTGLIB_GPU_GEMM_HPP
 
 #include <migraphx/shape.hpp>
 #include <migraphx/gpu/context.hpp>

@@ -235,7 +235,7 @@ constexpr index_int compute_block_size(index_int n, index_int max_block_size)
     return block_size;
 }
 
-std::vector<index_int> get_reduce_lens(const std::vector<size_t>& input_lens,
+inline std::vector<index_int> get_reduce_lens(const std::vector<size_t>& input_lens,
                                        const std::vector<size_t>& output_lens)
 {
     std::vector<index_int> reduce_lens;

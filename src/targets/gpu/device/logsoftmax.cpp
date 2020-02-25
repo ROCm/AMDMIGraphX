@@ -43,7 +43,7 @@ void logsoftmax(hipStream_t stream, const argument& result, const argument& arg,
 
             auto log_batch_sum = ::log(to_hip_type(batch_sum)) + batch_max;
 
-            idx.local_stride(batch_item_num, [&](auto j) {
+            idx.local_stride(batch_item_num, [&](auto j) __device__ {
                 data_idx[axis]   = j;
                 output[data_idx] = input[data_idx] - log_batch_sum;
             });

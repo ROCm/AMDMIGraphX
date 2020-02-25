@@ -21,7 +21,7 @@ TEST_CASE(simple_test)
     EXPECT(std::none_of(p.begin(), p.end(), [](const migraphx::instruction& ins) {
         return ins.name() == "identity";
     }));
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
 }
 
@@ -37,7 +37,7 @@ TEST_CASE(simple_test_end)
     EXPECT(std::none_of(p.begin(), p.end(), [](const migraphx::instruction& ins) {
         return ins.name() == "identity";
     }));
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
 }
 
@@ -55,7 +55,7 @@ TEST_CASE(simple_test_end_dependency)
     EXPECT(std::any_of(p.begin(), p.end(), [](const migraphx::instruction& ins) {
         return ins.name() == "identity";
     }));
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3.0});
 }
 

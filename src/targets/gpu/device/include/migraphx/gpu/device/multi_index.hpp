@@ -95,7 +95,7 @@ inline auto mi_launch(hipStream_t stream, const hip_shape<N>& global, index_int 
     auto nglobal       = global.index(nglobal_multi);
 
     return [=](auto f) {
-        launch(stream, nglobal, nlocal)([=](auto idx) {
+        launch(stream, nglobal, nlocal)([=](auto idx) __device__ {
             auto midx = make_multi_index(global, idx.global, nglobal_multi);
             f(idx, midx.for_stride(global.lens));
         });

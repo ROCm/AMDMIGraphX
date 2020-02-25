@@ -39,6 +39,20 @@ def acos_test():
 
 
 @onnx_test
+def acosh_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
+
+    node = onnx.helper.make_node(
+        'Acosh',
+        inputs=['x'],
+        outputs=['y'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def add_bcast_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 4])
@@ -131,12 +145,40 @@ def asin_test():
 
 
 @onnx_test
+def asinh_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
+
+    node = onnx.helper.make_node(
+        'Asinh',
+        inputs=['x'],
+        outputs=['y'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def atan_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
 
     node = onnx.helper.make_node(
         'Atan',
+        inputs=['x'],
+        outputs=['y'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def atanh_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
+
+    node = onnx.helper.make_node(
+        'Atanh',
         inputs=['x'],
         outputs=['y'],
     )
@@ -570,6 +612,22 @@ def conv_relu_maxpool_x2_test():
                                   kernel_shape=[2, 2])
 
     return ([node1, node2, node3, node4, node5, node6], [x, y, z, m, n], [out])
+
+
+@onnx_test
+def convinteger_bias_test():
+    x = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.INT8, [1, 3, 5, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.INT32, [1])
+    out = helper.make_tensor_value_info('3', TensorProto.INT32, [1, 2, 28, 28])
+
+    node = onnx.helper.make_node('ConvInteger',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['3'],
+                                 dilations=[1, 1],
+                                 strides=[1, 1])
+
+    return ([node], [x, y, z], [out])
 
 
 @onnx_test
@@ -1251,6 +1309,21 @@ def matmul_vv_test():
 
     node = onnx.helper.make_node(
         'MatMul',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test
+def matmulinteger_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [3, 6, 16])
+    m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [3, 16, 8])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [3, 6, 8])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
         inputs=['1', '2'],
         outputs=['y'],
     )

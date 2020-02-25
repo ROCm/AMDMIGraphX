@@ -866,7 +866,7 @@ TEST_CASE(target_copy)
             }
         }
 
-        auto result = t.copy_from(p.eval(m));
+        auto result = t.copy_from(p.eval(m).back());
         result.visit([&](auto v) { res.assign(v.begin(), v.end()); });
     };
 
@@ -923,7 +923,7 @@ TEST_CASE(int8_quantization_dot)
             }
         }
 
-        auto result = t.copy_from(p.eval(m));
+        auto result = t.copy_from(p.eval(m).back());
         result.visit([&](auto v) { res.assign(v.begin(), v.end()); });
     };
 
@@ -972,7 +972,7 @@ TEST_CASE(int8_quantization_conv)
         p.compile(t);
         migraphx::program::parameter_map m;
 
-        auto result = t.copy_from(p.eval(m));
+        auto result = t.copy_from(p.eval(m).back());
         result.visit([&](auto v) { res.assign(v.begin(), v.end()); });
     };
 

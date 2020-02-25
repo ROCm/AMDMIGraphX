@@ -9,6 +9,7 @@
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
+#include <migraphx/algorithm.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -267,6 +268,64 @@ struct find_add_convs
         auto concat_input   = p.insert_instruction(ins, op::concat{1}, a_input, b_input);
         auto concat_weights = p.insert_instruction(ins, op::concat{1}, a_weights, b_weights);
         p.replace_instruction(ins, new_op, concat_input, concat_weights);
+    }
+};
+
+MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
+{
+    auto dots = std::count_if(ins->outputs().begin(), ins->outputs().end(), [&](auto i) {
+        return i->name() == "dot" and i->inputs().front() == ins; 
+    });
+    auto convs = std::count_if(ins->outputs().begin(), ins->outputs().end(), [&](auto i) { 
+        return i->name() == "convolution" and i->inputs().front() == ins; 
+    });
+    if (dots < 2 and convs < 2)
+        return false;
+    return true;
+}
+
+struct find_conv_dot_horiz_fusion
+{
+    auto matcher() const
+    {
+        return horiz_conv_dot();
+    }
+
+    static bool reaches(instruction_ref ins, const std::vector<instruction_ref>& args)
+    {
+        auto it = std::find_first_of(ins->outputs().begin(), ins->outputs().end(), args.begin(), args.end());
+        if (it != ins->outputs().end())
+            return true;
+        return std::any_of(ins->outputs().begin(), ins->outputs().end(), [&](auto i) {
+            return reaches(i, args);
+        });
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins       = r.result;
+
+        auto pred = [](auto i, auto j) {
+            return i->get_operator() == j->get_operator();
+        };
+
+        auto each = [&](auto start, auto last) {
+            if (std::distance(start, last) < 2)
+                return;
+            if (not contains({"dot", "convolution"}, (*start)->name()))
+                return;
+            std::vector<instruction_ref> args;
+            std::transform(start, last, std::back_inserter(args), [&](auto x) {
+                return x->inputs().at(1);
+            });
+            for(auto input:range(start, last))
+            {
+                
+            }
+        };
+
+        auto outputs = ins->outputs();
+        group_by(outputs.begin(), outputs.end(), each, pred);
     }
 };
 

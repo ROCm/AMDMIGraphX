@@ -1072,9 +1072,9 @@ struct test_layernorm : verify_program<test_layernorm>
         auto x        = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
         auto scale    = p.add_parameter("scale", migraphx::shape{migraphx::shape::float_type, {5}});
         auto bias     = p.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {5}});
-        auto epsilon  = p.add_literal(1e-12);
+        auto epsilon  = p.add_literal(1e-12f);
         auto exponent = p.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2, 2, 2, 2, 2}}, {5}});
+            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1, 1, 5}}, {2, 2, 2, 2, 2}});
 
         auto mean           = p.add_instruction(migraphx::op::reduce_mean({2}), x);
         auto mean_mbcast    = p.add_instruction(migraphx::op::multibroadcast{{dims}}, mean);

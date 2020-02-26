@@ -179,6 +179,8 @@ migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
                                            size_t size,
                                            migraphx_onnx_options* options);
 
+migraphx_status migraphx_quantize_fp16(migraphx_program_t prog);
+
 #ifdef __cplusplus
 }
 #endif

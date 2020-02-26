@@ -517,6 +517,11 @@ inline program parse_onnx_buffer(const std::string& buffer)
         own{});
 }
 
+inline void quantize_fp16(program& prog)
+{
+    call(&migraphx_quantize_fp16, prog.get_handle_ptr());
+}
+
 } // namespace api
 } // namespace migraphx
 

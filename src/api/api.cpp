@@ -2,6 +2,7 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/quantization.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/generate.hpp>
@@ -594,5 +595,14 @@ extern "C" migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
             (data),
             (size),
             (options == nullptr ? migraphx::onnx_options{} : migraphx::to_onnx_options(*options))));
+    });
+}
+
+extern "C" migraphx_status migraphx_quantize_fp16(migraphx_program_t prog)
+{
+    return migraphx::try_([&] {
+        if(prog == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        migraphx::quantize_fp16(prog->object);
     });
 }

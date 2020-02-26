@@ -19,10 +19,10 @@ TEST_CASE(param_add)
     auto create_program_float = [](bool add_return = false) {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-        auto p1 = p.add_parameter("x", s);
-        auto p2 = p.add_parameter("y", s);
+        auto p1  = p.add_parameter("x", s);
+        auto p2  = p.add_parameter("y", s);
         auto sum = p.add_instruction(migraphx::op::add{}, p1, p2);
-        if (add_return)
+        if(add_return)
         {
             p.add_return({sum});
         }
@@ -39,7 +39,7 @@ TEST_CASE(param_add)
         auto hp2 = p.insert_instruction(std::next(p2), migraphx::op::convert{}, p2);
         auto hs  = p.add_instruction(migraphx::op::add{}, hp1, hp2);
         auto res = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, hs);
-        if (add_return)
+        if(add_return)
         {
             p.add_return({res});
         }

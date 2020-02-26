@@ -317,18 +317,18 @@ struct onnx_parser
 
         if(args.size() > 1)
         {
-            auto max_arg = args[1]->eval();
-            check_arg_empty(max_arg, "Clip: max value is needed");
-            op.max_val = max_arg.at<float>();
+            auto min_arg = args[1]->eval();
+            check_arg_empty(min_arg, "Clip: max value is needed");
+            op.min_val = min_arg.at<float>();
 
             if(args.size() > 2)
             {
-                auto min_arg = args[2]->eval();
-                check_arg_empty(min_arg, "Clip: min value is needed");
-                op.min_val = min_arg.at<float>();
+                auto max_arg = args[2]->eval();
+                check_arg_empty(max_arg, "Clip: min value is needed");
+                op.max_val = max_arg.at<float>();
             }
         }
-        return prog.add_instruction(op, std::move(args));
+        return prog.add_instruction(op, args[0]);
     }
 
     template <class Op>

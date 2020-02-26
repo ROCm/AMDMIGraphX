@@ -229,6 +229,18 @@ TEST_CASE(clip_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(clip_test_op11)
+{
+    migraphx::program p;
+    p.add_literal(0.f);
+    p.add_literal(6.f);
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
+    p.add_instruction(migraphx::op::clip{6.0, 0.0}, l0);
+    auto prog = optimize_onnx("clip_test_op11.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(concat_test)
 {
     migraphx::program p;

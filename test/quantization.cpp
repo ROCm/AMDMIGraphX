@@ -61,8 +61,8 @@ TEST_CASE(param_add_return)
     auto create_program_float = [] {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-        auto p1 = p.add_parameter("x", s);
-        auto p2 = p.add_parameter("y", s);
+        auto p1  = p.add_parameter("x", s);
+        auto p2  = p.add_parameter("y", s);
         auto sum = p.add_instruction(migraphx::op::add{}, p1, p2);
         p.add_return({sum});
 
@@ -600,7 +600,7 @@ TEST_CASE(dot_int32_one_arg)
 
 TEST_CASE(dot_int32)
 {
-    auto create_program = [](bool add_return = false){
+    auto create_program = [](bool add_return = false) {
         migraphx::program p;
         migraphx::shape sa{migraphx::shape::int32_type, {2, 16}};
         migraphx::shape sb{migraphx::shape::int32_type, {16, 8}};
@@ -610,7 +610,7 @@ TEST_CASE(dot_int32)
         auto pc = p.add_parameter("c", sc);
 
         auto res = p.add_instruction(migraphx::op::dot{2.0f, 5.5f}, pa, pb, pc);
-        if (add_return)
+        if(add_return)
         {
             p.add_return({res});
         }
@@ -662,8 +662,8 @@ TEST_CASE(dot_int32)
         auto beta   = p.add_literal(migraphx::literal(fc->get_shape(), v_beta));
         auto beta_c = p.add_instruction(migraphx::op::mul{}, beta, fc);
         auto f_res  = p.add_instruction(migraphx::op::add{}, alpha_ab, beta_c);
-        auto res = p.add_instruction(migraphx::op::convert{migraphx::shape::int32_type}, f_res);
-        if (add_return)
+        auto res    = p.add_instruction(migraphx::op::convert{migraphx::shape::int32_type}, f_res);
+        if(add_return)
         {
             p.add_return({res});
         }

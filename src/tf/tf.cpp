@@ -26,13 +26,15 @@ struct tf_parser
 {
     using attribute_map = std::unordered_map<std::string, tensorflow::AttrValue>;
     using node_map      = std::map<std::string, tensorflow::NodeDef>;
-    using op_func = std::function<instruction_ref(attribute_map, std::vector<instruction_ref>)>;
+    using op_func =
+        std::function<std::vector<instruction_ref>(attribute_map, std::vector<instruction_ref>)>;
 
     node_map nodes;
     std::vector<tensorflow::NodeDef> input_nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog = program();
-    bool is_nhwc = true;
+    program prog            = program();
+    bool is_nhwc            = true;
+    unsigned int batch_size = 1;
 
     std::unordered_map<std::string, op_func> ops;
 
@@ -75,6 +77,14 @@ struct tf_parser
         std::vector<instruction_ref> result(args.size());
         std::transform(
             args.begin(), args.end(), result.begin(), [&](auto ins) { return this->to_nchw(ins); });
+        return result;
+    }
+
+    std::vector<instruction_ref> to_nhwc(const std::vector<instruction_ref>& args)
+    {
+        std::vector<instruction_ref> result(args.size());
+        std::transform(
+            args.begin(), args.end(), result.begin(), [&](auto ins) { return this->to_nhwc(ins); });
         return result;
     }
 
@@ -180,6 +190,8 @@ struct tf_parser
         add_binary_op("SquaredDifference", op::sqdiff{});
         add_binary_op("Sub", op::sub{});
 
+        add_mem_op("ArgMax", &tf_parser::parse_arg_op<op::argmax>, false);
+        add_mem_op("ArgMin", &tf_parser::parse_arg_op<op::argmin>, false);
         add_mem_op("AvgPool", &tf_parser::parse_pooling);
         add_mem_op("BatchMatMul", &tf_parser::parse_matmul, false);
         add_mem_op("BatchMatMulV2", &tf_parser::parse_matmul, false);
@@ -199,7 +211,10 @@ struct tf_parser
         add_mem_op("Pack", &tf_parser::parse_pack, false);
         add_mem_op("Pad", &tf_parser::parse_pad);
         add_mem_op("Reshape", &tf_parser::parse_reshape, false);
+        add_mem_op("Shape", &tf_parser::parse_shape, false);
         add_mem_op("Slice", &tf_parser::parse_slice, false);
+        add_mem_op("Split", &tf_parser::parse_split, false);
+        add_mem_op("SplitV", &tf_parser::parse_split, false);
         add_mem_op("Softmax", &tf_parser::parse_softmax<op::softmax>, false);
         add_mem_op("Squeeze", &tf_parser::parse_squeeze, false);
         add_mem_op("StridedSlice", &tf_parser::parse_stridedslice, false);
@@ -207,19 +222,24 @@ struct tf_parser
     }
 
     template <class F>
-    void add_op(std::string name, F f, bool transpose = true)
+    void add_op(const std::string& name, F f, bool transpose = true)
     {
         if(transpose)
         {
-            ops.emplace(name,
-                        op_func{[=](const attribute_map& attributes,
-                                    const std::vector<instruction_ref>& args) -> instruction_ref {
-                            return to_nhwc(f(attributes, to_nchw(args)));
-                        }});
+            ops.emplace(
+                name,
+                op_func{
+                    [=](const attribute_map& attributes, const std::vector<instruction_ref>& args) {
+                        return std::vector<instruction_ref>{to_nhwc(f(attributes, to_nchw(args)))};
+                    }});
         }
         else
         {
-            ops.emplace(name, f);
+            ops.emplace(name,
+                        op_func{[=](const attribute_map& attributes,
+                                    const std::vector<instruction_ref>& args) {
+                            return std::vector<instruction_ref>{f(attributes, args)};
+                        }});
         }
     }
 
@@ -307,6 +327,16 @@ struct tf_parser
                transpose);
     }
 
+    template <class Op>
+    instruction_ref
+    parse_arg_op(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    {
+        int64_t axis = 0;
+        axis         = args[1]->eval().at<int64_t>();
+        auto ins     = prog.add_instruction(Op{axis}, args.front());
+        return prog.add_instruction(op::squeeze{{axis}}, ins);
+    }
+
     instruction_ref
     parse_batchnorm(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
@@ -341,7 +371,7 @@ struct tf_parser
     {
         // get index for axis within args
         size_t axis_idx = attributes.at("N").i();
-        size_t axis     = args[axis_idx]->eval().at<int64_t>();
+        int64_t axis    = args[axis_idx]->eval().at<int64_t>();
         op::concat op{axis};
         // return only first N arguments (assuming last index is the axis value)
         return prog.add_instruction(
@@ -398,11 +428,9 @@ struct tf_parser
                 size_t weight_w                 = weight_dims[3];
 
                 auto input_dims = l0->get_shape().lens();
-                size_t input_h  = input_dims[2];
-                size_t input_w  = input_dims[3];
                 std::vector<int64_t> pads(input_dims.size());
-                calculate_padding(0, pads, input_h, op.stride[0], op.dilation[0], weight_h);
-                calculate_padding(1, pads, input_w, op.stride[1], op.dilation[1], weight_w);
+                calculate_padding(0, pads, input_dims[2], op.stride[0], op.dilation[0], weight_h);
+                calculate_padding(1, pads, input_dims[3], op.stride[1], op.dilation[1], weight_w);
 
                 if(pads[0] != pads[2] || pads[1] != pads[3])
                 {
@@ -486,11 +514,9 @@ struct tf_parser
                 size_t weight_w                 = weight_dims[3];
 
                 auto input_dims = l0->get_shape().lens();
-                size_t input_h  = input_dims[2];
-                size_t input_w  = input_dims[3];
                 std::vector<int64_t> pads(input_dims.size());
-                calculate_padding(0, pads, input_h, op.stride[0], op.dilation[0], weight_h);
-                calculate_padding(1, pads, input_w, op.stride[1], op.dilation[1], weight_w);
+                calculate_padding(0, pads, input_dims[2], op.stride[0], op.dilation[0], weight_h);
+                calculate_padding(1, pads, input_dims[3], op.stride[1], op.dilation[1], weight_w);
 
                 if(pads[0] != pads[2] || pads[1] != pads[3])
                 {
@@ -652,8 +678,7 @@ struct tf_parser
             args.end(),
             std::back_inserter(unsqueezed_args),
             [&](instruction_ref arg) { return prog.add_instruction(op::unsqueeze{{axis}}, arg); });
-        return to_nhwc(
-            prog.add_instruction(op::concat{static_cast<size_t>(axis)}, unsqueezed_args));
+        return to_nhwc(prog.add_instruction(op::concat{axis}, unsqueezed_args));
     }
 
     instruction_ref
@@ -722,11 +747,9 @@ struct tf_parser
             {
                 op.padding_mode = op::padding_mode_t::same;
                 auto input_dims = l0->get_shape().lens();
-                size_t input_h  = input_dims[2];
-                size_t input_w  = input_dims[3];
                 std::vector<int64_t> pads(input_dims.size());
-                calculate_padding(0, pads, input_h, op.stride[0], 1, op.lengths[0]);
-                calculate_padding(1, pads, input_w, op.stride[1], 1, op.lengths[1]);
+                calculate_padding(0, pads, input_dims[2], op.stride[0], 1, op.lengths[0]);
+                calculate_padding(1, pads, input_dims[3], op.stride[1], 1, op.lengths[1]);
 
                 if(pads[0] != pads[2] || pads[1] != pads[3])
                 {
@@ -759,17 +782,17 @@ struct tf_parser
         return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
-    void parse_from(std::istream& is)
+    // Use a literal instruction to replace the shape since output of
+    // shape operator are literals in migraphx
+    instruction_ref
+    parse_shape(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
-        tensorflow::GraphDef graph;
-        if(graph.ParseFromIstream(&is))
-        {
-            this->parse_graph(graph);
-        }
-        else
-        {
-            throw std::runtime_error("Failed reading tf file");
-        }
+        std::vector<std::size_t> arg_shape = args[0]->get_shape().lens();
+        std::vector<int32_t> vec_shape(arg_shape.size());
+        migraphx::shape s(migraphx::shape::int32_type, {arg_shape.size()});
+        std::transform(
+            arg_shape.begin(), arg_shape.end(), vec_shape.begin(), [](auto i) { return i; });
+        return prog.add_literal(migraphx::literal{s, vec_shape});
     }
 
     instruction_ref
@@ -813,6 +836,84 @@ struct tf_parser
         }
 
         return prog.add_instruction(Op{axis}, make_contiguous(args[0]));
+    }
+
+    std::vector<instruction_ref> parse_split(const std::string&,
+                                             const attribute_map& attributes,
+                                             std::vector<instruction_ref> args)
+    {
+        bool vector_as_input = args.size() == 3;
+        int num_outputs      = 1;
+        auto axis_arg        = args[0];
+        auto input_arg       = args[1];
+        if(vector_as_input)
+        {
+            input_arg = args[0];
+            axis_arg  = args[2];
+        }
+
+        if(contains(attributes, "num_split"))
+            num_outputs = attributes.at("num_split").i();
+
+        std::vector<int> splits(num_outputs);
+        std::vector<int> slice_pos{0};
+        if(vector_as_input)
+        {
+            splits      = args[1]->eval().get<int32_t>().to_vector();
+            num_outputs = splits.size();
+        }
+
+        assert(num_outputs > 0);
+
+        if(num_outputs == 1)
+            return std::vector<instruction_ref>{prog.add_instruction(op::identity{}, input_arg)};
+
+        auto lens     = input_arg->get_shape().lens();
+        auto num_dims = lens.size();
+        int axis      = axis_arg->eval().at<int32_t>();
+
+        // ensure split is made evenly if "num_split" is used
+        assert(vector_as_input or lens[axis] % num_outputs == 0);
+
+        auto split_size = lens[axis] / num_outputs;
+
+        // push back first end point of slice
+        if(vector_as_input)
+        {
+            slice_pos.push_back(splits[0]);
+        }
+        else
+        {
+            slice_pos.push_back(split_size);
+        }
+
+        // calculate remaining end points for each slice
+        for(auto i = 1; i < num_outputs; i++)
+        {
+            if(vector_as_input)
+            {
+                splits[i] += splits[i - 1];
+                slice_pos.push_back(splits[i]);
+            }
+            else
+            {
+                slice_pos.push_back((i + 1) * split_size);
+            }
+        }
+        std::vector<instruction_ref> result;
+        for(auto i = 0; i < num_outputs; i++)
+        {
+            op::slice op;
+            op.axes = std::vector<int64_t>(num_dims);
+            std::iota(op.axes.begin(), op.axes.end(), 0);
+            op.starts = std::vector<int64_t>(num_dims, 0);
+            op.ends   = std::vector<int64_t>(lens.begin(), lens.end());
+
+            op.starts[axis] = slice_pos[i];
+            op.ends[axis]   = slice_pos[i + 1];
+            result.push_back(prog.add_instruction(op, input_arg));
+        }
+        return result;
     }
 
     instruction_ref parse_squeeze(const std::string&,
@@ -919,6 +1020,9 @@ struct tf_parser
             {
                 reorder_data(dims);
             }
+            std::transform(dims.begin(), dims.end(), dims.begin(), [&](auto dim) {
+                return static_cast<int>(dim) <= 0 ? batch_size : dim;
+            });
             shape s            = shape{shape_type, dims};
             instructions[name] = to_nhwc(prog.add_parameter(name, s));
         }
@@ -945,24 +1049,56 @@ struct tf_parser
                     continue;
                 if(nodes.count(input) > 0)
                 {
-                    auto&& iname = get_name(nodes.at(input));
+                    std::string iname;
+                    // input was from a node with multiple outputs
+                    if(contains(input, ':'))
+                    {
+                        iname = input.substr(0, input.find(':'));
+                    }
+                    else
+                    {
+                        iname = get_name(nodes.at(input));
+                    }
                     assert(name != iname);
                     this->parse_node(iname);
-                    args.push_back(instructions.at(iname));
+                    args.push_back(instructions.at(input));
                 }
                 else
                 {
                     args.push_back(instructions.at(input));
                 }
             }
+
+            std::vector<instruction_ref> result;
             if(ops.count(node.op()) == 0)
             {
-                instructions[name] = prog.add_instruction(op::unknown{node.op()}, args);
+                result.push_back(prog.add_instruction(op::unknown{node.op()}, args));
             }
             else
             {
-                instructions[name] = ops[node.op()](get_attributes(node), args);
+                result = ops[node.op()](get_attributes(node), args);
             }
+
+            assert(!result.empty());
+            // First output has no ":" delimiter
+            instructions[name] = result.front();
+            for(size_t i = 1; i < result.size(); i++)
+            {
+                instructions[name + ":" + std::to_string(i)] = result.at(i);
+            }
+        }
+    }
+
+    void parse_from(std::istream& is)
+    {
+        tensorflow::GraphDef graph;
+        if(graph.ParseFromIstream(&is))
+        {
+            this->parse_graph(graph);
+        }
+        else
+        {
+            throw std::runtime_error("Failed reading tf file");
         }
     }
 
@@ -1237,11 +1373,12 @@ struct tf_parser
     }
 };
 
-program parse_tf(const std::string& name, bool is_nhwc)
+program parse_tf(const std::string& name, tf_options options)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     tf_parser parser;
-    parser.is_nhwc = is_nhwc;
+    parser.is_nhwc    = options.is_nhwc;
+    parser.batch_size = options.batch_size;
 
 #ifndef NDEBUG
     // Log the program when it can't be parsed

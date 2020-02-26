@@ -5,18 +5,16 @@
 #include <migraphx/gpu/device/tensor.hpp>
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/types.hpp>
-#include <migraphx/gpu/hip.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void logsoftmax(hipStream_t stream, const argument& result, const argument& arg, int axis)
+void logsoftmax(hipStream_t stream, const argument& result, const argument& arg, int64_t axis)
 {
-    auto lens                = result.get_shape().lens();
-    auto batch_lens          = lens;
-    index_int batch_item_num = lens[axis];
+    auto batch_lens          = result.get_shape().lens();
+    index_int batch_item_num = batch_lens[axis];
     batch_lens[axis]         = 1;
     migraphx::shape batch_shape{result.get_shape().type(), batch_lens};
 
@@ -45,7 +43,7 @@ void logsoftmax(hipStream_t stream, const argument& result, const argument& arg,
 
             auto log_batch_sum = ::log(to_hip_type(batch_sum)) + batch_max;
 
-            idx.local_stride(batch_item_num, [&](auto j) {
+            idx.local_stride(batch_item_num, [&](auto j) __device__ {
                 data_idx[axis]   = j;
                 output[data_idx] = input[data_idx] - log_batch_sum;
             });

@@ -62,11 +62,17 @@ struct concat_optimization
     template <typename PrivateDetailTypeErasedT>
     concat_optimization& operator=(PrivateDetailTypeErasedT value)
     {
-        if(private_detail_te_handle_mem_var.unique())
-            *private_detail_te_handle_mem_var = std::forward<PrivateDetailTypeErasedT>(value);
-        else if(!private_detail_te_handle_mem_var)
-            private_detail_te_handle_mem_var = std::make_shared<PrivateDetailTypeErasedT>(
-                std::forward<PrivateDetailTypeErasedT>(value));
+        using std::swap;
+        auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
+        if(derived and private_detail_te_handle_mem_var.unique())
+        {
+            *derived = std::forward<PrivateDetailTypeErasedT>(value);
+        }
+        else
+        {
+            concat_optimization rhs(value);
+            swap(private_detail_te_handle_mem_var, rhs.private_detail_te_handle_mem_var);
+        }
         return *this;
     }
 
@@ -74,7 +80,7 @@ struct concat_optimization
     template <typename PrivateDetailTypeErasedT>
     PrivateDetailTypeErasedT* any_cast()
     {
-        return private_detail_te_get_handle().type() == typeid(PrivateDetailTypeErasedT)
+        return this->type_id() == typeid(PrivateDetailTypeErasedT)
                    ? std::addressof(static_cast<private_detail_te_handle_type<
                                         typename std::remove_cv<PrivateDetailTypeErasedT>::type>&>(
                                         private_detail_te_get_handle())
@@ -85,7 +91,7 @@ struct concat_optimization
     template <typename PrivateDetailTypeErasedT>
     const typename std::remove_cv<PrivateDetailTypeErasedT>::type* any_cast() const
     {
-        return private_detail_te_get_handle().type() == typeid(PrivateDetailTypeErasedT)
+        return this->type_id() == typeid(PrivateDetailTypeErasedT)
                    ? std::addressof(static_cast<const private_detail_te_handle_type<
                                         typename std::remove_cv<PrivateDetailTypeErasedT>::type>&>(
                                         private_detail_te_get_handle())

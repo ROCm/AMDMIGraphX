@@ -52,9 +52,9 @@ def check_shapes(r, m):
 def run(p):
     params = {}
     for key, value in p.get_parameter_shapes().items():
-        params[key] = migraphx.to_gpu(migraphx.generate_argument(value))
+        params[key] = migraphx.generate_argument(value)
 
-    return migraphx.from_gpu(p.run(params))
+    return p.run(params)
 
 
 def test_shape(shape):
@@ -82,8 +82,8 @@ def test_output():
     p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
     p.compile(migraphx.get_target("gpu"))
 
-    r1 = run(p)
-    r2 = run(p)
+    r1 = run(p)[-1]
+    r2 = run(p)[-1]
     assert_eq(r1, r2)
     assert_eq(r1.tolist(), r2.tolist())
 

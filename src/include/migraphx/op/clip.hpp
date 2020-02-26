@@ -45,7 +45,6 @@ struct clip
 
     std::string name() const { return "clip"; }
 
-
     shape compute_shape(std::vector<shape> inputs) const
     {
         auto s = inputs.at(0);
@@ -71,10 +70,7 @@ struct clip
             argument arg_out{std_out_shape, result.data()};
             arg_out.visit([&](auto output) {
                 arg_in.visit([&](auto input) {
-                    std::transform(input.begin(),
-                                   input.end(),
-                                   output.begin(),
-                                   apply());
+                    std::transform(input.begin(), input.end(), output.begin(), apply());
 
                 });
             });
@@ -84,8 +80,7 @@ struct clip
             result.visit([&](auto output) {
                 args[0].visit([&](auto input) {
                     shape_for_each(output.get_shape(), [&](const auto& idx) {
-                        output(idx.begin(), idx.end()) = apply()(
-                            input(idx.begin(), idx.end()));
+                        output(idx.begin(), idx.end()) = apply()(input(idx.begin(), idx.end()));
                     });
                 });
             });

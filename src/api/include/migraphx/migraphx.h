@@ -180,7 +180,9 @@ migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
                                            migraphx_onnx_options* options);
 
 migraphx_status migraphx_quantize_fp16(migraphx_program_t prog);
-migraphx_status migraphx_quantize_int8(migraphx_program_t prog, migraphx_target_t target, migraphx_program_parameters params);
+migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
+                                       migraphx_target_t target,
+                                       migraphx_program_parameters params);
 
 #ifdef __cplusplus
 }

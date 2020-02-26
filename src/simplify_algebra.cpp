@@ -273,12 +273,14 @@ struct find_add_convs
 
 MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
 {
-    auto dots  = std::count_if(ins->outputs().begin(), ins->outputs().end(), [&](auto i) {
-        return i->name() == "dot" and i->inputs().front() == ins;
-    });
-    auto convs = std::count_if(ins->outputs().begin(), ins->outputs().end(), [&](auto i) {
-        return i->name() == "convolution" and i->inputs().front() == ins;
-    });
+    auto pred = [&](auto name) {
+        return [=](auto i) {
+            return i->name() == name and i->inputs().front() == ins and
+                   i->inputs().at(1)->can_eval();
+        };
+    };
+    auto dots  = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("dot"));
+    auto convs = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("convolution"));
     if(dots < 2 and convs < 2)
         return false;
     return true;

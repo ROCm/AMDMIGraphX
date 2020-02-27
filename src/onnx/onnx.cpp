@@ -742,26 +742,26 @@ struct onnx_parser
 
         // slice can have up to 5 inputs, we first check the 5th one
         // to decide whether MIGRAPHX can handle this slice
-        if (args.size() == 5)
+        if(args.size() == 5)
         {
             auto tind_ins = args.back();
-            if (!tind_ins->can_eval())
+            if(!tind_ins->can_eval())
             {
                 MIGRAPHX_THROW("PARSE_SLICE: cannot handle variable steps for slice");
             }
             migraphx::argument step_arg = tind_ins->eval();
             std::vector<int> steps;
             step_arg.visit([&](auto s) { steps.assign(s.begin(), s.end()); });
-            if (!std::all_of(steps.begin(), steps.end(), [](auto s) { return s == 1; }))
+            if(!std::all_of(steps.begin(), steps.end(), [](auto s) { return s == 1; }))
             {
                 MIGRAPHX_THROW("PARSE_SLICE: cannot handle step other than 1");
             }
         }
 
-        if (args.size() >= 4)
+        if(args.size() >= 4)
         {
             auto axes_ins = args.at(3);
-            if (!axes_ins->can_eval())
+            if(!axes_ins->can_eval())
             {
                 MIGRAPHX_THROW("PARSE_SLICE: cannot handle variable axes for slice");
             }
@@ -779,10 +779,10 @@ struct onnx_parser
             std::iota(op.axes.begin(), op.axes.end(), 0);
         }
 
-        if (args.size() >= 3)
+        if(args.size() >= 3)
         {
             auto end_ins = args.at(2);
-            if (!end_ins->can_eval())
+            if(!end_ins->can_eval())
             {
                 MIGRAPHX_THROW("PARSE_SLICE: cannot handle variable ends for slice");
             }
@@ -794,10 +794,10 @@ struct onnx_parser
             op.ends = get_indices(attributes.at("ends"));
         }
 
-        if (args.size() >= 2)
+        if(args.size() >= 2)
         {
             auto start_ins = args.at(1);
-            if (!start_ins->can_eval())
+            if(!start_ins->can_eval())
             {
                 MIGRAPHX_THROW("PARSE_SLICE: cannot handle variable starts for slice");
             }

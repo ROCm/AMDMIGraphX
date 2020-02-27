@@ -32,15 +32,7 @@ struct slice
 
     std::string name() const { return "slice"; }
 
-    void print_vec(const std::vector<int64_t>& vec) const
-    {
-        for(auto v : vec)
-        {
-            std::cout << v << "\t";
-        }
-    }
-
-    void tune_attributes(std::vector<int64_t>& tuned_axes,
+   void tune_attributes(std::vector<int64_t>& tuned_axes,
                          std::vector<int64_t>& tuned_starts,
                          std::vector<int64_t>& tuned_ends,
                          const std::vector<std::size_t>& lens) const
@@ -86,8 +78,6 @@ struct slice
         {
             MIGRAPHX_THROW("SLICE: starts and ends does not match");
         }
-
-        return;
     }
 
     auto fix_index(const std::vector<std::size_t>& lens, std::size_t axis, int64_t index) const

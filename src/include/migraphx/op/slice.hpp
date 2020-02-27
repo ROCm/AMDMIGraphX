@@ -32,7 +32,7 @@ struct slice
 
     std::string name() const { return "slice"; }
 
-   void tune_attributes(std::vector<int64_t>& tuned_axes,
+    void tune_attributes(std::vector<int64_t>& tuned_axes,
                          std::vector<int64_t>& tuned_starts,
                          std::vector<int64_t>& tuned_ends,
                          const std::vector<std::size_t>& lens) const

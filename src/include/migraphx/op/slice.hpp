@@ -11,6 +11,8 @@
 #include <migraphx/config.hpp>
 #include <cmath>
 #include <utility>
+#include <iostream>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -30,6 +32,54 @@ struct slice
 
     std::string name() const { return "slice"; }
 
+    void print_vec(const std::vector<int64_t>& vec) const
+    {
+        for (auto v : vec)
+        {
+            std::cout << v << "\t";
+        }
+    }
+
+    void tune_attributes(std::vector<int64_t>& tuned_axes, std::vector<int64_t>& tuned_starts, 
+                        std::vector<int64_t>& tuned_ends, const std::vector<std::size_t>& lens) const
+    {
+        // tune axes
+        int64_t rank = static_cast<int64_t>(lens.size());
+        if (!std::all_of(tuned_axes.begin(), tuned_axes.end(), [=](auto i) {
+            return (i < rank and i >= -rank);
+        }))
+        {
+            MIGRAPHX_THROW("SLICE: input axis " + to_string_range(tuned_axes) + " out of range");
+        }
+        std::transform(tuned_axes.begin(), tuned_axes.end(), tuned_axes.begin(), [=](auto i) {
+            return (i < 0) ? (i + rank) : i;
+        });
+
+        std::vector<int64_t> axis_lens(tuned_axes.size());
+        std::transform(tuned_axes.begin(), tuned_axes.end(), axis_lens.begin(), [&](auto axis) {
+            return lens[axis];
+        });
+
+        // tune starts
+        std::transform(tuned_starts.begin(), tuned_starts.end(), axis_lens.begin(), tuned_starts.begin(), [=](auto dim, auto i) {
+            i = (i < -dim) ? -dim : ((i > dim) ? dim : i);
+            return (i < 0) ? (i + dim) : i;
+        });
+
+        // tune ends
+        std::transform(tuned_ends.begin(), tuned_ends.end(), axis_lens.begin(), tuned_ends.begin(), [=](auto dim, auto i) {
+            i = (i < -dim) ? -dim : ((i > dim) ? dim : i);
+            return (i < 0) ? (i + dim) : i;
+        });
+
+        if (!(tuned_ends >= tuned_starts))
+        {
+            MIGRAPHX_THROW("SLICE: starts and ends does not match");
+        }
+
+        return;
+    }
+
     auto fix_index(const std::vector<std::size_t>& lens, std::size_t axis, int64_t index) const
     {
         int64_t r = std::min(index, static_cast<int64_t>(lens[axis]));
@@ -40,22 +90,27 @@ struct slice
 
     auto compute_offset(const shape& s) const
     {
+        std::vector<int64_t> tuned_axes = axes;
+        std::vector<int64_t> tuned_starts = starts;
+        std::vector<int64_t> tuned_ends = ends;
         const std::vector<std::size_t>& lens    = s.lens();
+        tune_attributes(tuned_axes, tuned_starts, tuned_ends, lens);
+
         const std::vector<std::size_t>& strides = s.strides();
         auto offset                             = 0;
-        if(!axes.empty())
+        if(!tuned_axes.empty())
         {
-            for(std::size_t i = 0; i < axes.size(); i++)
+            for(std::size_t i = 0; i < tuned_axes.size(); i++)
             {
-                auto axis = axes[i];
-                offset += fix_index(lens, axis, starts[i]) * strides[axis];
+                auto axis = tuned_axes[i];
+                offset += fix_index(lens, axis, tuned_starts[i]) * strides[axis];
             }
         }
         else
         {
             for(std::size_t axis = 0; axis < lens.size(); axis++)
             {
-                offset += fix_index(lens, axis, starts[axis]) * strides[axis];
+                offset += fix_index(lens, axis, tuned_starts[axis]) * strides[axis];
             }
         }
         return offset;
@@ -69,14 +124,19 @@ struct slice
         const auto& old_strides = input_shape.strides();
         if(starts.size() != axes.size() || axes.size() != ends.size())
         {
-            MIGRAPHX_THROW("inconsistent sizes");
+            MIGRAPHX_THROW("SLICE: inconsistent sizes");
         }
+
+        std::vector<int64_t> tuned_axes = axes;
+        std::vector<int64_t> tuned_starts = starts;
+        std::vector<int64_t> tuned_ends = ends;
+        tune_attributes(tuned_axes, tuned_starts, tuned_ends, old_lens);
         std::vector<std::size_t> new_lens = old_lens;
-        for(std::size_t i = 0; i < axes.size(); i++)
+        for(std::size_t i = 0; i < tuned_axes.size(); i++)
         {
-            auto axis = axes[i];
+            auto axis = tuned_axes[i];
             new_lens[axis] =
-                fix_index(old_lens, axis, ends[i]) - fix_index(old_lens, axis, starts[i]);
+                fix_index(old_lens, axis, tuned_ends[i]) - fix_index(old_lens, axis, tuned_starts[i]);
         }
         return shape{t, new_lens, old_strides};
     }

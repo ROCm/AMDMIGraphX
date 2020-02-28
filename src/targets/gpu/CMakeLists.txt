@@ -36,6 +36,7 @@ add_library(migraphx_device
     device/exp.cpp
     device/floor.cpp
     device/gather.cpp
+    device/gelu.cpp
     device/int8_gemm_pack.cpp
     device/layernorm.cpp
     device/log.cpp

@@ -5,6 +5,7 @@
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/oper.hpp>
 #include <migraphx/gpu/device/layernorm.hpp>
+#include <migraphx/gpu/device/gelu.hpp>
 #include <migraphx/gpu/device/mul_add.hpp>
 #include <migraphx/gpu/device/add_clip.hpp>
 #include <migraphx/gpu/device/add_relu.hpp>
@@ -270,6 +271,10 @@ struct hip_layernorm : ternary_device<hip_layernorm, &device::layernorm>
 {
 };
 
+struct hip_gelu : unary_device<hip_gelu, &device::gelu>
+{
+};
+
 struct hip_mul_add
 {
     std::string name() const { return "hip::mul_add"; }
@@ -374,6 +379,41 @@ struct find_layernorm
         auto args      = ins->inputs();
 
         p.replace_instruction(ins, hip_layernorm{}, x_ins, scale_ins, bias_ins, args.back());
+    }
+};
+
+struct find_gelu
+{
+
+    // static auto gelu_onnx()
+    // {
+
+    // }
+
+    // static auto gelu_tf()
+    // {
+
+    // }
+
+    auto matcher() const
+    {
+        return match::name("gpu::mul")(
+            match::arg(1)(
+                match::name("gpu::add")(
+                    match::arg(0)(match::name("gpu::erf")(
+                        match::arg(0)(match::name("gpu::div")(match::arg(0)(
+                            match::any().bind("x")
+                        )))
+                    )))));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins       = r.result;
+        auto x_ins     = r.instructions["x"];
+        auto args      = ins->inputs();
+
+        p.replace_instruction(ins, hip_gelu{}, x_ins,  args.back());
     }
 };
 
@@ -667,11 +707,12 @@ struct find_conv_bias_relu
 void fuse_ops::apply(program& p) const
 {
     // clang-format off
-    match::find_matches(p, find_layernorm{});
+    // match::find_matches(p, find_layernorm{});
     match::find_matches(p, find_triadd{});
     match::find_matches(p, 
         find_conv_bias_relu{ctx},
         find_conv_bias{ctx},
+        // find_gelu{},
         find_mul_add{},
         find_mul_add_relu{},
         find_add_unary{"gpu::relu", hip_add_relu{}, hip_triadd_relu{}},

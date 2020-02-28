@@ -52,6 +52,7 @@ static void print_instruction(std::ostream& os,
         os << ")";
     }
 
+    // skip return instruction shape
     if(ins->name() != "@return")
         os << " -> " << ins->get_shape();
 }
@@ -584,6 +585,11 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 
     print_program(*this, [&](auto ins, const auto& names) {
         print_instruction(std::cout, ins, names);
+
+        // skip return instruction
+        if(ins->name() == "@return")
+            return;
+
         double avg     = common_average(ins_vec[ins]);
         double percent = std::ceil(100.0 * avg / total_instruction_time);
         os << ": " << avg << "ms, " << percent << "%";

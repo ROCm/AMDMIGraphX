@@ -398,22 +398,17 @@ struct find_gelu
     auto matcher() const
     {
         return match::name("gpu::mul")(
-            match::arg(1)(
-                match::name("gpu::add")(
-                    match::arg(0)(match::name("gpu::erf")(
-                        match::arg(0)(match::name("gpu::div")(match::arg(0)(
-                            match::any().bind("x")
-                        )))
-                    )))));
+            match::arg(1)(match::name("gpu::add")(match::arg(0)(match::name("gpu::erf")(
+                match::arg(0)(match::name("gpu::div")(match::arg(0)(match::any().bind("x")))))))));
     }
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto ins       = r.result;
-        auto x_ins     = r.instructions["x"];
-        auto args      = ins->inputs();
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+        auto args  = ins->inputs();
 
-        p.replace_instruction(ins, hip_gelu{}, x_ins,  args.back());
+        p.replace_instruction(ins, hip_gelu{}, x_ins, args.back());
     }
 };
 

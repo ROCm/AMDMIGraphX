@@ -895,9 +895,9 @@ def gelu_test():
     half = np.array(0.5)
 
     sqrt_2_tensor = helper.make_tensor(name='sqrt_2',
-                                    data_type=TensorProto.FLOAT,
-                                    dims=sqrt_2.shape,
-                                    vals=sqrt_2.flatten().astype(np.float))
+                                       data_type=TensorProto.FLOAT,
+                                       dims=sqrt_2.shape,
+                                       vals=sqrt_2.flatten().astype(np.float))
 
     one_tensor = helper.make_tensor(name='one',
                                     data_type=TensorProto.FLOAT,
@@ -905,41 +905,28 @@ def gelu_test():
                                     vals=one.flatten().astype(np.float))
 
     half_tensor = helper.make_tensor(name='half',
-                                    data_type=TensorProto.FLOAT,
-                                    dims=half.shape,
-                                    vals=half.flatten().astype(np.float))
+                                     data_type=TensorProto.FLOAT,
+                                     dims=half.shape,
+                                     vals=half.flatten().astype(np.float))
 
-    div = helper.make_node(
-        'Div',
-        inputs=['0', 'sqrt_2'],
-        outputs=['div_out']
-    )
+    div = helper.make_node('Div', inputs=['0', 'sqrt_2'], outputs=['div_out'])
 
-    erf = helper.make_node(
-        'Erf',
-        inputs=['div_out'],
-        outputs=['erf_out']
-    )
+    erf = helper.make_node('Erf', inputs=['div_out'], outputs=['erf_out'])
 
-    add_1 = helper.make_node(
-        'Add',
-        inputs=['erf_out', 'one'],
-        outputs=['add_1_out']
-    )
+    add_1 = helper.make_node('Add',
+                             inputs=['erf_out', 'one'],
+                             outputs=['add_1_out'])
 
-    mul_half = helper.make_node(
-        'Mul',
-        inputs=['0', 'half'],
-        outputs=['mul_half_out']
-    )
+    mul_half = helper.make_node('Mul',
+                                inputs=['0', 'half'],
+                                outputs=['mul_half_out'])
 
-    mul = helper.make_node(
-        'Mul',
-        inputs=['mul_half_out', 'add_1_out'],
-        outputs=['1']
-    )
+    mul = helper.make_node('Mul',
+                           inputs=['mul_half_out', 'add_1_out'],
+                           outputs=['1'])
 
-    return ([div, erf, add_1, mul_half, mul], [x], [y], [sqrt_2_tensor, one_tensor, half_tensor])
+    return ([div, erf, add_1, mul_half,
+             mul], [x], [y], [sqrt_2_tensor, one_tensor, half_tensor])
 
 
 @onnx_test

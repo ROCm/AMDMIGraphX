@@ -30,6 +30,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     hsakmt-roct-dev \
     lcov \
     libelf-dev \
+    libfile-which-perl \
     libncurses5-dev \
     libnuma-dev \
     libpthread-stubs0-dev \

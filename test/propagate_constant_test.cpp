@@ -1,20 +1,16 @@
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/op/add.hpp>
 #include <migraphx/op/scalar.hpp>
 #include <migraphx/op/mul.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
-struct const_prop_target
+void run_pass(migraphx::program& p)
 {
-    std::string name() const { return "const_prop"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const
-    {
-        return {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}};
-    }
-    migraphx::context get_context() const { return {}; }
-};
+    migraphx::run_passes(p, {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
+}
 
 TEST_CASE(const_add)
 {
@@ -23,7 +19,7 @@ TEST_CASE(const_add)
     auto two = p1.add_literal(2);
     auto sum = p1.add_instruction(migraphx::op::add{}, one, two);
     p1.add_instruction(pass_op{}, sum);
-    p1.compile(const_prop_target{});
+    run_pass(p1);
 
     migraphx::program p2;
     auto total = p2.add_literal(3);
@@ -38,7 +34,7 @@ TEST_CASE(const_add_parameter)
     auto two = p1.add_literal(2);
     auto sum = p1.add_instruction(migraphx::op::add{}, one, two);
     p1.add_instruction(pass_op{}, sum);
-    p1.compile(const_prop_target{});
+    run_pass(p1);
 
     migraphx::program p2;
     auto total = p2.add_literal(3);
@@ -54,7 +50,7 @@ TEST_CASE(const_multiadd)
     auto sum1 = p1.add_instruction(migraphx::op::add{}, one, two);
     auto sum2 = p1.add_instruction(migraphx::op::add{}, sum1, two);
     p1.add_instruction(pass_op{}, sum2);
-    p1.compile(const_prop_target{});
+    run_pass(p1);
 
     migraphx::program p2;
     auto total = p2.add_literal(5);
@@ -71,7 +67,7 @@ TEST_CASE(const_add_mul)
     auto sum1 = p1.add_instruction(migraphx::op::add{}, one, mul);
     auto sum2 = p1.add_instruction(migraphx::op::add{}, sum1, two);
     p1.add_instruction(pass_op{}, sum2);
-    p1.compile(const_prop_target{});
+    run_pass(p1);
 
     migraphx::program p2;
     auto total = p2.add_literal(7);
@@ -86,7 +82,7 @@ TEST_CASE(const_add_scalar)
     auto two = p1.add_instruction(migraphx::op::scalar{{2, 2}}, p1.add_literal(2));
     auto sum = p1.add_instruction(migraphx::op::add{}, one, two);
     p1.add_instruction(pass_op{}, sum);
-    p1.compile(const_prop_target{});
+    run_pass(p1);
 
     migraphx::program p2;
     auto total =
@@ -102,7 +98,7 @@ TEST_CASE(const_scalar)
         auto one = p1.add_instruction(migraphx::op::scalar{{2, 2}}, p1.add_literal(1));
         p1.add_instruction(pass_op{}, one);
     }
-    p1.compile(const_prop_target{});
+    run_pass(p1);
 
     migraphx::program p2;
     {

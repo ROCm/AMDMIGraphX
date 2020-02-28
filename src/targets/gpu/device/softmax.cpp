@@ -6,18 +6,16 @@
 #include <migraphx/gpu/device/tensor.hpp>
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/types.hpp>
-#include <migraphx/gpu/hip.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void softmax(hipStream_t stream, const argument& result, const argument& arg, int axis)
+void softmax(hipStream_t stream, const argument& result, const argument& arg, int64_t axis)
 {
-    auto lens                = result.get_shape().lens();
-    auto batch_lens          = lens;
-    index_int batch_item_num = lens[axis];
+    auto batch_lens          = result.get_shape().lens();
+    index_int batch_item_num = batch_lens[axis];
     batch_lens[axis]         = 1;
     migraphx::shape batch_shape{result.get_shape().type(), batch_lens};
 
@@ -44,7 +42,7 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
                     return ::exp(to_hip_type(val));
                 });
 
-            idx.local_stride(batch_item_num, [&](auto j) {
+            idx.local_stride(batch_item_num, [&](auto j) __device__ {
                 data_idx[axis]   = j;
                 auto val         = input[data_idx] - batch_max;
                 output[data_idx] = ::exp(to_hip_type(val)) / batch_sum;

@@ -6,12 +6,14 @@
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NULL_STREAM)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_NSTREAMS)
 
 using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
 
@@ -122,11 +124,14 @@ struct hip_device
     std::size_t device_id      = 0;
     std::size_t current_stream = 0;
     std::vector<stream> streams;
+
+    public:
+    std::unordered_map<std::string, argument> preallocations{};
 };
 
 struct context
 {
-    context(std::size_t device_id = 0, std::size_t n = 4)
+    context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
         : current_device(std::make_shared<hip_device>(device_id, n))
     {
     }

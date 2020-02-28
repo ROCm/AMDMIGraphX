@@ -12,7 +12,8 @@ void mul_add(hipStream_t stream,
              const argument& arg2,
              const argument& arg3)
 {
-    nary(stream, result, arg1, arg2, arg3)([](auto x, auto a, auto b) { return a * x + b; });
+    nary(stream, result, arg1, arg2, arg3)([](auto x, auto a, auto b)
+                                               __device__ { return a * x + b; });
 }
 
 } // namespace device

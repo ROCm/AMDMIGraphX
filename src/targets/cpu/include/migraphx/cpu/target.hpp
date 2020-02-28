@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_CPU_TARGET_HPP
 
 #include <migraphx/program.hpp>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/cpu/context.hpp>
 #include <migraphx/config.hpp>
 
@@ -13,7 +14,7 @@ namespace cpu {
 struct target
 {
     std::string name() const;
-    std::vector<pass> get_passes(migraphx::context& ctx) const;
+    std::vector<pass> get_passes(migraphx::context& ctx, const compile_options&) const;
     migraphx::context get_context() const { return context{}; }
 
     argument copy_to(const argument& arg) const { return arg; }

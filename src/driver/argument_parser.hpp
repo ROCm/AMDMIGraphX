@@ -221,6 +221,11 @@ struct argument_parser
         return [=](auto&, auto& arg) { arg.metavar = metavar; };
     }
 
+    MIGRAPHX_DRIVER_STATIC auto type(const std::string& type)
+    {
+        return [=](auto&, auto& arg) { arg.type = type; };
+    }
+
     template <class T>
     MIGRAPHX_DRIVER_STATIC auto set_value(T value)
     {

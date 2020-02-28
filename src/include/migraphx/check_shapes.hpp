@@ -2,6 +2,8 @@
 #define MIGRAPHX_GUARD_RTGLIB_CHECK_SHAPES_HPP
 
 #include <migraphx/shape.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/config.hpp>
 #include <algorithm>
 
@@ -48,11 +50,12 @@ struct check_shapes
         return end - begin;
     }
 
-    const check_shapes& has(std::size_t n) const
+    template <class... Ts>
+    const check_shapes& has(Ts... ns) const
     {
-        if(size() != n)
-            MIGRAPHX_THROW(prefix() + "Wrong number of arguments: expected " + std::to_string(n) +
-                           " but given " + std::to_string(size()));
+        if(migraphx::none_of({ns...}, [&](auto i) { return this->size() == i; }))
+            MIGRAPHX_THROW(prefix() + "Wrong number of arguments: expected " +
+                           to_string_range({ns...}) + " but given " + std::to_string(size()));
         return *this;
     }
 

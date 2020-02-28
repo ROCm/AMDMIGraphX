@@ -344,10 +344,10 @@ TEST_CASE(conv_autopad_fail_test)
 TEST_CASE(conv_autopad_same_test)
 {
     migraphx::program p;
-    auto l0       = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 32, 32}});
-    auto l1       = p.add_parameter("1", {migraphx::shape::float_type, {1, 3, 3, 3}});
+    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 32, 32}});
+    auto l1 = p.add_parameter("1", {migraphx::shape::float_type, {1, 3, 3, 3}});
     migraphx::op::convolution op;
-    op.padding = {1, 1};
+    op.padding      = {1, 1};
     op.padding_mode = migraphx::op::padding_mode_t::same;
     p.add_instruction(op, l0, l1);
 

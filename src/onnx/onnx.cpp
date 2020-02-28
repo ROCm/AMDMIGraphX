@@ -424,7 +424,7 @@ struct onnx_parser
     parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         Op op;
-        auto l0 = args[0];
+        auto l0      = args[0];
         auto weights = args[1];
         if(contains(attributes, "pads"))
         {
@@ -472,7 +472,7 @@ struct onnx_parser
 
             if(s.find("SAME") != std::string::npos)
             {
-                op.padding_mode = op::padding_mode_t::same;
+                op.padding_mode                 = op::padding_mode_t::same;
                 std::vector<size_t> weight_dims = weights->get_shape().lens();
                 size_t weight_h                 = weight_dims[2];
                 size_t weight_w                 = weight_dims[3];
@@ -493,7 +493,6 @@ struct onnx_parser
                     op.padding[1] = pads[1];
                 }
             }
-
         }
         if(contains(attributes, "group"))
         {

@@ -695,7 +695,7 @@ struct onnx_parser
         op::squeeze op;
         literal s = parse_value(info.attributes.at("axes"));
         s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
-        return prog.add_instruction(op, args[0]);
+        return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
     instruction_ref
@@ -704,7 +704,7 @@ struct onnx_parser
         op::unsqueeze op;
         literal s = parse_value(info.attributes.at("axes"));
         s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
-        return prog.add_instruction(op, args[0]);
+        return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
     instruction_ref

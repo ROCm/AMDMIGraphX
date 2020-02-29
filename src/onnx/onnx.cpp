@@ -124,6 +124,7 @@ struct onnx_parser
         add_mem_op("Shape", &onnx_parser::parse_shape);
         add_mem_op("Slice", &onnx_parser::parse_slice);
         add_mem_op("Softmax", &onnx_parser::parse_softmax<op::softmax>);
+        add_mem_op("Split", &onnx_parser::parse_split);
         add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
         add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);

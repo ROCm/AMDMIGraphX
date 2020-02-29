@@ -1694,7 +1694,48 @@ struct onnx_parser
     std::vector<instruction_ref>
     parse_split(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
-        return {};
+        int64_t axis = 0;
+        if (contains(info.attributes, "axis"))
+        {
+            axis = parse_value(info.attributes.at("axis")).at<int>();
+        }
+
+        auto lens = args[0]->get_shape().lens();
+        int rank = static_cast<int>(lens.size());
+        if (axis < -rank or axis >= rank)
+        {
+            MIGRAPHX_THROW("SPLIT: axis attribute out of rank!");
+        }
+        int64_t tuned_axis = (axis < 0) ? axis + rank : axis;
+
+        std::vector<int64_t> vec_splits;
+        if (contains(info.attributes, "split"))
+        {
+            literal s = parse_value(info.attributes.at("split"));
+            s.visit([&](auto v) { vec_splits.assign(v.begin(), v.end()); });
+
+            if (std::accumulate(vec_splits.begin(), vec_splits.end(), 0) != static_cast<int64_t>(lens[tuned_axis]))
+            {
+                MIGRAPHX_THROW("SPLIT: sum of split attribute unequal to dim size of axis!");
+            }
+        }
+        // no split attribute
+        else
+        {
+            assert((lens[tuned_axis] % info.num_outputs) == 0);
+            auto dl = lens[tuned_axis] / info.num_outputs;
+            vec_splits.resize(info.num_outputs, dl);
+        }
+
+        std::vector<instruction_ref> ret_ins;
+        int64_t start = 0;
+        for (auto sl : vec_splits)
+        {
+            ret_ins.push_back(prog.add_instruction(op::slice{{axis}, {start}, {start + sl}}, args[0]));
+            start += sl;
+        }
+
+        return ret_ins;
     }
 
     void parse_from(std::istream& is)

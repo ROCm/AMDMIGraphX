@@ -59,7 +59,7 @@ struct slice
                        tuned_starts.end(),
                        axis_lens.begin(),
                        tuned_starts.begin(),
-                       [=](auto dim, auto i) {
+                       [=](auto i, auto dim) {
                            i = (i < -dim) ? -dim : ((i > dim) ? dim : i);
                            return (i < 0) ? (i + dim) : i;
                        });
@@ -69,7 +69,7 @@ struct slice
                        tuned_ends.end(),
                        axis_lens.begin(),
                        tuned_ends.begin(),
-                       [=](auto dim, auto i) {
+                       [=](auto i, auto dim) {
                            i = (i < -dim) ? -dim : ((i > dim) ? dim : i);
                            return (i < 0) ? (i + dim) : i;
                        });

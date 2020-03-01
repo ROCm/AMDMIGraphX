@@ -1040,10 +1040,10 @@ struct onnx_parser
     instruction_ref parse_pad(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         std::vector<int64_t> pads{};
-        if (args.size() >= 2)
+        if(args.size() >= 2)
         {
             auto pad_ins = args.at(1);
-            if (!pad_ins->can_eval())
+            if(!pad_ins->can_eval())
             {
                 MIGRAPHX_THROW("PARSE_PAD: pad input must be constant");
             }
@@ -1064,15 +1064,15 @@ struct onnx_parser
 
         float value = 0.0f;
         // third input is the value
-        if (args.size() == 3)
+        if(args.size() == 3)
         {
             auto val_ins = args.at(2);
-            if (!val_ins->can_eval())
+            if(!val_ins->can_eval())
             {
                 MIGRAPHX_THROW("PARSE_PAD: input value must be constant");
             }
             auto val_arg = val_ins->eval();
-            if (!val_arg.get_shape().scalar())
+            if(!val_arg.get_shape().scalar())
             {
                 MIGRAPHX_THROW("PARSE_PAD: value should be scalar");
             }

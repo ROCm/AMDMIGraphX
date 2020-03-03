@@ -682,7 +682,7 @@ TEST_CASE(prelu_test)
 {
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto x = p.add_literal(migraphx::literal{s, {-1, 0, 2}});
+    auto x     = p.add_literal(migraphx::literal{s, {-1, 0, 2}});
     auto slope = p.add_literal(migraphx::literal{s, {2, 1, 2}});
     p.add_instruction(migraphx::op::prelu{}, x, slope);
     p.compile(migraphx::cpu::target{});

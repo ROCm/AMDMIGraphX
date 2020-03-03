@@ -337,10 +337,10 @@ struct test_prelu_brcst : verify_program<test_prelu_brcst>
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {6}};
-        auto x = p.add_parameter("x", s);
+        auto x   = p.add_parameter("x", s);
         auto slp = p.add_parameter("slp", s);
         p.add_instruction(migraphx::op::prelu{}, x, slp);
-        
+
         return p;
     }
 };

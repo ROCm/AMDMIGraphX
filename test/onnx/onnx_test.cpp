@@ -1049,8 +1049,8 @@ TEST_CASE(pow_test)
 TEST_CASE(prelu_brcst_test)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
-    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {4, 5}});
+    auto l0  = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
+    auto l1  = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {4, 5}});
     auto bl1 = p.add_instruction(migraphx::op::multibroadcast{l0->get_shape().lens()}, l1);
     p.add_instruction(migraphx::op::prelu{}, l0, bl1);
 

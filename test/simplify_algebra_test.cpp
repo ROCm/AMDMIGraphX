@@ -414,7 +414,7 @@ TEST_CASE(simplify_concat_add_relu)
     EXPECT(p1 == p2);
 }
 
-TEST_CASE(simplify_concat_add_relu_broadcast1)
+TEST_CASE(simplify_concat_add_relu_broadcast_different_axis)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {2, 1, 4, 5}};
     migraphx::program p1;
@@ -452,7 +452,7 @@ TEST_CASE(simplify_concat_add_relu_broadcast1)
     EXPECT(p1 == p2);
 }
 
-TEST_CASE(simplify_concat_add_relu_broadcast2)
+TEST_CASE(simplify_concat_add_relu_broadcast_same_axis)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {2, 1, 4, 5}};
     migraphx::program p1;

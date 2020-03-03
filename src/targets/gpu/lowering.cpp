@@ -70,6 +70,7 @@
 #include <migraphx/gpu/pow.hpp>
 #include <migraphx/gpu/sqdiff.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
+#include <migraphx/gpu/prelu.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -137,6 +138,8 @@ struct miopen_apply
         add_generic_op<hip_pow>("pow");
         add_generic_op<hip_sqdiff>("sqdiff");
         add_generic_op<hip_relu>("relu");
+        add_generic_op<hip_prelu>("prelu");
+        add_generic_op<hip_prelu>("prelu");
         add_generic_op<hip_sign>("sign");
         add_generic_op<hip_sigmoid>("sigmoid");
         add_generic_op<hip_ceil>("ceil");

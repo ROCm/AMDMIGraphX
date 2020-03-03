@@ -254,7 +254,7 @@ instruction_ref program::move_instruction(instruction_ref src, instruction_ref d
 instruction_ref program::move_instructions(instruction_ref src, instruction_ref dst)
 {
     this->move_instruction(src, dst);
-    for(auto ins:src->inputs())
+    for(auto ins : src->inputs())
         this->move_instruction(ins, src);
     return src;
 }

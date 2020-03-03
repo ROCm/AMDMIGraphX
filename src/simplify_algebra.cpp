@@ -4,6 +4,7 @@
 #include <migraphx/op/add.hpp>
 #include <migraphx/op/mul.hpp>
 #include <migraphx/op/concat.hpp>
+#include <migraphx/op/slice.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/broadcast.hpp>
@@ -309,13 +310,28 @@ struct find_conv_dot_horiz_fusion
         auto each = [&](auto start, auto last) {
             if(std::distance(start, last) < 2)
                 return;
-            if(not contains({"dot", "convolution"}, (*start)->name()))
+            auto&& name = (*start)->name();
+            if(not contains({"dot", "convolution"}, name))
                 return;
+            auto input = (*start)->inputs().front();
             std::vector<instruction_ref> args;
             std::transform(
                 start, last, std::back_inserter(args), [&](auto x) { return x->inputs().at(1); });
-            for(auto input : range(start, last))
+            for(auto arg:args)
+                p.move_instructions(arg, input);
+            int axis = 1;
+            if (name == "dot")
             {
+                axis = args.front()->get_shape().lens().size() - 1;
+            }
+            // TODO: Check if axises match
+            auto concat = p.insert_instruction(input, op::concat{axis}, args);
+            auto fused = p.insert_instruction(std::next(input), (*start)->get_operator(), input, concat);
+            int64_t offset = 0;
+            for(auto arg : range(start, last))
+            {
+                int64_t len = arg->get_shape().lens()[axis];
+                p.replace_instruction(arg, op::slice{{axis}, {offset}, {offset+len}}, fused);
             }
         };
 
@@ -334,6 +350,7 @@ void simplify_algebra::apply(program& p) const
                             find_double_add_lit_broadcast{},
                             find_add_lit_broadcast{},
                             find_add_convs{},
+                            find_conv_dot_horiz_fusion{},
                             find_mul_conv{},
                             find_mul_add{});
         dead_code_elimination{}.apply(p);

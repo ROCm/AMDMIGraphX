@@ -678,6 +678,21 @@ TEST_CASE(log_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(prelu_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto x = p.add_literal(migraphx::literal{s, {-1, 0, 2}});
+    auto slope = p.add_literal(migraphx::literal{s, {2, 1, 2}});
+    p.add_instruction(migraphx::op::prelu{}, x, slope);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {-2.0f, 0.0f, 2.0f};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(pow_test)
 {
     migraphx::program p;

@@ -1371,6 +1371,20 @@ def pow_test():
 
     return ([node], [arg0, arg1], [arg_out])
 
+@onnx_test
+def prelu_brcst_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [2, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'PRelu',
+        inputs=['0', '1'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
 
 @onnx_test
 def reducel1_test():

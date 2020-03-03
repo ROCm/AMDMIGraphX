@@ -331,6 +331,20 @@ struct test_pow : verify_program<test_pow>
     }
 };
 
+struct test_prelu_brcst : verify_program<test_prelu_brcst>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {6}};
+        auto x = p.add_parameter("x", s);
+        auto slp = p.add_parameter("slp", s);
+        p.add_instruction(migraphx::op::prelu{}, x, slp);
+        
+        return p;
+    }
+};
+
 struct test_sin : verify_program<test_sin>
 {
     migraphx::program create_program() const

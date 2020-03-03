@@ -139,7 +139,6 @@ struct miopen_apply
         add_generic_op<hip_sqdiff>("sqdiff");
         add_generic_op<hip_relu>("relu");
         add_generic_op<hip_prelu>("prelu");
-        add_generic_op<hip_prelu>("prelu");
         add_generic_op<hip_sign>("sign");
         add_generic_op<hip_sigmoid>("sigmoid");
         add_generic_op<hip_ceil>("ceil");

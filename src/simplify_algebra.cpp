@@ -7,8 +7,10 @@
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/broadcast.hpp>
+#include <migraphx/op/recip.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -270,6 +272,33 @@ struct find_add_convs
     }
 };
 
+struct find_div_const
+{
+    auto matcher() const
+    {
+        return match::name("div")(match::arg(1)(match::any_of(match::name("multibroadcast")(match::arg(0)(match::is_constant())), match::is_constant())).bind("c"));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins   = r.result;
+        auto c_ins = r.instructions["c"];
+
+                std::cout << p << std::endl;
+
+
+        auto recip = p.insert_instruction(c_ins, op::recip{}, c_ins);
+
+        auto args    = ins->inputs();
+
+
+        // p.debug_print();
+
+        p.replace_instruction(ins, op::mul{}, args.front(), recip);
+
+    }
+};
+
 void simplify_algebra::apply(program& p) const
 {
     // Run simplifications multiple times
@@ -281,7 +310,8 @@ void simplify_algebra::apply(program& p) const
                             find_add_lit_broadcast{},
                             find_add_convs{},
                             find_mul_conv{},
-                            find_mul_add{});
+                            find_mul_add{},
+                            find_div_const{});
         dead_code_elimination{}.apply(p);
     }
 }

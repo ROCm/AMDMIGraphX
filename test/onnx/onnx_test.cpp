@@ -1309,6 +1309,29 @@ TEST_CASE(softmax_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(split_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10, 15}});
+    p.add_instruction(migraphx::op::slice{{1}, {0}, {7}}, input);
+    p.add_instruction(migraphx::op::slice{{1}, {7}, {11}}, input);
+    p.add_instruction(migraphx::op::slice{{1}, {11}, {15}}, input);
+
+    auto prog = optimize_onnx("split_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(split_test_default)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10, 15}});
+    p.add_instruction(migraphx::op::slice{{0}, {0}, {5}}, input);
+    p.add_instruction(migraphx::op::slice{{0}, {5}, {10}}, input);
+
+    auto prog = optimize_onnx("split_test_default.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(sqrt_test)
 {
     migraphx::program p;

@@ -326,26 +326,20 @@ struct miopen_batch_norm
 
     std::string name() const { return "gpu::batch_norm"; }
 
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        return inputs.front();
-    }
+    shape compute_shape(const std::vector<shape>& inputs) const { return inputs.front(); }
 
-
-    argument compute(context& ctx,
-                                              const shape& output_shape,
-                                              const std::vector<argument>& args) const
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
-        auto x_shape = args[0].get_shape();
-        auto x_lens = x_shape.lens();
+        auto x_shape     = args[0].get_shape();
+        auto x_lens      = x_shape.lens();
         auto new_x_shape = shape{x_shape.type(), {x_lens[0] * x_lens[1], x_lens[2], 1, 1}};
 
+        auto x_desc = make_tensor(new_x_shape);
+        auto y_desc = make_tensor(new_x_shape);
 
-        auto x_desc  = make_tensor(new_x_shape);
-        auto y_desc  = make_tensor(new_x_shape);
-
-        auto bn_shape = args[1].get_shape();
-        auto bn_lens = bn_shape.lens();
+        auto bn_shape     = args[1].get_shape();
+        auto bn_lens      = bn_shape.lens();
         auto new_bn_shape = shape{bn_shape.type(), {1, bn_lens[2], 1, 1}};
 
         auto bn_desc = make_tensor(new_bn_shape);
@@ -355,23 +349,24 @@ struct miopen_batch_norm
 
         double exp_factor = 1;
 
-        miopenBatchNormalizationForwardTraining(ctx.get_stream().get_miopen(),
-                                                miopenBatchNormMode_t(op::batch_norm_inference::spatial),
-                                                &alpha,
-                                                &beta,
-                                                x_desc.get(),
-                                                args[0].implicit(),
-                                                y_desc.get(),
-                                                args[3].implicit(),
-                                                bn_desc.get(),
-                                                args[1].implicit(),
-                                                args[2].implicit(),
-                                                exp_factor,
-                                                nullptr,
-                                                nullptr,
-                                                epsilon,
-                                                nullptr,
-                                                nullptr);
+        miopenBatchNormalizationForwardTraining(
+            ctx.get_stream().get_miopen(),
+            miopenBatchNormMode_t(op::batch_norm_inference::spatial),
+            &alpha,
+            &beta,
+            x_desc.get(),
+            args[0].implicit(),
+            y_desc.get(),
+            args[3].implicit(),
+            bn_desc.get(),
+            args[1].implicit(),
+            args[2].implicit(),
+            exp_factor,
+            nullptr,
+            nullptr,
+            epsilon,
+            nullptr,
+            nullptr);
 
         return args[3];
     }
@@ -413,9 +408,8 @@ struct find_layernorm
     static auto layernorm_onnx()
     {
         return match::arg(0)(match::name("gpu::sub")(
-                    match::arg(0)(match::any().bind("x")),
-                    match::arg(1)(multibroadcast_op(match::name("gpu::reduce_mean")
-                    ))));
+            match::arg(0)(match::any().bind("x")),
+            match::arg(1)(multibroadcast_op(match::name("gpu::reduce_mean")))));
     }
 
     // static auto layernorm_onnx()
@@ -449,16 +443,15 @@ struct find_layernorm
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto ins       = r.result;
+        auto ins = r.result;
         // auto scale_ins = r.instructions["scale"];
-        auto x_ins     = r.instructions["x"];
+        auto x_ins = r.instructions["x"];
         // auto bias_ins  = r.instructions["bias"];
-        auto args      = ins->inputs();
+        auto args = ins->inputs();
 
         p.replace_instruction(ins, hip_layernorm{}, x_ins, args.back());
         // p.replace_instruction(ins, hip_layernorm{}, x_ins, scale_ins, bias_ins, args.back());
         // p.replace_instruction(ins, miopen_batch_norm{}, x_ins, scale_ins, bias_ins, args.back());
-
     }
 };
 

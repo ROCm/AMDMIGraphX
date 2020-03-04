@@ -1732,15 +1732,14 @@ def split_test():
     y2 = helper.make_tensor_value_info('y2', TensorProto.FLOAT, [10, 4])
     y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [10, 4])
 
-    node = onnx.helper.make_node(
-        'Split',
-        inputs=['x'],
-        outputs=['y1', 'y2', 'y3'],
-        axis = 1,
-        split = [7, 4, 4]
-    )
+    node = onnx.helper.make_node('Split',
+                                 inputs=['x'],
+                                 outputs=['y1', 'y2', 'y3'],
+                                 axis=1,
+                                 split=[7, 4, 4])
 
     return ([node], [x], [y1, y2, y3])
+
 
 @onnx_test
 def split_test_default():
@@ -1755,6 +1754,7 @@ def split_test_default():
     )
 
     return ([node], [x], [y1, y2])
+
 
 @onnx_test
 def sqrt_test():

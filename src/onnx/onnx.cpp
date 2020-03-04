@@ -1727,7 +1727,8 @@ struct onnx_parser
 
             if((lens[tuned_axis] % info.num_outputs))
             {
-                MIGRAPHX_THROW("PARSE_SPLIT: input cannot be equally divided into " + to_string(info.num_outputs) + " splits!");
+                MIGRAPHX_THROW("PARSE_SPLIT: input cannot be equally divided into " +
+                               to_string(info.num_outputs) + " splits!");
             }
             auto dl = lens[tuned_axis] / info.num_outputs;
             vec_splits.resize(info.num_outputs, dl);

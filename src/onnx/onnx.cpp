@@ -303,12 +303,15 @@ struct onnx_parser
     }
 
     template <class Op>
-    void check_asym_padding(instruction_ref& ins, std::vector<int64_t>& padding, Op& op, float pad_val = 0)
+    void check_asym_padding(instruction_ref& ins,
+                            std::vector<int64_t>& padding,
+                            Op& op,
+                            float pad_val = 0)
     {
         if(padding[0] != padding[2] || padding[1] != padding[3])
         {
             padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
-            ins = prog.add_instruction(op::pad{padding, pad_val}, ins);
+            ins     = prog.add_instruction(op::pad{padding, pad_val}, ins);
         }
         else
         {
@@ -484,8 +487,10 @@ struct onnx_parser
 
                 auto input_dims = l0->get_shape().lens();
                 std::vector<int64_t> padding(input_dims.size());
-                calculate_padding(0, padding, input_dims[2], op.stride[0], op.dilation[0], weight_h);
-                calculate_padding(1, padding, input_dims[3], op.stride[1], op.dilation[1], weight_w);
+                calculate_padding(
+                    0, padding, input_dims[2], op.stride[0], op.dilation[0], weight_h);
+                calculate_padding(
+                    1, padding, input_dims[3], op.stride[1], op.dilation[1], weight_w);
 
                 check_asym_padding(l0, padding, op);
             }

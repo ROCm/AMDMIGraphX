@@ -302,6 +302,21 @@ struct onnx_parser
         return curr_ins;
     }
 
+    template <class Op>
+    void check_asym_padding(instruction_ref& ins, std::vector<int64_t>& padding, Op& op, float pad_val = 0)
+    {
+        if(padding[0] != padding[2] || padding[1] != padding[3])
+        {
+            padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
+            ins = prog.add_instruction(op::pad{padding, pad_val}, ins);
+        }
+        else
+        {
+            op.padding[0] = padding[0];
+            op.padding[1] = padding[1];
+        }
+    }
+
     instruction_ref parse_clip(const std::string&,
                                const attribute_map& attributes,
                                std::vector<instruction_ref> args)
@@ -442,17 +457,7 @@ struct onnx_parser
             {
                 MIGRAPHX_THROW("padding should have 4 values");
             }
-            if(padding[0] != padding[2] || padding[1] != padding[3])
-            {
-                // insert zeros for pad op (args[0] has 4 dims)
-                padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
-                l0      = prog.add_instruction(op::pad{padding}, l0);
-            }
-            else
-            {
-                op.padding[0] = padding[0];
-                op.padding[1] = padding[1];
-            }
+            check_asym_padding(l0, padding, op);
         }
         if(contains(attributes, "strides"))
         {
@@ -478,20 +483,11 @@ struct onnx_parser
                 size_t weight_w                 = weight_dims[3];
 
                 auto input_dims = l0->get_shape().lens();
-                std::vector<int64_t> pads(input_dims.size());
-                calculate_padding(0, pads, input_dims[2], op.stride[0], op.dilation[0], weight_h);
-                calculate_padding(1, pads, input_dims[3], op.stride[1], op.dilation[1], weight_w);
+                std::vector<int64_t> padding(input_dims.size());
+                calculate_padding(0, padding, input_dims[2], op.stride[0], op.dilation[0], weight_h);
+                calculate_padding(1, padding, input_dims[3], op.stride[1], op.dilation[1], weight_w);
 
-                if(pads[0] != pads[2] || pads[1] != pads[3])
-                {
-                    std::vector<int64_t> padding = {0, 0, pads[0], pads[1], 0, 0, pads[2], pads[3]};
-                    l0 = prog.add_instruction(migraphx::op::pad{padding}, l0);
-                }
-                else
-                {
-                    op.padding[0] = pads[0];
-                    op.padding[1] = pads[1];
-                }
+                check_asym_padding(l0, padding, op);
             }
         }
         if(contains(attributes, "group"))
@@ -638,27 +634,10 @@ struct onnx_parser
             {
                 MIGRAPHX_THROW("PARSE_POOLING: padding should have 4 values");
             }
-            if(padding[0] != padding[2] || padding[1] != padding[3])
-            {
-                // insert zeros for pad op (args[0] has 4 dims)
-                padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
-                // MaxPool
-                if(op.mode == "max")
-                {
-                    l0 = prog.add_instruction(
-                        op::pad{padding, std::numeric_limits<float>::lowest()}, l0);
-                }
-                // AveragePool
-                else
-                {
-                    l0 = prog.add_instruction(op::pad{padding}, l0);
-                }
-            }
-            else
-            {
-                op.padding[0] = padding[0];
-                op.padding[1] = padding[1];
-            }
+            float pad_val = 0;
+            if(op.mode == "max")
+                pad_val = std::numeric_limits<float>::lowest();
+            check_asym_padding(l0, padding, op, pad_val);
         }
 
         if(contains(attributes, "strides"))

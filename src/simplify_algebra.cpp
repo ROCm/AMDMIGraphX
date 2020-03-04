@@ -290,7 +290,7 @@ struct find_div_const
 
         std::cout << p << std::endl;
 
-        auto recip = p.insert_instruction(c_ins, op::recip{}, c_ins);
+        auto recip = p.insert_instruction(std::next(c_ins), op::recip{}, c_ins);
 
         auto args = ins->inputs();
 

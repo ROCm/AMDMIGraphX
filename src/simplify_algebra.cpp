@@ -276,7 +276,11 @@ struct find_div_const
 {
     auto matcher() const
     {
-        return match::name("div")(match::arg(1)(match::any_of(match::name("multibroadcast")(match::arg(0)(match::is_constant())), match::is_constant())).bind("c"));
+        return match::name("div")(
+            match::arg(1)(
+                match::any_of(match::name("multibroadcast")(match::arg(0)(match::is_constant())),
+                              match::is_constant()))
+                .bind("c"));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -284,18 +288,15 @@ struct find_div_const
         auto ins   = r.result;
         auto c_ins = r.instructions["c"];
 
-                std::cout << p << std::endl;
-
+        std::cout << p << std::endl;
 
         auto recip = p.insert_instruction(c_ins, op::recip{}, c_ins);
 
-        auto args    = ins->inputs();
-
+        auto args = ins->inputs();
 
         // p.debug_print();
 
         p.replace_instruction(ins, op::mul{}, args.front(), recip);
-
     }
 };
 

@@ -15,6 +15,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/array.hpp>
 #include <migraphx/op/clip.hpp>
+#include <migraphx/op/batch_norm.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -266,9 +267,13 @@ struct hip_add_tanh : binary_device<hip_add_tanh, &device::add_tanh>
 {
 };
 
-struct hip_layernorm : ternary_device<hip_layernorm, &device::layernorm>
+struct hip_layernorm : unary_device<hip_layernorm, &device::layernorm>
 {
 };
+
+// struct hip_layernorm : ternary_device<hip_layernorm, &device::layernorm>
+// {
+// };
 
 struct hip_mul_add
 {
@@ -309,6 +314,74 @@ struct hip_mul_add_relu
     }
 };
 
+struct miopen_batch_norm
+{
+    float epsilon = 1e-12;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.epsilon, "epsilon"));
+    }
+
+    std::string name() const { return "gpu::batch_norm"; }
+
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        return inputs.front();
+    }
+
+
+    argument compute(context& ctx,
+                                              const shape& output_shape,
+                                              const std::vector<argument>& args) const
+    {
+        auto x_shape = args[0].get_shape();
+        auto x_lens = x_shape.lens();
+        auto new_x_shape = shape{x_shape.type(), {x_lens[0] * x_lens[1], x_lens[2], 1, 1}};
+
+
+        auto x_desc  = make_tensor(new_x_shape);
+        auto y_desc  = make_tensor(new_x_shape);
+
+        auto bn_shape = args[1].get_shape();
+        auto bn_lens = bn_shape.lens();
+        auto new_bn_shape = shape{bn_shape.type(), {1, bn_lens[2], 1, 1}};
+
+        auto bn_desc = make_tensor(new_bn_shape);
+
+        float alpha = 1.0;
+        float beta  = 0.0f;
+
+        double exp_factor = 1;
+
+        miopenBatchNormalizationForwardTraining(ctx.get_stream().get_miopen(),
+                                                miopenBatchNormMode_t(op::batch_norm_inference::spatial),
+                                                &alpha,
+                                                &beta,
+                                                x_desc.get(),
+                                                args[0].implicit(),
+                                                y_desc.get(),
+                                                args[3].implicit(),
+                                                bn_desc.get(),
+                                                args[1].implicit(),
+                                                args[2].implicit(),
+                                                exp_factor,
+                                                nullptr,
+                                                nullptr,
+                                                epsilon,
+                                                nullptr,
+                                                nullptr);
+
+        return args[3];
+    }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+};
+
 void move_broadcasted_back(std::vector<instruction_ref>& args)
 {
     // Ensure the last arguments is the broadcasted one
@@ -339,14 +412,22 @@ struct find_layernorm
 
     static auto layernorm_onnx()
     {
-        return match::either_arg(0, 1)(
-            match::name("gpu::mul")(
-                match::arg(0)(multibroadcast_op().bind("scale")),
-                match::arg(1)(match::name("gpu::div")(match::arg(0)(match::name("gpu::sub")(
+        return match::arg(0)(match::name("gpu::sub")(
                     match::arg(0)(match::any().bind("x")),
-                    match::arg(1)(multibroadcast_op(match::name("gpu::reduce_mean")))))))),
-            match::any_of(match::name("gpu::gemm"), multibroadcast_op()).bind("bias"));
+                    match::arg(1)(multibroadcast_op(match::name("gpu::reduce_mean")
+                    ))));
     }
+
+    // static auto layernorm_onnx()
+    // {
+    //     return match::either_arg(0, 1)(
+    //         match::name("gpu::mul")(
+    //             match::arg(0)(multibroadcast_op().bind("scale")),
+    //             match::arg(1)(match::name("gpu::div")(match::arg(0)(match::name("gpu::sub")(
+    //                 match::arg(0)(match::any().bind("x")),
+    //                 match::arg(1)(multibroadcast_op(match::name("gpu::reduce_mean")))))))),
+    //         match::any_of(match::name("gpu::gemm"), multibroadcast_op()).bind("bias"));
+    // }
 
     static auto layernorm_tf()
     {
@@ -362,18 +443,22 @@ struct find_layernorm
 
     auto matcher() const
     {
-        return match::name("gpu::add")(match::any_of(layernorm_onnx(), layernorm_tf()));
+        return match::name("gpu::div")(layernorm_onnx());
+        // return match::name("gpu::add")(match::any_of(layernorm_onnx(), layernorm_tf()));
     }
 
     void apply(program& p, match::matcher_result r) const
     {
         auto ins       = r.result;
-        auto scale_ins = r.instructions["scale"];
+        // auto scale_ins = r.instructions["scale"];
         auto x_ins     = r.instructions["x"];
-        auto bias_ins  = r.instructions["bias"];
+        // auto bias_ins  = r.instructions["bias"];
         auto args      = ins->inputs();
 
-        p.replace_instruction(ins, hip_layernorm{}, x_ins, scale_ins, bias_ins, args.back());
+        p.replace_instruction(ins, hip_layernorm{}, x_ins, args.back());
+        // p.replace_instruction(ins, hip_layernorm{}, x_ins, scale_ins, bias_ins, args.back());
+        // p.replace_instruction(ins, miopen_batch_norm{}, x_ins, scale_ins, bias_ins, args.back());
+
     }
 };
 

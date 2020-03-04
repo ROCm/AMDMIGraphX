@@ -12,9 +12,11 @@ namespace device {
 // m / sqrt(mean(m ^ 2) + 1e-12)
 void layernorm(hipStream_t stream,
                const argument& result,
-               const argument& arg1,
-               const argument& arg2,
-               const argument& arg3)
+               const argument& arg1
+            //    ,
+            //    const argument& arg2,
+            //    const argument& arg3
+               )
 {
     auto relements    = arg1.get_shape().lens().back();
     auto input_shape  = arg1.get_shape();
@@ -25,8 +27,8 @@ void layernorm(hipStream_t stream,
     std::vector<index_int> reduce_lens = get_reduce_lens(input_shape.lens(), reduce_output_lens);
     shape reduce_slice{output_shape.type(), reduce_lens};
     shape reduce_output_shape{output_shape.type(), reduce_output_lens};
-    hip_visit_all(result, arg1, arg2, arg3, reduce_slice, reduce_output_shape)(
-        [&](auto output, auto input, auto scale, auto bias, auto reduce_shape, auto reduce_output) {
+    hip_visit_all(result, arg1, reduce_slice, reduce_output_shape)(
+        [&](auto output, auto input, auto reduce_shape, auto reduce_output) {
             using value_type = typename decltype(input)::value_type;
 
             const std::size_t max_block_size = 256;
@@ -75,13 +77,73 @@ void layernorm(hipStream_t stream,
                         k = 0;
                         local([&](auto j) {
                             k++;
-                            auto a        = scale[i + j] * ::rsqrt(r + 1e-12);
-                            output[i + j] = a * x[k - 1] + bias[i + j];
+                            output[i + j] = x[k - 1] * ::rsqrt(r + 1e-12);
+                            // auto a        = scale[i + j] * ::rsqrt(r + 1e-12);
+                            // output[i + j] = a * x[k - 1] + bias[i + j];
                         });
 
                     });
                 });
         });
+
+        // hip_visit_all(result, arg1, arg2, arg3, reduce_slice, reduce_output_shape)(
+        // [&](auto output, auto input, auto scale, auto bias, auto reduce_shape, auto reduce_output) {
+        //     using value_type = typename decltype(input)::value_type;
+        //      auto nelements   = result.get_shape().elements() / relements;
+
+        //     const std::size_t max_block_size = 256;
+        //     const std::size_t block_size     = compute_block_size(relements, max_block_size);
+
+        //     gs_launch(stream, nelements * block_size, block_size)(
+        //         [=](auto i, auto idx) __device__ {
+        //                 const auto out_idx  = i / block_size;
+        //                 const auto base_idx = out_idx * relements;
+        //                 value_type x[4];
+        //                 int k = 0;
+
+        //                 idx.local_stride(relements, [&](auto j) {
+        //                     x[j] = input.data()[base_idx + j];
+        //                 });
+
+        //                 k      = 0;
+        //                 auto m = block_reduce<max_block_size>(idx,
+        //                                                       sum{},
+        //                                                       0,
+        //                                                       relements,
+        //                                                       [&](auto j) __device__ {
+        //                                                           return x[j];
+        //                                                       }) /
+        //                          relements;
+
+        //                 k = 0;
+
+        //                 idx.local_stride(relements, [&](auto j) {
+        //                     x[j] -= m;
+        //                 });
+
+        //                 k = 0;
+        //                 auto r =
+        //                     block_reduce<max_block_size>(idx,
+        //                                                  sum{},
+        //                                                  0,
+        //                                                  relements,
+        //                                                  [&](auto j) __device__ {
+        //                                                     //  k++;
+        //                                                      return ::pow(to_hip_type(x[j]), 2);
+        //                                                  }) /
+        //                     relements;
+
+        //                 k = 0;
+        //                 idx.local_stride(relements, [&](auto j) {
+        //                     // k++;
+                        
+        //                     auto a        = scale[i + j] * ::rsqrt(r + 1e-12);
+        //                     output.data()[base_idx + j] = a * x[j] + bias[i + j];
+        //                     // output[i + j] = a * x[k - 1] + bias[i + j];
+        //                 });
+
+        //         });
+        // });
 }
 
 } // namespace device

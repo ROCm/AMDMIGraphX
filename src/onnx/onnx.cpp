@@ -359,15 +359,16 @@ struct onnx_parser
         }
     }
 
-    template <class Op>
-    instruction_ref process_auto_pad_attribute(instruction_ref ins,
-                                               attribute_map& attributes,
+    template<class Op>
+    std::vector<int64_t> process_auto_pad_attribute(attribute_map& attributes,
                                                Op& op,
+                                               std::array<std::size_t, 2> k_lens,
+                                               std::array<std::size_t, 2> dilation,
                                                const std::vector<std::size_t>& in_lens)
     {
         if(!contains(attributes, "auto_pad"))
         {
-            return ins;
+            return {};
         }
 
         auto auto_pad = attributes["auto_pad"].s();
@@ -379,8 +380,9 @@ struct onnx_parser
             out_lens[1] = (in_lens[3] + op.stride[1] - 1) / op.stride[1];
 
             std::array<std::size_t, 2> explicit_pads;
-            explicit_pads[0] = (out_lens[0] - 1) * op.stride[0] + op.lengths[0] - in_lens[2];
-            explicit_pads[1] = (out_lens[1] - 1) * op.stride[1] + op.lengths[1] - in_lens[3];
+            explicit_pads[0] = (out_lens[0] - 1) * op.stride[0] + ((k_lens[0] - 1) * dilation[0] + 1) - in_lens[2];
+            explicit_pads[1] = (out_lens[1] - 1) * op.stride[1] + ((k_lens[1] - 1) * dilation[1] + 1) - in_lens[3];
+
             op.padding[0]    = explicit_pads[0] / 2;
             op.padding[1]    = explicit_pads[1] / 2;
             explicit_pads[0] -= 2 * op.padding[0];
@@ -399,23 +401,11 @@ struct onnx_parser
                     pads[3] = explicit_pads[1];
                 }
 
-                // MaxPool
-                if(op.mode == "max")
-                {
-                    ins = prog.add_instruction(op::pad{pads, std::numeric_limits<float>::lowest()},
-                                               ins);
-                }
-                // AveragePool
-                else
-                {
-                    ins = prog.add_instruction(op::pad{pads}, ins);
-                }
+                return pads;
             }
-
-            op.padding_mode = op::padding_mode_t::same;
         }
 
-        return ins;
+        return {};
     }
 
     template <class Op>
@@ -431,14 +421,14 @@ struct onnx_parser
                 auto s = attributes["auto_pad"].s();
                 if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
                 {
-                    MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                    MIGRAPHX_THROW("PARSE_CONV: auto_pad and padding cannot be specified simultaneously");
                 }
             }
             std::vector<std::int64_t> padding;
             copy(attributes["pads"].ints(), std::back_inserter(padding));
             if(padding.size() != 4)
             {
-                MIGRAPHX_THROW("padding should have 4 values");
+                MIGRAPHX_THROW("PARSE_CONV: padding should have 4 values");
             }
             if(padding[0] != padding[2] || padding[1] != padding[3])
             {
@@ -463,16 +453,23 @@ struct onnx_parser
         if(contains(attributes, "auto_pad"))
         {
             auto s = attributes["auto_pad"].s();
-            if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
-            {
-                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
-            }
-
             if(s.find("SAME") != std::string::npos)
             {
                 op.padding_mode = op::padding_mode_t::same;
             }
+
+            auto in_lens = args[0]->get_shape().lens();
+            auto weight_lens = args[1]->get_shape().lens();
+            std::array<std::size_t, 2> k_lens;
+            k_lens[0] = weight_lens[2];
+            k_lens[1] = weight_lens[3];
+            auto pads = process_auto_pad_attribute(attributes, op, k_lens, op.dilation, in_lens);
+            if (!pads.empty())
+            {
+                l0 = prog.add_instruction(op::pad{pads}, l0);
+            }
         }
+
         if(contains(attributes, "group"))
         {
             op.group = parse_value(attributes.at("group")).at<int>();
@@ -651,8 +648,24 @@ struct onnx_parser
 
         if(contains(attributes, "auto_pad"))
         {
+            auto s = attributes["auto_pad"].s();
+            if(s.find("SAME") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::same;
+            }
+            
             auto in_lens = args[0]->get_shape().lens();
-            l0           = process_auto_pad_attribute(l0, attributes, op, in_lens);
+            auto pads = process_auto_pad_attribute(attributes, op, op.lengths, {1, 1}, in_lens);
+            if (!pads.empty())
+            {
+                op::pad pad_op{pads};
+                // MaxPool
+                if (op.mode == "max")
+                {
+                    pad_op.value = std::numeric_limits<float>::lowest();
+                }
+                l0 = prog.add_instruction(pad_op, l0);
+            }
         }
 
         return prog.add_instruction(op, l0);

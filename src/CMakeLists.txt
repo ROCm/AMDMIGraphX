@@ -28,7 +28,7 @@ add_library(migraphx
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp
 )
-rocm_set_soversion(migraphx ${PROJECT_VERSION})
+rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx)
 rocm_install_targets(
   TARGETS migraphx
@@ -42,6 +42,7 @@ target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLU
 
 set(PACKAGE_DEPENDS)
 
+add_subdirectory(api)
 add_subdirectory(driver)
 add_subdirectory(onnx)
 add_subdirectory(tf)
@@ -49,7 +50,7 @@ add_subdirectory(tf)
 add_subdirectory(py)
 add_subdirectory(targets/cpu)
 if(MIGRAPHX_ENABLE_GPU)
-list(APPEND PACKAGE_DEPENDS MIOpen rocblas)
+list(APPEND PACKAGE_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
 add_subdirectory(targets/gpu)
 endif()
 

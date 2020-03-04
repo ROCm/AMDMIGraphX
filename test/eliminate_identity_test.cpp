@@ -1,19 +1,12 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/op/identity.hpp>
 #include <test.hpp>
 
-struct eliminate_identity_target
-{
-    std::string name() const { return "eliminate_identity"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const
-    {
-        return {migraphx::eliminate_identity{}};
-    }
-    migraphx::context get_context() const { return {}; }
-};
+void run_pass(migraphx::program& p) { migraphx::run_passes(p, {migraphx::eliminate_identity{}}); }
 
 TEST_CASE(simple_test)
 {
@@ -24,11 +17,11 @@ TEST_CASE(simple_test)
     auto two          = p.add_literal(2);
     auto two_identity = p.add_instruction(migraphx::op::identity{}, two);
     p.add_instruction(sum_op{}, one_identity, two_identity);
-    p.compile(eliminate_identity_target{});
+    run_pass(p);
     EXPECT(std::none_of(p.begin(), p.end(), [](const migraphx::instruction& ins) {
         return ins.name() == "identity";
     }));
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
 }
 
@@ -40,11 +33,11 @@ TEST_CASE(simple_test_end)
     auto two = p.add_literal(2);
     auto ans = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(migraphx::op::identity{}, ans);
-    p.compile(eliminate_identity_target{});
+    run_pass(p);
     EXPECT(std::none_of(p.begin(), p.end(), [](const migraphx::instruction& ins) {
         return ins.name() == "identity";
     }));
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
 }
 
@@ -58,11 +51,11 @@ TEST_CASE(simple_test_end_dependency)
     auto ans   = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(sum_op{}, ans, three);
     p.add_instruction(migraphx::op::identity{}, ans);
-    p.compile(eliminate_identity_target{});
+    run_pass(p);
     EXPECT(std::any_of(p.begin(), p.end(), [](const migraphx::instruction& ins) {
         return ins.name() == "identity";
     }));
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3.0});
 }
 

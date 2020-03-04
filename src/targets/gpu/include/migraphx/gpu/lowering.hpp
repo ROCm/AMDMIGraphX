@@ -11,7 +11,8 @@ namespace gpu {
 
 struct lowering
 {
-    context ctx;
+    context* ctx;
+    bool offload_copy;
     std::string name() const { return "gpu::lowering"; }
     void apply(program& p) const;
 };

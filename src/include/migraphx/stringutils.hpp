@@ -5,6 +5,7 @@
 #include <numeric>
 #include <string>
 #include <sstream>
+#include <vector>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -41,6 +42,18 @@ inline std::string join_strings(Strings strings, const std::string& delim)
     return std::accumulate(nit, strings.end(), *it, [&](std::string x, std::string y) {
         return std::move(x) + delim + std::move(y);
     });
+}
+
+inline std::vector<std::string> split_string(const std::string& s, char delim)
+{
+    std::vector<std::string> elems;
+    std::stringstream ss(s + ' ');
+    std::string item;
+    while(std::getline(ss, item, delim))
+    {
+        elems.push_back(item);
+    }
+    return elems;
 }
 
 template <class F>
@@ -83,16 +96,28 @@ inline std::string remove_prefix(std::string s, const std::string& prefix)
         return s;
 }
 
+template <class Iterator>
+inline std::string to_string_range(Iterator start, Iterator last)
+{
+    std::stringstream ss;
+    if(start != last)
+    {
+        ss << *start;
+        std::for_each(std::next(start), last, [&](auto&& x) { ss << ", " << x; });
+    }
+    return ss.str();
+}
+
 template <class Range>
 inline std::string to_string_range(const Range& r)
 {
-    std::stringstream ss;
-    if(!r.empty())
-    {
-        ss << r.front();
-        std::for_each(std::next(r.begin()), r.end(), [&](auto&& x) { ss << ", " << x; });
-    }
-    return ss.str();
+    return to_string_range(r.begin(), r.end());
+}
+
+template <class T>
+inline std::string to_string_range(const std::initializer_list<T>& r)
+{
+    return to_string_range(r.begin(), r.end());
 }
 
 template <class T>

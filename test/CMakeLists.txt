@@ -135,6 +135,7 @@ add_test(NAME test_tf COMMAND $<TARGET_FILE:test_tf> WORKING_DIRECTORY ${CMAKE_C
 add_dependencies(tests test_tf)
 add_dependencies(check test_tf)
 
+add_subdirectory(api)
 if(MIGRAPHX_ENABLE_PYTHON)
 add_subdirectory(py)
 endif()

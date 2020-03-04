@@ -7,7 +7,6 @@
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/types.hpp>
 #include <migraphx/gpu/device/reduce.hpp>
-#include <migraphx/gpu/hip.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -73,9 +72,8 @@ template <class Op>
 void arg_op(Op op, hipStream_t stream, const argument& result, const argument& arg, int64_t axis)
 {
     auto arg_shape        = arg.get_shape();
-    auto lens             = arg_shape.lens();
-    auto batch_lens       = lens;
-    size_t batch_item_num = lens[axis];
+    auto batch_lens       = arg_shape.lens();
+    size_t batch_item_num = batch_lens[axis];
     batch_lens[axis]      = 1;
     migraphx::shape batch_shape{arg_shape.type(), batch_lens};
 

@@ -11,15 +11,10 @@ dead_code_elimination
 
 .. doxygenstruct:: migraphx::dead_code_elimination
 
-common_subexpression_elimination
---------------------------------
+eliminate_common_subexpression
+------------------------------
 
-.. doxygenstruct:: migraphx::common_subexpression_elimination
-
-constant_propagate
-------------------
-
-.. doxygenstruct:: migraphx::constant_propagate
+.. doxygenstruct:: migraphx::eliminate_common_subexpression
 
 eliminate_concat
 ----------------
@@ -31,10 +26,35 @@ eliminate_contiguous
 
 .. doxygenstruct:: migraphx::eliminate_contiguous
 
-fwd_conv_batchnorm_rewrite
---------------------------
+eliminate_identity
+------------------
 
-.. doxygenstruct:: migraphx::fwd_conv_batchnorm_rewrite
+.. doxygenstruct:: migraphx::eliminate_identity
+
+eliminate_pad
+-------------
+
+.. doxygenstruct:: migraphx::eliminate_pad
+
+propagate_constant
+------------------
+
+.. doxygenstruct:: migraphx::propagate_constant
+
+rewrite_batchnorm
+-----------------
+
+.. doxygenstruct:: migraphx::rewrite_batchnorm
+
+rewrite_rnn
+-----------
+
+.. doxygenstruct:: migraphx::rewrite_rnn
+
+schedule
+--------
+
+.. doxygenstruct:: migraphx::schedule
 
 simplify_algebra
 ----------------

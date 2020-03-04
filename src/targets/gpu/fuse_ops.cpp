@@ -148,6 +148,12 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
         return false;
     if(wei.lens()[1] > 512 and conv.algo != miopenConvolutionFwdAlgoWinograd)
         return false;
+
+    // Do not fuse non-symmetric input
+    auto input_lens = ins->inputs().at(0)->get_shape().lens();
+    if(input_lens[2] != input_lens[3] or wei.lens()[2] != wei.lens()[3])
+        return false;
+
     auto op = conv.op;
     // Dont fuse winograd for non-3x3s since there is no fused windograd for those configs
     if(conv.algo == miopenConvolutionFwdAlgoWinograd and wei.lens()[2] != 3 and

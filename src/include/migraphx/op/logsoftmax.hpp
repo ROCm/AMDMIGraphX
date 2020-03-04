@@ -11,7 +11,7 @@ namespace op {
 
 struct logsoftmax
 {
-    int axis = 1;
+    int64_t axis = 1;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -23,12 +23,18 @@ struct logsoftmax
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs}.has(1).standard();
-        if(axis < 0 || axis >= inputs[0].lens().size())
+        int64_t n_dim = static_cast<int64_t>(inputs[0].lens().size());
+        if(axis < -n_dim || axis >= n_dim)
         {
             MIGRAPHX_THROW("LogSoftMax: input axis value " + std::to_string(axis) +
                            " is out of range");
         }
         return inputs.at(0);
+    }
+
+    auto output() const
+    {
+        return [=](auto x, auto y) { return std::log(x / y); };
     }
 };
 

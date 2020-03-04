@@ -4,7 +4,6 @@
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/types.hpp>
 #include <migraphx/gpu/device/tensor.hpp>
-#include <migraphx/gpu/hip.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -25,7 +24,7 @@ void int8_gemm_pack_a(hipStream_t stream, const argument& result, const argument
         auto* in_ptr          = device_cast(input.data());
         visit_tensor_size(out_lens.size(), [&](auto out_dim) {
             hip_tensor_descriptor<out_dim> desc(comp_shape);
-            gs_launch(stream, nelements, 256)([=](auto ii) {
+            gs_launch(stream, nelements, 256)([=](auto ii) __device__ {
                 const size_t nb    = 4;
                 auto idx           = desc.multi(ii);
                 std::size_t i_m    = idx[dim_1];
@@ -56,7 +55,7 @@ void int8_gemm_pack_b(hipStream_t stream, const argument& result, const argument
         auto* in_ptr          = device_cast(input.data());
         visit_tensor_size(out_lens.size(), [&](auto out_dim) {
             hip_tensor_descriptor<out_dim> desc(comp_shape);
-            gs_launch(stream, nelements, 256)([=](auto ii) {
+            gs_launch(stream, nelements, 256)([=](auto ii) __device__ {
                 const size_t nb    = 4;
                 auto idx           = desc.multi(ii);
                 std::size_t i_n    = idx[dim_1];
@@ -68,8 +67,6 @@ void int8_gemm_pack_b(hipStream_t stream, const argument& result, const argument
         });
     });
 }
-
-void sync_stream(hipStream_t stream) { hipStreamSynchronize(stream); }
 
 } // namespace device
 } // namespace gpu

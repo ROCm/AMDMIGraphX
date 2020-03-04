@@ -94,13 +94,33 @@ inline convolution_descriptor make_conv(const T& op)
     return c;
 }
 
+template <class T>
+inline convolution_descriptor make_deconv(const T& op)
+{
+    auto c = make_obj<convolution_descriptor>(&miopenCreateConvolutionDescriptor);
+    miopenConvolutionMode_t c_mode = miopenTranspose;
+    miopenInitConvolutionDescriptor(c.get(),
+                                    c_mode,
+                                    op.padding[0],
+                                    op.padding[1],
+                                    op.stride[0],
+                                    op.stride[1],
+                                    op.dilation[0],
+                                    op.dilation[1]);
+    if(op.group > 1)
+        miopenSetConvolutionGroupCount(c.get(), op.group);
+    return c;
+}
+
 inline pooling_descriptor make_pooling(const migraphx::op::pooling& op)
 {
     miopenPoolingMode_t mode;
     if(op.mode == "max")
         mode = miopenPoolingMax;
-    else
+    else if(op.mode == "average")
         mode = miopenPoolingAverage;
+    else
+        MIGRAPHX_THROW("Unknown mode for pooling: " + op.mode);
     auto p = make_obj<pooling_descriptor>(&miopenCreatePoolingDescriptor);
     miopenSet2dPoolingDescriptor(p.get(),
                                  mode,

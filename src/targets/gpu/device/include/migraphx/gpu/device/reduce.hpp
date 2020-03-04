@@ -235,23 +235,6 @@ constexpr index_int compute_block_size(index_int n, index_int max_block_size)
     return block_size;
 }
 
-inline std::vector<index_int> get_reduce_lens(const std::vector<size_t>& input_lens,
-                                              const std::vector<size_t>& output_lens)
-{
-    std::vector<index_int> reduce_lens;
-    std::transform(output_lens.begin(),
-                   output_lens.end(),
-                   input_lens.begin(),
-                   std::back_inserter(reduce_lens),
-                   [](auto x, auto y) -> index_int {
-                       if(x == y)
-                           return 1;
-                       else
-                           return y;
-                   });
-    return reduce_lens;
-}
-
 template <class Op, class T, class Input, class Output>
 void reduce_multi_impl(hipStream_t stream,
                        const argument& result,
@@ -319,19 +302,29 @@ void reduce(hipStream_t stream,
 {
     auto&& output_shape = result.get_shape();
     auto&& input_shape  = arg.get_shape();
-    auto input_lens     = input_shape.lens();
-    auto output_lens    = output_shape.lens();
-    assert(output_lens.size() == input_lens.size());
+    assert(output_shape.lens().size() == input_shape.lens().size());
     if(input_shape.standard() and output_shape.standard() and
-       output_lens.back() != input_lens.back() and
-       std::equal(output_lens.begin(), std::prev(output_lens.end()), input_lens.begin()))
+       output_shape.lens().back() != input_shape.lens().back() and
+       std::equal(output_shape.lens().begin(),
+                  std::prev(output_shape.lens().end()),
+                  input_shape.lens().begin()))
     {
         reduce_standard_impl(
-            stream, result, arg, op, init, read_input, read_output, input_lens.back());
+            stream, result, arg, op, init, read_input, read_output, input_shape.lens().back());
     }
     else
     {
-        std::vector<index_int> reduce_lens = get_reduce_lens(input_lens, output_lens);
+        std::vector<index_int> reduce_lens;
+        std::transform(output_shape.lens().begin(),
+                       output_shape.lens().end(),
+                       input_shape.lens().begin(),
+                       std::back_inserter(reduce_lens),
+                       [](auto x, auto y) -> index_int {
+                           if(x == y)
+                               return 1;
+                           else
+                               return y;
+                       });
         shape reduce_slice{output_shape.type(), reduce_lens};
         reduce_multi_impl(stream, result, arg, op, init, read_input, read_output, reduce_slice);
     }

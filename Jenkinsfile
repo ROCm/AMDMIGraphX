@@ -9,7 +9,7 @@ def rocmtestnode(variant, name, body) {
             mkdir build
             cd build
             CXX=${compiler} CXXFLAGS='-Werror -Wno-fallback' cmake ${flags} .. 
-            CTEST_PARALLEL_LEVEL=32 make -j32 generate all doc package check
+            CTEST_PARALLEL_LEVEL=32 make -j\$(nproc) generate all doc package check
         """
         echo cmd
         sh cmd
@@ -82,7 +82,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
             mkdir build
             cd build
             CXX=hcc cmake .. 
-            make -j8 -k analyze
+            make -j$(nproc) -k analyze
         '''
     }
 }, format: rocmnode('rocmtest') { cmake_build ->

@@ -380,12 +380,12 @@ struct onnx_parser
 
     template <class Op>
     instruction_ref process_auto_pad_attribute(instruction_ref ins,
-                                                attribute_map& attributes,
-                                                    Op& op,
-                                                    std::array<std::size_t, 2> k_lens,
-                                                    std::array<std::size_t, 2> dilation,
-                                                    const std::vector<std::size_t>& in_lens,
-                                                    float value = 0.0f)
+                                               attribute_map& attributes,
+                                               Op& op,
+                                               std::array<std::size_t, 2> k_lens,
+                                               std::array<std::size_t, 2> dilation,
+                                               const std::vector<std::size_t>& in_lens,
+                                               float value = 0.0f)
     {
         if(!contains(attributes, "auto_pad"))
         {
@@ -642,7 +642,7 @@ struct onnx_parser
             }
 
             auto in_lens = args[0]->get_shape().lens();
-            float val = 0.0f;
+            float val    = 0.0f;
             // MaxPool
             if(op.mode == "max")
             {

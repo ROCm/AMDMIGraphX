@@ -16,6 +16,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/onnx.hpp>
+#include <migraphx/pad_calc.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -383,7 +384,7 @@ struct onnx_parser
                                                     Op& op,
                                                     std::array<std::size_t, 2> k_lens,
                                                     std::array<std::size_t, 2> dilation,
-                                                    const std::vector<std::size_t>& in_lens
+                                                    const std::vector<std::size_t>& in_lens,
                                                     float value = 0.0f)
     {
         if(!contains(attributes, "auto_pad"))
@@ -394,7 +395,7 @@ struct onnx_parser
         auto auto_pad = attributes["auto_pad"].s();
         if(auto_pad.find("SAME") != std::string::npos)
         {
-            bools is_same_upper = (auto_pad.find("SAME_UPPER") == std::string::npos);
+            bool is_same_upper = (auto_pad.find("SAME_UPPER") != std::string::npos);
             std::vector<int64_t> padding(in_lens.size());
             calculate_padding(
                 0, padding, in_lens[2], op.stride[0], dilation[0], k_lens[0], is_same_upper);

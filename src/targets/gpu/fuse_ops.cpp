@@ -124,7 +124,7 @@ struct fusion
                                               y_td.get(),
                                               y.implicit(),
                                               fargs.get());
-        if(status != miopenStatusSuccess) 
+        if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("Failed to execute fusion plan");
         return y;
     }

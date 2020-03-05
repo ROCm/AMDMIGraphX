@@ -306,13 +306,13 @@ struct find_conv_dot_horiz_fusion
         auto ins = r.result;
 
         auto pred = [](auto i, auto j) {
-            if (i->get_operator() != j->get_operator())
+            if(i->get_operator() != j->get_operator())
                 return false;
             if(not contains({"dot", "convolution"}, i->name()))
                 return true;
             auto x = i->inputs()[1]->get_shape().lens();
             auto y = j->inputs()[1]->get_shape().lens();
-            if (x.size() != y.size())
+            if(x.size() != y.size())
                 return false;
             // Check that non-axises match
             int axis = 1;
@@ -320,8 +320,8 @@ struct find_conv_dot_horiz_fusion
             {
                 axis = x.size() - 1;
             }
-            return std::equal(x.begin(), x.begin()+axis, y.begin(), y.begin()+axis) and
-                std::equal(x.begin()+axis+1, x.end(), y.begin()+axis+1, y.end());
+            return std::equal(x.begin(), x.begin() + axis, y.begin(), y.begin() + axis) and
+                   std::equal(x.begin() + axis + 1, x.end(), y.begin() + axis + 1, y.end());
         };
 
         auto each = [&](auto start, auto last) {
@@ -334,11 +334,11 @@ struct find_conv_dot_horiz_fusion
             std::vector<instruction_ref> args;
             std::transform(
                 start, last, std::back_inserter(args), [&](auto x) { return x->inputs().at(1); });
-            int axis = 1;
+            int axis        = 1;
             int concat_axis = 0;
             if(name == "dot")
             {
-                axis = args.front()->get_shape().lens().size() - 1;
+                axis        = args.front()->get_shape().lens().size() - 1;
                 concat_axis = axis;
             }
 

@@ -305,7 +305,24 @@ struct find_conv_dot_horiz_fusion
     {
         auto ins = r.result;
 
-        auto pred = [](auto i, auto j) { return i->get_operator() == j->get_operator(); };
+        auto pred = [](auto i, auto j) {
+            if (i->get_operator() != j->get_operator())
+                return false;
+            if(not contains({"dot", "convolution"}, i->name()))
+                return true;
+            auto x = i->inputs()[1]->get_shape().lens();
+            auto y = j->inputs()[1]->get_shape().lens();
+            if (x.size() != y.size())
+                return false;
+            // Check that non-axises match
+            int axis = 1;
+            if(i->name() == "dot")
+            {
+                axis = x.size() - 1;
+            }
+            return std::equal(x.begin(), x.begin()+axis, y.begin(), y.begin()+axis) and
+                std::equal(x.begin()+axis+1, x.end(), y.begin()+axis+1, y.end());
+        };
 
         auto each = [&](auto start, auto last) {
             if(std::distance(start, last) < 2)
@@ -317,15 +334,18 @@ struct find_conv_dot_horiz_fusion
             std::vector<instruction_ref> args;
             std::transform(
                 start, last, std::back_inserter(args), [&](auto x) { return x->inputs().at(1); });
-            for(auto arg : args)
-                p.move_instructions(arg, input);
             int axis = 1;
+            int concat_axis = 0;
             if(name == "dot")
             {
                 axis = args.front()->get_shape().lens().size() - 1;
+                concat_axis = axis;
             }
+
+            for(auto arg : args)
+                p.move_instructions(arg, input);
             // TODO: Check if axises match
-            auto concat = p.insert_instruction(input, op::concat{axis}, args);
+            auto concat = p.insert_instruction(input, op::concat{concat_axis}, args);
             auto fused =
                 p.insert_instruction(std::next(input), (*start)->get_operator(), input, concat);
             int64_t offset = 0;

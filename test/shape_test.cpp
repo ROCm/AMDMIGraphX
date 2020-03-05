@@ -47,6 +47,15 @@ TEST_CASE(test_shape_packed)
     EXPECT(not s.broadcasted());
 }
 
+TEST_CASE(test_shape_non_packed)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 64, 35, 35}, {156800, 1225, 35, 1}};
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
 TEST_CASE(test_shape_transposed1)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2}, {1, 2}};

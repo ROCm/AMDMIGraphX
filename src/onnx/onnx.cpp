@@ -1018,9 +1018,9 @@ struct onnx_parser
             auto&& bias_floats = attributes["bias"].floats();
             bias               = std::vector<float>(bias_floats.begin(), bias_floats.end());
         }
-        auto input_shape = args.front()->get_shape();
-        auto const& input_lens  = input_shape.lens();
-        auto input_type  = input_shape.type();
+        auto input_shape       = args.front()->get_shape();
+        auto const& input_lens = input_shape.lens();
+        auto input_type        = input_shape.type();
 
         auto scale_val = prog.add_literal(literal{shape{input_type}, {scale}});
         auto bias_vals = prog.add_literal(literal{shape{input_type, {bias.size()}}, bias});

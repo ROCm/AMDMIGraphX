@@ -199,7 +199,7 @@ bool shape::standard() const { return impl->m_standard; }
 
 shape shape::normalize_standard() const
 {
-    if (this->standard())
+    if(this->standard())
         return {this->type(), this->lens()};
     else
         return *this;

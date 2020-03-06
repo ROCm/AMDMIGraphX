@@ -545,6 +545,7 @@ struct find_conv_dot_horiz_fusion
             {
                 int64_t len = arg->get_shape().lens()[axis];
                 p.replace_instruction(arg, op::slice{{axis}, {offset}, {offset + len}}, fused);
+                offset += len;
             }
         };
 

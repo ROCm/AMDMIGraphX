@@ -1702,8 +1702,8 @@ struct onnx_parser
         }
 
         auto lens = args[0]->get_shape().lens();
-        int rank  = static_cast<int>(lens.size());
-        if(axis < -rank or axis >= rank)
+        int64_t rank  = static_cast<int64_t>(lens.size());
+        if((axis < -rank) or (axis >= rank))
         {
             MIGRAPHX_THROW("PARSE_SPLIT: axis attribute out of rank!");
         }
@@ -1715,7 +1715,7 @@ struct onnx_parser
             literal s = parse_value(info.attributes.at("split"));
             s.visit([&](auto v) { vec_splits.assign(v.begin(), v.end()); });
 
-            if(std::accumulate(vec_splits.begin(), vec_splits.end(), 0) !=
+            if(std::accumulate(vec_splits.begin(), vec_splits.end(), int64_t(0)) !=
                static_cast<int64_t>(lens[tuned_axis]))
             {
                 MIGRAPHX_THROW("PARSE_SPLIT: sum of split attribute unequal to dim size of axis!");
@@ -1724,8 +1724,7 @@ struct onnx_parser
         // no split attribute, input is equally divided
         else
         {
-
-            if((lens[tuned_axis] % info.num_outputs))
+            if((lens[tuned_axis] % info.num_outputs) != 0)
             {
                 MIGRAPHX_THROW("PARSE_SPLIT: input cannot be equally divided into " +
                                to_string(info.num_outputs) + " splits!");

@@ -1701,8 +1701,8 @@ struct onnx_parser
             axis = parse_value(info.attributes.at("axis")).at<int>();
         }
 
-        auto lens = args[0]->get_shape().lens();
-        int64_t rank  = static_cast<int64_t>(lens.size());
+        auto lens    = args[0]->get_shape().lens();
+        int64_t rank = static_cast<int64_t>(lens.size());
         if((axis < -rank) or (axis >= rank))
         {
             MIGRAPHX_THROW("PARSE_SPLIT: axis attribute out of rank!");

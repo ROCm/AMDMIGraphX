@@ -248,41 +248,32 @@ struct find_concat_binary
 std::vector<instruction_ref> get_splits(instruction_ref ins)
 {
     std::vector<instruction_ref> result;
-    std::copy_if(ins->outputs().begin(), ins->outputs().end(), std::back_inserter(result), [&](auto i) {
-        return i->name() == "slice";
-    });
-    if (result.size() < 2)
+    std::copy_if(ins->outputs().begin(),
+                 ins->outputs().end(),
+                 std::back_inserter(result),
+                 [&](auto i) { return i->name() == "slice"; });
+    if(result.size() < 2)
         return {};
-    auto get_slice = [](auto i) {
-        return any_cast<op::slice>(i->get_operator());
-    };
-    auto&& axes = get_slice(result.front()).axes;
-    if (std::any_of(result.begin(), result.end(), [&](auto i) {
-        return get_slice(i).axes != axes;
-    }))
+    auto get_slice = [](auto i) { return any_cast<op::slice>(i->get_operator()); };
+    auto&& axes    = get_slice(result.front()).axes;
+    if(std::any_of(result.begin(), result.end(), [&](auto i) { return get_slice(i).axes != axes; }))
         return {};
-    auto get_start = [&](auto i) {
-        return get_slice(i).starts;
-    };
-    auto get_end = [&](auto i) {
-        return get_slice(i).ends;
-    };
-    std::sort(result.begin(), result.end(), [&](auto x, auto y) {
-        return get_start(x) < get_start(y);
-    });
-    if (std::any_of(get_start(result.front()).begin(), get_start(result.front()).end(), [&](auto i) {
-        return i != 0;
-    }))
+    auto get_start = [&](auto i) { return get_slice(i).starts; };
+    auto get_end   = [&](auto i) { return get_slice(i).ends; };
+    std::sort(
+        result.begin(), result.end(), [&](auto x, auto y) { return get_start(x) < get_start(y); });
+    if(std::any_of(get_start(result.front()).begin(), get_start(result.front()).end(), [&](auto i) {
+           return i != 0;
+       }))
         return {};
-    auto it = std::adjacent_find(result.begin(), result.end(), [&](auto x, auto y) {
-        return get_end(x) != get_start(y);
-    });
-    if (it != result.end())
+    auto it = std::adjacent_find(
+        result.begin(), result.end(), [&](auto x, auto y) { return get_end(x) != get_start(y); });
+    if(it != result.end())
         return {};
-    for(std::size_t i= 0; i< axes.size();i++)
+    for(std::size_t i = 0; i < axes.size(); i++)
     {
         auto axis = axes[i];
-        if (ins->get_shape().lens()[axis] != get_slice(result.back()).ends[i])
+        if(ins->get_shape().lens()[axis] != get_slice(result.back()).ends[i])
             return {};
     }
     return result;
@@ -292,7 +283,8 @@ struct find_splits
 {
     auto matcher() const
     {
-        return match::any(match::any_of[match::outputs()](match::name("slice")(match::any_of[match::outputs()](match::name("add", "relu")))));
+        return match::any(match::any_of[match::outputs()](
+            match::name("slice")(match::any_of[match::outputs()](match::name("add", "relu")))));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -300,52 +292,49 @@ struct find_splits
         auto ins = r.result;
 
         auto splits = get_splits(ins);
-        if (splits.empty())
+        if(splits.empty())
             return;
-        if (std::any_of(splits.begin(), splits.end(), [](auto i) {
-            return i->outputs().size() != 1;
-        }))
+        if(std::any_of(
+               splits.begin(), splits.end(), [](auto i) { return i->outputs().size() != 1; }))
             return;
         std::vector<instruction_ref> each;
         std::transform(splits.begin(), splits.end(), std::back_inserter(each), [&](auto i) {
             return i->outputs().front();
         });
         auto start = each.front();
-        auto op = start->get_operator();
-        if (std::any_of(each.begin(), each.end(), [&](auto i) {
-            return i->get_operator() != op;
-        }))
+        auto op    = start->get_operator();
+        if(std::any_of(each.begin(), each.end(), [&](auto i) { return i->get_operator() != op; }))
             return;
 
-        if (start->inputs().size() == 1)
+        if(start->inputs().size() == 1)
         {
             auto c = p.insert_instruction(std::next(ins), op, ins);
-            for(auto i:each)
+            for(auto i : each)
             {
                 auto split = i->inputs().front();
                 p.replace_instruction(i, split->get_operator(), c);
             }
         }
-        else if (start->inputs().size() == 2)
+        else if(start->inputs().size() == 2)
         {
             // assert one argument is split
             auto split_idx = 0;
-            auto data_idx = 1;
-            if (start->inputs().back()->name() == "split")
+            auto data_idx  = 1;
+            if(start->inputs().back()->name() == "split")
             {
                 split_idx = 1;
-                data_idx = 0;
+                data_idx  = 0;
             }
 
             std::vector<instruction_ref> data_args;
-            std::transform(start->inputs().begin(), start->inputs().end(), std::back_inserter(data_args), [&](auto i) {
-                return i->inputs()[data_idx];
-            });
+            std::transform(start->inputs().begin(),
+                           start->inputs().end(),
+                           std::back_inserter(data_args),
+                           [&](auto i) { return i->inputs()[data_idx]; });
 
             // Data arguments must be a constant
-            if (std::any_of(data_args.begin(), data_args.end(), [](auto i) {
-                return not i->can_eval();
-            }))
+            if(std::any_of(
+                   data_args.begin(), data_args.end(), [](auto i) { return not i->can_eval(); }))
                 return;
 
             for(auto data : data_args)
@@ -353,7 +342,7 @@ struct find_splits
 
             auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
             assert(not slice_op.axes.empty());
-            if (slice_op.axes.size() > 1)
+            if(slice_op.axes.size() > 1)
                 return;
             auto concat_axis = slice_op.axes.front();
             // TODO: Check if axises match
@@ -362,15 +351,14 @@ struct find_splits
             std::vector<instruction_ref> args;
             args.resize(2);
             args[split_idx] = ins;
-            args[data_idx] = concat;
-            auto c = p.insert_instruction(std::next(ins), op, args);
-            for(auto i:each)
+            args[data_idx]  = concat;
+            auto c          = p.insert_instruction(std::next(ins), op, args);
+            for(auto i : each)
             {
                 auto split = i->inputs()[split_idx];
                 p.replace_instruction(i, split->get_operator(), c);
             }
         }
-
     }
 };
 

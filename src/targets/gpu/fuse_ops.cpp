@@ -323,10 +323,10 @@ struct find_add_clip
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto add_ins = r.instructions["add"];
-        auto ins     = r.result;
+        auto add_ins  = r.instructions["add"];
+        auto ins      = r.result;
         auto ins_args = ins->inputs();
-        auto add_args    = add_ins->inputs();
+        auto add_args = add_ins->inputs();
         move_standard_front(add_args);
         move_broadcasted_back(add_args);
 

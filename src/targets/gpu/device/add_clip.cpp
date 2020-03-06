@@ -13,9 +13,9 @@ void add_clip(hipStream_t stream,
               const argument& min_arg,
               const argument& max_arg)
 {
-    nary(stream, result, arg1, arg2, min_arg, max_arg)([](auto x, auto y, auto min, auto max) __device__ {
-        return ::min<decltype(x + y)>(::max<decltype(x)>(min, x + y), max);
-    });
+    nary(stream, result, arg1, arg2, min_arg, max_arg)(
+        [](auto x, auto y, auto min, auto max)
+            __device__ { return ::min<decltype(x + y)>(::max<decltype(x)>(min, x + y), max); });
 }
 
 void add_clip(hipStream_t stream,
@@ -26,9 +26,10 @@ void add_clip(hipStream_t stream,
               const argument& min_arg,
               const argument& max_arg)
 {
-    nary(stream, result, arg1, arg2, arg3, min_arg, max_arg)([](auto x, auto y, auto z, auto min, auto max) __device__ {
-        return ::min<decltype(x + y + z)>(::max<decltype(x)>(min, x + y + z), max);
-    });
+    nary(stream, result, arg1, arg2, arg3, min_arg, max_arg)(
+        [](auto x, auto y, auto z, auto min, auto max) __device__ {
+            return ::min<decltype(x + y + z)>(::max<decltype(x)>(min, x + y + z), max);
+        });
 }
 
 } // namespace device

@@ -320,16 +320,16 @@ struct onnx_parser
         if(contains(attributes, "max"))
         {
             float max_val = parse_value(attributes.at("max")).at<float>();
-            max_arg = prog.add_literal(max_val);
+            max_arg       = prog.add_literal(max_val);
         }
         if(contains(attributes, "min"))
         {
             float min_val = parse_value(attributes.at("min")).at<float>();
-            min_arg = prog.add_literal(min_val);
+            min_arg       = prog.add_literal(min_val);
         }
         min_arg = prog.add_instruction(op::multibroadcast{input_lens}, min_arg);
         max_arg = prog.add_instruction(op::multibroadcast{input_lens}, max_arg);
-        
+
         return prog.add_instruction(op::clip{}, args[0], min_arg, max_arg);
     }
 

@@ -772,11 +772,12 @@ struct tf_parser
         return prog.add_instruction(op, l0);
     }
 
-    instruction_ref parse_relu6(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    instruction_ref
+    parse_relu6(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         auto input_lens = args[0]->get_shape().lens();
-        auto min_val = prog.add_literal(0.0f);
-        auto max_val = prog.add_literal(6.0f);
+        auto min_val    = prog.add_literal(0.0f);
+        auto max_val    = prog.add_literal(6.0f);
 
         min_val = prog.add_instruction(op::multibroadcast{input_lens}, min_val);
         max_val = prog.add_instruction(op::multibroadcast{input_lens}, max_val);

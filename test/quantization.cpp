@@ -14,21 +14,26 @@
 #include "test.hpp"
 #include <migraphx/half.hpp>
 
-migraphx::instruction_ref create_clip_op(migraphx::program& p, float max, float min, migraphx::instruction_ref input)
+migraphx::instruction_ref
+create_clip_op(migraphx::program& p, float max, float min, migraphx::instruction_ref input)
 {
     auto input_lens = input->get_shape().lens();
-    auto max_val = p.add_literal(max);
-    auto min_val = p.add_literal(min);
-    max_val = p.add_instruction(migraphx::op::multibroadcast{input_lens}, max_val);
-    min_val = p.add_instruction(migraphx::op::multibroadcast{input_lens}, min_val);
+    auto max_val    = p.add_literal(max);
+    auto min_val    = p.add_literal(min);
+    max_val         = p.add_instruction(migraphx::op::multibroadcast{input_lens}, max_val);
+    min_val         = p.add_instruction(migraphx::op::multibroadcast{input_lens}, min_val);
     return p.add_instruction(migraphx::op::clip{}, input, min_val, max_val);
 }
 
-migraphx::instruction_ref create_clip_op(migraphx::instruction_ref insert_loc, migraphx::program& p, float max, float min, migraphx::instruction_ref input)
+migraphx::instruction_ref create_clip_op(migraphx::instruction_ref insert_loc,
+                                         migraphx::program& p,
+                                         float max,
+                                         float min,
+                                         migraphx::instruction_ref input)
 {
     auto input_lens = input->get_shape().lens();
-    auto max_val = p.add_literal(max);
-    auto min_val = p.add_literal(min);
+    auto max_val    = p.add_literal(max);
+    auto min_val    = p.add_literal(min);
     max_val = p.insert_instruction(insert_loc, migraphx::op::multibroadcast{input_lens}, max_val);
     min_val = p.insert_instruction(insert_loc, migraphx::op::multibroadcast{input_lens}, min_val);
     return p.insert_instruction(insert_loc, migraphx::op::clip{}, input, min_val, max_val);
@@ -722,7 +727,7 @@ TEST_CASE(conv_float)
         auto fx = p.add_literal(migraphx::literal(sx, vfx));
         auto mx = p.add_instruction(migraphx::op::mul{}, fx, px);
         auto rx = p.add_instruction(migraphx::op::round{}, mx);
-        auto cx =create_clip_op(p, 127.0f, -128.0f, rx);
+        auto cx = create_clip_op(p, 127.0f, -128.0f, rx);
         auto qx = p.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, cx);
 
         // quantize parameter b to int8 type

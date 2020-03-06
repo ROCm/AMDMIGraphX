@@ -396,8 +396,7 @@ struct find_conv_dot_horiz_fusion
             {
                 axis = x.size() - 1;
             }
-            return std::equal(x.begin(), x.begin() + axis, y.begin(), y.begin() + axis) and
-                   std::equal(x.begin() + axis + 1, x.end(), y.begin() + axis + 1, y.end());
+            return axis_equal(x, y, axis);
         };
 
         auto each = [&](auto start, auto last) {

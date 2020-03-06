@@ -305,30 +305,32 @@ struct onnx_parser
                                const attribute_map& attributes,
                                std::vector<instruction_ref> args)
     {
-        op::clip op;
-        if(contains(attributes, "max"))
-        {
-            op.max_val = parse_value(attributes.at("max")).at<float>();
-        }
-        if(contains(attributes, "min"))
-        {
-            op.min_val = parse_value(attributes.at("min")).at<float>();
-        }
-
+        auto input_lens = args[0]->get_shape().lens();
+        instruction_ref min_arg;
+        instruction_ref max_arg;
         if(args.size() > 1)
         {
-            auto min_arg = args[1]->eval();
-            check_arg_empty(min_arg, "Clip: min value is needed");
-            op.min_val = min_arg.at<float>();
+            min_arg = args[1];
 
             if(args.size() > 2)
             {
-                auto max_arg = args[2]->eval();
-                check_arg_empty(max_arg, "Clip: max value is needed");
-                op.max_val = max_arg.at<float>();
+                max_arg = args[2];
             }
         }
-        return prog.add_instruction(op, args[0]);
+        if(contains(attributes, "max"))
+        {
+            float max_val = parse_value(attributes.at("max")).at<float>();
+            max_arg = prog.add_literal(max_val);
+        }
+        if(contains(attributes, "min"))
+        {
+            float min_val = parse_value(attributes.at("min")).at<float>();
+            min_arg = prog.add_literal(min_val);
+        }
+        min_arg = prog.add_instruction(op::multibroadcast{input_lens}, min_arg);
+        max_arg = prog.add_instruction(op::multibroadcast{input_lens}, max_arg);
+        
+        return prog.add_instruction(op::clip{}, args[0], min_arg, max_arg);
     }
 
     template <class Op>

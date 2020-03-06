@@ -179,7 +179,7 @@ struct tf_parser
         add_generic_op("Identity", op::identity{});
         add_generic_op("LessEqual", op::identity{});
         add_generic_op("Relu", op::relu{});
-        add_generic_op("Relu6", op::clip{6.0, 0.0});
+        // add_generic_op("Relu6", op::clip{6.0, 0.0});
         add_generic_op("Rsqrt", op::rsqrt{});
         add_generic_op("Tanh", op::tanh{});
         add_generic_op("StopGradient", op::identity{});
@@ -210,6 +210,7 @@ struct tf_parser
         add_mem_op("OneHot", &tf_parser::parse_onehot, false);
         add_mem_op("Pack", &tf_parser::parse_pack, false);
         add_mem_op("Pad", &tf_parser::parse_pad);
+        add_mem_op("Relu6", &tf_parser::parse_relu6);
         add_mem_op("Reshape", &tf_parser::parse_reshape, false);
         add_mem_op("Shape", &tf_parser::parse_shape, false);
         add_mem_op("Slice", &tf_parser::parse_slice, false);
@@ -769,6 +770,17 @@ struct tf_parser
             }
         }
         return prog.add_instruction(op, l0);
+    }
+
+    instruction_ref parse_relu6(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    {
+        auto input_lens = args[0]->get_shape().lens();
+        auto min_val = prog.add_literal(0.0f);
+        auto max_val = prog.add_literal(6.0f);
+
+        min_val = prog.add_instruction(op::multibroadcast{input_lens}, min_val);
+        max_val = prog.add_instruction(op::multibroadcast{input_lens}, max_val);
+        return prog.add_instruction(op::clip{}, args.front(), min_val, max_val);
     }
 
     instruction_ref

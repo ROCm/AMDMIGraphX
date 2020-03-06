@@ -40,9 +40,6 @@ struct fusion
     fusion(const shape& input)
     // : fp(make_fusion_plan(input))
     {
-        std::cout << input << std::endl;
-        std::cout << input.standard() << std::endl;
-        std::cout << input.packed() << std::endl;
         assert(input.standard());
         auto t = make_tensor(input);
         fp     = make_fusion_plan(t);

@@ -73,6 +73,7 @@ struct onnx_parser
         add_binary_op("Div", op::div{});
         add_binary_op("Mul", op::mul{});
         add_binary_op("Pow", op::pow{});
+        add_binary_op("PRelu", op::prelu{});
         add_binary_op("Sub", op::sub{});
 
         add_variadic_op("Sum", op::add{});
@@ -1013,11 +1014,12 @@ struct onnx_parser
             auto&& bias_floats = info.attributes["bias"].floats();
             bias               = std::vector<float>(bias_floats.begin(), bias_floats.end());
         }
-        auto input_lens = args.front()->get_shape().lens();
+        auto input_shape       = args.front()->get_shape();
+        auto const& input_lens = input_shape.lens();
+        auto input_type        = input_shape.type();
 
-        auto scale_val = prog.add_literal(scale);
-        auto bias_vals = prog.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {bias.size()}}, bias});
+        auto scale_val = prog.add_literal(literal{shape{input_type}, {scale}});
+        auto bias_vals = prog.add_literal(literal{shape{input_type, {bias.size()}}, bias});
 
         auto scale_tensor = prog.add_instruction(migraphx::op::scalar{input_lens}, scale_val);
         auto img_scaled   = prog.add_instruction(migraphx::op::mul{}, args.front(), scale_tensor);

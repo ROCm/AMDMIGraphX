@@ -1794,16 +1794,16 @@ struct onnx_parser
             }
         }
 
-        for (auto&& node : graph.node())
+        for(auto&& node : graph.node())
         {
             std::vector<instruction_ref> args;
-            for (auto&& input : node.input())
+            for(auto&& input : node.input())
             {
-                if (input.empty())
+                if(input.empty())
                 {
                     this->parse_undefined(input);
                 }
-                if (instructions.count(input) == 0)
+                if(instructions.count(input) == 0)
                 {
                     MIGRAPHX_THROW("PARSE_GRAPH: input " + input + " is unavailable");
                 }
@@ -1827,7 +1827,6 @@ struct onnx_parser
                            result.begin(),
                            std::inserter(instructions, instructions.end()),
                            [](auto&& x, auto&& y) { return std::make_pair(x, y); });
-
         }
 
         // Find instructions corresponding to the output
@@ -1853,7 +1852,6 @@ struct onnx_parser
         // add the return instuction
         prog.add_return(output_ins);
     }
-
 
     void parse_undefined(const std::string& name)
     {

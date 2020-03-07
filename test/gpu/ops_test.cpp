@@ -504,8 +504,8 @@ struct test_atanh : verify_program<test_atanh>
         auto x       = p.add_parameter("x", s);
         auto min_val = p.add_literal(-0.95);
         auto max_val = p.add_literal(0.95);
-        min_val       = p.add_instruction(migraphx::op::multibroadcast{{16}}, min_val);
-        max_val       = p.add_instruction(migraphx::op::multibroadcast{{16}}, max_val);
+        min_val      = p.add_instruction(migraphx::op::multibroadcast{{16}}, min_val);
+        max_val      = p.add_instruction(migraphx::op::multibroadcast{{16}}, max_val);
         auto cx      = p.add_instruction(migraphx::op::clip{}, x, min_val, max_val);
         p.add_instruction(migraphx::op::atanh{}, cx);
         return p;

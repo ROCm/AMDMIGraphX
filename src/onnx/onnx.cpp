@@ -1779,7 +1779,6 @@ struct onnx_parser
 
     void parse_graph(const onnx::GraphProto& graph)
     {
-        nodes = get_nodes(graph);
         for(auto&& f : graph.initializer())
             instructions[f.name()] = prog.add_literal(parse_tensor(f));
 
@@ -1794,9 +1793,41 @@ struct onnx_parser
                 instructions[name] = prog.add_parameter(name, s);
             }
         }
-        for(auto&& output : graph.output())
+
+        for (auto&& node : graph.node())
         {
-            this->parse_node(output.name());
+            std::vector<instruction_ref> args;
+            for (auto&& input : node.input())
+            {
+                if (input.empty())
+                {
+                    this->parse_undefined(input);
+                }
+                if (instructions.count(input) == 0)
+                {
+                    MIGRAPHX_THROW("PARSE_GRAPH: input " + input + " is unavailable");
+                }
+                args.push_back(instructions.at(input));
+            }
+
+            std::vector<instruction_ref> result;
+            std::size_t output_num = static_cast<std::size_t>(node.output().size());
+            if(ops.count(node.op_type()) == 0)
+            {
+                result.push_back(prog.add_instruction(op::unknown{node.op_type()}, args));
+            }
+            else
+            {
+                result = ops[node.op_type()]({get_attributes(node), output_num}, args);
+            }
+
+            output_num = std::min<std::size_t>(output_num, result.size());
+            std::transform(node.output().begin(),
+                           node.output().begin() + output_num,
+                           result.begin(),
+                           std::inserter(instructions, instructions.end()),
+                           [](auto&& x, auto&& y) { return std::make_pair(x, y); });
+
         }
 
         // Find instructions corresponding to the output
@@ -1823,58 +1854,11 @@ struct onnx_parser
         prog.add_return(output_ins);
     }
 
+
     void parse_undefined(const std::string& name)
     {
         auto ins           = prog.add_instruction(op::undefined{});
         instructions[name] = ins;
-    }
-
-    void parse_node(const std::string& name)
-    {
-        if(name.empty())
-            MIGRAPHX_THROW("Onnx node must have a name");
-        if(instructions.count(name) == 0)
-        {
-            auto&& node = nodes.at(name);
-            std::vector<instruction_ref> args;
-            for(auto&& input : node.input())
-            {
-                if(input.empty())
-                {
-                    this->parse_undefined(input);
-                }
-                else if(nodes.count(input) > 0)
-                {
-                    assert(name != input);
-                    this->parse_node(input);
-                }
-                args.push_back(instructions.at(input));
-            }
-            std::vector<instruction_ref> result;
-            if(ops.count(node.op_type()) == 0)
-            {
-                result.push_back(prog.add_instruction(op::unknown{node.op_type()}, args));
-            }
-            else
-            {
-                std::size_t output_num = static_cast<std::size_t>(node.output().size());
-                result = ops[node.op_type()]({get_attributes(node), output_num}, args);
-            }
-            // Even no output nodes produce output in migraphx
-            if(node.output().empty() and result.size() == 1)
-            {
-                instructions[name] = result.front();
-            }
-            else
-            {
-                auto output_num = std::min<std::size_t>(node.output().size(), result.size());
-                std::transform(node.output().begin(),
-                               node.output().begin() + output_num,
-                               result.begin(),
-                               std::inserter(instructions, instructions.end()),
-                               [](auto&& x, auto&& y) { return std::make_pair(x, y); });
-            }
-        }
     }
 
     static attribute_map get_attributes(const onnx::NodeProto& node)
@@ -1883,32 +1867,6 @@ struct onnx_parser
         for(auto&& attr : node.attribute())
         {
             result[attr.name()] = attr;
-        }
-        return result;
-    }
-
-    static node_map get_nodes(const onnx::GraphProto& graph)
-    {
-        std::unordered_map<std::string, onnx::NodeProto> result;
-        std::size_t n = 0;
-        for(auto&& node : graph.node())
-        {
-            if(node.output().empty())
-            {
-                if(node.name().empty())
-                {
-                    result["migraphx_unamed_node_" + std::to_string(n)] = node;
-                    n++;
-                }
-                else
-                {
-                    result[node.name()] = node;
-                }
-            }
-            for(auto&& output : node.output())
-            {
-                result[output] = node;
-            }
         }
         return result;
     }

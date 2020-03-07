@@ -1043,6 +1043,9 @@ struct tf_parser
         {
             this->parse_node(p.first);
         }
+
+        // Needs to add a ret instruction at the end of
+        // the program
     }
 
     void parse_node(const std::string& name)

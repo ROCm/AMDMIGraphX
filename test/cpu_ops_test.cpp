@@ -2029,7 +2029,7 @@ TEST_CASE(clip_test)
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto l       = p.add_literal(migraphx::literal{s, {-1.0, 0.0, 10.0}});
-    auto min_val = p.add_literal(6.0f);
+    auto min_val = p.add_literal(0.0f);
     auto max_val = p.add_literal(6.0f);
     min_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, min_val);
     max_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, max_val);

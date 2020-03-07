@@ -69,6 +69,7 @@ struct onnx_parser
         add_binary_op("Div", op::div{});
         add_binary_op("Mul", op::mul{});
         add_binary_op("Pow", op::pow{});
+        add_binary_op("PRelu", op::prelu{});
         add_binary_op("Sub", op::sub{});
 
         add_variadic_op("Sum", op::add{});
@@ -1023,11 +1024,12 @@ struct onnx_parser
             auto&& bias_floats = attributes["bias"].floats();
             bias               = std::vector<float>(bias_floats.begin(), bias_floats.end());
         }
-        auto input_lens = args.front()->get_shape().lens();
+        auto input_shape       = args.front()->get_shape();
+        auto const& input_lens = input_shape.lens();
+        auto input_type        = input_shape.type();
 
-        auto scale_val = prog.add_literal(scale);
-        auto bias_vals = prog.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {bias.size()}}, bias});
+        auto scale_val = prog.add_literal(literal{shape{input_type}, {scale}});
+        auto bias_vals = prog.add_literal(literal{shape{input_type, {bias.size()}}, bias});
 
         auto scale_tensor = prog.add_instruction(migraphx::op::scalar{input_lens}, scale_val);
         auto img_scaled   = prog.add_instruction(migraphx::op::mul{}, args.front(), scale_tensor);
@@ -1764,18 +1766,28 @@ struct onnx_parser
             this->parse_node(output.name());
         }
 
-        // For now, the last output with a valid name is considered
-        // as the program output, and add an identity instruction at
-        // the program end
+        // Find instructions corresponding to the output
         auto prog_output = graph.output();
-        auto oit         = std::find_if(prog_output.rbegin(), prog_output.rend(), [](auto& node) {
-            return !node.name().empty();
-        });
+        std::vector<std::string> all_output_names;
+        std::vector<std::string> prog_output_names;
+        std::transform(prog_output.begin(),
+                       prog_output.end(),
+                       std::back_inserter(all_output_names),
+                       [](auto& node) { return node.name(); });
+        std::copy_if(
+            all_output_names.begin(),
+            all_output_names.end(),
+            std::back_inserter(prog_output_names),
+            [&](const auto& name) { return !(name.empty() or instructions.count(name) == 0); });
 
-        if(instructions.count(oit->name()) > 0)
-        {
-            prog.add_instruction(op::identity{}, instructions[oit->name()]);
-        }
+        std::vector<instruction_ref> output_ins;
+        std::transform(prog_output_names.begin(),
+                       prog_output_names.end(),
+                       std::back_inserter(output_ins),
+                       [&](const auto& name) { return instructions[name]; });
+
+        // add the return instuction
+        prog.add_return(output_ins);
     }
 
     void parse_undefined(const std::string& name)
@@ -1821,9 +1833,9 @@ struct onnx_parser
             }
             else
             {
-                assert(node.output().size() <= result.size());
+                auto output_num = std::min<std::size_t>(node.output().size(), result.size());
                 std::transform(node.output().begin(),
-                               node.output().end(),
+                               node.output().begin() + output_num,
                                result.begin(),
                                std::inserter(instructions, instructions.end()),
                                [](auto&& x, auto&& y) { return std::make_pair(x, y); });

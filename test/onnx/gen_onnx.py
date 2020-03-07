@@ -1013,6 +1013,20 @@ def imagescaler_test():
 
 
 @onnx_test
+def imagescaler_half_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [1, 3, 16, 16])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [1, 3, 16, 16])
+
+    node = onnx.helper.make_node('ImageScaler',
+                                 inputs=['0'],
+                                 outputs=['1'],
+                                 bias=[0.01, 0.02, 0.03],
+                                 scale=0.5)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def implicit_add_bcast_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 4, 1])
@@ -1381,6 +1395,22 @@ def pow_test():
 
     node = onnx.helper.make_node(
         'Pow',
+        inputs=['0', '1'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
+def prelu_brcst_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [2, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'PRelu',
         inputs=['0', '1'],
         outputs=['out'],
     )

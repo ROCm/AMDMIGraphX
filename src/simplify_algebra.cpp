@@ -307,7 +307,7 @@ struct find_splits
         if(std::any_of(each.begin(), each.end(), [&](auto i) { return i->get_operator() != op; }))
             return;
 
-        auto split_idx = 0;
+        auto split_idx    = 0;
         instruction_ref c = p.end();
         if(start->inputs().size() == 1)
         {
@@ -316,7 +316,7 @@ struct find_splits
         else if(start->inputs().size() == 2)
         {
             // TODO: assert one argument is split
-            auto data_idx  = 1;
+            auto data_idx = 1;
             if(start->inputs().back()->name() == "split")
             {
                 split_idx = 1;
@@ -324,10 +324,9 @@ struct find_splits
             }
 
             std::vector<instruction_ref> data_args;
-            std::transform(each.begin(),
-                           each.end(),
-                           std::back_inserter(data_args),
-                           [&](auto i) { return i->inputs()[data_idx]; });
+            std::transform(each.begin(), each.end(), std::back_inserter(data_args), [&](auto i) {
+                return i->inputs()[data_idx];
+            });
 
             // Data arguments must be a constant
             if(std::any_of(
@@ -349,17 +348,17 @@ struct find_splits
             args.resize(2);
             args[split_idx] = ins;
             args[data_idx]  = concat;
-            c          = p.insert_instruction(std::next(ins), op, args);
+            c               = p.insert_instruction(std::next(ins), op, args);
         }
-        if (c != p.end())
+        if(c != p.end())
         {
             for(auto i : each)
             {
                 auto split = i->inputs()[split_idx];
                 // Insert contiguous for reshapes
-                for(auto output:i->outputs())
+                for(auto output : i->outputs())
                 {
-                    if (not contains({"reshape", "squeeze", "unsqueeze"}, output->name()))
+                    if(not contains({"reshape", "squeeze", "unsqueeze"}, output->name()))
                         continue;
                     auto x = p.insert_instruction(output, op::contiguous{}, output->inputs());
                     p.replace_instruction(output, output->get_operator(), x);

@@ -285,7 +285,7 @@ struct find_splits
     auto matcher() const
     {
         return match::any(match::any_of[match::outputs()](
-            match::name("slice")(match::any_of[match::outputs()](match::name("add", "relu")))));
+            match::name("slice")(match::any_of[match::outputs()](match::name("add", "mul", "relu")))));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -367,6 +367,50 @@ struct find_splits
                 p.replace_instruction(i, split->get_operator(), c);
             }
         }
+    }
+};
+
+struct find_split_concat
+{
+    auto matcher() const
+    {
+        return match::any(match::any_of[match::outputs()](
+            match::name("slice")(match::all_of[match::outputs()](match::name("concat")))));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins = r.result;
+
+        auto splits = get_splits(ins);
+        if(splits.empty())
+            return;
+        if(std::any_of(
+               splits.begin(), splits.end(), [](auto i) { return i->outputs().size() != 1; }))
+            return;
+        // Check for concat operator
+        auto concat = splits.front()->outputs().front();
+        if(std::any_of(
+               splits.begin(), splits.end(), [&](auto i) { return i->outputs().front() != concat; }))
+            return;
+        // Check axis match
+        auto concat_op = any_cast<op::concat>(concat->get_operator());
+        auto split_op = any_cast<op::slice>(splits.front()->inputs().front()->get_operator());
+        if (split_op.axes.size() != 1)
+            return;
+        if (split_op.axes.front() != concat_op.axis)
+            return;
+        // Replace args
+        auto args = concat->inputs();
+        auto it = std::find_if(args.begin(), args.end(), [&](auto i) {
+            return i == splits.front();
+        });
+        if (std::distance(it, args.end()) < splits.size())
+            return;
+        *it = splits.front()->inputs().front();
+        args.erase(std::next(it), it+splits.size());
+
+        p.replace_instruction(concat, concat->get_operator(), args);
     }
 };
 
@@ -565,7 +609,7 @@ struct find_conv_dot_horiz_fusion
 void simplify_algebra::apply(program& p) const
 {
     // Run simplifications multiple times
-    for(int i = 0; i < 4; i++)
+    for(int i = 0; i < 8; i++)
     {
         match::find_matches(p,
                             find_inner_broadcast{},
@@ -577,6 +621,7 @@ void simplify_algebra::apply(program& p) const
                             find_mul_add{},
                             find_concat_unary{},
                             find_concat_binary{},
+                            find_split_concat{},
                             find_splits{});
         dead_code_elimination{}.apply(p);
     }

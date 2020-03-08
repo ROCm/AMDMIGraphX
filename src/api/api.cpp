@@ -194,6 +194,17 @@ struct migraphx_program_parameters
     std::unordered_map<std::string, migraphx::argument> object;
 };
 
+extern "C" struct migraphx_calibration_data;
+struct migraphx_calibration_data
+{
+    template <class... Ts>
+    migraphx_calibration_data(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    {
+
+    }
+    std::vector<migraphx::program::parameter_map> object;
+};
+
 extern "C" struct migraphx_arguments;
 struct migraphx_arguments
 {
@@ -605,4 +616,21 @@ extern "C" migraphx_status migraphx_quantize_fp16(migraphx_program_t prog)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
         migraphx::quantize_fp16(prog->object);
     });
+}
+
+extern "C" migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
+                                       migraphx_target_t target,
+                                       migraphx_calibration_data calibr_data)
+{
+    return migraphx::try_([&] {
+        if(prog == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        if(target == nullptr)
+            MIGRAPHX_THROW(migraphx_status_unknown_target, "Bad parameter target: Null pointer");
+        if(calibr_data == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
+
+        migraphx::quantize_int8(prog->object, target->object, calibr_data->object);
+    });
+
 }

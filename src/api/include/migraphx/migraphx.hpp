@@ -398,6 +398,38 @@ struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
     };
 };
 
+struct calibration_data : MIGRAPHX_HANDLE_BASE(calibration_data), array_base<calibration_data>
+{
+    arguments(migraphx_calibration_data* p, own) { this->set_handle(p, own{}); }
+
+    arguments(migraphx_calibration_data* p, borrow) { this->set_handle(p, borrow{}); }
+
+    size_t size() const
+    {
+        size_t pout;
+        call(&migraphx_arguments_size, &pout, this->get_handle_ptr());
+        return pout;
+    }
+
+    argument operator[](size_t pidx) const
+    {
+        const_migraphx_argument_t pout;
+        call(&migraphx_arguments_get, &pout, this->get_handle_ptr(), pidx);
+        return argument(pout);
+    }
+
+    struct iterator_read
+    {
+        migraphx_arguments* self;
+        argument operator()(size_t pidx) const
+        {
+            const_migraphx_argument_t pout;
+            call(&migraphx_arguments_get, &pout, self, pidx);
+            return argument(pout);
+        }
+    };
+};
+
 struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
 {
     shapes(migraphx_shapes* p, own) { this->set_handle(p, own{}); }
@@ -518,6 +550,9 @@ inline program parse_onnx_buffer(const std::string& buffer)
 }
 
 inline void quantize_fp16(program& prog) { call(&migraphx_quantize_fp16, prog.get_handle_ptr()); }
+
+inline void quantize_int8(program& prog, migraphx_target_t target, migraphx_calibration_data_t params) 
+{ call(&migraphx_quantize_int8, prog.get_handle_ptr(), target, params); }
 
 } // namespace api
 } // namespace migraphx

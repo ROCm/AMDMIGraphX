@@ -63,6 +63,9 @@ typedef const struct migraphx_program_parameter_shapes* const_migraphx_program_p
 typedef struct migraphx_program_parameters* migraphx_program_parameters_t;
 typedef const struct migraphx_program_parameters* const_migraphx_program_parameters_t;
 
+typedef struct migraphx_calibration_data* migraphx_calibration_t;
+typedef const struct migraphx_calibration_data* const_migraphx_calibration_t;
+
 typedef struct migraphx_arguments* migraphx_arguments_t;
 typedef const struct migraphx_arguments* const_migraphx_arguments_t;
 
@@ -180,9 +183,10 @@ migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
                                            migraphx_onnx_options* options);
 
 migraphx_status migraphx_quantize_fp16(migraphx_program_t prog);
+
 migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
                                        migraphx_target_t target,
-                                       migraphx_program_parameters params);
+                                       migraphx_calibration_data_t params);
 
 #ifdef __cplusplus
 }

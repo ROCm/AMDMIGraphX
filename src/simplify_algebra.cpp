@@ -284,8 +284,8 @@ struct find_splits
 {
     auto matcher() const
     {
-        return match::any(match::any_of[match::outputs()](
-            match::name("slice")(match::any_of[match::outputs()](match::name("add", "mul", "relu")))));
+        return match::any(match::any_of[match::outputs()](match::name("slice")(
+            match::any_of[match::outputs()](match::name("add", "mul", "relu")))));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -390,25 +390,25 @@ struct find_split_concat
             return;
         // Check for concat operator
         auto concat = splits.front()->outputs().front();
-        if(std::any_of(
-               splits.begin(), splits.end(), [&](auto i) { return i->outputs().front() != concat; }))
+        if(std::any_of(splits.begin(), splits.end(), [&](auto i) {
+               return i->outputs().front() != concat;
+           }))
             return;
         // Check axis match
         auto concat_op = any_cast<op::concat>(concat->get_operator());
-        auto split_op = any_cast<op::slice>(splits.front()->inputs().front()->get_operator());
-        if (split_op.axes.size() != 1)
+        auto split_op  = any_cast<op::slice>(splits.front()->inputs().front()->get_operator());
+        if(split_op.axes.size() != 1)
             return;
-        if (split_op.axes.front() != concat_op.axis)
+        if(split_op.axes.front() != concat_op.axis)
             return;
         // Replace args
         auto args = concat->inputs();
-        auto it = std::find_if(args.begin(), args.end(), [&](auto i) {
-            return i == splits.front();
-        });
-        if (std::distance(it, args.end()) < splits.size())
+        auto it =
+            std::find_if(args.begin(), args.end(), [&](auto i) { return i == splits.front(); });
+        if(std::distance(it, args.end()) < splits.size())
             return;
         *it = splits.front()->inputs().front();
-        args.erase(std::next(it), it+splits.size());
+        args.erase(std::next(it), it + splits.size());
 
         p.replace_instruction(concat, concat->get_operator(), args);
     }

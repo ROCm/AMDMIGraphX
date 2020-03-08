@@ -508,6 +508,22 @@ def conv_autopad_fail_test():
 
 
 @onnx_test
+def conv_autopad_same_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 3, 3])
+    out = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1, 1, 32, 32])
+
+    node = onnx.helper.make_node('Conv',
+                                 inputs=['0', '1'],
+                                 outputs=['2'],
+                                 dilations=[1, 1],
+                                 strides=[1, 1],
+                                 auto_pad='SAME')
+
+    return ([node], [x, y], [out])
+
+
+@onnx_test
 def conv_bias_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])

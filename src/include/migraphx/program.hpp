@@ -124,6 +124,8 @@ struct program
 
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
+    program& sort();
+
     friend std::ostream& operator<<(std::ostream& os, const program& p);
     friend bool operator==(const program& x, const program& y);
     friend bool operator!=(const program& x, const program& y) { return !(x == y); }

@@ -396,7 +396,7 @@ struct find_split_concat
             return;
         // Check axis match
         auto concat_op = any_cast<op::concat>(concat->get_operator());
-        auto split_op  = any_cast<op::slice>(splits.front()->inputs().front()->get_operator());
+        auto split_op  = any_cast<op::slice>(splits.front()->get_operator());
         if(split_op.axes.size() != 1)
             return;
         if(split_op.axes.front() != concat_op.axis)
@@ -410,7 +410,10 @@ struct find_split_concat
         *it = splits.front()->inputs().front();
         args.erase(std::next(it), it + splits.size());
 
-        p.replace_instruction(concat, concat->get_operator(), args);
+        if(args.size() == 1)
+            p.replace_instruction(concat, args.front());
+        else
+            p.replace_instruction(concat, concat->get_operator(), args);
     }
 };
 

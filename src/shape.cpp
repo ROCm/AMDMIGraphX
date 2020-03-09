@@ -197,6 +197,14 @@ bool shape::scalar() const
 
 bool shape::standard() const { return impl->m_standard; }
 
+shape shape::normalize_standard() const
+{
+    if(this->standard())
+        return {this->type(), this->lens()};
+    else
+        return *this;
+}
+
 std::size_t shape::element_space() const { return impl->element_space(); }
 
 std::string shape::type_string() const

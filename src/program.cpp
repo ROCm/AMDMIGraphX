@@ -251,6 +251,14 @@ instruction_ref program::move_instruction(instruction_ref src, instruction_ref d
     return src;
 }
 
+instruction_ref program::move_instructions(instruction_ref src, instruction_ref dst)
+{
+    this->move_instruction(src, dst);
+    for(auto ins : src->inputs())
+        this->move_instruction(ins, src);
+    return src;
+}
+
 instruction_ref program::add_literal(literal l)
 {
     impl->instructions.emplace_front(std::move(l));

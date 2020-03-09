@@ -38,8 +38,9 @@ Result make_obj(F f, Ts... xs)
     return r;
 }
 
-inline tensor_descriptor make_tensor(const migraphx::shape& s, bool pack = false)
+inline tensor_descriptor make_tensor(const migraphx::shape& os, bool pack = false)
 {
+    auto s = os.normalize_standard();
     auto t = make_obj<tensor_descriptor>(&miopenCreateTensorDescriptor);
     // Convert to ints
     std::vector<int> lens(s.lens().begin(), s.lens().end());

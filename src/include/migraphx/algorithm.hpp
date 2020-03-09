@@ -7,14 +7,12 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template<class Iterator, class Output, class Predicate>
+template <class Iterator, class Output, class Predicate>
 void group_by(Iterator start, Iterator last, Output out, Predicate pred)
 {
     while(start != last)
     {
-        auto it = std::partition(start, last, [&](auto x) {
-            return pred(x, *start);
-        });
+        auto it = std::partition(start, last, [&](auto x) { return pred(x, *start); });
         out(start, it);
         start = it;
     }

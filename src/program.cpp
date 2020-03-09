@@ -756,7 +756,7 @@ program& program::sort()
         std::string name_of(instruction_ref x) const
         {
             std::stringstream ss;
-            if (x->name() == "@literal")
+            if(x->name() == "@literal")
                 ss << x->get_literal();
             else
                 ss << x->get_operator();
@@ -764,7 +764,8 @@ program& program::sort()
         }
         auto select(instruction_ref& x) const
         {
-            return std::make_tuple(x->inputs().size(), x->outputs().size(), name_of(x), std::addressof(*x));
+            return std::make_tuple(
+                x->inputs().size(), x->outputs().size(), name_of(x), std::addressof(*x));
         }
         bool operator()(instruction_ref x, instruction_ref y) const
         {

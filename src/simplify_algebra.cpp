@@ -410,7 +410,7 @@ struct find_split_concat
         *it = splits.front()->inputs().front();
         args.erase(std::next(it), it + splits.size());
 
-        if (args.size() == 1)
+        if(args.size() == 1)
             p.replace_instruction(concat, args.front());
         else
             p.replace_instruction(concat, concat->get_operator(), args);

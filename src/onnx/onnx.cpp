@@ -311,7 +311,9 @@ struct onnx_parser
     {
         if(padding[0] != padding[2] || padding[1] != padding[3])
         {
-            ins = prog.add_instruction(op::pad{{0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]}, pad_val}, ins);
+            ins = prog.add_instruction(
+                op::pad{{0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]}, pad_val},
+                ins);
         }
         else
         {

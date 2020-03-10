@@ -4,6 +4,7 @@
 #include <migraphx/gpu/clip.hpp>
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/oper.hpp>
+#include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/device/layernorm.hpp>
 #include <migraphx/gpu/device/mul_add.hpp>
 #include <migraphx/gpu/device/add_clip.hpp>
@@ -12,9 +13,12 @@
 #include <migraphx/gpu/device/add_tanh.hpp>
 #include <migraphx/gpu/device/mul_add_relu.hpp>
 #include <migraphx/gpu/device/add.hpp>
+#include <migraphx/gpu/device/add_transpose.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/array.hpp>
 #include <migraphx/op/clip.hpp>
+#include <migraphx/op/dot.hpp>
+#include <migraphx/op/transpose.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -309,6 +313,47 @@ struct hip_mul_add_relu
     }
 };
 
+template<void (*DF)(hipStream_t, const argument&, const argument&, const argument&)>
+struct hip_contiguous_gemm_arg
+{
+    std::vector<std::size_t> dims;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.dims, "dims"));
+    }
+
+    // template <class Self, class F>
+    // static auto reflect(Self& self, F f)
+    // {
+    //     return op::transpose::reflect(self.op, f);
+    // }
+
+    std::string name() const { return "hip::fuse_add_contiguous_0"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(3).same_type();
+        //auto lens = inputs[0].lens();
+        // std::vector<std::size_t> out_lens(lens.size());
+        // for (std::size_t i = 0; i < dims.size(); ++i)
+        // {
+        //     out_lens[i] = lens[dims[i]];
+        // }
+        // return {inputs.front().type(), out_lens};
+        return inputs[2];
+    }
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
+        DF(ctx.get_stream().get(), args.at(2), args.at(0), args.at(1));
+        return args.at(2);
+    }
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+};
+
 void move_broadcasted_back(std::vector<instruction_ref>& args)
 {
     // Ensure the last arguments is the broadcasted one
@@ -374,6 +419,45 @@ struct find_layernorm
         auto args      = ins->inputs();
 
         p.replace_instruction(ins, hip_layernorm{}, x_ins, scale_ins, bias_ins, args.back());
+    }
+};
+
+struct find_contiguous_gemm
+{
+    auto matcher() const
+    {
+        return match::name("gpu::gemm")(
+            match::arg(0)(
+                match::name("gpu::contiguous")(
+                    match::arg(0)(match::name("transpose")(
+                        match::arg(0)(match::name("reshape")(
+                            match::arg(0)(match::name("gpu::add")(
+                                match::arg(0)(match::any()),
+                                match::arg(1)(match::name("multibroadcast"))).bind("add_ins0"))))))).bind("cont0")),
+            
+            match::arg(1)(
+                match::name("gpu::contiguous")(
+                    match::arg(0)(match::name("transpose")(
+                        match::arg(0)(match::name("reshape")(
+                            match::arg(0)(match::name("gpu::add")(
+                                match::arg(0)(match::any()),
+                                match::arg(1)(match::name("multibroadcast"))).bind("add_ins1"))))))).bind("cont1"))
+        );
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins       = r.result;
+        auto in0 = r.instructions["add_ins0"]->inputs()[0];
+        auto shared_in0     = r.instructions["add_ins0"]->inputs()[1]->inputs()[0];
+        auto cont0 = r.instructions["cont0"];
+        auto in1 = r.instructions["add_ins1"]->inputs()[0];
+        auto shared_in1     = r.instructions["add_ins1"]->inputs()[1]->inputs()[0];
+        auto cont1 = r.instructions["cont1"];
+        auto arg0 = p.insert_instruction(cont0, hip_contiguous_gemm_arg<device::add_transpose_arg0>{{0, 2, 1, 3}}, in0, shared_in0, cont0->inputs().back());
+        auto arg1 = p.insert_instruction(cont1, hip_contiguous_gemm_arg<device::add_transpose_arg1>{{0, 2, 3, 1}}, in1, shared_in1, cont1->inputs().back());
+        auto&& op    = any_cast<gpu::rocblas_gemm<op::dot>>(ins->get_operator());
+        p.replace_instruction(ins, op, arg0, arg1, ins->inputs().back());
     }
 };
 
@@ -668,6 +752,7 @@ void fuse_ops::apply(program& p) const
 {
     // clang-format off
     match::find_matches(p, find_layernorm{});
+    match::find_matches(p, find_contiguous_gemm{});
     match::find_matches(p, find_triadd{});
     match::find_matches(p, 
         find_conv_bias_relu{ctx},

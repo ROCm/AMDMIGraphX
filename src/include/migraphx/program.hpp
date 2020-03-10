@@ -88,6 +88,8 @@ struct program
 
     instruction_ref add_parameter(std::string name, shape s);
 
+    instruction_ref add_return(std::vector<instruction_ref> args);
+
     shape get_parameter_shape(std::string name) const;
 
     instruction_ref get_parameter(std::string name) const;

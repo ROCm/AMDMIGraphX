@@ -751,40 +751,11 @@ void program::annotate(std::ostream& os, std::function<void(instruction_ref)> a)
 
 program& program::sort()
 {
-    struct compare
-    {
-        std::string name_of(instruction_ref x) const
-        {
-            std::stringstream ss;
-            if(x->name() == "@literal")
-                ss << x->get_literal();
-            else
-                ss << x->get_operator();
-            return ss.str();
-        }
-        auto select(instruction_ref& x) const
-        {
-            return std::make_tuple(
-                x->inputs().size(), x->outputs().size(), name_of(x), std::addressof(*x));
-        }
-        bool operator()(instruction_ref x, instruction_ref y) const
-        {
-            return select(x) < select(y);
-        }
-    };
-    std::set<instruction_ref, compare> children{std::prev(this->end())};
-    while(not children.empty())
-    {
-        // Pop the first element
-        auto top = *children.begin();
-        children.erase(children.begin());
-
-        this->move_instruction(top, this->begin());
-        for(auto ins : top->inputs())
-        {
-            children.insert(ins);
-        }
-    }
+    fix([&](auto self, auto ins) {
+        this->move_instruction(ins, this->begin());
+        for(auto child:ins->inputs())
+            self(child);
+    })(std::prev(this->end()));
     assert(this->validate() == this->end());
     return *this;
 }

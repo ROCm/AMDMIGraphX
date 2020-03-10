@@ -288,6 +288,31 @@ struct find_splits
             match::any_of[match::outputs()](match::name("add", "mul", "relu")))));
     }
 
+    static std::vector<std::vector<instruction_ref>> get_split_groups(const std::vector<instruction_ref>& splits)
+    {
+        std::vector<std::vector<instruction_ref>> groups;
+        for(auto out:splits.front()->outputs())
+        {
+            if (out->name() == "slice")
+                continue;
+            std::vector<instruction_ref> group;
+            for(auto split:splits)
+            {
+                auto it = std::find_if(split->outputs().begin(), split->outputs().end(), [&](auto i) {
+                    return i->get_operator() == out->get_operator();
+                });
+                if (it == split->outputs().end())
+                    break;
+                assert((*it)->name() != "slice");
+                group.push_back(*it);
+            }
+            if (group.size() != splits.size())
+                continue;
+            groups.push_back(group);
+        }
+        return groups;
+    }
+
     void apply(program& p, match::matcher_result r) const
     {
         auto ins = r.result;
@@ -295,78 +320,76 @@ struct find_splits
         auto splits = get_splits(ins);
         if(splits.empty())
             return;
-        if(std::any_of(
-               splits.begin(), splits.end(), [](auto i) { return i->outputs().size() != 1; }))
-            return;
-        std::vector<instruction_ref> each;
-        std::transform(splits.begin(), splits.end(), std::back_inserter(each), [&](auto i) {
-            return i->outputs().front();
-        });
-        auto start = each.front();
-        auto op    = start->get_operator();
-        if(std::any_of(each.begin(), each.end(), [&](auto i) { return i->get_operator() != op; }))
-            return;
+        for(const auto& group:get_split_groups(splits))
+        {
+            auto start = group.front();
+            auto op    = start->get_operator();
+            if (op.name() == "slice")
+                continue;
 
-        auto split_idx    = 0;
-        instruction_ref c = p.end();
-        if(start->inputs().size() == 1)
-        {
-            c = p.insert_instruction(std::next(ins), op, ins);
-        }
-        else if(start->inputs().size() == 2)
-        {
-            // TODO: assert one argument is split
-            auto data_idx = 1;
-            if(start->inputs().back()->name() == "split")
+            auto split_idx    = 0;
+            instruction_ref c = p.end();
+            if(start->inputs().size() == 1)
             {
-                split_idx = 1;
-                data_idx  = 0;
+                c = p.insert_instruction(std::next(ins), op, ins);
             }
-
-            std::vector<instruction_ref> data_args;
-            std::transform(each.begin(), each.end(), std::back_inserter(data_args), [&](auto i) {
-                return i->inputs()[data_idx];
-            });
-
-            // Data arguments must be a constant
-            if(std::any_of(
-                   data_args.begin(), data_args.end(), [](auto i) { return not i->can_eval(); }))
-                return;
-
-            for(auto data : data_args)
-                p.move_instructions(data, ins);
-
-            auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
-            assert(not slice_op.axes.empty());
-            if(slice_op.axes.size() > 1)
-                return;
-            auto concat_axis = slice_op.axes.front();
-            // TODO: Check if axises match
-            auto concat = p.insert_instruction(ins, op::concat{concat_axis}, data_args);
-
-            std::vector<instruction_ref> args;
-            args.resize(2);
-            args[split_idx] = ins;
-            args[data_idx]  = concat;
-            c               = p.insert_instruction(std::next(ins), op, args);
-        }
-        if(c != p.end())
-        {
-            for(auto i : each)
+            else if(start->inputs().size() == 2)
             {
-                auto split = i->inputs()[split_idx];
-                // Insert contiguous for reshapes
-                for(auto output : i->outputs())
+                // TODO: assert one argument is split
+                auto data_idx = 1;
+                if(start->inputs().back()->name() == "split")
                 {
-                    if(not contains({"reshape", "squeeze", "unsqueeze"}, output->name()))
-                        continue;
-                    auto x = p.insert_instruction(output, op::contiguous{}, output->inputs());
-                    p.replace_instruction(output, output->get_operator(), x);
+                    split_idx = 1;
+                    data_idx  = 0;
                 }
 
-                p.replace_instruction(i, split->get_operator(), c);
+                std::vector<instruction_ref> data_args;
+                std::transform(group.begin(), group.end(), std::back_inserter(data_args), [&](auto i) {
+                    return i->inputs()[data_idx];
+                });
+
+                // Data arguments must be a constant
+                if(std::any_of(
+                       data_args.begin(), data_args.end(), [](auto i) { return not i->can_eval(); }))
+                    return;
+
+                for(auto data : data_args)
+                    p.move_instructions(data, ins);
+
+                auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
+                assert(not slice_op.axes.empty());
+                if(slice_op.axes.size() > 1)
+                    return;
+                auto concat_axis = slice_op.axes.front();
+                // TODO: Check if axises match
+                auto concat = p.insert_instruction(ins, op::concat{concat_axis}, data_args);
+
+                std::vector<instruction_ref> args;
+                args.resize(2);
+                args[split_idx] = ins;
+                args[data_idx]  = concat;
+                c               = p.insert_instruction(std::next(ins), op, args);
+            }
+            if(c != p.end())
+            {
+                for(auto i : group)
+                {
+                    auto split = i->inputs()[split_idx];
+                    assert(split->name() == "slice");
+                    // Insert contiguous for reshapes
+                    for(auto output : i->outputs())
+                    {
+                        if(not contains({"reshape", "squeeze", "unsqueeze"}, output->name()))
+                            continue;
+                        auto x = p.insert_instruction(output, op::contiguous{}, output->inputs());
+                        p.replace_instruction(output, output->get_operator(), x);
+                    }
+
+                    p.replace_instruction(i, split->get_operator(), c);
+                }
             }
         }
+
     }
 };
 

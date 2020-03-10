@@ -1708,7 +1708,7 @@ struct onnx_parser
             axis = parse_value(info.attributes.at("axis")).at<int>();
         }
 
-        auto lens    = args[0]->get_shape().lens();
+        auto lens      = args[0]->get_shape().lens();
         int64_t n_rank = static_cast<int64_t>(lens.size());
         if((axis < -n_rank) || (axis >= n_rank))
         {

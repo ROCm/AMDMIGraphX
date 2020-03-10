@@ -610,8 +610,8 @@ TEST_CASE(simplify_split_add_relu_used_multiple_split1)
         auto relu1 = p1.add_instruction(migraphx::op::relu{}, sum1);
         auto sum2  = p1.add_instruction(migraphx::op::add{}, y, twob);
         auto relu2 = p1.add_instruction(migraphx::op::relu{}, sum2);
-        auto add1   = p1.add_instruction(migraphx::op::add{}, relu1, relu2);
-        auto add2   = p1.add_instruction(migraphx::op::add{}, x, add1);
+        auto add1  = p1.add_instruction(migraphx::op::add{}, relu1, relu2);
+        auto add2  = p1.add_instruction(migraphx::op::add{}, x, add1);
         p1.add_instruction(pass_op{}, add2);
     }
     run_pass(p1);
@@ -620,7 +620,7 @@ TEST_CASE(simplify_split_add_relu_used_multiple_split1)
     {
         auto b       = migraphx::op::broadcast{1, {3, 2, 4}};
         auto input   = p2.add_parameter("input", s);
-        auto slice     = p2.add_instruction(migraphx::op::slice{{1}, {0}, {1}}, input);
+        auto slice   = p2.add_instruction(migraphx::op::slice{{1}, {0}, {1}}, input);
         auto one     = p2.add_literal(1);
         auto two     = p2.add_literal(2);
         auto concat  = p2.add_instruction(migraphx::op::concat{0}, one, two);
@@ -629,8 +629,8 @@ TEST_CASE(simplify_split_add_relu_used_multiple_split1)
         auto relu    = p2.add_instruction(migraphx::op::relu{}, sum);
         auto x       = p2.add_instruction(migraphx::op::slice{{1}, {0}, {1}}, relu);
         auto y       = p2.add_instruction(migraphx::op::slice{{1}, {1}, {2}}, relu);
-        auto add1     = p2.add_instruction(migraphx::op::add{}, x, y);
-        auto add2   = p2.add_instruction(migraphx::op::add{}, slice, add1);
+        auto add1    = p2.add_instruction(migraphx::op::add{}, x, y);
+        auto add2    = p2.add_instruction(migraphx::op::add{}, slice, add1);
         p2.add_instruction(pass_op{}, add2);
     }
     EXPECT(p1.sort() == p2.sort());
@@ -645,7 +645,7 @@ TEST_CASE(simplify_split_add_relu_used_multiple_split2)
         auto input = p1.add_parameter("input", s);
         auto x     = p1.add_instruction(migraphx::op::slice{{1}, {0}, {1}}, input);
         auto y     = p1.add_instruction(migraphx::op::slice{{1}, {1}, {2}}, input);
-        auto z = p1.add_instruction(migraphx::op::relu{}, x);
+        auto z     = p1.add_instruction(migraphx::op::relu{}, x);
         auto one   = p1.add_literal(1);
         auto oneb  = p1.add_instruction(b, one);
         auto two   = p1.add_literal(2);
@@ -654,8 +654,8 @@ TEST_CASE(simplify_split_add_relu_used_multiple_split2)
         auto relu1 = p1.add_instruction(migraphx::op::relu{}, sum1);
         auto sum2  = p1.add_instruction(migraphx::op::add{}, y, twob);
         auto relu2 = p1.add_instruction(migraphx::op::relu{}, sum2);
-        auto add1   = p1.add_instruction(migraphx::op::add{}, relu1, relu2);
-        auto add2   = p1.add_instruction(migraphx::op::add{}, z, add1);
+        auto add1  = p1.add_instruction(migraphx::op::add{}, relu1, relu2);
+        auto add2  = p1.add_instruction(migraphx::op::add{}, z, add1);
         p1.add_instruction(pass_op{}, add2);
     }
     run_pass(p1);
@@ -664,8 +664,8 @@ TEST_CASE(simplify_split_add_relu_used_multiple_split2)
     {
         auto b       = migraphx::op::broadcast{1, {3, 2, 4}};
         auto input   = p2.add_parameter("input", s);
-        auto slice     = p2.add_instruction(migraphx::op::slice{{1}, {0}, {1}}, input);
-        auto z = p2.add_instruction(migraphx::op::relu{}, slice);
+        auto slice   = p2.add_instruction(migraphx::op::slice{{1}, {0}, {1}}, input);
+        auto z       = p2.add_instruction(migraphx::op::relu{}, slice);
         auto one     = p2.add_literal(1);
         auto two     = p2.add_literal(2);
         auto concat  = p2.add_instruction(migraphx::op::concat{0}, one, two);
@@ -674,8 +674,8 @@ TEST_CASE(simplify_split_add_relu_used_multiple_split2)
         auto relu    = p2.add_instruction(migraphx::op::relu{}, sum);
         auto x       = p2.add_instruction(migraphx::op::slice{{1}, {0}, {1}}, relu);
         auto y       = p2.add_instruction(migraphx::op::slice{{1}, {1}, {2}}, relu);
-        auto add1     = p2.add_instruction(migraphx::op::add{}, x, y);
-        auto add2   = p2.add_instruction(migraphx::op::add{}, z, add1);
+        auto add1    = p2.add_instruction(migraphx::op::add{}, x, y);
+        auto add2    = p2.add_instruction(migraphx::op::add{}, z, add1);
         p2.add_instruction(pass_op{}, add2);
     }
     EXPECT(p1.sort() == p2.sort());

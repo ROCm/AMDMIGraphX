@@ -753,7 +753,7 @@ program& program::sort()
 {
     fix([&](auto self, auto ins) {
         this->move_instruction(ins, this->begin());
-        for(auto child:ins->inputs())
+        for(auto child : ins->inputs())
             self(child);
     })(std::prev(this->end()));
     assert(this->validate() == this->end());

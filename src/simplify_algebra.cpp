@@ -288,25 +288,27 @@ struct find_splits
             match::any_of[match::outputs()](match::name("add", "mul", "relu")))));
     }
 
-    static std::vector<std::vector<instruction_ref>> get_split_groups(const std::vector<instruction_ref>& splits)
+    static std::vector<std::vector<instruction_ref>>
+    get_split_groups(const std::vector<instruction_ref>& splits)
     {
         std::vector<std::vector<instruction_ref>> groups;
-        for(auto out:splits.front()->outputs())
+        for(auto out : splits.front()->outputs())
         {
-            if (out->name() == "slice")
+            if(out->name() == "slice")
                 continue;
             std::vector<instruction_ref> group;
-            for(auto split:splits)
+            for(auto split : splits)
             {
-                auto it = std::find_if(split->outputs().begin(), split->outputs().end(), [&](auto i) {
-                    return i->get_operator() == out->get_operator();
-                });
-                if (it == split->outputs().end())
+                auto it =
+                    std::find_if(split->outputs().begin(), split->outputs().end(), [&](auto i) {
+                        return i->get_operator() == out->get_operator();
+                    });
+                if(it == split->outputs().end())
                     break;
                 assert((*it)->name() != "slice");
                 group.push_back(*it);
             }
-            if (group.size() != splits.size())
+            if(group.size() != splits.size())
                 continue;
             groups.push_back(group);
         }
@@ -320,11 +322,11 @@ struct find_splits
         auto splits = get_splits(ins);
         if(splits.empty())
             return;
-        for(const auto& group:get_split_groups(splits))
+        for(const auto& group : get_split_groups(splits))
         {
             auto start = group.front();
             auto op    = start->get_operator();
-            if (op.name() == "slice")
+            if(op.name() == "slice")
                 continue;
 
             auto split_idx    = 0;
@@ -344,13 +346,15 @@ struct find_splits
                 }
 
                 std::vector<instruction_ref> data_args;
-                std::transform(group.begin(), group.end(), std::back_inserter(data_args), [&](auto i) {
-                    return i->inputs()[data_idx];
-                });
+                std::transform(group.begin(),
+                               group.end(),
+                               std::back_inserter(data_args),
+                               [&](auto i) { return i->inputs()[data_idx]; });
 
                 // Data arguments must be a constant
-                if(std::any_of(
-                       data_args.begin(), data_args.end(), [](auto i) { return not i->can_eval(); }))
+                if(std::any_of(data_args.begin(), data_args.end(), [](auto i) {
+                       return not i->can_eval();
+                   }))
                     return;
 
                 for(auto data : data_args)
@@ -389,7 +393,6 @@ struct find_splits
                 }
             }
         }
-
     }
 };
 

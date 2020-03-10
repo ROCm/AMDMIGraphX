@@ -304,7 +304,7 @@ struct onnx_parser
     }
 
     template <class Op>
-    void check_asym_padding(instruction_ref ins,
+    void check_asym_padding(instruction_ref& ins,
                             const std::vector<int64_t>& padding,
                             Op& op,
                             float pad_val = 0)

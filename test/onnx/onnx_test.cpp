@@ -19,7 +19,7 @@ migraphx::program optimize_onnx(const std::string& name, bool eliminate_deadcode
 
     // remove the last identity instruction
     auto last_ins = std::prev(prog.end());
-    if(last_ins->name() == "identity")
+    if(last_ins->name() == "@return")
     {
         prog.remove_instruction(last_ins);
     }
@@ -339,6 +339,20 @@ TEST_CASE(const_of_shape_no_value_attr_test)
 TEST_CASE(conv_autopad_fail_test)
 {
     EXPECT(test::throws([&] { optimize_onnx("conv_autopad_fail_test.onnx"); }));
+}
+
+TEST_CASE(conv_autopad_same_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 32, 32}});
+    auto l1 = p.add_parameter("1", {migraphx::shape::float_type, {1, 3, 3, 3}});
+    migraphx::op::convolution op;
+    op.padding      = {1, 1};
+    op.padding_mode = migraphx::op::padding_mode_t::same;
+    p.add_instruction(op, l0, l1);
+
+    auto prog = optimize_onnx("conv_autopad_same_test.onnx");
+    EXPECT(p == prog);
 }
 
 TEST_CASE(conv_bias_test)
@@ -728,6 +742,25 @@ TEST_CASE(imagescaler_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(imagescaler_half_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 16, 16}};
+    auto l0 = p.add_parameter("0", s);
+    auto scale_val =
+        p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {0.5f}});
+    auto bias_vals = p.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::half_type, {3}}, {0.01, 0.02, 0.03}});
+    auto scaled_tensor = p.add_instruction(migraphx::op::scalar{s.lens()}, scale_val);
+    auto img_scaled    = p.add_instruction(migraphx::op::mul{}, l0, scaled_tensor);
+    auto bias_bcast    = p.add_instruction(migraphx::op::broadcast{1, s.lens()}, bias_vals);
+    p.add_instruction(migraphx::op::add{}, img_scaled, bias_bcast);
+
+    auto prog = optimize_onnx("imagescaler_half_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(implicit_add_bcast_test)
 {
     migraphx::program p;
@@ -1042,6 +1075,20 @@ TEST_CASE(pow_test)
     p.add_instruction(migraphx::op::pow{}, l0, l1);
 
     auto prog = optimize_onnx("pow_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(prelu_brcst_test)
+{
+    migraphx::program p;
+    auto l0  = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
+    auto l1  = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {4, 5}});
+    auto bl1 = p.add_instruction(migraphx::op::multibroadcast{l0->get_shape().lens()}, l1);
+    auto ret = p.add_instruction(migraphx::op::prelu{}, l0, bl1);
+    p.add_return({ret});
+
+    auto prog = migraphx::parse_onnx("prelu_brcst_test.onnx");
 
     EXPECT(p == prog);
 }

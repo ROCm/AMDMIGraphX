@@ -22,6 +22,9 @@ void instruction::replace(const shape& r)
         result = r;
         for(auto&& ins : output)
         {
+            if(ins->name() == "@return")
+                continue;
+
             assert(ins->name().front() != '@');
             ins->recompute_shape();
         }
@@ -70,6 +73,10 @@ bool instruction::valid() const
     {
         computed = result;
     }
+    else if(op.name() == "@return")
+    {
+        computed = {};
+    }
     else
     {
         try
@@ -81,6 +88,7 @@ bool instruction::valid() const
             return false;
         }
     }
+
     return result == computed && std::all_of(output.begin(), output.end(), [&](instruction_ref i) {
                return std::find(i->inputs().begin(), i->inputs().end(), *this) != i->inputs().end();
            });

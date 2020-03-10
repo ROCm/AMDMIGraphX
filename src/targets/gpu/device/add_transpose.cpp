@@ -36,9 +36,6 @@ void add_transpose_arg0(hipStream_t stream, const argument& result, const argume
     out_stride[1] = original_out_stride[2];
     out_stride[2] = original_out_stride[1];
     shape ret_shape{out_s.type(), out_lens, out_stride};
-    std::cout << "add_transpose_arg0, arg1_shape = " << arg1.get_shape() << std::endl;
-    std::cout << "add_transpose_arg0, arg2_shape = " << arg2.get_shape() << std::endl;
-    std::cout << "block_num = " << item_num / (chunks_per_block * 3 * block_size) << std::endl << std::endl;
 
     visit_all(arg1, arg2)([&](auto input1, auto input2) {
     hip_visit_all(result, ret_shape, arg_shape)([&](auto output, auto out_shape, auto in_shape) {
@@ -96,14 +93,10 @@ void add_transpose_arg1(hipStream_t stream, const argument& result, const argume
     shape arg_shape{out_s.type(), in_lens};
     auto original_out_stride = out_s.strides();
     auto out_stride = original_out_stride;
-    out_stride[1] = original_out_stride[2];
-    out_stride[2] = original_out_stride[3];
-    out_stride[3] = original_out_stride[1];
+    out_stride[1] = original_out_stride[3];
+    out_stride[2] = original_out_stride[1];
+    out_stride[3] = original_out_stride[2];
     shape ret_shape{out_s.type(), out_lens, out_stride};
-    std::cout << "add_transpose_arg1, arg1_shape = " << arg1.get_shape() << std::endl;
-    std::cout << "add_transpose_arg1, arg2_shape = " << arg2.get_shape() << std::endl;
-    std::cout << "block_num = " << item_num / (chunks_per_block * 3 * block_size) << std::endl << std::endl;
-
     visit_all(arg1, arg2)([&](auto input1, auto input2) {
     hip_visit_all(result, ret_shape, arg_shape)([&](auto output, auto out_shape, auto in_shape) {
         auto *output_ptr = device_cast(output.data());

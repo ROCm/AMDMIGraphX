@@ -324,23 +324,10 @@ struct hip_contiguous_gemm_arg
         return pack(f(self.dims, "dims"));
     }
 
-    // template <class Self, class F>
-    // static auto reflect(Self& self, F f)
-    // {
-    //     return op::transpose::reflect(self.op, f);
-    // }
-
     std::string name() const { return "hip::fuse_add_contiguous_0"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(3).same_type();
-        //auto lens = inputs[0].lens();
-        // std::vector<std::size_t> out_lens(lens.size());
-        // for (std::size_t i = 0; i < dims.size(); ++i)
-        // {
-        //     out_lens[i] = lens[dims[i]];
-        // }
-        // return {inputs.front().type(), out_lens};
         return inputs[2];
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const

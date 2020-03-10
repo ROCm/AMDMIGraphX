@@ -328,7 +328,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_clip(const std::string&, const node_info info, std::vector<instruction_ref> args)
+    parse_clip(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         op::clip op;
         if(contains(info.attributes, "max"))
@@ -1709,12 +1709,12 @@ struct onnx_parser
         }
 
         auto lens    = args[0]->get_shape().lens();
-        int64_t rank = static_cast<int64_t>(lens.size());
-        if((axis < -rank) or (axis >= rank))
+        int64_t n_rank = static_cast<int64_t>(lens.size());
+        if((axis < -n_rank) || (axis >= n_rank))
         {
             MIGRAPHX_THROW("PARSE_SPLIT: axis attribute out of rank!");
         }
-        int64_t tuned_axis = (axis < 0) ? axis + rank : axis;
+        int64_t tuned_axis = (axis < 0) ? axis + n_rank : axis;
 
         std::vector<int64_t> vec_splits;
         if(contains(info.attributes, "split"))

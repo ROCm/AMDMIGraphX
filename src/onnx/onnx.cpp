@@ -343,23 +343,16 @@ struct onnx_parser
             min_arg  = args[1];
             min_used = true;
         }
-        else
+        // if using previous opset for attributes
+        else if(contains(attributes, "min") and contains(attributes, "max"))
         {
-            if(contains(attributes, "min"))
-            {
-                float min_val = parse_value(attributes.at("min")).at<float>();
-                min_arg       = prog.add_literal(min_val);
-                min_used      = true;
-            }
-
-            if(contains(attributes, "max"))
-            {
-                float max_val = parse_value(attributes.at("max")).at<float>();
-                max_arg       = prog.add_literal(max_val);
-                max_used      = true;
-            }
-            // if using previous opset, both attributes must be specified
-            assert(min_used and max_used);
+            
+            float min_val = parse_value(attributes.at("min")).at<float>();
+            float max_val = parse_value(attributes.at("max")).at<float>();
+            min_arg       = prog.add_literal(min_val);
+            max_arg       = prog.add_literal(max_val);
+            min_used      = true;
+            max_used      = true;
         }
 
         if(min_used)

@@ -9,6 +9,7 @@
 #include <migraphx/op/contiguous.hpp>
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/broadcast.hpp>
+#include <migraphx/op/recip.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/algorithm.hpp>
@@ -609,6 +610,30 @@ struct find_conv_dot_horiz_fusion
     }
 };
 
+struct find_div_const
+{
+    auto matcher() const
+    {
+        return match::name("div")(
+            match::arg(1)(
+                match::any_of(match::name("multibroadcast")(match::arg(0)(match::is_constant())),
+                              match::is_constant()))
+                .bind("c"));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins   = r.result;
+        auto c_ins = ins->inputs().at(1);
+
+        auto recip = p.insert_instruction(std::next(c_ins), op::recip{}, c_ins);
+
+        auto args = ins->inputs();
+
+        p.replace_instruction(ins, op::mul{}, args.front(), recip);
+    }
+};
+
 void simplify_algebra::apply(program& p) const
 {
     // Run simplifications multiple times
@@ -625,6 +650,7 @@ void simplify_algebra::apply(program& p) const
                             find_concat_unary{},
                             find_concat_binary{},
                             find_split_concat{},
+                            find_div_const{},
                             find_splits{});
         dead_code_elimination{}.apply(p);
     }

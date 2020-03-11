@@ -1094,7 +1094,9 @@ struct onnx_parser
         {
             auto mode = info.attributes.at("mode").s();
             if(mode != "constant")
-                MIGRAPHX_THROW("migraphx currently only supports constant padding");
+            {
+                MIGRAPHX_THROW("PARSE_PAD: migraphx currently only supports constant padding");
+            }
         }
         return prog.add_instruction(migraphx::op::pad{pads, value}, args.front());
     }

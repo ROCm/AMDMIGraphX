@@ -762,6 +762,25 @@ def deconv_stride_test():
 
 
 @onnx_test
+def div_const_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
+    y = np.array([1.0, 2.0, 3.0])
+    y_tensor = helper.make_tensor(name='1',
+                                  data_type=TensorProto.FLOAT,
+                                  dims=y.shape,
+                                  vals=y.flatten().astype(np.float))
+
+    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node(
+        'Div',
+        inputs=['0', '1',],
+        outputs=['2'])
+
+    return ([node], [x], [z], [y_tensor])
+
+
+@onnx_test
 def dropout_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 2, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])

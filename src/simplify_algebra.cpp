@@ -286,9 +286,7 @@ struct find_div_const
     void apply(program& p, match::matcher_result r) const
     {
         auto ins   = r.result;
-        auto c_ins = r.instructions["c"];
-
-        std::cout << p << std::endl;
+        auto c_ins = ins->inputs().at(1);
 
         auto recip = p.insert_instruction(std::next(c_ins), op::recip{}, c_ins);
 

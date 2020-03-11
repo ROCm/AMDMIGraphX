@@ -308,29 +308,52 @@ struct onnx_parser
         auto input_lens = args[0]->get_shape().lens();
         instruction_ref min_arg;
         instruction_ref max_arg;
-        if(args.size() > 1)
+        bool min_used = false;
+        bool max_used = false;
+
+        if(args.size() == 3)
         {
             min_arg = args[1];
-
-            if(args.size() > 2)
+            max_arg = args[2];
+            min_used = true;
+            max_used = true;
+        }
+        else if(args.size() == 2)
+        {
+            min_arg = args[1];
+            min_used = true;
+        }
+        else
+        {
+            if(contains(attributes, "min"))
             {
-                max_arg = args[2];
+                float min_val = parse_value(attributes.at("min")).at<float>();
+                min_arg       = prog.add_literal(min_val);
+                min_used      = true;
             }
-        }
-        if(contains(attributes, "max"))
-        {
-            float max_val = parse_value(attributes.at("max")).at<float>();
-            max_arg       = prog.add_literal(max_val);
-        }
-        if(contains(attributes, "min"))
-        {
-            float min_val = parse_value(attributes.at("min")).at<float>();
-            min_arg       = prog.add_literal(min_val);
-        }
-        min_arg = prog.add_instruction(op::multibroadcast{input_lens}, min_arg);
-        max_arg = prog.add_instruction(op::multibroadcast{input_lens}, max_arg);
 
-        return prog.add_instruction(op::clip{}, args[0], min_arg, max_arg);
+            if(contains(attributes, "max"))
+            {
+                float max_val = parse_value(attributes.at("max")).at<float>();
+                max_arg       = prog.add_literal(max_val);
+                max_used      = true;
+            }
+            // if using previous opset, both attributes must be specified
+            assert(min_used and max_used);
+        }
+
+        if(min_used)
+            min_arg = prog.add_instruction(op::multibroadcast{input_lens}, min_arg);
+
+        if(max_used)
+            min_arg = prog.add_instruction(op::multibroadcast{input_lens}, min_arg);
+
+        if(min_used and max_used)
+            return prog.add_instruction(op::clip{}, args[0], min_arg, max_arg);
+        if(min_used)
+            return prog.add_instruction(op::max{}, args[0], min_arg);
+    
+        return prog.add_instruction(op::identity{}, args[0]);
     }
 
     template <class Op>

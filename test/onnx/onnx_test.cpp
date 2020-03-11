@@ -247,6 +247,18 @@ TEST_CASE(clip_test_op11)
     EXPECT(p == prog);
 }
 
+TEST_CASE(clip_test_op11_min_only)
+{
+    migraphx::program p;
+    auto min_val = p.add_literal(0.0f);
+    auto l0      = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
+    min_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, min_val);
+    p.add_instruction(migraphx::op::max{}, l0, min_val);
+    auto prog = optimize_onnx("clip_test_op11_min_only.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(concat_test)
 {
     migraphx::program p;

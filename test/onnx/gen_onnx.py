@@ -284,6 +284,20 @@ def clip_test_op11():
 
 
 @onnx_test
+def clip_test_op11_min_only():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
+
+    min_val = helper.make_tensor('min', TensorProto.FLOAT, [], [0.0])
+
+    node = onnx.helper.make_node('Clip',
+                                 inputs=['0', 'min'],
+                                 outputs=['1'])
+
+    return ([node], [x], [y], [min_val])
+
+
+@onnx_test
 def concat_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 4, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7, 4, 3])

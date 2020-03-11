@@ -338,7 +338,7 @@ struct miopen_batch_norm
     shape compute_shape(const std::vector<shape>& inputs) const { return inputs.front(); }
 
     argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
         auto x_shape     = args[0].get_shape();
         auto x_lens      = x_shape.lens();
@@ -499,9 +499,8 @@ struct find_add_gelu
     auto matcher() const
     {
         return match::name("gpu::gelu")(
-            match::arg(0)(match::any_of(match::name("gpu::add"),
-                                        match::any_of[match::inputs()](match::standard_shape()))
-                              .bind("add")));
+            match::arg(0)(match::name("gpu::add").bind("add"))
+                              );
     }
 
     void apply(program& p, match::matcher_result r) const

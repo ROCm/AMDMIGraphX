@@ -313,14 +313,14 @@ struct onnx_parser
 
         if(args.size() == 3)
         {
-            min_arg = args[1];
-            max_arg = args[2];
+            min_arg  = args[1];
+            max_arg  = args[2];
             min_used = true;
             max_used = true;
         }
         else if(args.size() == 2)
         {
-            min_arg = args[1];
+            min_arg  = args[1];
             min_used = true;
         }
         else
@@ -352,7 +352,7 @@ struct onnx_parser
             return prog.add_instruction(op::clip{}, args[0], min_arg, max_arg);
         if(min_used)
             return prog.add_instruction(op::max{}, args[0], min_arg);
-    
+
         return prog.add_instruction(op::identity{}, args[0]);
     }
 

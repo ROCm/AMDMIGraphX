@@ -223,8 +223,8 @@ TEST_CASE(clip_test)
 {
     migraphx::program p;
     auto l0      = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
-    auto max_val = p.add_literal(6.0f);
     auto min_val = p.add_literal(0.0f);
+    auto max_val = p.add_literal(6.0f);
     min_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, min_val);
     max_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, max_val);
     p.add_instruction(migraphx::op::clip{}, l0, min_val, max_val);

@@ -359,7 +359,7 @@ struct onnx_parser
             min_arg = prog.add_instruction(op::multibroadcast{input_lens}, min_arg);
 
         if(max_used)
-            min_arg = prog.add_instruction(op::multibroadcast{input_lens}, min_arg);
+            max_arg = prog.add_instruction(op::multibroadcast{input_lens}, max_arg);
 
         if(min_used and max_used)
             return prog.add_instruction(op::clip{}, args[0], min_arg, max_arg);

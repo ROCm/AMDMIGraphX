@@ -41,17 +41,21 @@ migraphx::instruction_ref create_clip_op(migraphx::instruction_ref insert_loc,
 
 TEST_CASE(param_add)
 {
-    auto create_program_float = [] {
+    auto create_program_float = [](bool add_return = false) {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-        auto p1 = p.add_parameter("x", s);
-        auto p2 = p.add_parameter("y", s);
-        p.add_instruction(migraphx::op::add{}, p1, p2);
+        auto p1  = p.add_parameter("x", s);
+        auto p2  = p.add_parameter("y", s);
+        auto sum = p.add_instruction(migraphx::op::add{}, p1, p2);
+        if(add_return)
+        {
+            p.add_return({sum});
+        }
 
         return p;
     };
 
-    auto create_program_half = [] {
+    auto create_program_half = [](bool add_return = false) {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
         auto p1  = p.add_parameter("x", s);
@@ -59,7 +63,11 @@ TEST_CASE(param_add)
         auto p2  = p.add_parameter("y", s);
         auto hp2 = p.insert_instruction(std::next(p2), migraphx::op::convert{}, p2);
         auto hs  = p.add_instruction(migraphx::op::add{}, hp1, hp2);
-        p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, hs);
+        auto res = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, hs);
+        if(add_return)
+        {
+            p.add_return({res});
+        }
 
         return p;
     };
@@ -75,6 +83,22 @@ TEST_CASE(param_add)
     {
         auto p1 = create_program_float();
         auto p2 = create_program_half();
+
+        migraphx::quantize_fp16(p1, {"add"});
+        EXPECT(p1 == p2);
+    }
+
+    {
+        auto p1 = create_program_float(true);
+        auto p2 = create_program_half(true);
+
+        migraphx::quantize_fp16(p1);
+        EXPECT(p1 == p2);
+    }
+
+    {
+        auto p1 = create_program_float(true);
+        auto p2 = create_program_half(true);
 
         migraphx::quantize_fp16(p1, {"add"});
         EXPECT(p1 == p2);
@@ -581,7 +605,7 @@ TEST_CASE(dot_int32_one_arg)
 
 TEST_CASE(dot_int32)
 {
-    auto create_program = [] {
+    auto create_program = [](bool add_return = false) {
         migraphx::program p;
         migraphx::shape sa{migraphx::shape::int32_type, {2, 16}};
         migraphx::shape sb{migraphx::shape::int32_type, {16, 8}};
@@ -590,12 +614,16 @@ TEST_CASE(dot_int32)
         auto pb = p.add_parameter("b", sb);
         auto pc = p.add_parameter("c", sc);
 
-        p.add_instruction(migraphx::op::dot{2.0f, 5.5f}, pa, pb, pc);
+        auto res = p.add_instruction(migraphx::op::dot{2.0f, 5.5f}, pa, pb, pc);
+        if(add_return)
+        {
+            p.add_return({res});
+        }
 
         return p;
     };
 
-    auto create_int8_quantized_prog = [] {
+    auto create_int8_quantized_prog = [](bool add_return = false) {
         migraphx::program p;
         migraphx::shape sa{migraphx::shape::int32_type, {2, 16}};
         migraphx::shape sb{migraphx::shape::int32_type, {16, 8}};
@@ -639,7 +667,11 @@ TEST_CASE(dot_int32)
         auto beta   = p.add_literal(migraphx::literal(fc->get_shape(), v_beta));
         auto beta_c = p.add_instruction(migraphx::op::mul{}, beta, fc);
         auto f_res  = p.add_instruction(migraphx::op::add{}, alpha_ab, beta_c);
-        p.add_instruction(migraphx::op::convert{migraphx::shape::int32_type}, f_res);
+        auto res    = p.add_instruction(migraphx::op::convert{migraphx::shape::int32_type}, f_res);
+        if(add_return)
+        {
+            p.add_return({res});
+        }
 
         return p;
     };
@@ -649,8 +681,12 @@ TEST_CASE(dot_int32)
         {0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
     migraphx::quantize_int8_impl(p, quant_params, {"dot"});
     auto qp = create_int8_quantized_prog();
-
     EXPECT(p == qp);
+
+    auto p_ret = create_program(true);
+    migraphx::quantize_int8_impl(p_ret, quant_params, {"dot"});
+    auto qp_ret = create_int8_quantized_prog(true);
+    EXPECT(p_ret == qp_ret);
 }
 
 TEST_CASE(dot_float_convert)

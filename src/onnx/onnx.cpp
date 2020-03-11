@@ -346,7 +346,7 @@ struct onnx_parser
         // if using previous opset for attributes
         else if(contains(attributes, "min") and contains(attributes, "max"))
         {
-            
+
             float min_val = parse_value(attributes.at("min")).at<float>();
             float max_val = parse_value(attributes.at("max")).at<float>();
             min_arg       = prog.add_literal(min_val);

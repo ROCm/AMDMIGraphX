@@ -772,10 +772,10 @@ def div_const_test():
 
     z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
 
-    node = onnx.helper.make_node(
-        'Div',
-        inputs=['0', '1',],
-        outputs=['2'])
+    node = onnx.helper.make_node('Div', inputs=[
+        '0',
+        '1',
+    ], outputs=['2'])
 
     return ([node], [x], [z], [y_tensor])
 

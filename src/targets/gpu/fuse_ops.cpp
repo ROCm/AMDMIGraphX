@@ -4,7 +4,6 @@
 #include <migraphx/gpu/clip.hpp>
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/oper.hpp>
-#include <migraphx/gpu/device/layernorm.hpp>
 #include <migraphx/gpu/device/gelu.hpp>
 #include <migraphx/gpu/device/mul_add.hpp>
 #include <migraphx/gpu/device/add_clip.hpp>
@@ -465,22 +464,11 @@ struct find_layernorm
 
 struct find_gelu
 {
-
-    // static auto gelu_onnx()
-    // {
-
-    // }
-
-    // static auto gelu_tf()
-    // {
-
-    // }
-
     auto matcher() const
     {
         return match::name("gpu::mul")(
-            match::arg(1)(match::name("gpu::add")(match::arg(0)(match::name("gpu::erf")(
-                match::arg(0)(match::name("gpu::mul")(match::arg(0)(match::any().bind("x")))))))));
+            match::arg(1)(match::name("gpu::add")(match::arg(0)(match::name("gpu::erf")(match::arg(
+                0)(match::name("gpu::div", "gpu::mul")(match::arg(0)(match::any().bind("x")))))))));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -803,7 +791,7 @@ struct find_conv_bias_relu
 void fuse_ops::apply(program& p) const
 {
     // clang-format off
-    match::find_matches(p, find_layernorm{}, find_gelu{});
+    match::find_matches(p, find_gelu{});
     match::find_matches(p, find_triadd{});
     match::find_matches(p, 
         find_conv_bias_relu{ctx},

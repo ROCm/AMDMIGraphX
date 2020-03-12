@@ -1,6 +1,7 @@
 import migraphx
 import numpy as np
 
+
 def test_conv_relu():
     p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
     print(p)
@@ -18,6 +19,7 @@ def test_conv_relu():
 
     r = p.run(params)[-1]
     print(r)
+
 
 def test_add_scalar():
     p = migraphx.parse_onnx("add_scalar_test.onnx")
@@ -38,6 +40,7 @@ def test_add_scalar():
 
     r = p.run(params)[-1]
     print(r)
+
 
 test_conv_relu()
 test_add_scalar()

@@ -105,6 +105,9 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
     std::unordered_map<instruction_ref, instruction_ref> map_fp16;
     for(auto ins : iterator_for(prog))
     {
+        if(ins->name() == "@return")
+            break;
+
         // all indicates every instruction is converted
         if((not contains(ins_names, "all")) and (not contains(ins_names, ins->name())))
         {
@@ -335,6 +338,9 @@ void quantize_int8_impl(program& prog,
     std::unordered_map<instruction_ref, std::size_t> map_ins_index;
     for(auto ins : iterator_for(prog))
     {
+        if(ins->name() == "@return")
+            break;
+
         if(not contains(ins_names, ins->name()))
         {
             continue;

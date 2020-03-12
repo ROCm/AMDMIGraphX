@@ -1079,9 +1079,9 @@ struct onnx_parser
                 MIGRAPHX_THROW("PARSE_PAD: input value must be constant");
             }
             auto val_arg = val_ins->eval();
-            if(!val_arg.get_shape().scalar())
+            if(val_arg.get_shape().elements() != 1)
             {
-                MIGRAPHX_THROW("PARSE_PAD: value should be scalar");
+                MIGRAPHX_THROW("PARSE_PAD: value should contain only one element");
             }
             value = val_arg.at<float>();
         }

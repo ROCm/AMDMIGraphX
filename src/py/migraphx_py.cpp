@@ -115,10 +115,14 @@ migraphx::shape to_shape(const py::buffer_info& info)
     });
 
     // scalar support
-    if(info.shape.empty())
+    if(info.shape.empty()) 
+    {
         return migraphx::shape{t};
+    }
     else
+    {
         return migraphx::shape{t, info.shape, strides};
+    }
 }
 
 PYBIND11_MODULE(migraphx, m)

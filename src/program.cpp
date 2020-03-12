@@ -52,7 +52,9 @@ static void print_instruction(std::ostream& os,
         os << ")";
     }
 
-    os << " -> " << ins->get_shape();
+    // skip return instruction shape
+    if(ins->name() != "@return")
+        os << " -> " << ins->get_shape();
 }
 
 template <class F>
@@ -147,7 +149,14 @@ void program::assign(const program& p)
             std::transform(inputs.begin(), inputs.end(), copy_inputs.begin(), [&](auto i) {
                 return ins_map[i];
             });
-            copy_ins = add_instruction(ins->get_operator(), copy_inputs);
+            if(ins->name() == "@return")
+            {
+                copy_ins = add_return(copy_inputs);
+            }
+            else
+            {
+                copy_ins = add_instruction(ins->get_operator(), copy_inputs);
+            }
         }
 
         ins_map[ins] = copy_ins;
@@ -270,6 +279,18 @@ instruction_ref program::add_parameter(std::string name, shape s)
     return impl->instructions.begin();
 }
 
+instruction_ref program::add_return(std::vector<instruction_ref> args)
+{
+    assert(std::all_of(
+               args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
+           "Argument is not an exisiting instruction");
+    impl->instructions.push_back({builtin::returns{}, {}, args});
+    auto result = std::prev(impl->instructions.end());
+    instruction::backreference(result);
+    assert(result->valid(begin()));
+    return result;
+}
+
 shape program::get_parameter_shape(std::string name) const
 {
     auto ins = std::find_if(
@@ -336,7 +357,23 @@ instruction_ref program::end() const { return impl->instructions.end(); }
 
 std::vector<shape> program::get_output_shapes() const
 {
-    return {impl->instructions.back().get_shape()};
+    auto last_ins = impl->instructions.back();
+    if(last_ins.name() == "@return")
+    {
+        auto& output_ins = last_ins.inputs();
+        std::vector<shape> output_shapes;
+        std::transform(output_ins.begin(),
+                       output_ins.end(),
+                       std::back_inserter(output_shapes),
+                       [](auto& ins) { return ins->get_shape(); });
+
+        return output_shapes;
+    }
+    // The else branch is to provide backward compatibility
+    else
+    {
+        return {last_ins.get_shape()};
+    }
 }
 
 context& program::get_context() const { return impl->ctx; }
@@ -410,6 +447,19 @@ std::vector<argument> generic_eval(const program& p,
         {
             results.emplace(ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
         }
+        else if(name == "@return")
+        {
+            std::vector<argument> prog_outputs;
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           std::back_inserter(prog_outputs),
+                           [&](instruction_ref i) {
+                               assert(results.find(i) != results.end());
+                               return results[i];
+                           });
+
+            return prog_outputs;
+        }
         else
         {
             values.resize(ins->inputs().size());
@@ -424,10 +474,11 @@ std::vector<argument> generic_eval(const program& p,
         }
         assert(results.find(ins) != results.end());
     }
+
     return {results.at(std::prev(p.end()))};
 }
 
-std::vector<argument> program::eval(std::unordered_map<std::string, argument> params) const
+std::vector<argument> program::eval(parameter_map params) const
 {
     auto& ctx = this->impl->ctx;
 #ifndef NDEBUG
@@ -534,6 +585,11 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 
     print_program(*this, [&](auto ins, const auto& names) {
         print_instruction(std::cout, ins, names);
+
+        // skip return instruction
+        if(ins->name() == "@return")
+            return;
+
         double avg     = common_average(ins_vec[ins]);
         double percent = std::ceil(100.0 * avg / total_instruction_time);
         os << ": " << avg << "ms, " << percent << "%";

@@ -93,7 +93,7 @@ struct instruction
     void replace(const shape& r);
 
     operation op;
-    shape result;
+    shape result{};
     std::vector<instruction_ref> output;
     std::vector<instruction_ref> arguments;
     literal lit;

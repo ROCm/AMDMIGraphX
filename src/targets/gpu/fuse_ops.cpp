@@ -792,7 +792,7 @@ struct find_conv_bias_relu
 void fuse_ops::apply(program& p) const
 {
     // clang-format off
-    match::find_matches(p, find_gelu{});
+    match::find_matches(p, find_layernorm{}, find_gelu{});
     match::find_matches(p, find_triadd{});
     match::find_matches(p, 
         find_conv_bias_relu{ctx},

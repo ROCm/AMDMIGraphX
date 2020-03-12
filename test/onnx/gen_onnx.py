@@ -1385,31 +1385,28 @@ def pad_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def pad_3arg_test():
     values = np.array([1])
     val_tensor = helper.make_tensor(name='val',
-                                       data_type=TensorProto.FLOAT,
-                                       dims=values.reshape(()).shape,
-                                       vals=values.astype(float))
-    arg_val = onnx.helper.make_node(
-        'Constant',
-        inputs=[],
-        outputs=['arg_val'],
-        value=val_tensor
-    )
+                                    data_type=TensorProto.FLOAT,
+                                    dims=values.reshape(()).shape,
+                                    vals=values.astype(float))
+    arg_val = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_val'],
+                                    value=val_tensor)
 
     sizes = np.array([1, 1, 2, 2])
     pad_tensor = helper.make_tensor(name='pad_size',
-                                       data_type=TensorProto.INT32,
-                                       dims=sizes.shape,
-                                       vals=sizes.astype(int))
-    arg_pad = onnx.helper.make_node(
-        'Constant',
-        inputs=[],
-        outputs=['arg_pad'],
-        value=pad_tensor
-    )
+                                    data_type=TensorProto.INT32,
+                                    dims=sizes.shape,
+                                    vals=sizes.astype(int))
+    arg_pad = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_pad'],
+                                    value=pad_tensor)
 
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [5, 5])
@@ -1419,6 +1416,7 @@ def pad_3arg_test():
                                  outputs=['1'])
 
     return ([arg_val, arg_pad, node], [x], [y])
+
 
 @onnx_test
 def pow_test():

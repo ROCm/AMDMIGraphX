@@ -338,8 +338,8 @@ struct find_gelu
     auto matcher() const
     {
         return match::name("gpu::mul")(
-            match::arg(1)(match::name("gpu::add")(match::arg(0)(match::name("gpu::erf")(
-                match::arg(0)(match::name("gpu::div", "gpu::mul")(match::arg(0)(match::any().bind("x")))))))));
+            match::arg(1)(match::name("gpu::add")(match::arg(0)(match::name("gpu::erf")(match::arg(
+                0)(match::name("gpu::div", "gpu::mul")(match::arg(0)(match::any().bind("x")))))))));
     }
 
     void apply(program& p, match::matcher_result r) const

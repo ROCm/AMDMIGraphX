@@ -9,7 +9,7 @@ namespace gpu {
 namespace device {
 
 // x * 0.5 * (1.0 + erf(x / sqrt(2.0)))
-template<class T>
+template <class T>
 auto gelu_fn(T x) __device__
 {
     return x * 0.5 * (1 + ::erf(x * M_SQRT1_2));
@@ -17,9 +17,7 @@ auto gelu_fn(T x) __device__
 
 void gelu(hipStream_t stream, const argument& result, const argument& arg)
 {
-    nary(stream, result, arg)([](auto x) __device__ {
-        return gelu_fn(to_hip_type(x));
-    });
+    nary(stream, result, arg)([](auto x) __device__ { return gelu_fn(to_hip_type(x)); });
 }
 
 void add_gelu(hipStream_t stream,

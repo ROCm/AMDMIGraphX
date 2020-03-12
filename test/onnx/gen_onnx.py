@@ -1151,69 +1151,6 @@ def instance_norm_val_test():
 
 
 @onnx_test
-def layernorm_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 1, 5])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 1, 5])
-    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [5])
-    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [5])
-    axes = [2]
-    pow = np.array([[[2, 2, 2, 2, 2]]])
-    epsilon = np.array([1e-12])
-
-    pow_tensor = helper.make_tensor(name='pow',
-                                    data_type=TensorProto.FLOAT,
-                                    dims=pow.shape,
-                                    vals=pow.flatten().astype(np.float))
-
-    epsilon_tensor = helper.make_tensor(name='epsilon',
-                                        data_type=TensorProto.FLOAT,
-                                        dims=epsilon.shape,
-                                        vals=epsilon.flatten().astype(
-                                            np.float))
-
-    mean = onnx.helper.make_node('ReduceMean',
-                                 inputs=['0'],
-                                 outputs=['mean_out'],
-                                 axes=axes)
-
-    sub_mean = onnx.helper.make_node('Sub',
-                                     inputs=['0', 'mean_out'],
-                                     outputs=['sub_out'])
-
-    sub_pow = onnx.helper.make_node('Pow',
-                                    inputs=['sub_out', 'pow'],
-                                    outputs=['pow_out'])
-
-    var = onnx.helper.make_node('ReduceMean',
-                                inputs=['pow_out'],
-                                outputs=['var_out'],
-                                axes=axes)
-
-    add = onnx.helper.make_node('Add',
-                                inputs=['var_out', 'epsilon'],
-                                outputs=['add_out'])
-
-    sqrt = onnx.helper.make_node('Sqrt',
-                                 inputs=['add_out'],
-                                 outputs=['sqrt_out'])
-
-    div = onnx.helper.make_node('Div',
-                                inputs=['sub_out', 'sqrt_out'],
-                                outputs=['div_out'])
-
-    mul = onnx.helper.make_node('Mul',
-                                inputs=['scale', 'div_out'],
-                                outputs=['mul_out'])
-
-    bias_add = onnx.helper.make_node('Add',
-                                     inputs=['mul_out', 'bias'],
-                                     outputs=['1'])
-
-    return ([mean, sub_mean, sub_pow, var, add, sqrt, div, mul,
-             bias_add], [x, scale, bias], [y], [pow_tensor, epsilon_tensor])
-
-
-@onnx_test
 def leaky_relu_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])

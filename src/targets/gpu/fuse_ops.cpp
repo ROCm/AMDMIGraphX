@@ -5,6 +5,7 @@
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/oper.hpp>
 #include <migraphx/gpu/device/gelu.hpp>
+#include <migraphx/gpu/device/layernorm.hpp>
 #include <migraphx/gpu/device/mul_add.hpp>
 #include <migraphx/gpu/device/add_clip.hpp>
 #include <migraphx/gpu/device/add_relu.hpp>

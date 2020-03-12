@@ -356,7 +356,7 @@ struct find_add_gelu
 {
     auto matcher() const
     {
-        return match::name("gpu::gelu")(match::arg(0)(match::name("gpu::add")).bind("add"));
+        return match::name("gpu::gelu")(match::arg(0)(match::name("gpu::add").bind("add")));
     }
 
     void apply(program& p, match::matcher_result r) const

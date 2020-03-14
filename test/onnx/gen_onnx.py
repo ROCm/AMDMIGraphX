@@ -1745,6 +1745,60 @@ def sinh_test():
 
     return ([node], [x], [y])
 
+@onnx_test
+def slice_5arg_test():
+    step = np.array([1, 1])    
+    step_tensor = helper.make_tensor(name="step",
+                                    data_type=TensorProto.INT32,
+                                    dims=step.shape,
+                                    vals=step.astype(int))
+    arg_step = helper.make_node("Constant",
+                                  inputs=[],
+                                  outputs=['arg_step'],
+                                  value=step_tensor
+    )
+
+    axis = np.array([-1, -2])    
+    axis_tensor = helper.make_tensor(name="axis",
+                                    data_type=TensorProto.INT32,
+                                    dims=axis.shape,
+                                    vals=axis.astype(int))
+    arg_axis = helper.make_node("Constant",
+                                  inputs=[],
+                                  outputs=['arg_axis'],
+                                  value=axis_tensor
+    )
+
+    end = np.array([-1, -1])
+    end_tensor = helper.make_tensor(name="end",
+                                    data_type=TensorProto.INT32,
+                                    dims=end.shape,
+                                    vals=end.astype(int))
+    arg_end = helper.make_node("Constant",
+                                  inputs=[],
+                                  outputs=['arg_end'],
+                                  value=end_tensor
+    )
+
+    start = np.array([-5, -3])
+    start_tensor = helper.make_tensor(name="start",
+                                    data_type=TensorProto.INT32,
+                                    dims=start.shape,
+                                    vals=start.astype(int))
+    arg_start = helper.make_node("Constant",
+                                  inputs=[],
+                                  outputs=['arg_start'],
+                                  value=start_tensor
+    )
+
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [5, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 2])
+
+    node = onnx.helper.make_node('Slice',
+                                 inputs=['0', 'arg_start', 'arg_end', 'arg_axis', 'arg_step'],
+                                 outputs=['1'])
+
+    return ([arg_step, arg_axis, arg_end, arg_start, node], [x], [y])
 
 @onnx_test
 def slice_test():
@@ -1759,7 +1813,6 @@ def slice_test():
                                  outputs=['1'])
 
     return ([node], [x], [y])
-
 
 @onnx_test
 def softmax_test():

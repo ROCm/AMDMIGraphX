@@ -779,11 +779,6 @@ struct onnx_parser
             literal s = parse_value(attributes.at("axes"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
         }
-        else
-        {
-            op.axes = std::vector<int64_t>(num_dims);
-            std::iota(op.axes.begin(), op.axes.end(), 0);
-        }
 
         if(args.size() >= 3)
         {

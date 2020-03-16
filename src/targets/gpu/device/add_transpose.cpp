@@ -13,46 +13,45 @@ namespace gpu {
 namespace device {
 
 // the operator performed in this kernel is:
-// shape of arg_2 is {768}
-// b_arg2 = multibroadcast({batch_size, 128, 768}, arg2)
-// sum_arg = add(arg1, b_arg2)
-// rs_arg = reshape({batch_size, 128, 12, 64}, sum_arg)
-// tr_arg = transpose([0, 2, 1, 3], rs_arg)
-void add_transpose_arg0(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2)
+// shape of arg is {1, 128, 2304}
+// slice {768, 1536) of arg to generate shape of {1, 128, 768}
+// reshape to shape of ({batch_size, 128, 12, 64}, sum_arg)
+// transpose to shape of ([0, 2, 3, 1], rs_arg)
+void add_transpose_arg0(hipStream_t stream, const argument& result, const argument& arg, int slice_start)
 {
     const index_int block_size = 256;
     const index_int chunk_size = 768;
     const index_int chunks_per_block = 4;
-    const index_int item_num = arg1.get_shape().elements();
-
     auto out_s = result.get_shape();
+    const index_int item_num = out_s.elements();
     auto out_lens = out_s.lens();
-    auto in_lens = out_lens;
-    in_lens[2] = out_lens[1];
-    in_lens[1] = out_lens[2];
-    shape arg_shape{out_s.type(), in_lens};
-    auto original_out_stride = out_s.strides();
-    auto out_stride = original_out_stride;
-    out_stride[1] = original_out_stride[2];
-    out_stride[2] = original_out_stride[1];
-    shape ret_shape{out_s.type(), out_lens, out_stride};
 
-    visit_all(arg1, arg2)([&](auto input1, auto input2) {
-    hip_visit_all(result, ret_shape, arg_shape)([&](auto output, auto out_shape, auto in_shape) {
+    auto arg_s = arg.get_shape();
+    auto arg_lens = arg_s.lens();
+    arg_lens.resize(out_lens.size());
+    arg_lens[3] = 64;
+    arg_lens[2] = arg_lens[2] / arg_lens[3];
+    shape arg_shape{arg_s.type(), arg_lens};
+    auto arg_stride = arg_shape.strides();
+
+    auto in_lens = arg_lens;
+    in_lens[1] = arg_lens[2];
+    in_lens[2] = arg_lens[3];
+    in_lens[3] = arg_lens[1];
+    auto in_stride = arg_stride;
+    in_stride[1] = arg_stride[2];
+    in_stride[2] = arg_stride[3];
+    in_stride[3] = arg_stride[1];
+    shape in_s{arg_s.type(), in_lens, in_stride};
+
+    arg.visit([&](auto input) {
+    hip_visit_all(result, out_s, in_s)([&](auto output, auto out_shape, auto in_shape) {
         auto *output_ptr = device_cast(output.data());
-        auto *input1_ptr = device_cast(input1.data());
-        auto *input2_ptr = device_cast(input2.data());
+        auto *input_ptr = device_cast(input.data());
 
         launch(stream,
                item_num / (chunks_per_block * 3),
                block_size)([=](auto idx) __device__ {
-            using type    = device_type<std::remove_cv_t<typename decltype(input1)::value_type>>;
-            MIGRAPHX_DEVICE_SHARED type shared_input[chunk_size];
-
-            idx.local_stride(chunk_size, [&](auto i) {
-                shared_input[i] = input2_ptr[i];
-            });
-            __syncthreads();
 
             index_int blk_idx = idx.group;
             index_int start_idx = blk_idx * chunk_size * chunks_per_block;
@@ -60,10 +59,11 @@ void add_transpose_arg0(hipStream_t stream, const argument& result, const argume
             {
                 index_int index = c_no * chunk_size + start_idx;
                 idx.local_stride(chunk_size, [&](auto i) {
-                    auto val = input1_ptr[index + i] + shared_input[i];
-                    auto in_idx = in_shape.multi(index + i);
-                    auto out_idx = in_idx;
-                    output_ptr[out_shape.index(out_idx)] = val;
+                    auto out_idx = out_shape.multi(index + i);
+                    auto in_idx = out_idx;
+                    in_idx[2] += slice_start;
+                    int j = in_shape.index(in_idx);
+                    output_ptr[index + i] = input_ptr[j];
                 });
                 __syncthreads();
             }
@@ -73,46 +73,43 @@ void add_transpose_arg0(hipStream_t stream, const argument& result, const argume
 }
 
 // the operator performed in this kernel is:
-// shape of arg_2 is {768}
-// b_arg2 = multibroadcast({batch_size, 128, 768}, arg2)
-// sum_arg = add(arg1, b_arg2)
-// rs_arg = reshape({batch_size, 128, 12, 64}, sum_arg)
-// tr_arg = transpose([0, 2, 3, 1], rs_arg)
-void add_transpose_arg1(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2)
+// shape of arg is {1, 128, 2304}
+// slice {1536, 2304) of arg to generate shape of {1, 128, 768}
+// reshape to shape of ({batch_size, 128, 12, 64}, sum_arg)
+// transpose to shape of ([0, 2, 1, 3], rs_arg)
+void add_transpose_arg0(hipStream_t stream, const argument& result, const argument& arg, int slice_start)
 {
-    const index_int block_size     = 256;
+    const index_int block_size = 256;
     const index_int chunk_size = 768;
     const index_int chunks_per_block = 4;
-    const index_int item_num = arg1.get_shape().elements();
     auto out_s = result.get_shape();
+    const index_int item_num = out_s.elements();
     auto out_lens = out_s.lens();
-    auto in_lens = out_lens;
-    in_lens[3] = out_lens[2];
-    in_lens[2] = out_lens[1];
-    in_lens[1] = out_lens[3];
-    shape arg_shape{out_s.type(), in_lens};
-    auto original_out_stride = out_s.strides();
-    auto out_stride = original_out_stride;
-    out_stride[1] = original_out_stride[3];
-    out_stride[2] = original_out_stride[1];
-    out_stride[3] = original_out_stride[2];
-    shape ret_shape{out_s.type(), out_lens, out_stride};
-    visit_all(arg1, arg2)([&](auto input1, auto input2) {
-    hip_visit_all(result, ret_shape, arg_shape)([&](auto output, auto out_shape, auto in_shape) {
+
+    auto arg_s = arg.get_shape();
+    auto arg_lens = arg_s.lens();
+    arg_lens.resize(out_lens.size());
+    arg_lens[3] = 64;
+    arg_lens[2] = arg_lens[2] / arg_lens[3];
+    shape arg_shape{arg_s.type(), arg_lens};
+    auto arg_stride = arg_shape.strides();
+
+    auto in_lens = arg_lens;
+    in_lens[1] = arg_lens[2];
+    in_lens[2] = arg_lens[1];
+    auto in_stride = arg_stride;
+    in_stride[1] = arg_stride[2];
+    in_stride[2] = arg_stride[1];
+    shape in_s{arg_s.type(), in_lens, in_stride};
+
+    arg.visit([&](auto input) {
+    hip_visit_all(result, out_s, in_s)([&](auto output, auto out_shape, auto in_shape) {
         auto *output_ptr = device_cast(output.data());
-        auto *input1_ptr = device_cast(input1.data());
-        auto *input2_ptr = device_cast(input2.data());
+        auto *input_ptr = device_cast(input.data());
 
         launch(stream,
                item_num / (chunks_per_block * 3),
                block_size)([=](auto idx) __device__ {
-            using type    = device_type<std::remove_cv_t<typename decltype(input1)::value_type>>;
-            MIGRAPHX_DEVICE_SHARED type shared_input[chunk_size];
-
-            idx.local_stride(chunk_size, [&](auto i) {
-                shared_input[i] = input2_ptr[i];
-            });
-            __syncthreads();
 
             index_int blk_idx = idx.group;
             index_int start_idx = blk_idx * chunk_size * chunks_per_block;
@@ -120,10 +117,11 @@ void add_transpose_arg1(hipStream_t stream, const argument& result, const argume
             {
                 index_int index = c_no * chunk_size + start_idx;
                 idx.local_stride(chunk_size, [&](auto i) {
-                    auto val = input1_ptr[index + i] + shared_input[i];
-                    auto in_idx = in_shape.multi(index + i);
-                    auto out_idx = in_idx;
-                    output_ptr[out_shape.index(out_idx)] = val;
+                    auto out_idx = out_shape.multi(index + i);
+                    auto in_idx = out_idx;
+                    in_idx[2] += slice_start;
+                    int j = in_shape.index(in_idx);
+                    output_ptr[index + i] = input_ptr[j];
                 });
                 __syncthreads();
             }

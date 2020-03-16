@@ -389,7 +389,7 @@ struct miopen_batch_norm
     }
 };
 
-template<void (*DF)(hipStream_t, const argument&, const argument&, int)>
+template <void (*DF)(hipStream_t, const argument&, const argument&, int)>
 struct hip_slice_reshape_trans_cont
 {
     int slice_start;
@@ -540,36 +540,45 @@ struct find_slice_reshape_trans_cont
     auto matcher() const
     {
         return match::name("gpu::gemm")(
-            match::arg(0)(
-                match::name("gpu::contiguous")(
-                    match::arg(0)(match::name("transpose")(
-                        match::arg(0)(match::name("reshape")(
-                            match::arg(0)(match::name("gpu::contiguous")(
-                                match::arg(0)(match::name("slice").bind("input0"))))))).bind("trans_op0"))).bind("cont0")),
-            
-            match::arg(1)(
-                match::name("gpu::contiguous")(
-                    match::arg(0)(match::name("transpose")(
-                        match::arg(0)(match::name("reshape")(
-                            match::arg(0)(match::name("gpu::contiguous")(
-                                match::arg(0)(match::name("slice").bind("input1"))))))).bind("trans_op1"))).bind("cont1"))
-        );
+            match::arg(0)(match::name("gpu::contiguous")(
+                              match::arg(0)(match::name("transpose")(
+                                                match::arg(0)(match::name("reshape")(match::arg(0)(
+                                                    match::name("gpu::contiguous")(match::arg(0)(
+                                                        match::name("slice").bind("input0")))))))
+                                                .bind("trans_op0")))
+                              .bind("cont0")),
+
+            match::arg(1)(match::name("gpu::contiguous")(
+                              match::arg(0)(match::name("transpose")(
+                                                match::arg(0)(match::name("reshape")(match::arg(0)(
+                                                    match::name("gpu::contiguous")(match::arg(0)(
+                                                        match::name("slice").bind("input1")))))))
+                                                .bind("trans_op1")))
+                              .bind("cont1")));
     }
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto ins       = r.result;
+        auto ins = r.result;
         // auto trans0 = r.instructions["trans_op0"];
         // auto trans1 = r.instructions["trans_op1"];
-        auto in0 = r.instructions["input0"]->inputs().front();
-        auto in1 = r.instructions["input1"]->inputs().front();
+        auto in0   = r.instructions["input0"]->inputs().front();
+        auto in1   = r.instructions["input1"]->inputs().front();
         auto cont0 = r.instructions["cont0"];
         auto cont1 = r.instructions["cont1"];
 
-        auto arg0 = p.insert_instruction(ins, hip_slice_reshape_trans_cont<device::add_transpose_arg0>{0}, in0, cont0->inputs().back());
-        auto arg1 = p.insert_instruction(ins, hip_slice_reshape_trans_cont<device::add_transpose_arg1>{768}, in1, cont1->inputs().back());
+        auto arg0 =
+            p.insert_instruction(ins,
+                                 hip_slice_reshape_trans_cont<device::add_transpose_arg0>{0},
+                                 in0,
+                                 cont0->inputs().back());
+        auto arg1 =
+            p.insert_instruction(ins,
+                                 hip_slice_reshape_trans_cont<device::add_transpose_arg1>{768},
+                                 in1,
+                                 cont1->inputs().back());
 
-        auto&& op    = any_cast<gpu::rocblas_gemm<op::dot>>(ins->get_operator());
+        auto&& op = any_cast<gpu::rocblas_gemm<op::dot>>(ins->get_operator());
         p.replace_instruction(ins, op, arg0, arg1, ins->inputs().back());
     }
 };

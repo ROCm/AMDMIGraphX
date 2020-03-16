@@ -30,4 +30,3 @@ struct recip : unary<recip>
 } // namespace migraphx
 
 #endif
-

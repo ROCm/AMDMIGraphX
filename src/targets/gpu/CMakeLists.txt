@@ -48,6 +48,7 @@ add_library(migraphx_device
     device/mul_add_relu.cpp
     device/pad.cpp
     device/pow.cpp
+    device/prelu.cpp
     device/reduce_max.cpp
     device/reduce_mean.cpp
     device/reduce_min.cpp
@@ -66,6 +67,7 @@ add_library(migraphx_device
     device/sub.cpp
     device/tan.cpp
     device/tanh.cpp
+    device/add_transpose.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})

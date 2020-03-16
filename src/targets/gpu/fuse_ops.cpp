@@ -5,6 +5,7 @@
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/oper.hpp>
 #include <migraphx/gpu/device/gelu.hpp>
+#include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/device/layernorm.hpp>
 #include <migraphx/gpu/device/mul_add.hpp>
 #include <migraphx/gpu/device/add_clip.hpp>
@@ -13,10 +14,13 @@
 #include <migraphx/gpu/device/add_tanh.hpp>
 #include <migraphx/gpu/device/mul_add_relu.hpp>
 #include <migraphx/gpu/device/add.hpp>
+#include <migraphx/gpu/device/add_transpose.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/array.hpp>
 #include <migraphx/op/clip.hpp>
 #include <migraphx/op/batch_norm.hpp>
+#include <migraphx/op/dot.hpp>
+#include <migraphx/op/transpose.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -330,6 +334,7 @@ struct miopen_batch_norm
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
+
         return pack(f(self.epsilon, "epsilon"));
     }
 
@@ -377,6 +382,34 @@ struct miopen_batch_norm
             nullptr);
 
         return args[3];
+    }
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+};
+
+template<void (*DF)(hipStream_t, const argument&, const argument&, int)>
+struct hip_slice_reshape_trans_cont
+{
+    int slice_start;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.slice_start, "slice_start"));
+    }
+
+    std::string name() const { return "gpu::slice_reshape_trans_contiguous"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(2).same_type();
+        return inputs[1];
+    }
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
+        DF(ctx.get_stream().get(), args.at(1), args.at(0), slice_start);
+        return args.at(1);
     }
 
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
@@ -499,6 +532,45 @@ struct find_add_gelu
 
         args.back() = ins->inputs().back();
         p.replace_instruction(ins, hip_add_gelu{}, args);
+    }
+};
+
+struct find_slice_reshape_trans_cont
+{
+    auto matcher() const
+    {
+        return match::name("gpu::gemm")(
+            match::arg(0)(
+                match::name("gpu::contiguous")(
+                    match::arg(0)(match::name("transpose")(
+                        match::arg(0)(match::name("reshape")(
+                            match::arg(0)(match::name("gpu::contiguous")(
+                                match::arg(0)(match::name("slice").bind("input0"))))))).bind("trans_op0"))).bind("cont0")),
+            
+            match::arg(1)(
+                match::name("gpu::contiguous")(
+                    match::arg(0)(match::name("transpose")(
+                        match::arg(0)(match::name("reshape")(
+                            match::arg(0)(match::name("gpu::contiguous")(
+                                match::arg(0)(match::name("slice").bind("input1"))))))).bind("trans_op1"))).bind("cont1"))
+        );
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins       = r.result;
+        // auto trans0 = r.instructions["trans_op0"];
+        // auto trans1 = r.instructions["trans_op1"];
+        auto in0 = r.instructions["input0"]->inputs().front();
+        auto in1 = r.instructions["input1"]->inputs().front();
+        auto cont0 = r.instructions["cont0"];
+        auto cont1 = r.instructions["cont1"];
+
+        auto arg0 = p.insert_instruction(ins, hip_slice_reshape_trans_cont<device::add_transpose_arg0>{0}, in0, cont0->inputs().back());
+        auto arg1 = p.insert_instruction(ins, hip_slice_reshape_trans_cont<device::add_transpose_arg1>{768}, in1, cont1->inputs().back());
+
+        auto&& op    = any_cast<gpu::rocblas_gemm<op::dot>>(ins->get_operator());
+        p.replace_instruction(ins, op, arg0, arg1, ins->inputs().back());
     }
 };
 
@@ -793,6 +865,8 @@ void fuse_ops::apply(program& p) const
 {
     // clang-format off
     match::find_matches(p, find_layernorm{}, find_gelu{});
+    match::find_matches(p, find_layernorm{});
+    match::find_matches(p, find_slice_reshape_trans_cont{});
     match::find_matches(p, find_triadd{});
     match::find_matches(p, 
         find_conv_bias_relu{ctx},

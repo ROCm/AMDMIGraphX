@@ -594,7 +594,7 @@ struct find_slice_reshape_trans_cont_1
 
         auto arg1 =
             p.insert_instruction(ins,
-                                 hip_slice_reshape_trans_cont<device::add_transpose_arg1>{1536},
+                                 hip_slice_reshape_trans_cont<device::add_transpose_arg0>{1536},
                                  in1,
                                  cont1->inputs().back());
 

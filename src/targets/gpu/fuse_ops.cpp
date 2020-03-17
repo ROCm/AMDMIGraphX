@@ -434,7 +434,7 @@ struct find_slice_reshape_trans_cont
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto ins = r.result;
+        auto ins   = r.result;
         auto in0   = r.instructions["input0"]->inputs().front();
         auto in1   = r.instructions["input1"]->inputs().front();
         auto cont0 = r.instructions["cont0"];

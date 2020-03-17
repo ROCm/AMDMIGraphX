@@ -10,8 +10,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void add_transpose_arg0(hipStream_t stream, const argument& result, const argument& arg, int slice_start);
-void add_transpose_arg1(hipStream_t stream, const argument& result, const argument& arg, int slice_start);
+void add_transpose_arg0(hipStream_t stream,
+                        const argument& result,
+                        const argument& arg,
+                        int slice_start);
+void add_transpose_arg1(hipStream_t stream,
+                        const argument& result,
+                        const argument& arg,
+                        int slice_start);
 
 } // namespace device
 } // namespace gpu

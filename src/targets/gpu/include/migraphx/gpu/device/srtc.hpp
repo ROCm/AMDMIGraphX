@@ -13,11 +13,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-template<int T0, int T1, int T2, int T3>
+template <int T0, int T1, int T2, int T3>
 void slice_reshape_transpose(hipStream_t stream,
-                        const argument& result,
-                        const argument& arg,
-                        int slice_start)
+                             const argument& result,
+                             const argument& arg,
+                             int slice_start)
 {
     const index_int block_size       = 256;
     const index_int chunk_size       = 768;
@@ -35,11 +35,11 @@ void slice_reshape_transpose(hipStream_t stream,
     shape arg_shape{arg_s.type(), arg_lens};
     auto arg_stride = arg_shape.strides();
 
-    auto in_lens   = arg_lens;
-    in_lens[0]     = arg_lens[T0];
-    in_lens[1]     = arg_lens[T1];
-    in_lens[2]     = arg_lens[T2];
-    in_lens[3]     = arg_lens[T3];
+    auto in_lens = arg_lens;
+    in_lens[0]   = arg_lens[T0];
+    in_lens[1]   = arg_lens[T1];
+    in_lens[2]   = arg_lens[T2];
+    in_lens[3]   = arg_lens[T3];
 
     auto in_stride = arg_stride;
     in_stride[0]   = arg_stride[T0];

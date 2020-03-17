@@ -413,10 +413,10 @@ struct find_layernorm
 auto slice_reshape_trans_op(const std::string& input, const std::string& cont_op)
 {
     return match::name("gpu::contiguous")(
-                            match::arg(0)(match::name("transpose")(
-                                            match::arg(0)(match::name("reshape")(match::arg(0)(
-                                                match::name("gpu::contiguous")(match::arg(0)(
-                                                    match::name("slice").bind(input)))))))).bind(cont_op));
+        match::arg(0)(
+            match::name("transpose")(match::arg(0)(match::name("reshape")(match::arg(0)(
+                match::name("gpu::contiguous")(match::arg(0)(match::name("slice").bind(input))))))))
+            .bind(cont_op));
 }
 
 struct find_slice_reshape_trans_cont
@@ -435,7 +435,6 @@ struct find_slice_reshape_trans_cont
         auto in1   = r.instructions["input1"]->inputs().front();
         auto cont0 = r.instructions["cont0"];
         auto cont1 = r.instructions["cont1"];
-                                 
 
         auto arg0 =
             p.insert_instruction(ins,

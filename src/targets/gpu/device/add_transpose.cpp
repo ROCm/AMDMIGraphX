@@ -53,7 +53,8 @@ void add_transpose_arg0(hipStream_t stream,
     //         auto* output_ptr = device_cast(output.data());
     //         auto* input_ptr  = device_cast(input.data());
 
-    //         launch(stream, item_num / (chunks_per_block * 3), block_size)([=](auto idx) __device__ {
+    //         launch(stream, item_num / (chunks_per_block * 3), block_size)([=](auto idx)
+    //         __device__ {
 
     //             index_int blk_idx   = idx.group;
     //             index_int start_idx = blk_idx * chunk_size * chunks_per_block;

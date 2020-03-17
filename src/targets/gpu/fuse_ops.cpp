@@ -535,26 +535,22 @@ struct find_add_gelu
     }
 };
 
+auto slice_reshape_trans_op(const std::string& input, const std::string& cont_op)
+{
+    return match::name("gpu::contiguous")(
+        match::arg(0)(
+            match::name("transpose")(match::arg(0)(match::name("reshape")(match::arg(0)(
+                match::name("gpu::contiguous")(match::arg(0)(match::name("slice").bind(input))))))))
+            .bind(cont_op));
+}
+
 struct find_slice_reshape_trans_cont
 {
     auto matcher() const
     {
         return match::name("gpu::gemm")(
-            match::arg(0)(match::name("gpu::contiguous")(
-                              match::arg(0)(match::name("transpose")(
-                                                match::arg(0)(match::name("reshape")(match::arg(0)(
-                                                    match::name("gpu::contiguous")(match::arg(0)(
-                                                        match::name("slice").bind("input0")))))))
-                                                .bind("trans_op0")))
-                              .bind("cont0")),
-
-            match::arg(1)(match::name("gpu::contiguous")(
-                              match::arg(0)(match::name("transpose")(
-                                                match::arg(0)(match::name("reshape")(match::arg(0)(
-                                                    match::name("gpu::contiguous")(match::arg(0)(
-                                                        match::name("slice").bind("input1")))))))
-                                                .bind("trans_op1")))
-                              .bind("cont1")));
+            match::arg(0)(slice_reshape_trans_op(std::string("input0"), std::string("cont0"))),
+            match::arg(1)(slice_reshape_trans_op(std::string("input1"), std::string("cont1"))));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -587,13 +583,7 @@ struct find_slice_reshape_trans_cont_1
     {
         return match::name("gpu::gemm")(
             match::arg(0)(match::name("gpu::softmax")),
-            match::arg(1)(match::name("gpu::contiguous")(
-                              match::arg(0)(match::name("transpose")(
-                                                match::arg(0)(match::name("reshape")(match::arg(0)(
-                                                    match::name("gpu::contiguous")(match::arg(0)(
-                                                        match::name("slice").bind("input1")))))))
-                                                .bind("trans_op1")))
-                              .bind("cont1")));
+            match::arg(1)(slice_reshape_trans_op(std::string("input1"), std::string("cont1"))));
     }
 
     void apply(program& p, match::matcher_result r) const

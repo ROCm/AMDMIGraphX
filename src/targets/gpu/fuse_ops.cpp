@@ -904,7 +904,6 @@ void fuse_ops::apply(program& p) const
 {
     // clang-format off
     match::find_matches(p, find_layernorm{}, find_gelu{});
-    match::find_matches(p, find_layernorm{});
     match::find_matches(p, find_slice_reshape_trans_cont{});
     match::find_matches(p, find_slice_reshape_trans_cont_1{});    
     match::find_matches(p, find_triadd{});

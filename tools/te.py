@@ -41,10 +41,17 @@ struct ${struct_name}
     template <typename PrivateDetailTypeErasedT>
     ${struct_name} & operator= (PrivateDetailTypeErasedT value)
     {
-        if (private_detail_te_handle_mem_var.unique())
-            *private_detail_te_handle_mem_var = std::forward<PrivateDetailTypeErasedT>(value);
-        else if (!private_detail_te_handle_mem_var)
-            private_detail_te_handle_mem_var = std::make_shared<PrivateDetailTypeErasedT>(std::forward<PrivateDetailTypeErasedT>(value));
+        using std::swap;
+        auto * derived = this->any_cast<PrivateDetailTypeErasedT>();
+        if(derived and private_detail_te_handle_mem_var.unique())
+        {
+            *derived = std::forward<PrivateDetailTypeErasedT>(value);
+        }
+        else 
+        {
+            ${struct_name} rhs(value);
+            swap(private_detail_te_handle_mem_var, rhs.private_detail_te_handle_mem_var); 
+        }
         return *this;
     }
 
@@ -52,7 +59,7 @@ struct ${struct_name}
     template<typename PrivateDetailTypeErasedT>
     PrivateDetailTypeErasedT * any_cast()
     {
-        return private_detail_te_get_handle().type() == typeid(PrivateDetailTypeErasedT) ?
+        return this->type_id() == typeid(PrivateDetailTypeErasedT) ?
         std::addressof(static_cast<private_detail_te_handle_type<typename std::remove_cv<PrivateDetailTypeErasedT>::type> &>(private_detail_te_get_handle()).private_detail_te_value) :
         nullptr;
     }
@@ -60,7 +67,7 @@ struct ${struct_name}
     template<typename PrivateDetailTypeErasedT>
     const typename std::remove_cv<PrivateDetailTypeErasedT>::type * any_cast() const
     {
-        return private_detail_te_get_handle().type() == typeid(PrivateDetailTypeErasedT) ?
+        return this->type_id() == typeid(PrivateDetailTypeErasedT) ?
         std::addressof(static_cast<const private_detail_te_handle_type<typename std::remove_cv<PrivateDetailTypeErasedT>::type> &>(private_detail_te_get_handle()).private_detail_te_value) :
         nullptr;
     }
@@ -379,7 +386,7 @@ def template_eval(template, **kwargs):
     escaped = (re.escape(start), re.escape(end))
     mark = re.compile('%s(.*?)%s' % escaped, re.DOTALL)
     for key in kwargs:
-        exec ('%s = %s' % (key, kwargs[key]))
+        exec('%s = %s' % (key, kwargs[key]))
     for item in mark.findall(template):
         template = template.replace(start + item + end,
                                     str(eval(item.strip())))

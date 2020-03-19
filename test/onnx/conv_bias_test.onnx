@@ -1,10 +1,10 @@
-conv-example:­
+conv_bias_test:²
 8
 0
 1
 23"Conv*
 	dilations@@ *
-strides@@ 	test_convZ
+strides@@ conv_bias_testZ
 0
 
 

@@ -686,7 +686,6 @@ TEST_CASE(simplify_split_between_add)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};
     migraphx::program p1;
     {
-        auto b     = migraphx::op::broadcast{1, {3, 1, 4}};
         auto input = p1.add_parameter("input", s);
         auto x     = p1.add_instruction(migraphx::op::slice{{1}, {0}, {1}}, input);
         auto y     = p1.add_instruction(migraphx::op::slice{{1}, {1}, {2}}, input);

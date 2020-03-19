@@ -255,12 +255,12 @@ std::vector<instruction_ref> get_splits(instruction_ref ins)
                  [&](auto i) { return i->name() == "slice"; });
     if(result.size() < 2)
         return {};
-    auto get_slice = [](auto i) { return any_cast<op::slice>(i->get_operator()); };
+    auto get_slice = [](auto& i) -> auto& { return any_cast<op::slice>(i->get_operator()); };
     auto&& axes    = get_slice(result.front()).axes;
     if(std::any_of(result.begin(), result.end(), [&](auto i) { return get_slice(i).axes != axes; }))
         return {};
-    auto get_start = [&](auto i) { return get_slice(i).starts; };
-    auto get_end   = [&](auto i) { return get_slice(i).ends; };
+    auto get_start = [&](auto& i) -> auto& { return get_slice(i).starts; };
+    auto get_end   = [&](auto& i) -> auto& { return get_slice(i).ends; };
     std::sort(
         result.begin(), result.end(), [&](auto x, auto y) { return get_start(x) < get_start(y); });
     if(std::any_of(get_start(result.front()).begin(), get_start(result.front()).end(), [&](auto i) {

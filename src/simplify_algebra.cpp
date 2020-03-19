@@ -307,7 +307,7 @@ struct find_splits
                     break;
                 assert((*it)->name() != "slice");
                 // If there is a duplicate bail
-                if (contains(group, *it))
+                if(contains(group, *it))
                     return {};
                 group.push_back(*it);
             }
@@ -333,10 +333,9 @@ struct find_splits
                 continue;
 
             // Make sure there is no duplicates
-            assert(std::none_of(std::next(group.begin()), group.end(), [&](auto i) {
-                return i == start;
-            }));
-            
+            assert(std::none_of(
+                std::next(group.begin()), group.end(), [&](auto i) { return i == start; }));
+
             auto split_idx    = 0;
             instruction_ref c = p.end();
             if(start->inputs().size() == 1)

@@ -690,7 +690,7 @@ TEST_CASE(simplify_split_between_add)
         auto input = p1.add_parameter("input", s);
         auto x     = p1.add_instruction(migraphx::op::slice{{1}, {0}, {1}}, input);
         auto y     = p1.add_instruction(migraphx::op::slice{{1}, {1}, {2}}, input);
-        auto sum = p1.add_instruction(migraphx::op::add{}, x, y);
+        auto sum   = p1.add_instruction(migraphx::op::add{}, x, y);
         p1.add_instruction(pass_op{}, sum);
     }
     migraphx::program p2 = p1;

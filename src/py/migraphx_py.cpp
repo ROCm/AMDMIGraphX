@@ -158,7 +158,7 @@ PYBIND11_MODULE(migraphx, m)
     py::class_<migraphx::program>(m, "program")
         .def("clone", [](migraphx::program& p) { return *(new migraphx::program(p)); })
         .def("get_parameter_shapes", &migraphx::program::get_parameter_shapes)
-        .def("get_shape", &migraphx::program::get_shape)
+        .def("get_output_shapes", &migraphx::program::get_output_shapes)
         .def("compile",
              [](migraphx::program& p, const migraphx::target& t, bool offload_copy) {
                  migraphx::compile_options options;
@@ -173,11 +173,20 @@ PYBIND11_MODULE(migraphx, m)
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
 
     m.def("parse_tf",
-          &migraphx::parse_tf,
+          [](const std::string& filename, bool is_nhwc, unsigned int batch_size) {
+              return migraphx::parse_tf(filename, migraphx::tf_options{is_nhwc, batch_size});
+          },
           "Parse tf protobuf (default format is nhwc)",
           py::arg("filename"),
-          py::arg("is_nhwc") = true);
-    m.def("parse_onnx", &migraphx::parse_onnx);
+          py::arg("is_nhwc")    = true,
+          py::arg("batch_size") = 1);
+    m.def("parse_onnx",
+          [](const std::string& filename, unsigned int batch_size) {
+              return migraphx::parse_onnx(filename, migraphx::onnx_options{batch_size});
+          },
+          "Parse onnx file",
+          py::arg("filename"),
+          py::arg("batch_size") = 1);
 
     m.def("get_target", [](const std::string& name) -> migraphx::target {
         if(name == "cpu")

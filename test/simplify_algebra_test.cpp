@@ -271,9 +271,9 @@ TEST_CASE(simplify_add_conv1)
     auto conv2 = p.add_instruction(migraphx::op::convolution{}, y, v);
     auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
     p.add_instruction(pass_op{}, sum);
-    auto s = p.get_shape();
+    auto s = p.get_output_shapes().back();
     run_pass(p);
-    EXPECT(s == p.get_shape());
+    EXPECT(s == p.get_output_shapes().back());
     EXPECT(std::count_if(
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
 }
@@ -291,9 +291,9 @@ TEST_CASE(simplify_add_conv_no_fusion_7x7_diff_strides)
     auto conv2 = p.add_instruction(migraphx::op::convolution{{0, 0}, {3, 3}}, y, v);
     auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
     p.add_instruction(pass_op{}, sum);
-    auto s = p.get_shape();
+    auto s = p.get_output_shapes().back();
     run_pass(p);
-    EXPECT(s == p.get_shape());
+    EXPECT(s == p.get_output_shapes().back());
     // No fusion
     EXPECT(std::count_if(
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
@@ -312,9 +312,9 @@ TEST_CASE(simplify_add_conv_1x1_diff_strides1)
     auto conv2 = p.add_instruction(migraphx::op::convolution{{0, 0}, {2, 2}}, y, v);
     auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
     p.add_instruction(pass_op{}, sum);
-    auto s = p.get_shape();
+    auto s = p.get_output_shapes().back();
     run_pass(p);
-    EXPECT(s == p.get_shape());
+    EXPECT(s == p.get_output_shapes().back());
     EXPECT(std::count_if(
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
 }
@@ -332,9 +332,9 @@ TEST_CASE(simplify_add_conv_1x1_diff_strides2)
     auto conv2 = p.add_instruction(migraphx::op::convolution{}, y, v);
     auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
     p.add_instruction(pass_op{}, sum);
-    auto s = p.get_shape();
+    auto s = p.get_output_shapes().back();
     run_pass(p);
-    EXPECT(s == p.get_shape());
+    EXPECT(s == p.get_output_shapes().back());
     EXPECT(std::count_if(
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
 }
@@ -352,9 +352,9 @@ TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides1)
     auto conv2 = p.add_instruction(migraphx::op::convolution{}, y, v);
     auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
     p.add_instruction(pass_op{}, sum);
-    auto s = p.get_shape();
+    auto s = p.get_output_shapes().back();
     run_pass(p);
-    EXPECT(s == p.get_shape());
+    EXPECT(s == p.get_output_shapes().back());
     // No fusion
     EXPECT(std::count_if(
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
@@ -373,12 +373,122 @@ TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides2)
     auto conv2 = p.add_instruction(migraphx::op::convolution{{0, 0}, {2, 1}}, y, v);
     auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
     p.add_instruction(pass_op{}, sum);
-    auto s = p.get_shape();
+    auto s = p.get_output_shapes().back();
     run_pass(p);
-    EXPECT(s == p.get_shape());
+    EXPECT(s == p.get_output_shapes().back());
     // No fusion
     EXPECT(std::count_if(
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
+}
+
+TEST_CASE(simplify_concat_add_relu)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {1}};
+    migraphx::program p1;
+    {
+        auto x      = p1.add_parameter("x", s);
+        auto y      = p1.add_parameter("y", s);
+        auto one    = p1.add_literal({s, {1}});
+        auto two    = p1.add_literal({s, {2}});
+        auto sum1   = p1.add_instruction(migraphx::op::add{}, x, one);
+        auto relu1  = p1.add_instruction(migraphx::op::relu{}, sum1);
+        auto sum2   = p1.add_instruction(migraphx::op::add{}, y, two);
+        auto relu2  = p1.add_instruction(migraphx::op::relu{}, sum2);
+        auto concat = p1.add_instruction(migraphx::op::concat{0}, relu1, relu2);
+        p1.add_instruction(pass_op{}, concat);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto x       = p2.add_parameter("x", s);
+        auto y       = p2.add_parameter("y", s);
+        auto one     = p2.add_literal({s, {1}});
+        auto two     = p2.add_literal({s, {2}});
+        auto concat1 = p2.add_instruction(migraphx::op::concat{0}, x, y);
+        auto concat2 = p2.add_instruction(migraphx::op::concat{0}, one, two);
+        auto sum     = p2.add_instruction(migraphx::op::add{}, concat1, concat2);
+        auto relu    = p2.add_instruction(migraphx::op::relu{}, sum);
+        p2.add_instruction(pass_op{}, relu);
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(simplify_concat_add_relu_broadcast_different_axis)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {2, 1, 4, 5}};
+    migraphx::program p1;
+    {
+        auto b      = migraphx::op::broadcast{1, {2, 1, 4, 5}};
+        auto x      = p1.add_parameter("x", s);
+        auto y      = p1.add_parameter("y", s);
+        auto one    = p1.add_literal(1);
+        auto oneb   = p1.add_instruction(b, one);
+        auto two    = p1.add_literal(2);
+        auto twob   = p1.add_instruction(b, two);
+        auto sum1   = p1.add_instruction(migraphx::op::add{}, x, oneb);
+        auto relu1  = p1.add_instruction(migraphx::op::relu{}, sum1);
+        auto sum2   = p1.add_instruction(migraphx::op::add{}, y, twob);
+        auto relu2  = p1.add_instruction(migraphx::op::relu{}, sum2);
+        auto concat = p1.add_instruction(migraphx::op::concat{1}, relu1, relu2);
+        p1.add_instruction(pass_op{}, concat);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto b        = migraphx::op::broadcast{1, {2, 2, 4, 5}};
+        auto x        = p2.add_parameter("x", s);
+        auto y        = p2.add_parameter("y", s);
+        auto one      = p2.add_literal(1);
+        auto two      = p2.add_literal(2);
+        auto concat1  = p2.add_instruction(migraphx::op::concat{1}, x, y);
+        auto concat2  = p2.add_instruction(migraphx::op::concat{0}, one, two);
+        auto concat2b = p2.add_instruction(b, concat2);
+        auto sum      = p2.add_instruction(migraphx::op::add{}, concat1, concat2b);
+        auto relu     = p2.add_instruction(migraphx::op::relu{}, sum);
+        p2.add_instruction(pass_op{}, relu);
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(simplify_concat_add_relu_broadcast_same_axis)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {2, 1, 4, 5}};
+    migraphx::program p1;
+    {
+        auto b      = migraphx::op::broadcast{1, {2, 1, 4, 5}};
+        auto x      = p1.add_parameter("x", s);
+        auto y      = p1.add_parameter("y", s);
+        auto one    = p1.add_literal(1);
+        auto oneb   = p1.add_instruction(b, one);
+        auto two    = p1.add_literal(2);
+        auto twob   = p1.add_instruction(b, two);
+        auto sum1   = p1.add_instruction(migraphx::op::add{}, x, oneb);
+        auto relu1  = p1.add_instruction(migraphx::op::relu{}, sum1);
+        auto sum2   = p1.add_instruction(migraphx::op::add{}, y, twob);
+        auto relu2  = p1.add_instruction(migraphx::op::relu{}, sum2);
+        auto concat = p1.add_instruction(migraphx::op::concat{0}, relu1, relu2);
+        p1.add_instruction(pass_op{}, concat);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto b       = migraphx::op::broadcast{1, {2, 1, 4, 5}};
+        auto x       = p2.add_parameter("x", s);
+        auto y       = p2.add_parameter("y", s);
+        auto one     = p2.add_literal(1);
+        auto oneb    = p2.add_instruction(b, one);
+        auto two     = p2.add_literal(2);
+        auto twob    = p2.add_instruction(b, two);
+        auto concat1 = p2.add_instruction(migraphx::op::concat{0}, x, y);
+        auto concat2 = p2.add_instruction(migraphx::op::concat{0}, oneb, twob);
+        auto sum     = p2.add_instruction(migraphx::op::add{}, concat1, concat2);
+        auto relu    = p2.add_instruction(migraphx::op::relu{}, sum);
+        p2.add_instruction(pass_op{}, relu);
+    }
+    EXPECT(p1 == p2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

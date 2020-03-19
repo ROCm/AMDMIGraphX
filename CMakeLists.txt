@@ -22,7 +22,7 @@ find_package(ROCM REQUIRED)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 0.5)
+rocm_setup_version(VERSION 0.6)
 set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
@@ -69,13 +69,26 @@ rocm_enable_clang_tidy(
         modernize-*
         performance-*
         readability-*
-        -clang-analyzer-alpha.core.CastToStruct
+        # Disable all alpha checks by default
+        -clang-analyzer-alpha*
+        # Enable some alpha checks
+        clang-analyzer-alpha.core.CallAndMessageUnInitRefArg
+        clang-analyzer-alpha.core.Conversion
+        clang-analyzer-alpha.core.IdenticalExpr
+        clang-analyzer-alpha.core.PointerArithm
+        clang-analyzer-alpha.core.PointerSub
+        clang-analyzer-alpha.core.TestAfterDivZero
+        clang-analyzer-alpha.cplusplus.InvalidIterator
+        clang-analyzer-alpha.cplusplus.IteratorRange
+        clang-analyzer-alpha.cplusplus.MismatchedIterator
+        clang-analyzer-alpha.cplusplus.MisusedMovedObject
         -clang-analyzer-optin.performance.Padding
         -clang-diagnostic-deprecated-declarations
         -clang-diagnostic-extern-c-compat
         -clang-diagnostic-disabled-macro-expansion
         -clang-diagnostic-unused-command-line-argument
         -cppcoreguidelines-explicit-virtual-functions
+        -cppcoreguidelines-init-variables
         -cppcoreguidelines-pro-bounds-array-to-pointer-decay
         -cppcoreguidelines-pro-bounds-constant-array-index
         -cppcoreguidelines-pro-bounds-pointer-arithmetic
@@ -97,6 +110,7 @@ rocm_enable_clang_tidy(
         -modernize-use-transparent-functors
         -performance-type-promotion-in-math-fn
         -readability-braces-around-statements
+        -readability-convert-member-functions-to-static
         -readability-else-after-return
         -readability-named-parameter
         -readability-uppercase-literal-suffix,
@@ -114,12 +128,14 @@ rocm_enable_clang_tidy(
         -UNDEBUG
         -DMIGRAPHX_USE_CLANG_TIDY
         "-Dmain\\\\(...\\\\)=main\\\\(__VA_ARGS__\\\\) // NOLINT"
-    # CLANG_ARGS
-    #     -analyzer-config optin.cplusplus.UninitializedObject:Pedantic=true
-    #     -analyzer-config widen-loops=true
-    #     -analyzer-config unroll-loops=true
-    #     -analyzer-config cfg-lifetime=true
-    #     -analyzer-config cfg-scopes=true
+    CLANG_ARGS
+        -analyzer-max-loop 10
+        -analyzer-inline-max-stack-depth 10
+        -analyzer-config optin.cplusplus.UninitializedObject:Pedantic=true
+        -analyzer-config widen-loops=true
+        -analyzer-config unroll-loops=true
+        -analyzer-config cfg-lifetime=true
+        -analyzer-config cfg-scopes=true
 )
 include(ROCMCppCheck)
 rocm_enable_cppcheck(
@@ -169,7 +185,7 @@ rocm_create_package(
     MAINTAINER "Paul Fultz II <paul.fultz@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS miopen-hip rocblas hip_hcc half
+    DEPENDS miopen-hip rocblas hip-hcc half
 )
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)

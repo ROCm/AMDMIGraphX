@@ -32,8 +32,9 @@ struct tf_parser
     node_map nodes;
     std::vector<tensorflow::NodeDef> input_nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog = program();
-    bool is_nhwc = true;
+    program prog            = program();
+    bool is_nhwc            = true;
+    unsigned int batch_size = 1;
 
     std::unordered_map<std::string, op_func> ops;
 
@@ -189,6 +190,8 @@ struct tf_parser
         add_binary_op("SquaredDifference", op::sqdiff{});
         add_binary_op("Sub", op::sub{});
 
+        add_mem_op("ArgMax", &tf_parser::parse_arg_op<op::argmax>, false);
+        add_mem_op("ArgMin", &tf_parser::parse_arg_op<op::argmin>, false);
         add_mem_op("AvgPool", &tf_parser::parse_pooling);
         add_mem_op("BatchMatMul", &tf_parser::parse_matmul, false);
         add_mem_op("BatchMatMulV2", &tf_parser::parse_matmul, false);
@@ -208,6 +211,7 @@ struct tf_parser
         add_mem_op("Pack", &tf_parser::parse_pack, false);
         add_mem_op("Pad", &tf_parser::parse_pad);
         add_mem_op("Reshape", &tf_parser::parse_reshape, false);
+        add_mem_op("Shape", &tf_parser::parse_shape, false);
         add_mem_op("Slice", &tf_parser::parse_slice, false);
         add_mem_op("Split", &tf_parser::parse_split, false);
         add_mem_op("SplitV", &tf_parser::parse_split, false);
@@ -321,6 +325,16 @@ struct tf_parser
                    return prog.add_instruction(x, args);
                },
                transpose);
+    }
+
+    template <class Op>
+    instruction_ref
+    parse_arg_op(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    {
+        int64_t axis = 0;
+        axis         = args[1]->eval().at<int64_t>();
+        auto ins     = prog.add_instruction(Op{axis}, args.front());
+        return prog.add_instruction(op::squeeze{{axis}}, ins);
     }
 
     instruction_ref
@@ -768,17 +782,17 @@ struct tf_parser
         return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
-    void parse_from(std::istream& is)
+    // Use a literal instruction to replace the shape since output of
+    // shape operator are literals in migraphx
+    instruction_ref
+    parse_shape(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
-        tensorflow::GraphDef graph;
-        if(graph.ParseFromIstream(&is))
-        {
-            this->parse_graph(graph);
-        }
-        else
-        {
-            throw std::runtime_error("Failed reading tf file");
-        }
+        std::vector<std::size_t> arg_shape = args[0]->get_shape().lens();
+        std::vector<int32_t> vec_shape(arg_shape.size());
+        migraphx::shape s(migraphx::shape::int32_type, {arg_shape.size()});
+        std::transform(
+            arg_shape.begin(), arg_shape.end(), vec_shape.begin(), [](auto i) { return i; });
+        return prog.add_literal(migraphx::literal{s, vec_shape});
     }
 
     instruction_ref
@@ -1006,6 +1020,9 @@ struct tf_parser
             {
                 reorder_data(dims);
             }
+            std::transform(dims.begin(), dims.end(), dims.begin(), [&](auto dim) {
+                return static_cast<int>(dim) <= 0 ? batch_size : dim;
+            });
             shape s            = shape{shape_type, dims};
             instructions[name] = to_nhwc(prog.add_parameter(name, s));
         }
@@ -1013,6 +1030,9 @@ struct tf_parser
         {
             this->parse_node(p.first);
         }
+
+        // Needs to add a ret instruction at the end of
+        // the program
     }
 
     void parse_node(const std::string& name)
@@ -1069,6 +1089,19 @@ struct tf_parser
             {
                 instructions[name + ":" + std::to_string(i)] = result.at(i);
             }
+        }
+    }
+
+    void parse_from(std::istream& is)
+    {
+        tensorflow::GraphDef graph;
+        if(graph.ParseFromIstream(&is))
+        {
+            this->parse_graph(graph);
+        }
+        else
+        {
+            throw std::runtime_error("Failed reading tf file");
         }
     }
 
@@ -1343,11 +1376,12 @@ struct tf_parser
     }
 };
 
-program parse_tf(const std::string& name, bool is_nhwc)
+program parse_tf(const std::string& name, tf_options options)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     tf_parser parser;
-    parser.is_nhwc = is_nhwc;
+    parser.is_nhwc    = options.is_nhwc;
+    parser.batch_size = options.batch_size;
 
 #ifndef NDEBUG
     // Log the program when it can't be parsed

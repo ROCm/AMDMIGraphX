@@ -192,23 +192,25 @@ program
 parse_onnx
 ----------
 
-.. py:function:: parse_onnx(filename)
+.. py:function:: parse_onnx(filename, batch_size=1)
 
     Load and parse an onnx file.
 
     :param str filename: Path to file.
+    :param str batch_size: default batch size to use (if not specified in onnx file).
 
     :rtype: program
 
 parse_tf
 ----------
 
-.. py:function:: parse_tf(filename, is_nhwc=True)
+.. py:function:: parse_tf(filename, is_nhwc=True, batch_size=1)
 
     Load and parse an tensorflow protobuf file file.
 
     :param str filename: Path to file.
     :param bool is_nhwc: Use nhwc as default format.
+    :param str batch_size: default batch size to use (if not specified in protobuf).
 
     :rtype: program
 

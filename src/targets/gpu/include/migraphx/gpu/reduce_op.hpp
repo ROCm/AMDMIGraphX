@@ -32,6 +32,7 @@ struct reduce_op : oper<Derived>
     {
         std::vector<shape> in_shapes{inputs};
         in_shapes.pop_back();
+        check_shapes{in_shapes}.standard();
         return op.compute_shape(in_shapes);
     }
 

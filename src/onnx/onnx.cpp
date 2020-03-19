@@ -16,6 +16,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/onnx.hpp>
+#include <migraphx/pad_calc.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -28,87 +29,102 @@ struct onnx_parser
         std::function<std::vector<instruction_ref>(attribute_map, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog    = program();
-    bool is_pytorch = false;
+    program prog            = program();
+    bool is_pytorch         = false;
+    unsigned int batch_size = 1;
 
     std::unordered_map<std::string, op_func> ops;
     std::unordered_map<std::string, operation> map_actv_funcs;
 
     onnx_parser()
     {
-        add_generic_op("Relu", op::relu{});
-        add_generic_op("Sigmoid", op::sigmoid{});
+        // sort onnx operator alphabetically through name
         add_generic_op("Abs", op::abs{});
-        add_generic_op("Exp", op::exp{});
-        add_generic_op("Erf", op::erf{});
-        add_generic_op("Log", op::log{});
-        // disable dropout for inference
-        add_generic_op("Dropout", op::identity{});
-        add_generic_op("Identity", op::identity{});
-        add_generic_op("Sin", op::sin{});
-        add_generic_op("Cos", op::cos{});
-        add_generic_op("Tan", op::tan{});
-        add_generic_op("Sinh", op::sinh{});
-        add_generic_op("Cosh", op::cosh{});
-        add_generic_op("Tanh", op::tanh{});
-        add_generic_op("Asin", op::asin{});
         add_generic_op("Acos", op::acos{});
+        add_generic_op("Acosh", op::acosh{});
+        add_generic_op("Asin", op::asin{});
+        add_generic_op("Asinh", op::asinh{});
         add_generic_op("Atan", op::atan{});
-        add_generic_op("Sqrt", op::sqrt{});
-        add_generic_op("Round", op::round{});
-        add_generic_op("Sign", op::sign{});
+        add_generic_op("Atanh", op::atanh{});
         add_generic_op("Ceil", op::ceil{});
+        add_generic_op("Cos", op::cos{});
+        add_generic_op("Cosh", op::cosh{});
+        add_generic_op("Erf", op::erf{});
+        add_generic_op("Exp", op::exp{});
+        add_generic_op("Dropout", op::identity{});
+        add_generic_op("Log", op::log{});
         add_generic_op("Floor", op::floor{});
+        add_generic_op("Identity", op::identity{});
+        add_generic_op("Relu", op::relu{});
+        add_generic_op("Round", op::round{});
+        add_generic_op("Sigmoid", op::sigmoid{});
+        add_generic_op("Sign", op::sign{});
+        add_generic_op("Sin", op::sin{});
+        add_generic_op("Sinh", op::sinh{});
+        add_generic_op("Sqrt", op::sqrt{});
+        add_generic_op("Tan", op::tan{});
+        add_generic_op("Tanh", op::tanh{});
 
         add_binary_op("Add", op::add{});
         add_binary_op("Div", op::div{});
         add_binary_op("Mul", op::mul{});
-        add_binary_op("Sub", op::sub{});
         add_binary_op("Pow", op::pow{});
+        add_binary_op("PRelu", op::prelu{});
+        add_binary_op("Sub", op::sub{});
 
         add_variadic_op("Sum", op::add{});
         add_variadic_op("Max", op::max{});
         add_variadic_op("Min", op::min{});
 
+        add_mem_op("AveragePool", &onnx_parser::parse_pooling);
         add_mem_op("ArgMax", &onnx_parser::parse_arg_op<op::argmax>);
         add_mem_op("ArgMin", &onnx_parser::parse_arg_op<op::argmin>);
+        add_mem_op("BatchNormalization", &onnx_parser::parse_batchnorm);
         add_mem_op("Cast", &onnx_parser::parse_cast);
         add_mem_op("Clip", &onnx_parser::parse_clip);
-        add_mem_op("LRN", &onnx_parser::parse_lrn);
-        add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
-        add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
-        add_mem_op("Elu", &onnx_parser::parse_elu);
-        add_mem_op("Expand", &onnx_parser::parse_expand);
-        add_mem_op("Constant", &onnx_parser::parse_constant);
-        add_mem_op("Conv", &onnx_parser::parse_conv);
-        add_mem_op("MaxPool", &onnx_parser::parse_pooling);
-        add_mem_op("AveragePool", &onnx_parser::parse_pooling);
-        add_mem_op("GlobalMaxPool", &onnx_parser::parse_pooling);
-        add_mem_op("GlobalAveragePool", &onnx_parser::parse_pooling);
-        add_mem_op("Reshape", &onnx_parser::parse_reshape);
-        add_mem_op("Flatten", &onnx_parser::parse_flatten);
-        add_mem_op("Gemm", &onnx_parser::parse_gemm);
-        add_mem_op("MatMul", &onnx_parser::parse_matmul);
-        add_mem_op("BatchNormalization", &onnx_parser::parse_batchnorm);
-        add_mem_op("Softmax", &onnx_parser::parse_softmax<op::softmax>);
-        add_mem_op("LogSoftmax", &onnx_parser::parse_softmax<op::logsoftmax>);
-        add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
-        add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
-        add_mem_op("Slice", &onnx_parser::parse_slice);
         add_mem_op("Concat", &onnx_parser::parse_concat);
-        add_mem_op("Gather", &onnx_parser::parse_gather);
-        add_mem_op("Shape", &onnx_parser::parse_shape);
+        add_mem_op("Constant", &onnx_parser::parse_constant);
         add_mem_op("ConstantFill", &onnx_parser::parse_constant_fill);
         add_mem_op("ConstantOfShape", &onnx_parser::parse_constant_of_shape);
-        add_mem_op("Transpose", &onnx_parser::parse_transpose);
-        add_mem_op("RNN", &onnx_parser::parse_rnn);
+        add_mem_op("Conv", &onnx_parser::parse_conv<op::convolution>);
+        add_mem_op("ConvInteger", &onnx_parser::parse_conv<op::quant_convolution>);
+        add_mem_op("ConvTranspose", &onnx_parser::parse_conv_transpose);
+        add_mem_op("Elu", &onnx_parser::parse_elu);
+        add_mem_op("Expand", &onnx_parser::parse_expand);
+        add_mem_op("Flatten", &onnx_parser::parse_flatten);
+        add_mem_op("Gather", &onnx_parser::parse_gather);
+        add_mem_op("Gemm", &onnx_parser::parse_gemm);
+        add_mem_op("GlobalAveragePool", &onnx_parser::parse_pooling);
+        add_mem_op("GlobalMaxPool", &onnx_parser::parse_pooling);
         add_mem_op("GRU", &onnx_parser::parse_gru);
-        add_mem_op("LSTM", &onnx_parser::parse_lstm);
-        add_mem_op("Pad", &onnx_parser::parse_pad);
-        add_mem_op("ReduceSum", &onnx_parser::parse_reduce_oper<op::reduce_sum>);
+        add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
+        add_mem_op("InstanceNormalization", &onnx_parser::parse_instancenorm);
+        add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
+        add_mem_op("LogSoftmax", &onnx_parser::parse_softmax<op::logsoftmax>);
+        add_mem_op("LRN", &onnx_parser::parse_lrn);
+        add_mem_op("MatMul", &onnx_parser::parse_matmul<op::dot>);
+        add_mem_op("MatMulInteger", &onnx_parser::parse_matmul<op::quant_dot>);
+        add_mem_op("MaxPool", &onnx_parser::parse_pooling);
+        add_mem_op("ReduceL1", &onnx_parser::parse_reduce_l1);
+        add_mem_op("ReduceL2", &onnx_parser::parse_reduce_l2);
+        add_mem_op("ReduceLogSum", &onnx_parser::parse_reduce_log_sum);
+        add_mem_op("ReduceLogSumExp", &onnx_parser::parse_reduce_log_sum_exp);
+        add_mem_op("ReduceMax", &onnx_parser::parse_reduce_oper<op::reduce_max>);
         add_mem_op("ReduceMean", &onnx_parser::parse_reduce_oper<op::reduce_mean>);
         add_mem_op("ReduceMin", &onnx_parser::parse_reduce_oper<op::reduce_min>);
-        add_mem_op("ReduceMax", &onnx_parser::parse_reduce_oper<op::reduce_max>);
+        add_mem_op("ReduceProd", &onnx_parser::parse_reduce_oper<op::reduce_prod>);
+        add_mem_op("ReduceSum", &onnx_parser::parse_reduce_oper<op::reduce_sum>);
+        add_mem_op("ReduceSumSquare", &onnx_parser::parse_reduce_sum_square);
+        add_mem_op("Reshape", &onnx_parser::parse_reshape);
+        add_mem_op("RNN", &onnx_parser::parse_rnn);
+        add_mem_op("Pad", &onnx_parser::parse_pad);
+        add_mem_op("Shape", &onnx_parser::parse_shape);
+        add_mem_op("Slice", &onnx_parser::parse_slice);
+        add_mem_op("Softmax", &onnx_parser::parse_softmax<op::softmax>);
+        add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
+        add_mem_op("Transpose", &onnx_parser::parse_transpose);
+        add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
+        add_mem_op("LSTM", &onnx_parser::parse_lstm);
 
         // init the activation function map
         init_actv_func();
@@ -230,8 +246,15 @@ struct onnx_parser
             auto s0       = arg0->get_shape().lens();
             auto s1       = arg1->get_shape().lens();
             auto out_lens = compute_broadcasted_lens(s0, s1);
-            auto l0       = prog.add_instruction(op::multibroadcast{out_lens}, arg0);
-            auto l1       = prog.add_instruction(op::multibroadcast{out_lens}, arg1);
+
+            auto l0 = arg0;
+            if(arg0->get_shape().lens() != out_lens)
+                l0 = prog.add_instruction(op::multibroadcast{out_lens}, arg0);
+
+            auto l1 = arg1;
+            if(arg1->get_shape().lens() != out_lens)
+                l1 = prog.add_instruction(op::multibroadcast{out_lens}, arg1);
+
             return prog.add_instruction(x, l0, l1);
         }
         else
@@ -261,6 +284,43 @@ struct onnx_parser
         });
     }
 
+    template <class T>
+    std::vector<int64_t> to_int64_vector(const std::vector<T>& input_vector)
+    {
+        std::vector<int64_t> output_vector(input_vector.begin(), input_vector.end());
+        return output_vector;
+    }
+
+    instruction_ref
+    add_bias(const std::vector<instruction_ref>& args, instruction_ref curr_ins, uint64_t axis)
+    {
+        if(args.size() == 3)
+        {
+            auto bias_bcast =
+                prog.add_instruction(op::broadcast{axis, curr_ins->get_shape().lens()}, args[2]);
+            return prog.add_instruction(op::add{}, curr_ins, bias_bcast);
+        }
+        return curr_ins;
+    }
+
+    template <class Op>
+    void check_asym_padding(instruction_ref& ins,
+                            std::vector<int64_t>& padding,
+                            Op& op,
+                            float pad_val = 0)
+    {
+        if(padding[0] != padding[2] || padding[1] != padding[3])
+        {
+            padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
+            ins     = prog.add_instruction(op::pad{padding, pad_val}, ins);
+        }
+        else
+        {
+            op.padding[0] = padding[0];
+            op.padding[1] = padding[1];
+        }
+    }
+
     instruction_ref parse_clip(const std::string&,
                                const attribute_map& attributes,
                                std::vector<instruction_ref> args)
@@ -282,7 +342,7 @@ struct onnx_parser
                                   const attribute_map& attributes,
                                   std::vector<instruction_ref> args)
     {
-        int axis = 1;
+        int64_t axis = 1;
         if(contains(attributes, "axis"))
         {
             axis = parse_value(attributes.at("axis")).at<int>();
@@ -319,11 +379,72 @@ struct onnx_parser
         }
     }
 
+    template <class Op>
+    instruction_ref process_auto_pad_attribute(instruction_ref ins,
+                                               attribute_map& attributes,
+                                               Op& op,
+                                               const std::vector<std::size_t>& in_lens)
+    {
+        if(!contains(attributes, "auto_pad"))
+        {
+            return ins;
+        }
+
+        auto auto_pad = attributes["auto_pad"].s();
+        if(auto_pad.find("SAME") != std::string::npos)
+        {
+            // calculate the padding
+            std::array<std::size_t, 2> out_lens;
+            out_lens[0] = (in_lens[2] + op.stride[0] - 1) / op.stride[0];
+            out_lens[1] = (in_lens[3] + op.stride[1] - 1) / op.stride[1];
+
+            std::array<std::size_t, 2> explicit_pads;
+            explicit_pads[0] = (out_lens[0] - 1) * op.stride[0] + op.lengths[0] - in_lens[2];
+            explicit_pads[1] = (out_lens[1] - 1) * op.stride[1] + op.lengths[1] - in_lens[3];
+            op.padding[0]    = explicit_pads[0] / 2;
+            op.padding[1]    = explicit_pads[1] / 2;
+            explicit_pads[0] -= 2 * op.padding[0];
+            explicit_pads[1] -= 2 * op.padding[1];
+            std::vector<std::int64_t> pads(8, 0);
+            if(explicit_pads[0] != 0 or explicit_pads[1] != 0)
+            {
+                if(auto_pad == "SAME_UPPER")
+                {
+                    pads[6] = explicit_pads[0];
+                    pads[7] = explicit_pads[1];
+                }
+                else if(auto_pad == "SAME_LOWER")
+                {
+                    pads[2] = explicit_pads[0];
+                    pads[3] = explicit_pads[1];
+                }
+
+                // MaxPool
+                if(op.mode == "max")
+                {
+                    ins = prog.add_instruction(op::pad{pads, std::numeric_limits<float>::lowest()},
+                                               ins);
+                }
+                // AveragePool
+                else
+                {
+                    ins = prog.add_instruction(op::pad{pads}, ins);
+                }
+            }
+
+            op.padding_mode = op::padding_mode_t::same;
+        }
+
+        return ins;
+    }
+
+    template <class Op>
     instruction_ref
     parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        op::convolution op;
-        auto l0 = args[0];
+        Op op;
+        auto l0      = args[0];
+        auto weights = args[1];
         if(contains(attributes, "pads"))
         {
             if(contains(attributes, "auto_pad"))
@@ -340,11 +461,76 @@ struct onnx_parser
             {
                 MIGRAPHX_THROW("padding should have 4 values");
             }
+            check_asym_padding(l0, padding, op);
+        }
+        if(contains(attributes, "strides"))
+        {
+            copy(attributes["strides"].ints(), op.stride.begin());
+        }
+        if(contains(attributes, "dilations"))
+        {
+            copy(attributes["dilations"].ints(), op.dilation.begin());
+        }
+        if(contains(attributes, "auto_pad"))
+        {
+            auto s = attributes["auto_pad"].s();
+            if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
+            {
+                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+            }
+
+            if(s.find("SAME") != std::string::npos)
+            {
+                op.padding_mode                 = op::padding_mode_t::same;
+                std::vector<size_t> weight_dims = weights->get_shape().lens();
+                size_t weight_h                 = weight_dims[2];
+                size_t weight_w                 = weight_dims[3];
+
+                auto input_dims = l0->get_shape().lens();
+                std::vector<int64_t> padding(input_dims.size());
+                calculate_padding(
+                    0, padding, input_dims[2], op.stride[0], op.dilation[0], weight_h);
+                calculate_padding(
+                    1, padding, input_dims[3], op.stride[1], op.dilation[1], weight_w);
+
+                check_asym_padding(l0, padding, op);
+            }
+        }
+        if(contains(attributes, "group"))
+        {
+            op.group = parse_value(attributes.at("group")).at<int>();
+        }
+
+        auto l1 = prog.add_instruction(op, l0, args[1]);
+        return add_bias(args, l1, 1);
+    }
+
+    instruction_ref parse_conv_transpose(const std::string&,
+                                         attribute_map attributes,
+                                         std::vector<instruction_ref> args)
+    {
+        op::deconvolution op;
+        auto l0 = args[0];
+        std::vector<std::int64_t> padding;
+        bool asymm_padding = false;
+        if(contains(attributes, "pads"))
+        {
+            if(contains(attributes, "auto_pad"))
+            {
+                auto s = attributes["auto_pad"].s();
+                if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
+                {
+                    MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                }
+            }
+            copy(attributes["pads"].ints(), std::back_inserter(padding));
+            if(padding.size() != 4)
+            {
+                MIGRAPHX_THROW("padding should have 4 values");
+            }
             if(padding[0] != padding[2] || padding[1] != padding[3])
             {
-                // insert zeros for pad op (args[0] has 4 dims)
-                padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
-                l0      = prog.add_instruction(op::pad{padding}, l0);
+                asymm_padding = true;
             }
             else
             {
@@ -373,18 +559,55 @@ struct onnx_parser
                 op.padding_mode = op::padding_mode_t::same;
             }
         }
+
         if(contains(attributes, "group"))
         {
             op.group = parse_value(attributes.at("group")).at<int>();
         }
-        if(args.size() == 3)
+
+        auto l1                   = prog.add_instruction(op, l0, args[1]);
+        std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
+        std::vector<int64_t> curr_shape{dims[2], dims[3]};
+        if(asymm_padding)
         {
-            uint64_t axis = 1;
-            auto l1       = prog.add_instruction(op, l0, args[1]);
-            auto l2 = prog.add_instruction(op::broadcast{axis, l1->get_shape().lens()}, args[2]);
-            return prog.add_instruction(op::add{}, l1, l2);
+            op::slice slice_op;
+            slice_op.axes   = {0, 1, 2, 3};
+            slice_op.starts = {0, 0, 0 + padding[0], 0 + padding[1]};
+            slice_op.ends   = {
+                dims[0], dims[1], curr_shape[0] - padding[2], curr_shape[1] - padding[3]};
+
+            l1 = prog.add_instruction(slice_op, l1);
         }
-        return prog.add_instruction(op, l0, args[1]);
+
+        if(contains(attributes, "output_padding"))
+        {
+            std::vector<int64_t> output_padding;
+            copy(attributes["output_padding"].ints(), std::back_inserter(output_padding));
+            output_padding = {0, 0, 0, 0, 0, 0, output_padding[0], output_padding[1]};
+            l1             = prog.add_instruction(op::pad{output_padding}, l1);
+        }
+
+        if(contains(attributes, "output_shape"))
+        {
+            std::vector<int64_t> output_shape;
+            copy(attributes["output_shape"].ints(), std::back_inserter(output_shape));
+            dims       = to_int64_vector(l1->get_shape().lens());
+            curr_shape = {dims[2], dims[3]};
+            if(curr_shape != output_shape)
+            {
+                std::vector<int64_t> target_padding = {0,
+                                                       0,
+                                                       0,
+                                                       0,
+                                                       0,
+                                                       0,
+                                                       output_shape[0] - curr_shape[0],
+                                                       output_shape[1] - curr_shape[1]};
+                l1 = prog.add_instruction(op::pad{target_padding}, l1);
+            }
+        }
+
+        return add_bias(args, l1, 1);
     }
 
     instruction_ref parse_pooling(const std::string& name,
@@ -398,27 +621,31 @@ struct onnx_parser
             auto lens  = args.front()->get_shape().lens();
             op.lengths = {lens[2], lens[3]};
         }
+
         if(contains(attributes, "pads"))
         {
+            if(contains(attributes, "auto_pad"))
+            {
+                auto s = attributes["auto_pad"].s();
+                if(to_upper(s) != "NOTSET")
+                {
+                    MIGRAPHX_THROW(
+                        "PARSE_POOLING: auto_pad and padding cannot be specified simultaneously");
+                }
+            }
+
             std::vector<std::int64_t> padding;
             copy(attributes["pads"].ints(), std::back_inserter(padding));
             if(padding.size() != 4)
             {
-                MIGRAPHX_THROW("padding should have 4 values");
+                MIGRAPHX_THROW("PARSE_POOLING: padding should have 4 values");
             }
-            if(padding[0] != padding[2] || padding[1] != padding[3])
-            {
-                // insert zeros for pad op (args[0] has 4 dims)
-                padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
-                l0 = prog.add_instruction(op::pad{padding, std::numeric_limits<float>::lowest()},
-                                          l0);
-            }
-            else
-            {
-                op.padding[0] = padding[0];
-                op.padding[1] = padding[1];
-            }
+            float pad_val = 0;
+            if(op.mode == "max")
+                pad_val = std::numeric_limits<float>::lowest();
+            check_asym_padding(l0, padding, op, pad_val);
         }
+
         if(contains(attributes, "strides"))
         {
             copy(attributes["strides"].ints(), op.stride.begin());
@@ -427,14 +654,11 @@ struct onnx_parser
         {
             copy(attributes["kernel_shape"].ints(), op.lengths.begin());
         }
+
         if(contains(attributes, "auto_pad"))
         {
-            auto s = attributes["auto_pad"].s();
-            if(s.find("SAME_UPPER") == std::string::npos)
-            {
-                MIGRAPHX_THROW("auto_pad only supports SAME_UPPER for pooling");
-            }
-            op.padding_mode = op::padding_mode_t::same;
+            auto in_lens = args[0]->get_shape().lens();
+            l0           = process_auto_pad_attribute(l0, attributes, op, in_lens);
         }
 
         return prog.add_instruction(op, l0);
@@ -462,7 +686,7 @@ struct onnx_parser
     instruction_ref
     parse_flatten(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
-        uint64_t axis = 1;
+        int64_t axis = 1;
         if(contains(attributes, "axis"))
         {
             axis = parse_value(attributes.at("axis")).at<int>();
@@ -616,6 +840,7 @@ struct onnx_parser
         return prog.add_instruction(op::dot{alpha, beta}, l1, l2);
     }
 
+    template <class Op>
     instruction_ref
     parse_matmul(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
@@ -664,7 +889,7 @@ struct onnx_parser
             }
         }
 
-        auto dot_res     = prog.add_instruction(op::dot{1.0f, 0.0f}, bl0, bl1);
+        auto dot_res     = prog.add_instruction(Op{1, 0}, bl0, bl1);
         int64_t num_axis = static_cast<int64_t>(dot_res->get_shape().lens().size());
         if(is_a_prepended)
         {
@@ -701,6 +926,42 @@ struct onnx_parser
         }
         op::batch_norm_inference op{epsilon, momentum, bn_mode};
         return prog.add_instruction(op, std::move(args));
+    }
+
+    instruction_ref parse_instancenorm(const std::string&,
+                                       attribute_map attributes,
+                                       std::vector<instruction_ref> args)
+    {
+        // y = scale * ( x - mean ) / sqrt ( variance + epsilon ) + bias
+        // mean = reduce_mean({H, W}, x)
+        // variance = reduce_mean({H, W}, (x - mean)^2)
+
+        float epsilon = 1e-5f;
+        if(contains(attributes, "epsilon"))
+        {
+            epsilon = parse_value(attributes.at("epsilon")).at<float>();
+        }
+        auto x     = args[0];
+        auto scale = args[1];
+        auto bias  = args[2];
+        auto dims  = x->get_shape().lens();
+
+        auto mean            = prog.add_instruction(op::reduce_mean{{2, 3}}, x);
+        auto mean_bcast      = prog.add_instruction(op::multibroadcast{dims}, mean);
+        auto l0              = prog.add_instruction(op::sqdiff{}, x, mean_bcast);
+        auto variance        = prog.add_instruction(op::reduce_mean{{2, 3}}, l0);
+        auto l1              = prog.add_instruction(op::sub{}, x, mean_bcast);
+        auto epsilon_literal = prog.add_literal(epsilon);
+        auto epsilon_bcast   = prog.add_instruction(op::multibroadcast{dims}, epsilon_literal);
+        auto variance_bcast  = prog.add_instruction(op::multibroadcast{dims}, variance);
+        auto l2              = prog.add_instruction(op::add{}, variance_bcast, epsilon_bcast);
+        auto l3              = prog.add_instruction(op::rsqrt{}, l2);
+        auto l4              = prog.add_instruction(op::mul{}, l1, l3);
+        auto scale_bcast     = prog.add_instruction(op::broadcast{1, dims}, scale);
+        ;
+        auto bias_bcast = prog.add_instruction(op::broadcast{1, dims}, bias);
+        auto l5         = prog.add_instruction(op::mul{}, l4, scale_bcast);
+        return prog.add_instruction(op::add{}, l5, bias_bcast);
     }
 
     instruction_ref parse_leaky_relu(const std::string&,
@@ -763,11 +1024,12 @@ struct onnx_parser
             auto&& bias_floats = attributes["bias"].floats();
             bias               = std::vector<float>(bias_floats.begin(), bias_floats.end());
         }
-        auto input_lens = args.front()->get_shape().lens();
+        auto input_shape       = args.front()->get_shape();
+        auto const& input_lens = input_shape.lens();
+        auto input_type        = input_shape.type();
 
-        auto scale_val = prog.add_literal(scale);
-        auto bias_vals = prog.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {bias.size()}}, bias});
+        auto scale_val = prog.add_literal(literal{shape{input_type}, {scale}});
+        auto bias_vals = prog.add_literal(literal{shape{input_type, {bias.size()}}, bias});
 
         auto scale_tensor = prog.add_instruction(migraphx::op::scalar{input_lens}, scale_val);
         auto img_scaled   = prog.add_instruction(migraphx::op::mul{}, args.front(), scale_tensor);
@@ -1397,6 +1659,47 @@ struct onnx_parser
     }
 
     instruction_ref
+    parse_reduce_l1(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        auto abs_ins = prog.add_instruction(op::abs{}, args[0]);
+        return parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {abs_ins});
+    }
+
+    instruction_ref
+    parse_reduce_l2(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    {
+        auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
+        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {square_ins});
+        return prog.add_instruction(op::sqrt{}, sum_ins);
+    }
+
+    instruction_ref parse_reduce_log_sum(const std::string&,
+                                         attribute_map attributes,
+                                         std::vector<instruction_ref> args)
+    {
+        auto sum_ins =
+            parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), std::move(args));
+        return prog.add_instruction(op::log{}, sum_ins);
+    }
+
+    instruction_ref parse_reduce_log_sum_exp(const std::string&,
+                                             attribute_map attributes,
+                                             std::vector<instruction_ref> args)
+    {
+        auto exp_ins = prog.add_instruction(op::exp{}, args[0]);
+        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {exp_ins});
+        return prog.add_instruction(op::log{}, sum_ins);
+    }
+
+    instruction_ref parse_reduce_sum_square(const std::string&,
+                                            attribute_map attributes,
+                                            std::vector<instruction_ref> args)
+    {
+        auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
+        return parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {square_ins});
+    }
+
+    instruction_ref
     parse_cast(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         if(!contains(attributes, "to"))
@@ -1425,6 +1728,22 @@ struct onnx_parser
         }
     }
 
+    void parse_from(const void* data, std::size_t size)
+    {
+        onnx::ModelProto model;
+        if(model.ParseFromArray(data, size))
+        {
+            if(model.has_graph())
+            {
+                this->parse_graph(model.graph());
+            }
+        }
+        else
+        {
+            MIGRAPHX_THROW("Failed reading onnx file.");
+        }
+    }
+
     void parse_graph(const onnx::GraphProto& graph)
     {
         nodes = get_nodes(graph);
@@ -1438,7 +1757,7 @@ struct onnx_parser
             if(!contains(instructions, name))
             {
                 // TODO: Get shape of input parameter
-                shape s            = parse_type(input.type());
+                shape s            = parse_type(input.type(), batch_size);
                 instructions[name] = prog.add_parameter(name, s);
             }
         }
@@ -1446,6 +1765,29 @@ struct onnx_parser
         {
             this->parse_node(output.name());
         }
+
+        // Find instructions corresponding to the output
+        auto prog_output = graph.output();
+        std::vector<std::string> all_output_names;
+        std::vector<std::string> prog_output_names;
+        std::transform(prog_output.begin(),
+                       prog_output.end(),
+                       std::back_inserter(all_output_names),
+                       [](auto& node) { return node.name(); });
+        std::copy_if(
+            all_output_names.begin(),
+            all_output_names.end(),
+            std::back_inserter(prog_output_names),
+            [&](const auto& name) { return !(name.empty() or instructions.count(name) == 0); });
+
+        std::vector<instruction_ref> output_ins;
+        std::transform(prog_output_names.begin(),
+                       prog_output_names.end(),
+                       std::back_inserter(output_ins),
+                       [&](const auto& name) { return instructions[name]; });
+
+        // add the return instuction
+        prog.add_return(output_ins);
     }
 
     void parse_undefined(const std::string& name)
@@ -1464,14 +1806,14 @@ struct onnx_parser
             std::vector<instruction_ref> args;
             for(auto&& input : node.input())
             {
-                if(nodes.count(input) > 0)
+                if(input.empty())
+                {
+                    this->parse_undefined(input);
+                }
+                else if(nodes.count(input) > 0)
                 {
                     assert(name != input);
                     this->parse_node(input);
-                }
-                else if(input.empty())
-                {
-                    this->parse_undefined(input);
                 }
                 args.push_back(instructions.at(input));
             }
@@ -1491,12 +1833,12 @@ struct onnx_parser
             }
             else
             {
-                assert(node.output().size() >= result.size());
-                std::transform(result.begin(),
-                               result.end(),
-                               node.output().begin(),
+                auto output_num = std::min<std::size_t>(node.output().size(), result.size());
+                std::transform(node.output().begin(),
+                               node.output().begin() + output_num,
+                               result.begin(),
                                std::inserter(instructions, instructions.end()),
-                               [](auto&& x, auto&& y) { return std::make_pair(y, x); });
+                               [](auto&& x, auto&& y) { return std::make_pair(x, y); });
             }
         }
     }
@@ -1572,6 +1914,8 @@ struct onnx_parser
         case onnx::AttributeProto::STRING:
         case onnx::AttributeProto::STRINGS:
         case onnx::AttributeProto::TENSORS:
+        case onnx::AttributeProto::SPARSE_TENSOR:
+        case onnx::AttributeProto::SPARSE_TENSORS:
         case onnx::AttributeProto::GRAPHS: return {};
         }
         MIGRAPHX_THROW("Invalid attribute type");
@@ -1658,7 +2002,7 @@ struct onnx_parser
         return literal{{shape_type, dims}, data.begin(), data.end()};
     }
 
-    static shape parse_type(const onnx::TypeProto& t)
+    static shape parse_type(const onnx::TypeProto& t, const unsigned int batch_size)
     {
         shape::type_t shape_type{};
         switch(t.tensor_type().elem_type())
@@ -1686,14 +2030,18 @@ struct onnx_parser
         std::transform(tensor_dims.begin(),
                        tensor_dims.end(),
                        std::back_inserter(dims),
-                       [](auto&& d) -> std::size_t {
-                           if(not d.has_dim_value())
+                       [&](auto&& d) -> std::size_t {
+                           if(d.has_dim_value())
                            {
-                               long default_batch_size = 1; // FIXME
-                               return default_batch_size;
+                               if(static_cast<int>(d.dim_value()) <= 0)
+                                   return batch_size;
+                               return d.dim_value();
                            }
-                           return d.dim_value();
+                           return batch_size;
                        });
+        if(dims.empty())
+            return {shape_type};
+
         return {shape_type, dims};
     }
 
@@ -1728,15 +2076,16 @@ struct onnx_parser
     }
 };
 
-program parse_onnx(const std::string& name)
+template <class... Ts>
+program parse_onnx_from(onnx_options options, Ts&&... xs)
 {
-    std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     onnx_parser parser;
+    parser.batch_size = options.batch_size;
 #ifndef NDEBUG
     // Log the program when it can't be parsed
     try
     {
-        parser.parse_from(input);
+        parser.parse_from(std::forward<Ts>(xs)...);
     }
     catch(...)
     {
@@ -1744,9 +2093,25 @@ program parse_onnx(const std::string& name)
         throw;
     }
 #else
-    parser.parse_from(input);
+    parser.parse_from(std::forward<Ts>(xs)...);
 #endif
     return std::move(parser.prog);
+}
+
+program parse_onnx(const std::string& name, onnx_options options)
+{
+    std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
+    return parse_onnx_from(options, input);
+}
+
+program parse_onnx_buffer(const std::string& buffer, onnx_options options)
+{
+    return parse_onnx_from(options, buffer.data(), buffer.size());
+}
+
+program parse_onnx_buffer(const void* data, std::size_t size, onnx_options options)
+{
+    return parse_onnx_from(options, data, size);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

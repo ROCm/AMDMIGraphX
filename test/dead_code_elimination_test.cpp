@@ -21,7 +21,7 @@ TEST_CASE(simple_test)
     auto count = std::distance(p.begin(), p.end());
     run_pass(p);
     EXPECT(std::distance(p.begin(), p.end()) == count);
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -37,7 +37,7 @@ TEST_CASE(simple_test_nop)
     auto count = std::distance(p.begin(), p.end());
     run_pass(p);
     EXPECT(std::distance(p.begin(), p.end()) == count);
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -53,7 +53,7 @@ TEST_CASE(simple_test_nop2)
     p.add_instruction(nop{});
     run_pass(p);
     EXPECT(std::distance(p.begin(), p.end()) == 2);
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{});
     EXPECT(result != migraphx::literal{4});
 }
@@ -69,7 +69,7 @@ TEST_CASE(duplicate_test1)
     auto count = std::distance(p.begin(), p.end());
     run_pass(p);
     EXPECT(std::distance(p.begin(), p.end()) == (count - 1));
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -86,7 +86,7 @@ TEST_CASE(duplicate_test2)
     auto count = std::distance(p.begin(), p.end());
     run_pass(p);
     EXPECT(std::distance(p.begin(), p.end()) == (count - 2));
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -105,7 +105,7 @@ TEST_CASE(depth_test)
     auto count = std::distance(p.begin(), p.end());
     run_pass(p);
     EXPECT(std::distance(p.begin(), p.end()) == (count - 4));
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -122,7 +122,7 @@ TEST_CASE(undefined_test)
     run_pass(p);
     EXPECT(std::distance(p.begin(), p.end()) == count - 1);
     EXPECT(not p.has_instruction(undef));
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -139,7 +139,7 @@ TEST_CASE(duplicate_args1)
     run_pass(p);
     EXPECT(std::distance(p.begin(), p.end()) != count);
     EXPECT(std::distance(p.begin(), p.end()) == 2);
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{0});
 }
 
@@ -156,7 +156,7 @@ TEST_CASE(duplicate_args2)
     run_pass(p);
     EXPECT(std::distance(p.begin(), p.end()) != count);
     EXPECT(std::distance(p.begin(), p.end()) == 2);
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{0});
 }
 
@@ -174,7 +174,7 @@ TEST_CASE(duplicate_args3)
     run_pass(p);
     EXPECT(std::distance(p.begin(), p.end()) != count);
     EXPECT(std::distance(p.begin(), p.end()) == 2);
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{0});
 }
 

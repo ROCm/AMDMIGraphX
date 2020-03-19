@@ -78,8 +78,9 @@ inline auto gs_launch(hipStream_t stream, index_int n, index_int local = 1024)
     index_int nglobal = std::min<index_int>(256, groups) * local;
 
     return [=](auto f) {
-        launch(stream, nglobal, local)(
-            [=](auto idx) { idx.global_stride(n, [&](auto i) { gs_invoke(f, i, idx); }); });
+        launch(stream, nglobal, local)([=](auto idx) __device__ {
+            idx.global_stride(n, [&](auto i) { gs_invoke(f, i, idx); });
+        });
     };
 }
 

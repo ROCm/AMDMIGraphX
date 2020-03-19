@@ -306,6 +306,9 @@ struct find_splits
                 if(it == split->outputs().end())
                     break;
                 assert((*it)->name() != "slice");
+                // If there is a duplicate bail
+                if (contains(group, *it))
+                    return {};
                 group.push_back(*it);
             }
             if(group.size() != splits.size())
@@ -329,6 +332,11 @@ struct find_splits
             if(op.name() == "slice")
                 continue;
 
+            // Make sure there is no duplicates
+            assert(std::none_of(std::next(group.begin()), group.end(), [&](auto i) {
+                return i == start;
+            }));
+            
             auto split_idx    = 0;
             instruction_ref c = p.end();
             if(start->inputs().size() == 1)
@@ -337,9 +345,11 @@ struct find_splits
             }
             else if(start->inputs().size() == 2)
             {
-                // TODO: assert one argument is split
+                assert(not std::none_of(start->inputs().begin(), start->inputs().end(), [](auto i) {
+                    return i->name() == "slice";
+                }) && "one argument must be a split");
                 auto data_idx = 1;
-                if(start->inputs().back()->name() == "split")
+                if(start->inputs().back()->name() == "slice")
                 {
                     split_idx = 1;
                     data_idx  = 0;

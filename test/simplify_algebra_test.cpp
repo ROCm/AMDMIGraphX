@@ -776,7 +776,7 @@ TEST_CASE(simplify_dot_horiz_flipped)
 
 TEST_CASE(simplify_conv_horiz)
 {
-    auto s = migraphx::shape{migraphx::shape::int32_type, {8, 3, 64, 64}};
+    auto s  = migraphx::shape{migraphx::shape::int32_type, {8, 3, 64, 64}};
     auto ws = migraphx::shape{migraphx::shape::int32_type, {12, 3, 3, 3}};
     migraphx::program p1;
     {

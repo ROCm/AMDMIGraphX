@@ -495,16 +495,16 @@ TEST_CASE(simplify_div_const)
 {
     migraphx::program p1;
     {
-        auto x    = p1.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto two    = p1.add_literal(2);
+        auto x   = p1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto two = p1.add_literal(2);
         p1.add_instruction(migraphx::op::div{}, x, two);
     }
     run_pass(p1);
 
     migraphx::program p2;
     {
-        auto x    = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto two  = p2.add_literal(2);
+        auto x     = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto two   = p2.add_literal(2);
         auto recip = p2.insert_instruction(std::next(two), migraphx::op::recip{}, two);
         p2.add_instruction(migraphx::op::mul{}, x, recip);
     }
@@ -515,16 +515,16 @@ TEST_CASE(simplify_sub_const)
 {
     migraphx::program p1;
     {
-        auto x    = p1.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto two    = p1.add_literal(2);
+        auto x   = p1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto two = p1.add_literal(2);
         p1.add_instruction(migraphx::op::sub{}, x, two);
     }
     run_pass(p1);
 
     migraphx::program p2;
     {
-        auto x    = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto two  = p2.add_literal(2);
+        auto x   = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto two = p2.add_literal(2);
         auto neg = p2.insert_instruction(std::next(two), migraphx::op::neg{}, two);
         p2.add_instruction(migraphx::op::add{}, x, neg);
     }

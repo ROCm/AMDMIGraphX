@@ -98,8 +98,7 @@ def add_scalar_test():
 
     node = onnx.helper.make_node('Add', inputs=['0', '1'], outputs=['2'])
 
-    return ([node], [x, y], [z],
-            [helper.make_tensor('1', TensorProto.FLOAT, [], [1])])
+    return ([node], [x, y], [z])
 
 
 @onnx_test
@@ -1865,7 +1864,7 @@ def sub_scalar_test():
 
     values_tensor = helper.make_tensor(name='const',
                                        data_type=TensorProto.FLOAT,
-                                       dims=values.shape,
+                                       dims=values.reshape(()).shape,
                                        vals=values.flatten().astype(float))
 
     arg_const = onnx.helper.make_node(

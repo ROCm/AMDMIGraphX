@@ -1049,12 +1049,8 @@ struct onnx_parser
         std::vector<int64_t> pads{};
         if(args.size() >= 2)
         {
-            auto pad_ins = args.at(1);
-            if(!pad_ins->can_eval())
-            {
-                MIGRAPHX_THROW("PARSE_PAD: pad input must be constant");
-            }
-            auto pad_arg = pad_ins->eval();
+            auto pad_arg = args.at(1)->eval();
+            check_arg_empty(pad_arg, "PARSE_PAD: pad input must be constant");
             pad_arg.visit([&](auto v) { pads.assign(v.begin(), v.end()); });
         }
         else if(contains(info.attributes, "pads"))

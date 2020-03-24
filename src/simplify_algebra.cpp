@@ -318,7 +318,7 @@ struct find_splits
         return groups;
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(program& p, const match::matcher_result& r) const
     {
         auto ins = r.result;
 
@@ -413,7 +413,7 @@ struct find_split_concat
             match::name("slice")(match::all_of[match::outputs()](match::name("concat")))));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(program& p, const match::matcher_result& r) const
     {
         auto ins = r.result;
 
@@ -565,9 +565,7 @@ MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
     };
     auto dots  = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("dot"));
     auto convs = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("convolution"));
-    if(dots < 2 and convs < 2)
-        return false;
-    return true;
+    return !(dots < 2 and convs < 2);
 }
 
 struct find_conv_dot_horiz_fusion
@@ -584,7 +582,7 @@ struct find_conv_dot_horiz_fusion
             ins->outputs().begin(), ins->outputs().end(), [&](auto i) { return reaches(i, args); });
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(program& p, const match::matcher_result& r) const
     {
         auto ins = r.result;
 
@@ -620,7 +618,7 @@ struct find_conv_dot_horiz_fusion
             int concat_axis = 0;
             if(name == "dot")
             {
-                axis        = args.front()->get_shape().lens().size() - 1;
+                axis        = int(args.front()->get_shape().lens().size() - 1);
                 concat_axis = axis;
             }
 

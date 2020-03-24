@@ -16,7 +16,7 @@ struct find_dot_add
 {
     auto matcher() const { return match::name("dot")(match::nargs(3)); }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(program& p, const match::matcher_result& r) const
     {
         auto ins = r.result;
         auto dot = any_cast<op::dot>(ins->get_operator());

@@ -697,4 +697,81 @@ TEST_CASE(simplify_split_between_add)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(simplify_dot_horiz)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 2}};
+    migraphx::program p1;
+    {
+        auto input = p1.add_parameter("input", s);
+        auto a = p1.add_literal(migraphx::generate_literal(s, 0));
+        auto b = p1.add_literal(migraphx::generate_literal(s, 1));
+        auto x     = p1.add_instruction(migraphx::op::dot{}, input, a);
+        auto y     = p1.add_instruction(migraphx::op::dot{}, input, b);
+        auto sum   = p1.add_instruction(migraphx::op::add{}, x, y);
+        p1.add_instruction(pass_op{}, sum);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto input = p2.add_parameter("input", s);
+        auto a = p2.add_literal(migraphx::generate_literal(s, 0));
+        auto b = p2.add_literal(migraphx::generate_literal(s, 1));
+        auto concat = p2.add_instruction(migraphx::op::concat{2}, a, b);
+        auto dot = p2.add_instruction(migraphx::op::dot{}, input, concat);
+        auto x     = p2.add_instruction(migraphx::op::slice{{2}, {0}, {2}}, dot);
+        auto y     = p2.add_instruction(migraphx::op::slice{{2}, {2}, {4}}, dot);
+        auto sum   = p2.add_instruction(migraphx::op::add{}, x, y);
+        p2.add_instruction(pass_op{}, sum);
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(simplify_dot_horiz_same_constant)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 2}};
+    migraphx::program p1;
+    {
+        auto input = p1.add_parameter("input", s);
+        auto a = p1.add_literal(migraphx::generate_literal(s, 0));
+        auto x     = p1.add_instruction(migraphx::op::dot{}, input, a);
+        auto y     = p1.add_instruction(migraphx::op::dot{}, input, a);
+        auto sum   = p1.add_instruction(migraphx::op::add{}, x, y);
+        p1.add_instruction(pass_op{}, sum);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto input = p2.add_parameter("input", s);
+        auto a = p2.add_literal(migraphx::generate_literal(s, 0));
+        auto concat = p2.add_instruction(migraphx::op::concat{2}, a, a);
+        auto dot = p2.add_instruction(migraphx::op::dot{}, input, concat);
+        auto x     = p2.add_instruction(migraphx::op::slice{{2}, {0}, {2}}, dot);
+        auto y     = p2.add_instruction(migraphx::op::slice{{2}, {2}, {4}}, dot);
+        auto sum   = p2.add_instruction(migraphx::op::add{}, x, y);
+        p2.add_instruction(pass_op{}, sum);
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(simplify_dot_horiz_flipped)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 2}};
+    migraphx::program p1;
+    {
+        auto input = p1.add_parameter("input", s);
+        auto a = p1.add_literal(migraphx::generate_literal(s, 0));
+        auto b = p1.add_literal(migraphx::generate_literal(s, 1));
+        auto x     = p1.add_instruction(migraphx::op::dot{}, input, a);
+        auto y     = p1.add_instruction(migraphx::op::dot{}, b, input);
+        auto sum   = p1.add_instruction(migraphx::op::add{}, x, y);
+        p1.add_instruction(pass_op{}, sum);
+    }
+
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

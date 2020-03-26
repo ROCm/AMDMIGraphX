@@ -43,10 +43,12 @@ typedef struct
     bool offload_copy;
 } migraphx_compile_options;
 
-typedef struct
-{
-    size_t batch_size;
-} migraphx_onnx_options;
+// typedef struct
+// {
+//     size_t batch_size;
+// } migraphx_onnx_options;
+
+typedef struct migraphx_onnx_options* migraphx_onnx_options_t;
 
 typedef struct migraphx_shape* migraphx_shape_t;
 typedef const struct migraphx_shape* const_migraphx_shape_t;
@@ -167,6 +169,20 @@ migraphx_status migraphx_program_print(const_migraphx_program_t program);
 migraphx_status migraphx_program_run(migraphx_arguments_t* out,
                                      migraphx_program_t program,
                                      migraphx_program_parameters_t params);
+
+migraphx_status
+migraphx_onnx_options_create(migraphx_onnx_options_t* options);
+
+migraphx_status
+migraphx_onnx_options_add_parameter_shape(migraphx_onnx_options_t options,
+                                          const char *name,
+                                          const std::size_t num_dim,
+                                          const std::size_t *dims);
+
+migraphx_status migraphx_shape_create(migraphx_shape_t* shape,
+                                      migraphx_shape_datatype_t type,
+                                      size_t* lengths,
+                                      size_t lengths_size);
 
 migraphx_status
 migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migraphx_program_t x);

@@ -36,7 +36,8 @@ struct onnx_parser
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog            = program();
     bool is_pytorch         = false;
-    unsigned int batch_size = 1;
+    // unsigned int batch_size = 1;
+    std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
 
     std::unordered_map<std::string, op_func> ops;
     std::unordered_map<std::string, operation> map_actv_funcs;
@@ -1796,8 +1797,14 @@ struct onnx_parser
             // input not in initializer_data, so it is a real input
             if(!contains(instructions, name))
             {
+                std::vector<std::size_t> dims;
+                if (map_input_dims.count(name) > 0)
+                {
+                    dims = map_input_dims.at(name);
+                }
+
                 // TODO: Get shape of input parameter
-                shape s            = parse_type(input.type(), batch_size);
+                shape s            = parse_type(input.type(), dims);
                 instructions[name] = prog.add_parameter(name, s);
             }
         }
@@ -2043,7 +2050,7 @@ struct onnx_parser
         return literal{{shape_type, dims}, data.begin(), data.end()};
     }
 
-    static shape parse_type(const onnx::TypeProto& t, const unsigned int batch_size)
+    static shape parse_type(const onnx::TypeProto& t, std::vector<std::size_t> input_dims)
     {
         shape::type_t shape_type{};
         switch(t.tensor_type().elem_type())
@@ -2068,18 +2075,43 @@ struct onnx_parser
         }
         std::vector<std::size_t> dims;
         auto&& tensor_dims = t.tensor_type().shape().dim();
+        // no input dims for a parameter, use 0 as a placeholder
+        if (input_dims.empty() and !input_dims.empty())
+        {
+            input_dims.resize(tensor_dims.size(), 0);
+        }
+
         std::transform(tensor_dims.begin(),
                        tensor_dims.end(),
+                       input_dims.begin(),
                        std::back_inserter(dims),
-                       [&](auto&& d) -> std::size_t {
+                       [&](auto&& d, auto v) -> std::size_t {
                            if(d.has_dim_value())
                            {
                                if(static_cast<int>(d.dim_value()) <= 0)
-                                   return batch_size;
+                               {
+                                   if (v == 0)
+                                   {
+                                       MIGRAPHX_THROW("PARSE_TYPE: input parameter need a dim value!");
+                                   }
+                                   else
+                                   {
+                                       return v;
+                                   }
+                               }
                                return d.dim_value();
                            }
-                           return batch_size;
+                           else
+                           {
+                               if (v == 0)
+                               {
+                                   MIGRAPHX_THROW("PARSE_TYPE: input parameter need a dim value!");
+                               }
+                           }
+
+                           return v;
                        });
+
         if(dims.empty())
             return {shape_type};
 
@@ -2121,7 +2153,8 @@ template <class... Ts>
 program parse_onnx_from(onnx_options options, Ts&&... xs)
 {
     onnx_parser parser;
-    parser.batch_size = options.batch_size;
+    parser.map_input_dims = options.map_input_dims;
+
 #ifndef NDEBUG
     // Log the program when it can't be parsed
     try

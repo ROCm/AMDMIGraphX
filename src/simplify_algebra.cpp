@@ -401,9 +401,9 @@ void simplify_algebra::apply(program& p) const
                             find_add_convs{},
                             find_mul_conv{},
                             find_mul_add{},
-                            find_concat_unary{},
                             find_div_const{},
                             find_sub_const{},
+                            find_concat_unary{},
                             find_concat_binary{});
         dead_code_elimination{}.apply(p);
     }

@@ -92,7 +92,10 @@ void set_batch_size(onnx_options& options, unsigned int batch_size)
     options.batch_size = batch_size;
 }
 
-void add_parameter_shape(onnx_options& options, const char* name, std::size_t dim_num, const std::size_t* dims)
+void add_parameter_shape(onnx_options& options,
+                         const char* name,
+                         std::size_t dim_num,
+                         const std::size_t* dims)
 {
     options.map_input_dims[std::string(name)] = std::vector<std::size_t>(dims, dims + dim_num);
 }

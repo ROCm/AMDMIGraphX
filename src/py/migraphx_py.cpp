@@ -182,16 +182,18 @@ PYBIND11_MODULE(migraphx, m)
           py::arg("batch_size") = 1);
 
     m.def("parse_onnx",
-          [](const std::string& filename, std::unordered_map<std::string, std::vector<std::size_t>>& map_input_dims, unsigned int batch_size) {
+          [](const std::string& filename,
+             std::unordered_map<std::string, std::vector<std::size_t>>& map_input_dims,
+             unsigned int batch_size) {
               migraphx::onnx_options options;
               options.map_input_dims = map_input_dims;
-              options.batch_size = batch_size;
+              options.batch_size     = batch_size;
               return migraphx::parse_onnx(filename, options);
           },
           "Parse onnx file",
           py::arg("filename"),
           py::arg("map_input_dims") = std::map<std::string, std::vector<std::size_t>>(),
-          py::arg("batch_size") = 1);
+          py::arg("batch_size")     = 1);
 
     m.def("get_target", [](const std::string& name) -> migraphx::target {
         if(name == "cpu")

@@ -501,9 +501,7 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
 
     void set_batch_size(unsigned int batch_size)
     {
-        call(&migraphx_onnx_options_set_batch_size,
-             this->get_handle_ptr(),
-             batch_size);
+        call(&migraphx_onnx_options_set_batch_size, this->get_handle_ptr(), batch_size);
     }
 };
 

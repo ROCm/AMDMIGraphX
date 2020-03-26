@@ -32,8 +32,10 @@ def compile_options_type_wrap(p):
         p.add_param('migraphx_compile_options *')
         p.read = '${name} == nullptr ? migraphx::compile_options{} : migraphx::to_compile_options(*${name})'
 
+
 def auto_handle(f):
     return api.handle('migraphx_' + f.__name__, 'migraphx::' + f.__name__)(f)
+
 
 @auto_handle
 def shape(h):
@@ -156,19 +158,23 @@ def program(h):
              returns='bool',
              const=True)
 
+
 @auto_handle
 def onnx_options(h):
     h.constructor('create')
-    h.method('add_parameter_shape',
-             api.params(name='const char*',
-                        dim_num='std::size_t',
-                        dims='std::size_t*'),
-             invoke='migraphx::add_parameter_shape($@)',
-            )
-    h.method('set_batch_size',
-             api.params(batch_size='unsigned int'),
-             invoke='migraphx::set_batch_size($@)',
-            )
+    h.method(
+        'add_parameter_shape',
+        api.params(name='const char*',
+                   dim_num='std::size_t',
+                   dims='std::size_t*'),
+        invoke='migraphx::add_parameter_shape($@)',
+    )
+    h.method(
+        'set_batch_size',
+        api.params(batch_size='unsigned int'),
+        invoke='migraphx::set_batch_size($@)',
+    )
+
 
 api.add_function('migraphx_parse_onnx',
                  api.params(name='const char*',

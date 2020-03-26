@@ -498,6 +498,13 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
              dim.size(),
              dim.data());
     }
+
+    void set_batch_size(unsigned int batch_size)
+    {
+        call(&migraphx_onnx_options_set_batch_size,
+             this->get_handle_ptr(),
+             batch_size);
+    }
 };
 
 inline program parse_onnx(const char* filename, migraphx_onnx_options options)

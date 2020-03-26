@@ -170,14 +170,12 @@ migraphx_status migraphx_program_run(migraphx_arguments_t* out,
                                      migraphx_program_t program,
                                      migraphx_program_parameters_t params);
 
-migraphx_status
-migraphx_onnx_options_create(migraphx_onnx_options_t* options);
+migraphx_status migraphx_onnx_options_create(migraphx_onnx_options_t* options);
 
-migraphx_status
-migraphx_onnx_options_add_parameter_shape(migraphx_onnx_options_t options,
-                                          const char *name,
-                                          const std::size_t num_dim,
-                                          const std::size_t *dims);
+migraphx_status migraphx_onnx_options_add_parameter_shape(migraphx_onnx_options_t options,
+                                                          const char* name,
+                                                          const std::size_t num_dim,
+                                                          const std::size_t* dims);
 
 migraphx_status migraphx_shape_create(migraphx_shape_t* shape,
                                       migraphx_shape_datatype_t type,

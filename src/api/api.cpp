@@ -585,8 +585,7 @@ migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migrap
     });
 }
 
-extern "C" migraphx_status 
-migraphx_onnx_options_create(migraphx_onnx_options_t* options)
+extern "C" migraphx_status migraphx_onnx_options_create(migraphx_onnx_options_t* options)
 {
     return migraphx::try_([&] {
         *options = object_cast<migraphx_onnx_options_t>(allocate<migraphx::onnx_options>());
@@ -595,20 +594,17 @@ migraphx_onnx_options_create(migraphx_onnx_options_t* options)
 
 extern "C" migraphx_status
 migraphx_onnx_options_add_parameter_shape(migraphx_onnx_options_t options,
-                                        const char *name,
-                                        const std::size_t num_dim,
-                                        const std::size_t *dims)
+                                          const char* name,
+                                          const std::size_t num_dim,
+                                          const std::size_t* dims)
 {
     return migraphx::try_([&] {
         if(options == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param,
-                           "Bad parameter options: Null pointer");
-        if (name == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param,
-                           "Bad parameter name: Null pointer");
-        if (dims == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param,
-                           "Bad parameter dims: Null pointer");
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
+        if(name == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter name: Null pointer");
+        if(dims == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dims: Null pointer");
         (options->object).map_input_dims[(name)] = std::vector<std::size_t>(dims, dims + num_dim);
     });
 }
@@ -618,8 +614,7 @@ migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_opt
 {
     return migraphx::try_([&] {
         *out = allocate<migraphx_program_t>(migraphx::parse_onnx(
-            (name),
-            (options == nullptr ? migraphx::onnx_options{} : to_onnx_options(*options))));
+            (name), (options == nullptr ? migraphx::onnx_options{} : to_onnx_options(*options))));
     });
 }
 

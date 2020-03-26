@@ -34,8 +34,8 @@ struct onnx_parser
         std::function<std::vector<instruction_ref>(node_info, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog            = program();
-    bool is_pytorch         = false;
+    program prog    = program();
+    bool is_pytorch = false;
     // unsigned int batch_size = 1;
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
 
@@ -1798,7 +1798,7 @@ struct onnx_parser
             if(!contains(instructions, name))
             {
                 std::vector<std::size_t> dims;
-                if (map_input_dims.count(name) > 0)
+                if(map_input_dims.count(name) > 0)
                 {
                     dims = map_input_dims.at(name);
                 }
@@ -2076,7 +2076,7 @@ struct onnx_parser
         std::vector<std::size_t> dims;
         auto&& tensor_dims = t.tensor_type().shape().dim();
         // no input dims for a parameter, use 0 as a placeholder
-        if (input_dims.empty() and !input_dims.empty())
+        if(input_dims.empty() and !input_dims.empty())
         {
             input_dims.resize(tensor_dims.size(), 0);
         }
@@ -2090,9 +2090,10 @@ struct onnx_parser
                            {
                                if(static_cast<int>(d.dim_value()) <= 0)
                                {
-                                   if (v == 0)
+                                   if(v == 0)
                                    {
-                                       MIGRAPHX_THROW("PARSE_TYPE: input parameter need a dim value!");
+                                       MIGRAPHX_THROW(
+                                           "PARSE_TYPE: input parameter need a dim value!");
                                    }
                                    else
                                    {
@@ -2103,7 +2104,7 @@ struct onnx_parser
                            }
                            else
                            {
-                               if (v == 0)
+                               if(v == 0)
                                {
                                    MIGRAPHX_THROW("PARSE_TYPE: input parameter need a dim value!");
                                }

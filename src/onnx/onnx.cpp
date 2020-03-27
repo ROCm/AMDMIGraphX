@@ -472,7 +472,7 @@ struct onnx_parser
             std::array<std::size_t, 2> k_lens;
             k_lens[0] = weight_lens[2];
             k_lens[1] = weight_lens[3];
-            l0 = process_auto_pad_attribute(l0, info, op, k_lens, op.dilation, in_lens);
+            l0        = process_auto_pad_attribute(l0, info, op, k_lens, op.dilation, in_lens);
         }
         if(contains(info.attributes, "group"))
         {

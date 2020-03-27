@@ -33,6 +33,16 @@ def compile_options_type_wrap(p):
         p.read = '${name} == nullptr ? migraphx::compile_options{} : migraphx::to_compile_options(*${name})'
 
 
+@api.cwrap('migraphx::onnx_options')
+def onnx_options_type_wrap(p):
+    if p.returns:
+        p.add_param('migraphx_onnx_options *')
+        p.bad_param('${name} == nullptr', 'Null pointer')
+        p.write = ['*${name} = migraphx::to_onnx_options(${result})']
+    else:
+        p.add_param('migraphx_onnx_options *')
+        p.read = '${name} == nullptr ? migraphx::onnx_options{} : migraphx::to_onnx_options(*${name})'
+
 def auto_handle(f):
     return api.handle('migraphx_' + f.__name__, 'migraphx::' + f.__name__)(f)
 

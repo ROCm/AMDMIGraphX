@@ -484,17 +484,17 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
 
 struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
 {
-    onnx_options() {}
+    onnx_options() { this->make_handle(&migraphx_onnx_options_create);}
 
     onnx_options(migraphx_onnx_options* p, own) { this->set_handle(p, own{}); }
 
     onnx_options(migraphx_onnx_options* p, borrow) { this->set_handle(p, borrow{}); }
 
-    void add_parameter_shape(const char* pname, std::vector<std::size_t>& dim)
+    void add_parameter_shape(const std::string& name, std::vector<std::size_t>& dim)
     {
         call(&migraphx_onnx_options_add_parameter_shape,
              this->get_handle_ptr(),
-             pname,
+             name.c_str(),
              dim.size(),
              dim.data());
     }

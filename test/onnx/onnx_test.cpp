@@ -1562,7 +1562,7 @@ TEST_CASE(variable_batch_user_input_test)
 {
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 16, 16}});
-    auto r = p.add_instruction(migraphx::op::identity{}, l0);
+    auto r  = p.add_instruction(migraphx::op::identity{}, l0);
     p.add_return({r});
 
     migraphx::onnx_options options;

@@ -980,4 +980,116 @@ TEST_CASE(simplify_conv_horiz_groups)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(simplify_conv_horiz_groups_extra1)
+{
+    auto s   = migraphx::shape{migraphx::shape::int32_type, {8, 6, 64, 64}};
+    auto ws1 = migraphx::shape{migraphx::shape::int32_type, {6, 6, 3, 3}};
+    auto ws2 = migraphx::shape{migraphx::shape::int32_type, {8, 6, 64, 64}};
+    migraphx::program p1;
+    {
+        auto input = p1.add_parameter("input", s);
+        auto a     = p1.add_literal(migraphx::generate_literal(ws1, 0));
+        auto b     = p1.add_literal(migraphx::generate_literal(ws1, 1));
+        auto c     = p1.add_literal(migraphx::generate_literal(ws2, 2));
+        auto d     = p1.add_literal(migraphx::generate_literal(ws2, 3));
+        auto e     = p1.add_literal(migraphx::generate_literal(s, 4));
+        auto convx = p1.add_instruction(migraphx::op::convolution{{1, 1}}, input, a);
+        auto convy = p1.add_instruction(migraphx::op::convolution{{1, 1}}, input, b);
+        auto dotx  = p1.add_instruction(migraphx::op::dot{}, input, c);
+        auto doty  = p1.add_instruction(migraphx::op::dot{}, input, d);
+        auto sqdiffx = p1.add_instruction(migraphx::op::sqdiff{}, input, e);
+        auto sum1  = p1.add_instruction(migraphx::op::add{}, convx, convy);
+        auto sum2  = p1.add_instruction(migraphx::op::add{}, dotx, doty);
+        auto sum3  = sqdiffx;
+        auto sum4  = p1.add_instruction(migraphx::op::add{}, sum1, sum2);
+        auto sum5  = p1.add_instruction(migraphx::op::add{}, sum4, sum3);
+        p1.add_instruction(pass_op{}, sum5);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto input   = p2.add_parameter("input", s);
+        auto a       = p2.add_literal(migraphx::generate_literal(ws1, 0));
+        auto b       = p2.add_literal(migraphx::generate_literal(ws1, 1));
+        auto c       = p2.add_literal(migraphx::generate_literal(ws2, 2));
+        auto d       = p2.add_literal(migraphx::generate_literal(ws2, 3));
+        auto e     = p2.add_literal(migraphx::generate_literal(s, 4));
+        auto concat1 = p2.add_instruction(migraphx::op::concat{0}, a, b);
+        auto concat2 = p2.add_instruction(migraphx::op::concat{3}, c, d);
+        auto conv    = p2.add_instruction(migraphx::op::convolution{{1, 1}}, input, concat1);
+        auto convx   = p2.add_instruction(migraphx::op::slice{{1}, {0}, {6}}, conv);
+        auto convy   = p2.add_instruction(migraphx::op::slice{{1}, {6}, {12}}, conv);
+        auto sum1    = p2.add_instruction(migraphx::op::add{}, convx, convy);
+        auto dot     = p2.add_instruction(migraphx::op::dot{}, input, concat2);
+        auto dotx    = p2.add_instruction(migraphx::op::slice{{3}, {0}, {64}}, dot);
+        auto doty    = p2.add_instruction(migraphx::op::slice{{3}, {64}, {128}}, dot);
+        auto sum2    = p2.add_instruction(migraphx::op::add{}, dotx, doty);
+        auto sqdiffx = p2.add_instruction(migraphx::op::sqdiff{}, input, e);
+        auto sum3  = sqdiffx;
+        auto sum4  = p2.add_instruction(migraphx::op::add{}, sum1, sum2);
+        auto sum5  = p2.add_instruction(migraphx::op::add{}, sum4, sum3);
+        p2.add_instruction(pass_op{}, sum5);
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(simplify_conv_horiz_groups_extra2)
+{
+    auto s   = migraphx::shape{migraphx::shape::int32_type, {8, 6, 64, 64}};
+    auto ws1 = migraphx::shape{migraphx::shape::int32_type, {6, 6, 3, 3}};
+    auto ws2 = migraphx::shape{migraphx::shape::int32_type, {8, 6, 64, 64}};
+    migraphx::program p1;
+    {
+        auto input = p1.add_parameter("input", s);
+        auto a     = p1.add_literal(migraphx::generate_literal(ws1, 0));
+        auto b     = p1.add_literal(migraphx::generate_literal(ws1, 1));
+        auto c     = p1.add_literal(migraphx::generate_literal(ws2, 2));
+        auto d     = p1.add_literal(migraphx::generate_literal(ws2, 3));
+        auto e     = p1.add_literal(migraphx::generate_literal(s, 4));
+        auto f     = p1.add_literal(migraphx::generate_literal(s, 5));
+        auto convx = p1.add_instruction(migraphx::op::convolution{{1, 1}}, input, a);
+        auto convy = p1.add_instruction(migraphx::op::convolution{{1, 1}}, input, b);
+        auto dotx  = p1.add_instruction(migraphx::op::dot{}, input, c);
+        auto doty  = p1.add_instruction(migraphx::op::dot{}, input, d);
+        auto sqdiffx = p1.add_instruction(migraphx::op::sqdiff{}, input, e);
+        auto sqdiffy = p1.add_instruction(migraphx::op::sqdiff{}, input, f);
+        auto sum1  = p1.add_instruction(migraphx::op::add{}, convx, convy);
+        auto sum2  = p1.add_instruction(migraphx::op::add{}, dotx, doty);
+        auto sum3  = p1.add_instruction(migraphx::op::add{}, sqdiffx, sqdiffy);
+        auto sum4  = p1.add_instruction(migraphx::op::add{}, sum1, sum2);
+        auto sum5  = p1.add_instruction(migraphx::op::add{}, sum4, sum3);
+        p1.add_instruction(pass_op{}, sum5);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto input   = p2.add_parameter("input", s);
+        auto a       = p2.add_literal(migraphx::generate_literal(ws1, 0));
+        auto b       = p2.add_literal(migraphx::generate_literal(ws1, 1));
+        auto c       = p2.add_literal(migraphx::generate_literal(ws2, 2));
+        auto d       = p2.add_literal(migraphx::generate_literal(ws2, 3));
+        auto e     = p2.add_literal(migraphx::generate_literal(s, 4));
+        auto f     = p2.add_literal(migraphx::generate_literal(s, 5));
+        auto concat1 = p2.add_instruction(migraphx::op::concat{0}, a, b);
+        auto concat2 = p2.add_instruction(migraphx::op::concat{3}, c, d);
+        auto conv    = p2.add_instruction(migraphx::op::convolution{{1, 1}}, input, concat1);
+        auto convx   = p2.add_instruction(migraphx::op::slice{{1}, {0}, {6}}, conv);
+        auto convy   = p2.add_instruction(migraphx::op::slice{{1}, {6}, {12}}, conv);
+        auto sum1    = p2.add_instruction(migraphx::op::add{}, convx, convy);
+        auto dot     = p2.add_instruction(migraphx::op::dot{}, input, concat2);
+        auto dotx    = p2.add_instruction(migraphx::op::slice{{3}, {0}, {64}}, dot);
+        auto doty    = p2.add_instruction(migraphx::op::slice{{3}, {64}, {128}}, dot);
+        auto sum2    = p2.add_instruction(migraphx::op::add{}, dotx, doty);
+        auto sqdiffx = p2.add_instruction(migraphx::op::sqdiff{}, input, e);
+        auto sqdiffy = p2.add_instruction(migraphx::op::sqdiff{}, input, f);
+        auto sum3  = p2.add_instruction(migraphx::op::add{}, sqdiffx, sqdiffy);
+        auto sum4  = p2.add_instruction(migraphx::op::add{}, sum1, sum2);
+        auto sum5  = p2.add_instruction(migraphx::op::add{}, sum4, sum3);
+        p2.add_instruction(pass_op{}, sum5);
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

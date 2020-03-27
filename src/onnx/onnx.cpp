@@ -34,8 +34,8 @@ struct onnx_parser
         std::function<std::vector<instruction_ref>(node_info, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog    = program();
-    bool is_pytorch = false;
+    program prog            = program();
+    bool is_pytorch         = false;
     unsigned int batch_size = 1;
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
 
@@ -2079,7 +2079,9 @@ struct onnx_parser
         return literal{{shape_type, dims}, data.begin(), data.end()};
     }
 
-    static shape parse_type(const onnx::TypeProto& t, std::vector<std::size_t> input_dims, unsigned int batch_size)
+    static shape parse_type(const onnx::TypeProto& t,
+                            std::vector<std::size_t> input_dims,
+                            unsigned int batch_size)
     {
         shape::type_t shape_type{};
         switch(t.tensor_type().elem_type())
@@ -2117,11 +2119,11 @@ struct onnx_parser
                        std::back_inserter(dims),
                        [&](auto&& d, auto v) -> std::size_t {
                            // input dims has priority than existing dims
-                           if (v > 0)
+                           if(v > 0)
                            {
                                return v;
                            }
-                           else if (d.has_dim_value())
+                           else if(d.has_dim_value())
                            {
                                if(static_cast<int>(d.dim_value()) <= 0)
                                {
@@ -2177,7 +2179,7 @@ program parse_onnx_from(onnx_options options, Ts&&... xs)
 {
     onnx_parser parser;
     parser.map_input_dims = options.map_input_dims;
-    parser.batch_size = options.batch_size;
+    parser.batch_size     = options.batch_size;
 
 #ifndef NDEBUG
     // Log the program when it can't be parsed

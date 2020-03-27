@@ -2076,7 +2076,7 @@ struct onnx_parser
         std::vector<std::size_t> dims;
         auto&& tensor_dims = t.tensor_type().shape().dim();
         // no input dims for a parameter, use 0 as a placeholder
-        if(input_dims.empty() and !input_dims.empty())
+        if(input_dims.empty() and !tensor_dims.empty())
         {
             input_dims.resize(tensor_dims.size(), 0);
         }

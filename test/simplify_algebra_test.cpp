@@ -659,6 +659,32 @@ TEST_CASE(simplify_slice_missing_middle_slice)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(simplify_slice_missing_end_slice)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {3, 3, 4}};
+    migraphx::program p1;
+    {
+        auto b     = migraphx::op::broadcast{1, {3, 1, 4}};
+        auto input = p1.add_parameter("input", s);
+        auto x     = p1.add_instruction(migraphx::op::slice{{1}, {0}, {1}}, input);
+        auto y     = p1.add_instruction(migraphx::op::slice{{1}, {1}, {2}}, input);
+        auto one   = p1.add_literal(1);
+        auto oneb  = p1.add_instruction(b, one);
+        auto two   = p1.add_literal(2);
+        auto twob  = p1.add_instruction(b, two);
+        auto sum1  = p1.add_instruction(migraphx::op::add{}, x, oneb);
+        auto relu1 = p1.add_instruction(migraphx::op::relu{}, sum1);
+        auto sum2  = p1.add_instruction(migraphx::op::add{}, y, twob);
+        auto relu2 = p1.add_instruction(migraphx::op::relu{}, sum2);
+        auto add   = p1.add_instruction(migraphx::op::add{}, relu1, relu2);
+        p1.add_instruction(pass_op{}, add);
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(simplify_split_add_relu_concat_same_axis)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};

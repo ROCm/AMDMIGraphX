@@ -43,6 +43,7 @@ def onnx_options_type_wrap(p):
         p.add_param('migraphx_onnx_options *')
         p.read = '${name} == nullptr ? migraphx::onnx_options{} : migraphx::to_onnx_options(*${name})'
 
+
 def auto_handle(f):
     return api.handle('migraphx_' + f.__name__, 'migraphx::' + f.__name__)(f)
 

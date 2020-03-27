@@ -1558,6 +1558,21 @@ TEST_CASE(variable_batch_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(variable_batch_user_input_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 16, 16}});
+    auto r = p.add_instruction(migraphx::op::identity{}, l0);
+    p.add_return({r});
+
+    migraphx::onnx_options options;
+    options.batch_size = 2;
+
+    auto prog = migraphx::parse_onnx("variable_batch_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(variable_batch_leq_zero_test)
 {
     migraphx::program p;

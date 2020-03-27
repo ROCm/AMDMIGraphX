@@ -490,7 +490,7 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
 
     onnx_options(migraphx_onnx_options* p, borrow) { this->set_handle(p, borrow{}); }
 
-    void add_parameter_shape(const std::string& name, std::vector<std::size_t>& dim)
+    void add_parameter_shape(const std::string& name, std::vector<std::size_t> dim)
     {
         call(&migraphx_onnx_options_add_parameter_shape,
              this->get_handle_ptr(),

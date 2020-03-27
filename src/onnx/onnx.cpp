@@ -36,7 +36,7 @@ struct onnx_parser
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog    = program();
     bool is_pytorch = false;
-    // unsigned int batch_size = 1;
+    unsigned int batch_size = 1;
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
 
     std::unordered_map<std::string, op_func> ops;
@@ -1833,7 +1833,7 @@ struct onnx_parser
                 }
 
                 // TODO: Get shape of input parameter
-                shape s            = parse_type(input.type(), dims);
+                shape s            = parse_type(input.type(), dims, batch_size);
                 instructions[name] = prog.add_parameter(name, s);
             }
         }
@@ -2079,7 +2079,7 @@ struct onnx_parser
         return literal{{shape_type, dims}, data.begin(), data.end()};
     }
 
-    static shape parse_type(const onnx::TypeProto& t, std::vector<std::size_t> input_dims)
+    static shape parse_type(const onnx::TypeProto& t, std::vector<std::size_t> input_dims, unsigned int batch_size)
     {
         shape::type_t shape_type{};
         switch(t.tensor_type().elem_type())
@@ -2109,37 +2109,30 @@ struct onnx_parser
         {
             input_dims.resize(tensor_dims.size(), 0);
         }
+        assert(input_dims.size() == tensor_dims.size());
 
         std::transform(tensor_dims.begin(),
                        tensor_dims.end(),
                        input_dims.begin(),
                        std::back_inserter(dims),
                        [&](auto&& d, auto v) -> std::size_t {
-                           if(d.has_dim_value())
+                           // input dims has priority than existing dims
+                           if (v > 0)
+                           {
+                               return v;
+                           }
+                           else if (d.has_dim_value())
                            {
                                if(static_cast<int>(d.dim_value()) <= 0)
                                {
-                                   if(v == 0)
-                                   {
-                                       MIGRAPHX_THROW(
-                                           "PARSE_TYPE: input parameter need a dim value!");
-                                   }
-                                   else
-                                   {
-                                       return v;
-                                   }
+                                   return batch_size;
                                }
                                return d.dim_value();
                            }
                            else
                            {
-                               if(v == 0)
-                               {
-                                   MIGRAPHX_THROW("PARSE_TYPE: input parameter need a dim value!");
-                               }
+                               return batch_size;
                            }
-
-                           return v;
                        });
 
         if(dims.empty())
@@ -2184,6 +2177,7 @@ program parse_onnx_from(onnx_options options, Ts&&... xs)
 {
     onnx_parser parser;
     parser.map_input_dims = options.map_input_dims;
+    parser.batch_size = options.batch_size;
 
 #ifndef NDEBUG
     // Log the program when it can't be parsed

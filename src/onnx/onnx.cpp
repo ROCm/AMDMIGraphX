@@ -633,7 +633,7 @@ struct onnx_parser
 
         if(contains(info.attributes, "auto_pad"))
         {
-            auto s = attributes["auto_pad"].s();
+            auto s = info.attributes["auto_pad"].s();
             if(s.find("SAME") != std::string::npos)
             {
                 op.padding_mode = op::padding_mode_t::same;

@@ -486,11 +486,11 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
 {
     onnx_options() {}
 
-    onnx_options(migpraphx_onnx_options* p, own) { this->set_handle(p, own{}); }
+    onnx_options(migraphx_onnx_options* p, own) { this->set_handle(p, own{}); }
 
-    onnx_options(migpraphx_onnx_options* p, borrow) { this->set_handle(p, borrow{}); }
+    onnx_options(migraphx_onnx_options* p, borrow) { this->set_handle(p, borrow{}); }
 
-    void add_parameter_shape(const char* pname, std::vector<std::size>& dim)
+    void add_parameter_shape(const char* pname, std::vector<std::size_t>& dim)
     {
         call(&migraphx_onnx_options_add_parameter_shape,
              this->get_handle_ptr(),

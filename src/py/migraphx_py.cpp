@@ -183,7 +183,7 @@ PYBIND11_MODULE(migraphx, m)
 
     m.def("parse_onnx",
           [](const std::string& filename,
-             std::unordered_map<std::string, std::vector<std::size_t>>& map_input_dims,
+             std::unordered_map<std::string, const std::vector<std::size_t>> map_input_dims,
              unsigned int batch_size) {
               migraphx::onnx_options options;
               options.map_input_dims = map_input_dims;

@@ -34,15 +34,15 @@ struct slice
                          const std::vector<std::size_t>& lens) const
     {
         // tune axes
-        int64_t rank = static_cast<int64_t>(lens.size());
+        int64_t n_rank = static_cast<int64_t>(lens.size());
         if(!std::all_of(tuned_axes.begin(), tuned_axes.end(), [=](auto i) {
-               return (i < rank and i >= -rank);
+               return (i < n_rank and i >= -n_rank);
            }))
         {
             MIGRAPHX_THROW("SLICE: input axis " + to_string_range(tuned_axes) + " out of range");
         }
         std::transform(tuned_axes.begin(), tuned_axes.end(), tuned_axes.begin(), [=](auto i) {
-            return (i < 0) ? (i + rank) : i;
+            return (i < 0) ? (i + n_rank) : i;
         });
 
         std::vector<int64_t> axis_lens(tuned_axes.size());

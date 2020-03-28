@@ -744,7 +744,6 @@ struct onnx_parser
     parse_slice(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         op::slice op;
-        std::vector<size_t> dims = args[0]->get_shape().lens();
 
         // slice can have up to 5 inputs, we first check the 5th one
         // to decide whether MIGRAPHX can handle this slice

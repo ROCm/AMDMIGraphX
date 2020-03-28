@@ -518,7 +518,8 @@ inline program parse_onnx(const char* filename)
                    own{});
 }
 
-inline program parse_onnx_buffer(const void* data, size_t size, const migraphx::onnx_options& options)
+inline program
+parse_onnx_buffer(const void* data, size_t size, const migraphx::onnx_options& options)
 {
     return program(
         make<migraphx_program>(&migraphx_parse_onnx_buffer, data, size, options.get_handle_ptr()),

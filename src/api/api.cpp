@@ -603,7 +603,7 @@ extern "C" migraphx_status migraphx_onnx_options_create(migraphx_onnx_options_t*
 }
 
 extern "C" migraphx_status migraphx_onnx_options_add_parameter_shape(
-    migraphx_onnx_options_t onnx_options, const char* name, std::size_t dim_num, std::size_t* dims)
+    migraphx_onnx_options_t onnx_options, const char* name, size_t dim_num, size_t* dims)
 {
     return migraphx::try_([&] {
         if(onnx_options == nullptr)

@@ -176,8 +176,8 @@ def onnx_options(h):
     h.method(
         'add_parameter_shape',
         api.params(name='const char*',
-                   dim_num='std::size_t',
-                   dims='std::size_t*'),
+                   dim_num='size_t',
+                   dims='size_t*'),
         invoke='migraphx::add_parameter_shape($@)',
     )
     h.method(

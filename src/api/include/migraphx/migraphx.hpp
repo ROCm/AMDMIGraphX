@@ -505,7 +505,7 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
     }
 };
 
-inline program parse_onnx(const char* filename, migraphx::onnx_options options)
+inline program parse_onnx(const char* filename, const migraphx::onnx_options& options)
 {
     return program(make<migraphx_program>(&migraphx_parse_onnx, filename, options.get_handle_ptr()),
                    own{});
@@ -518,7 +518,7 @@ inline program parse_onnx(const char* filename)
                    own{});
 }
 
-inline program parse_onnx_buffer(const void* data, size_t size, migraphx::onnx_options options)
+inline program parse_onnx_buffer(const void* data, size_t size, const migraphx::onnx_options& options)
 {
     return program(
         make<migraphx_program>(&migraphx_parse_onnx_buffer, data, size, options.get_handle_ptr()),
@@ -533,7 +533,7 @@ inline program parse_onnx_buffer(const void* data, size_t size)
         own{});
 }
 
-inline program parse_onnx_buffer(const std::string& buffer, migraphx::onnx_options options)
+inline program parse_onnx_buffer(const std::string& buffer, const migraphx::onnx_options& options)
 {
     return program(
         make<migraphx_program>(

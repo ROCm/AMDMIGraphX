@@ -1,5 +1,4 @@
 import migraphx
-import numpy as np
 
 
 def test_conv_relu():
@@ -14,7 +13,7 @@ def test_conv_relu():
     params = {}
 
     for key, value in p.get_parameter_shapes().items():
-        print("Parameter {} -> {}".format(key, value))
+        print("Parameter {} -> {}".format(key, value))0
         params[key] = migraphx.generate_argument(value)
 
     r = p.run(params)[-1]
@@ -32,11 +31,15 @@ def test_add_scalar():
     assert s1 == s2
     params = {}
 
-    args = []
-    args.append(np.random.randn(2, 3, 4, 5).astype(np.single))
-    args.append(np.array(1).astype(np.single))
-    params["0"] = migraphx.argument(args[0])
-    params["1"] = migraphx.argument(args[1])
+    for key, value in p.get_parameter_shapes().items():
+        print("Parameter {} -> {}".format(key, value))0
+        params[key] = migraphx.generate_argument(value)
+
+    # args = []
+    # args.append(np.random.randn(2, 3, 4, 5).astype(np.single))
+    # args.append(np.array(1).astype(np.single))
+    # params["0"] = migraphx.argument(args[0])
+    # params["1"] = migraphx.argument(args[1])
 
     r = p.run(params)[-1]
     print(r)

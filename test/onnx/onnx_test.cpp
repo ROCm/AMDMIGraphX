@@ -1372,6 +1372,20 @@ TEST_CASE(softmax_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(split_minus_axis_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10, 15}});
+    auto r1    = p.add_instruction(migraphx::op::slice{{-1}, {0}, {5}}, input);
+    auto r2    = p.add_instruction(migraphx::op::slice{{-1}, {5}, {10}}, input);
+    auto r3    = p.add_instruction(migraphx::op::slice{{-1}, {10}, {15}}, input);
+    p.add_return({r1, r2, r3});
+
+    auto prog = migraphx::parse_onnx("split_minus_axis_test.onnx");
+    
+    EXPECT(p == prog);
+}
+
 TEST_CASE(split_test)
 {
     migraphx::program p;

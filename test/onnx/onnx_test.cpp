@@ -1382,7 +1382,7 @@ TEST_CASE(split_minus_axis_test)
     p.add_return({r1, r2, r3});
 
     auto prog = migraphx::parse_onnx("split_minus_axis_test.onnx");
-    
+
     EXPECT(p == prog);
 }
 

@@ -1823,6 +1823,7 @@ def softmax_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def split_minus_axis_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 15])
@@ -1834,10 +1835,11 @@ def split_minus_axis_test():
         'Split',
         inputs=['x'],
         outputs=['y1', 'y2', 'y3'],
-        axis = -1,
+        axis=-1,
     )
 
     return ([node], [x], [y1, y2, y3])
+
 
 @onnx_test
 def split_test():
@@ -1868,6 +1870,7 @@ def split_test_default():
     )
 
     return ([node], [x], [y1, y2])
+
 
 @onnx_test
 def sqrt_test():

@@ -13,7 +13,7 @@ def test_conv_relu():
     params = {}
 
     for key, value in p.get_parameter_shapes().items():
-        print("Parameter {} -> {}".format(key, value))0
+        print("Parameter {} -> {}".format(key, value))
         params[key] = migraphx.generate_argument(value)
 
     r = p.run(params)[-1]
@@ -32,7 +32,7 @@ def test_add_scalar():
     params = {}
 
     for key, value in p.get_parameter_shapes().items():
-        print("Parameter {} -> {}".format(key, value))0
+        print("Parameter {} -> {}".format(key, value))
         params[key] = migraphx.generate_argument(value)
 
     # args = []

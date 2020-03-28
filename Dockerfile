@@ -34,12 +34,11 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libnuma-dev \
     libpthread-stubs0-dev \
     libssl-dev \
-    python \
     python3 \
-    python-dev \
     python3-dev \
-    python-pip \
     python3-pip \
+    python-pip \
+    python-dev \
     rocm-device-libs \
     rocm-opencl \
     rocm-opencl-dev \
@@ -49,8 +48,11 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+
 # Install cget
-RUN pip install cget
+RUN pip3 install cget
 
 # Install rclone
 RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
@@ -60,6 +62,10 @@ RUN pip3 install yapf==0.28.0
 
 # Install numpy
 RUN pip3 install numpy
+
+# Install doc requirements
+ADD doc/requirements.txt /doc-requirements.txt
+RUN pip3 install -r /doc-requirements.txt
 
 # Install hcc
 RUN rclone -b roc-2.6.x -c 0f4c96b7851af2663a7f3ac16ecfb76c7c78a5bf https://github.com/RadeonOpenCompute/hcc.git /hcc
@@ -81,10 +87,6 @@ ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db
 
 ENV LD_LIBRARY_PATH=$PREFIX/lib
-
-# Install doc requirements
-ADD doc/requirements.txt /doc-requirements.txt
-RUN pip install -r /doc-requirements.txt
 
 # Setup ubsan environment to printstacktrace
 RUN ln -s /usr/bin/llvm-symbolizer-5.0 /usr/local/bin/llvm-symbolizer

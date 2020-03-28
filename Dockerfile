@@ -58,6 +58,9 @@ RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
 # Install yapf
 RUN pip3 install yapf==0.28.0
 
+# Install numpy
+RUN pip3 install numpy
+
 # Install hcc
 RUN rclone -b roc-2.6.x -c 0f4c96b7851af2663a7f3ac16ecfb76c7c78a5bf https://github.com/RadeonOpenCompute/hcc.git /hcc
 RUN cget -p $PREFIX install hcc,/hcc

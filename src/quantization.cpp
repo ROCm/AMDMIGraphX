@@ -80,9 +80,14 @@ instruction_ref insert_quant_ins(program& prog,
             shifted_ins  = prog.insert_instruction(insert_loc, op::add{}, l_shift, float_ins);
         }
 
-        auto rounded_ins = prog.insert_instruction(insert_loc, op::round{}, shifted_ins);
+        auto rounded_ins  = prog.insert_instruction(insert_loc, op::round{}, shifted_ins);
+        auto rounded_lens = rounded_ins->get_shape().lens();
+        auto max_clip     = prog.add_literal(127.0f);
+        auto min_clip     = prog.add_literal(-128.0f);
+        max_clip = prog.insert_instruction(insert_loc, op::multibroadcast{rounded_lens}, max_clip);
+        min_clip = prog.insert_instruction(insert_loc, op::multibroadcast{rounded_lens}, min_clip);
         auto clipped_ins =
-            prog.insert_instruction(insert_loc, op::clip{127.0f, -128.0f}, rounded_ins);
+            prog.insert_instruction(insert_loc, op::clip{}, rounded_ins, min_clip, max_clip);
         quant_ins = prog.insert_instruction(insert_loc, op::convert{type}, clipped_ins);
     }
     else

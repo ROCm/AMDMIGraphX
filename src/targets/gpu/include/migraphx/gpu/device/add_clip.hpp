@@ -15,16 +15,16 @@ void add_clip(hipStream_t stream,
               const argument& result,
               const argument& arg1,
               const argument& arg2,
-              float max,
-              float min);
+              const argument& min_arg,
+              const argument& max_arg);
 
 void add_clip(hipStream_t stream,
               const argument& result,
               const argument& arg1,
               const argument& arg2,
               const argument& arg3,
-              float max,
-              float min);
+              const argument& min_arg,
+              const argument& max_arg);
 
 } // namespace device
 } // namespace gpu

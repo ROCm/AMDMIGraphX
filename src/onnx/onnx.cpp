@@ -330,16 +330,48 @@ struct onnx_parser
     instruction_ref
     parse_clip(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
-        op::clip op;
-        if(contains(info.attributes, "max"))
+        auto input_lens = args[0]->get_shape().lens();
+        instruction_ref min_arg;
+        instruction_ref max_arg;
+        bool min_used = false;
+        bool max_used = false;
+
+        if(args.size() == 3)
         {
-            op.max_val = parse_value(info.attributes.at("max")).at<float>();
+            min_arg  = args[1];
+            max_arg  = args[2];
+            min_used = true;
+            max_used = true;
         }
-        if(contains(info.attributes, "min"))
+        else if(args.size() == 2)
         {
-            op.min_val = parse_value(info.attributes.at("min")).at<float>();
+            min_arg  = args[1];
+            min_used = true;
         }
-        return prog.add_instruction(op, std::move(args));
+        // if using previous opset for attributes
+        else if(contains(info.attributes, "min") and contains(info.attributes, "max"))
+        {
+
+            float min_val = parse_value(info.attributes.at("min")).at<float>();
+            float max_val = parse_value(info.attributes.at("max")).at<float>();
+            min_arg       = prog.add_literal(min_val);
+            max_arg       = prog.add_literal(max_val);
+            min_used      = true;
+            max_used      = true;
+        }
+
+        if(min_used)
+            min_arg = prog.add_instruction(op::multibroadcast{input_lens}, min_arg);
+
+        if(max_used)
+            max_arg = prog.add_instruction(op::multibroadcast{input_lens}, max_arg);
+
+        if(min_used and max_used)
+            return prog.add_instruction(op::clip{}, args[0], min_arg, max_arg);
+        if(min_used)
+            return prog.add_instruction(op::max{}, args[0], min_arg);
+
+        return prog.add_instruction(op::identity{}, args[0]);
     }
 
     template <class Op>

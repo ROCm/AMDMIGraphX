@@ -529,8 +529,12 @@ struct test_acosh : verify_program<test_acosh>
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {16}};
-        auto x  = p.add_parameter("x", s);
-        auto cx = p.add_instruction(migraphx::op::clip{100.0f, 1.1f}, x);
+        auto x       = p.add_parameter("x", s);
+        auto min_val = p.add_literal(1.1f);
+        auto max_val = p.add_literal(100.0f);
+        min_val      = p.add_instruction(migraphx::op::multibroadcast{{16}}, min_val);
+        max_val      = p.add_instruction(migraphx::op::multibroadcast{{16}}, max_val);
+        auto cx      = p.add_instruction(migraphx::op::clip{}, x, min_val, max_val);
         p.add_instruction(migraphx::op::acosh{}, cx);
         return p;
     }
@@ -542,8 +546,12 @@ struct test_atanh : verify_program<test_atanh>
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::double_type, {16}};
-        auto x  = p.add_parameter("x", s);
-        auto cx = p.add_instruction(migraphx::op::clip{0.95f, -0.95f}, x);
+        auto x       = p.add_parameter("x", s);
+        auto min_val = p.add_literal(-0.95);
+        auto max_val = p.add_literal(0.95);
+        min_val      = p.add_instruction(migraphx::op::multibroadcast{{16}}, min_val);
+        max_val      = p.add_instruction(migraphx::op::multibroadcast{{16}}, max_val);
+        auto cx      = p.add_instruction(migraphx::op::clip{}, x, min_val, max_val);
         p.add_instruction(migraphx::op::atanh{}, cx);
         return p;
     }
@@ -931,6 +939,7 @@ struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu>
     migraphx::program create_program() const
     {
         migraphx::program p;
+        std::vector<size_t> input_lens{4, 3, 3, 3};
         auto input =
             p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto weights =
@@ -942,7 +951,11 @@ struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu>
         auto bcast_add =
             p.add_instruction(migraphx::op::broadcast{1, conv->get_shape().lens()}, bias);
         auto bias_add = p.add_instruction(migraphx::op::add{}, conv, bcast_add);
-        p.add_instruction(migraphx::op::clip{6.0f, 0.0f}, bias_add);
+        auto min_val  = p.add_literal(0.0f);
+        auto max_val  = p.add_literal(6.0f);
+        min_val       = p.add_instruction(migraphx::op::multibroadcast{input_lens}, min_val);
+        max_val       = p.add_instruction(migraphx::op::multibroadcast{input_lens}, max_val);
+        p.add_instruction(migraphx::op::clip{}, bias_add, min_val, max_val);
         return p;
     }
 };
@@ -1928,8 +1941,12 @@ struct test_clip : verify_program<test_clip>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3}});
-        p.add_instruction(migraphx::op::clip{6.0, 0.0}, x);
+        auto x       = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3}});
+        auto min_val = p.add_literal(0.0f);
+        auto max_val = p.add_literal(6.0f);
+        min_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, min_val);
+        max_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, max_val);
+        p.add_instruction(migraphx::op::clip{}, x, min_val, max_val);
         return p;
     }
 };
@@ -4387,9 +4404,14 @@ struct test_rsqrt : verify_program<test_rsqrt>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        migraphx::shape s{migraphx::shape::float_type, {1, 3, 16, 16}};
-        auto x  = p.add_parameter("x", s);
-        auto l0 = p.add_instruction(migraphx::op::clip{std::numeric_limits<float>::max(), 1.0}, x);
+        std::vector<size_t> input_lens{1, 3, 16, 16};
+        migraphx::shape s{migraphx::shape::float_type, input_lens};
+        auto x       = p.add_parameter("x", s);
+        auto min_val = p.add_literal(1.0f);
+        auto max_val = p.add_literal(std::numeric_limits<float>::max());
+        min_val      = p.add_instruction(migraphx::op::multibroadcast{input_lens}, min_val);
+        max_val      = p.add_instruction(migraphx::op::multibroadcast{input_lens}, max_val);
+        auto l0      = p.add_instruction(migraphx::op::clip{}, x, min_val, max_val);
         p.add_instruction(migraphx::op::rsqrt{}, l0);
         return p;
     };

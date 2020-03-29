@@ -776,28 +776,56 @@ struct onnx_parser
     parse_slice(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         op::slice op;
-        std::vector<size_t> dims = args[0]->get_shape().lens();
-        size_t num_dims          = dims.size();
-        if(contains(info.attributes, "axes"))
+
+        // slice can have up to 5 inputs, we first check the 5th one
+        // to decide whether MIGRAPHX can handle this slice
+        if(args.size() == 5)
+        {
+            migraphx::argument step_arg = args.back()->eval();
+            check_arg_empty(step_arg, "PARSE_SLICE: cannot handle variable steps for slice");
+            std::vector<int> steps;
+            step_arg.visit([&](auto s) { steps.assign(s.begin(), s.end()); });
+            if(!std::all_of(steps.begin(), steps.end(), [](auto s) { return s == 1; }))
+            {
+                MIGRAPHX_THROW("PARSE_SLICE: cannot handle step other than 1");
+            }
+        }
+
+        if(args.size() >= 4)
+        {
+            migraphx::argument axes_arg = args.at(3)->eval();
+            check_arg_empty(axes_arg, "PARSE_SLICE: cannot handle variable axes for slice");
+            axes_arg.visit([&](auto s) { op.axes.assign(s.begin(), s.end()); });
+        }
+        else if(contains(info.attributes, "axes"))
         {
             literal s = parse_value(info.attributes.at("axes"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
         }
-        else
-        {
-            op.axes = std::vector<int64_t>(num_dims);
-            std::iota(op.axes.begin(), op.axes.end(), 0);
-        }
 
-        if(contains(info.attributes, "ends"))
+        if(args.size() >= 3)
+        {
+            migraphx::argument end_arg = args.at(2)->eval();
+            check_arg_empty(end_arg, "PARSE_SLICE: cannot handle variable ends for slice");
+            end_arg.visit([&](auto s) { op.ends.assign(s.begin(), s.end()); });
+        }
+        else if(contains(info.attributes, "ends"))
         {
             op.ends = get_indices(info.attributes.at("ends"));
         }
-        if(contains(info.attributes, "starts"))
+
+        if(args.size() >= 2)
+        {
+            migraphx::argument start_arg = args.at(1)->eval();
+            check_arg_empty(start_arg, "PARSE_SLICE: cannot handle variable starts for slice");
+            start_arg.visit([&](auto s) { op.starts.assign(s.begin(), s.end()); });
+        }
+        else if(contains(info.attributes, "starts"))
         {
             literal s = parse_value(info.attributes.at("starts"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.starts)); });
         }
+
         return prog.add_instruction(op, args[0]);
     }
 

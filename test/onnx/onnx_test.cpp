@@ -1376,6 +1376,22 @@ TEST_CASE(sinh_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(slice_5arg_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {5, 5}});
+    p.add_literal({{migraphx::shape::int32_type, {2}}, {-5, -3}});
+    p.add_literal({{migraphx::shape::int32_type, {2}}, {-1, -1}});
+    p.add_literal({{migraphx::shape::int32_type, {2}}, {-1, -2}});
+    p.add_literal({{migraphx::shape::int32_type, {2}}, {1, 1}});
+    auto ret = p.add_instruction(migraphx::op::slice{{-1, -2}, {-5, -3}, {-1, -1}}, l0);
+    p.add_return({ret});
+
+    auto prog = migraphx::parse_onnx("slice_5arg_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(slice_test)
 {
     migraphx::program p;
@@ -1392,6 +1408,20 @@ TEST_CASE(softmax_test)
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3}});
     p.add_instruction(migraphx::op::softmax{1}, l0);
     auto prog = optimize_onnx("softmax_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(split_minus_axis_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10, 15}});
+    auto r1    = p.add_instruction(migraphx::op::slice{{-1}, {0}, {5}}, input);
+    auto r2    = p.add_instruction(migraphx::op::slice{{-1}, {5}, {10}}, input);
+    auto r3    = p.add_instruction(migraphx::op::slice{{-1}, {10}, {15}}, input);
+    p.add_return({r1, r2, r3});
+
+    auto prog = migraphx::parse_onnx("split_minus_axis_test.onnx");
 
     EXPECT(p == prog);
 }

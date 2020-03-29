@@ -269,6 +269,43 @@ def clip_test():
 
 
 @onnx_test
+def clip_test_op11():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
+
+    min_val = helper.make_tensor('min', TensorProto.FLOAT, [], [0.0])
+    max_val = helper.make_tensor('max', TensorProto.FLOAT, [], [6.0])
+
+    node = onnx.helper.make_node('Clip',
+                                 inputs=['0', 'min', 'max'],
+                                 outputs=['1'])
+
+    return ([node], [x], [y], [min_val, max_val])
+
+
+@onnx_test
+def clip_test_op11_min_only():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
+
+    min_val = helper.make_tensor('min', TensorProto.FLOAT, [], [0.0])
+
+    node = onnx.helper.make_node('Clip', inputs=['0', 'min'], outputs=['1'])
+
+    return ([node], [x], [y], [min_val])
+
+
+@onnx_test
+def clip_test_op11_no_args():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node('Clip', inputs=['0'], outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def concat_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 4, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7, 4, 3])

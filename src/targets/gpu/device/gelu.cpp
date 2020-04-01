@@ -19,7 +19,7 @@ auto gelu_fn(T x) __device__
 template <class T>
 auto gelu_fn_new(T x) __device__
 {
-    return 0.5 * x * (1 + tanh(sqrt(2 / M_PI) * (x + 0.044715 * pow(x, 3))));
+    return 0.5 * x * (1 + tanh(sqrt(M_2_PI) * (x + 0.044715 * pow(x, 3))));
 }
 
 void gelu(hipStream_t stream, const argument& result, const argument& arg)

@@ -21,6 +21,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_FUSION)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_FAST_GELU)
 
 struct fusion
 {
@@ -260,6 +261,14 @@ struct hip_add_gelu : binary_device<hip_add_gelu, &device::add_gelu>
 {
 };
 
+struct hip_gelu_new : unary_device<hip_gelu_new, &device::gelu_new>
+{
+};
+
+struct hip_add_gelu_new : binary_device<hip_add_gelu_new, &device::add_gelu_new>
+{
+};
+
 struct hip_mul_add
 {
     std::string name() const { return "hip::mul_add"; }
@@ -347,7 +356,7 @@ struct find_add_gelu
     auto matcher() const
     {
         return match::name("gpu::gelu")(
-            match::arg(0)(match::name("gpu::add")(match::used_once()).bind("add")));
+            match::arg(0)(match::name("gpu::add").bind("add")));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -360,6 +369,54 @@ struct find_add_gelu
 
         args.back() = ins->inputs().back();
         p.replace_instruction(ins, hip_add_gelu{}, args);
+    }
+};
+
+struct find_gelu_new
+{
+    auto matcher() const
+    {
+        return match::name("gpu::mul")(
+                match::arg(0)(match::any().bind("x")),
+                match::arg(1)(match::name("gpu::add")(
+                    match::arg(0)(match::name("gpu::mul")(
+                        match::arg(1)(match::name("gpu::tanh"))
+                    ))
+                ))
+            );
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+        auto args  = ins->inputs();
+
+        if(enabled(MIGRAPHX_DISABLE_FAST_GELU{}))
+            p.replace_instruction(ins, hip_gelu_new{}, x_ins, args.back());
+        else
+            p.replace_instruction(ins, hip_gelu{}, x_ins, args.back());
+    }
+};
+
+struct find_add_gelu_new
+{
+    auto matcher() const
+    {
+        return match::name("gpu::gelu")(
+            match::arg(0)(match::name("gpu::add").bind("add")));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto add_ins = r.instructions["add"];
+        auto ins     = r.result;
+        auto args    = add_ins->inputs();
+        move_standard_front(args);
+        move_broadcasted_back(args);
+
+        args.back() = ins->inputs().back();
+        p.replace_instruction(ins, hip_add_gelu_new{}, args);
     }
 };
 
@@ -654,12 +711,13 @@ struct find_conv_bias_relu
 void fuse_ops::apply(program& p) const
 {
     // clang-format off
-    match::find_matches(p, find_gelu{});
+    match::find_matches(p, find_gelu{}, find_gelu_new{});
     match::find_matches(p, find_triadd{});
     match::find_matches(p, 
         find_conv_bias_relu{ctx},
         find_conv_bias{ctx},
         find_add_gelu{},
+        find_add_gelu_new{},
         find_mul_add{},
         find_mul_add_relu{},
         find_add_unary{"gpu::relu", hip_add_relu{}, hip_triadd_relu{}},

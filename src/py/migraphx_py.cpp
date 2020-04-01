@@ -114,11 +114,7 @@ migraphx::shape to_shape(const py::buffer_info& info)
         return n > 0 ? i / n : 0;
     });
 
-    // scalar support
-    if(info.shape.empty())
-        return migraphx::shape{t};
-    else
-        return migraphx::shape{t, info.shape, strides};
+    return migraphx::shape{t, info.shape, strides};
 }
 
 PYBIND11_MODULE(migraphx, m)

@@ -355,8 +355,7 @@ struct find_add_gelu
 {
     auto matcher() const
     {
-        return match::name("gpu::gelu")(
-            match::arg(0)(match::name("gpu::add").bind("add")));
+        return match::name("gpu::gelu")(match::arg(0)(match::name("gpu::add").bind("add")));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -377,13 +376,9 @@ struct find_gelu_new
     auto matcher() const
     {
         return match::name("gpu::mul")(
-                match::arg(0)(match::any().bind("x")),
-                match::arg(1)(match::name("gpu::add")(
-                    match::arg(0)(match::name("gpu::mul")(
-                        match::arg(1)(match::name("gpu::tanh"))
-                    ))
-                ))
-            );
+            match::arg(0)(match::any().bind("x")),
+            match::arg(1)(match::name("gpu::add")(
+                match::arg(0)(match::name("gpu::mul")(match::arg(1)(match::name("gpu::tanh")))))));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -403,8 +398,7 @@ struct find_add_gelu_new
 {
     auto matcher() const
     {
-        return match::name("gpu::gelu")(
-            match::arg(0)(match::name("gpu::add").bind("add")));
+        return match::name("gpu::gelu")(match::arg(0)(match::name("gpu::add").bind("add")));
     }
 
     void apply(program& p, match::matcher_result r) const

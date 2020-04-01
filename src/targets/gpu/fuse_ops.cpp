@@ -1,3 +1,5 @@
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/gpu/miopen.hpp>
@@ -706,6 +708,7 @@ void fuse_ops::apply(program& p) const
 {
     // clang-format off
     match::find_matches(p, find_gelu{}, find_gelu_new{});
+    run_passes(p, {dead_code_elimination{}});
     match::find_matches(p, find_triadd{});
     match::find_matches(p, 
         find_conv_bias_relu{ctx},

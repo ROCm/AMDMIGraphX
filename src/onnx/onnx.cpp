@@ -37,6 +37,7 @@ struct onnx_parser
     program prog            = program();
     bool is_pytorch         = false;
     unsigned int batch_size = 1;
+    bool skip_unknown_operators = false;
 
     std::unordered_map<std::string, op_func> ops;
     std::unordered_map<std::string, operation> map_actv_funcs;
@@ -1920,7 +1921,10 @@ struct onnx_parser
             std::vector<instruction_ref> result;
             if(ops.count(node.op_type()) == 0)
             {
-                result.push_back(prog.add_instruction(op::unknown{node.op_type()}, args));
+                if (skip_unknown_operators)
+                    result.push_back(prog.add_instruction(op::unknown{node.op_type()}, args));
+                else
+                    MIGRAPHX_THROW("Unknown operator: " + node.op_type());
             }
             else
             {

@@ -11,6 +11,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct onnx_options
 {
     unsigned int batch_size = 1;
+    bool skip_unknown_operators = false;
 };
 
 /// Create a program from an onnx file

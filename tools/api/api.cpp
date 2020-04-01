@@ -90,7 +90,7 @@ migraphx::compile_options to_compile_options(const migraphx_compile_options& opt
 migraphx::onnx_options to_onnx_options(const migraphx_onnx_options& options)
 {
     migraphx::onnx_options result{};
-    result.batch_size = options.batch_size;
+    result.batch_size             = options.batch_size;
     result.skip_unknown_operators = options.skip_unknown_operators;
     return result;
 }

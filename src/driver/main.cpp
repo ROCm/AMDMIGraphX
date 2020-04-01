@@ -30,10 +30,10 @@ struct loader
     std::string model;
     std::string file;
     std::string file_type;
-    unsigned batch = 1;
-    bool is_nhwc   = true;
-    unsigned trim  = 0;
-    bool optimize  = false;
+    unsigned batch              = 1;
+    bool is_nhwc                = true;
+    unsigned trim               = 0;
+    bool optimize               = false;
     bool skip_unknown_operators = false;
 
     void parse(argument_parser& ap)
@@ -44,7 +44,10 @@ struct loader
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
         ap(batch, {"--batch"}, ap.help("Set batch size for model"));
         ap(is_nhwc, {"--nhwc"}, ap.help("Treat tensorflow format as nhwc"), ap.set_value(true));
-        ap(skip_unknown_operators, {"--skip-unknown-operators"}, ap.help("Skip unknown operators when parsing and continue to parse."), ap.set_value(true));
+        ap(skip_unknown_operators,
+           {"--skip-unknown-operators"},
+           ap.help("Skip unknown operators when parsing and continue to parse."),
+           ap.set_value(true));
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
@@ -64,7 +67,9 @@ struct loader
             }
             std::cout << "Reading: " << file << std::endl;
             if(file_type == "onnx")
-                p = parse_onnx(file, onnx_options{.batch_size = batch, .skip_unknown_operators=skip_unknown_operators});
+                p = parse_onnx(file,
+                               onnx_options{.batch_size             = batch,
+                                            .skip_unknown_operators = skip_unknown_operators});
             else if(file_type == "tf")
                 p = parse_tf(file, tf_options{is_nhwc, batch});
         }

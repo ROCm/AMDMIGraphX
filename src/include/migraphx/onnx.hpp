@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 /// struct to pass in onnx options to parser
 struct onnx_options
 {
-    unsigned int batch_size = 1;
+    unsigned int batch_size     = 1;
     bool skip_unknown_operators = false;
 };
 

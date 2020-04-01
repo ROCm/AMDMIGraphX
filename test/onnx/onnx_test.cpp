@@ -1380,10 +1380,10 @@ TEST_CASE(slice_5arg_test)
 {
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {5, 5}});
-    p.add_literal({{migraphx::shape::int32_type, {2}}, {-5, -3}});
-    p.add_literal({{migraphx::shape::int32_type, {2}}, {-1, -1}});
-    p.add_literal({{migraphx::shape::int32_type, {2}}, {-1, -2}});
     p.add_literal({{migraphx::shape::int32_type, {2}}, {1, 1}});
+    p.add_literal({{migraphx::shape::int32_type, {2}}, {-1, -2}});
+    p.add_literal({{migraphx::shape::int32_type, {2}}, {-1, -1}});
+    p.add_literal({{migraphx::shape::int32_type, {2}}, {-5, -3}});
     auto ret = p.add_instruction(migraphx::op::slice{{-1, -2}, {-5, -3}, {-1, -1}}, l0);
     p.add_return({ret});
 

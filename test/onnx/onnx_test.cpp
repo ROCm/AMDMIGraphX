@@ -222,9 +222,49 @@ TEST_CASE(ceil_test)
 TEST_CASE(clip_test)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
-    p.add_instruction(migraphx::op::clip{6.0, 0.0}, l0);
+    auto l0      = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto min_val = p.add_literal(0.0f);
+    auto max_val = p.add_literal(6.0f);
+    min_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, min_val);
+    max_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, max_val);
+    p.add_instruction(migraphx::op::clip{}, l0, min_val, max_val);
     auto prog = optimize_onnx("clip_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(clip_test_op11)
+{
+    migraphx::program p;
+    auto min_val = p.add_literal(0.0f);
+    auto max_val = p.add_literal(6.0f);
+    auto l0      = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
+    min_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, min_val);
+    max_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, max_val);
+    p.add_instruction(migraphx::op::clip{}, l0, min_val, max_val);
+    auto prog = optimize_onnx("clip_test_op11.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(clip_test_op11_min_only)
+{
+    migraphx::program p;
+    auto min_val = p.add_literal(0.0f);
+    auto l0      = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
+    min_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, min_val);
+    p.add_instruction(migraphx::op::max{}, l0, min_val);
+    auto prog = optimize_onnx("clip_test_op11_min_only.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(clip_test_op11_no_args)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
+    p.add_instruction(migraphx::op::identity{}, l0);
+    auto prog = optimize_onnx("clip_test_op11_no_args.onnx");
 
     EXPECT(p == prog);
 }
@@ -1336,6 +1376,22 @@ TEST_CASE(sinh_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(slice_5arg_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {5, 5}});
+    p.add_literal({{migraphx::shape::int32_type, {2}}, {-5, -3}});
+    p.add_literal({{migraphx::shape::int32_type, {2}}, {-1, -1}});
+    p.add_literal({{migraphx::shape::int32_type, {2}}, {-1, -2}});
+    p.add_literal({{migraphx::shape::int32_type, {2}}, {1, 1}});
+    auto ret = p.add_instruction(migraphx::op::slice{{-1, -2}, {-5, -3}, {-1, -1}}, l0);
+    p.add_return({ret});
+
+    auto prog = migraphx::parse_onnx("slice_5arg_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(slice_test)
 {
     migraphx::program p;
@@ -1353,6 +1409,45 @@ TEST_CASE(softmax_test)
     p.add_instruction(migraphx::op::softmax{1}, l0);
     auto prog = optimize_onnx("softmax_test.onnx");
 
+    EXPECT(p == prog);
+}
+
+TEST_CASE(split_minus_axis_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10, 15}});
+    auto r1    = p.add_instruction(migraphx::op::slice{{-1}, {0}, {5}}, input);
+    auto r2    = p.add_instruction(migraphx::op::slice{{-1}, {5}, {10}}, input);
+    auto r3    = p.add_instruction(migraphx::op::slice{{-1}, {10}, {15}}, input);
+    p.add_return({r1, r2, r3});
+
+    auto prog = migraphx::parse_onnx("split_minus_axis_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(split_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10, 15}});
+    auto r1    = p.add_instruction(migraphx::op::slice{{1}, {0}, {7}}, input);
+    auto r2    = p.add_instruction(migraphx::op::slice{{1}, {7}, {11}}, input);
+    auto r3    = p.add_instruction(migraphx::op::slice{{1}, {11}, {15}}, input);
+    p.add_return({r1, r2, r3});
+
+    auto prog = migraphx::parse_onnx("split_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(split_test_default)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10, 15}});
+    auto r1    = p.add_instruction(migraphx::op::slice{{0}, {0}, {5}}, input);
+    auto r2    = p.add_instruction(migraphx::op::slice{{0}, {5}, {10}}, input);
+    p.add_return({r1, r2});
+
+    auto prog = migraphx::parse_onnx("split_test_default.onnx");
     EXPECT(p == prog);
 }
 

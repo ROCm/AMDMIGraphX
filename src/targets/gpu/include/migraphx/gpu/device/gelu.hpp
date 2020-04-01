@@ -12,7 +12,14 @@ namespace device {
 
 void gelu(hipStream_t stream, const argument& result, const argument& arg);
 
+void gelu_new(hipStream_t stream, const argument& result, const argument& arg);
+
 void add_gelu(hipStream_t stream,
+              const argument& result,
+              const argument& arg1,
+              const argument& arg2);
+
+void add_gelu_new(hipStream_t stream,
               const argument& result,
               const argument& arg1,
               const argument& arg2);

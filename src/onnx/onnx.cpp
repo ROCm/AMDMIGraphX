@@ -467,10 +467,10 @@ struct onnx_parser
                 check_asym_padding(l0, padding, op);
             }
 
-            auto in_lens     = args[0]->get_shape().lens();
-            auto weight_lens = args[1]->get_shape().lens();
+            auto in_lens                      = args[0]->get_shape().lens();
+            auto weight_lens                  = args[1]->get_shape().lens();
             std::array<std::size_t, 2> k_lens = {weight_lens[2], weight_lens[3]};
-            l0        = process_auto_pad_attribute(l0, info, op, k_lens, op.dilation, in_lens);
+            l0 = process_auto_pad_attribute(l0, info, op, k_lens, op.dilation, in_lens);
         }
         if(contains(info.attributes, "group"))
         {

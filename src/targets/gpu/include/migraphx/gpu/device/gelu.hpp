@@ -20,9 +20,9 @@ void add_gelu(hipStream_t stream,
               const argument& arg2);
 
 void add_gelu_new(hipStream_t stream,
-              const argument& result,
-              const argument& arg1,
-              const argument& arg2);
+                  const argument& result,
+                  const argument& arg1,
+                  const argument& arg2);
 
 } // namespace device
 } // namespace gpu

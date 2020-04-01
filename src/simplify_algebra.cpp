@@ -11,7 +11,6 @@
 #include <migraphx/op/recip.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
-#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

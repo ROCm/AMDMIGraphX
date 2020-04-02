@@ -12,6 +12,7 @@ struct onnx_options
 {
     unsigned int batch_size     = 1;
     bool skip_unknown_operators = false;
+    bool print_program_on_error = false;
 };
 
 /// Create a program from an onnx file

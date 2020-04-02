@@ -2186,20 +2186,24 @@ program parse_onnx_from(onnx_options options, Ts&&... xs)
 {
     onnx_parser parser;
     parser.batch_size = options.batch_size;
-#ifndef NDEBUG
-    // Log the program when it can't be parsed
-    try
+    parser.skip_unknown_operators = options.skip_unknown_operators;
+    if (options.print_program_on_error)
+    {
+        // Log the program when it can't be parsed
+        try
+        {
+            parser.parse_from(std::forward<Ts>(xs)...);
+        }
+        catch(...)
+        {
+            std::cerr << parser.prog << std::endl;
+            throw;
+        }
+    }
+    else
     {
         parser.parse_from(std::forward<Ts>(xs)...);
     }
-    catch(...)
-    {
-        std::cerr << parser.prog << std::endl;
-        throw;
-    }
-#else
-    parser.parse_from(std::forward<Ts>(xs)...);
-#endif
     return std::move(parser.prog);
 }
 

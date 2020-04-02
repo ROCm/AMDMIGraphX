@@ -68,8 +68,9 @@ struct loader
             std::cout << "Reading: " << file << std::endl;
             if(file_type == "onnx")
                 p = parse_onnx(file,
-                               onnx_options{.batch_size             = batch,
-                                            .skip_unknown_operators = skip_unknown_operators});
+                               {.batch_size             = batch,
+                                            .skip_unknown_operators = skip_unknown_operators,
+                                            .print_program_on_error = true});
             else if(file_type == "tf")
                 p = parse_tf(file, tf_options{is_nhwc, batch});
         }

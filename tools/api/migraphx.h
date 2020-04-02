@@ -47,6 +47,7 @@ typedef struct
 {
     size_t batch_size;
     bool skip_unknown_operators;
+    bool print_program_on_error;
 } migraphx_onnx_options;
 
 <% generate_c_header() %>

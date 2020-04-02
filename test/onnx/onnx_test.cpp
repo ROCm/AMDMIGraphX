@@ -13,8 +13,9 @@
 
 migraphx::program optimize_onnx(const std::string& name, bool eliminate_deadcode = false)
 {
-    // cppcheck-suppress unreadVariable
-    auto prog = migraphx::parse_onnx(name, {.skip_unknown_operators = true});
+    migraphx::onnx_options options;
+    options.skip_unknown_operators = true;
+    auto prog = migraphx::parse_onnx(name, options);
     if(eliminate_deadcode)
         migraphx::run_passes(prog, {migraphx::dead_code_elimination{}});
 

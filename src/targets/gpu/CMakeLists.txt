@@ -112,6 +112,8 @@ add_library(migraphx_gpu
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
+# Workaround broken hip headers
+target_compile_options(migraphx_gpu PRIVATE -D__HIP_PLATFORM_HCC__=1)
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device)
 

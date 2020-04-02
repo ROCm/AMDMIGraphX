@@ -187,10 +187,9 @@ PYBIND11_MODULE(migraphx, m)
              bool print_program_on_error) {
               return migraphx::parse_onnx(
                   filename,
-                  migraphx::onnx_options{.batch_size = batch_size,
-                                         .skip_unknown_operators =
-                                             skip_unknown_operators.print_program_on_error =
-                                                 print_program_on_error});
+                  {.batch_size = batch_size,
+                                         .skip_unknown_operators = skip_unknown_operators,
+                                             .print_program_on_error = print_program_on_error});
           },
           "Parse onnx file",
           py::arg("filename"),

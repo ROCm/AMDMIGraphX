@@ -7,6 +7,8 @@
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/broadcast.hpp>
+#include <migraphx/op/neg.hpp>
+#include <migraphx/op/recip.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
 
@@ -346,6 +348,46 @@ struct find_add_convs
     }
 };
 
+struct find_div_const
+{
+    auto matcher() const
+    {
+        return match::name("div")(match::arg(1)(match::is_constant().bind("c")));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins   = r.result;
+        auto c_ins = r.instructions["c"];
+
+        auto recip = p.insert_instruction(std::next(c_ins), op::recip{}, c_ins);
+
+        auto args = ins->inputs();
+
+        p.replace_instruction(ins, op::mul{}, args.front(), recip);
+    }
+};
+
+struct find_sub_const
+{
+    auto matcher() const
+    {
+        return match::name("sub")(match::arg(1)(match::is_constant().bind("c")));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins   = r.result;
+        auto c_ins = r.instructions["c"];
+
+        auto neg = p.insert_instruction(std::next(c_ins), op::neg{}, c_ins);
+
+        auto args = ins->inputs();
+
+        p.replace_instruction(ins, op::add{}, args.front(), neg);
+    }
+};
+
 void simplify_algebra::apply(program& p) const
 {
     // Run simplifications multiple times
@@ -358,6 +400,8 @@ void simplify_algebra::apply(program& p) const
                             find_add_convs{},
                             find_mul_conv{},
                             find_mul_add{},
+                            find_div_const{},
+                            find_sub_const{},
                             find_concat_unary{},
                             find_concat_binary{});
         dead_code_elimination{}.apply(p);

@@ -69,8 +69,8 @@ struct loader
             if(file_type == "onnx")
                 p = parse_onnx(file,
                                {.batch_size             = batch,
-                                            .skip_unknown_operators = skip_unknown_operators,
-                                            .print_program_on_error = true});
+                                .skip_unknown_operators = skip_unknown_operators,
+                                .print_program_on_error = true});
             else if(file_type == "tf")
                 p = parse_tf(file, tf_options{is_nhwc, batch});
         }

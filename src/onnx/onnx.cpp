@@ -2185,9 +2185,9 @@ template <class... Ts>
 program parse_onnx_from(onnx_options options, Ts&&... xs)
 {
     onnx_parser parser;
-    parser.batch_size = options.batch_size;
+    parser.batch_size             = options.batch_size;
     parser.skip_unknown_operators = options.skip_unknown_operators;
-    if (options.print_program_on_error)
+    if(options.print_program_on_error)
     {
         // Log the program when it can't be parsed
         try

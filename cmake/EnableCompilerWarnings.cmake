@@ -101,6 +101,7 @@ else()
                 -Wno-sign-conversion
                 -Wno-unused-command-line-argument
                 -Wno-weak-vtables
+                -Wno-c99-extensions
                 # -Wno-c++2a-designator
             )
         else()

@@ -2153,11 +2153,11 @@ struct onnx_parser
             break; // throw std::runtime_error("Unsupported type");
         }
 
-        if (!input_dims.empty())
+        if(!input_dims.empty())
         {
             return {shape_type, input_dims};
         }
-        
+
         std::vector<std::size_t> dims;
         auto&& tensor_dims = t.tensor_type().shape().dim();
         std::transform(tensor_dims.begin(),

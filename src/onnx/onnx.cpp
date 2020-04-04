@@ -36,7 +36,7 @@ struct onnx_parser
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog            = program();
     bool is_pytorch         = false;
-    unsigned int batch_size = 1;
+    std::size_t default_dim_value = 1;
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
 
     std::unordered_map<std::string, op_func> ops;
@@ -1895,7 +1895,7 @@ struct onnx_parser
                 }
 
                 // TODO: Get shape of input parameter
-                shape s            = parse_type(input.type(), dims, batch_size);
+                shape s            = parse_type(input.type(), dims, default_dim_value);
                 instructions[name] = prog.add_parameter(name, s);
             }
         }
@@ -2129,7 +2129,7 @@ struct onnx_parser
 
     static shape parse_type(const onnx::TypeProto& t,
                             std::vector<std::size_t> input_dims,
-                            unsigned int batch_size)
+                            std::size_t default_dim_value)
     {
         shape::type_t shape_type{};
         switch(t.tensor_type().elem_type())
@@ -2168,13 +2168,13 @@ struct onnx_parser
                            {
                                if(static_cast<int>(d.dim_value()) <= 0)
                                {
-                                   return batch_size;
+                                   return default_dim_value;
                                }
                                return d.dim_value();
                            }
                            else
                            {
-                               return batch_size;
+                               return default_dim_value;
                            }
                        });
 
@@ -2220,7 +2220,7 @@ program parse_onnx_from(const onnx_options& options, Ts&&... xs)
 {
     onnx_parser parser;
     parser.map_input_dims = options.map_input_dims;
-    parser.batch_size     = options.batch_size;
+    parser.default_dim_value     = options.default_dim_value;
 
 #ifndef NDEBUG
     // Log the program when it can't be parsed

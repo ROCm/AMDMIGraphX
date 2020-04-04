@@ -87,9 +87,9 @@ migraphx::compile_options to_compile_options(const migraphx_compile_options& opt
     return result;
 }
 
-void set_batch_size(onnx_options& options, unsigned int batch_size)
+void set_default_dim_value(onnx_options& options, size_t value)
 {
-    options.batch_size = batch_size;
+    options.default_dim_value = value;
 }
 
 void add_parameter_shape(onnx_options& options,
@@ -613,12 +613,12 @@ extern "C" migraphx_status migraphx_onnx_options_add_parameter_shape(
 }
 
 extern "C" migraphx_status
-migraphx_onnx_options_set_batch_size(migraphx_onnx_options_t onnx_options, unsigned int batch_size)
+migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options, size_t value)
 {
     return migraphx::try_([&] {
         if(onnx_options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
-        migraphx::set_batch_size((onnx_options->object), (batch_size));
+        migraphx::set_default_dim_value((onnx_options->object), (value));
     });
 }
 

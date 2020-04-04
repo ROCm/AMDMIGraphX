@@ -1634,7 +1634,7 @@ TEST_CASE(variable_batch_user_input_test)
     p.add_return({r});
 
     migraphx::onnx_options options;
-    options.batch_size = 2;
+    options.default_dim_value = 2;
 
     auto prog = migraphx::parse_onnx("variable_batch_test.onnx", options);
 

@@ -178,8 +178,8 @@ migraphx_status migraphx_onnx_options_add_parameter_shape(migraphx_onnx_options_
                                                           size_t dim_num,
                                                           size_t* dims);
 
-migraphx_status migraphx_onnx_options_set_batch_size(migraphx_onnx_options_t onnx_options,
-                                                     unsigned int batch_size);
+migraphx_status migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options,
+                                                            size_t value);
 
 migraphx_status
 migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options_t options);

@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 /// struct to pass in onnx options to parser
 struct onnx_options
 {
-    unsigned int batch_size = 1;
+    std::size_t default_dim_value = 1;
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
 };
 

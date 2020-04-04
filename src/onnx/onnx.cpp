@@ -812,7 +812,8 @@ struct onnx_parser
         }
         else if(contains(info.attributes, "ends"))
         {
-            op.ends = get_indices(info.attributes.at("ends"));
+            literal s = parse_value(info.attributes.at("ends"));
+            s.visit([&](auto v) { copy(v, std::back_inserter(op.ends)); });
         }
 
         if(args.size() >= 2)
@@ -2017,20 +2018,6 @@ struct onnx_parser
         return result;
     }
 
-    static std::vector<int64_t> get_indices(const onnx::AttributeProto& attr)
-    {
-        std::vector<int64_t> result;
-        literal s = parse_value(attr);
-        s.visit([&](auto v) { copy(v, std::back_inserter(result)); });
-        // Clamp large indices to -1
-        std::replace_if(
-            result.begin(),
-            result.end(),
-            [](auto x) { return x > int64_t{std::numeric_limits<std::int32_t>::max()} / 2; },
-            -1);
-        return result;
-    }
-
     template <class T>
     static literal from_repeated(shape::type_t t, const T& r)
     {
@@ -2165,26 +2152,19 @@ struct onnx_parser
         case onnx::TensorProto::COMPLEX128:
             break; // throw std::runtime_error("Unsupported type");
         }
+
+        if (!input_dims.empty())
+        {
+            return {shape_type, input_dims};
+        }
+        
         std::vector<std::size_t> dims;
         auto&& tensor_dims = t.tensor_type().shape().dim();
-        // no input dims for a parameter, use 0 as a placeholder
-        if(input_dims.empty() and !tensor_dims.empty())
-        {
-            input_dims.resize(tensor_dims.size(), 0);
-        }
-        assert(input_dims.size() == tensor_dims.size());
-
         std::transform(tensor_dims.begin(),
                        tensor_dims.end(),
-                       input_dims.begin(),
                        std::back_inserter(dims),
-                       [&](auto&& d, auto v) -> std::size_t {
-                           // input dims has priority than existing dims
-                           if(v > 0)
-                           {
-                               return v;
-                           }
-                           else if(d.has_dim_value())
+                       [&](auto&& d) -> std::size_t {
+                           if(d.has_dim_value())
                            {
                                if(static_cast<int>(d.dim_value()) <= 0)
                                {

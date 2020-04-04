@@ -34,8 +34,8 @@ struct onnx_parser
         std::function<std::vector<instruction_ref>(node_info, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog            = program();
-    bool is_pytorch         = false;
+    program prog                  = program();
+    bool is_pytorch               = false;
     std::size_t default_dim_value = 1;
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
 
@@ -2219,8 +2219,8 @@ template <class... Ts>
 program parse_onnx_from(const onnx_options& options, Ts&&... xs)
 {
     onnx_parser parser;
-    parser.map_input_dims = options.map_input_dims;
-    parser.default_dim_value     = options.default_dim_value;
+    parser.map_input_dims    = options.map_input_dims;
+    parser.default_dim_value = options.default_dim_value;
 
 #ifndef NDEBUG
     // Log the program when it can't be parsed

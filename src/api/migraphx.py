@@ -184,6 +184,7 @@ def onnx_options(h):
         invoke='migraphx::set_default_dim_value($@)',
     )
 
+
 api.add_function('migraphx_parse_onnx',
                  api.params(name='const char*',
                             options='migraphx::onnx_options'),

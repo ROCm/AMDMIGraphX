@@ -287,7 +287,9 @@ struct find_add_convs
     static shape compute_stride_shape(const shape& input, std::size_t n)
     {
         return {input.type(),
-                {input.lens()[0], input.lens()[1], input.lens()[2] / n, input.lens()[3] / n},
+                {input.lens()[0], input.lens()[1], 
+                    std::size_t(std::max<std::ptrdiff_t>(1, (input.lens()[2] - 1) / n + 1)),
+                    std::size_t(std::max<std::ptrdiff_t>(1, (input.lens()[3] - 1) / n + 1))},
                 {input.strides()[0],
                  input.strides()[1],
                  input.strides()[2] * n,

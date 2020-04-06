@@ -797,7 +797,8 @@ struct onnx_parser
         }
         else if(contains(info.attributes, "ends"))
         {
-            op.ends = get_indices(info.attributes.at("ends"));
+            literal s = parse_value(info.attributes.at("ends"));
+            s.visit([&](auto v) { copy(v, std::back_inserter(op.ends)); });
         }
 
         if(args.size() >= 2)

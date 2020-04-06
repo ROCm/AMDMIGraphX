@@ -35,12 +35,6 @@ def test_add_scalar():
         print("Parameter {} -> {}".format(key, value))
         params[key] = migraphx.generate_argument(value)
 
-    # args = []
-    # args.append(np.random.randn(2, 3, 4, 5).astype(np.single))
-    # args.append(np.array(1).astype(np.single))
-    # params["0"] = migraphx.argument(args[0])
-    # params["1"] = migraphx.argument(args[1])
-
     r = p.run(params)[-1]
     print(r)
 

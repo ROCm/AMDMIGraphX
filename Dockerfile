@@ -52,16 +52,13 @@ ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
 # Install cget
-RUN pip3 install cget && pip3 install numpy
+RUN pip3 install cget 
 
 # Install rclone
 RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
 
 # Install yapf
 RUN pip3 install yapf==0.28.0
-
-# Install numpy
-RUN pip3 install numpy
 
 # Install doc requirements
 ADD doc/requirements.txt /doc-requirements.txt

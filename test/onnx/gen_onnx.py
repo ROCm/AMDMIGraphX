@@ -1835,6 +1835,7 @@ def slice_5arg_test():
 
     return ([arg_step, arg_axis, arg_end, arg_start, node], [x], [y])
 
+
 @onnx_test
 def slice_max_end_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [10, 20])
@@ -1849,6 +1850,7 @@ def slice_max_end_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def slice_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 2])
@@ -1862,6 +1864,7 @@ def slice_test():
                                  outputs=['1'])
 
     return ([node], [x], [y])
+
 
 @onnx_test
 def softmax_test():

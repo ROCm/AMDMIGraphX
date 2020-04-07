@@ -1869,6 +1869,21 @@ def slice_5arg_test():
 
 
 @onnx_test
+def slice_max_end_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [10, 20])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [9, 17])
+
+    node = onnx.helper.make_node('Slice',
+                                 inputs=['0'],
+                                 axes=[0, 1],
+                                 starts=[1, 2],
+                                 ends=[3000000000, -1],
+                                 outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def slice_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 2])

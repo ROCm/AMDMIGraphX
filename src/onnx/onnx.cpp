@@ -1858,7 +1858,7 @@ struct onnx_parser
                 }
                 if(instructions.count(input) == 0)
                 {
-                    MIGRAPHX_THROW("PARSE_GRAPH: input " + input + " is unavailable");
+                    MIGRAPHX_THROW("PARSE_GRAPH: invalid onnx file. Input \"" + input + "\" is unavailable, ");
                 }
                 args.push_back(instructions.at(input));
             }

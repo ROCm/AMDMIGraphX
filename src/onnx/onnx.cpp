@@ -1967,20 +1967,6 @@ struct onnx_parser
         return result;
     }
 
-    static std::vector<int64_t> get_indices(const onnx::AttributeProto& attr)
-    {
-        std::vector<int64_t> result;
-        literal s = parse_value(attr);
-        s.visit([&](auto v) { copy(v, std::back_inserter(result)); });
-        // Clamp large indices to -1
-        std::replace_if(
-            result.begin(),
-            result.end(),
-            [](auto x) { return x > int64_t{std::numeric_limits<std::int32_t>::max()} / 2; },
-            -1);
-        return result;
-    }
-
     template <class T>
     static literal from_repeated(shape::type_t t, const T& r)
     {

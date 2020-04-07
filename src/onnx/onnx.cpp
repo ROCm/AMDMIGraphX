@@ -1859,7 +1859,7 @@ struct onnx_parser
                 if(instructions.count(input) == 0)
                 {
                     MIGRAPHX_THROW("PARSE_GRAPH: invalid onnx file. Input \"" + input +
-                                   "\" is unavailable, ");
+                                   "\" is unavailable due to unordered nodes!");
                 }
                 args.push_back(instructions.at(input));
             }

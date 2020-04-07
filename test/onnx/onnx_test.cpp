@@ -1573,6 +1573,19 @@ TEST_CASE(transpose_gather_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(undefined_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
+    auto l1 = p.add_instruction(migraphx::op::undefined{});
+    auto l2 = p.add_instruction(migraphx::op::identity{}, l1);
+    p.add_return({l2});
+
+    auto prog = migraphx::parse_onnx("undefined_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(unknown_test)
 {
     migraphx::program p;

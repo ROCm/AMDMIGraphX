@@ -2079,6 +2079,14 @@ def transpose_gather_test():
 
     return ([td, ti, node], [x, i], [y])
 
+@onnx_test
+def undefined_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('Identity', inputs=[''], outputs=['1'])
+
+    return ([node], [x], [y])
 
 @onnx_test
 def unknown_test():

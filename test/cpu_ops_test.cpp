@@ -2419,4 +2419,19 @@ TEST_CASE(op_capture)
     EXPECT(migraphx::verify_range(vec, cap_vec));
 }
 
+TEST_CASE(recip_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::double_type, {3}};
+    std::vector<float> data{-0.5f, 0.1f, 0.5f};
+    auto l = p.add_literal(migraphx::literal{s, data});
+    p.add_instruction(migraphx::op::recip{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {-2.0f, 10.0f, 2.0f};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

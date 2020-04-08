@@ -339,6 +339,26 @@ TEST_CASE(simplify_add_conv_1x1_diff_strides2)
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
 }
 
+TEST_CASE(simplify_add_conv_1x1_diff_strides_odd)
+{
+    migraphx::program p;
+    auto x = p.add_parameter("x", {migraphx::shape::float_type, {1, 54, 83, 83}});
+    auto w =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {54, 54, 1, 1}}));
+    auto y = p.add_parameter("y", {migraphx::shape::float_type, {1, 54, 165, 165}});
+    auto v =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {54, 54, 1, 1}}));
+    auto conv1 = p.add_instruction(migraphx::op::convolution{}, x, w);
+    auto conv2 = p.add_instruction(migraphx::op::convolution{{0, 0}, {2, 2}}, y, v);
+    auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
+    p.add_instruction(pass_op{}, sum);
+    auto s = p.get_output_shapes().back();
+    run_pass(p);
+    EXPECT(s == p.get_output_shapes().back());
+    EXPECT(std::count_if(
+               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
+}
+
 TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides1)
 {
     migraphx::program p;

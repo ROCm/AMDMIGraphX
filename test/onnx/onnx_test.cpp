@@ -1392,6 +1392,16 @@ TEST_CASE(slice_5arg_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(slice_max_end_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {10, 20}});
+    p.add_instruction(migraphx::op::slice{{0, 1}, {1, 2}, {3000000000, -1}}, l0);
+    auto prog = optimize_onnx("slice_max_end_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(slice_test)
 {
     migraphx::program p;
@@ -1576,7 +1586,7 @@ TEST_CASE(transpose_gather_test)
 TEST_CASE(undefined_test)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
+    p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
     auto l1 = p.add_instruction(migraphx::op::undefined{});
     auto l2 = p.add_instruction(migraphx::op::identity{}, l1);
     p.add_return({l2});

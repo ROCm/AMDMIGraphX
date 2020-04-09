@@ -574,16 +574,6 @@ struct find_conv_dot_horiz_fusion
 {
     auto matcher() const { return horiz_conv_dot(); }
 
-    static bool reaches(instruction_ref ins, const std::vector<instruction_ref>& args)
-    {
-        auto it = std::find_first_of(
-            ins->outputs().begin(), ins->outputs().end(), args.begin(), args.end());
-        if(it != ins->outputs().end())
-            return true;
-        return std::any_of(
-            ins->outputs().begin(), ins->outputs().end(), [&](auto i) { return reaches(i, args); });
-    }
-
     void apply(program& p, const match::matcher_result& r) const
     {
         auto ins = r.result;

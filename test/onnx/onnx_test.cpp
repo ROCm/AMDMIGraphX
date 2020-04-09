@@ -1135,6 +1135,17 @@ TEST_CASE(prelu_brcst_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(recip_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3}});
+    p.add_instruction(migraphx::op::recip{}, input);
+
+    auto prog = optimize_onnx("recip_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(reducel1_test)
 {
     migraphx::program p;

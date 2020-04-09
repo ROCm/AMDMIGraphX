@@ -1164,6 +1164,17 @@ TEST_CASE(prelu_brcst_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(recip_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3}});
+    p.add_instruction(migraphx::op::recip{}, input);
+
+    auto prog = optimize_onnx("recip_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(reducel1_test)
 {
     migraphx::program p;
@@ -1419,6 +1430,16 @@ TEST_CASE(slice_5arg_test)
     p.add_return({ret});
 
     auto prog = migraphx::parse_onnx("slice_5arg_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(slice_max_end_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {10, 20}});
+    p.add_instruction(migraphx::op::slice{{0, 1}, {1, 2}, {3000000000, -1}}, l0);
+    auto prog = optimize_onnx("slice_max_end_test.onnx");
 
     EXPECT(p == prog);
 }

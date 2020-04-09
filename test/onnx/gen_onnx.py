@@ -1488,6 +1488,20 @@ def prelu_brcst_test():
 
 
 @onnx_test
+def recip_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node(
+        'Reciprocal',
+        inputs=['x'],
+        outputs=['y'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def reducel1_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 6])
@@ -1866,6 +1880,21 @@ def slice_5arg_test():
         outputs=['1'])
 
     return ([arg_step, arg_axis, arg_end, arg_start, node], [x], [y])
+
+
+@onnx_test
+def slice_max_end_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [10, 20])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [9, 17])
+
+    node = onnx.helper.make_node('Slice',
+                                 inputs=['0'],
+                                 axes=[0, 1],
+                                 starts=[1, 2],
+                                 ends=[3000000000, -1],
+                                 outputs=['1'])
+
+    return ([node], [x], [y])
 
 
 @onnx_test

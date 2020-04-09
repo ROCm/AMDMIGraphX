@@ -70,6 +70,8 @@
 #include <migraphx/gpu/pow.hpp>
 #include <migraphx/gpu/sqdiff.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
+#include <migraphx/gpu/prelu.hpp>
+#include <migraphx/gpu/recip.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -84,6 +86,7 @@ struct miopen_apply
     const lowering* pass = nullptr;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
+    std::unordered_map<instruction_ref, std::string> prog_output_names{};
 
     context& get_context()
     {
@@ -99,11 +102,33 @@ struct miopen_apply
         (void)i;
     }
 
+    void create_output_names()
+    {
+        this->last = instruction::get_output_alias(std::prev(prog->end()));
+        if(this->last->name() == "@return")
+        {
+            auto& prog_outputs = last->inputs();
+            std::vector<instruction_ref> outputs_alias(prog_outputs.size());
+
+            std::transform(prog_outputs.begin(),
+                           prog_outputs.end(),
+                           outputs_alias.begin(),
+                           [](const auto& i) { return instruction::get_output_alias(i); });
+
+            std::size_t index = 0;
+            for(auto ins : outputs_alias)
+            {
+                prog_output_names[ins] = "#output_" + std::to_string(index++);
+            }
+        }
+    }
+
     void init()
     {
         assert(prog != nullptr);
         assert(pass != nullptr);
-        this->last = instruction::get_output_alias(std::prev(prog->end()));
+
+        create_output_names();
 
         add_miopen_simple_op<miopen_abs>("abs", make_abs);
 
@@ -137,10 +162,12 @@ struct miopen_apply
         add_generic_op<hip_pow>("pow");
         add_generic_op<hip_sqdiff>("sqdiff");
         add_generic_op<hip_relu>("relu");
+        add_generic_op<hip_prelu>("prelu");
         add_generic_op<hip_sign>("sign");
         add_generic_op<hip_sigmoid>("sigmoid");
         add_generic_op<hip_ceil>("ceil");
         add_generic_op<hip_floor>("floor");
+        add_generic_op<hip_recip>("recip");
 
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
@@ -172,17 +199,37 @@ struct miopen_apply
     {
         if(not pass->offload_copy)
             return;
+
         for(auto ins : iterator_for(*prog))
         {
             if(ins->name() != "@param")
                 continue;
+
             auto pos = std::next(ins);
             auto a   = insert_allocation(pos, ins->get_shape());
             auto c   = prog->insert_instruction(pos, hip_copy_to_gpu{}, ins, a);
             prog->replace_instruction(ins, c);
         }
-        auto end = std::prev(prog->end());
-        prog->add_instruction(hip_copy_from_gpu{}, end);
+
+        // return instruction
+        auto ret = std::prev(prog->end());
+        if(ret->name() == "@return")
+        {
+            auto& inputs = ret->inputs();
+
+            // each input of ret need to be copied from gpu to host, and replace
+            // output with copy output
+            for(auto& in : inputs)
+            {
+                auto p_output = prog->insert_instruction(ret, hip_copy_from_gpu{}, in);
+                instruction::replace_argument(ret, in, p_output);
+            }
+        }
+        // else branch to handle legacy program without the return instruction
+        else
+        {
+            prog->add_instruction(hip_copy_from_gpu{}, ret);
+        }
     }
 
     void apply()
@@ -196,20 +243,30 @@ struct miopen_apply
                 check_shape(s, apply_map.at(it->name())(it));
             }
         }
+
         copy_params();
     }
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
     {
-        if(not pass->offload_copy and ins == last and tag.empty())
-        {
-            return prog->add_parameter("output", s);
-        }
-        else
+        // Instruction's output is an input of the ret instruction
+        if(pass->offload_copy)
         {
             auto result = prog->insert_instruction(ins, hip_allocate{s, std::move(tag)});
             return result;
         }
+
+        auto ins_alias = instruction::get_output_alias(ins);
+        if(last->name() == "@return" and tag.empty() and prog_output_names.count(ins_alias) > 0)
+        {
+            return prog->add_parameter(prog_output_names[ins_alias], s);
+        }
+        else if(ins == last and tag.empty())
+        {
+            return prog->add_parameter("output", s);
+        }
+
+        return prog->insert_instruction(ins, hip_allocate{s, std::move(tag)});
     }
 
     void add_convolution_op()

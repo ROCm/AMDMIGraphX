@@ -61,8 +61,8 @@ TEST_CASE(fwd_conv_batchnorm_rewrite_test)
     p1.compile(migraphx::cpu::target{});
     p2.compile(migraphx::cpu::target{});
 
-    auto result1 = p1.eval({});
-    auto result2 = p2.eval({});
+    auto result1 = p1.eval({}).back();
+    auto result2 = p2.eval({}).back();
 
     std::vector<float> results_vector1;
     std::vector<float> results_vector2;
@@ -129,8 +129,8 @@ TEST_CASE(as_literal)
     p1.compile(migraphx::cpu::target{});
     p2.compile(migraphx::cpu::target{});
 
-    auto result1 = p1.eval({});
-    auto result2 = p2.eval({});
+    auto result1 = p1.eval({}).back();
+    auto result2 = p2.eval({}).back();
     visit_all(result1, result2)([&](auto r1, auto r2) { EXPECT(migraphx::verify_range(r1, r2)); });
 }
 
@@ -167,8 +167,8 @@ TEST_CASE(literal_reshape)
     p1.compile(migraphx::cpu::target{});
     p2.compile(migraphx::cpu::target{});
 
-    auto result1 = p1.eval({});
-    auto result2 = p2.eval({});
+    auto result1 = p1.eval({}).back();
+    auto result2 = p2.eval({}).back();
     visit_all(result1, result2)([&](auto r1, auto r2) { EXPECT(migraphx::verify_range(r1, r2)); });
 }
 

@@ -34,9 +34,6 @@ struct unsqueeze
         auto type        = input_shape.type();
         auto old_lens    = input_shape.lens();
 
-        if(input_shape.scalar())
-            return shape{type, old_lens};
-
         std::size_t new_size = old_lens.size() + axes.size();
 
         // in case of axes to be negative, tune to positive
@@ -58,7 +55,15 @@ struct unsqueeze
                 new_lens[i] = old_lens[p++];
             }
         }
-        return shape{type, new_lens};
+        if(input_shape.scalar())
+        {
+            std::vector<std::size_t> strides(new_lens.size());
+            return shape{type, new_lens, strides};
+        }
+        else
+        {
+            return shape{type, new_lens};
+        }
     }
     argument compute(shape output_shape, std::vector<argument> args) const
     {

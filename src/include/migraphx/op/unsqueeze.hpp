@@ -60,10 +60,7 @@ struct unsqueeze
             std::vector<std::size_t> strides(new_lens.size());
             return shape{type, new_lens, strides};
         }
-        else
-        {
-            return shape{type, new_lens};
-        }
+        return shape{type, new_lens};
     }
     argument compute(shape output_shape, std::vector<argument> args) const
     {

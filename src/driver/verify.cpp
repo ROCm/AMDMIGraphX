@@ -83,6 +83,8 @@ void verify_instructions(const program& prog, double tolerance)
             continue;
         if(ins.name() == "reshape")
             continue;
+        if(ins.name() == "undefined")
+            continue;
         program p;
         std::vector<instruction_ref> inputs;
         for(auto&& arg : ins.inputs())

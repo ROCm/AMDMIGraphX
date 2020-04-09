@@ -71,6 +71,7 @@
 #include <migraphx/gpu/sqdiff.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
 #include <migraphx/gpu/prelu.hpp>
+#include <migraphx/gpu/recip.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -166,6 +167,7 @@ struct miopen_apply
         add_generic_op<hip_sigmoid>("sigmoid");
         add_generic_op<hip_ceil>("ceil");
         add_generic_op<hip_floor>("floor");
+        add_generic_op<hip_recip>("recip");
 
         add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");

@@ -48,6 +48,7 @@ add_library(migraphx_device
     device/pad.cpp
     device/pow.cpp
     device/prelu.cpp
+    device/recip.cpp
     device/reduce_max.cpp
     device/reduce_mean.cpp
     device/reduce_min.cpp

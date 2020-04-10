@@ -4520,4 +4520,16 @@ struct test_convert : verify_program<test_convert>
     };
 };
 
+struct test_recip : verify_program<test_recip>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {3}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::recip{}, x);
+        return p;
+    }
+};
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

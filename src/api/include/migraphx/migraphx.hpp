@@ -499,9 +499,9 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
              dim.data());
     }
 
-    void set_batch_size(unsigned int batch_size)
+    void set_default_dim_value(unsigned int value)
     {
-        call(&migraphx_onnx_options_set_batch_size, this->get_handle_ptr(), batch_size);
+        call(&migraphx_onnx_options_set_default_dim_value, this->get_handle_ptr(), value);
     }
 };
 

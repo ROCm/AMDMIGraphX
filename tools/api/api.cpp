@@ -87,9 +87,9 @@ migraphx::compile_options to_compile_options(const migraphx_compile_options& opt
     return result;
 }
 
-void set_batch_size(onnx_options& options, unsigned int batch_size)
+void set_default_dim_value(onnx_options& options, size_t value)
 {
-    options.batch_size = batch_size;
+    options.default_dim_value = value;
 }
 
 void add_parameter_shape(onnx_options& options,

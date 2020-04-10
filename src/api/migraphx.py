@@ -179,9 +179,9 @@ def onnx_options(h):
         invoke='migraphx::add_parameter_shape($@)',
     )
     h.method(
-        'set_batch_size',
-        api.params(batch_size='unsigned int'),
-        invoke='migraphx::set_batch_size($@)',
+        'set_default_dim_value',
+        api.params(value='size_t'),
+        invoke='migraphx::set_default_dim_value($@)',
     )
 
 

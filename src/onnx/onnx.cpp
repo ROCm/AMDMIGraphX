@@ -34,9 +34,9 @@ struct onnx_parser
         std::function<std::vector<instruction_ref>(node_info, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog            = program();
-    bool is_pytorch         = false;
-    unsigned int batch_size = 1;
+    program prog                  = program();
+    bool is_pytorch               = false;
+    std::size_t default_dim_value = 1;
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
 
     std::unordered_map<std::string, op_func> ops;
@@ -1882,7 +1882,7 @@ struct onnx_parser
                 }
 
                 // TODO: Get shape of input parameter
-                shape s            = parse_type(input.type(), dims, batch_size);
+                shape s            = parse_type(input.type(), dims, default_dim_value);
                 instructions[name] = prog.add_parameter(name, s);
             }
         }
@@ -2116,7 +2116,7 @@ struct onnx_parser
 
     static shape parse_type(const onnx::TypeProto& t,
                             std::vector<std::size_t> input_dims,
-                            unsigned int batch_size)
+                            std::size_t default_dim_value)
     {
         shape::type_t shape_type{};
         switch(t.tensor_type().elem_type())
@@ -2139,36 +2139,29 @@ struct onnx_parser
         case onnx::TensorProto::COMPLEX128:
             break; // throw std::runtime_error("Unsupported type");
         }
+
+        if(!input_dims.empty())
+        {
+            return {shape_type, input_dims};
+        }
+
         std::vector<std::size_t> dims;
         auto&& tensor_dims = t.tensor_type().shape().dim();
-        // no input dims for a parameter, use 0 as a placeholder
-        if(input_dims.empty() and !tensor_dims.empty())
-        {
-            input_dims.resize(tensor_dims.size(), 0);
-        }
-        assert(input_dims.size() == tensor_dims.size());
-
         std::transform(tensor_dims.begin(),
                        tensor_dims.end(),
-                       input_dims.begin(),
                        std::back_inserter(dims),
-                       [&](auto&& d, auto v) -> std::size_t {
-                           // input dims has priority than existing dims
-                           if(v > 0)
-                           {
-                               return v;
-                           }
-                           else if(d.has_dim_value())
+                       [&](auto&& d) -> std::size_t {
+                           if(d.has_dim_value())
                            {
                                if(static_cast<int>(d.dim_value()) <= 0)
                                {
-                                   return batch_size;
+                                   return default_dim_value;
                                }
                                return d.dim_value();
                            }
                            else
                            {
-                               return batch_size;
+                               return default_dim_value;
                            }
                        });
 
@@ -2213,8 +2206,8 @@ template <class... Ts>
 program parse_onnx_from(const onnx_options& options, Ts&&... xs)
 {
     onnx_parser parser;
-    parser.map_input_dims = options.map_input_dims;
-    parser.batch_size     = options.batch_size;
+    parser.map_input_dims    = options.map_input_dims;
+    parser.default_dim_value = options.default_dim_value;
 
 #ifndef NDEBUG
     // Log the program when it can't be parsed

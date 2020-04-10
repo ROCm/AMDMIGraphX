@@ -344,7 +344,7 @@ struct program_parameter_shapes : MIGRAPHX_HANDLE_BASE(program_parameter_shapes)
     std::vector<const char*> names() const
     {
         std::vector<const char*> result(this->size());
-        if(result.size() > 0)
+        if(!result.empty())
         {
             call(&migraphx_program_parameter_shapes_names, result.data(), this->get_handle_ptr());
         }

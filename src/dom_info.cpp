@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 bool dominator_info::strictly_dominate(instruction_ref ins1, instruction_ref ins2)
 {
-    if (ins1 == ins2)
+    if(ins1 == ins2)
         return false;
     auto iter = ins2idom.find(ins2);
     while(iter != ins2idom.end())

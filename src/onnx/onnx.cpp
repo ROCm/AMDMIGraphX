@@ -1918,7 +1918,7 @@ struct onnx_parser
         auto ins           = prog.add_instruction(op::undefined{});
         instructions[name] = ins;
     }
-    
+
     static attribute_map get_attributes(const onnx::NodeProto& node)
     {
         std::unordered_map<std::string, onnx::AttributeProto> result;

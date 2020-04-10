@@ -28,7 +28,7 @@ struct contiguous
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        if (inputs.front().standard())
+        if(inputs.front().standard())
             return inputs.front();
         auto lens = inputs.at(0).lens();
         auto t    = inputs.at(0).type();

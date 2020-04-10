@@ -32,9 +32,8 @@ struct shape_impl
         assert(m_lens.size() == m_strides.size());
         // assert(std::any_of(m_strides.begin(), m_strides.end(), [](auto x) { return x > 0; }) and
         //        "At least one stride must be non-zero");
-        m_standard =
-            this->elements() == this->element_space() and
-            std::is_sorted(m_strides.rbegin(), m_strides.rend());
+        m_standard = this->elements() == this->element_space() and
+                     std::is_sorted(m_strides.rbegin(), m_strides.rend());
     }
     shape::type_t m_type;
     std::vector<std::size_t> m_lens;

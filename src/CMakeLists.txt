@@ -7,6 +7,7 @@ add_library(migraphx
     eliminate_common_subexpression.cpp
     propagate_constant.cpp
     dead_code_elimination.cpp
+    dom_info.cpp
     eliminate_allocation.cpp
     eliminate_contiguous.cpp
     eliminate_concat.cpp

@@ -8,6 +8,20 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+bool dominator_info::strictly_dominate(instruction_ref ins1, instruction_ref ins2)
+{
+    if (ins1 == ins2)
+        return false;
+    auto iter = ins2idom.find(ins2);
+    while(iter != ins2idom.end())
+    {
+        if(ins1 == iter->second)
+            return true;
+        iter = ins2idom.find(iter->second);
+    }
+    return false;
+}
+
 struct program_visitor
 {
     program* prog;

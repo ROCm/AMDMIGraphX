@@ -1821,12 +1821,12 @@ def slice_3arg_test():
                                       data_type=TensorProto.INT32,
                                       dims=start.shape,
                                       vals=start.astype(int))
-    
+
     arg_start = helper.make_node("Constant",
                                  inputs=[],
                                  outputs=['arg_start'],
                                  value=start_tensor)
-                                      
+
     end = np.array([2, 5])
     end_tensor = helper.make_tensor(name="end",
                                     data_type=TensorProto.INT32,
@@ -1837,10 +1837,9 @@ def slice_3arg_test():
                                outputs=['arg_end'],
                                value=end_tensor)
 
-    node = onnx.helper.make_node(
-        'Slice',
-        inputs=['0', 'arg_start', 'arg_end'],
-        outputs=['1'])
+    node = onnx.helper.make_node('Slice',
+                                 inputs=['0', 'arg_start', 'arg_end'],
+                                 outputs=['1'])
 
     return ([arg_start, arg_end, node], [x], [y])
 

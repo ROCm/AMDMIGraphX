@@ -1111,8 +1111,8 @@ TEST_CASE(pad_3arg_test)
 {
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 2}});
-    p.add_literal({migraphx::shape{migraphx::shape::int32_type, {4}}, {1, 1, 2, 2}});
     p.add_literal({migraphx::shape{migraphx::shape::float_type}, {1.0f}});
+    p.add_literal({migraphx::shape{migraphx::shape::int32_type, {4}}, {1, 1, 2, 2}});
     auto r = p.add_instruction(migraphx::op::pad{{1, 1, 2, 2}, 1.0f}, l0);
     p.add_return({r});
 

@@ -1455,6 +1455,20 @@ def prelu_brcst_test():
 
 
 @onnx_test
+def recip_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node(
+        'Reciprocal',
+        inputs=['x'],
+        outputs=['y'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def reducel1_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 6])
@@ -2092,6 +2106,16 @@ def transpose_gather_test():
     )
 
     return ([td, ti, node], [x, i], [y])
+
+
+@onnx_test
+def undefined_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('Identity', inputs=[''], outputs=['1'])
+
+    return ([node], [x], [y])
 
 
 @onnx_test

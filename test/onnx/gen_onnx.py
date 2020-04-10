@@ -1798,6 +1798,53 @@ def sinh_test():
 
 
 @onnx_test
+def slice_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 2])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 2])
+
+    node = onnx.helper.make_node('Slice',
+                                 inputs=['0'],
+                                 axes=[0, 1],
+                                 starts=[1, 0],
+                                 ends=[2, 2],
+                                 outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def slice_3arg_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [5, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 5])
+    start = np.array([0, 0])
+    start_tensor = helper.make_tensor(name="start",
+                                      data_type=TensorProto.INT32,
+                                      dims=start.shape,
+                                      vals=start.astype(int))
+
+    arg_start = helper.make_node("Constant",
+                                 inputs=[],
+                                 outputs=['arg_start'],
+                                 value=start_tensor)
+
+    end = np.array([2, 5])
+    end_tensor = helper.make_tensor(name="end",
+                                    data_type=TensorProto.INT32,
+                                    dims=end.shape,
+                                    vals=end.astype(int))
+    arg_end = helper.make_node("Constant",
+                               inputs=[],
+                               outputs=['arg_end'],
+                               value=end_tensor)
+
+    node = onnx.helper.make_node('Slice',
+                                 inputs=['0', 'arg_start', 'arg_end'],
+                                 outputs=['1'])
+
+    return ([arg_start, arg_end, node], [x], [y])
+
+
+@onnx_test
 def slice_5arg_test():
     step = np.array([1, 1])
     step_tensor = helper.make_tensor(name="step",
@@ -1860,21 +1907,6 @@ def slice_max_end_test():
                                  axes=[0, 1],
                                  starts=[1, 2],
                                  ends=[3000000000, -1],
-                                 outputs=['1'])
-
-    return ([node], [x], [y])
-
-
-@onnx_test
-def slice_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 2])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 2])
-
-    node = onnx.helper.make_node('Slice',
-                                 inputs=['0'],
-                                 axes=[0, 1],
-                                 starts=[1, 0],
-                                 ends=[2, 2],
                                  outputs=['1'])
 
     return ([node], [x], [y])

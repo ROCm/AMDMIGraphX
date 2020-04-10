@@ -814,6 +814,13 @@ struct onnx_parser
             s.visit([&](auto v) { copy(v, std::back_inserter(op.starts)); });
         }
 
+        if(op.axes.empty())
+        {
+            std::vector<int64_t> axes(args[0]->get_shape().lens().size());
+            std::iota(axes.begin(), axes.end(), int64_t{0});
+            op.axes = axes;
+        }
+
         return prog.add_instruction(op, args[0]);
     }
 

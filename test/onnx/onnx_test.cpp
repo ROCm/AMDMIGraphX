@@ -1097,6 +1097,23 @@ TEST_CASE(no_pad_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(onehot_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {5}}, {1, 1, 1, 1, 1}});
+    p.add_literal(2);
+    p.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {0, 1}});
+    auto l1 = p.add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2, 2}}, {1, 0, 0, 1}});
+    int axis = 0;
+    p.add_instruction(migraphx::op::gather{axis}, l1, l0);
+    auto prog = optimize_onnx("onehot_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(pad_test)
 {
     migraphx::program p;

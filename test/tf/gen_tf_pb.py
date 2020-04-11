@@ -205,8 +205,8 @@ def mul_test(g1):
 @tf_test
 def onehot_test(g1):
     with g1.as_default():
-        g1_input = tf.constant((1,1,1,1,1), dtype=tf.int32)
-        tf.one_hot(g1_input, 2, name = 'onehot1')
+        g1_input = tf.constant((1, 1, 1, 1, 1), dtype=tf.int32)
+        tf.one_hot(g1_input, 2, name='onehot1')
 
 
 @tf_test

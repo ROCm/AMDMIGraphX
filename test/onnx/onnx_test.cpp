@@ -1103,8 +1103,7 @@ TEST_CASE(onehot_test)
     auto l0 = p.add_literal(
         migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {5}}, {1, 1, 1, 1, 1}});
     p.add_literal(2);
-    p.add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {0, 1}});
+    p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {0, 1}});
     auto l1 = p.add_literal(
         migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2, 2}}, {1, 0, 0, 1}});
     int axis = 0;

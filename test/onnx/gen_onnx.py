@@ -1421,9 +1421,9 @@ def onehot_test():
     depth = np.array([2])
 
     indices_tensor = helper.make_tensor(name="indices",
-                                      data_type=TensorProto.INT32,
-                                      dims=indices.shape,
-                                      vals=indices.astype(int))
+                                        data_type=TensorProto.INT32,
+                                        dims=indices.shape,
+                                        vals=indices.astype(int))
 
     depth_tensor = helper.make_tensor(name="depth",
                                       data_type=TensorProto.INT32,
@@ -1431,9 +1431,9 @@ def onehot_test():
                                       vals=depth.astype(int))
 
     values_tensor = helper.make_tensor(name="values",
-                                      data_type=TensorProto.FLOAT,
-                                      dims=values.shape,
-                                      vals=values.astype(float))
+                                       data_type=TensorProto.FLOAT,
+                                       dims=values.shape,
+                                       vals=values.astype(float))
 
     node = onnx.helper.make_node('OneHot',
                                  inputs=['indices', 'depth', 'values'],

@@ -1824,7 +1824,6 @@ struct onnx_parser
         float off_value = on_off_vals[0];
         float on_value  = on_off_vals[1];
 
-
         std::vector<float> depth_input(depth * depth, off_value);
         for(int i = 0; i < depth; i++)
         {

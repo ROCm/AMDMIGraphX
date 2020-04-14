@@ -1628,7 +1628,8 @@ TEST_CASE(unknown_test_throw)
 
 TEST_CASE(unknown_test_throw_print_error)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("unknown_test.onnx", {.print_program_on_error=true}); }));
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("unknown_test.onnx", {.print_program_on_error = true}); }));
 }
 
 TEST_CASE(variable_batch_test)

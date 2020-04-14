@@ -1813,7 +1813,7 @@ struct onnx_parser
     {
         migraphx::argument depth_arg = args[1]->eval();
         check_arg_empty(depth_arg, "ONEHOT: depth - dynamic shape not supported");
-        size_t depth = static_cast<size_t>(depth_arg.at<int32_t>());
+        size_t depth = depth_arg.at<size_t>();
 
         int64_t axis = -1;
         std::vector<float> on_off_vals;

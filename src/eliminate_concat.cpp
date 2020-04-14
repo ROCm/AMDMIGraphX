@@ -59,10 +59,11 @@ void eliminate_concat::apply(program& p) const
             // Need to sort the allocations, so that we know where to
             // insert the "super"-allocation
             auto sorted_allocations = allocations;
-            std::sort(
-                sorted_allocations.begin(), sorted_allocations.end(), [&](instruction_ref x, instruction_ref y) {
-                    return std::distance(p.begin(), x) < std::distance(p.begin(), y);
-                });
+            std::sort(sorted_allocations.begin(),
+                      sorted_allocations.end(),
+                      [&](instruction_ref x, instruction_ref y) {
+                          return std::distance(p.begin(), x) < std::distance(p.begin(), y);
+                      });
             // Move "super" allocation to the front
             auto first = sorted_allocations.front();
             auto super = p.move_instruction(last, first);

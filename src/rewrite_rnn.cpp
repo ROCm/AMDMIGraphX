@@ -15,6 +15,7 @@
 #include <migraphx/op/sub.hpp>
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/unsqueeze.hpp>
+#include <migraphx/op/contiguous.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/op/common.hpp>
@@ -240,9 +241,10 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
         auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, input);
-        xt      = prog.insert_instruction(ins, op::squeeze{{0}}, xt);
-        auto xt_wi = prog.insert_instruction(ins, op::dot{}, xt, tran_sw);
-        auto ht_ri = prog.insert_instruction(ins, op::dot{}, sih, tran_sr);
+        auto cont_xt = prog.insert_instruction(ins, op::contiguous{}, xt);
+        xt           = prog.insert_instruction(ins, op::squeeze{{0}}, cont_xt);
+        auto xt_wi   = prog.insert_instruction(ins, op::dot{}, xt, tran_sw);
+        auto ht_ri   = prog.insert_instruction(ins, op::dot{}, sih, tran_sr);
         if(bias != prog.end())
         {
             xt_wi = prog.insert_instruction(ins, op::add{}, xt_wi, bb);
@@ -536,7 +538,8 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
         auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, seq);
-        xt      = prog.insert_instruction(ins, op::squeeze{{0}}, xt);
+        auto cont_xt = prog.insert_instruction(ins, op::contiguous{}, xt);
+        xt           = prog.insert_instruction(ins, op::squeeze{{0}}, cont_xt);
 
         auto xt_w    = prog.insert_instruction(ins, op::dot{}, xt, tw);
         auto ih1_rzr = prog.insert_instruction(ins, op::dot{}, sih, trzr);
@@ -949,7 +952,8 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
         auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, seq);
-        xt      = prog.insert_instruction(ins, op::squeeze{{0}}, xt);
+        auto cont_xt = prog.insert_instruction(ins, op::contiguous{}, xt);
+        xt           = prog.insert_instruction(ins, op::squeeze{{0}}, cont_xt);
 
         auto xt_tsw  = prog.insert_instruction(ins, op::dot{}, xt, tsw);
         auto sih_tsr = prog.insert_instruction(ins, op::dot{}, sih, tsr);

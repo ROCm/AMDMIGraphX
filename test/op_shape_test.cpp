@@ -524,7 +524,6 @@ TEST_CASE(test_squeeze_scalar)
     expect_shape(s2, migraphx::op::unsqueeze{{-2}}, s1);
 }
 
-
 TEST_CASE(test_unsqueeze)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};

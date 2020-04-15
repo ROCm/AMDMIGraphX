@@ -517,6 +517,14 @@ TEST_CASE(test_squeeze_all)
     expect_shape(s2, migraphx::op::squeeze{{0}}, s1);
 }
 
+TEST_CASE(test_squeeze_scalar)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}, {0, 0, 0}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}, {0, 0, 0, 0}};
+    expect_shape(s2, migraphx::op::unsqueeze{{-2}}, s1);
+}
+
+
 TEST_CASE(test_unsqueeze)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
@@ -528,12 +536,6 @@ TEST_CASE(test_unsqueeze_negative_axis)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
     migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
-    expect_shape(s2, migraphx::op::unsqueeze{{-2}}, s1);
-}
-TEST_CASE(test_squeeze_scalar)
-{
-    migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}, {0, 0, 0}};
-    migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}, {0, 0, 0, 0}};
     expect_shape(s2, migraphx::op::unsqueeze{{-2}}, s1);
 }
 

@@ -1838,7 +1838,7 @@ struct onnx_parser
             auto l0 = prog.add_literal({s, depth_input});
             return prog.add_instruction(op::gather{0}, {l0, args[0]});
         }
-        MIGRAPHX_THROW("MIGraphX does not support axis != -1");
+        MIGRAPHX_THROW("ONEHOT: MIGraphX does not support axis != -1");
     }
 
     void parse_from(std::istream& is)

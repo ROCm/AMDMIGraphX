@@ -517,11 +517,17 @@ TEST_CASE(test_squeeze_all)
     expect_shape(s2, migraphx::op::squeeze{{0}}, s1);
 }
 
-TEST_CASE(test_squeeze_scalar)
+TEST_CASE(test_unsqueeze_scalar)
 {
-    migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}, {0, 0, 0}};
-    migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}, {0, 0, 0, 0}};
-    expect_shape(s2, migraphx::op::unsqueeze{{-2}}, s1);
+    migraphx::shape s1{migraphx::shape::float_type, {1}, {0}};
+    migraphx::shape s2{migraphx::shape::float_type, {1}, {1}};
+    expect_shape(s2, migraphx::op::unsqueeze{{0}}, s1);
+}
+
+TEST_CASE(test_unsqueeze_scalar_tensor)
+{
+    migraphx::shape s{migraphx::shape::float_type, {4, 3, 3}, {0, 0, 0}};
+    throws_shape(migraphx::op::unsqueeze{{-2}}, s);
 }
 
 TEST_CASE(test_unsqueeze)

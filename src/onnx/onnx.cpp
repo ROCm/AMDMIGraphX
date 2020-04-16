@@ -111,6 +111,7 @@ struct onnx_parser
         add_mem_op("MatMul", &onnx_parser::parse_matmul<op::dot>);
         add_mem_op("MatMulInteger", &onnx_parser::parse_matmul<op::quant_dot>);
         add_mem_op("MaxPool", &onnx_parser::parse_pooling);
+        add_mem_op("OneHot", &onnx_parser::parse_onehot);
         add_mem_op("ReduceL1", &onnx_parser::parse_reduce_l1);
         add_mem_op("ReduceL2", &onnx_parser::parse_reduce_l2);
         add_mem_op("ReduceLogSum", &onnx_parser::parse_reduce_log_sum);
@@ -812,6 +813,13 @@ struct onnx_parser
         {
             literal s = parse_value(info.attributes.at("starts"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.starts)); });
+        }
+
+        if(op.axes.empty())
+        {
+            std::vector<int64_t> axes(args[0]->get_shape().lens().size());
+            std::iota(axes.begin(), axes.end(), int64_t{0});
+            op.axes = axes;
         }
 
         return prog.add_instruction(op, args[0]);
@@ -1800,6 +1808,39 @@ struct onnx_parser
         return ret_ins;
     }
 
+    instruction_ref
+    parse_onehot(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        migraphx::argument depth_arg = args[1]->eval();
+        check_arg_empty(depth_arg, "ONEHOT: depth - dynamic shape not supported");
+        size_t depth = depth_arg.at<size_t>();
+
+        int64_t axis = -1;
+        std::vector<float> on_off_vals;
+
+        migraphx::argument values_arg = args[2]->eval();
+        check_arg_empty(values_arg, "ONEHOT: values - dynamic shape not supported");
+        values_arg.visit([&](auto v) { copy(v, std::back_inserter(on_off_vals)); });
+        float off_value = on_off_vals[0];
+        float on_value  = on_off_vals[1];
+
+        std::vector<float> depth_input(depth * depth, off_value);
+        for(int i = 0; i < depth; i++)
+        {
+            depth_input[depth * i + i] = on_value;
+        }
+
+        if(contains(info.attributes, "axis"))
+            axis = info.attributes.at("axis").i();
+        if(axis == -1)
+        {
+            shape s{shape::float_type, {depth, depth}};
+            auto l0 = prog.add_literal({s, depth_input});
+            return prog.add_instruction(op::gather{0}, {l0, args[0]});
+        }
+        MIGRAPHX_THROW("ONEHOT: MIGraphX does not support axis != -1");
+    }
+
     void parse_from(std::istream& is)
     {
         onnx::ModelProto model;
@@ -1834,7 +1875,6 @@ struct onnx_parser
 
     void parse_graph(const onnx::GraphProto& graph)
     {
-        nodes = get_nodes(graph);
         for(auto&& f : graph.initializer())
             instructions[f.name()] = prog.add_literal(parse_tensor(f));
 
@@ -1849,9 +1889,41 @@ struct onnx_parser
                 instructions[name] = prog.add_parameter(name, s);
             }
         }
-        for(auto&& output : graph.output())
+
+        for(auto&& node : graph.node())
         {
-            this->parse_node(output.name());
+            std::vector<instruction_ref> args;
+            for(auto&& input : node.input())
+            {
+                if(input.empty())
+                {
+                    this->parse_undefined(input);
+                }
+                if(instructions.count(input) == 0)
+                {
+                    MIGRAPHX_THROW("PARSE_GRAPH: invalid onnx file. Input \"" + input +
+                                   "\" is unavailable due to unordered nodes!");
+                }
+                args.push_back(instructions.at(input));
+            }
+
+            std::vector<instruction_ref> result;
+            std::size_t output_num = static_cast<std::size_t>(node.output().size());
+            if(ops.count(node.op_type()) == 0)
+            {
+                result.push_back(prog.add_instruction(op::unknown{node.op_type()}, args));
+            }
+            else
+            {
+                result = ops[node.op_type()]({get_attributes(node), output_num}, args);
+            }
+
+            output_num = std::min<std::size_t>(output_num, result.size());
+            std::transform(node.output().begin(),
+                           node.output().begin() + output_num,
+                           result.begin(),
+                           std::inserter(instructions, instructions.end()),
+                           [](auto&& x, auto&& y) { return std::make_pair(x, y); });
         }
 
         // Find instructions corresponding to the output
@@ -1884,86 +1956,12 @@ struct onnx_parser
         instructions[name] = ins;
     }
 
-    void parse_node(const std::string& name)
-    {
-        if(name.empty())
-            MIGRAPHX_THROW("Onnx node must have a name");
-        if(instructions.count(name) == 0)
-        {
-            auto&& node = nodes.at(name);
-            std::vector<instruction_ref> args;
-            for(auto&& input : node.input())
-            {
-                if(input.empty())
-                {
-                    this->parse_undefined(input);
-                }
-                else if(nodes.count(input) > 0)
-                {
-                    assert(name != input);
-                    this->parse_node(input);
-                }
-                args.push_back(instructions.at(input));
-            }
-            std::vector<instruction_ref> result;
-            if(ops.count(node.op_type()) == 0)
-            {
-                result.push_back(prog.add_instruction(op::unknown{node.op_type()}, args));
-            }
-            else
-            {
-                std::size_t output_num = static_cast<std::size_t>(node.output().size());
-                result = ops[node.op_type()]({get_attributes(node), output_num}, args);
-            }
-            // Even no output nodes produce output in migraphx
-            if(node.output().empty() and result.size() == 1)
-            {
-                instructions[name] = result.front();
-            }
-            else
-            {
-                auto output_num = std::min<std::size_t>(node.output().size(), result.size());
-                std::transform(node.output().begin(),
-                               node.output().begin() + output_num,
-                               result.begin(),
-                               std::inserter(instructions, instructions.end()),
-                               [](auto&& x, auto&& y) { return std::make_pair(x, y); });
-            }
-        }
-    }
-
     static attribute_map get_attributes(const onnx::NodeProto& node)
     {
         std::unordered_map<std::string, onnx::AttributeProto> result;
         for(auto&& attr : node.attribute())
         {
             result[attr.name()] = attr;
-        }
-        return result;
-    }
-
-    static node_map get_nodes(const onnx::GraphProto& graph)
-    {
-        std::unordered_map<std::string, onnx::NodeProto> result;
-        std::size_t n = 0;
-        for(auto&& node : graph.node())
-        {
-            if(node.output().empty())
-            {
-                if(node.name().empty())
-                {
-                    result["migraphx_unamed_node_" + std::to_string(n)] = node;
-                    n++;
-                }
-                else
-                {
-                    result[node.name()] = node;
-                }
-            }
-            for(auto&& output : node.output())
-            {
-                result[output] = node;
-            }
         }
         return result;
     }

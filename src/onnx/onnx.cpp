@@ -1103,26 +1103,56 @@ struct onnx_parser
     instruction_ref parse_pad(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         std::vector<int64_t> pads{};
-        float value = 0.0f;
-        if(contains(info.attributes, "pads"))
+        if(args.size() >= 2)
+        {
+            auto pad_arg = args.at(1)->eval();
+            check_arg_empty(pad_arg, "PARSE_PAD: pad input must be constant");
+            pad_arg.visit([&](auto v) { pads.assign(v.begin(), v.end()); });
+        }
+        else if(contains(info.attributes, "pads"))
         {
             auto&& pad_vals = info.attributes["pads"].ints();
             pads            = std::vector<int64_t>(pad_vals.begin(), pad_vals.end());
         }
+        else
+        {
+            MIGRAPHX_THROW("PARSE_PAD: pad must be available");
+        }
+
         // check if padding is actually being done (at least one value is nonzero)
         if(std::all_of(pads.begin(), pads.end(), [](const int& i) { return i == 0; }))
         {
             return prog.add_instruction(migraphx::op::identity{}, args.front());
         }
-        if(contains(info.attributes, "value"))
+
+        float value = 0.0f;
+        // third input is the value
+        if(args.size() == 3)
+        {
+            auto val_ins = args.at(2);
+            if(!val_ins->can_eval())
+            {
+                MIGRAPHX_THROW("PARSE_PAD: input value must be constant");
+            }
+            auto val_arg = val_ins->eval();
+            if(val_arg.get_shape().elements() != 1)
+            {
+                MIGRAPHX_THROW("PARSE_PAD: value should contain only one element");
+            }
+            value = val_arg.at<float>();
+        }
+        else if(contains(info.attributes, "value"))
         {
             value = parse_value(info.attributes.at("value")).at<float>();
         }
+
         if(contains(info.attributes, "mode"))
         {
             auto mode = info.attributes.at("mode").s();
             if(mode != "constant")
-                MIGRAPHX_THROW("migraphx currently only supports constant padding");
+            {
+                MIGRAPHX_THROW("PARSE_PAD: migraphx currently only supports constant padding");
+            }
         }
         return prog.add_instruction(migraphx::op::pad{pads, value}, args.front());
     }

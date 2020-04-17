@@ -9,6 +9,7 @@ namespace gpu {
 shape hip_pad::compute_shape(std::vector<shape> inputs) const
 {
     inputs.pop_back();
+    check_shapes{inputs, *this}.has(1).standard();
     return op.compute_shape(inputs);
 }
 

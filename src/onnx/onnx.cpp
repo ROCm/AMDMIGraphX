@@ -2113,7 +2113,7 @@ struct onnx_parser
     }
 
     static shape parse_type(const onnx::TypeProto& t,
-                            std::vector<std::size_t> input_dims,
+                            const std::vector<std::size_t>& input_dims,
                             std::size_t default_dim_value)
     {
         shape::type_t shape_type{};

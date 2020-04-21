@@ -339,6 +339,26 @@ TEST_CASE(simplify_add_conv_1x1_diff_strides2)
                p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
 }
 
+TEST_CASE(simplify_add_conv_1x1_diff_strides_odd)
+{
+    migraphx::program p;
+    auto x = p.add_parameter("x", {migraphx::shape::float_type, {1, 54, 83, 83}});
+    auto w =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {54, 54, 1, 1}}));
+    auto y = p.add_parameter("y", {migraphx::shape::float_type, {1, 54, 165, 165}});
+    auto v =
+        p.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {54, 54, 1, 1}}));
+    auto conv1 = p.add_instruction(migraphx::op::convolution{}, x, w);
+    auto conv2 = p.add_instruction(migraphx::op::convolution{{0, 0}, {2, 2}}, y, v);
+    auto sum   = p.add_instruction(migraphx::op::add{}, conv1, conv2);
+    p.add_instruction(pass_op{}, sum);
+    auto s = p.get_output_shapes().back();
+    run_pass(p);
+    EXPECT(s == p.get_output_shapes().back());
+    EXPECT(std::count_if(
+               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
+}
+
 TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides1)
 {
     migraphx::program p;
@@ -487,6 +507,46 @@ TEST_CASE(simplify_concat_add_relu_broadcast_same_axis)
         auto sum     = p2.add_instruction(migraphx::op::add{}, concat1, concat2);
         auto relu    = p2.add_instruction(migraphx::op::relu{}, sum);
         p2.add_instruction(pass_op{}, relu);
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(simplify_div_const)
+{
+    migraphx::program p1;
+    {
+        auto x   = p1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto two = p1.add_literal(2);
+        p1.add_instruction(migraphx::op::div{}, x, two);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto x     = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto two   = p2.add_literal(2);
+        auto recip = p2.insert_instruction(std::next(two), migraphx::op::recip{}, two);
+        p2.add_instruction(migraphx::op::mul{}, x, recip);
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(simplify_sub_const)
+{
+    migraphx::program p1;
+    {
+        auto x   = p1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto two = p1.add_literal(2);
+        p1.add_instruction(migraphx::op::sub{}, x, two);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto x   = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto two = p2.add_literal(2);
+        auto neg = p2.insert_instruction(std::next(two), migraphx::op::neg{}, two);
+        p2.add_instruction(migraphx::op::add{}, x, neg);
     }
     EXPECT(p1 == p2);
 }

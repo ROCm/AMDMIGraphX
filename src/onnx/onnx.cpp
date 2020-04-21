@@ -60,6 +60,7 @@ struct onnx_parser
         add_generic_op("Log", op::log{});
         add_generic_op("Floor", op::floor{});
         add_generic_op("Identity", op::identity{});
+        add_generic_op("Reciprocal", op::recip{});
         add_generic_op("Relu", op::relu{});
         add_generic_op("Round", op::round{});
         add_generic_op("Sigmoid", op::sigmoid{});
@@ -110,6 +111,7 @@ struct onnx_parser
         add_mem_op("MatMul", &onnx_parser::parse_matmul<op::dot>);
         add_mem_op("MatMulInteger", &onnx_parser::parse_matmul<op::quant_dot>);
         add_mem_op("MaxPool", &onnx_parser::parse_pooling);
+        add_mem_op("OneHot", &onnx_parser::parse_onehot);
         add_mem_op("ReduceL1", &onnx_parser::parse_reduce_l1);
         add_mem_op("ReduceL2", &onnx_parser::parse_reduce_l2);
         add_mem_op("ReduceLogSum", &onnx_parser::parse_reduce_log_sum);
@@ -311,14 +313,15 @@ struct onnx_parser
 
     template <class Op>
     void check_asym_padding(instruction_ref& ins,
-                            std::vector<int64_t>& padding,
+                            const std::vector<int64_t>& padding,
                             Op& op,
                             float pad_val = 0)
     {
         if(padding[0] != padding[2] || padding[1] != padding[3])
         {
-            padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
-            ins     = prog.add_instruction(op::pad{padding, pad_val}, ins);
+            ins = prog.add_instruction(
+                op::pad{{0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]}, pad_val},
+                ins);
         }
         else
         {
@@ -418,7 +421,10 @@ struct onnx_parser
     instruction_ref process_auto_pad_attribute(instruction_ref ins,
                                                node_info info,
                                                Op& op,
-                                               const std::vector<std::size_t>& in_lens)
+                                               std::array<std::size_t, 2> k_lens,
+                                               std::array<std::size_t, 2> dilation,
+                                               const std::vector<std::size_t>& in_lens,
+                                               float value = 0.0f)
     {
         if(!contains(info.attributes, "auto_pad"))
         {
@@ -428,46 +434,14 @@ struct onnx_parser
         auto auto_pad = info.attributes["auto_pad"].s();
         if(auto_pad.find("SAME") != std::string::npos)
         {
-            // calculate the padding
-            std::array<std::size_t, 2> out_lens;
-            out_lens[0] = (in_lens[2] + op.stride[0] - 1) / op.stride[0];
-            out_lens[1] = (in_lens[3] + op.stride[1] - 1) / op.stride[1];
+            bool is_same_upper = (auto_pad.find("SAME_UPPER") != std::string::npos);
+            std::vector<int64_t> padding(in_lens.size());
+            calculate_padding(
+                0, padding, in_lens[2], op.stride[0], dilation[0], k_lens[0], is_same_upper);
+            calculate_padding(
+                1, padding, in_lens[3], op.stride[1], dilation[1], k_lens[1], is_same_upper);
 
-            std::array<std::size_t, 2> explicit_pads;
-            explicit_pads[0] = (out_lens[0] - 1) * op.stride[0] + op.lengths[0] - in_lens[2];
-            explicit_pads[1] = (out_lens[1] - 1) * op.stride[1] + op.lengths[1] - in_lens[3];
-            op.padding[0]    = explicit_pads[0] / 2;
-            op.padding[1]    = explicit_pads[1] / 2;
-            explicit_pads[0] -= 2 * op.padding[0];
-            explicit_pads[1] -= 2 * op.padding[1];
-            std::vector<std::int64_t> pads(8, 0);
-            if(explicit_pads[0] != 0 or explicit_pads[1] != 0)
-            {
-                if(auto_pad == "SAME_UPPER")
-                {
-                    pads[6] = explicit_pads[0];
-                    pads[7] = explicit_pads[1];
-                }
-                else if(auto_pad == "SAME_LOWER")
-                {
-                    pads[2] = explicit_pads[0];
-                    pads[3] = explicit_pads[1];
-                }
-
-                // MaxPool
-                if(op.mode == "max")
-                {
-                    ins = prog.add_instruction(op::pad{pads, std::numeric_limits<float>::lowest()},
-                                               ins);
-                }
-                // AveragePool
-                else
-                {
-                    ins = prog.add_instruction(op::pad{pads}, ins);
-                }
-            }
-
-            op.padding_mode = op::padding_mode_t::same;
+            check_asym_padding(ins, padding, op, value);
         }
 
         return ins;
@@ -480,6 +454,7 @@ struct onnx_parser
         Op op;
         auto l0      = args[0];
         auto weights = args[1];
+        std::vector<int64_t> padding;
         if(contains(info.attributes, "pads"))
         {
             if(contains(info.attributes, "auto_pad"))
@@ -487,14 +462,14 @@ struct onnx_parser
                 auto s = info.attributes["auto_pad"].s();
                 if(contains(info.attributes, "pads") and to_upper(s) != "NOTSET")
                 {
-                    MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                    MIGRAPHX_THROW(
+                        "PARSE_CONV: auto_pad and padding cannot be specified simultaneously");
                 }
             }
-            std::vector<std::int64_t> padding;
             copy(info.attributes["pads"].ints(), std::back_inserter(padding));
             if(padding.size() != 4)
             {
-                MIGRAPHX_THROW("padding should have 4 values");
+                MIGRAPHX_THROW("PARSE_CONV: padding should have 4 values");
             }
             check_asym_padding(l0, padding, op);
         }
@@ -509,11 +484,6 @@ struct onnx_parser
         if(contains(info.attributes, "auto_pad"))
         {
             auto s = info.attributes["auto_pad"].s();
-            if(contains(info.attributes, "pads") and to_upper(s) != "NOTSET")
-            {
-                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
-            }
-
             if(s.find("SAME") != std::string::npos)
             {
                 op.padding_mode                 = op::padding_mode_t::same;
@@ -522,7 +492,7 @@ struct onnx_parser
                 size_t weight_w                 = weight_dims[3];
 
                 auto input_dims = l0->get_shape().lens();
-                std::vector<int64_t> padding(input_dims.size());
+                padding.resize(input_dims.size());
                 calculate_padding(
                     0, padding, input_dims[2], op.stride[0], op.dilation[0], weight_h);
                 calculate_padding(
@@ -530,6 +500,11 @@ struct onnx_parser
 
                 check_asym_padding(l0, padding, op);
             }
+
+            auto in_lens                      = args[0]->get_shape().lens();
+            auto weight_lens                  = args[1]->get_shape().lens();
+            std::array<std::size_t, 2> k_lens = {weight_lens[2], weight_lens[3]};
+            l0 = process_auto_pad_attribute(l0, info, op, k_lens, op.dilation, in_lens);
         }
         if(contains(info.attributes, "group"))
         {
@@ -690,8 +665,21 @@ struct onnx_parser
 
         if(contains(info.attributes, "auto_pad"))
         {
+            auto s = info.attributes["auto_pad"].s();
+            if(s.find("SAME") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::same;
+            }
+
             auto in_lens = args[0]->get_shape().lens();
-            l0           = process_auto_pad_attribute(l0, info, op, in_lens);
+            float val    = 0.0f;
+            // MaxPool
+            if(op.mode == "max")
+            {
+                val = std::numeric_limits<float>::lowest();
+            }
+
+            l0 = process_auto_pad_attribute(l0, info, op, op.lengths, {1, 1}, in_lens, val);
         }
 
         return prog.add_instruction(op, l0);
@@ -811,7 +799,8 @@ struct onnx_parser
         }
         else if(contains(info.attributes, "ends"))
         {
-            op.ends = get_indices(info.attributes.at("ends"));
+            literal s = parse_value(info.attributes.at("ends"));
+            s.visit([&](auto v) { copy(v, std::back_inserter(op.ends)); });
         }
 
         if(args.size() >= 2)
@@ -824,6 +813,13 @@ struct onnx_parser
         {
             literal s = parse_value(info.attributes.at("starts"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.starts)); });
+        }
+
+        if(op.axes.empty())
+        {
+            std::vector<int64_t> axes(args[0]->get_shape().lens().size());
+            std::iota(axes.begin(), axes.end(), int64_t{0});
+            op.axes = axes;
         }
 
         return prog.add_instruction(op, args[0]);
@@ -1107,26 +1103,56 @@ struct onnx_parser
     instruction_ref parse_pad(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         std::vector<int64_t> pads{};
-        float value = 0.0f;
-        if(contains(info.attributes, "pads"))
+        if(args.size() >= 2)
+        {
+            auto pad_arg = args.at(1)->eval();
+            check_arg_empty(pad_arg, "PARSE_PAD: pad input must be constant");
+            pad_arg.visit([&](auto v) { pads.assign(v.begin(), v.end()); });
+        }
+        else if(contains(info.attributes, "pads"))
         {
             auto&& pad_vals = info.attributes["pads"].ints();
             pads            = std::vector<int64_t>(pad_vals.begin(), pad_vals.end());
         }
+        else
+        {
+            MIGRAPHX_THROW("PARSE_PAD: pad must be available");
+        }
+
         // check if padding is actually being done (at least one value is nonzero)
         if(std::all_of(pads.begin(), pads.end(), [](const int& i) { return i == 0; }))
         {
             return prog.add_instruction(migraphx::op::identity{}, args.front());
         }
-        if(contains(info.attributes, "value"))
+
+        float value = 0.0f;
+        // third input is the value
+        if(args.size() == 3)
+        {
+            auto val_ins = args.at(2);
+            if(!val_ins->can_eval())
+            {
+                MIGRAPHX_THROW("PARSE_PAD: input value must be constant");
+            }
+            auto val_arg = val_ins->eval();
+            if(val_arg.get_shape().elements() != 1)
+            {
+                MIGRAPHX_THROW("PARSE_PAD: value should contain only one element");
+            }
+            value = val_arg.at<float>();
+        }
+        else if(contains(info.attributes, "value"))
         {
             value = parse_value(info.attributes.at("value")).at<float>();
         }
+
         if(contains(info.attributes, "mode"))
         {
             auto mode = info.attributes.at("mode").s();
             if(mode != "constant")
-                MIGRAPHX_THROW("migraphx currently only supports constant padding");
+            {
+                MIGRAPHX_THROW("PARSE_PAD: migraphx currently only supports constant padding");
+            }
         }
         return prog.add_instruction(migraphx::op::pad{pads, value}, args.front());
     }
@@ -1812,6 +1838,39 @@ struct onnx_parser
         return ret_ins;
     }
 
+    instruction_ref
+    parse_onehot(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        migraphx::argument depth_arg = args[1]->eval();
+        check_arg_empty(depth_arg, "ONEHOT: depth - dynamic shape not supported");
+        size_t depth = depth_arg.at<size_t>();
+
+        int64_t axis = -1;
+        std::vector<float> on_off_vals;
+
+        migraphx::argument values_arg = args[2]->eval();
+        check_arg_empty(values_arg, "ONEHOT: values - dynamic shape not supported");
+        values_arg.visit([&](auto v) { copy(v, std::back_inserter(on_off_vals)); });
+        float off_value = on_off_vals[0];
+        float on_value  = on_off_vals[1];
+
+        std::vector<float> depth_input(depth * depth, off_value);
+        for(int i = 0; i < depth; i++)
+        {
+            depth_input[depth * i + i] = on_value;
+        }
+
+        if(contains(info.attributes, "axis"))
+            axis = info.attributes.at("axis").i();
+        if(axis == -1)
+        {
+            shape s{shape::float_type, {depth, depth}};
+            auto l0 = prog.add_literal({s, depth_input});
+            return prog.add_instruction(op::gather{0}, {l0, args[0]});
+        }
+        MIGRAPHX_THROW("ONEHOT: MIGraphX does not support axis != -1");
+    }
+
     void parse_from(std::istream& is)
     {
         onnx::ModelProto model;
@@ -1846,7 +1905,6 @@ struct onnx_parser
 
     void parse_graph(const onnx::GraphProto& graph)
     {
-        nodes = get_nodes(graph);
         for(auto&& f : graph.initializer())
             instructions[f.name()] = prog.add_literal(parse_tensor(f));
 
@@ -1861,9 +1919,41 @@ struct onnx_parser
                 instructions[name] = prog.add_parameter(name, s);
             }
         }
-        for(auto&& output : graph.output())
+
+        for(auto&& node : graph.node())
         {
-            this->parse_node(output.name());
+            std::vector<instruction_ref> args;
+            for(auto&& input : node.input())
+            {
+                if(input.empty())
+                {
+                    this->parse_undefined(input);
+                }
+                if(instructions.count(input) == 0)
+                {
+                    MIGRAPHX_THROW("PARSE_GRAPH: invalid onnx file. Input \"" + input +
+                                   "\" is unavailable due to unordered nodes!");
+                }
+                args.push_back(instructions.at(input));
+            }
+
+            std::vector<instruction_ref> result;
+            std::size_t output_num = static_cast<std::size_t>(node.output().size());
+            if(ops.count(node.op_type()) == 0)
+            {
+                result.push_back(prog.add_instruction(op::unknown{node.op_type()}, args));
+            }
+            else
+            {
+                result = ops[node.op_type()]({get_attributes(node), output_num}, args);
+            }
+
+            output_num = std::min<std::size_t>(output_num, result.size());
+            std::transform(node.output().begin(),
+                           node.output().begin() + output_num,
+                           result.begin(),
+                           std::inserter(instructions, instructions.end()),
+                           [](auto&& x, auto&& y) { return std::make_pair(x, y); });
         }
 
         // Find instructions corresponding to the output
@@ -1896,54 +1986,6 @@ struct onnx_parser
         instructions[name] = ins;
     }
 
-    void parse_node(const std::string& name)
-    {
-        if(name.empty())
-            MIGRAPHX_THROW("Onnx node must have a name");
-        if(instructions.count(name) == 0)
-        {
-            auto&& node = nodes.at(name);
-            std::vector<instruction_ref> args;
-            for(auto&& input : node.input())
-            {
-                if(input.empty())
-                {
-                    this->parse_undefined(input);
-                }
-                else if(nodes.count(input) > 0)
-                {
-                    assert(name != input);
-                    this->parse_node(input);
-                }
-                args.push_back(instructions.at(input));
-            }
-            std::vector<instruction_ref> result;
-            if(ops.count(node.op_type()) == 0)
-            {
-                result.push_back(prog.add_instruction(op::unknown{node.op_type()}, args));
-            }
-            else
-            {
-                std::size_t output_num = static_cast<std::size_t>(node.output().size());
-                result = ops[node.op_type()]({get_attributes(node), output_num}, args);
-            }
-            // Even no output nodes produce output in migraphx
-            if(node.output().empty() and result.size() == 1)
-            {
-                instructions[name] = result.front();
-            }
-            else
-            {
-                auto output_num = std::min<std::size_t>(node.output().size(), result.size());
-                std::transform(node.output().begin(),
-                               node.output().begin() + output_num,
-                               result.begin(),
-                               std::inserter(instructions, instructions.end()),
-                               [](auto&& x, auto&& y) { return std::make_pair(x, y); });
-            }
-        }
-    }
-
     static attribute_map get_attributes(const onnx::NodeProto& node)
     {
         std::unordered_map<std::string, onnx::AttributeProto> result;
@@ -1951,46 +1993,6 @@ struct onnx_parser
         {
             result[attr.name()] = attr;
         }
-        return result;
-    }
-
-    static node_map get_nodes(const onnx::GraphProto& graph)
-    {
-        std::unordered_map<std::string, onnx::NodeProto> result;
-        std::size_t n = 0;
-        for(auto&& node : graph.node())
-        {
-            if(node.output().empty())
-            {
-                if(node.name().empty())
-                {
-                    result["migraphx_unamed_node_" + std::to_string(n)] = node;
-                    n++;
-                }
-                else
-                {
-                    result[node.name()] = node;
-                }
-            }
-            for(auto&& output : node.output())
-            {
-                result[output] = node;
-            }
-        }
-        return result;
-    }
-
-    static std::vector<int64_t> get_indices(const onnx::AttributeProto& attr)
-    {
-        std::vector<int64_t> result;
-        literal s = parse_value(attr);
-        s.visit([&](auto v) { copy(v, std::back_inserter(result)); });
-        // Clamp large indices to -1
-        std::replace_if(
-            result.begin(),
-            result.end(),
-            [](auto x) { return x > int64_t{std::numeric_limits<std::int32_t>::max()} / 2; },
-            -1);
         return result;
     }
 

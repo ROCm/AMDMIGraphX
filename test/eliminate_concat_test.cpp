@@ -132,6 +132,37 @@ TEST_CASE(simple)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(reversed)
+{
+    auto create_test_program = [] {
+        migraphx::program p;
+        auto a1          = p.add_instruction(allocate{create_shape(1)});
+        auto p1          = p.add_instruction(simple_op{}, a1);
+        auto a2          = p.add_instruction(allocate{create_shape(1)});
+        auto p2          = p.add_instruction(simple_op{}, a2);
+        std::size_t axis = 0;
+        auto a3          = p.add_instruction(allocate{create_shape(2)});
+        p.add_instruction(concat(axis), p2, p1, a3);
+        return p;
+    };
+    auto create_control_program = [] {
+        migraphx::program p;
+        auto a1 = p.add_instruction(allocate{create_shape(2)});
+        auto l1 = p.add_instruction(load{create_shape(1), 4}, a1);
+        auto p1 = p.add_instruction(simple_op{}, l1);
+        auto l2 = p.add_instruction(load{create_shape(1), 0}, a1);
+        auto p2 = p.add_instruction(simple_op{}, l2);
+        p.add_instruction(identity{}, a1, p2, p1);
+        return p;
+    };
+
+    auto p1 = create_test_program();
+    auto p2 = create_control_program();
+    run_pass(p1);
+
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(nested)
 {
     auto concat_test_program = [](auto& p) {

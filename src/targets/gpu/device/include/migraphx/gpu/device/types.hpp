@@ -103,19 +103,19 @@ host_type<T>* host_cast(T* x)
 }
 
 template <class T>
-device_type<T> device_cast(const T& x)
+__device__ __host__ device_type<T> device_cast(const T& x)
 {
     return reinterpret_cast<const device_type<T>&>(x);
 }
 
 template <class T>
-device_type<T>* device_cast(T* x)
+__device__ __host__ device_type<T>* device_cast(T* x)
 {
     return reinterpret_cast<device_type<T>*>(x);
 }
 
 template <class T>
-tensor_view<device_type<T>> device_cast(tensor_view<T> x)
+__device__ __host__ tensor_view<device_type<T>> device_cast(tensor_view<T> x)
 {
     return {x.get_shape(), reinterpret_cast<device_type<T>*>(x.data())};
 }

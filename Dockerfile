@@ -61,9 +61,6 @@ RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
 # Install yapf
 RUN pip3 install yapf==0.28.0
 
-# Install numpy
-RUN pip3 install numpy
-
 # Install doc requirements
 ADD doc/requirements.txt /doc-requirements.txt
 RUN pip3 install -r /doc-requirements.txt

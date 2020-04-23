@@ -1842,33 +1842,46 @@ struct onnx_parser
     parse_onehot(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         migraphx::argument depth_arg = args[1]->eval();
-        check_arg_empty(depth_arg, "ONEHOT: depth - dynamic shape not supported");
+        check_arg_empty(depth_arg, "PARSE_ONEHOT: depth - dynamic shape not supported");
         size_t depth = depth_arg.at<size_t>();
 
         int64_t axis = -1;
-        std::vector<float> on_off_vals;
+        if(contains(info.attributes, "axis"))
+        {
+            axis = info.attributes.at("axis").i();
+        }
 
-        migraphx::argument values_arg = args[2]->eval();
-        check_arg_empty(values_arg, "ONEHOT: values - dynamic shape not supported");
-        values_arg.visit([&](auto v) { copy(v, std::back_inserter(on_off_vals)); });
-        float off_value = on_off_vals[0];
-        float on_value  = on_off_vals[1];
-
-        std::vector<float> depth_input(depth * depth, off_value);
+        std::vector<float> depth_input(depth * depth, 0.0f);
         for(int i = 0; i < depth; i++)
         {
-            depth_input[depth * i + i] = on_value;
+            depth_input[depth * i + i] = 1.0f;
         }
 
-        if(contains(info.attributes, "axis"))
-            axis = info.attributes.at("axis").i();
-        if(axis == -1)
+        auto type = args[2]->get_shape().type();
+        shape s{type, {depth, depth}};
+        auto l_val = prog.add_literal({s, depth_input});
+        auto gather_out = prog.add_instruction(op::gather{0}, {l_val, args[0]});
+
+        // Finally, we need a transpose to move the inner most dim to the axis dim
+        int n_rank = gather_out->get_shape().lens().size();
+        if (axis < -n_rank or axis >= n_rank)
         {
-            shape s{shape::float_type, {depth, depth}};
-            auto l0 = prog.add_literal({s, depth_input});
-            return prog.add_instruction(op::gather{0}, {l0, args[0]});
+            MIGRAPHX_THROW("PARSE_ONEHOT: axis out of range");
         }
-        MIGRAPHX_THROW("ONEHOT: MIGraphX does not support axis != -1");
+        int64_t tuned_axis = (axis < 0) ? axis + n_rank : axis;
+        std::vector<int64_t> perm(n_rank - 1);
+        std::iota(perm.begin(), perm.end(), 0);
+        perm.insert(perm.begin() + tuned_axis, n_rank - 1);
+        auto tr_out = prog.add_instruction(op::transpose{perm}, gather_out);
+        auto lens = tr_out->get_shape().lens();
+
+        auto off_val = prog.add_instruction(op::slice{{0}, {0}, {1}}, args[2]);
+        auto on_val = prog.add_instruction(op::slice{{0}, {1}, {2}}, args[2]);
+        auto diff = prog.add_instruction(op::sub{}, on_val, off_val);
+        auto unsq_off_val = prog.add_instruction(op::multibroadcast{lens}, off_val);
+        auto unsq_diff_val = prog.add_instruction(op::multibroadcast{lens}, diff);
+        auto l_mul = prog.add_instruction(op::mul{}, tr_out, unsq_diff_val);
+        return prog.add_instruction(op::add{}, l_mul, unsq_off_val);
     }
 
     void parse_from(std::istream& is)

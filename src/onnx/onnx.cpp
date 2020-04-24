@@ -1577,82 +1577,20 @@ struct onnx_parser
                 return to_lower(name);
             });
         }
+        if (vec_names.size() != 3 and vec_names.size() != 6)
+        {
+            MIGRAPHX_THROW("PARSE_LSTM: number of activations must be 3 or 6!");
+        }
 
         // need 6 activation functions for bidirectional directions
         if(dirct == op::rnn_direction::bidirectional)
         {
             // 6 activation functions are used in the bidirectional
-            // scenario. No spec is provided in onnx::operator. we
-            // use the algorithm that: if 1 actv function is provided,
-            // repeat 1st six times. If 2 actv functins are provided,
-            // repeat 2nd once, then repeat all three once
-            // if 3 actv funcs are provide, repeat all three once.
-            // the same algorithm is used for 4, 5, and 6 actv funcions
-            // provided. This may need change later
-            switch(vec_names.size())
+            // scenario. if only three activation functions are provided
+            // just repeart that.
+            if (vec_names.size() == 3)
             {
-            case 1:
-                vec_names = {vec_names.at(0),
-                             vec_names.at(0),
-                             vec_names.at(0),
-                             vec_names.at(0),
-                             vec_names.at(0),
-                             vec_names.at(0)};
-                break;
-
-            case 2:
-                // repeat the 2nd actv func once, then repeat all three another time
-                vec_names = {vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(1),
-                             vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(1)};
-                break;
-
-            case 3:
-                // repeat all three actv funcs once
-                vec_names = {vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(2),
-                             vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(2)};
-                break;
-
-            case 4:
-                vec_names = {vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(2),
-                             vec_names.at(3),
-                             vec_names.at(3),
-                             vec_names.at(3)};
-                break;
-
-            case 5:
-                vec_names = {vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(2),
-                             vec_names.at(3),
-                             vec_names.at(4),
-                             vec_names.at(4)};
-                break;
-
-            default: break;
-            }
-        }
-        else
-        {
-            switch(vec_names.size())
-            {
-            case 1: vec_names = {vec_names.at(0), vec_names.at(0), vec_names.at(0)}; break;
-
-            case 2:
-                // repeat the 2nd actv func once, so we have 3 actv funcs
-                vec_names = {vec_names.at(0), vec_names.at(1), vec_names.at(1)};
-                break;
-
-            default: break;
+                vec_names.insert(vec_names.end(), vec_names.begin(), vec_names.end());
             }
         }
 
@@ -1682,6 +1620,13 @@ struct onnx_parser
             input_forget = parse_value(info.attributes.at("input_forget")).at<int>();
         }
 
+        // input sequence lengths info is available
+        instruction_ref seq_lens = prog.end();
+        if (args.size() >= 5)
+        {
+            seq_lens = args[4];
+        }
+
         // append undefined opeator to make 6 arguments
         if(args.size() < 8)
         {
@@ -1693,11 +1638,40 @@ struct onnx_parser
         auto hidden_states = prog.add_instruction(
             op::lstm{hidden_size, vec_actv_funcs, dirct, clip, input_forget}, std::move(args));
 
+        bool clear_missing_frames = false;
+        if (seq_lens != prog.end())
+        {
+            if (seq_lens->can_eval())
+            {
+                auto arg_lens = seq_lens->eval();
+                std::vector<int64_t> vec_lens;
+                arg_lens.visit([&](auto l) { vec_lens.assign(l.begin(), l.end()); });
+                int64_t l = 0;
+                if (vec_lens.size() > 0)
+                {
+                    l = vec_lens[0];
+                }
+                if (!std::all_of(vec_lens.begin(), vec_lens.end()))
+                {
+                    clear_missing_frames = true;
+                }
+            }
+            else 
+            {
+                clear_missing_frames = true;
+            }
+        }
+
+        if (clear_missing_frames)
+        {
+            hidden_states = prog.add_instruction(op::rnn_clear_missing_frames{}, hiddent_states, seq_lens);
+        }
+
         // second output for last lstm output
-        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
+        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states, seq_lens);
 
         // third output for last cell output
-        auto last_cell_output = prog.add_instruction(op::lstm_last_cell_output{}, hidden_states);
+        auto last_cell_output = prog.add_instruction(op::lstm_last_cell_output{}, hidden_states, seq_lens);
 
         return {hidden_states, last_output, last_cell_output};
     }

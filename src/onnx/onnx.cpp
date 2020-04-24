@@ -1577,7 +1577,7 @@ struct onnx_parser
                 return to_lower(name);
             });
         }
-        if (vec_names.size() != 3 and vec_names.size() != 6)
+        if(vec_names.size() != 3 and vec_names.size() != 6)
         {
             MIGRAPHX_THROW("PARSE_LSTM: number of activations must be 3 or 6!");
         }
@@ -1588,7 +1588,7 @@ struct onnx_parser
             // 6 activation functions are used in the bidirectional
             // scenario. if only three activation functions are provided
             // just repeart that.
-            if (vec_names.size() == 3)
+            if(vec_names.size() == 3)
             {
                 vec_names.insert(vec_names.end(), vec_names.begin(), vec_names.end());
             }
@@ -1622,7 +1622,7 @@ struct onnx_parser
 
         // input sequence lengths info is available
         instruction_ref seq_lens = prog.end();
-        if (args.size() >= 5)
+        if(args.size() >= 5)
         {
             seq_lens = args[4];
         }
@@ -1639,39 +1639,41 @@ struct onnx_parser
             op::lstm{hidden_size, vec_actv_funcs, dirct, clip, input_forget}, std::move(args));
 
         bool clear_missing_frames = false;
-        if (seq_lens != prog.end())
+        if(seq_lens != prog.end())
         {
-            if (seq_lens->can_eval())
+            if(seq_lens->can_eval())
             {
                 auto arg_lens = seq_lens->eval();
                 std::vector<int64_t> vec_lens;
                 arg_lens.visit([&](auto l) { vec_lens.assign(l.begin(), l.end()); });
                 int64_t l = 0;
-                if (vec_lens.size() > 0)
+                if(vec_lens.size() > 0)
                 {
                     l = vec_lens[0];
                 }
-                if (!std::all_of(vec_lens.begin(), vec_lens.end()))
+                if(!std::all_of(vec_lens.begin(), vec_lens.end()))
                 {
                     clear_missing_frames = true;
                 }
             }
-            else 
+            else
             {
                 clear_missing_frames = true;
             }
         }
 
-        if (clear_missing_frames)
+        if(clear_missing_frames)
         {
-            hidden_states = prog.add_instruction(op::rnn_clear_missing_frames{}, hiddent_states, seq_lens);
+            hidden_states =
+                prog.add_instruction(op::rnn_clear_missing_frames{}, hiddent_states, seq_lens);
         }
 
         // second output for last lstm output
         auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states, seq_lens);
 
         // third output for last cell output
-        auto last_cell_output = prog.add_instruction(op::lstm_last_cell_output{}, hidden_states, seq_lens);
+        auto last_cell_output =
+            prog.add_instruction(op::lstm_last_cell_output{}, hidden_states, seq_lens);
 
         return {hidden_states, last_output, last_cell_output};
     }

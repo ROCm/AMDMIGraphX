@@ -699,7 +699,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
 
         // process sequence length
         instruction_ref seq_lens = prog.end();
-        if (args.size() >= 5) && args[4]->name() != "undefined")
+        if(args.size() >= 5) && args[4]->name() != "undefined")
         {
             seq_lens = args[4];
         }
@@ -741,23 +741,35 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
             pph_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[7]);
         }
 
-        auto ret_forward = lstm_cell(
-            true,
-            prog,
-            ins,
-            {args[0], w_forward, r_forward, bias_forward, seq_lens, ih_forward, ic_forward, pph_forward},
-            actv_funcs.at(0),
-            actv_funcs.at(1),
-            actv_funcs.at(2));
+        auto ret_forward = lstm_cell(true,
+                                     prog,
+                                     ins,
+                                     {args[0],
+                                      w_forward,
+                                      r_forward,
+                                      bias_forward,
+                                      seq_lens,
+                                      ih_forward,
+                                      ic_forward,
+                                      pph_forward},
+                                     actv_funcs.at(0),
+                                     actv_funcs.at(1),
+                                     actv_funcs.at(2));
 
-        auto ret_reverse = lstm_cell(
-            false,
-            prog,
-            ins,
-            {args[0], w_reverse, r_reverse, bias_reverse, seq_lens, ih_reverse, ic_reverse, pph_reverse},
-            actv_funcs.at(3),
-            actv_funcs.at(4),
-            actv_funcs.at(5));
+        auto ret_reverse = lstm_cell(false,
+                                     prog,
+                                     ins,
+                                     {args[0],
+                                      w_reverse,
+                                      r_reverse,
+                                      bias_reverse,
+                                      seq_lens,
+                                      ih_reverse,
+                                      ic_reverse,
+                                      pph_reverse},
+                                     actv_funcs.at(3),
+                                     actv_funcs.at(4),
+                                     actv_funcs.at(5));
 
         auto concat_output =
             prog.insert_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
@@ -797,7 +809,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
 
         // process sequence length
         instruction_ref seq_lens = prog.end();
-        if (args.size() >= 5) && args[4]->name() != "undefined")
+        if(args.size() >= 5) && args[4]->name() != "undefined")
         {
             seq_lens = args[4];
         }
@@ -897,14 +909,14 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
 {
     // must have 7 args in the input vector
     assert(inputs.size() == 7);
-    auto seq  = inputs.at(0);
-    auto w    = inputs.at(1);
-    auto r    = inputs.at(2);
-    auto bias = inputs.at(3);
+    auto seq      = inputs.at(0);
+    auto w        = inputs.at(1);
+    auto r        = inputs.at(2);
+    auto bias     = inputs.at(3);
     auto seq_lens = inputs.at(4);
-    auto ih   = inputs.at(5);
-    auto ic   = inputs.at(6);
-    auto pph  = inputs.at(7);
+    auto ih       = inputs.at(5);
+    auto ic       = inputs.at(6);
+    auto pph      = inputs.at(7);
 
     instruction_ref hidden_states = prog.end();
     instruction_ref last_output{};

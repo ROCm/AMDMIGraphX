@@ -33,13 +33,13 @@ struct rnn_clear_missing_frames
             using value_type = typename decltype(output)::value_type;
             args[1].visit([&](auto seq_lens) {
                 par_for(output_shape.elements(), [&](auto i) {
-                    auto idx = output_shape.multi(i);
-                    auto batch_id = idx[2];
-                    auto d = idx[1];
-                    auto t = indx[0];
-                    auto sl = seq_lens[batch_id];
+                    auto idx       = output_shape.multi(i);
+                    auto batch_id  = idx[2];
+                    auto d         = idx[1];
+                    auto t         = indx[0];
+                    auto sl        = seq_lens[batch_id];
                     value_type val = 0;
-                    if (t < sl)
+                    if(t < sl)
                     {
                         auto in_idx = idx;
                         in_idx[0] += d * (max_len - sl);
@@ -52,7 +52,6 @@ struct rnn_clear_missing_frames
 
         return result;
     }
-    
 };
 
 } // namespace op

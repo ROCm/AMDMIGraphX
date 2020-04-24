@@ -1412,35 +1412,24 @@ def no_pad_test():
 
 @onnx_test
 def onehot_test():
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [5, 2])
-    indices = np.ones((5))
-    axis_value = -1
-    on_value = 1.0
-    off_value = 0.0
-    values = np.array([off_value, on_value])
-    depth = np.array([2])
-
-    indices_tensor = helper.make_tensor(name="indices",
-                                        data_type=TensorProto.INT32,
-                                        dims=indices.shape,
-                                        vals=indices.astype(int))
+    axis_value = 0
+    depth = np.array([3])
+    indices = helper.make_tensor_value_info("indices", TensorProto.INT32,
+                                            [5, 2])
+    values = helper.make_tensor_value_info("values", TensorProto.FLOAT16, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [3, 5, 2])
 
     depth_tensor = helper.make_tensor(name="depth",
                                       data_type=TensorProto.INT32,
                                       dims=None,
                                       vals=depth.astype(int))
 
-    values_tensor = helper.make_tensor(name="values",
-                                       data_type=TensorProto.FLOAT,
-                                       dims=values.shape,
-                                       vals=values.astype(float))
-
     node = onnx.helper.make_node('OneHot',
                                  inputs=['indices', 'depth', 'values'],
                                  outputs=['y'],
                                  axis=axis_value)
 
-    return ([node], [], [y], [indices_tensor, depth_tensor, values_tensor])
+    return ([node], [indices, values], [y], [depth_tensor])
 
 
 @onnx_test

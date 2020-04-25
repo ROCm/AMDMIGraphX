@@ -784,7 +784,8 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
         // the following logic is to ensure the last instruction is a concat
         if(ret_forward[0] == prog.end())
         {
-            hidden_state = prog.replace_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
+            hidden_state =
+                prog.replace_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
         }
         else
         {
@@ -792,7 +793,8 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
                 prog.insert_instruction(ins, op::concat{0}, ret_forward[0], ret_forward[1]);
             ret_reverse[0] =
                 prog.insert_instruction(ins, op::concat{0}, ret_reverse[1], ret_reverse[0]);
-            hidden_state = prog.replace_instruction(ins, op::concat{1}, {ret_forward[0], ret_reverse[0]});
+            hidden_state =
+                prog.replace_instruction(ins, op::concat{1}, {ret_forward[0], ret_reverse[0]});
         }
     }
     else
@@ -886,7 +888,8 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
 
     if(clear_missing_frames)
     {
-        auto tuned = prog.insert_instruction(std::next(hidden_state), op::rnn_clear_missing_frames{}, hidden_state, seq_lens);
+        auto tuned = prog.insert_instruction(
+            std::next(hidden_state), op::rnn_clear_missing_frames{}, hidden_state, seq_lens);
         prog.replace_instruction(hidden_state, tuned);
     }
 

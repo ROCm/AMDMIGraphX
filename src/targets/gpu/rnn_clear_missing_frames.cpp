@@ -12,7 +12,9 @@ shape hip_rnn_clear_missing_frames::compute_shape(std::vector<shape> inputs) con
     return op.compute_shape(inputs);
 }
 
-argument hip_rnn_clear_missing_frames::compute(context& ctx, const shape&, const std::vector<argument>& args) const
+argument hip_rnn_clear_missing_frames::compute(context& ctx,
+                                               const shape&,
+                                               const std::vector<argument>& args) const
 {
     device::rnn_clear_missing_frames(ctx.get_stream().get(), args.back(), args.at(0), args.at(1));
     return args.back();

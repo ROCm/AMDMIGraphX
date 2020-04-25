@@ -3543,7 +3543,7 @@ struct test_lstm_forward_last : verify_program<test_lstm_forward_last>
         auto r    = p.add_parameter("r", r_shape);
         auto bias = p.add_parameter("bias", b_shape);
         auto ih   = p.add_parameter("ih", ih_shape);
-        auto len = p.add_literal(migraphx::literal(l_shape, {1, 2}));
+        auto len  = p.add_literal(migraphx::literal(l_shape, {1, 2}));
         auto ic   = p.add_parameter("ic", ic_shape);
         auto pph  = p.add_parameter("pph", pph_shape);
         // auto und  = p.add_instruction(migraphx::op::undefined{});

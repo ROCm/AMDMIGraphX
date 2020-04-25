@@ -7,7 +7,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/literal.hpp>
-#include <migraphx/shape_for_each.hpp>
+#include <migraphx/par_for.hpp>
 #include <migraphx/config.hpp>
 #include <cmath>
 #include <utility>
@@ -36,9 +36,9 @@ struct rnn_clear_missing_frames
                     auto idx       = output_shape.multi(i);
                     auto batch_id  = idx[2];
                     auto d         = idx[1];
-                    auto t         = indx[0];
+                    auto t         = idx[0];
                     auto sl        = seq_lens[batch_id];
-                    value_type val = 0;
+                    value_type val = value_type{0};
                     if(t < sl)
                     {
                         auto in_idx = idx;

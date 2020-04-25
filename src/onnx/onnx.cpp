@@ -1638,36 +1638,6 @@ struct onnx_parser
         auto hidden_states = prog.add_instruction(
             op::lstm{hidden_size, vec_actv_funcs, dirct, clip, input_forget}, std::move(args));
 
-        bool clear_missing_frames = false;
-        if(seq_lens != prog.end())
-        {
-            if(seq_lens->can_eval())
-            {
-                auto arg_lens = seq_lens->eval();
-                std::vector<int64_t> vec_lens;
-                arg_lens.visit([&](auto l) { vec_lens.assign(l.begin(), l.end()); });
-                int64_t l = 0;
-                if(vec_lens.size() > 0)
-                {
-                    l = vec_lens[0];
-                }
-                if(!std::all_of(vec_lens.begin(), vec_lens.end()))
-                {
-                    clear_missing_frames = true;
-                }
-            }
-            else
-            {
-                clear_missing_frames = true;
-            }
-        }
-
-        if(clear_missing_frames)
-        {
-            hidden_states =
-                prog.add_instruction(op::rnn_clear_missing_frames{}, hiddent_states, seq_lens);
-        }
-
         // second output for last lstm output
         auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states, seq_lens);
 

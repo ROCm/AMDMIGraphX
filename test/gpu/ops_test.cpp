@@ -3534,6 +3534,7 @@ struct test_lstm_forward_last : verify_program<test_lstm_forward_last>
                                 {num_dirct, 4 * hidden_size, hidden_size}};
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 8 * hidden_size}};
         migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape l_shape{migraphx::shape::int64_type, {batch_size}};
         migraphx::shape ic_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
         migraphx::shape pph_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size}};
 
@@ -3542,9 +3543,10 @@ struct test_lstm_forward_last : verify_program<test_lstm_forward_last>
         auto r    = p.add_parameter("r", r_shape);
         auto bias = p.add_parameter("bias", b_shape);
         auto ih   = p.add_parameter("ih", ih_shape);
+        auto len = p.add_literal(migraphx::literal(l_shape, {1, 2}));
         auto ic   = p.add_parameter("ic", ic_shape);
         auto pph  = p.add_parameter("pph", pph_shape);
-        auto und  = p.add_instruction(migraphx::op::undefined{});
+        // auto und  = p.add_instruction(migraphx::op::undefined{});
 
         auto output = p.add_instruction(
             migraphx::op::lstm{
@@ -3556,7 +3558,7 @@ struct test_lstm_forward_last : verify_program<test_lstm_forward_last>
             w,
             r,
             bias,
-            und,
+            len,
             ih,
             ic,
             pph);

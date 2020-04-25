@@ -13,12 +13,12 @@ void rnn_clear_missing_frames(hipStream_t stream,
 {
     auto output_shape = result.get_shape();
     int64_t max_len   = output_shape.lens()[0];
-    hip_visit_all(result, arg_s, output_shape)([&](auto output, auto input, auto out_s) {
+    hip_visit_all(result, arg_hs, output_shape)([&](auto output, auto input, auto out_s) {
         const auto* in_data = device_cast(input.data());
         auto* out_data      = device_cast(output.data());
         arg_sl.visit([&](auto sl) {
             const auto* sl_ptr = device_cast(sl.data());
-            gl_launch(stream, output_shape.elements(), 256)([=](auto i) __device__ {
+            gs_launch(stream, output_shape.elements(), 256)([=](auto i) __device__ {
                 auto idx = out_s.multi(i);
                 auto t   = idx[0];
                 auto d   = idx[1];
@@ -30,11 +30,11 @@ void rnn_clear_missing_frames(hipStream_t stream,
                 {
                     auto in_idx = idx;
                     in_idx[0] += d * (max_len - l);
-                    val = input_data[out_s.index(in_idx)];
+                    val = in_data[out_s.index(in_idx)];
                 }
                 out_data[i] = val;
             });
-        })
+        });
     });
 }
 

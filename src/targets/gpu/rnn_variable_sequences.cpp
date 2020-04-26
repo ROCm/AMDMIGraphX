@@ -13,10 +13,14 @@ shape hip_rnn_shift_hidden_states::compute_shape(std::vector<shape> inputs) cons
 }
 
 argument hip_rnn_shift_hidden_states::compute(context& ctx,
-                                               const shape&,
-                                               const std::vector<argument>& args) const
+                                              const shape&,
+                                              const std::vector<argument>& args) const
 {
-    device::rnn_shift_hidden_states(ctx.get_stream().get(), args.back(), args.at(0), args.at(1), (op.direction == op::rnn_direction::reverse));
+    device::rnn_shift_hidden_states(ctx.get_stream().get(),
+                                    args.back(),
+                                    args.at(0),
+                                    args.at(1),
+                                    (op.direction == op::rnn_direction::reverse));
     return args.back();
 }
 

@@ -11,10 +11,10 @@ namespace gpu {
 namespace device {
 
 void rnn_shift_hidden_states(hipStream_t stream,
-                              const argument& result,
-                              const argument& arg_hs,
-                              const argument& arg_sl,
-                              bool is_reverse);
+                             const argument& result,
+                             const argument& arg_hs,
+                             const argument& arg_sl,
+                             bool is_reverse);
 
 } // namespace device
 } // namespace gpu

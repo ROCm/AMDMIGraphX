@@ -7,10 +7,10 @@ namespace gpu {
 namespace device {
 
 void rnn_shift_hidden_states(hipStream_t stream,
-                              const argument& result,
-                              const argument& arg_hs,
-                              const argument& arg_sl,
-                              bool is_reverse)
+                             const argument& result,
+                             const argument& arg_hs,
+                             const argument& arg_sl,
+                             bool is_reverse)
 {
     auto output_shape = result.get_shape();
     int64_t max_len   = output_shape.lens()[0];

@@ -898,7 +898,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
     {
         auto tuned = prog.insert_instruction(
             std::next(hidden_state), op::rnn_shift_hidden_states{dirct}, hidden_state, seq_lens);
-        prog.replace_instruction(hidden_state, tuned);
+        ins = prog.replace_instruction(hidden_state, tuned);
     }
 
     // replace the corresponding lstm_last_output instruction
@@ -949,7 +949,6 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     auto w        = inputs.at(1);
     auto r        = inputs.at(2);
     auto bias     = inputs.at(3);
-    auto seq_lens = inputs.at(4);
     auto ih       = inputs.at(5);
     auto ic       = inputs.at(6);
     auto pph      = inputs.at(7);

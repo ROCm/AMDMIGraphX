@@ -41,9 +41,9 @@ void rnn_shift_hidden_states(hipStream_t stream,
 }
 
 void rnn_shift_sequences(hipStream_t stream,
-                             const argument& result,
-                             const argument& arg_hs,
-                             const argument& arg_sl)
+                         const argument& result,
+                         const argument& arg_hs,
+                         const argument& arg_sl)
 {
     auto output_shape = result.get_shape();
     int64_t max_len   = output_shape.lens()[0];

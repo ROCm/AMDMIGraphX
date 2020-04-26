@@ -31,13 +31,10 @@ shape hip_rnn_shift_sequences::compute_shape(std::vector<shape> inputs) const
 }
 
 argument hip_rnn_shift_sequences::compute(context& ctx,
-                                              const shape&,
-                                              const std::vector<argument>& args) const
+                                          const shape&,
+                                          const std::vector<argument>& args) const
 {
-    device::rnn_shift_sequences(ctx.get_stream().get(),
-                                    args.back(),
-                                    args.at(0),
-                                    args.at(1));
+    device::rnn_shift_sequences(ctx.get_stream().get(), args.back(), args.at(0), args.at(1));
     return args.back();
 }
 

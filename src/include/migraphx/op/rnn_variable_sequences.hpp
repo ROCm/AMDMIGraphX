@@ -82,7 +82,7 @@ struct rnn_shift_sequences
             args[1].visit([&](auto seq_lens) {
                 par_for(output_shape.elements(), [&](auto i) {
                     auto idx       = output_shape.multi(i);
-                    auto b = idx[1];
+                    auto b         = idx[1];
                     auto t         = idx[0];
                     auto sl        = seq_lens[b];
                     value_type val = value_type{0};

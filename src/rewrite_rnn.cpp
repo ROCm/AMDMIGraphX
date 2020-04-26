@@ -782,10 +782,10 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
                                      actv_funcs.at(1),
                                      actv_funcs.at(2));
 
-        if (need_shift)
+        if(need_shift)
         {
             args[0] = prog.insert_instruction(ins, op::rnn_shift_sequences{}, args[0], seq_lens);
-        }        
+        }
         auto ret_reverse = lstm_cell(false,
                                      prog,
                                      ins,
@@ -868,7 +868,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
             pph = args[7];
         }
 
-        if (!is_forward and need_shift)
+        if(!is_forward and need_shift)
         {
             args[0] = prog.insert_instruction(ins, op::rnn_shift_sequences{}, args[0], seq_lens);
         }

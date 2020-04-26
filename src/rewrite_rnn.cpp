@@ -19,7 +19,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/op/common.hpp>
-#include <migraphx/op/rnn_clear_missing_frames.hpp>
+#include <migraphx/op/rnn_variable_sequences.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

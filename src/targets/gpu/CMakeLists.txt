@@ -66,7 +66,7 @@ add_library(migraphx_device
     device/sub.cpp
     device/tan.cpp
     device/tanh.cpp
-    device/rnn_clear_missing_frames.cpp
+    device/rnn_variable_sequences.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
@@ -117,7 +117,7 @@ add_library(migraphx_gpu
     int8_conv_pack.cpp
     gemm_impl.cpp
     preallocate_param.cpp
-    rnn_clear_missing_frames.cpp
+    rnn_variable_sequences.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})

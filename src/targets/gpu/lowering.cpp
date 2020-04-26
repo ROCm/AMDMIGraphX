@@ -72,7 +72,7 @@
 #include <migraphx/gpu/int8_conv_pack.hpp>
 #include <migraphx/gpu/prelu.hpp>
 #include <migraphx/gpu/recip.hpp>
-#include <migraphx/gpu/rnn_clear_missing_frames.hpp>
+#include <migraphx/gpu/rnn_variable_sequences.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>

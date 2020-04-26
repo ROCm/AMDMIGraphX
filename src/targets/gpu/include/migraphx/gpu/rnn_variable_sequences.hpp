@@ -1,8 +1,8 @@
-#ifndef MIGRAPHX_GUARD_RTGLIB_RNN_CLEAR_MISSING_FRAMES_HPP
-#define MIGRAPHX_GUARD_RTGLIB_RNN_CLEAR_MISSING_FRAMES_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_RNN_VARIABLE_SEQUENCES_HPP
+#define MIGRAPHX_GUARD_RTGLIB_RNN_VARIABLE_SEQUENCES_HPP
 
 #include <migraphx/shape.hpp>
-#include <migraphx/op/rnn_clear_missing_frames.hpp>
+#include <migraphx/op/rnn_variable_sequences.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

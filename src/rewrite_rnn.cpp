@@ -945,13 +945,13 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
 {
     // must have 7 args in the input vector
     assert(inputs.size() == 7);
-    auto seq      = inputs.at(0);
-    auto w        = inputs.at(1);
-    auto r        = inputs.at(2);
-    auto bias     = inputs.at(3);
-    auto ih       = inputs.at(5);
-    auto ic       = inputs.at(6);
-    auto pph      = inputs.at(7);
+    auto seq  = inputs.at(0);
+    auto w    = inputs.at(1);
+    auto r    = inputs.at(2);
+    auto bias = inputs.at(3);
+    auto ih   = inputs.at(5);
+    auto ic   = inputs.at(6);
+    auto pph  = inputs.at(7);
 
     instruction_ref hidden_states = prog.end();
     instruction_ref last_output{};

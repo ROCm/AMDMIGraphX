@@ -21,7 +21,6 @@ struct lstm_last_cell_output
     std::string name() const { return "lstm_last_cell_output"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        // check_shapes{inputs, *this}.has(1);
         auto dims = inputs[0].lens();
 
         // remove the first dimension, remaing are output shape

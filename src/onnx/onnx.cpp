@@ -1639,11 +1639,17 @@ struct onnx_parser
             op::lstm{hidden_size, vec_actv_funcs, dirct, clip, input_forget}, std::move(args));
 
         // second output for last lstm output
-        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states, seq_lens);
+        std::vector<instruction_ref> vec_args;
+        vec_args.push_back(hidden_states);
+        if (seq_lens != prog.end())
+        {
+            vec_args.push_back(seq_lens);
+        }
+        auto last_output = prog.add_instruction(op::rnn_last_output{}, vec_args);
 
         // third output for last cell output
         auto last_cell_output =
-            prog.add_instruction(op::lstm_last_cell_output{}, hidden_states, seq_lens);
+            prog.add_instruction(op::lstm_last_cell_output{}, vec_args);
 
         return {hidden_states, last_output, last_cell_output};
     }

@@ -21,7 +21,6 @@ struct rnn_last_output
     std::string name() const { return "rnn_last_output"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        // check_shapes{inputs, *this}.has(1);
         auto dims = inputs[0].lens();
 
         // remove the first dimension, remaing are output shape

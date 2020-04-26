@@ -185,11 +185,10 @@ struct miopen_apply
         add_extend_op<hip_reduce_min, op::reduce_min>("reduce_min");
         add_extend_op<hip_reduce_prod, op::reduce_prod>("reduce_prod");
         add_extend_op<hip_reduce_sum, op::reduce_sum>("reduce_sum");
-        add_extend_op<hip_rnn_clear_missing_frames, op::rnn_clear_missing_frames>(
-            "rnn_clear_missing_frames");
+        add_extend_op<hip_rnn_shift_hidden_states, op::rnn_shift_hidden_states>(
+            "rnn_shift_hidden_states");
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
-
         add_lrn_op();
         add_convolution_op();
         add_deconvolution_op();

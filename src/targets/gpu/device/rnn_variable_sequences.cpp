@@ -6,10 +6,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void rnn_clear_missing_frames(hipStream_t stream,
+void rnn_shift_hidden_states(hipStream_t stream,
                               const argument& result,
                               const argument& arg_hs,
-                              const argument& arg_sl)
+                              const argument& arg_sl,
+                              bool is_reverse)
 {
     auto output_shape = result.get_shape();
     int64_t max_len   = output_shape.lens()[0];
@@ -28,8 +29,9 @@ void rnn_clear_missing_frames(hipStream_t stream,
                 val      = 0;
                 if(t < l)
                 {
+                    int offset  = (d == 1 or is_reverse) ? 1 : 0;
                     auto in_idx = idx;
-                    in_idx[0] += d * (max_len - l);
+                    in_idx[0] += offset * (max_len - l);
                     val = in_data[out_s.index(in_idx)];
                 }
                 out_data[i] = val;

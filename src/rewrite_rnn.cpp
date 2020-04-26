@@ -683,6 +683,30 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
         seq_lens = args[4];
     }
 
+    bool b_need_shift = false;
+    if(seq_lens != prog.end())
+    {
+        if(seq_lens->can_eval())
+        {
+            auto arg_lens = seq_lens->eval();
+            std::vector<int64_t> vec_lens;
+            arg_lens.visit([&](auto l) { vec_lens.assign(l.begin(), l.end()); });
+            int64_t l = 0;
+            if(vec_lens.size() > 0)
+            {
+                l = vec_lens[0];
+            }
+            if(!std::all_of(vec_lens.begin(), vec_lens.end(), [&](auto v) { return v == l; }))
+            {
+                b_need_shift = true;
+            }
+        }
+        else
+        {
+            b_need_shift = true;
+        }
+    }
+
     instruction_ref last_output{};
     instruction_ref last_cell_output{};
     instruction_ref hidden_state{};
@@ -862,34 +886,10 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
         }
     }
 
-    bool clear_missing_frames = false;
-    if(seq_lens != prog.end())
-    {
-        if(seq_lens->can_eval())
-        {
-            auto arg_lens = seq_lens->eval();
-            std::vector<int64_t> vec_lens;
-            arg_lens.visit([&](auto l) { vec_lens.assign(l.begin(), l.end()); });
-            int64_t l = 0;
-            if(vec_lens.size() > 0)
-            {
-                l = vec_lens[0];
-            }
-            if(!std::all_of(vec_lens.begin(), vec_lens.end(), [&](auto v) { return v == l; }))
-            {
-                clear_missing_frames = true;
-            }
-        }
-        else
-        {
-            clear_missing_frames = true;
-        }
-    }
-
-    if(clear_missing_frames)
+    if(b_need_shift)
     {
         auto tuned = prog.insert_instruction(
-            std::next(hidden_state), op::rnn_clear_missing_frames{}, hidden_state, seq_lens);
+            std::next(hidden_state), op::rnn_shift_hidden_states{dirct}, hidden_state, seq_lens);
         prog.replace_instruction(hidden_state, tuned);
     }
 

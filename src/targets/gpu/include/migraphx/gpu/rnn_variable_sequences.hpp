@@ -10,11 +10,17 @@ namespace gpu {
 
 struct context;
 
-struct hip_rnn_clear_missing_frames
+struct hip_rnn_shift_hidden_states
 {
-    op::rnn_clear_missing_frames op;
+    op::rnn_shift_hidden_states op;
 
-    std::string name() const { return "gpu::rnn_clear_missing_frames"; }
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
+    std::string name() const { return "gpu::rnn_shift_hidden_states"; }
     shape compute_shape(std::vector<shape> inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;

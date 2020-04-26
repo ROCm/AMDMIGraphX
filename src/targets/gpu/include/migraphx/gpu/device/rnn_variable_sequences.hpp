@@ -10,10 +10,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void rnn_clear_missing_frames(hipStream_t stream,
+void rnn_shift_hidden_states(hipStream_t stream,
                               const argument& result,
                               const argument& arg_hs,
-                              const argument& arg_sl);
+                              const argument& arg_sl,
+                              bool is_reverse);
 
 } // namespace device
 } // namespace gpu

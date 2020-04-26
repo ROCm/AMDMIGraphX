@@ -30,6 +30,20 @@ struct hip_rnn_shift_hidden_states
     }
 };
 
+struct hip_rnn_shift_sequences
+{
+    op::rnn_shift_sequences op;
+
+    std::string name() const { return "gpu::rnn_shift_sequences"; }
+    shape compute_shape(std::vector<shape> inputs) const;
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+};
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

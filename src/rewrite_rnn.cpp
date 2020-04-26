@@ -683,7 +683,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
         seq_lens = args[4];
     }
 
-    bool b_need_shift = false;
+    bool need_shift = false;
     if(seq_lens != prog.end())
     {
         if(seq_lens->can_eval())
@@ -698,12 +698,12 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
             }
             if(!std::all_of(vec_lens.begin(), vec_lens.end(), [&](auto v) { return v == l; }))
             {
-                b_need_shift = true;
+                need_shift = true;
             }
         }
         else
         {
-            b_need_shift = true;
+            need_shift = true;
         }
     }
 
@@ -782,6 +782,10 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
                                      actv_funcs.at(1),
                                      actv_funcs.at(2));
 
+        if (need_shift)
+        {
+            args[0] = prog.insert_instruction(ins, op::rnn_shift_sequences{}, args[0], seq_lens);
+        }        
         auto ret_reverse = lstm_cell(false,
                                      prog,
                                      ins,
@@ -864,6 +868,10 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
             pph = args[7];
         }
 
+        if (!is_forward and need_shift)
+        {
+            args[0] = prog.insert_instruction(ins, op::rnn_shift_sequences{}, args[0], seq_lens);
+        }
         auto ret = lstm_cell(is_forward,
                              prog,
                              ins,
@@ -886,7 +894,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
         }
     }
 
-    if(b_need_shift)
+    if(need_shift)
     {
         auto tuned = prog.insert_instruction(
             std::next(hidden_state), op::rnn_shift_hidden_states{dirct}, hidden_state, seq_lens);

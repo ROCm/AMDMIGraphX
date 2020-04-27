@@ -114,11 +114,11 @@ TEST_CASE(cse_test_literal)
     migraphx::program p1;
     {
         auto six1  = p1.add_literal(6);
-        auto zero1  = p1.add_literal(0);
+        auto zero1 = p1.add_literal(0);
         auto six2  = p1.add_literal(6);
-        auto zero2  = p1.add_literal(0);
+        auto zero2 = p1.add_literal(0);
         auto six3  = p1.add_literal(6);
-        auto zero3  = p1.add_literal(0);
+        auto zero3 = p1.add_literal(0);
 
         auto sum1 = p1.add_instruction(migraphx::op::add{}, six1, zero1);
         auto sum2 = p1.add_instruction(migraphx::op::add{}, six2, zero2);

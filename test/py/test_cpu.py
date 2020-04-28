@@ -1,6 +1,7 @@
 import migraphx
 import numpy as np
 
+
 def test_conv_relu():
     p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
     print(p)

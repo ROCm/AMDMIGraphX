@@ -2124,8 +2124,7 @@ struct onnx_parser
         return literal{{shape_type, dims}, data.begin(), data.end()};
     }
 
-    shape parse_type(const onnx::TypeProto& t,
-                            const std::vector<std::size_t>& input_dims)
+    shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims)
     {
         shape::type_t shape_type{};
         switch(t.tensor_type().elem_type())

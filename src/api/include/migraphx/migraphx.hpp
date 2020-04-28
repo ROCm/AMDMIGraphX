@@ -491,8 +491,6 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
 
     onnx_options(migraphx_onnx_options* p, own) { this->set_handle(p, own{}); }
 
-    onnx_options(migraphx_onnx_options* p, borrow) { this->set_handle(p, borrow{}); }
-
     void set_input_parameter_shape(const std::string& name, std::vector<std::size_t> dim)
     {
         call(&migraphx_onnx_options_set_input_parameter_shape,

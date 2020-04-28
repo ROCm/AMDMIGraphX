@@ -1893,10 +1893,10 @@ struct onnx_parser
         arg_s.visit([&](auto input) { repeats.assign(input.begin(), input.end()); });
 
         auto l0 = args[0];
-        for(size_t i = 0; i < repeats.size(); i++)
+        for(int i = 0; i < repeats.size(); i++)
         {
             auto l1 = l0;
-            for(size_t j = 1; j < repeats[i]; j++)
+            for(int j = 1; j < repeats[i]; j++)
             {
                 l0 = prog.add_instruction(op::concat{i}, l0, l1);
             }

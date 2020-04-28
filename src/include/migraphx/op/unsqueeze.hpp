@@ -35,7 +35,12 @@ struct unsqueeze
         auto old_lens    = input_shape.lens();
 
         if(input_shape.scalar())
-            return shape{type, old_lens};
+        {
+            if(old_lens.size() == 1 and old_lens.front() == 1)
+                return shape{type, old_lens};
+            else
+                MIGRAPHX_THROW("UNSQUEEZE: Input must be a scalar");
+        }
 
         std::size_t new_size = old_lens.size() + axes.size();
 

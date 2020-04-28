@@ -1,5 +1,6 @@
 import migraphx, array, sys
 
+
 def test_conv_relu():
     p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
     print(p)
@@ -28,6 +29,7 @@ def create_buffer(t, data, shape):
         m = memoryview(a.tostring())
         return m
 
+
 def test_add_scalar():
     p = migraphx.parse_onnx("add_scalar_test.onnx")
     print(p)
@@ -37,7 +39,6 @@ def test_add_scalar():
     print(p)
     s2 = p.get_output_shapes()[-1]
     assert s1 == s2
-
 
     d0 = list(range(120))
     arg0 = create_buffer("f", d0, [2, 3, 4, 5])

@@ -1,5 +1,5 @@
 import migraphx
-
+import numpy as np
 
 def test_conv_relu():
     p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
@@ -31,9 +31,11 @@ def test_add_scalar():
     assert s1 == s2
     params = {}
 
-    for key, value in p.get_parameter_shapes().items():
-        print("Parameter {} -> {}".format(key, value))
-        params[key] = migraphx.generate_argument(value)
+    args = []
+    args.append(np.random.randn(2, 3, 4, 5).astype(np.single))
+    args.append(np.array(1).astype(np.single))
+    params["0"] = migraphx.argument(args[0])
+    params["1"] = migraphx.argument(args[1])
 
     r = p.run(params)[-1]
     print(r)

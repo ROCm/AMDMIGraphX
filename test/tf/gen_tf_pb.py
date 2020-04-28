@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from tensorflow.core.framework import attr_value_pb2
 
 
 def tf_test(op_test):
@@ -28,6 +29,20 @@ def add_bcast_test(g1):
         g1_input = tf.placeholder(tf.float32, shape=(2, 3), name='0')
         g2_input = tf.placeholder(tf.float32, shape=(2, 1), name='1')
         tf.math.add(g1_input, g2_input, name='add_bcast1')
+
+
+@tf_test
+def argmax_test(g1):
+    with g1.as_default():
+        g1_input = tf.placeholder(tf.float32, shape=(3, 4, 5, 6), name='0')
+        tf.argmax(g1_input, axis=2, name='argmax1')
+
+
+@tf_test
+def argmin_test(g1):
+    with g1.as_default():
+        g1_input = tf.placeholder(tf.float32, shape=(3, 4, 5, 6), name='0')
+        tf.argmin(g1_input, axis=2, name='argmin1')
 
 
 @tf_test
@@ -188,6 +203,13 @@ def mul_test(g1):
 
 
 @tf_test
+def onehot_test(g1):
+    with g1.as_default():
+        g1_input = tf.constant((1, 1, 1, 1, 1), dtype=tf.int32)
+        tf.one_hot(g1_input, 2, name='onehot1')
+
+
+@tf_test
 def pack_test(g1):
     with g1.as_default():
         g1_input = tf.placeholder(tf.float32, shape=(2), name='0')
@@ -260,6 +282,13 @@ def rsqrt_test(g1):
 
 
 @tf_test
+def shape_test(g1):
+    with g1.as_default():
+        g1_input = tf.placeholder(tf.float32, shape=(1, 3, 16, 16), name='0')
+    g1.create_op(op_type='Shape', inputs=[g1_input])
+
+
+@tf_test
 def slice_test(g1):
     with g1.as_default():
         g1_input = tf.placeholder(tf.float32, shape=(5, 10), name='0')
@@ -271,6 +300,33 @@ def softmax_test(g1):
     with g1.as_default():
         g1_input = tf.placeholder(tf.float32, shape=(1, 3), name='0')
         tf.nn.softmax(g1_input, name='softmax')
+
+
+@tf_test
+def split_test(g1):
+    with g1.as_default():
+        g1_input = tf.placeholder(tf.float32, shape=(5, 30), name='0')
+        split0, split1, split2 = tf.split(g1_input, 3, 1, name='split')
+        tf.concat([split0, split1], axis=1, name='concat1')
+        tf.concat([split1, split2], axis=1, name='concat2')
+
+
+@tf_test
+def split_test_one_output(g1):
+    with g1.as_default():
+        g1_input = tf.placeholder(tf.float32, shape=(5, 30), name='0')
+        tf.split(g1_input, 1, 1, name='split')
+
+
+@tf_test
+def split_test_vector_as_input(g1):
+    with g1.as_default():
+        g1_input = tf.placeholder(tf.float32, shape=(5, 30), name='0')
+        split0, split1, split2 = tf.split(g1_input, [4, 15, 11],
+                                          1,
+                                          name='split')
+        tf.concat([split0, split1], axis=1, name='concat1')
+        tf.concat([split1, split2], axis=1, name='concat2')
 
 
 @tf_test
@@ -334,3 +390,10 @@ def transpose_test(g1):
     with g1.as_default():
         g1_input = tf.placeholder(tf.float32, shape=(1, 3, 16, 16), name='0')
         tf.transpose(g1_input, perm=[0, 2, 3, 1], name='transpose')
+
+
+@tf_test
+def variable_batch_test(g1):
+    with g1.as_default():
+        g1_input = tf.placeholder(tf.float32, shape=(0, 3, 16, 16), name='0')
+        tf.identity(g1_input, name='identity')

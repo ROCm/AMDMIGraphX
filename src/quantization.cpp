@@ -80,9 +80,14 @@ instruction_ref insert_quant_ins(program& prog,
             shifted_ins  = prog.insert_instruction(insert_loc, op::add{}, l_shift, float_ins);
         }
 
-        auto rounded_ins = prog.insert_instruction(insert_loc, op::round{}, shifted_ins);
+        auto rounded_ins  = prog.insert_instruction(insert_loc, op::round{}, shifted_ins);
+        auto rounded_lens = rounded_ins->get_shape().lens();
+        auto max_clip     = prog.add_literal(127.0f);
+        auto min_clip     = prog.add_literal(-128.0f);
+        max_clip = prog.insert_instruction(insert_loc, op::multibroadcast{rounded_lens}, max_clip);
+        min_clip = prog.insert_instruction(insert_loc, op::multibroadcast{rounded_lens}, min_clip);
         auto clipped_ins =
-            prog.insert_instruction(insert_loc, op::clip{127.0f, -128.0f}, rounded_ins);
+            prog.insert_instruction(insert_loc, op::clip{}, rounded_ins, min_clip, max_clip);
         quant_ins = prog.insert_instruction(insert_loc, op::convert{type}, clipped_ins);
     }
     else
@@ -105,6 +110,9 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
     std::unordered_map<instruction_ref, instruction_ref> map_fp16;
     for(auto ins : iterator_for(prog))
     {
+        if(ins->name() == "@return")
+            break;
+
         // all indicates every instruction is converted
         if((not contains(ins_names, "all")) and (not contains(ins_names, ins->name())))
         {
@@ -335,6 +343,9 @@ void quantize_int8_impl(program& prog,
     std::unordered_map<instruction_ref, std::size_t> map_ins_index;
     for(auto ins : iterator_for(prog))
     {
+        if(ins->name() == "@return")
+            break;
+
         if(not contains(ins_names, ins->name()))
         {
             continue;

@@ -7,6 +7,8 @@
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/broadcast.hpp>
+#include <migraphx/op/neg.hpp>
+#include <migraphx/op/recip.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
 
@@ -25,6 +27,15 @@ auto conv_const_weights()
 {
     return match::name("convolution")(match::used_once(),
                                       match::args(match::any(), match::is_constant().bind("w")));
+}
+
+MIGRAPHX_PRED_MATCHER(args_has_same_ops, instruction_ref ins)
+{
+    if(ins->inputs().empty())
+        return true;
+    return std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto j) {
+        return j->get_operator() == ins->inputs().front()->get_operator();
+    });
 }
 
 struct find_mul_conv
@@ -167,6 +178,73 @@ struct find_inner_broadcast
     }
 };
 
+struct find_concat_unary
+{
+    auto matcher() const
+    {
+        return match::name("concat")(args_has_same_ops(),
+                                     match::arg(0)(match::nargs(1),
+                                                   match::name("relu", "broadcast").bind("x"),
+                                                   match::used_once()));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins  = r.result;
+        auto x    = r.instructions["x"];
+        auto op   = x->get_operator();
+        auto axis = any_cast<op::concat>(ins->get_operator()).axis;
+        // Adjust broadcast lens
+        if(op.name() == "broadcast")
+        {
+            auto b = any_cast<op::broadcast>(op);
+            if(b.axis != axis)
+                return;
+            b.broadcast_lens = ins->get_shape().lens();
+            op               = b;
+            axis             = 0;
+        }
+
+        auto inputs = ins->inputs();
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto i) {
+            return i->inputs().front();
+        });
+        auto concat = p.insert_instruction(ins, op::concat{axis}, inputs);
+        p.replace_instruction(ins, op, concat);
+    }
+};
+
+struct find_concat_binary
+{
+    auto matcher() const
+    {
+        return match::name("concat")(args_has_same_ops(),
+                                     match::arg(0)(match::nargs(2),
+                                                   match::name("add", "multiply").bind("x"),
+                                                   match::used_once()));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins       = r.result;
+        auto x         = r.instructions["x"];
+        auto op        = x->get_operator();
+        auto concat_op = ins->get_operator();
+
+        auto xinputs = ins->inputs();
+        std::transform(xinputs.begin(), xinputs.end(), xinputs.begin(), [&](auto i) {
+            return i->inputs().front();
+        });
+        auto yinputs = ins->inputs();
+        std::transform(yinputs.begin(), yinputs.end(), yinputs.begin(), [&](auto i) {
+            return i->inputs().back();
+        });
+        auto xconcat = p.insert_instruction(ins, concat_op, xinputs);
+        auto yconcat = p.insert_instruction(ins, concat_op, yinputs);
+        p.replace_instruction(ins, op, xconcat, yconcat);
+    }
+};
+
 bool axis_equal(const std::vector<std::size_t>& x,
                 const std::vector<std::size_t>& y,
                 std::size_t axis)
@@ -209,7 +287,10 @@ struct find_add_convs
     static shape compute_stride_shape(const shape& input, std::size_t n)
     {
         return {input.type(),
-                {input.lens()[0], input.lens()[1], input.lens()[2] / n, input.lens()[3] / n},
+                {input.lens()[0],
+                 input.lens()[1],
+                 std::size_t(std::max<std::ptrdiff_t>(1, (input.lens()[2] - 1) / n + 1)),
+                 std::size_t(std::max<std::ptrdiff_t>(1, (input.lens()[3] - 1) / n + 1))},
                 {input.strides()[0],
                  input.strides()[1],
                  input.strides()[2] * n,
@@ -270,6 +351,46 @@ struct find_add_convs
     }
 };
 
+struct find_div_const
+{
+    auto matcher() const
+    {
+        return match::name("div")(match::arg(1)(match::is_constant().bind("c")));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins   = r.result;
+        auto c_ins = r.instructions["c"];
+
+        auto recip = p.insert_instruction(std::next(c_ins), op::recip{}, c_ins);
+
+        auto args = ins->inputs();
+
+        p.replace_instruction(ins, op::mul{}, args.front(), recip);
+    }
+};
+
+struct find_sub_const
+{
+    auto matcher() const
+    {
+        return match::name("sub")(match::arg(1)(match::is_constant().bind("c")));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins   = r.result;
+        auto c_ins = r.instructions["c"];
+
+        auto neg = p.insert_instruction(std::next(c_ins), op::neg{}, c_ins);
+
+        auto args = ins->inputs();
+
+        p.replace_instruction(ins, op::add{}, args.front(), neg);
+    }
+};
+
 void simplify_algebra::apply(program& p) const
 {
     // Run simplifications multiple times
@@ -281,7 +402,11 @@ void simplify_algebra::apply(program& p) const
                             find_add_lit_broadcast{},
                             find_add_convs{},
                             find_mul_conv{},
-                            find_mul_add{});
+                            find_mul_add{},
+                            find_div_const{},
+                            find_sub_const{},
+                            find_concat_unary{},
+                            find_concat_binary{});
         dead_code_elimination{}.apply(p);
     }
 }

@@ -3,6 +3,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/compile_options.hpp>
 #include <sstream>
 #include "test.hpp"
 #include <basic_ops.hpp>
@@ -15,7 +16,11 @@ struct id_target
     };
     migraphx::context ctx = context{};
     std::string name() const { return "id"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const { return {}; }
+    std::vector<migraphx::pass> get_passes(migraphx::context&,
+                                           const migraphx::compile_options&) const
+    {
+        return {};
+    }
     migraphx::context get_context() const { return ctx; }
 };
 
@@ -72,7 +77,11 @@ struct reverse_pass
 struct reverse_target
 {
     std::string name() const { return "reverse"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const { return {reverse_pass{}}; }
+    std::vector<migraphx::pass> get_passes(migraphx::context&,
+                                           const migraphx::compile_options&) const
+    {
+        return {reverse_pass{}};
+    }
     migraphx::context get_context() const { return {}; }
 };
 
@@ -99,14 +108,19 @@ struct invert_pass
 struct invert_target
 {
     std::string name() const { return "invert"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const { return {invert_pass{}}; }
+    std::vector<migraphx::pass> get_passes(migraphx::context&,
+                                           const migraphx::compile_options&) const
+    {
+        return {invert_pass{}};
+    }
     migraphx::context get_context() const { return {}; }
 };
 
 struct double_invert_target
 {
     std::string name() const { return "double_invert"; }
-    std::vector<migraphx::pass> get_passes(migraphx::context&) const
+    std::vector<migraphx::pass> get_passes(migraphx::context&,
+                                           const migraphx::compile_options&) const
     {
         return {invert_pass{}, invert_pass{}};
     }
@@ -120,7 +134,7 @@ TEST_CASE(literal_test1)
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     p.add_instruction(sum_op{}, one, two);
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -134,7 +148,7 @@ TEST_CASE(literal_test2)
     auto sum1 = p.add_instruction(sum_op{}, one, two);
     p.add_instruction(sum_op{}, sum1, two);
 
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{5});
     EXPECT(result != migraphx::literal{3});
 }
@@ -161,8 +175,9 @@ TEST_CASE(param_test)
     auto y = p.add_parameter("y", {migraphx::shape::int32_type});
 
     p.add_instruction(sum_op{}, x, y);
-    auto result = p.eval(
-        {{"x", migraphx::literal{1}.get_argument()}, {"y", migraphx::literal{2}.get_argument()}});
+    auto result = p.eval({{"x", migraphx::literal{1}.get_argument()},
+                          {"y", migraphx::literal{2}.get_argument()}})
+                      .back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -244,7 +259,7 @@ TEST_CASE(replace_test)
     p.replace_instruction(sum, minus_op{}, two, one);
     EXPECT(bool{p.validate() == p.end()});
 
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
     EXPECT(result != migraphx::literal{3});
 }
@@ -260,7 +275,7 @@ TEST_CASE(replace_ins_test)
     p.replace_instruction(sum, minus);
     EXPECT(bool{p.validate() == p.end()});
 
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
     EXPECT(result != migraphx::literal{3});
 }
@@ -277,7 +292,7 @@ TEST_CASE(replace_ins_test2)
     p.replace_instruction(two, sum);
     EXPECT(bool{p.validate() == p.end()});
 
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{2});
     EXPECT(result != migraphx::literal{3});
 }
@@ -292,7 +307,7 @@ TEST_CASE(replace_op_test)
     sum->replace(minus_op{});
     EXPECT(bool{p.validate() == p.end()});
 
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
     EXPECT(result != migraphx::literal{3});
 }
@@ -320,7 +335,7 @@ TEST_CASE(insert_replace_test)
     p.replace_instruction(sum1, minus_op{}, sum0, two);
     EXPECT(bool{p.validate() == p.end()});
 
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{4});
     EXPECT(result != migraphx::literal{5});
 }
@@ -336,7 +351,7 @@ TEST_CASE(remove_test1)
     p.remove_instruction(removed);
     EXPECT(bool{p.validate() == p.end()});
 
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{1});
 }
@@ -352,7 +367,7 @@ TEST_CASE(remove_test2)
     p.remove_instruction(removed);
     EXPECT(bool{p.validate() == p.end()});
 
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{1});
 }
@@ -365,7 +380,7 @@ TEST_CASE(target_test)
     auto two = p.add_literal(2);
     p.add_instruction(sum_op{}, one, two);
     p.compile(id_target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -378,7 +393,7 @@ TEST_CASE(invert_target_test)
     auto two = p.add_literal(2);
     p.add_instruction(sum_op{}, two, one);
     p.compile(invert_target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
     EXPECT(result != migraphx::literal{4});
 }
@@ -391,7 +406,7 @@ TEST_CASE(double_invert_target_test)
     auto two = p.add_literal(2);
     p.add_instruction(sum_op{}, two, one);
     p.compile(double_invert_target{});
-    auto result = p.eval({});
+    auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
 }
@@ -418,7 +433,7 @@ TEST_CASE(eval_context1)
     p.add_instruction(sum_op{}, one, two);
     p.compile(t);
     EXPECT(is_shared(t.ctx, p.get_context()));
-    p.eval({});
+    p.eval({}).back();
     EXPECT(is_shared(t.ctx, p.get_context()));
 }
 
@@ -432,7 +447,7 @@ TEST_CASE(eval_context2)
     p.add_instruction(id_ctx_op{}, one, two);
     p.compile(t);
     EXPECT(is_shared(t.ctx, p.get_context()));
-    p.eval({});
+    p.eval({}).back();
     // id_ctx_op will modify the context
     EXPECT(not is_shared(t.ctx, p.get_context()));
 }
@@ -449,7 +464,7 @@ TEST_CASE(eval_context3)
     // Finalizer will modify the context
     EXPECT(not is_shared(t.ctx, p.get_context()));
     auto ctx = p.get_context();
-    p.eval({});
+    p.eval({}).back();
     EXPECT(is_shared(ctx, p.get_context()));
     EXPECT(not is_shared(t.ctx, p.get_context()));
 }

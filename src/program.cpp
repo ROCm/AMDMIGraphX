@@ -52,7 +52,9 @@ static void print_instruction(std::ostream& os,
         os << ")";
     }
 
-    os << " -> " << ins->get_shape();
+    // skip return instruction shape
+    if(ins->name() != "@return")
+        os << " -> " << ins->get_shape();
 }
 
 template <class F>
@@ -147,7 +149,14 @@ void program::assign(const program& p)
             std::transform(inputs.begin(), inputs.end(), copy_inputs.begin(), [&](auto i) {
                 return ins_map[i];
             });
-            copy_ins = add_instruction(ins->get_operator(), copy_inputs);
+            if(ins->name() == "@return")
+            {
+                copy_ins = add_return(copy_inputs);
+            }
+            else
+            {
+                copy_ins = add_instruction(ins->get_operator(), copy_inputs);
+            }
         }
 
         ins_map[ins] = copy_ins;
@@ -270,6 +279,18 @@ instruction_ref program::add_parameter(std::string name, shape s)
     return impl->instructions.begin();
 }
 
+instruction_ref program::add_return(std::vector<instruction_ref> args)
+{
+    assert(std::all_of(
+               args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
+           "Argument is not an exisiting instruction");
+    impl->instructions.push_back({builtin::returns{}, {}, args});
+    auto result = std::prev(impl->instructions.end());
+    instruction::backreference(result);
+    assert(result->valid(begin()));
+    return result;
+}
+
 shape program::get_parameter_shape(std::string name) const
 {
     auto ins = std::find_if(
@@ -334,7 +355,26 @@ std::size_t program::size() const { return impl->instructions.size(); }
 instruction_ref program::begin() const { return impl->instructions.begin(); }
 instruction_ref program::end() const { return impl->instructions.end(); }
 
-shape program::get_shape() const { return impl->instructions.back().get_shape(); }
+std::vector<shape> program::get_output_shapes() const
+{
+    auto last_ins = impl->instructions.back();
+    if(last_ins.name() == "@return")
+    {
+        auto& output_ins = last_ins.inputs();
+        std::vector<shape> output_shapes;
+        std::transform(output_ins.begin(),
+                       output_ins.end(),
+                       std::back_inserter(output_shapes),
+                       [](auto& ins) { return ins->get_shape(); });
+
+        return output_shapes;
+    }
+    // The else branch is to provide backward compatibility
+    else
+    {
+        return {last_ins.get_shape()};
+    }
+}
 
 context& program::get_context() const { return impl->ctx; }
 
@@ -345,15 +385,15 @@ instruction_ref program::validate() const
                         [&](const instruction& i) { return !i.valid(impl->instructions.begin()); });
 }
 
-void program::compile(const target& t, tracer trace)
+void program::compile(const target& t, compile_options options)
 {
     assert(this->validate() == impl->instructions.end());
     this->impl->ctx = t.get_context();
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
-        trace = tracer{std::cout};
-    trace(*this);
-    trace();
-    run_passes(*this, t.get_passes(this->impl->ctx), trace);
+        options.trace = tracer{std::cout};
+    options.trace(*this);
+    options.trace();
+    run_passes(*this, t.get_passes(this->impl->ctx, options), options.trace);
     auto invalid = this->validate();
     if(invalid != impl->instructions.end())
     {
@@ -372,10 +412,10 @@ void program::finalize()
 }
 
 template <class F>
-argument generic_eval(const program& p,
-                      context& ctx,
-                      std::unordered_map<std::string, argument> params,
-                      F trace)
+std::vector<argument> generic_eval(const program& p,
+                                   context& ctx,
+                                   std::unordered_map<std::string, argument> params,
+                                   F trace)
 {
     assert(p.validate() == p.end());
     std::unordered_map<instruction_ref, argument> results;
@@ -384,27 +424,41 @@ argument generic_eval(const program& p,
     values.reserve(16);
     for(auto ins : iterator_for(p))
     {
-        if(ins->name() == "@literal")
+        const auto& name = ins->name();
+        if(name == "@literal")
         {
             results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
         }
-        else if(ins->name() == "@param")
+        else if(name == "@param")
         {
             results.emplace(
                 ins, trace(ins, [&] {
                     auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
                     if(not contains(params, param_name))
                         MIGRAPHX_THROW("Parameter not found: " + param_name);
-                    auto param = params.at(param_name);
+                    auto param = params[param_name];
                     if(param.get_shape() != ins->get_shape())
                         MIGRAPHX_THROW("Incorrect shape {" + to_string(param.get_shape()) +
                                        "} for parameter: " + param_name);
                     return param;
                 }));
         }
-        else if(ins->name() == "@outline")
+        else if(name == "@outline")
         {
             results.emplace(ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
+        }
+        else if(name == "@return")
+        {
+            std::vector<argument> prog_outputs;
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           std::back_inserter(prog_outputs),
+                           [&](instruction_ref i) {
+                               assert(results.find(i) != results.end());
+                               return results[i];
+                           });
+
+            return prog_outputs;
         }
         else
         {
@@ -420,10 +474,11 @@ argument generic_eval(const program& p,
         }
         assert(results.find(ins) != results.end());
     }
-    return results.at(std::prev(p.end()));
+
+    return {results.at(std::prev(p.end()))};
 }
 
-argument program::eval(std::unordered_map<std::string, argument> params) const
+std::vector<argument> program::eval(parameter_map params) const
 {
     auto& ctx = this->impl->ctx;
 #ifndef NDEBUG
@@ -530,6 +585,11 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 
     print_program(*this, [&](auto ins, const auto& names) {
         print_instruction(std::cout, ins, names);
+
+        // skip return instruction
+        if(ins->name() == "@return")
+            return;
+
         double avg     = common_average(ins_vec[ins]);
         double percent = std::ceil(100.0 * avg / total_instruction_time);
         os << ": " << avg << "ms, " << percent << "%";
@@ -538,10 +598,16 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 
     os << std::endl;
     os << "Summary:" << std::endl;
-    for(auto&& p : op_times)
+    std::vector<std::pair<double, std::string>> op_times_sorted;
+    std::transform(op_times.begin(),
+                   op_times.end(),
+                   std::back_inserter(op_times_sorted),
+                   [](auto p) { return std::make_pair(p.second, p.first); });
+    std::sort(op_times_sorted.begin(), op_times_sorted.end(), std::greater<>{});
+    for(auto&& p : op_times_sorted)
     {
-        auto&& name    = p.first;
-        double avg     = p.second;
+        auto&& name    = p.second;
+        double avg     = p.first;
         double percent = std::ceil(100.0 * avg / total_instruction_time);
         os << name << ": " << avg << "ms, " << percent << "%" << std::endl;
     }
@@ -591,25 +657,128 @@ static std::string enclose_name(const std::string& name)
     return '"' + replace_string(name, "\"", "\\\"") + '"';
 }
 
-void program::print_graph(std::ostream& os) const
+void program::print_graph(std::ostream& os, bool brief) const
 {
     os << "digraph {" << std::endl;
     os << "\trankdir=LR;" << std::endl;
     print_program(*this, [&](auto ins, const auto& names) {
-        os << "\t" << enclose_name(names.at(ins))
-           << "[label=" << enclose_name(to_string(ins->get_operator())) << "];";
-        os << std::endl;
+        std::string label;
+        if(brief)
+            label = ins->name();
+        else
+            label = to_string(ins->get_operator());
+        os << "\t" << enclose_name(names.at(ins)) << "[label=" << enclose_name(label) << "]";
+        os << ";" << std::endl;
         if(!ins->inputs().empty())
         {
             for(auto&& arg : ins->inputs())
             {
                 os << "\t" << enclose_name(names.at(arg)) << " -> " << enclose_name(names.at(ins));
-                os << "[label=" << enclose_name(to_string(ins->get_shape())) << "];";
-                os << std::endl;
+                if(not brief)
+                    os << "[label=" << enclose_name(to_string(ins->get_shape())) << "]";
+                os << ";" << std::endl;
             }
         }
     });
     os << "}" << std::endl;
+}
+
+static std::string cpp_var_name(const std::string& name)
+{
+    return "m" + replace_string(name, "@", "x");
+}
+
+static std::string cpp_op_var(const std::string& name, instruction_ref ins)
+{
+    return replace_string(name, "@", ins->name());
+}
+
+static void print_op_attributes(std::ostream& os, const std::string& name, const operation& op)
+{
+    std::string x = to_string(op);
+    if(contains(x, "["))
+    {
+        auto start                 = x.find('[');
+        auto end                   = x.find(']');
+        std::string attribute_text = x.substr(start + 1, end - start - 1);
+        std::vector<std::string> attributes;
+        for(auto&& attribute : split_string(attribute_text, ','))
+        {
+            if(contains(attribute, '='))
+                attributes.push_back(attribute);
+            else
+                attributes.back() += "," + attribute;
+        }
+        for(auto&& attribute : attributes)
+        {
+            auto p     = split_string(attribute, '=');
+            auto key   = p.front();
+            auto value = p.back();
+            if(contains({"bn_mode", "padding_mode"}, key))
+                continue;
+            if(key == "mode")
+                value = enclose_name(trim(value));
+            os << name << "." << key << " = " << value << ";" << std::endl;
+        }
+    }
+}
+
+static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
+{
+    os << "migraphx::shape{migraphx::shape::" << s.type_string();
+    os << ", {" << to_string_range(s.lens()) << "}";
+    if(not s.standard())
+        os << ", {" << to_string_range(s.strides()) << "}";
+    os << "}";
+}
+
+void program::print_cpp(std::ostream& os) const
+{
+    os << "migraphx::program p;" << std::endl;
+    // cppcheck-suppress variableScope
+    unsigned long seed = 0;
+    print_program(*this, [&](auto ins, const auto& names) {
+        auto op = cpp_op_var(names.at(ins), ins);
+        if(ins->name().front() != '@')
+        {
+            os << "migraphx::op::" << ins->name() << " " << op << ";" << std::endl;
+            print_op_attributes(os, op, ins->get_operator());
+        }
+        os << "auto " << cpp_var_name(names.at(ins)) << " = ";
+        if(ins->name() == "@literal")
+        {
+            os << "p.add_literal(";
+            bool use_abs = false;
+            ins->get_literal().visit([&](auto v) {
+                use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
+            });
+            if(use_abs)
+                os << "migraphx::abs(";
+            os << "migraphx::generate_literal(";
+            print_cpp_shape(os, ins->get_shape());
+            os << ", " << seed << ")";
+            if(use_abs)
+                os << ")";
+            os << ");" << std::endl;
+            seed++;
+        }
+        else if(ins->name() == "@param")
+        {
+            std::string name = any_cast<builtin::param>(ins->get_operator()).parameter;
+            os << "p.add_parameter(" << enclose_name(name) << ",";
+            print_cpp_shape(os, ins->get_shape());
+            os << ");" << std::endl;
+        }
+        else
+        {
+            os << "p.add_instruction(" << op;
+            for(auto input : ins->inputs())
+            {
+                os << ", " << cpp_var_name(names.at(input));
+            }
+            os << ");" << std::endl;
+        }
+    });
 }
 
 void program::dry_run(std::unordered_map<std::string, argument> params) const

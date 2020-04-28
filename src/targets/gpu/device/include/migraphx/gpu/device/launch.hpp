@@ -61,13 +61,13 @@ inline auto launch(hipStream_t stream, index_int global, index_int local)
 }
 
 template <class F>
-__host__ __device__ auto gs_invoke(F&& f, index_int i, index idx) -> decltype(f(i, idx))
+MIGRAPHX_DEVICE_CONSTEXPR auto gs_invoke(F&& f, index_int i, index idx) -> decltype(f(i, idx))
 {
     return f(i, idx);
 }
 
 template <class F>
-__host__ __device__ auto gs_invoke(F&& f, index_int i, index) -> decltype(f(i))
+MIGRAPHX_DEVICE_CONSTEXPR auto gs_invoke(F&& f, index_int i, index) -> decltype(f(i))
 {
     return f(i);
 }
@@ -78,8 +78,9 @@ inline auto gs_launch(hipStream_t stream, index_int n, index_int local = 1024)
     index_int nglobal = std::min<index_int>(256, groups) * local;
 
     return [=](auto f) {
-        launch(stream, nglobal, local)(
-            [=](auto idx) { idx.global_stride(n, [&](auto i) { gs_invoke(f, i, idx); }); });
+        launch(stream, nglobal, local)([=](auto idx) __device__ {
+            idx.global_stride(n, [&](auto i) { gs_invoke(f, i, idx); });
+        });
     };
 }
 

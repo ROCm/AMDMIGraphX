@@ -35,14 +35,26 @@ struct unsqueeze
         auto old_lens    = input_shape.lens();
 
         if(input_shape.scalar())
-            return shape{type, old_lens};
+        {
+            if(old_lens.size() == 1 and old_lens.front() == 1)
+                return shape{type, old_lens};
+            else
+                MIGRAPHX_THROW("UNSQUEEZE: Input must be a scalar");
+        }
 
         std::size_t new_size = old_lens.size() + axes.size();
+
+        // in case of axes to be negative, tune to positive
+        std::vector<int64_t> tuned_axes(axes.size());
+        std::transform(axes.begin(), axes.end(), tuned_axes.begin(), [new_size](auto i) {
+            return i >= 0 ? i : i + new_size;
+        });
+
         std::vector<std::size_t> new_lens(new_size);
         std::size_t p = 0;
         for(std::size_t i = 0; i < new_size; i++)
         {
-            if(std::find(axes.begin(), axes.end(), i) != axes.end())
+            if(std::find(tuned_axes.begin(), tuned_axes.end(), i) != tuned_axes.end())
             {
                 new_lens[i] = 1;
             }

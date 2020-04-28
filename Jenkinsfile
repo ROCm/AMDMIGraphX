@@ -9,7 +9,7 @@ def rocmtestnode(variant, name, body) {
             mkdir build
             cd build
             CXX=${compiler} CXXFLAGS='-Werror -Wno-fallback' cmake ${flags} .. 
-            CTEST_PARALLEL_LEVEL=32 make -j32 generate all doc package check
+            CTEST_PARALLEL_LEVEL=32 make -j\$(nproc) generate all doc package check
         """
         echo cmd
         sh cmd
@@ -82,7 +82,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
             mkdir build
             cd build
             CXX=hcc cmake .. 
-            make -j8 -k analyze
+            make -j$(nproc) -k analyze
         '''
     }
 }, format: rocmnode('rocmtest') { cmake_build ->
@@ -106,7 +106,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Debug') {
         // TODO: Enable integer
         def sanitizers = "undefined"
-        def debug_flags = "-g -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
+        def debug_flags = "-O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
     }
 }, clang_release: rocmnode('vega') { cmake_build ->

@@ -148,6 +148,12 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
         return false;
     if(wei.lens()[1] > 512 and conv.algo != miopenConvolutionFwdAlgoWinograd)
         return false;
+
+    // Do not fuse non-symmetric input
+    auto input_lens = ins->inputs().at(0)->get_shape().lens();
+    if(input_lens[2] != input_lens[3] or wei.lens()[2] != wei.lens()[3])
+        return false;
+
     auto op = conv.op;
     // Dont fuse winograd for non-3x3s since there is no fused windograd for those configs
     if(conv.algo == miopenConvolutionFwdAlgoWinograd and wei.lens()[2] != 3 and
@@ -178,29 +184,22 @@ struct hip_triadd
 
 struct hip_triadd_clip
 {
-    op::clip op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return op::clip::reflect(self.op, f);
-    }
     std::string name() const { return "hip::triadd_clip"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs, *this}.has(4);
+        check_shapes{inputs, *this}.has(6);
         return inputs.front();
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
         device::add_clip(ctx.get_stream().get(),
-                         args.at(3),
+                         args.at(5),
                          args.at(0),
                          args.at(1),
                          args.at(2),
-                         op.max_val,
-                         op.min_val);
-        return args.at(3);
+                         args.at(3),
+                         args.at(4));
+        return args.at(5);
     }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
@@ -210,24 +209,17 @@ struct hip_triadd_clip
 
 struct hip_add_clip
 {
-    op::clip op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return op::clip::reflect(self.op, f);
-    }
     std::string name() const { return "hip::add_clip"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs, *this}.has(3);
+        check_shapes{inputs, *this}.has(5);
         return inputs.front();
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
         device::add_clip(
-            ctx.get_stream().get(), args.at(2), args.at(0), args.at(1), op.max_val, op.min_val);
-        return args.at(2);
+            ctx.get_stream().get(), args.at(4), args.at(0), args.at(1), args.at(2), args.at(3));
+        return args.at(4);
     }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
@@ -331,19 +323,20 @@ struct find_add_clip
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto add_ins = r.instructions["add"];
-        auto ins     = r.result;
-        auto&& op    = any_cast<gpu::hip_clip>(ins->get_operator()).op;
-        auto args    = add_ins->inputs();
-        move_standard_front(args);
-        move_broadcasted_back(args);
+        auto add_ins  = r.instructions["add"];
+        auto ins      = r.result;
+        auto ins_args = ins->inputs();
+        auto add_args = add_ins->inputs();
+        move_standard_front(add_args);
+        move_broadcasted_back(add_args);
 
-        // Use the allocation from the relu operator
-        args.back() = ins->inputs().back();
+        // Use the allocation from the clip operator
+        add_args.pop_back();
+        add_args.insert(add_args.end(), std::next(ins_args.begin()), ins_args.end());
         if(add_ins->name() == "gpu::add")
-            p.replace_instruction(ins, hip_add_clip{op}, args);
+            p.replace_instruction(ins, hip_add_clip{}, add_args);
         else if(add_ins->name() == "hip::triadd")
-            p.replace_instruction(ins, hip_triadd_clip{op}, args);
+            p.replace_instruction(ins, hip_triadd_clip{}, add_args);
     }
 };
 

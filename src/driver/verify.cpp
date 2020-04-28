@@ -20,7 +20,7 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-argument run_cpu(program p)
+std::vector<argument> run_cpu(program p)
 {
     p.compile(cpu::target{});
     program::parameter_map m;
@@ -33,7 +33,7 @@ argument run_cpu(program p)
     return out;
 }
 
-argument run_gpu(program p)
+std::vector<argument> run_gpu(program p)
 {
 #ifdef HAVE_GPU
     p.compile(gpu::target{});
@@ -43,9 +43,14 @@ argument run_gpu(program p)
     {
         m[x.first] = gpu::to_gpu(generate_argument(x.second, get_hash(x.first)));
     }
-    auto out = gpu::from_gpu(p.eval(m));
+    auto gpu_out = p.eval(m);
+    std::vector<argument> output(gpu_out.size());
     std::cout << p << std::endl;
-    return gpu::from_gpu(out);
+    std::transform(gpu_out.begin(), gpu_out.end(), output.begin(), [&](auto& argu) {
+        return gpu::from_gpu(argu);
+    });
+    return output;
+
 #else
     (void)p;
     MIGRAPHX_THROW("Gpu unsupported!");
@@ -56,7 +61,12 @@ void verify_program(const std::string& name, const program& p, double tolerance)
 {
     auto x = run_cpu(p);
     auto y = run_gpu(p);
-    verify_args(name, x, y, tolerance);
+
+    std::size_t output_num = x.size();
+    for(std::size_t i = 0; i < output_num; ++i)
+    {
+        verify_args(name, x[i], y[i], tolerance);
+    }
     // std::cout << "cpu: " << x << std::endl;
     // std::cout << "gpu: " << y << std::endl;
 }
@@ -72,6 +82,8 @@ void verify_instructions(const program& prog, double tolerance)
         if(ins.name() == "transpose")
             continue;
         if(ins.name() == "reshape")
+            continue;
+        if(ins.name() == "undefined")
             continue;
         program p;
         std::vector<instruction_ref> inputs;

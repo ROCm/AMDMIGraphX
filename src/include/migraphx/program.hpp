@@ -8,7 +8,7 @@
 #include <migraphx/builtin.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/target.hpp>
-#include <migraphx/tracer.hpp>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
 #include <algorithm>
@@ -87,13 +87,15 @@ struct program
 
     instruction_ref add_parameter(std::string name, shape s);
 
+    instruction_ref add_return(std::vector<instruction_ref> args);
+
     shape get_parameter_shape(std::string name) const;
 
     instruction_ref get_parameter(std::string name) const;
 
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
-    argument eval(parameter_map params) const;
+    std::vector<argument> eval(parameter_map params) const;
 
     bool has_instruction(instruction_ref ins) const;
 
@@ -101,13 +103,13 @@ struct program
     instruction_ref begin() const;
     instruction_ref end() const;
 
-    shape get_shape() const;
+    std::vector<shape> get_output_shapes() const;
 
     context& get_context() const;
 
     instruction_ref validate() const;
 
-    void compile(const target& t, tracer trace = tracer{});
+    void compile(const target& t, compile_options options = compile_options{});
 
     void finalize();
 
@@ -116,7 +118,8 @@ struct program
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
     void debug_print(const std::vector<instruction_ref>& inss) const;
-    void print_graph(std::ostream& os) const;
+    void print_graph(std::ostream& os, bool brief = false) const;
+    void print_cpp(std::ostream& os) const;
 
     void dry_run(parameter_map params) const;
 

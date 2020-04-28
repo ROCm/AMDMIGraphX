@@ -31,7 +31,7 @@ namespace test {
 // clang-format on
 
 // NOLINTNEXTLINE
-#define TEST_EACH_BINARY_OPERATOR_OBJECT(op, name)            \
+#define TEST_EACH_BINARY_OPERATOR_OBJECT(op, name)     \
     struct name                                        \
     {                                                  \
         static std::string as_string() { return #op; } \
@@ -43,14 +43,14 @@ namespace test {
     };
 
 // NOLINTNEXTLINE
-#define TEST_EACH_UNARY_OPERATOR_OBJECT(op, name)            \
+#define TEST_EACH_UNARY_OPERATOR_OBJECT(op, name)      \
     struct name                                        \
     {                                                  \
         static std::string as_string() { return #op; } \
-        template <class T>                    \
-        static decltype(auto) call(T&& x)       \
+        template <class T>                             \
+        static decltype(auto) call(T&& x)              \
         {                                              \
-            return op x;                             \
+            return op x;                               \
         }                                              \
     };
 
@@ -107,7 +107,7 @@ expression<T, U, Operator> make_expression(T&& rhs, U&& lhs, Operator)
     return {std::forward<T>(rhs), std::forward<U>(lhs)};
 }
 
-template <class T, class Operator=nop>
+template <class T, class Operator = nop>
 struct lhs_expression;
 
 // TODO: Remove rvalue reference
@@ -137,7 +137,7 @@ struct lhs_expression
 
     decltype(auto) value() const { return Operator::call(lhs); }
 // NOLINTNEXTLINE
-#define TEST_LHS_BINARY_OPERATOR(op, name)                            \
+#define TEST_LHS_BINARY_OPERATOR(op, name)                     \
     template <class U>                                         \
     auto operator op(const U& rhs) const                       \
     {                                                          \
@@ -147,11 +147,8 @@ struct lhs_expression
     TEST_FOREACH_BINARY_OPERATORS(TEST_LHS_BINARY_OPERATOR)
 
 // NOLINTNEXTLINE
-#define TEST_LHS_UNARY_OPERATOR(op, name)                            \
-    auto operator op() const                       \
-    {                                                          \
-        return make_lhs_expression(lhs, name{}); /* NOLINT */ \
-    }
+#define TEST_LHS_UNARY_OPERATOR(op, name) \
+    auto operator op() const { return make_lhs_expression(lhs, name{}); /* NOLINT */ }
 
     TEST_FOREACH_UNARY_OPERATORS(TEST_LHS_UNARY_OPERATOR)
 
@@ -180,7 +177,7 @@ struct capture
         return make_lhs_expression(x);
     }
 
-    template<class T, class Operator>
+    template <class T, class Operator>
     auto operator->*(const lhs_expression<T, Operator>& x) const
     {
         return x;
@@ -194,7 +191,8 @@ void failed(T x, const char* msg, const char* func, const char* file, int line, 
     {
         std::cout << func << std::endl;
         std::cout << file << ":" << line << ":" << std::endl;
-        std::cout << "    FAILED: " << msg << " " << "[ " << x << " ]" << std::endl;
+        std::cout << "    FAILED: " << msg << " "
+                  << "[ " << x << " ]" << std::endl;
         f();
     }
 }

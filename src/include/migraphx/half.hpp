@@ -38,17 +38,17 @@ using deduce = typename detail::deduce<T>::type;
 
 namespace std {
 
-template<class T>
-struct common_type<migraphx::half, T>
-: std::common_type<float, T>
-{};
+template <class T>
+struct common_type<migraphx::half, T> : std::common_type<float, T>
+{
+};
 
-template<class T>
-struct common_type<T, migraphx::half>
-: std::common_type<float, T>
-{};
+template <class T>
+struct common_type<T, migraphx::half> : std::common_type<float, T>
+{
+};
 
-template<>
+template <>
 struct common_type<migraphx::half, migraphx::half>
 {
     using type = migraphx::half;

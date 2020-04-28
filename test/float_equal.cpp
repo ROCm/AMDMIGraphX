@@ -4,21 +4,15 @@
 
 #include <limits>
 
-template<class T, class U>
+template <class T, class U>
 struct float_equal_expression
 {
     T lhs;
     U rhs;
 
-    operator bool() const
-    {
-        return migraphx::float_equal(lhs, rhs);
-    }
+    operator bool() const { return migraphx::float_equal(lhs, rhs); }
 
-    bool operator not() const
-    {
-        return not bool(*this);
-    }
+    bool operator not() const { return not bool(*this); }
 
     friend std::ostream& operator<<(std::ostream& s, const float_equal_expression& self)
     {
@@ -27,13 +21,13 @@ struct float_equal_expression
     }
 };
 
-template<class T, class U>
+template <class T, class U>
 auto test_float_equal(T x, U y)
 {
     return test::make_lhs_expression(float_equal_expression<T, U>{x, y});
 }
 
-template<class T, class U>
+template <class T, class U>
 void test_equality()
 {
     auto x1 = T(0.1);
@@ -43,7 +37,6 @@ void test_equality()
     EXPECT(test_float_equal(x2, x2));
     EXPECT(test_float_equal(x3, x3));
 
-
     EXPECT(not test_float_equal(x1, x2));
     EXPECT(not test_float_equal(x2, x1));
     EXPECT(not test_float_equal(x1, x3));
@@ -52,14 +45,13 @@ void test_equality()
     EXPECT(not test_float_equal(x3, x2));
 }
 
-
 TEST_CASE_REGISTER(test_equality<double, float>);
 TEST_CASE_REGISTER(test_equality<double, int>);
 TEST_CASE_REGISTER(test_equality<double, migraphx::half>);
 TEST_CASE_REGISTER(test_equality<float, int>);
 TEST_CASE_REGISTER(test_equality<migraphx::half, int>);
 
-template<class T, class U>
+template <class T, class U>
 void test_limits()
 {
     auto max1 = std::numeric_limits<T>::max();
@@ -99,6 +91,5 @@ TEST_CASE_REGISTER(test_limits<float, int>);
 TEST_CASE_REGISTER(test_limits<int, migraphx::half>);
 TEST_CASE_REGISTER(test_limits<long, int>);
 TEST_CASE_REGISTER(test_limits<long, char>);
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

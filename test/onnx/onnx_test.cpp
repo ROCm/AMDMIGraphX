@@ -1117,15 +1117,26 @@ TEST_CASE(no_pad_test)
 TEST_CASE(onehot_test)
 {
     migraphx::program p;
-    auto l0 = p.add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {5}}, {1, 1, 1, 1, 1}});
-    p.add_literal(2);
-    p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2}}, {0, 1}});
-    auto l1 = p.add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2, 2}}, {1, 0, 0, 1}});
-    int axis = 0;
-    p.add_instruction(migraphx::op::gather{axis}, l1, l0);
-    auto prog = optimize_onnx("onehot_test.onnx");
+    migraphx::shape s_ind{migraphx::shape::int32_type, {5, 2}};
+    migraphx::shape s_val{migraphx::shape::half_type, {2}};
+    p.add_literal(3);
+    auto l_ind = p.add_parameter("indices", s_ind);
+    auto l_val = p.add_parameter("values", s_val);
+    migraphx::shape s_dep{migraphx::shape::half_type, {3, 3}};
+    std::vector<float> data_dep{1, 0, 0, 0, 1, 0, 0, 0, 1};
+    auto l_dep      = p.add_literal(migraphx::literal(s_dep, data_dep));
+    auto gather_out = p.add_instruction(migraphx::op::gather{0}, l_dep, l_ind);
+    auto tr_out     = p.add_instruction(migraphx::op::transpose{{2, 0, 1}}, gather_out);
+    auto off_val    = p.add_instruction(migraphx::op::slice{{0}, {0}, {1}}, l_val);
+    auto on_val     = p.add_instruction(migraphx::op::slice{{0}, {1}, {2}}, l_val);
+    auto diff       = p.add_instruction(migraphx::op::sub{}, on_val, off_val);
+    auto mb_off_val = p.add_instruction(migraphx::op::multibroadcast{{3, 5, 2}}, off_val);
+    auto mb_diff    = p.add_instruction(migraphx::op::multibroadcast{{3, 5, 2}}, diff);
+    auto mul        = p.add_instruction(migraphx::op::mul{}, tr_out, mb_diff);
+    auto r          = p.add_instruction(migraphx::op::add{}, mul, mb_off_val);
+    p.add_return({r});
+
+    auto prog = migraphx::parse_onnx("onehot_test.onnx");
 
     EXPECT(p == prog);
 }

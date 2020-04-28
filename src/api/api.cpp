@@ -92,12 +92,11 @@ void set_default_dim_value(onnx_options& options, size_t value)
     options.default_dim_value = value;
 }
 
-void add_parameter_shape(onnx_options& options,
-                         const char* name,
-                         std::size_t dim_num,
-                         const std::size_t* dims)
+void set_input_parameter_shape(onnx_options& options,
+                               const char* name,
+                               const std::vector<std::size_t> dims)
 {
-    options.map_input_dims[std::string(name)] = std::vector<std::size_t>(dims, dims + dim_num);
+    options.map_input_dims[std::string(name)] = dims;
 }
 
 template <class Value>
@@ -602,13 +601,16 @@ extern "C" migraphx_status migraphx_onnx_options_create(migraphx_onnx_options_t*
     });
 }
 
-extern "C" migraphx_status migraphx_onnx_options_add_parameter_shape(
-    migraphx_onnx_options_t onnx_options, const char* name, size_t dim_num, size_t* dims)
+extern "C" migraphx_status migraphx_onnx_options_set_input_parameter_shape(
+    migraphx_onnx_options_t onnx_options, const char* name, size_t* dims, size_t dims_size)
 {
     return migraphx::try_([&] {
         if(onnx_options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
-        migraphx::add_parameter_shape((onnx_options->object), (name), (dim_num), (dims));
+        if(dims == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dims: Null pointer");
+        migraphx::set_input_parameter_shape(
+            (onnx_options->object), (name), (std::vector<size_t>(dims, dims + dims_size)));
     });
 }
 

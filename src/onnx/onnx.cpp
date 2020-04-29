@@ -1885,7 +1885,8 @@ struct onnx_parser
         return prog.add_instruction(op::add{}, l_mul, unsq_off_val);
     }
 
-    instruction_ref parse_tile(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    instruction_ref
+    parse_tile(const std::string&, const node_info&, std::vector<instruction_ref> args)
     {
         migraphx::argument arg_s = args[1]->eval();
         check_arg_empty(arg_s, "PARSE_TILE: dynamic shape is not supported");

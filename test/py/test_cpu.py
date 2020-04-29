@@ -22,12 +22,8 @@ def test_conv_relu():
 
 def create_buffer(t, data, shape):
     a = array.array(t, data)
-    if sys.version_info >= (3, 0):
-        m = memoryview(a.tobytes())
-        return m.cast(t, shape)
-    else:
-        m = memoryview(a.tostring())
-        return m
+    m = memoryview(a.tobytes())
+    return m.cast(t, shape)
 
 
 def test_add_scalar():

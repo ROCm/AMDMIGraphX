@@ -29,6 +29,7 @@ def create_buffer(t, data, shape):
         m = memoryview(a.tostring())
         return m
 
+
 def test_add_scalar():
     p = migraphx.parse_onnx("add_scalar_test.onnx")
     print(p)

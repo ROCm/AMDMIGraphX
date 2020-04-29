@@ -92,9 +92,9 @@ def add_fp16_test():
 
 @onnx_test
 def add_scalar_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [])
-    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2, 3, 4, 5])
+    x = helper.make_tensor_value_info('0', TensorProto.UINT8, [2, 3, 4, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.UINT8, [])
+    z = helper.make_tensor_value_info('2', TensorProto.UINT8, [2, 3, 4, 5])
 
     node = onnx.helper.make_node('Add', inputs=['0', '1'], outputs=['2'])
 

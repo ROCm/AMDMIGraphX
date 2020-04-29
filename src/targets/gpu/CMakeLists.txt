@@ -67,6 +67,7 @@ add_library(migraphx_device
     device/tan.cpp
     device/tanh.cpp
     device/rnn_variable_sequences.cpp
+    device/rnn_last_output.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
@@ -118,6 +119,7 @@ add_library(migraphx_gpu
     gemm_impl.cpp
     preallocate_param.cpp
     rnn_variable_sequences.cpp
+    rnn_last_output.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})

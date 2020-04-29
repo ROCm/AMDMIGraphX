@@ -11,7 +11,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct onnx_options
 {
     std::size_t default_dim_value = 1;
-    std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
+    std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims = {};
 };
 
 /// Create a program from an onnx file

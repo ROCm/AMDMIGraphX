@@ -22,7 +22,10 @@ def test_conv_relu():
 
 def create_buffer(t, data, shape):
     a = array.array(t, data)
-    m = memoryview(a.tobytes())
+    if sys.version_info >= (3, 0):
+        m = memoryview(a.tobytes())
+    else:
+        m = memoryview(a.tostring())
     return m.cast(t, shape)
 
 

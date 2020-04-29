@@ -41,15 +41,15 @@ struct rnn_last_output
     {
         argument result{output_shape};
         auto out_comp_lens = output_shape.lens();
-        out_comp_lens[0] = 1;
+        out_comp_lens[0]   = 1;
         shape out_comp_s{output_shape.type(), out_comp_lens};
 
         visit_all(result, args[0])([&](auto output, auto input) {
             args[1].visit([&](auto seq_lens) {
                 par_for(output_shape.elements(), [&](auto i) {
-                    auto idx       = out_comp_s.multi(i);
-                    auto b         = idx[2];
-                    if (direction == rnn_direction::reverse or idx[1] == 1)
+                    auto idx = out_comp_s.multi(i);
+                    auto b   = idx[2];
+                    if(direction == rnn_direction::reverse or idx[1] == 1)
                     {
                         idx[0] = 0;
                     }

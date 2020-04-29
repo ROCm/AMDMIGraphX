@@ -12,9 +12,9 @@ void rnn_last_output(hipStream_t stream,
                      const argument& arg_sl,
                      bool is_reverse)
 {
-    auto input_shape = arg_hs.get_shape();
+    auto input_shape   = arg_hs.get_shape();
     auto out_comp_lens = input_shape.lens();
-    out_comp_lens[0] = 1;
+    out_comp_lens[0]   = 1;
     shape out_comp_shape{input_shape.type(), out_comp_lens};
 
     result.visit([&](auto output) {
@@ -28,11 +28,11 @@ void rnn_last_output(hipStream_t stream,
                     auto d   = idx[1];
                     auto b   = idx[2];
                     auto l   = sl_ptr[b];
-                    if (is_reverse or d == 1)
+                    if(is_reverse or d == 1)
                     {
                         idx[0] = 0;
                     }
-                    else 
+                    else
                     {
                         idx[0] = l - 1;
                     }

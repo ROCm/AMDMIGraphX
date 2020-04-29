@@ -906,7 +906,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
     // the last_cell_output. The while loop is to handle the case
     // of multiple lstm_last_output and lstm_last_cell_output
     // operators
-    if (!variable_seq_lens)
+    if(!variable_seq_lens)
     {
         auto last_output_it = ins->outputs().begin();
         while(last_output_it != ins->outputs().end())
@@ -925,9 +925,10 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
         auto last_cell_output_it = ins->outputs().begin();
         while(last_cell_output_it != ins->outputs().end())
         {
-            last_cell_output_it = std::find_if(last_cell_output_it, ins->outputs().end(), [](auto i) {
-                return i->name() == "lstm_last_cell_output";
-            });
+            last_cell_output_it =
+                std::find_if(last_cell_output_it, ins->outputs().end(), [](auto i) {
+                    return i->name() == "lstm_last_cell_output";
+                });
 
             if(last_cell_output_it != ins->outputs().end())
             {

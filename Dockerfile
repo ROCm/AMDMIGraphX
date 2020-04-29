@@ -59,7 +59,7 @@ RUN pip3 install cget && pip3 install numpy
 RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
 
 # Install numpy
-pip install numpy
+RUN pip install numpy
 
 # Install yapf
 RUN pip3 install yapf==0.28.0

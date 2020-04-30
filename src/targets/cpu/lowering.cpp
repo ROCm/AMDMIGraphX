@@ -21,6 +21,7 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/par_dfor.hpp>
+#include <migraphx/clamp.hpp>
 #include <migraphx/cpu/gemm.hpp>
 #include <unordered_map>
 #include <utility>
@@ -459,7 +460,10 @@ struct cpu_pad
     {
         assert(output_shape.standard());
         argument result{output_shape};
-        result.visit([&](auto output) { std::fill(output.begin(), output.end(), op.value); });
+        result.visit([&](auto output) { 
+            using type = typename decltype(output)::value_type;
+            std::fill(output.begin(), output.end(), pad_clamp<type>(op.value)); 
+        });
 
         visit_all(result, args[0])([&](auto output, auto input) {
             shape_for_each(input.get_shape(), [&](const auto& idx) {

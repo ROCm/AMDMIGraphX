@@ -460,9 +460,9 @@ struct cpu_pad
     {
         assert(output_shape.standard());
         argument result{output_shape};
-        result.visit([&](auto output) { 
+        result.visit([&](auto output) {
             using type = typename decltype(output)::value_type;
-            std::fill(output.begin(), output.end(), pad_clamp<type>(op.value)); 
+            std::fill(output.begin(), output.end(), pad_clamp<type>(op.value));
         });
 
         visit_all(result, args[0])([&](auto output, auto input) {

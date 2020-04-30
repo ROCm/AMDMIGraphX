@@ -43,11 +43,6 @@ typedef struct
     bool offload_copy;
 } migraphx_compile_options;
 
-typedef struct
-{
-    size_t batch_size;
-} migraphx_onnx_options;
-
 typedef struct migraphx_shape* migraphx_shape_t;
 typedef const struct migraphx_shape* const_migraphx_shape_t;
 
@@ -71,6 +66,9 @@ typedef const struct migraphx_shapes* const_migraphx_shapes_t;
 
 typedef struct migraphx_program* migraphx_program_t;
 typedef const struct migraphx_program* const_migraphx_program_t;
+
+typedef struct migraphx_onnx_options* migraphx_onnx_options_t;
+typedef const struct migraphx_onnx_options* const_migraphx_onnx_options_t;
 
 migraphx_status migraphx_shape_destroy(migraphx_shape_t shape);
 
@@ -171,13 +169,23 @@ migraphx_status migraphx_program_run(migraphx_arguments_t* out,
 migraphx_status
 migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migraphx_program_t x);
 
+migraphx_status migraphx_onnx_options_destroy(migraphx_onnx_options_t onnx_options);
+
+migraphx_status migraphx_onnx_options_create(migraphx_onnx_options_t* onnx_options);
+
+migraphx_status migraphx_onnx_options_set_input_parameter_shape(
+    migraphx_onnx_options_t onnx_options, const char* name, size_t* dims, size_t dims_size);
+
+migraphx_status migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options,
+                                                            size_t value);
+
 migraphx_status
-migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options* options);
+migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options_t options);
 
 migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
                                            const void* data,
                                            size_t size,
-                                           migraphx_onnx_options* options);
+                                           migraphx_onnx_options_t options);
 
 #ifdef __cplusplus
 }

@@ -563,7 +563,7 @@ TEST_CASE(simplify_rsqrt)
 
     migraphx::program p2;
     {
-        auto x     = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto x = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         p2.add_instruction(migraphx::op::rsqrt{}, x);
     }
     EXPECT(p1 == p2);

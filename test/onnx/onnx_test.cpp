@@ -1148,6 +1148,40 @@ TEST_CASE(pad_3arg_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(pad_reflect_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 2}});
+    p.add_literal({migraphx::shape{migraphx::shape::int32_type, {4}}, {0, 2, 0, 1}});
+    auto l1 = p.add_instruction(migraphx::op::slice{{0, 1}, {0, 1}, {2, 2}}, l0);
+    auto l2 = p.add_instruction(migraphx::op::slice{{0, 1}, {0, 0}, {2, 1}}, l0);
+    auto l3 = p.add_instruction(migraphx::op::slice{{0, 1}, {0, 1}, {2, 2}}, l0);
+    auto r  = p.add_instruction(migraphx::op::concat{1}, l1, l2, l0, l3);
+    p.add_return({r});
+
+    auto prog = migraphx::parse_onnx("pad_reflect_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(pad_reflect_multiaxis_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    p.add_literal({migraphx::shape{migraphx::shape::int32_type, {4}}, {0, 2, 2, 0}});
+    auto l1 = p.add_instruction(migraphx::op::slice{{0, 1}, {0, 1}, {2, 2}}, l0);
+    auto l2 = p.add_instruction(migraphx::op::slice{{0, 1}, {0, 2}, {2, 3}}, l0);
+    auto l3 = p.add_instruction(migraphx::op::concat{1}, l1, l2, l0);
+    auto l4 = p.add_instruction(migraphx::op::slice{{0, 1}, {0, 0}, {1, 5}}, l3);
+    auto l5 = p.add_instruction(migraphx::op::slice{{0, 1}, {1, 0}, {2, 5}}, l3);
+    auto r  = p.add_instruction(migraphx::op::concat{0}, l3, l4, l5);
+    p.add_return({r});
+
+    auto prog = migraphx::parse_onnx("pad_reflect_multiaxis_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(pow_test)
 {
     migraphx::program p;

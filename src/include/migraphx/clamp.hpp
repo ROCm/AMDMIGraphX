@@ -7,14 +7,16 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template<class U, class T>
+template <class U, class T>
 U pad_clamp(T x)
 {
-    if (float_equal(x, std::numeric_limits<T>::lowest()))
+    if(float_equal(x, std::numeric_limits<T>::lowest()))
         return std::numeric_limits<U>::lowest();
-    if (float_equal(x, std::numeric_limits<T>::max()))
+    if(float_equal(x, std::numeric_limits<T>::max()))
         return std::numeric_limits<U>::max();
-    return (x < std::numeric_limits<U>::lowest()) ? std::numeric_limits<U>::lowest() : (std::numeric_limits<U>::max() < x) ? std::numeric_limits<U>::max() : U(x);
+    return (x < std::numeric_limits<U>::lowest())
+               ? std::numeric_limits<U>::lowest()
+               : (std::numeric_limits<U>::max() < x) ? std::numeric_limits<U>::max() : U(x);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

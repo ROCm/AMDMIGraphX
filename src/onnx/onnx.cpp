@@ -465,7 +465,7 @@ struct onnx_parser
         // iterate over dimensions, starting from lowest dimension
         for(int i = num_dims - 1; i >= 0; i--)
         {
-            int axis = i;
+            int axis    = i;
             auto lcount = ldims.at(i);
             auto rcount = rdims.at(i);
             if(lcount == 0 and rcount == 0) // no padding for current dim
@@ -480,18 +480,18 @@ struct onnx_parser
             for(int j = 0; j < lcount; j++)
             {
                 auto start_idx = (j + 1) % dims.at(i);
-                starts.at(i) = start_idx;
-                ends.at(i) = start_idx + 1;
+                starts.at(i)   = start_idx;
+                ends.at(i)     = start_idx + 1;
                 slices.push_back(prog.add_instruction(op::slice{axes, starts, ends}, input));
             }
             slices.push_back(input);
             for(int j = 0; j < rcount; j++)
             {
                 auto start_idx = (j - rcount) % dims.at(i);
-                starts.at(i) = start_idx;
-                ends.at(i) = start_idx + 1;
+                starts.at(i)   = start_idx;
+                ends.at(i)     = start_idx + 1;
                 slices.push_back(prog.add_instruction(op::slice{axes, starts, ends}, input));
-            }  
+            }
             input = prog.add_instruction(op::concat{axis}, slices);
         }
         return input;

@@ -34,9 +34,10 @@ struct onnx_parser
         std::function<std::vector<instruction_ref>(node_info, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog            = program();
-    bool is_pytorch         = false;
-    unsigned int batch_size = 1;
+    program prog                  = program();
+    bool is_pytorch               = false;
+    std::size_t default_dim_value = 1;
+    std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
 
     std::unordered_map<std::string, op_func> ops;
     std::unordered_map<std::string, operation> map_actv_funcs;
@@ -1927,8 +1928,13 @@ struct onnx_parser
             // input not in initializer_data, so it is a real input
             if(!contains(instructions, name))
             {
-                // TODO: Get shape of input parameter
-                shape s            = parse_type(input.type(), batch_size);
+                std::vector<std::size_t> dims;
+                if(map_input_dims.count(name) > 0)
+                {
+                    dims = map_input_dims.at(name);
+                }
+
+                shape s            = parse_type(input.type(), dims);
                 instructions[name] = prog.add_parameter(name, s);
             }
         }
@@ -2118,7 +2124,7 @@ struct onnx_parser
         return literal{{shape_type, dims}, data.begin(), data.end()};
     }
 
-    static shape parse_type(const onnx::TypeProto& t, const unsigned int batch_size)
+    shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims)
     {
         shape::type_t shape_type{};
         switch(t.tensor_type().elem_type())
@@ -2141,6 +2147,12 @@ struct onnx_parser
         case onnx::TensorProto::COMPLEX128:
             break; // throw std::runtime_error("Unsupported type");
         }
+
+        if(!input_dims.empty())
+        {
+            return {shape_type, input_dims};
+        }
+
         std::vector<std::size_t> dims;
         auto&& tensor_dims = t.tensor_type().shape().dim();
         std::transform(tensor_dims.begin(),
@@ -2150,11 +2162,17 @@ struct onnx_parser
                            if(d.has_dim_value())
                            {
                                if(static_cast<int>(d.dim_value()) <= 0)
-                                   return batch_size;
+                               {
+                                   return default_dim_value;
+                               }
                                return d.dim_value();
                            }
-                           return batch_size;
+                           else
+                           {
+                               return default_dim_value;
+                           }
                        });
+
         if(dims.empty())
             return {shape_type};
 
@@ -2193,10 +2211,12 @@ struct onnx_parser
 };
 
 template <class... Ts>
-program parse_onnx_from(onnx_options options, Ts&&... xs)
+program parse_onnx_from(const onnx_options& options, Ts&&... xs)
 {
     onnx_parser parser;
-    parser.batch_size = options.batch_size;
+    parser.map_input_dims    = options.map_input_dims;
+    parser.default_dim_value = options.default_dim_value;
+
 #ifndef NDEBUG
     // Log the program when it can't be parsed
     try
@@ -2214,18 +2234,18 @@ program parse_onnx_from(onnx_options options, Ts&&... xs)
     return std::move(parser.prog);
 }
 
-program parse_onnx(const std::string& name, onnx_options options)
+program parse_onnx(const std::string& name, const onnx_options& options)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     return parse_onnx_from(options, input);
 }
 
-program parse_onnx_buffer(const std::string& buffer, onnx_options options)
+program parse_onnx_buffer(const std::string& buffer, const onnx_options& options)
 {
     return parse_onnx_from(options, buffer.data(), buffer.size());
 }
 
-program parse_onnx_buffer(const void* data, std::size_t size, onnx_options options)
+program parse_onnx_buffer(const void* data, std::size_t size, const onnx_options& options)
 {
     return parse_onnx_from(options, data, size);
 }

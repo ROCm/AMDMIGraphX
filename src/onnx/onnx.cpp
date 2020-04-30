@@ -450,23 +450,18 @@ struct onnx_parser
 
     instruction_ref reflect_pad(const std::vector<int64_t>& pads, instruction_ref input)
     {
-        size_t num_dims = pads.size() / 2;
-        std::vector<int> ldims(num_dims);
-        std::vector<int> rdims(num_dims);
+        int num_dims = pads.size() / 2;
+        std::vector<int> ldims(pads.begin(), pads.begin()+num_dims);
+        std::vector<int> rdims(pads.begin()+num_dims, pads.end());
+        assert(ldims.size() == rdims.size());
 
         std::vector<int64_t> axes(num_dims);
         std::iota(axes.begin(), axes.end(), int64_t{0});
 
-        for(int i = 0; i < num_dims; i++)
-        {
-            ldims.at(i) = pads.at(i);
-            rdims.at(i) = pads.at(i + num_dims);
-        }
-
         // iterate over dimensions, starting from lowest dimension
         for(int i = num_dims - 1; i >= 0; i--)
         {
-            int axis    = i;
+            auto axis   = i;
             auto lcount = ldims.at(i);
             auto rcount = rdims.at(i);
             if(lcount == 0 and rcount == 0) // no padding for current dim
@@ -478,19 +473,23 @@ struct onnx_parser
             std::vector<int64_t> ends(dims.begin(), dims.end());
             std::vector<instruction_ref> slices;
 
+            auto starts_it = starts.begin() + i;
+            auto ends_it = ends.begin() + i;
+            auto dims_it = dims.begin() + i;
+
             for(int j = 0; j < lcount; j++)
             {
-                auto start_idx = (j + 1) % dims.at(i);
-                starts.at(i)   = start_idx;
-                ends.at(i)     = start_idx + 1;
+                auto start_idx = (j + 1) % *dims_it;
+                *starts_it   = start_idx;
+                *ends_it     = start_idx + 1;
                 slices.push_back(prog.add_instruction(op::slice{axes, starts, ends}, input));
             }
             slices.push_back(input);
             for(int j = 0; j < rcount; j++)
             {
-                auto start_idx = (j - rcount) % dims.at(i);
-                starts.at(i)   = start_idx;
-                ends.at(i)     = start_idx + 1;
+                auto start_idx = (j - rcount) % *dims_it;
+                *starts_it   = start_idx;
+                *ends_it     = start_idx + 1;
                 slices.push_back(prog.add_instruction(op::slice{axes, starts, ends}, input));
             }
             input = prog.add_instruction(op::concat{axis}, slices);

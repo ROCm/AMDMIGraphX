@@ -450,7 +450,7 @@ struct onnx_parser
 
     instruction_ref reflect_pad(const std::vector<int64_t>& pads, instruction_ref input)
     {
-        int num_dims = pads.size() / 2;
+        size_t num_dims = pads.size() / 2;
         std::vector<int> ldims(pads.begin(), pads.begin() + num_dims);
         std::vector<int> rdims(pads.begin() + num_dims, pads.end());
         assert(ldims.size() == rdims.size());
@@ -459,7 +459,7 @@ struct onnx_parser
         std::iota(axes.begin(), axes.end(), int64_t{0});
 
         // iterate over dimensions, starting from lowest dimension
-        for(int i = num_dims - 1; i >= 0; i--)
+        for(int64_t i = num_dims - 1; i >= 0; i--)
         {
             auto axis   = i;
             auto lcount = ldims.at(i);

@@ -1,23 +1,26 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_RNN_LAST_OUTPUT_HPP
 #define MIGRAPHX_GUARD_OPERATORS_RNN_LAST_OUTPUT_HPP
 
-#include <array>
-#include <migraphx/operation.hpp>
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/streamutils.hpp>
-#include <migraphx/literal.hpp>
-#include <migraphx/par_for.hpp>
-#include <migraphx/config.hpp>
+// #include <array>
+// #include <migraphx/operation.hpp>
+// #include <migraphx/check_shapes.hpp>
+// #include <migraphx/stringutils.hpp>
+// #include <migraphx/streamutils.hpp>
+// #include <migraphx/literal.hpp>
+// #include <migraphx/par_for.hpp>
+// #include <migraphx/config.hpp>
 #include <migraphx/op/common.hpp>
-#include <cmath>
-#include <utility>
+// #include <cmath>
+// #include <utility>
+#include <migraphx/op/name.hpp>
+
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct rnn_last_output
+template<class Derived>
+struct rnn_last_output : op_name<Derived>
 {
     rnn_direction direction = rnn_direction::forward;
 
@@ -27,7 +30,7 @@ struct rnn_last_output
         return pack(f(self.direction, "direction"));
     }
 
-    std::string name() const { return "rnn_last_output"; }
+    // std::string name() const { return "rnn_last_output"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         auto dims = inputs[0].lens();
@@ -64,6 +67,9 @@ struct rnn_last_output
 
         return result;
     }
+
+    rnn_last_output() {}
+    rnn_last_output(rnn_direction dirct) : direction(dirct) {}
 };
 
 } // namespace op

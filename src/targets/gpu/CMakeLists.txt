@@ -119,7 +119,6 @@ add_library(migraphx_gpu
     gemm_impl.cpp
     preallocate_param.cpp
     rnn_variable_sequences.cpp
-    rnn_last_output.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})

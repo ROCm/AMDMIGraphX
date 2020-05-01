@@ -1402,7 +1402,7 @@ struct onnx_parser
                                                   std::move(args));
 
         // second output for the last hidden state
-        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
+        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
 
         return {hidden_states, last_output};
     }
@@ -1524,7 +1524,7 @@ struct onnx_parser
             std::move(args));
 
         // second output for last gru output
-        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
+        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
 
         return {hidden_states, last_output};
     }
@@ -1648,7 +1648,7 @@ struct onnx_parser
         {
             vec_args.push_back(seq_lens);
         }
-        auto last_output = prog.add_instruction(op::rnn_last_output{}, vec_args);
+        auto last_output = prog.add_instruction(op::rnn_last_hs_output{dirct}, vec_args);
 
         // third output for last cell output
         auto last_cell_output = prog.add_instruction(op::lstm_last_cell_output{}, vec_args);

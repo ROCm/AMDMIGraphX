@@ -87,13 +87,16 @@ migraphx::compile_options to_compile_options(const migraphx_compile_options& opt
     return result;
 }
 
-migraphx::onnx_options to_onnx_options(const migraphx_onnx_options& options)
+void set_default_dim_value(onnx_options& options, size_t value)
 {
-    migraphx::onnx_options result{};
-    result.batch_size             = options.batch_size;
-    result.skip_unknown_operators = options.skip_unknown_operators;
-    result.print_program_on_error = options.print_program_on_error;
-    return result;
+    options.default_dim_value = value;
+}
+
+void set_input_parameter_shape(onnx_options& options,
+                               const char* name,
+                               const std::vector<std::size_t>& dims)
+{
+    options.map_input_dims[std::string(name)] = dims;
 }
 
 template <class Value>
@@ -223,6 +226,16 @@ struct migraphx_program
     {
     }
     migraphx::program object;
+};
+
+extern "C" struct migraphx_onnx_options;
+struct migraphx_onnx_options
+{
+    template <class... Ts>
+    migraphx_onnx_options(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    {
+    }
+    migraphx::onnx_options object;
 };
 
 extern "C" migraphx_status migraphx_shape_destroy(migraphx_shape_t shape)
@@ -576,25 +589,60 @@ migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migrap
     });
 }
 
-extern "C" migraphx_status
-migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options* options)
+extern "C" migraphx_status migraphx_onnx_options_destroy(migraphx_onnx_options_t onnx_options)
+{
+    return migraphx::try_([&] { destroy((onnx_options)); });
+}
+
+extern "C" migraphx_status migraphx_onnx_options_create(migraphx_onnx_options_t* onnx_options)
 {
     return migraphx::try_([&] {
-        *out = allocate<migraphx_program_t>(migraphx::parse_onnx(
-            (name),
-            (options == nullptr ? migraphx::onnx_options{} : migraphx::to_onnx_options(*options))));
+        *onnx_options = object_cast<migraphx_onnx_options_t>(allocate<migraphx::onnx_options>());
+    });
+}
+
+extern "C" migraphx_status migraphx_onnx_options_set_input_parameter_shape(
+    migraphx_onnx_options_t onnx_options, const char* name, size_t* dims, size_t dims_size)
+{
+    return migraphx::try_([&] {
+        if(onnx_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
+        if(dims == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dims: Null pointer");
+        migraphx::set_input_parameter_shape(
+            (onnx_options->object), (name), (std::vector<size_t>(dims, dims + dims_size)));
+    });
+}
+
+extern "C" migraphx_status
+migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options, size_t value)
+{
+    return migraphx::try_([&] {
+        if(onnx_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
+        migraphx::set_default_dim_value((onnx_options->object), (value));
+    });
+}
+
+extern "C" migraphx_status
+migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options_t options)
+{
+    return migraphx::try_([&] {
+        if(options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
+        *out = allocate<migraphx_program_t>(migraphx::parse_onnx((name), (options->object)));
     });
 }
 
 extern "C" migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
                                                       const void* data,
                                                       size_t size,
-                                                      migraphx_onnx_options* options)
+                                                      migraphx_onnx_options_t options)
 {
     return migraphx::try_([&] {
-        *out = allocate<migraphx_program_t>(migraphx::parse_onnx_buffer(
-            (data),
-            (size),
-            (options == nullptr ? migraphx::onnx_options{} : migraphx::to_onnx_options(*options))));
+        if(options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
+        *out = allocate<migraphx_program_t>(
+            migraphx::parse_onnx_buffer((data), (size), (options->object)));
     });
 }

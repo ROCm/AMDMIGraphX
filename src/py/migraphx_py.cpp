@@ -180,19 +180,22 @@ PYBIND11_MODULE(migraphx, m)
           py::arg("filename"),
           py::arg("is_nhwc")    = true,
           py::arg("batch_size") = 1);
+
     m.def("parse_onnx",
           [](const std::string& filename,
-             unsigned int batch_size,
+             unsigned int default_dim_value,
              bool skip_unknown_operators,
              bool print_program_on_error) {
               return migraphx::parse_onnx(filename,
-                                          {.batch_size             = batch_size,
+                                          {.default_dim_value             = default_dim_value,
+                                           .map_input_dims             = map_input_dims,
                                            .skip_unknown_operators = skip_unknown_operators,
                                            .print_program_on_error = print_program_on_error});
           },
           "Parse onnx file",
           py::arg("filename"),
-          py::arg("batch_size")             = 1,
+          py::arg("default_dim_value")             = 1,
+          py::arg("map_input_dims") = std::map<std::string, std::vector<std::size_t>>(),
           py::arg("skip_unknown_operators") = false,
           py::arg("print_program_on_error") = false);
 

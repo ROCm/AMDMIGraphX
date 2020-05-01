@@ -40,7 +40,7 @@ struct rnn_last_output
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        auto out_comp_lens = output_shape.lens();
+        auto out_comp_lens = args[0].get_shape().lens();
         out_comp_lens[0]   = 1;
         shape out_comp_s{output_shape.type(), out_comp_lens};
 

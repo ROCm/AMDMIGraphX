@@ -1592,7 +1592,8 @@ struct onnx_parser
             // just repeart that.
             if(vec_names.size() == 3)
             {
-                vec_names.insert(vec_names.end(), vec_names.begin(), vec_names.end());
+                auto repeat_names = vec_names;
+                vec_names.insert(vec_names.end(), repeat_names.begin(), repeat_names.end());
             }
         }
 

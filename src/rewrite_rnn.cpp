@@ -813,8 +813,10 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
         }
         else
         {
+std::cout << "Loc3" << std::endl;
             last_cell_output =
                 prog.insert_instruction(ins, op::concat{1}, {ret_forward[2], ret_reverse[2]});
+std::cout << "Loc4" << std::endl;
         }
 
         // the following logic is to ensure the last instruction is a concat
@@ -1115,6 +1117,10 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
         sih = ht;
 
         last_output = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, ht);
+        if (variable_seq_len)
+        {
+            last_cell_output = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, cellt);
+        }
 
         if(i < seq_len - 1)
         {
@@ -1132,11 +1138,12 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
 
                 if(variable_seq_len)
                 {
-                    cellt = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, cellt);
-                    auto concat_cell_arg0 = is_forward ? cell_outputs : cellt;
-                    auto concat_cell_arg1 = is_forward ? cellt : cell_outputs;
+                    auto concat_cell_arg0 = is_forward ? cell_outputs : last_cell_output;
+                    auto concat_cell_arg1 = is_forward ? last_cell_output : cell_outputs;
+std::cout << "Loc1" << std::endl;
                     cell_outputs          = prog.insert_instruction(
                         ins, op::concat{0}, concat_cell_arg0, concat_cell_arg1);
+std::cout << "Loc2" << std::endl;
                 }
             }
         }

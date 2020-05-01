@@ -1454,6 +1454,28 @@ def no_pad_test():
 
 
 @onnx_test
+def onehot_test():
+    axis_value = 0
+    depth = np.array([3])
+    indices = helper.make_tensor_value_info("indices", TensorProto.INT32,
+                                            [5, 2])
+    values = helper.make_tensor_value_info("values", TensorProto.FLOAT16, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [3, 5, 2])
+
+    depth_tensor = helper.make_tensor(name="depth",
+                                      data_type=TensorProto.INT32,
+                                      dims=None,
+                                      vals=depth.astype(int))
+
+    node = onnx.helper.make_node('OneHot',
+                                 inputs=['indices', 'depth', 'values'],
+                                 outputs=['y'],
+                                 axis=axis_value)
+
+    return ([node], [indices, values], [y], [depth_tensor])
+
+
+@onnx_test
 def pad_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 4])
@@ -1464,6 +1486,38 @@ def pad_test():
                                  outputs=['1'])
 
     return ([node], [x], [y])
+
+
+@onnx_test
+def pad_3arg_test():
+    values = np.array([1])
+    val_tensor = helper.make_tensor(name='val',
+                                    data_type=TensorProto.FLOAT,
+                                    dims=values.reshape(()).shape,
+                                    vals=values.astype(float))
+    arg_val = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_val'],
+                                    value=val_tensor)
+
+    sizes = np.array([1, 1, 2, 2])
+    pad_tensor = helper.make_tensor(name='pad_size',
+                                    data_type=TensorProto.INT32,
+                                    dims=sizes.shape,
+                                    vals=sizes.astype(int))
+    arg_pad = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_pad'],
+                                    value=pad_tensor)
+
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 2])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [5, 5])
+
+    node = onnx.helper.make_node('Pad',
+                                 inputs=['0', 'arg_pad', 'arg_val'],
+                                 outputs=['1'])
+
+    return ([arg_val, arg_pad, node], [x], [y])
 
 
 @onnx_test
@@ -1496,6 +1550,20 @@ def prelu_brcst_test():
     )
 
     return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
+def recip_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node(
+        'Reciprocal',
+        inputs=['x'],
+        outputs=['y'],
+    )
+
+    return ([node], [x], [y])
 
 
 @onnx_test
@@ -1827,6 +1895,53 @@ def sinh_test():
 
 
 @onnx_test
+def slice_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 2])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 2])
+
+    node = onnx.helper.make_node('Slice',
+                                 inputs=['0'],
+                                 axes=[0, 1],
+                                 starts=[1, 0],
+                                 ends=[2, 2],
+                                 outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def slice_3arg_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [5, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 5])
+    start = np.array([0, 0])
+    start_tensor = helper.make_tensor(name="start",
+                                      data_type=TensorProto.INT32,
+                                      dims=start.shape,
+                                      vals=start.astype(int))
+
+    arg_start = helper.make_node("Constant",
+                                 inputs=[],
+                                 outputs=['arg_start'],
+                                 value=start_tensor)
+
+    end = np.array([2, 5])
+    end_tensor = helper.make_tensor(name="end",
+                                    data_type=TensorProto.INT32,
+                                    dims=end.shape,
+                                    vals=end.astype(int))
+    arg_end = helper.make_node("Constant",
+                               inputs=[],
+                               outputs=['arg_end'],
+                               value=end_tensor)
+
+    node = onnx.helper.make_node('Slice',
+                                 inputs=['0', 'arg_start', 'arg_end'],
+                                 outputs=['1'])
+
+    return ([arg_start, arg_end, node], [x], [y])
+
+
+@onnx_test
 def slice_5arg_test():
     step = np.array([1, 1])
     step_tensor = helper.make_tensor(name="step",
@@ -1880,15 +1995,15 @@ def slice_5arg_test():
 
 
 @onnx_test
-def slice_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 2])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 2])
+def slice_max_end_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [10, 20])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [9, 17])
 
     node = onnx.helper.make_node('Slice',
                                  inputs=['0'],
                                  axes=[0, 1],
-                                 starts=[1, 0],
-                                 ends=[2, 2],
+                                 starts=[1, 2],
+                                 ends=[3000000000, -1],
                                  outputs=['1'])
 
     return ([node], [x], [y])
@@ -2079,6 +2194,30 @@ def tanh_test():
 
 
 @onnx_test
+def tile_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [2, 4])
+
+    node = onnx.helper.make_node('Tile', inputs=['x', 'y'], outputs=['z'])
+
+    return ([node], [x, y], [z],
+            [helper.make_tensor('y', TensorProto.INT64, [2], [1, 2])])
+
+
+@onnx_test
+def tile_test_3x2():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [6, 4])
+
+    node = onnx.helper.make_node('Tile', inputs=['x', 'y'], outputs=['z'])
+
+    return ([node], [x, y], [z],
+            [helper.make_tensor('y', TensorProto.INT64, [2], [3, 2])])
+
+
+@onnx_test
 def transpose_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 2, 2, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])
@@ -2121,6 +2260,16 @@ def transpose_gather_test():
     )
 
     return ([td, ti, node], [x, i], [y])
+
+
+@onnx_test
+def undefined_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('Identity', inputs=[''], outputs=['1'])
+
+    return ([node], [x], [y])
 
 
 @onnx_test

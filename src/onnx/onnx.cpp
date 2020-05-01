@@ -2239,8 +2239,8 @@ template <class... Ts>
 program parse_onnx_from(const onnx_options& options, Ts&&... xs)
 {
     onnx_parser parser;
-    parser.map_input_dims    = options.map_input_dims;
-    parser.default_dim_value = options.default_dim_value;
+    parser.map_input_dims         = options.map_input_dims;
+    parser.default_dim_value      = options.default_dim_value;
     parser.skip_unknown_operators = options.skip_unknown_operators;
 
     if(options.print_program_on_error)

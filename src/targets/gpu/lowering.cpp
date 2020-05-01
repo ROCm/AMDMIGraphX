@@ -190,7 +190,8 @@ struct miopen_apply
         add_extend_op<hip_rnn_shift_hidden_states, op::rnn_shift_hidden_states>(
             "rnn_shift_hidden_states");
         add_extend_op<hip_rnn_shift_sequences, op::rnn_shift_sequences>("rnn_shift_sequences");
-        add_extend_op<hip_lstm_last_cell_output, op::lstm_last_cell_output>("lstm_last_cell_output");
+        add_extend_op<hip_lstm_last_cell_output, op::lstm_last_cell_output>(
+            "lstm_last_cell_output");
         add_extend_op<hip_rnn_last_hs_output, op::rnn_last_hs_output>("rnn_last_hs_output");
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");

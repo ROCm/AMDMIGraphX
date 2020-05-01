@@ -14,12 +14,11 @@
 // #include <utility>
 #include <migraphx/op/name.hpp>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-template<class Derived>
+template <class Derived>
 struct rnn_last_output : op_name<Derived>
 {
     rnn_direction direction = rnn_direction::forward;

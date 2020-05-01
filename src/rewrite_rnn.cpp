@@ -1138,7 +1138,7 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
                 {
                     auto concat_cell_arg0 = is_forward ? cell_outputs : last_cell_output;
                     auto concat_cell_arg1 = is_forward ? last_cell_output : cell_outputs;
-                    cell_outputs = prog.insert_instruction(
+                    cell_outputs          = prog.insert_instruction(
                         ins, op::concat{0}, concat_cell_arg0, concat_cell_arg1);
                 }
             }

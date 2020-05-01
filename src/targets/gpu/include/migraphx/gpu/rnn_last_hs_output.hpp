@@ -14,7 +14,7 @@ struct context;
 struct hip_rnn_last_hs_output : dev_rnn_last_output<op::rnn_last_hs_output>
 {
     hip_rnn_last_hs_output() {}
-    hip_rnn_last_hs_output(op::rnn_last_hs_output o) : dev_rnn_last_output(std::move(o)) {};
+    hip_rnn_last_hs_output(op::rnn_last_hs_output o) : dev_rnn_last_output(std::move(o)){};
 };
 
 } // namespace gpu

@@ -23,8 +23,8 @@ void rnn_last_output(hipStream_t stream,
         auto* out_data      = device_cast(output.data());
         arg_sl.visit([&](auto sl) {
             const auto* sl_data = device_cast(sl.data());
-            auto in_s = make_hip_shape<4>(input_shape);
-            auto out_s = make_hip_shape<4>(out_comp_shape);
+            auto in_s           = make_hip_shape<4>(input_shape);
+            auto out_s          = make_hip_shape<4>(out_comp_shape);
             gs_launch(stream, result.get_shape().elements(), 256)([=](auto i) __device__ {
                 auto idx = out_s.multi(i);
                 auto d   = idx[1];

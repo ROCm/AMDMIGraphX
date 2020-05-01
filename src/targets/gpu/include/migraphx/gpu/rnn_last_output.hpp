@@ -11,7 +11,7 @@ namespace gpu {
 
 struct context;
 
-template<class Op>
+template <class Op>
 struct dev_rnn_last_output
 {
     Op op;
@@ -29,8 +29,7 @@ struct dev_rnn_last_output
         return op.compute_shape(inputs);
     }
 
-    argument
-    compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
         device::rnn_last_output(ctx.get_stream().get(),
                                 args.back(),
@@ -39,7 +38,6 @@ struct dev_rnn_last_output
                                 (op.direction == op::rnn_direction::reverse));
         return args.back();
     }
-
 
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {

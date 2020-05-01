@@ -18,7 +18,7 @@ void rnn_shift_hidden_states(hipStream_t stream,
     visit_all(result, arg_hs)([&](auto output, auto input) {
         const auto* in_data = device_cast(input.data());
         auto* out_data      = device_cast(output.data());
-        auto out_s = make_hip_shape<4>(output_shape);
+        auto out_s          = make_hip_shape<4>(output_shape);
         arg_sl.visit([&](auto sl) {
             const auto* sl_data = device_cast(sl.data());
             gs_launch(stream, output_shape.elements(), 256)([=](auto i) __device__ {
@@ -52,7 +52,7 @@ void rnn_shift_sequences(hipStream_t stream,
     visit_all(result, arg_hs)([&](auto output, auto input) {
         const auto* in_data = device_cast(input.data());
         auto* out_data      = device_cast(output.data());
-        auto out_s = make_hip_shape<3>(output_shape);
+        auto out_s          = make_hip_shape<3>(output_shape);
         arg_sl.visit([&](auto sl) {
             const auto* sl_data = device_cast(sl.data());
             gs_launch(stream, output_shape.elements(), 256)([=](auto i) __device__ {

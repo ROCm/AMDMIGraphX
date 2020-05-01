@@ -551,4 +551,22 @@ TEST_CASE(simplify_sub_const)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(simplify_rsqrt)
+{
+    migraphx::program p1;
+    {
+        auto x    = p1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto sqrt = p1.add_instruction(migraphx::op::sqrt{}, x);
+        p1.add_instruction(migraphx::op::recip{}, sqrt);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto x = p2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        p2.add_instruction(migraphx::op::rsqrt{}, x);
+    }
+    EXPECT(p1 == p2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

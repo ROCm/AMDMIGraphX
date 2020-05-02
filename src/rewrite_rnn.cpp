@@ -889,7 +889,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
                              actv_funcs.at(1),
                              actv_funcs.at(2));
 
-        last_output = prog.insert_instruction(ins, op::squeeze{{0}}, ret[1]);
+        last_output      = prog.insert_instruction(ins, op::squeeze{{0}}, ret[1]);
         last_cell_output = ret[2];
 
         if(ret[0] == prog.end())
@@ -910,7 +910,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
             std::next(hidden_state), op::rnn_shift_hidden_states{dirct}, hidden_state, seq_lens);
         ins = prog.replace_instruction(hidden_state, tuned);
 
-        auto tuned_cell = prog.insert_instruction(std::next(last_cell_output),
+        auto tuned_cell  = prog.insert_instruction(std::next(last_cell_output),
                                                   op::rnn_shift_hidden_states{dirct},
                                                   last_cell_output,
                                                   seq_lens);
@@ -1210,15 +1210,9 @@ std::vector<operation> rewrite_rnn::lstm_actv_funcs(instruction_ref ins) const
         {
         case 0: return {op::sigmoid{}, op::tanh{}, op::tanh{}};
 
-        case 1:
-            return {actv_funcs.at(0),
-                    actv_funcs.at(0),
-                    actv_funcs.at(0)};
+        case 1: return {actv_funcs.at(0), actv_funcs.at(0), actv_funcs.at(0)};
 
-        case 2:
-            return {actv_funcs.at(0),
-                    actv_funcs.at(1),
-                    actv_funcs.at(1)};
+        case 2: return {actv_funcs.at(0), actv_funcs.at(1), actv_funcs.at(1)};
 
         default: return actv_funcs;
         }

@@ -1,5 +1,4 @@
 import migraphx, array, sys
-import numpy as np
 
 
 def test_conv_relu():
@@ -43,7 +42,8 @@ def test_add_scalar():
 
     d0 = list(range(120))
     arg0 = create_buffer("B", d0, [2, 3, 4, 5])
-    arg1 = np.array(1).astype(np.uint8)
+    d1 = [1]
+    arg1 = create_buffer("B", d1, ())
 
     params = {}
     params["0"] = migraphx.argument(arg0)
@@ -54,4 +54,6 @@ def test_add_scalar():
 
 
 test_conv_relu()
-test_add_scalar()
+if sys.version_info >= (3, 0):
+    test_add_scalar()
+

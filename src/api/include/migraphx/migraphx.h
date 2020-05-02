@@ -77,6 +77,9 @@ migraphx_status migraphx_shape_create(migraphx_shape_t* shape,
                                       size_t* lengths,
                                       size_t lengths_size);
 
+migraphx_status migraphx_shape_create_scalar(migraphx_shape_t* shape,
+                                             migraphx_shape_datatype_t type);
+
 migraphx_status
 migraphx_shape_lengths(const size_t** out, size_t* out_size, const_migraphx_shape_t shape);
 
@@ -173,8 +176,11 @@ migraphx_status migraphx_onnx_options_destroy(migraphx_onnx_options_t onnx_optio
 
 migraphx_status migraphx_onnx_options_create(migraphx_onnx_options_t* onnx_options);
 
-migraphx_status migraphx_onnx_options_set_input_parameter_shape(
-    migraphx_onnx_options_t onnx_options, const char* name, size_t* dims, size_t dims_size);
+migraphx_status
+migraphx_onnx_options_set_input_parameter_shape(migraphx_onnx_options_t onnx_options,
+                                                const char* name,
+                                                const std::size_t* dims,
+                                                const std::size_t dim_num);
 
 migraphx_status migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options,
                                                             size_t value);

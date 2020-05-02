@@ -11,8 +11,6 @@ struct rnn_last_hs_output : rnn_last_output<rnn_last_hs_output>
 {
     rnn_last_hs_output() {}
     rnn_last_hs_output(rnn_direction dirct) : rnn_last_output(dirct) {}
-
-    std::string name() const { return "rnn_last_hs_output"; }
 };
 
 } // namespace op

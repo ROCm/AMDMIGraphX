@@ -1579,21 +1579,82 @@ struct onnx_parser
                 return to_lower(name);
             });
         }
-        if(vec_names.size() != 3 and vec_names.size() != 6)
-        {
-            MIGRAPHX_THROW("PARSE_LSTM: number of activations must be 3 or 6!");
-        }
 
         // need 6 activation functions for bidirectional directions
         if(dirct == op::rnn_direction::bidirectional)
         {
             // 6 activation functions are used in the bidirectional
-            // scenario. if only three activation functions are provided
-            // just repeart that.
-            if(vec_names.size() == 3)
+            // scenario. No spec is provided in onnx::operator. we
+            // use the algorithm that: if 1 actv function is provided,
+            // repeat 1st six times. If 2 actv functins are provided,
+            // repeat 2nd once, then repeat all three once
+            // if 3 actv funcs are provide, repeat all three once.
+            // the same algorithm is used for 4, 5, and 6 actv funcions
+            // provided. This may need change later
+            switch(vec_names.size())
             {
-                auto repeat_names = vec_names;
-                vec_names.insert(vec_names.end(), repeat_names.begin(), repeat_names.end());
+            case 1:
+                vec_names = {vec_names.at(0),
+                             vec_names.at(0),
+                             vec_names.at(0),
+                             vec_names.at(0),
+                             vec_names.at(0),
+                             vec_names.at(0)};
+                break;
+
+            case 2:
+                // repeat the 2nd actv func once, then repeat all three another time
+                vec_names = {vec_names.at(0),
+                             vec_names.at(1),
+                             vec_names.at(1),
+                             vec_names.at(0),
+                             vec_names.at(1),
+                             vec_names.at(1)};
+                break;
+
+            case 3:
+                // repeat all three actv funcs once
+                vec_names = {vec_names.at(0),
+                             vec_names.at(1),
+                             vec_names.at(2),
+                             vec_names.at(0),
+                             vec_names.at(1),
+                             vec_names.at(2)};
+                break;
+
+            case 4:
+                vec_names = {vec_names.at(0),
+                             vec_names.at(1),
+                             vec_names.at(2),
+                             vec_names.at(3),
+                             vec_names.at(3),
+                             vec_names.at(3)};
+                break;
+
+            case 5:
+                vec_names = {vec_names.at(0),
+                             vec_names.at(1),
+                             vec_names.at(2),
+                             vec_names.at(3),
+                             vec_names.at(4),
+                             vec_names.at(4)};
+                break;
+
+            default: break;
+            }
+        }
+        else
+        {
+            switch(vec_names.size())
+            {
+            case 1: vec_names = {vec_names.at(0), vec_names.at(0), vec_names.at(0)}; break;
+
+            case 2:
+                // repeat the 2nd actv func once, so we have 3 actv funcs
+                vec_names = {vec_names.at(0), vec_names.at(1), vec_names.at(1)};
+                break;
+
+            default: break;
             }
         }
 
@@ -1651,7 +1712,7 @@ struct onnx_parser
         auto last_output = prog.add_instruction(op::rnn_last_hs_output{dirct}, vec_args);
 
         // third output for last cell output
-        auto last_cell_output = prog.add_instruction(op::lstm_last_cell_output{}, vec_args);
+        auto last_cell_output = prog.add_instruction(op::lstm_last_cell_output{dirct}, vec_args);
 
         return {hidden_states, last_output, last_cell_output};
     }

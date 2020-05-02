@@ -11,8 +11,6 @@ struct lstm_last_cell_output : rnn_last_output<lstm_last_cell_output>
 {
     lstm_last_cell_output() {}
     lstm_last_cell_output(rnn_direction dirct) : rnn_last_output(dirct) {}
-
-    std::string name() const { return "lstm_last_cell_output"; }
 };
 
 } // namespace op

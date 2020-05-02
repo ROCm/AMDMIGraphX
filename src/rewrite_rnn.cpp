@@ -9,7 +9,6 @@
 #include <migraphx/op/lstm.hpp>
 #include <migraphx/op/mul.hpp>
 #include <migraphx/op/rnn.hpp>
-#include <migraphx/op/rnn_last_output.hpp>
 #include <migraphx/op/slice.hpp>
 #include <migraphx/op/squeeze.hpp>
 #include <migraphx/op/sub.hpp>
@@ -20,6 +19,8 @@
 #include <migraphx/dfor.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/rnn_variable_sequences.hpp>
+#include <migraphx/op/rnn_last_hs_output.hpp>
+#include <migraphx/op/rnn_last_cell_output.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -182,19 +183,19 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
         }
     }
 
-    // search its output to find if there are rnn_last_output operator
-    // while loop to handle case of multiple rnn_last_output operators
-    auto last_output_it = ins->outputs().begin();
-    while(last_output_it != ins->outputs().end())
+    // search its output to find if there are rnn_last_hs_output operator
+    // while loop to handle case of multiple rnn_last_hs_output operators
+    auto last_hs_output_it = ins->outputs().begin();
+    while(last_hs_output_it != ins->outputs().end())
     {
-        last_output_it = std::find_if(last_output_it, ins->outputs().end(), [](auto i) {
-            return i->name() == "rnn_last_output";
+        last_hs_output_it = std::find_if(last_hs_output_it, ins->outputs().end(), [](auto i) {
+            return i->name() == "rnn_last_hs_output";
         });
 
-        if(last_output_it != ins->outputs().end())
+        if(last_hs_output_it != ins->outputs().end())
         {
-            prog.replace_instruction(*last_output_it, last_output);
-            last_output_it++;
+            prog.replace_instruction(*last_hs_output_it, last_output);
+            last_hs_output_it++;
         }
     }
 }
@@ -457,20 +458,20 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
         }
     }
 
-    // replace the corresponding rnn_last_output instruction
-    // with the last_output, if rnn_last_output exists
-    // while loop to handle case of multiple rnn_last_output operators
-    auto last_output_it = ins->outputs().begin();
-    while(last_output_it != ins->outputs().end())
+    // replace the corresponding rnn_last_hs_output instruction
+    // with the last_output, if rnn_last_hs_output exists
+    // while loop to handle case of multiple rnn_last_hs_output operators
+    auto last_hs_output_it = ins->outputs().begin();
+    while(last_hs_output_it != ins->outputs().end())
     {
-        last_output_it = std::find_if(last_output_it, ins->outputs().end(), [](auto i) {
-            return i->name() == "rnn_last_output";
+        last_hs_output_it = std::find_if(last_hs_output_it, ins->outputs().end(), [](auto i) {
+            return i->name() == "rnn_last_hs_output";
         });
 
-        if(last_output_it != ins->outputs().end())
+        if(last_hs_output_it != ins->outputs().end())
         {
-            prog.replace_instruction(*last_output_it, last_output);
-            last_output_it++;
+            prog.replace_instruction(*last_hs_output_it, last_output);
+            last_hs_output_it++;
         }
     }
 }
@@ -889,15 +890,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
                              actv_funcs.at(2));
 
         last_output = prog.insert_instruction(ins, op::squeeze{{0}}, ret[1]);
-
-        if(variable_seq_len)
-        {
-            last_cell_output = prog.insert_instruction(ins, op::squeeze{{0}}, ret[2]);
-        }
-        else
-        {
-            last_cell_output = ret[2];
-        }
+        last_cell_output = ret[2];
 
         if(ret[0] == prog.end())
         {
@@ -921,7 +914,6 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
                                                   op::rnn_shift_hidden_states{dirct},
                                                   last_cell_output,
                                                   seq_lens);
-        prog.replace_instruction(last_cell_output, tuned_cell);
         last_cell_output = tuned_cell;
     }
 
@@ -932,17 +924,17 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
     // operators
     if(!variable_seq_len)
     {
-        auto last_output_it = ins->outputs().begin();
-        while(last_output_it != ins->outputs().end())
+        auto last_hs_output_it = ins->outputs().begin();
+        while(last_hs_output_it != ins->outputs().end())
         {
-            last_output_it = std::find_if(last_output_it, ins->outputs().end(), [](auto i) {
-                return i->name() == "rnn_last_output";
+            last_hs_output_it = std::find_if(last_hs_output_it, ins->outputs().end(), [](auto i) {
+                return i->name() == "rnn_last_hs_output";
             });
 
-            if(last_output_it != ins->outputs().end())
+            if(last_hs_output_it != ins->outputs().end())
             {
-                prog.replace_instruction(*last_output_it, last_output);
-                last_output_it++;
+                prog.replace_instruction(*last_hs_output_it, last_output);
+                last_hs_output_it++;
             }
         }
 
@@ -1169,6 +1161,22 @@ std::vector<operation> rewrite_rnn::lstm_actv_funcs(instruction_ref ins) const
         case 0:
             return {op::sigmoid{}, op::tanh{}, op::tanh{}, op::sigmoid{}, op::tanh{}, op::tanh{}};
 
+        case 1:
+            return {actv_funcs.at(0),
+                    actv_funcs.at(0),
+                    actv_funcs.at(0),
+                    actv_funcs.at(0),
+                    actv_funcs.at(0),
+                    actv_funcs.at(0)};
+
+        case 2:
+            return {actv_funcs.at(0),
+                    actv_funcs.at(1),
+                    actv_funcs.at(1),
+                    actv_funcs.at(0),
+                    actv_funcs.at(1),
+                    actv_funcs.at(1)};
+
         case 3:
             return {actv_funcs.at(0),
                     actv_funcs.at(1),
@@ -1201,6 +1209,16 @@ std::vector<operation> rewrite_rnn::lstm_actv_funcs(instruction_ref ins) const
         switch(num_actv_funcs)
         {
         case 0: return {op::sigmoid{}, op::tanh{}, op::tanh{}};
+
+        case 1:
+            return {actv_funcs.at(0),
+                    actv_funcs.at(0),
+                    actv_funcs.at(0)};
+
+        case 2:
+            return {actv_funcs.at(0),
+                    actv_funcs.at(1),
+                    actv_funcs.at(1)};
 
         default: return actv_funcs;
         }

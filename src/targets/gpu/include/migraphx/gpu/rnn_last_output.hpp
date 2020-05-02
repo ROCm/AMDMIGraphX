@@ -1,15 +1,14 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_RNN_LAST_OUTPUT_HPP
 #define MIGRAPHX_GUARD_RTGLIB_RNN_LAST_OUTPUT_HPP
 
-#include <migraphx/shape.hpp>
 #include <migraphx/op/rnn_last_output.hpp>
+#include <migraphx/shape.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device/rnn_last_output.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-
-struct context;
 
 template <class Op>
 struct dev_rnn_last_output

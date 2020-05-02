@@ -4,7 +4,7 @@
 #include <migraphx/op/rnn.hpp>
 #include <migraphx/op/gru.hpp>
 #include <migraphx/op/lstm.hpp>
-#include <migraphx/op/rnn_last_output.hpp>
+#include <migraphx/op/rnn_last_hs_output.hpp>
 #include <migraphx/op/rnn_last_cell_output.hpp>
 #include <migraphx/op/abnormal_ops.hpp>
 #include <migraphx/instruction.hpp>
@@ -125,7 +125,7 @@ TEST_CASE(rnn_forward)
             und,
             ih);
 
-        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{migraphx::op::rnn_direction::forward}, out_hs);
         p.compile(migraphx::cpu::target{});
 
         auto last_output = p.eval({}).back();
@@ -143,7 +143,7 @@ TEST_CASE(rnn_forward)
         EXPECT(migraphx::verify_range(last_output_data, last_output_data_gold));
     }
 
-    // multiple rnn_last_output operators
+    // multiple rnn_last_hs_output operators
     {
         migraphx::program p;
         auto seq  = p.add_literal(migraphx::literal{in_shape, input});
@@ -161,8 +161,7 @@ TEST_CASE(rnn_forward)
             bias,
             und,
             ih);
-        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
-        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{migraphx::op::rnn_direction::forward}, out_hs);
         p.compile(migraphx::cpu::target{});
 
         auto last_output = p.eval({}).back();
@@ -192,7 +191,7 @@ TEST_CASE(rnn_forward)
             seq,
             w,
             r);
-        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
         p.compile(migraphx::cpu::target{});
 
         auto last_output = p.eval({}).back();
@@ -353,7 +352,7 @@ TEST_CASE(rnn_reverse)
             und,
             ih);
 
-        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
         p.compile(migraphx::cpu::target{});
 
         auto last_output = p.eval({}).back();
@@ -472,7 +471,7 @@ TEST_CASE(rnn_bidirectional)
                               und,
                               ih);
 
-        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
         p.compile(migraphx::cpu::target{});
 
         auto last_output = p.eval({}).back();
@@ -517,7 +516,7 @@ TEST_CASE(rnn_bidirectional)
                               r,
                               bias);
 
-        p.add_instruction(migraphx::op::rnn_last_output{}, out_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
         p.compile(migraphx::cpu::target{});
 
         auto last_output = p.eval({}).back();
@@ -734,7 +733,7 @@ TEST_CASE(gru_forward)
                               bias,
                               und,
                               ih);
-        p.add_instruction(migraphx::op::rnn_last_output{}, concat_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -754,7 +753,7 @@ TEST_CASE(gru_forward)
         EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
     }
 
-    // two rnn_last_output operators after gru
+    // two rnn_last_hs_output operators after gru
     {
         migraphx::program p;
         auto seq  = p.add_literal(migraphx::literal{in_shape, input});
@@ -775,8 +774,8 @@ TEST_CASE(gru_forward)
                               bias,
                               und,
                               ih);
-        p.add_instruction(migraphx::op::rnn_last_output{}, concat_hs);
-        p.add_instruction(migraphx::op::rnn_last_output{}, concat_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -817,7 +816,7 @@ TEST_CASE(gru_forward)
                               bias,
                               und,
                               ih);
-        p.add_instruction(migraphx::op::rnn_last_output{}, concat_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -1067,7 +1066,7 @@ TEST_CASE(gru_forward_actv_funcs)
             bias,
             und,
             ih);
-        p.add_instruction(migraphx::op::rnn_last_output{}, concat_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -1140,7 +1139,7 @@ TEST_CASE(gru_forward_actv_funcs)
             bias,
             und,
             ih);
-        p.add_instruction(migraphx::op::rnn_last_output{}, concat_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -1319,7 +1318,7 @@ TEST_CASE(gru_reverse)
                               bias,
                               und,
                               ih);
-        p.add_instruction(migraphx::op::rnn_last_output{}, concat_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -1360,7 +1359,7 @@ TEST_CASE(gru_reverse)
                               bias,
                               und,
                               ih);
-        p.add_instruction(migraphx::op::rnn_last_output{}, concat_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -1593,7 +1592,7 @@ TEST_CASE(gru_bidirectional)
                               bias,
                               und,
                               ih);
-        p.add_instruction(migraphx::op::rnn_last_output{}, concat_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -1628,7 +1627,7 @@ TEST_CASE(gru_bidirectional)
                               bias,
                               und,
                               ih);
-        p.add_instruction(migraphx::op::rnn_last_output{}, concat_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -1919,7 +1918,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
             bias,
             und,
             ih);
-        p.add_instruction(migraphx::op::rnn_last_output{}, concat_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2030,7 +2029,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
             bias,
             und,
             ih);
-        p.add_instruction(migraphx::op::rnn_last_output{}, concat_hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2277,7 +2276,7 @@ TEST_CASE(lstm_forward)
             ih,
             ic,
             und);
-        p.add_instruction(migraphx::op::rnn_last_output{}, hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         p.compile(migraphx::cpu::target{});
 
         auto last_hs = p.eval({}).back();
@@ -2539,7 +2538,7 @@ TEST_CASE(lstm_forward_more)
             ih,
             ic,
             pph);
-        p.add_instruction(migraphx::op::rnn_last_output{}, hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         p.compile(migraphx::cpu::target{});
 
         auto hs_concat = p.eval({}).back();
@@ -2882,7 +2881,7 @@ TEST_CASE(lstm_reverse_actv)
                               seq,
                               w,
                               r);
-        p.add_instruction(migraphx::op::rnn_last_output{}, hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{migraphx::op::rnn_direction::reverse}, hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -3091,7 +3090,7 @@ TEST_CASE(lstm_bidirectional)
             ih,
             ic,
             pph);
-        p.add_instruction(migraphx::op::rnn_last_output{}, hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{migraphx::op::rnn_direction::bidirectional}, hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -3129,7 +3128,7 @@ TEST_CASE(lstm_bidirectional)
             ih,
             ic,
             pph);
-        p.add_instruction(migraphx::op::lstm_last_cell_output{}, hs);
+        p.add_instruction(migraphx::op::lstm_last_cell_output{migraphx::op::rnn_direction::bidirectional}, hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -3339,7 +3338,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
                               seq,
                               w,
                               r);
-        p.add_instruction(migraphx::op::rnn_last_output{}, hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -3369,7 +3368,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
                                     seq,
                                     w,
                                     r);
-        p.add_instruction(migraphx::op::rnn_last_output{}, hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{migraphx::op::rnn_direction::bidirectional}, hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -3400,7 +3399,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
                                     seq,
                                     w,
                                     r);
-        p.add_instruction(migraphx::op::rnn_last_output{}, hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{migraphx::op::rnn_direction::bidirectional}, hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -3432,7 +3431,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
                                     seq,
                                     w,
                                     r);
-        p.add_instruction(migraphx::op::rnn_last_output{}, hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{migraphx::op::rnn_direction::bidirectional}, hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;

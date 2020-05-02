@@ -1,17 +1,8 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_RNN_LAST_OUTPUT_HPP
 #define MIGRAPHX_GUARD_OPERATORS_RNN_LAST_OUTPUT_HPP
 
-// #include <array>
-// #include <migraphx/operation.hpp>
-// #include <migraphx/check_shapes.hpp>
-// #include <migraphx/stringutils.hpp>
-// #include <migraphx/streamutils.hpp>
-// #include <migraphx/literal.hpp>
-// #include <migraphx/par_for.hpp>
-// #include <migraphx/config.hpp>
+#include <migraphx/par_for.hpp>
 #include <migraphx/op/common.hpp>
-// #include <cmath>
-// #include <utility>
 #include <migraphx/op/name.hpp>
 
 namespace migraphx {
@@ -29,7 +20,6 @@ struct rnn_last_output : op_name<Derived>
         return pack(f(self.direction, "direction"));
     }
 
-    // std::string name() const { return "rnn_last_output"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         auto dims = inputs[0].lens();

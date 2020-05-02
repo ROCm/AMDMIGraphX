@@ -179,8 +179,8 @@ migraphx_status migraphx_onnx_options_create(migraphx_onnx_options_t* onnx_optio
 migraphx_status
 migraphx_onnx_options_set_input_parameter_shape(migraphx_onnx_options_t onnx_options,
                                                 const char* name,
-                                                const std::size_t* dims,
-                                                const std::size_t dim_num);
+                                                const size_t* dims,
+                                                const size_t dim_num);
 
 migraphx_status migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options,
                                                             size_t value);

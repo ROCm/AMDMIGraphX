@@ -54,9 +54,7 @@ def shape(h):
         'create',
         api.params(type='migraphx::shape::type_t',
                    lengths='std::vector<size_t>'))
-    h.constructor(
-        'create_scalar',
-        api.params(type='migraphx::shape::type_t'))
+    h.constructor('create_scalar', api.params(type='migraphx::shape::type_t'))
     h.method('lengths',
              fname='lens',
              returns='const std::vector<size_t>&',
@@ -178,7 +176,9 @@ def onnx_options(h):
     h.constructor('create')
     h.method(
         'set_input_parameter_shape',
-        api.params(name='const char*', dims='const std::size_t *', dim_num = 'const std::size_t'),
+        api.params(name='const char*',
+                   dims='const std::size_t *',
+                   dim_num='const std::size_t'),
         invoke='migraphx::set_input_parameter_shape($@)',
     )
     h.method(

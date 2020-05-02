@@ -56,4 +56,3 @@ def test_add_scalar():
 test_conv_relu()
 if sys.version_info >= (3, 0):
     test_add_scalar()
-

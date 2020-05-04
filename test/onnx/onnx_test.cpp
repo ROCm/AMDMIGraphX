@@ -1662,6 +1662,32 @@ TEST_CASE(tanh_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(tile_test)
+{
+    migraphx::program p;
+    p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, {1, 2}});
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
+    p.add_instruction(migraphx::op::concat{1}, input, input);
+
+    auto prog = optimize_onnx("tile_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(tile_test_3x2)
+{
+    migraphx::program p;
+    p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, {3, 2}});
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
+    auto l0    = p.add_instruction(migraphx::op::concat{0}, input, input);
+    auto l1    = p.add_instruction(migraphx::op::concat{0}, l0, input);
+    p.add_instruction(migraphx::op::concat{1}, l1, l1);
+
+    auto prog = optimize_onnx("tile_test_3x2.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(transpose_test)
 {
     migraphx::program p;

@@ -131,6 +131,7 @@ struct onnx_parser
         add_mem_op("Softmax", &onnx_parser::parse_softmax<op::softmax>);
         add_mem_op("Split", &onnx_parser::parse_split);
         add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
+        add_mem_op("Tile", &onnx_parser::parse_tile);
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
         add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
         add_mem_op("LSTM", &onnx_parser::parse_lstm);
@@ -1934,6 +1935,26 @@ struct onnx_parser
         auto unsq_diff_val = prog.add_instruction(op::multibroadcast{lens}, diff);
         auto l_mul         = prog.add_instruction(op::mul{}, tr_out, unsq_diff_val);
         return prog.add_instruction(op::add{}, l_mul, unsq_off_val);
+    }
+
+    instruction_ref
+    parse_tile(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        migraphx::argument arg_s = args[1]->eval();
+        check_arg_empty(arg_s, "PARSE_TILE: dynamic shape is not supported");
+        std::vector<std::int64_t> repeats;
+        arg_s.visit([&](auto input) { repeats.assign(input.begin(), input.end()); });
+
+        auto l0 = args[0];
+        for(int i = 0; i < repeats.size(); i++)
+        {
+            auto l1 = l0;
+            for(int j = 1; j < repeats[i]; j++)
+            {
+                l0 = prog.add_instruction(op::concat{i}, l0, l1);
+            }
+        }
+        return l0;
     }
 
     void parse_from(std::istream& is)

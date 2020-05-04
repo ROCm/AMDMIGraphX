@@ -337,12 +337,12 @@ struct find_gelu
     {
         return match::name("gpu::mul")(match::arg(1)(match::name("gpu::add")(
             match::used_once(),
-            match::arg(0)(match::used_once(),
-                          match::name("gpu::erf")(
-                              match::arg(0)(match::used_once(),
-                                            match::name("gpu::mul")(
-                                                match::arg(0)(match::any().bind("x")),
-                                                match::arg(1)(match::has_value(sqrt(0.5f))))))))));
+            match::arg(0)(
+                match::used_once(),
+                match::name("gpu::erf")(match::arg(0)(
+                    match::used_once(),
+                    match::name("gpu::mul")(match::arg(0)(match::any().bind("x")),
+                                            match::arg(1)(match::has_value(sqrt(0.5f))))))))));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -353,7 +353,7 @@ struct find_gelu
         // std::cout << sqrt_half << " " << sqrt(0.5f) << std::endl;
         // if(not float_equal(sqrt_half,sqrt(0.5f)))
         //     return;
-        auto args  = ins->inputs();
+        auto args = ins->inputs();
 
         p.replace_instruction(ins, hip_gelu{}, x_ins, args.back());
     }

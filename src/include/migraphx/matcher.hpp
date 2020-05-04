@@ -537,16 +537,16 @@ auto same_shape(Ms... ms)
     return all_of(same_shape(ms)...);
 }
 
-template<class T>
+template <class T>
 inline auto has_value(T x)
 {
-    return make_basic_pred_matcher([=](instruction_ref ins) { 
+    return make_basic_pred_matcher([=](instruction_ref ins) {
         auto l = ins->get_literal();
-        if (l.empty())
+        if(l.empty())
             return false;
         bool b = false;
         l.visit([&](auto v) {
-            if (float_equal(v.front(), x))
+            if(float_equal(v.front(), x))
                 b = true;
             std::cout << x - v.front() << std::endl;
         });

@@ -12,15 +12,14 @@ shape hip_rnn_shift_output::compute_shape(std::vector<shape> inputs) const
     return op.compute_shape(inputs);
 }
 
-argument hip_rnn_shift_output::compute(context& ctx,
-                                              const shape&,
-                                              const std::vector<argument>& args) const
+argument
+hip_rnn_shift_output::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
     device::rnn_shift_output(ctx.get_stream().get(),
-                                    args.back(),
-                                    args.at(0),
-                                    args.at(1),
-                                    (op.direction == op::rnn_direction::reverse));
+                             args.back(),
+                             args.at(0),
+                             args.at(1),
+                             (op.direction == op::rnn_direction::reverse));
     return args.back();
 }
 
@@ -30,9 +29,8 @@ shape hip_rnn_shift_sequence::compute_shape(std::vector<shape> inputs) const
     return op.compute_shape(inputs);
 }
 
-argument hip_rnn_shift_sequence::compute(context& ctx,
-                                          const shape&,
-                                          const std::vector<argument>& args) const
+argument
+hip_rnn_shift_sequence::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
     device::rnn_shift_sequence(ctx.get_stream().get(), args.back(), args.at(0), args.at(1));
     return args.back();

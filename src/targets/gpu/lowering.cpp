@@ -187,8 +187,7 @@ struct miopen_apply
         add_extend_op<hip_reduce_min, op::reduce_min>("reduce_min");
         add_extend_op<hip_reduce_prod, op::reduce_prod>("reduce_prod");
         add_extend_op<hip_reduce_sum, op::reduce_sum>("reduce_sum");
-        add_extend_op<hip_rnn_shift_output, op::rnn_shift_output>(
-            "rnn_shift_output");
+        add_extend_op<hip_rnn_shift_output, op::rnn_shift_output>("rnn_shift_output");
         add_extend_op<hip_rnn_shift_sequence, op::rnn_shift_sequence>("rnn_shift_sequence");
         add_extend_op<hip_lstm_last_cell_output, op::lstm_last_cell_output>(
             "lstm_last_cell_output");

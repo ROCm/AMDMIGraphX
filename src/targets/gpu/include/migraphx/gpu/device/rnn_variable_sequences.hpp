@@ -11,15 +11,15 @@ namespace gpu {
 namespace device {
 
 void rnn_shift_output(hipStream_t stream,
-                             const argument& result,
-                             const argument& arg_hs,
-                             const argument& arg_sl,
-                             bool is_reverse);
+                      const argument& result,
+                      const argument& arg_hs,
+                      const argument& arg_sl,
+                      bool is_reverse);
 
 void rnn_shift_sequence(hipStream_t stream,
-                         const argument& result,
-                         const argument& arg_hs,
-                         const argument& arg_sl);
+                        const argument& result,
+                        const argument& arg_hs,
+                        const argument& arg_sl);
 
 } // namespace device
 } // namespace gpu

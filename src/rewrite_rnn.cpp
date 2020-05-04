@@ -911,8 +911,10 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
 
     if(variable_seq_len)
     {
-        auto shifted_hs = prog.insert_instruction(
-            std::next(hidden_state), op::rnn_shift_output{"hidden_states", dirct}, hidden_state, seq_lens);
+        auto shifted_hs = prog.insert_instruction(std::next(hidden_state),
+                                                  op::rnn_shift_output{"hidden_states", dirct},
+                                                  hidden_state,
+                                                  seq_lens);
         prog.replace_instruction(hidden_state, shifted_hs);
 
         auto last_cell_output_it =
@@ -921,8 +923,10 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
             });
         if(last_cell_output_it != shifted_hs->outputs().end())
         {
-            cell_outputs = prog.insert_instruction(
-                std::next(shifted_hs), op::rnn_shift_output{"cell_outputs", dirct}, cell_outputs, seq_lens);
+            cell_outputs = prog.insert_instruction(std::next(shifted_hs),
+                                                   op::rnn_shift_output{"cell_outputs", dirct},
+                                                   cell_outputs,
+                                                   seq_lens);
         }
 
         last_cell_output_it = shifted_hs->outputs().begin();

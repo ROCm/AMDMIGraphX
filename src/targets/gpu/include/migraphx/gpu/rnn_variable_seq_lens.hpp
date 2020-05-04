@@ -1,8 +1,8 @@
-#ifndef MIGRAPHX_GUARD_RTGLIB_RNN_VARIABLE_SEQUENCES_HPP
-#define MIGRAPHX_GUARD_RTGLIB_RNN_VARIABLE_SEQUENCES_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_RNN_VARIABLE_SEQ_LENS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_RNN_VARIABLE_SEQ_LENS_HPP
 
 #include <migraphx/shape.hpp>
-#include <migraphx/op/rnn_variable_sequences.hpp>
+#include <migraphx/op/rnn_variable_seq_lens.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -1,6 +1,6 @@
-#include <migraphx/gpu/rnn_variable_sequences.hpp>
+#include <migraphx/gpu/rnn_variable_seq_lens.hpp>
 #include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/device/rnn_variable_sequences.hpp>
+#include <migraphx/gpu/device/rnn_variable_seq_lens.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

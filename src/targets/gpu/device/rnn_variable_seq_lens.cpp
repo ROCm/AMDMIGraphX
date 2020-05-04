@@ -1,4 +1,4 @@
-#include <migraphx/gpu/device/rnn_variable_sequences.hpp>
+#include <migraphx/gpu/device/rnn_variable_seq_lens.hpp>
 #include <migraphx/gpu/device/nary.hpp>
 #include <migraphx/gpu/device/shape.hpp>
 

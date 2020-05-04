@@ -72,7 +72,7 @@
 #include <migraphx/gpu/int8_conv_pack.hpp>
 #include <migraphx/gpu/prelu.hpp>
 #include <migraphx/gpu/recip.hpp>
-#include <migraphx/gpu/rnn_variable_sequences.hpp>
+#include <migraphx/gpu/rnn_variable_seq_lens.hpp>
 #include <migraphx/gpu/rnn_last_hs_output.hpp>
 #include <migraphx/gpu/rnn_last_cell_output.hpp>
 #include <utility>

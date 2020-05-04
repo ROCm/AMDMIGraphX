@@ -17,6 +17,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/array.hpp>
 #include <migraphx/op/clip.hpp>
+#include <cmath>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -339,14 +340,19 @@ struct find_gelu
             match::arg(0)(match::used_once(),
                           match::name("gpu::erf")(
                               match::arg(0)(match::used_once(),
-                                            match::name("gpu::div", "gpu::mul")(
-                                                match::arg(0)(match::any().bind("x")))))))));
+                                            match::name("gpu::mul")(
+                                                match::arg(0)(match::any().bind("x")),
+                                                match::arg(1)(match::has_value(sqrt(0.5f))))))))));
     }
 
     void apply(program& p, match::matcher_result r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
+        // float sqrt_half = r.instructions["sqrt_half"]->get_literal().at<float>();
+        // std::cout << sqrt_half << " " << sqrt(0.5f) << std::endl;
+        // if(not float_equal(sqrt_half,sqrt(0.5f)))
+        //     return;
         auto args  = ins->inputs();
 
         p.replace_instruction(ins, hip_gelu{}, x_ins, args.back());

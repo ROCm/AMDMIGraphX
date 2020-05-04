@@ -9,6 +9,8 @@
 #include <migraphx/config.hpp>
 #include <unordered_map>
 #include <unordered_set>
+#include <migraphx/float_equal.hpp>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -533,6 +535,23 @@ template <class... Ms>
 auto same_shape(Ms... ms)
 {
     return all_of(same_shape(ms)...);
+}
+
+template<class T>
+inline auto has_value(T x)
+{
+    return make_basic_pred_matcher([=](instruction_ref ins) { 
+        auto l = ins->get_literal();
+        if (l.empty())
+            return false;
+        bool b = false;
+        l.visit([&](auto v) {
+            if (float_equal(v.front(), x))
+                b = true;
+            std::cout << x - v.front() << std::endl;
+        });
+        return b;
+    });
 }
 
 } // namespace match

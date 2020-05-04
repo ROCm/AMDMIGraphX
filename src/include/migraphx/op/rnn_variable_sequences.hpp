@@ -17,17 +17,18 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct rnn_shift_hidden_states
+struct rnn_shift_output
 {
+    std::string output_name = "hidden_states";
     rnn_direction direction = rnn_direction::forward;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.direction, "direction"));
+        return pack(f(self.output_name, "hidden_states"), f(self.direction, "direction"));
     }
 
-    std::string name() const { return "rnn_shift_hidden_states"; }
+    std::string name() const { return "rnn_shift_output"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2);
@@ -64,9 +65,9 @@ struct rnn_shift_hidden_states
     }
 };
 
-struct rnn_shift_sequences
+struct rnn_shift_sequence
 {
-    std::string name() const { return "rnn_shift_sequences"; }
+    std::string name() const { return "rnn_shift_sequence"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2);

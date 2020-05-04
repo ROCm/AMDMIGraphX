@@ -6,17 +6,17 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-shape hip_rnn_shift_hidden_states::compute_shape(std::vector<shape> inputs) const
+shape hip_rnn_shift_output::compute_shape(std::vector<shape> inputs) const
 {
     inputs.pop_back();
     return op.compute_shape(inputs);
 }
 
-argument hip_rnn_shift_hidden_states::compute(context& ctx,
+argument hip_rnn_shift_output::compute(context& ctx,
                                               const shape&,
                                               const std::vector<argument>& args) const
 {
-    device::rnn_shift_hidden_states(ctx.get_stream().get(),
+    device::rnn_shift_output(ctx.get_stream().get(),
                                     args.back(),
                                     args.at(0),
                                     args.at(1),
@@ -24,17 +24,17 @@ argument hip_rnn_shift_hidden_states::compute(context& ctx,
     return args.back();
 }
 
-shape hip_rnn_shift_sequences::compute_shape(std::vector<shape> inputs) const
+shape hip_rnn_shift_sequence::compute_shape(std::vector<shape> inputs) const
 {
     inputs.pop_back();
     return op.compute_shape(inputs);
 }
 
-argument hip_rnn_shift_sequences::compute(context& ctx,
+argument hip_rnn_shift_sequence::compute(context& ctx,
                                           const shape&,
                                           const std::vector<argument>& args) const
 {
-    device::rnn_shift_sequences(ctx.get_stream().get(), args.back(), args.at(0), args.at(1));
+    device::rnn_shift_sequence(ctx.get_stream().get(), args.back(), args.at(0), args.at(1));
     return args.back();
 }
 

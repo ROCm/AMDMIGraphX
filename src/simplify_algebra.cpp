@@ -397,6 +397,7 @@ struct find_rsqrt
     auto matcher() const
     {
         return match::name("recip")(
+            match::used_once(),
             match::args(match::name("sqrt")(match::args(match::any().bind("x")))));
     }
 

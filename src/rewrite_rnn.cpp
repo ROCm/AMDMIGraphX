@@ -913,42 +913,29 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
     {
         auto shifted_hs = prog.insert_instruction(
             std::next(hidden_state), op::rnn_shift_hidden_states{dirct}, hidden_state, seq_lens);
+        prog.replace_instruction(hidden_state, shifted_hs);
 
         auto last_cell_output_it =
-            std::find_if(ins->outputs().begin(), ins->outputs().end(), [](auto i) {
+            std::find_if(shifted_hs->outputs().begin(), shifted_hs->outputs().end(), [](auto i) {
                 return i->name() == "lstm_last_cell_output";
             });
-        if(last_cell_output_it != ins->outputs().end())
+        if(last_cell_output_it != shifted_hs->outputs().end())
         {
             cell_outputs = prog.insert_instruction(
                 std::next(shifted_hs), op::rnn_shift_hidden_states{dirct}, cell_outputs, seq_lens);
         }
 
-        auto last_hs_output_it = ins->outputs().begin();
-        while(last_hs_output_it != ins->outputs().end())
-        {
-            last_hs_output_it = std::find_if(last_hs_output_it, ins->outputs().end(), [](auto i) {
-                return i->name() == "rnn_last_hs_output";
-            });
-
-            if(last_hs_output_it != ins->outputs().end())
-            {
-                instruction::replace_argument(*last_hs_output_it, ins, shifted_hs);
-                last_hs_output_it++;
-            }
-        }
-
-        last_cell_output_it = ins->outputs().begin();
-        while(last_cell_output_it != ins->outputs().end())
+        last_cell_output_it = shifted_hs->outputs().begin();
+        while(last_cell_output_it != shifted_hs->outputs().end())
         {
             last_cell_output_it =
-                std::find_if(last_cell_output_it, ins->outputs().end(), [](auto i) {
+                std::find_if(last_cell_output_it, shifted_hs->outputs().end(), [](auto i) {
                     return i->name() == "lstm_last_cell_output";
                 });
 
-            if(last_cell_output_it != ins->outputs().end())
+            if(last_cell_output_it != shifted_hs->outputs().end())
             {
-                instruction::replace_argument(*last_cell_output_it, ins, cell_outputs);
+                instruction::replace_argument(*last_cell_output_it, shifted_hs, cell_outputs);
                 last_cell_output_it++;
             }
         }

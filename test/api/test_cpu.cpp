@@ -69,7 +69,7 @@ TEST_CASE(set_scalar_parameter)
     auto p1 = migraphx::parse_onnx("add_bcast_test.onnx");
     migraphx::shape s1(migraphx_shape_float_type, {3, 4});
     auto param_shapes = p1.get_parameter_shapes();
-    auto s1_orig = param_shapes["1"];
+    auto s1_orig      = param_shapes["1"];
     CHECK(bool{s1 == s1_orig});
 
     migraphx::onnx_options option;

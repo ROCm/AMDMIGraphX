@@ -2160,7 +2160,7 @@ struct onnx_parser
         case onnx::TensorProto::DOUBLE: shape_type = shape::double_type; break;
         case onnx::TensorProto::UINT32: shape_type = shape::uint32_type; break;
         case onnx::TensorProto::UINT64: shape_type = shape::uint64_type; break;
-        case onnx::TensorProto::UINT8:
+        case onnx::TensorProto::UINT8: shape_type = shape::uint8_type; break;
         case onnx::TensorProto::STRING:
         case onnx::TensorProto::BOOL:
         case onnx::TensorProto::UNDEFINED:

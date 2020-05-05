@@ -1503,7 +1503,7 @@ def pad_reflect_test():
 @onnx_test
 def pad_reflect_multiaxis_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 5])
 
     sizes = np.array([0, 2, 2, 0])
     pad_tensor = helper.make_tensor(name='pad_size',

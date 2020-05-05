@@ -94,9 +94,10 @@ void set_default_dim_value(onnx_options& options, size_t value)
 
 void set_input_parameter_shape(onnx_options& options,
                                const char* name,
-                               const std::vector<std::size_t>& dims)
+                               const size_t* dims,
+                               const size_t dim_num)
 {
-    options.map_input_dims[std::string(name)] = dims;
+    options.map_input_dims[std::string(name)] = std::vector<std::size_t>(dims, dims + dim_num);
 }
 
 template <class Value>

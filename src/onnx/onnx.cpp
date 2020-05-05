@@ -1201,6 +1201,17 @@ struct onnx_parser
             return prog.add_instruction(migraphx::op::identity{}, args.front());
         }
 
+        if(contains(info.attributes, "mode"))
+        {
+            auto mode = info.attributes.at("mode").s();
+            if(mode == "reflect")
+                return reflect_pad(pads, args.front());
+            if(mode != "constant")
+            {
+                MIGRAPHX_THROW("PARSE_PAD: migraphx currently only supports constant and reflect padding");
+            }
+        }
+
         float value = 0.0f;
         // third input is the value
         if(args.size() == 3)
@@ -1222,16 +1233,6 @@ struct onnx_parser
             value = parse_value(info.attributes.at("value")).at<float>();
         }
 
-        if(contains(info.attributes, "mode"))
-        {
-            auto mode = info.attributes.at("mode").s();
-            if(mode == "reflect")
-                return reflect_pad(pads, args.front());
-            if(mode != "constant")
-            {
-                MIGRAPHX_THROW("PARSE_PAD: migraphx currently only supports constant padding");
-            }
-        }
         return prog.add_instruction(migraphx::op::pad{pads, value}, args.front());
     }
     // Use a literal instruction to replace the shape since, output of

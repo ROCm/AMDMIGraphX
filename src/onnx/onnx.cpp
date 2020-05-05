@@ -451,15 +451,15 @@ struct onnx_parser
 
     void calc_indices(std::vector<int>& indices, const int64_t num_dims)
     {
-        int k = 0;
+        int k         = 0;
         bool reversed = false;
-        // in reflect padding, if the num_pads > num_dims, 
+        // in reflect padding, if the num_pads > num_dims,
         // compute the extra pad indices periodically, ex. ( 1, 2, 3, 2, 1, 0)
         for(int& idx : indices)
         {
-            if( k == num_dims - 1)
+            if(k == num_dims - 1)
                 reversed = true;
-            if( k == 0 )
+            if(k == 0)
                 reversed = false;
             if(reversed)
                 k--;
@@ -507,15 +507,15 @@ struct onnx_parser
 
             for(int idx : l_indices)
             {
-                *starts_it     = idx;
-                *ends_it       = *starts_it + 1;
+                *starts_it = idx;
+                *ends_it   = *starts_it + 1;
                 slices.push_back(prog.add_instruction(op::slice{axes, starts, ends}, input));
             }
             slices.push_back(input);
             for(int idx : r_indices)
             {
-                *starts_it     = *dims_it - idx - 1;
-                *ends_it       = *starts_it + 1;
+                *starts_it = *dims_it - idx - 1;
+                *ends_it   = *starts_it + 1;
                 slices.push_back(prog.add_instruction(op::slice{axes, starts, ends}, input));
             }
             input = prog.add_instruction(op::concat{axis}, slices);

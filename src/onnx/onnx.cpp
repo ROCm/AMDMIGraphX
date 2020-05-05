@@ -1208,7 +1208,8 @@ struct onnx_parser
                 return reflect_pad(pads, args.front());
             if(mode != "constant")
             {
-                MIGRAPHX_THROW("PARSE_PAD: migraphx currently only supports constant and reflect padding");
+                MIGRAPHX_THROW(
+                    "PARSE_PAD: migraphx currently only supports constant and reflect padding");
             }
         }
 

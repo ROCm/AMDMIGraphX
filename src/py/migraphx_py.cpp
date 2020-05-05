@@ -113,7 +113,16 @@ migraphx::shape to_shape(const py::buffer_info& info)
     std::transform(strides.begin(), strides.end(), strides.begin(), [&](auto i) -> std::size_t {
         return n > 0 ? i / n : 0;
     });
-    return migraphx::shape{t, info.shape, strides};
+
+    // scalar support
+    if(info.shape.empty())
+    {
+        return migraphx::shape{t};
+    }
+    else
+    {
+        return migraphx::shape{t, info.shape, strides};
+    }
 }
 
 PYBIND11_MODULE(migraphx, m)
@@ -180,13 +189,20 @@ PYBIND11_MODULE(migraphx, m)
           py::arg("filename"),
           py::arg("is_nhwc")    = true,
           py::arg("batch_size") = 1);
+
     m.def("parse_onnx",
-          [](const std::string& filename, unsigned int batch_size) {
-              return migraphx::parse_onnx(filename, migraphx::onnx_options{batch_size});
+          [](const std::string& filename,
+             std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
+             std::size_t value) {
+              migraphx::onnx_options options;
+              options.map_input_dims    = map_input_dims;
+              options.default_dim_value = value;
+              return migraphx::parse_onnx(filename, options);
           },
           "Parse onnx file",
           py::arg("filename"),
-          py::arg("batch_size") = 1);
+          py::arg("map_input_dims") = std::map<std::string, std::vector<std::size_t>>(),
+          py::arg("value")          = 1);
 
     m.def("get_target", [](const std::string& name) -> migraphx::target {
         if(name == "cpu")

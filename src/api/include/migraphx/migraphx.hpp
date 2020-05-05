@@ -216,6 +216,11 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         this->make_handle(&migraphx_shape_create, type, plengths.data(), plengths.size());
     }
 
+    shape(migraphx_shape_datatype_t type)
+    {
+        this->make_handle(&migraphx_shape_create_scalar, type);
+    }
+
     std::vector<size_t> lengths() const
     {
         const size_t* pout;

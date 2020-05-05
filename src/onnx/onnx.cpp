@@ -449,7 +449,7 @@ struct onnx_parser
         return ins;
     }
 
-    void calc_indices(std::vector<int>& indices, const int64_t num_dims)
+    void calc_reflect_indices(std::vector<int>& indices, const int64_t num_dims)
     {
         int k         = 0;
         bool reversed = false;
@@ -502,8 +502,8 @@ struct onnx_parser
             std::vector<int> r_indices(rcount);
 
             // compute slice indices in a periodic fashion
-            calc_indices(l_indices, *dims_it);
-            calc_indices(r_indices, *dims_it);
+            calc_reflect_indices(l_indices, *dims_it);
+            calc_reflect_indices(r_indices, *dims_it);
 
             for(int idx : l_indices)
             {

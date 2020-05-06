@@ -69,10 +69,10 @@ struct loader
             if(file_type == "onnx")
             {
                 onnx_options options;
-                options.default_dim_value             = batch;
+                options.default_dim_value      = batch;
                 options.skip_unknown_operators = skip_unknown_operators;
                 options.print_program_on_error = true;
-                p = parse_onnx(file, options);
+                p                              = parse_onnx(file, options);
             }
             else if(file_type == "tf")
             {

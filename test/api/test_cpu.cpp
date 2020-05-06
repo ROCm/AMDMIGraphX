@@ -75,9 +75,9 @@ TEST_CASE(scalar_shape)
 
 TEST_CASE(strided_shape)
 {
-    std::vector<std::size_t> lens = {2, 2};
+    std::vector<std::size_t> lens    = {2, 2};
     std::vector<std::size_t> strides = {1, 2};
-    auto s = migraphx::shape(migraphx_shape_float_type, lens, strides);
+    auto s                           = migraphx::shape(migraphx_shape_float_type, lens, strides);
     EXPECT(s.lengths() == lens);
     EXPECT(s.strides() == strides);
 }

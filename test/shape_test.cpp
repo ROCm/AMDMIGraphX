@@ -208,6 +208,17 @@ TEST_CASE(test_shape_normalize_standard3)
     EXPECT(n == s);
 }
 
+TEST_CASE(test_shape_normalize_scalar)
+{
+    migraphx::shape s{migraphx::shape::float_type};
+    EXPECT(s.standard());
+    EXPECT(s.scalar());
+    auto n = s.normalize_standard();
+    EXPECT(n != s);
+    EXPECT(n.standard());
+    EXPECT(not n.scalar());
+}
+
 TEST_CASE(test_shape4)
 {
     migraphx::shape s{migraphx::shape::float_type, {100, 32, 8, 8}};

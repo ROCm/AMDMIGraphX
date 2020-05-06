@@ -64,21 +64,22 @@ TEST_CASE(zero_parameter)
     CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
 }
 
-TEST_CASE(set_scalar_parameter)
+TEST_CASE(scalar_shape)
 {
-    auto p1 = migraphx::parse_onnx("add_bcast_test.onnx");
-    migraphx::shape s1(migraphx_shape_float_type, {3, 4});
-    auto param_shapes = p1.get_parameter_shapes();
-    auto s1_orig      = param_shapes["1"];
-    CHECK(bool{s1 == s1_orig});
+    auto s = migraphx::shape(migraphx_shape_float_type);
+    EXPECT(s.lengths().size() == 1);
+    EXPECT(s.strides().size() == 1);
+    EXPECT(s.lengths().front() == 1);
+    EXPECT(s.strides().front() == 0);
+}
 
-    migraphx::onnx_options option;
-    option.set_input_parameter_shape("1", {});
-    auto p2 = migraphx::parse_onnx("add_bcast_test.onnx", option);
-    migraphx::shape s_scalar(migraphx_shape_float_type);
-    auto param_shapes_1 = p2.get_parameter_shapes();
-    auto s_scalar_after = param_shapes_1["1"];
-    CHECK(bool{s_scalar == s_scalar_after});
+TEST_CASE(strided_shape)
+{
+    std::vector<std::size_t> lens = {2, 2};
+    std::vector<std::size_t> strides = {1, 2};
+    auto s = migraphx::shape(migraphx_shape_float_type, lens, strides);
+    EXPECT(s.lengths() == lens);
+    EXPECT(s.strides() == strides);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

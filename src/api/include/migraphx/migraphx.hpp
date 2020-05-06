@@ -211,14 +211,19 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
 
     shape(migraphx_shape* p, borrow) { this->set_handle(p, borrow{}); }
 
+    shape(migraphx_shape_datatype_t type)
+    {
+        this->make_handle(&migraphx_shape_create_scalar, type);
+    }
+
     shape(migraphx_shape_datatype_t type, std::vector<size_t> plengths)
     {
         this->make_handle(&migraphx_shape_create, type, plengths.data(), plengths.size());
     }
 
-    shape(migraphx_shape_datatype_t type)
+    shape(migraphx_shape_datatype_t type, std::vector<size_t> plengths, std::vector<size_t> pstrides)
     {
-        this->make_handle(&migraphx_shape_create_scalar, type);
+        this->make_handle(&migraphx_shape_create_with_strides, type, plengths.data(), plengths.size(), pstrides.data(), pstrides.size());
     }
 
     std::vector<size_t> lengths() const

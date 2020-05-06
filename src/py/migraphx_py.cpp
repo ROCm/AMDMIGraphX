@@ -186,11 +186,12 @@ PYBIND11_MODULE(migraphx, m)
              unsigned int default_dim_value,
              bool skip_unknown_operators,
              bool print_program_on_error) {
-              return migraphx::parse_onnx(filename,
-                                          {.default_dim_value      = default_dim_value,
-                                           .map_input_dims         = map_input_dims,
-                                           .skip_unknown_operators = skip_unknown_operators,
-                                           .print_program_on_error = print_program_on_error});
+              migraphx::onnx_options options;
+              options.default_dim_value      = default_dim_value;
+              options.map_input_dims         = map_input_dims;
+              options.skip_unknown_operators = skip_unknown_operators;
+              options.print_program_on_error = print_program_on_error;
+              return migraphx::parse_onnx(filename, options);
           },
           "Parse onnx file",
           py::arg("filename"),

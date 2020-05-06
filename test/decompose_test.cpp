@@ -51,10 +51,11 @@ TEST_CASE(dot_add_beta_float)
         auto y   = p2.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 2}});
         auto z   = p2.add_parameter("z", migraphx::shape{migraphx::shape::float_type, {2, 2}});
         auto dot = p2.add_instruction(migraphx::op::dot{1, 0}, x, y);
-        auto beta = p2.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {0.5}});
+        auto beta =
+            p2.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {0.5}});
         auto beta_broadcast = p2.add_instruction(migraphx::op::multibroadcast{{2, 2}}, beta);
-        auto mul = p2.add_instruction(migraphx::op::mul{}, z, beta_broadcast);
-        auto add = p2.add_instruction(migraphx::op::add{}, dot, mul);
+        auto mul            = p2.add_instruction(migraphx::op::mul{}, z, beta_broadcast);
+        auto add            = p2.add_instruction(migraphx::op::add{}, dot, mul);
         p2.add_instruction(migraphx::op::identity{}, add);
     }
     EXPECT(p1 == p2);
@@ -77,10 +78,11 @@ TEST_CASE(dot_add_beta_half)
         auto y   = p2.add_parameter("y", migraphx::shape{migraphx::shape::half_type, {2, 2}});
         auto z   = p2.add_parameter("z", migraphx::shape{migraphx::shape::half_type, {2, 2}});
         auto dot = p2.add_instruction(migraphx::op::dot{1, 0}, x, y);
-        auto beta = p2.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {0.5}});
+        auto beta =
+            p2.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {0.5}});
         auto beta_broadcast = p2.add_instruction(migraphx::op::multibroadcast{{2, 2}}, beta);
-        auto mul = p2.add_instruction(migraphx::op::mul{}, z, beta_broadcast);
-        auto add = p2.add_instruction(migraphx::op::add{}, dot, mul);
+        auto mul            = p2.add_instruction(migraphx::op::mul{}, z, beta_broadcast);
+        auto add            = p2.add_instruction(migraphx::op::add{}, dot, mul);
         p2.add_instruction(migraphx::op::identity{}, add);
     }
     EXPECT(p1 == p2);
@@ -103,10 +105,11 @@ TEST_CASE(dot_add_beta_double)
         auto y   = p2.add_parameter("y", migraphx::shape{migraphx::shape::double_type, {2, 2}});
         auto z   = p2.add_parameter("z", migraphx::shape{migraphx::shape::double_type, {2, 2}});
         auto dot = p2.add_instruction(migraphx::op::dot{1, 0}, x, y);
-        auto beta = p2.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::double_type}, {0.5}});
+        auto beta =
+            p2.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::double_type}, {0.5}});
         auto beta_broadcast = p2.add_instruction(migraphx::op::multibroadcast{{2, 2}}, beta);
-        auto mul = p2.add_instruction(migraphx::op::mul{}, z, beta_broadcast);
-        auto add = p2.add_instruction(migraphx::op::add{}, dot, mul);
+        auto mul            = p2.add_instruction(migraphx::op::mul{}, z, beta_broadcast);
+        auto add            = p2.add_instruction(migraphx::op::add{}, dot, mul);
         p2.add_instruction(migraphx::op::identity{}, add);
     }
     EXPECT(p1 == p2);

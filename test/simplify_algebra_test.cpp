@@ -569,4 +569,23 @@ TEST_CASE(simplify_rsqrt)
     EXPECT(p1 == p2);
 }
 
+<<<<<<< HEAD
+=======
+TEST_CASE(simplify_rsqrt_multi_use)
+{
+    migraphx::program p1;
+    {
+        auto x     = p1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto sqrt  = p1.add_instruction(migraphx::op::sqrt{}, x);
+        auto add   = p1.add_instruction(migraphx::op::add{}, sqrt, sqrt);
+        auto rsqrt = p1.add_instruction(migraphx::op::recip{}, sqrt);
+        p1.add_instruction(migraphx::op::add{}, rsqrt, add);
+    }
+    migraphx::program p2{p1};
+
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
+>>>>>>> 45bb91ea71622d2b5b1a650df857ee2262c98668
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

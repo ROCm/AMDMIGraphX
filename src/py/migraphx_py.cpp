@@ -184,6 +184,7 @@ PYBIND11_MODULE(migraphx, m)
     m.def("parse_onnx",
           [](const std::string& filename,
              unsigned int default_dim_value,
+             std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
              bool skip_unknown_operators,
              bool print_program_on_error) {
               migraphx::onnx_options options;
@@ -196,7 +197,7 @@ PYBIND11_MODULE(migraphx, m)
           "Parse onnx file",
           py::arg("filename"),
           py::arg("default_dim_value")      = 1,
-          py::arg("map_input_dims")         = std::map<std::string, std::vector<std::size_t>>(),
+          py::arg("map_input_dims")         = std::unordered_map<std::string, std::vector<std::size_t>>(),
           py::arg("skip_unknown_operators") = false,
           py::arg("print_program_on_error") = false);
 

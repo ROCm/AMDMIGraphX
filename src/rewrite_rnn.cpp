@@ -888,93 +888,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
     }
 
     ins = replace_last_hs_output(prog, ins, seq_lens, last_hs_output, dirct);
-
-    if(variable_seq_len)
-    {
-        auto last_cell_output_it =
-            std::find_if(ins->outputs().begin(), ins->outputs().end(), [](auto i) {
-                return i->name() == "lstm_last_cell_output";
-            });
-        if(last_cell_output_it != ins->outputs().end())
-        {
-            cell_outputs = prog.insert_instruction(std::next(ins),
-                                                   op::rnn_shift_output{"cell_outputs", dirct},
-                                                   cell_outputs,
-                                                   seq_lens);
-        }
-
-        last_cell_output_it = ins->outputs().begin();
-        while(last_cell_output_it != ins->outputs().end())
-        {
-            last_cell_output_it =
-                std::find_if(last_cell_output_it, ins->outputs().end(), [](auto i) {
-                    return i->name() == "lstm_last_cell_output";
-                });
-
-            if(last_cell_output_it != ins->outputs().end())
-            {
-                instruction::replace_argument(*last_cell_output_it, ins, cell_outputs);
-                last_cell_output_it++;
-            }
-        }
-    }
-    // replace the corresponding lstm_last_output instruction
-    // with the last_hs_output, and the lstm_last_cell_output with
-    // the last_cell_output. The while loop is to handle the case
-    // of multiple lstm_last_output and lstm_last_cell_output
-    // operators
-    else
-    {
-        auto last_cell_output_it = ins->outputs().begin();
-        while(last_cell_output_it != ins->outputs().end())
-        {
-            last_cell_output_it =
-                std::find_if(last_cell_output_it, ins->outputs().end(), [](auto i) {
-                    return i->name() == "lstm_last_cell_output";
-                });
-
-            if(last_cell_output_it != ins->outputs().end())
-            {
-                prog.replace_instruction(*last_cell_output_it, last_cell_output);
-                last_cell_output_it++;
-            }
-        }
-    }
-}
-
-instruction_ref rewrite_rnn::replace_last_hs_output(program& prog,
-                                                    instruction_ref ins,
-                                                    instruction_ref seq_lens,
-                                                    instruction_ref last_hs_output,
-                                                    op::rnn_direction dirct) const
-{
-    bool variable_seq_len = is_variable_seq_lens(prog, seq_lens);
-    instruction_ref result_ins{};
-    if(variable_seq_len)
-    {
-        result_ins = prog.insert_instruction(
-            std::next(ins), op::rnn_shift_output{"hidden_states", dirct}, ins, seq_lens);
-        prog.replace_instruction(ins, result_ins);
-    }
-    else
-    {
-        auto last_hs_output_it = ins->outputs().begin();
-        while(last_hs_output_it != ins->outputs().end())
-        {
-            last_hs_output_it = std::find_if(last_hs_output_it, ins->outputs().end(), [](auto i) {
-                return i->name() == "rnn_last_hs_output";
-            });
-
-            if(last_hs_output_it != ins->outputs().end())
-            {
-                prog.replace_instruction(*last_hs_output_it, last_hs_output);
-                last_hs_output_it++;
-            }
-        }
-        result_ins = ins;
-    }
-
-    return result_ins;
+    replace_last_cell_output(prog, ins, seq_lens, cell_outputs, last_cell_output, dirct);
 }
 
 std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
@@ -1237,6 +1151,100 @@ bool rewrite_rnn::is_variable_seq_lens(const program& prog, instruction_ref seq_
     }
 
     return is_var_lens;
+}
+
+instruction_ref rewrite_rnn::replace_last_hs_output(program& prog,
+                                                    instruction_ref ins,
+                                                    instruction_ref seq_lens,
+                                                    instruction_ref last_hs_output,
+                                                    op::rnn_direction dirct) const
+{
+    bool variable_seq_len = is_variable_seq_lens(prog, seq_lens);
+    instruction_ref result_ins{};
+    if(variable_seq_len)
+    {
+        result_ins = prog.insert_instruction(
+            std::next(ins), op::rnn_shift_output{"hidden_states", dirct}, ins, seq_lens);
+        prog.replace_instruction(ins, result_ins);
+    }
+    else
+    {
+        auto last_hs_output_it = ins->outputs().begin();
+        while(last_hs_output_it != ins->outputs().end())
+        {
+            last_hs_output_it = std::find_if(last_hs_output_it, ins->outputs().end(), [](auto i) {
+                return i->name() == "rnn_last_hs_output";
+            });
+
+            if(last_hs_output_it != ins->outputs().end())
+            {
+                prog.replace_instruction(*last_hs_output_it, last_hs_output);
+                last_hs_output_it++;
+            }
+        }
+        result_ins = ins;
+    }
+
+    return result_ins;
+}
+
+void rewrite_rnn::replace_last_cell_output(program& prog, 
+                                instruction_ref ins, 
+                                instruction_ref seq_lens, 
+                                instruction_ref cell_outputs,
+                                instruction_ref last_cell_output,
+                                op::rnn_direction dirct) const
+{
+    bool variable_seq_len = is_variable_seq_lens(prog, seq_lens);
+
+    if(variable_seq_len)
+    {
+        auto last_cell_output_it =
+            std::find_if(ins->outputs().begin(), ins->outputs().end(), [](auto i) {
+                return i->name() == "lstm_last_cell_output";
+            });
+        if(last_cell_output_it != ins->outputs().end())
+        {
+            cell_outputs = prog.insert_instruction(std::next(ins),
+                                                op::rnn_shift_output{"cell_outputs", dirct},
+                                                cell_outputs,
+                                                seq_lens);
+        }
+
+        last_cell_output_it = ins->outputs().begin();
+        while(last_cell_output_it != ins->outputs().end())
+        {
+            last_cell_output_it =
+                std::find_if(last_cell_output_it, ins->outputs().end(), [](auto i) {
+                    return i->name() == "lstm_last_cell_output";
+                });
+
+            if(last_cell_output_it != ins->outputs().end())
+            {
+                instruction::replace_argument(*last_cell_output_it, ins, cell_outputs);
+                last_cell_output_it++;
+            }
+        }
+    }
+    // replace the lstm_last_cell_output with the last_cell_output. The while 
+    // loop is to handle the case of multiple lstm_last_cell_output operators
+    else
+    {
+        auto last_cell_output_it = ins->outputs().begin();
+        while(last_cell_output_it != ins->outputs().end())
+        {
+            last_cell_output_it =
+                std::find_if(last_cell_output_it, ins->outputs().end(), [](auto i) {
+                    return i->name() == "lstm_last_cell_output";
+                });
+
+            if(last_cell_output_it != ins->outputs().end())
+            {
+                prog.replace_instruction(*last_cell_output_it, last_cell_output);
+                last_cell_output_it++;
+            }
+        }
+    }
 }
 
 namespace op {

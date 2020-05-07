@@ -14,7 +14,7 @@ struct context;
 struct hip_lstm_last_cell_output : dev_rnn_last_output<op::lstm_last_cell_output>
 {
     hip_lstm_last_cell_output() {}
-    hip_lstm_last_cell_output(op::lstm_last_cell_output o) : dev_rnn_last_output(std::move(o)){};
+    hip_lstm_last_cell_output(op::lstm_last_cell_output o) : dev_rnn_last_output(o){};
 };
 
 } // namespace gpu

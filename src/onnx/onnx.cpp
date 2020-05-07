@@ -1546,49 +1546,49 @@ struct onnx_parser
             {
             case 1:
                 actv_func_names = {actv_func_names.at(0),
-                             actv_func_names.at(0),
-                             actv_func_names.at(0),
-                             actv_func_names.at(0),
-                             actv_func_names.at(0),
-                             actv_func_names.at(0)};
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0)};
                 break;
 
             case 2:
                 // repeat the 2nd actv func once, then repeat all three another time
                 actv_func_names = {actv_func_names.at(0),
-                             actv_func_names.at(1),
-                             actv_func_names.at(1),
-                             actv_func_names.at(0),
-                             actv_func_names.at(1),
-                             actv_func_names.at(1)};
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(1)};
                 break;
 
             case 3:
                 // repeat all three actv funcs once
                 actv_func_names = {actv_func_names.at(0),
-                             actv_func_names.at(1),
-                             actv_func_names.at(2),
-                             actv_func_names.at(0),
-                             actv_func_names.at(1),
-                             actv_func_names.at(2)};
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2)};
                 break;
 
             case 4:
                 actv_func_names = {actv_func_names.at(0),
-                             actv_func_names.at(1),
-                             actv_func_names.at(2),
-                             actv_func_names.at(3),
-                             actv_func_names.at(3),
-                             actv_func_names.at(3)};
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2),
+                                   actv_func_names.at(3),
+                                   actv_func_names.at(3),
+                                   actv_func_names.at(3)};
                 break;
 
             case 5:
                 actv_func_names = {actv_func_names.at(0),
-                             actv_func_names.at(1),
-                             actv_func_names.at(2),
-                             actv_func_names.at(3),
-                             actv_func_names.at(4),
-                             actv_func_names.at(4)};
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2),
+                                   actv_func_names.at(3),
+                                   actv_func_names.at(4),
+                                   actv_func_names.at(4)};
                 break;
 
             default: break;
@@ -1598,11 +1598,15 @@ struct onnx_parser
         {
             switch(actv_func_names.size())
             {
-            case 1: actv_func_names = {actv_func_names.at(0), actv_func_names.at(0), actv_func_names.at(0)}; break;
+            case 1:
+                actv_func_names = {
+                    actv_func_names.at(0), actv_func_names.at(0), actv_func_names.at(0)};
+                break;
 
             case 2:
                 // repeat the 2nd actv func once, so we have 3 actv funcs
-                actv_func_names = {actv_func_names.at(0), actv_func_names.at(1), actv_func_names.at(1)};
+                actv_func_names = {
+                    actv_func_names.at(0), actv_func_names.at(1), actv_func_names.at(1)};
                 break;
 
             default: break;
@@ -1662,7 +1666,7 @@ struct onnx_parser
         }
 
         lstm_actv_functions(dirct, vec_names);
-        
+
         auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
             return (map_actv_funcs.count(name) == 0);
         });

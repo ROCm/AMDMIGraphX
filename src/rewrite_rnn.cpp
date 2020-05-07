@@ -942,20 +942,18 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
     }
 }
 
-instruction_ref rewrite_rnn::replace_last_hs_output(program& prog, 
+instruction_ref rewrite_rnn::replace_last_hs_output(program& prog,
                                                     instruction_ref ins,
                                                     instruction_ref seq_lens,
-                                                    instruction_ref last_hs_output, 
+                                                    instruction_ref last_hs_output,
                                                     op::rnn_direction dirct) const
 {
     bool variable_seq_len = is_variable_seq_lens(prog, seq_lens);
     instruction_ref result_ins{};
     if(variable_seq_len)
     {
-        result_ins = prog.insert_instruction(std::next(ins),
-                                                  op::rnn_shift_output{"hidden_states", dirct},
-                                                  ins,
-                                                  seq_lens);
+        result_ins = prog.insert_instruction(
+            std::next(ins), op::rnn_shift_output{"hidden_states", dirct}, ins, seq_lens);
         prog.replace_instruction(ins, result_ins);
     }
     else
@@ -1238,7 +1236,7 @@ bool rewrite_rnn::is_variable_seq_lens(const program& prog, instruction_ref seq_
         }
     }
 
-    return is_var_lens;    
+    return is_var_lens;
 }
 
 namespace op {

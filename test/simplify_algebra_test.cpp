@@ -569,8 +569,6 @@ TEST_CASE(simplify_rsqrt)
     EXPECT(p1 == p2);
 }
 
-<<<<<<< HEAD
-=======
 TEST_CASE(simplify_rsqrt_multi_use)
 {
     migraphx::program p1;
@@ -587,5 +585,4 @@ TEST_CASE(simplify_rsqrt_multi_use)
     EXPECT(p1 == p2);
 }
 
->>>>>>> 45bb91ea71622d2b5b1a650df857ee2262c98668
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

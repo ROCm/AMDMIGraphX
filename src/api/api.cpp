@@ -249,7 +249,7 @@ extern "C" migraphx_status migraphx_shape_create(migraphx_shape_t* shape,
                                                  size_t lengths_size)
 {
     return migraphx::try_([&] {
-        if(lengths == nullptr)
+        if(lengths == nullptr and lengths_size != 0)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter lengths: Null pointer");
         *shape = object_cast<migraphx_shape_t>(
             allocate<migraphx::shape>((migraphx::to_shape_type(type)),
@@ -265,9 +265,9 @@ extern "C" migraphx_status migraphx_shape_create_with_strides(migraphx_shape_t* 
                                                               size_t strides_size)
 {
     return migraphx::try_([&] {
-        if(lengths == nullptr)
+        if(lengths == nullptr and lengths_size != 0)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter lengths: Null pointer");
-        if(strides == nullptr)
+        if(strides == nullptr and strides_size != 0)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter strides: Null pointer");
         *shape = object_cast<migraphx_shape_t>(
             allocate<migraphx::shape>((migraphx::to_shape_type(type)),
@@ -635,7 +635,7 @@ extern "C" migraphx_status migraphx_onnx_options_set_input_parameter_shape(
     return migraphx::try_([&] {
         if(onnx_options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
-        if(dims == nullptr)
+        if(dims == nullptr and dims_size != 0)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dims: Null pointer");
         migraphx::set_input_parameter_shape(
             (onnx_options->object), (name), (std::vector<size_t>(dims, dims + dims_size)));

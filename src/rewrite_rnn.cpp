@@ -887,7 +887,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
         }
     }
 
-    ins = replace_last_hs_output(prog, ins, seq_lens, last_hs_output, dirct);
+    ins = replace_last_hs_output(prog, hidden_state, seq_lens, last_hs_output, dirct);
     replace_last_cell_output(prog, ins, seq_lens, cell_outputs, last_cell_output, dirct);
 }
 

@@ -6,6 +6,7 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/op/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -57,6 +58,13 @@ struct rewrite_rnn
                                            const operation& actv_func3) const;
 
     std::vector<operation> lstm_actv_funcs(instruction_ref ins) const;
+
+    bool is_variable_seq_lens(const program& prog, instruction_ref seq_lens) const;
+    instruction_ref replace_last_hs_output(program& prog, 
+                                           instruction_ref ins,
+                                           instruction_ref seq_lens,
+                                           instruction_ref last_hs_output, 
+                                           op::rnn_direction dirct) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

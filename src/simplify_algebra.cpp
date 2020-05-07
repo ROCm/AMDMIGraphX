@@ -9,6 +9,7 @@
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/neg.hpp>
 #include <migraphx/op/recip.hpp>
+#include <migraphx/op/rsqrt.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
 
@@ -391,6 +392,23 @@ struct find_sub_const
     }
 };
 
+struct find_rsqrt
+{
+    auto matcher() const
+    {
+        return match::name("recip")(match::args(
+            match::name("sqrt")(match::used_once(), match::args(match::any().bind("x")))));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+
+        p.replace_instruction(ins, op::rsqrt{}, x_ins);
+    }
+};
+
 void simplify_algebra::apply(program& p) const
 {
     // Run simplifications multiple times
@@ -405,6 +423,7 @@ void simplify_algebra::apply(program& p) const
                             find_mul_add{},
                             find_div_const{},
                             find_sub_const{},
+                            find_rsqrt{},
                             find_concat_unary{},
                             find_concat_binary{});
         dead_code_elimination{}.apply(p);

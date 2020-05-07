@@ -336,30 +336,27 @@ struct find_gelu
 
     static auto erf_fn()
     {
-        return match::name("gpu::erf")(match::arg(0)(
-                        match::used_once(),
-                        match::name("gpu::mul")(match::arg(0)(match::any().bind("x")),
-                                                match::arg(1)(match::has_value(M_SQRT1_2)))));
+        return match::name("gpu::erf")(
+            match::arg(0)(match::used_once(),
+                          match::name("gpu::mul")(match::arg(0)(match::any().bind("x")),
+                                                  match::arg(1)(match::has_value(M_SQRT1_2)))));
     }
-
 
     auto matcher() const
     {
-        return match::name("gpu::mul")(
-            match::arg(0)(match::name("gpu::mul")(match::arg(1)(match::args(match::has_value(0.5f))))),
-            match::arg(1)(match::name("gpu::add")(
-                match::used_once(),
-                match::arg(0)(
-                    match::used_once(),
-                    erf_fn()),
-                match::arg(1)(match::args(match::has_value(1.0f))))));
+        return match::name("gpu::mul")(match::arg(0)(match::name("gpu::mul")(
+                                           match::arg(1)(match::args(match::has_value(0.5f))))),
+                                       match::arg(1)(match::name("gpu::add")(
+                                           match::used_once(),
+                                           match::arg(0)(match::used_once(), erf_fn()),
+                                           match::arg(1)(match::args(match::has_value(1.0f))))));
     }
 
     void apply(program& p, match::matcher_result r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
-        auto args = ins->inputs();
+        auto args  = ins->inputs();
 
         p.replace_instruction(ins, hip_gelu{}, x_ins, args.back());
     }
@@ -390,34 +387,24 @@ struct find_gelu_new
 
     static auto pow_fn()
     {
-        return match::name("gpu::pow")(
-            match::arg(1)(match::args(match::has_value(3.0f)))
-        );
+        return match::name("gpu::pow")(match::arg(1)(match::args(match::has_value(3.0f))));
     }
 
     static auto tanh_fn()
     {
-        return match::name("gpu::tanh")(
-                        match::arg(0)(match::name("gpu::mul")(
-                            match::arg(0)(match::args(match::has_value(sqrt(M_2_PI)))),
-                            match::arg(1)(match::name("gpu::add")(
-                                match::arg(1)(match::name("gpu::mul")(
-                                    match::arg(0)(match::args(match::has_value(0.044715f)))
-                                    ,match::arg(1)(pow_fn())
-                                ))
-                            )))
-                        )
-        );
+        return match::name("gpu::tanh")(match::arg(0)(match::name("gpu::mul")(
+            match::arg(0)(match::args(match::has_value(sqrt(M_2_PI)))),
+            match::arg(1)(match::name("gpu::add")(match::arg(1)(
+                match::name("gpu::mul")(match::arg(0)(match::args(match::has_value(0.044715f))),
+                                        match::arg(1)(pow_fn()))))))));
     }
 
     auto matcher() const
     {
         return match::name("gpu::mul")(
             match::arg(0)(match::any().bind("x")),
-            match::arg(1)(match::name("gpu::add")(
-                match::arg(0)(match::name("gpu::mul")(
-                    match::arg(0)(match::args(match::has_value(0.5f))),
-                    match::arg(1)(tanh_fn()))))));
+            match::arg(1)(match::name("gpu::add")(match::arg(0)(match::name("gpu::mul")(
+                match::arg(0)(match::args(match::has_value(0.5f))), match::arg(1)(tanh_fn()))))));
     }
 
     void apply(program& p, match::matcher_result r) const

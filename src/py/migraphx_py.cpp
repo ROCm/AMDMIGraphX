@@ -192,17 +192,23 @@ PYBIND11_MODULE(migraphx, m)
 
     m.def("parse_onnx",
           [](const std::string& filename,
+             unsigned int default_dim_value,
              std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
-             std::size_t value) {
+             bool skip_unknown_operators,
+             bool print_program_on_error) {
               migraphx::onnx_options options;
-              options.map_input_dims    = map_input_dims;
-              options.default_dim_value = value;
+              options.default_dim_value      = default_dim_value;
+              options.map_input_dims         = map_input_dims;
+              options.skip_unknown_operators = skip_unknown_operators;
+              options.print_program_on_error = print_program_on_error;
               return migraphx::parse_onnx(filename, options);
           },
           "Parse onnx file",
           py::arg("filename"),
-          py::arg("map_input_dims") = std::map<std::string, std::vector<std::size_t>>(),
-          py::arg("value")          = 1);
+          py::arg("default_dim_value") = 1,
+          py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
+          py::arg("skip_unknown_operators") = false,
+          py::arg("print_program_on_error") = false);
 
     m.def("get_target", [](const std::string& name) -> migraphx::target {
         if(name == "cpu")

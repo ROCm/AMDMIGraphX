@@ -65,13 +65,13 @@ struct rewrite_rnn
                                            instruction_ref seq_lens,
                                            instruction_ref last_hs_output,
                                            op::rnn_direction dirct) const;
-                                           
-    void replace_last_cell_output(program& prog, 
-                                    instruction_ref ins, 
-                                    instruction_ref seq_lens, 
-                                    instruction_ref cell_outputs,
-                                    instruction_ref last_cell_output,
-                                    op::rnn_direction dirct) const;
+
+    void replace_last_cell_output(program& prog,
+                                  instruction_ref ins,
+                                  instruction_ref seq_lens,
+                                  instruction_ref cell_outputs,
+                                  instruction_ref last_cell_output,
+                                  op::rnn_direction dirct) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

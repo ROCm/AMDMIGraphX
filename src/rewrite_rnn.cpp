@@ -1188,12 +1188,12 @@ instruction_ref rewrite_rnn::replace_last_hs_output(program& prog,
     return result_ins;
 }
 
-void rewrite_rnn::replace_last_cell_output(program& prog, 
-                                instruction_ref ins, 
-                                instruction_ref seq_lens, 
-                                instruction_ref cell_outputs,
-                                instruction_ref last_cell_output,
-                                op::rnn_direction dirct) const
+void rewrite_rnn::replace_last_cell_output(program& prog,
+                                           instruction_ref ins,
+                                           instruction_ref seq_lens,
+                                           instruction_ref cell_outputs,
+                                           instruction_ref last_cell_output,
+                                           op::rnn_direction dirct) const
 {
     bool variable_seq_len = is_variable_seq_lens(prog, seq_lens);
 
@@ -1206,9 +1206,9 @@ void rewrite_rnn::replace_last_cell_output(program& prog,
         if(last_cell_output_it != ins->outputs().end())
         {
             cell_outputs = prog.insert_instruction(std::next(ins),
-                                                op::rnn_shift_output{"cell_outputs", dirct},
-                                                cell_outputs,
-                                                seq_lens);
+                                                   op::rnn_shift_output{"cell_outputs", dirct},
+                                                   cell_outputs,
+                                                   seq_lens);
         }
 
         last_cell_output_it = ins->outputs().begin();
@@ -1226,7 +1226,7 @@ void rewrite_rnn::replace_last_cell_output(program& prog,
             }
         }
     }
-    // replace the lstm_last_cell_output with the last_cell_output. The while 
+    // replace the lstm_last_cell_output with the last_cell_output. The while
     // loop is to handle the case of multiple lstm_last_cell_output operators
     else
     {

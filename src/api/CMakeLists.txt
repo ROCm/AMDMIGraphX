@@ -3,7 +3,7 @@ add_library(migraphx_c
     api.cpp
 )
 set_target_properties(migraphx_c PROPERTIES EXPORT_NAME c)
-rocm_set_soversion(migraphx_c 1.0)
+rocm_set_soversion(migraphx_c 2.0)
 
 rocm_clang_tidy_check(migraphx_c)
 target_link_libraries(migraphx_c PRIVATE migraphx migraphx_tf migraphx_onnx migraphx_cpu)

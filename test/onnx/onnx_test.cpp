@@ -13,7 +13,9 @@
 
 migraphx::program optimize_onnx(const std::string& name, bool eliminate_deadcode = false)
 {
-    auto prog = migraphx::parse_onnx(name);
+    migraphx::onnx_options options;
+    options.skip_unknown_operators = true;
+    auto prog                      = migraphx::parse_onnx(name, options);
     if(eliminate_deadcode)
         migraphx::run_passes(prog, {migraphx::dead_code_elimination{}});
 
@@ -78,11 +80,12 @@ TEST_CASE(add_fp16_test)
 TEST_CASE(add_scalar_test)
 {
     migraphx::program p;
-    auto l1 = p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1}});
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::uint8_type, {2, 3, 4, 5}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::uint8_type});
     auto m1 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l1);
-    p.add_instruction(migraphx::op::add{}, l0, m1);
-    auto prog = optimize_onnx("add_scalar_test.onnx");
+    auto r  = p.add_instruction(migraphx::op::add{}, l0, m1);
+    p.add_return({r});
+    auto prog = migraphx::parse_onnx("add_scalar_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -810,6 +813,23 @@ TEST_CASE(implicit_add_bcast_test)
     p.add_instruction(migraphx::op::add{}, l0, l3);
 
     auto prog = optimize_onnx("implicit_add_bcast_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(implicit_add_bcast_user_input_shape_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {4, 5, 1}});
+    auto l3 = p.add_instruction(migraphx::op::multibroadcast{{3, 4, 5, 6}}, l1);
+    auto r  = p.add_instruction(migraphx::op::add{}, l0, l3);
+    p.add_return({r});
+
+    migraphx::onnx_options options;
+    options.map_input_dims["0"] = {3, 4, 5, 6};
+    options.map_input_dims["1"] = {4, 5, 1};
+    auto prog                   = migraphx::parse_onnx("implicit_add_bcast_test.onnx", options);
 
     EXPECT(p == prog);
 }
@@ -1568,8 +1588,7 @@ TEST_CASE(sub_scalar_test)
 {
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
-    auto l1 =
-        p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1}});
+    auto l1 = p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1}});
     auto m1 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l1);
     p.add_instruction(migraphx::op::sub{}, l0, m1);
     auto prog = optimize_onnx("sub_scalar_test.onnx");
@@ -1607,6 +1626,32 @@ TEST_CASE(tanh_test)
     p.add_instruction(migraphx::op::tanh{}, input);
 
     auto prog = optimize_onnx("tanh_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(tile_test)
+{
+    migraphx::program p;
+    p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, {1, 2}});
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
+    p.add_instruction(migraphx::op::concat{1}, input, input);
+
+    auto prog = optimize_onnx("tile_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(tile_test_3x2)
+{
+    migraphx::program p;
+    p.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, {3, 2}});
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
+    auto l0    = p.add_instruction(migraphx::op::concat{0}, input, input);
+    auto l1    = p.add_instruction(migraphx::op::concat{0}, l0, input);
+    p.add_instruction(migraphx::op::concat{1}, l1, l1);
+
+    auto prog = optimize_onnx("tile_test_3x2.onnx");
 
     EXPECT(p == prog);
 }
@@ -1674,12 +1719,39 @@ TEST_CASE(unknown_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(unknown_test_throw)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("unknown_test.onnx"); }));
+}
+
+TEST_CASE(unknown_test_throw_print_error)
+{
+    migraphx::onnx_options options;
+    options.print_program_on_error = true;
+    EXPECT(test::throws([&] { migraphx::parse_onnx("unknown_test.onnx", options); }));
+}
+
 TEST_CASE(variable_batch_test)
 {
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
     p.add_instruction(migraphx::op::identity{}, l0);
     auto prog = optimize_onnx("variable_batch_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(variable_batch_user_input_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 16, 16}});
+    auto r  = p.add_instruction(migraphx::op::identity{}, l0);
+    p.add_return({r});
+
+    migraphx::onnx_options options;
+    options.default_dim_value = 2;
+
+    auto prog = migraphx::parse_onnx("variable_batch_test.onnx", options);
 
     EXPECT(p == prog);
 }

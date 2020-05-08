@@ -34,9 +34,11 @@ struct onnx_parser
         std::function<std::vector<instruction_ref>(node_info, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog            = program();
-    bool is_pytorch         = false;
-    unsigned int batch_size = 1;
+    program prog                  = program();
+    bool is_pytorch               = false;
+    std::size_t default_dim_value = 1;
+    std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
+    bool skip_unknown_operators = false;
 
     std::unordered_map<std::string, op_func> ops;
     std::unordered_map<std::string, operation> map_actv_funcs;
@@ -130,6 +132,7 @@ struct onnx_parser
         add_mem_op("Softmax", &onnx_parser::parse_softmax<op::softmax>);
         add_mem_op("Split", &onnx_parser::parse_split);
         add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
+        add_mem_op("Tile", &onnx_parser::parse_tile);
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
         add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
         add_mem_op("LSTM", &onnx_parser::parse_lstm);
@@ -1884,6 +1887,26 @@ struct onnx_parser
         return prog.add_instruction(op::add{}, l_mul, unsq_off_val);
     }
 
+    instruction_ref
+    parse_tile(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        migraphx::argument arg_s = args[1]->eval();
+        check_arg_empty(arg_s, "PARSE_TILE: dynamic shape is not supported");
+        std::vector<std::int64_t> repeats;
+        arg_s.visit([&](auto input) { repeats.assign(input.begin(), input.end()); });
+
+        auto l0 = args[0];
+        for(int i = 0; i < repeats.size(); i++)
+        {
+            auto l1 = l0;
+            for(int j = 1; j < repeats[i]; j++)
+            {
+                l0 = prog.add_instruction(op::concat{i}, l0, l1);
+            }
+        }
+        return l0;
+    }
+
     void parse_from(std::istream& is)
     {
         onnx::ModelProto model;
@@ -1927,8 +1950,13 @@ struct onnx_parser
             // input not in initializer_data, so it is a real input
             if(!contains(instructions, name))
             {
-                // TODO: Get shape of input parameter
-                shape s            = parse_type(input.type(), batch_size);
+                std::vector<std::size_t> dims;
+                if(map_input_dims.count(name) > 0)
+                {
+                    dims = map_input_dims.at(name);
+                }
+
+                shape s            = parse_type(input.type(), dims);
                 instructions[name] = prog.add_parameter(name, s);
             }
         }
@@ -1954,7 +1982,10 @@ struct onnx_parser
             std::size_t output_num = static_cast<std::size_t>(node.output().size());
             if(ops.count(node.op_type()) == 0)
             {
-                result.push_back(prog.add_instruction(op::unknown{node.op_type()}, args));
+                if(skip_unknown_operators)
+                    result.push_back(prog.add_instruction(op::unknown{node.op_type()}, args));
+                else
+                    MIGRAPHX_THROW("Unknown operator: " + node.op_type());
             }
             else
             {
@@ -2118,7 +2149,7 @@ struct onnx_parser
         return literal{{shape_type, dims}, data.begin(), data.end()};
     }
 
-    static shape parse_type(const onnx::TypeProto& t, const unsigned int batch_size)
+    shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims)
     {
         shape::type_t shape_type{};
         switch(t.tensor_type().elem_type())
@@ -2133,7 +2164,7 @@ struct onnx_parser
         case onnx::TensorProto::DOUBLE: shape_type = shape::double_type; break;
         case onnx::TensorProto::UINT32: shape_type = shape::uint32_type; break;
         case onnx::TensorProto::UINT64: shape_type = shape::uint64_type; break;
-        case onnx::TensorProto::UINT8:
+        case onnx::TensorProto::UINT8: shape_type = shape::uint8_type; break;
         case onnx::TensorProto::STRING:
         case onnx::TensorProto::BOOL:
         case onnx::TensorProto::UNDEFINED:
@@ -2141,6 +2172,12 @@ struct onnx_parser
         case onnx::TensorProto::COMPLEX128:
             break; // throw std::runtime_error("Unsupported type");
         }
+
+        if(!input_dims.empty())
+        {
+            return {shape_type, input_dims};
+        }
+
         std::vector<std::size_t> dims;
         auto&& tensor_dims = t.tensor_type().shape().dim();
         std::transform(tensor_dims.begin(),
@@ -2150,11 +2187,17 @@ struct onnx_parser
                            if(d.has_dim_value())
                            {
                                if(static_cast<int>(d.dim_value()) <= 0)
-                                   return batch_size;
+                               {
+                                   return default_dim_value;
+                               }
                                return d.dim_value();
                            }
-                           return batch_size;
+                           else
+                           {
+                               return default_dim_value;
+                           }
                        });
+
         if(dims.empty())
             return {shape_type};
 
@@ -2193,39 +2236,45 @@ struct onnx_parser
 };
 
 template <class... Ts>
-program parse_onnx_from(onnx_options options, Ts&&... xs)
+program parse_onnx_from(const onnx_options& options, Ts&&... xs)
 {
     onnx_parser parser;
-    parser.batch_size = options.batch_size;
-#ifndef NDEBUG
-    // Log the program when it can't be parsed
-    try
+    parser.map_input_dims         = options.map_input_dims;
+    parser.default_dim_value      = options.default_dim_value;
+    parser.skip_unknown_operators = options.skip_unknown_operators;
+
+    if(options.print_program_on_error)
+    {
+        // Log the program when it can't be parsed
+        try
+        {
+            parser.parse_from(std::forward<Ts>(xs)...);
+        }
+        catch(...)
+        {
+            std::cerr << parser.prog << std::endl;
+            throw;
+        }
+    }
+    else
     {
         parser.parse_from(std::forward<Ts>(xs)...);
     }
-    catch(...)
-    {
-        std::cerr << parser.prog << std::endl;
-        throw;
-    }
-#else
-    parser.parse_from(std::forward<Ts>(xs)...);
-#endif
     return std::move(parser.prog);
 }
 
-program parse_onnx(const std::string& name, onnx_options options)
+program parse_onnx(const std::string& name, const onnx_options& options)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     return parse_onnx_from(options, input);
 }
 
-program parse_onnx_buffer(const std::string& buffer, onnx_options options)
+program parse_onnx_buffer(const std::string& buffer, const onnx_options& options)
 {
     return parse_onnx_from(options, buffer.data(), buffer.size());
 }
 
-program parse_onnx_buffer(const void* data, std::size_t size, onnx_options options)
+program parse_onnx_buffer(const void* data, std::size_t size, const onnx_options& options)
 {
     return parse_onnx_from(options, data, size);
 }

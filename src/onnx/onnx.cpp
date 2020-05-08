@@ -511,6 +511,8 @@ struct onnx_parser
                 *ends_it   = *starts_it + 1;
                 slices.push_back(prog.add_instruction(op::slice{axes, starts, ends}, input));
             }
+            // when padding on the left side, the outermost pad should be at the beginning
+            std::reverse(slices.begin(), slices.end());
             slices.push_back(input);
             for(int idx : r_indices)
             {

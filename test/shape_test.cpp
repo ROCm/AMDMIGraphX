@@ -47,6 +47,15 @@ TEST_CASE(test_shape_packed)
     EXPECT(not s.broadcasted());
 }
 
+TEST_CASE(test_shape_non_packed_single_dim)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 64, 35, 35}, {156800, 1225, 35, 1}};
+    EXPECT(s.standard());
+    EXPECT(s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
 TEST_CASE(test_shape_transposed1)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2}, {1, 2}};
@@ -170,6 +179,53 @@ TEST_CASE(test_shape_default_copy)
     migraphx::shape s2{};
     EXPECT(s1 == s2);
     EXPECT(!(s1 != s2));
+}
+
+TEST_CASE(test_shape_normalize_standard1)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}, {6, 3, 1}};
+    EXPECT(s.standard());
+    auto n = s.normalize_standard();
+    EXPECT(n == s);
+}
+
+TEST_CASE(test_shape_normalize_standard2)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 64, 35, 35}, {156800, 1225, 35, 1}};
+    EXPECT(s.standard());
+    auto n = s.normalize_standard();
+    EXPECT(n.standard());
+    EXPECT(n != s);
+    EXPECT(n.lens() == s.lens());
+    EXPECT(n.type() == s.type());
+}
+
+TEST_CASE(test_shape_normalize_standard3)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}, {1, 2}};
+    EXPECT(not s.standard());
+    auto n = s.normalize_standard();
+    EXPECT(n == s);
+}
+
+TEST_CASE(test_shape_normalize_scalar1)
+{
+    migraphx::shape s{migraphx::shape::float_type};
+    EXPECT(s.standard());
+    EXPECT(s.scalar());
+    auto n = s.normalize_standard();
+    EXPECT(n != s);
+    EXPECT(n.standard());
+    EXPECT(not n.scalar());
+}
+
+TEST_CASE(test_shape_normalize_scalar2)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}, {0, 0}};
+    EXPECT(not s.standard());
+    EXPECT(s.scalar());
+    auto n = s.normalize_standard();
+    EXPECT(n == s);
 }
 
 TEST_CASE(test_shape4)

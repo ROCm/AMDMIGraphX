@@ -38,6 +38,7 @@ struct onnx_parser
     bool is_pytorch               = false;
     std::size_t default_dim_value = 1;
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
+    bool skip_unknown_operators = false;
 
     std::unordered_map<std::string, op_func> ops;
     std::unordered_map<std::string, operation> map_actv_funcs;
@@ -1981,7 +1982,10 @@ struct onnx_parser
             std::size_t output_num = static_cast<std::size_t>(node.output().size());
             if(ops.count(node.op_type()) == 0)
             {
-                result.push_back(prog.add_instruction(op::unknown{node.op_type()}, args));
+                if(skip_unknown_operators)
+                    result.push_back(prog.add_instruction(op::unknown{node.op_type()}, args));
+                else
+                    MIGRAPHX_THROW("Unknown operator: " + node.op_type());
             }
             else
             {
@@ -2235,23 +2239,27 @@ template <class... Ts>
 program parse_onnx_from(const onnx_options& options, Ts&&... xs)
 {
     onnx_parser parser;
-    parser.map_input_dims    = options.map_input_dims;
-    parser.default_dim_value = options.default_dim_value;
+    parser.map_input_dims         = options.map_input_dims;
+    parser.default_dim_value      = options.default_dim_value;
+    parser.skip_unknown_operators = options.skip_unknown_operators;
 
-#ifndef NDEBUG
-    // Log the program when it can't be parsed
-    try
+    if(options.print_program_on_error)
+    {
+        // Log the program when it can't be parsed
+        try
+        {
+            parser.parse_from(std::forward<Ts>(xs)...);
+        }
+        catch(...)
+        {
+            std::cerr << parser.prog << std::endl;
+            throw;
+        }
+    }
+    else
     {
         parser.parse_from(std::forward<Ts>(xs)...);
     }
-    catch(...)
-    {
-        std::cerr << parser.prog << std::endl;
-        throw;
-    }
-#else
-    parser.parse_from(std::forward<Ts>(xs)...);
-#endif
     return std::move(parser.prog);
 }
 

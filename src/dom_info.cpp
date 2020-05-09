@@ -17,6 +17,7 @@ bool dominator_info::strictly_dominate(instruction_ref ins1, instruction_ref ins
     {
         if(ins1 == iter->second)
             return true;
+        assert(iter != ins2idom.find(iter->second));
         iter = ins2idom.find(iter->second);
     }
     return false;
@@ -38,34 +39,30 @@ dominator_info compute_dominator_generic(Visitor v)
     for(instruction_ref ins : iterator_for(v.get_nodes()))
     {
         const std::vector<instruction_ref>& children = v.get_children(ins);
-        if(not children.empty())
+        if(children.size() == 1)
         {
-            auto arg         = children.front();
-            instr2_doms[ins] = instr2_doms[arg];
+            info.ins2idom[ins] = children.front();
+            instr2_doms[ins].insert(children.front());
+        }
+        else if(children.size() > 1)
+        {
+            auto&& doms = instr2_doms[ins];
+
+            doms = instr2_doms[children.front()];
             std::for_each(children.begin() + 1, children.end(), [&](instruction_ref child) {
                 auto&& child_doms = instr2_doms[child];
-                erase_if(instr2_doms[ins], [&](auto x) { return contains(child_doms, x); });
+                erase_if(doms, [&](auto x) { return not contains(child_doms, x); });
             });
-
-            if(children.size() == 1)
-            {
-                info.ins2idom[ins] = arg;
-            }
-            else
-            {
-                for(auto x : instr2_doms[ins])
-                {
-                    if(!std::any_of(instr2_doms[ins].begin(), instr2_doms[ins].end(), [&](auto y) {
-                           return info.strictly_dominate(x, y);
-                       }))
-                    {
-                        assert(info.ins2idom.find(ins) == info.ins2idom.end());
-                        info.ins2idom[ins] = x;
-                    }
-                }
-            }
+            auto iter = std::find_if(doms.begin(), doms.end(), [&](auto dom1) {
+                return std::none_of(doms.begin(), doms.end(), [&](auto dom2) {
+                    if (dom1 == dom2)
+                        return false;
+                    return info.strictly_dominate(dom1, dom2);
+                });
+            });
+            if (iter != doms.end())
+                info.ins2idom[ins] = *iter;
         }
-
         instr2_doms[ins].insert(ins);
     }
     return info;

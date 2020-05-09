@@ -340,18 +340,17 @@ struct find_gelu
             match::used_once(),
             match::arg(0)(match::used_once(),
                           match::name("gpu::mul")(match::either_arg(0, 1)(
-                              match::none_of(match::has_value(M_SQRT1_2)).bind("x"), match::has_value(M_SQRT1_2)))));
+                              match::none_of(match::has_value(M_SQRT1_2)).bind("x"),
+                              match::has_value(M_SQRT1_2)))));
     }
 
     auto matcher() const
     {
         return match::name("gpu::mul")(match::either_arg(0, 1)(
-                                           match::name("gpu::mul")(
-                                                match::any_arg(0, 1)(match::args(match::has_value(0.5f)))),
-                                                match::name("gpu::add")(
-                                                match::used_once(),
-                                                match::either_arg(0, 1)(erf_fn(), match::args(match::has_value(1.0f))))
-                                       ));
+            match::name("gpu::mul")(match::any_arg(0, 1)(match::args(match::has_value(0.5f)))),
+            match::name("gpu::add")(
+                match::used_once(),
+                match::either_arg(0, 1)(erf_fn(), match::args(match::has_value(1.0f))))));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -394,22 +393,19 @@ struct find_gelu_new
 
     static auto tanh_fn()
     {
-        return match::name("gpu::tanh")(match::arg(0)(match::name("gpu::mul")(
-            match::either_arg(0, 1)(
-                match::args(match::has_value(sqrt(M_2_PI))),
-                match::name("gpu::add")(match::any_arg(0, 1)(
-                    match::name("gpu::mul")(match::either_arg(0, 1)(
-                                                match::args(match::has_value(0.044715f)),
-                                                pow_fn()))))))));
+        return match::name(
+            "gpu::tanh")(match::arg(0)(match::name("gpu::mul")(match::either_arg(0, 1)(
+            match::args(match::has_value(sqrt(M_2_PI))),
+            match::name("gpu::add")(match::any_arg(0, 1)(match::name("gpu::mul")(
+                match::either_arg(0, 1)(match::args(match::has_value(0.044715f)), pow_fn()))))))));
     }
 
     auto matcher() const
     {
-        return match::name("gpu::mul")(
-            match::either_arg(0, 1)(
-                match::any().bind("x"),
-                match::name("gpu::add")(match::any_arg(0, 1)(match::name("gpu::mul")(
-                    match::either_arg(0, 1)(match::args(match::has_value(0.5f)), tanh_fn()))))));
+        return match::name("gpu::mul")(match::either_arg(0, 1)(
+            match::any().bind("x"),
+            match::name("gpu::add")(match::any_arg(0, 1)(match::name("gpu::mul")(
+                match::either_arg(0, 1)(match::args(match::has_value(0.5f)), tanh_fn()))))));
     }
 
     void apply(program& p, match::matcher_result r) const

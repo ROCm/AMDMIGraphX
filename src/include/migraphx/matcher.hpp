@@ -520,9 +520,7 @@ inline auto either_arg(std::size_t i, std::size_t j)
 
 inline auto any_arg(std::size_t i, std::size_t j)
 {
-    return [=](auto m) {
-        return match::any_of(arg(i)(m), arg(j)(m));
-    };
+    return [=](auto m) { return match::any_of(arg(i)(m), arg(j)(m)); };
 }
 
 template <class M>

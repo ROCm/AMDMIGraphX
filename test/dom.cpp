@@ -24,7 +24,6 @@ TEST_CASE(dom1)
     EXPECT(not dom.strictly_dominate(ins4, ins6));
     EXPECT(not dom.strictly_dominate(ins3, ins5));
     EXPECT(not dom.strictly_dominate(ins4, ins5));
-
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

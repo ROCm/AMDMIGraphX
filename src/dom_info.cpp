@@ -55,12 +55,12 @@ dominator_info compute_dominator_generic(Visitor v)
             });
             auto iter = std::find_if(doms.begin(), doms.end(), [&](auto dom1) {
                 return std::none_of(doms.begin(), doms.end(), [&](auto dom2) {
-                    if (dom1 == dom2)
+                    if(dom1 == dom2)
                         return false;
                     return info.strictly_dominate(dom1, dom2);
                 });
             });
-            if (iter != doms.end())
+            if(iter != doms.end())
                 info.ins2idom[ins] = *iter;
         }
         instr2_doms[ins].insert(ins);

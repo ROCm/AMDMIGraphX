@@ -20,13 +20,6 @@ void cse_range(program& p, Range&& r)
         // Skip dead instructions
         if(ins->outputs().empty())
             continue;
-        // Find instruction with the same name
-        // int i = 0;
-        // if(ins->name() == "@literal")
-        // {
-        //     if(ins->get_shape().lens().at(0) == 1)
-        //         ++i;
-        // }
         auto found_instructions = range(instructions.equal_range(ins->name()));
         for(const auto& pp : found_instructions)
         {

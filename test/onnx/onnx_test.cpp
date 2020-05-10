@@ -13,7 +13,9 @@
 
 migraphx::program optimize_onnx(const std::string& name, bool eliminate_deadcode = false)
 {
-    auto prog = migraphx::parse_onnx(name);
+    migraphx::onnx_options options;
+    options.skip_unknown_operators = true;
+    auto prog                      = migraphx::parse_onnx(name, options);
     if(eliminate_deadcode)
         migraphx::run_passes(prog, {migraphx::dead_code_elimination{}});
 
@@ -1749,6 +1751,18 @@ TEST_CASE(unknown_test)
     auto prog = optimize_onnx("unknown_test.onnx");
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(unknown_test_throw)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("unknown_test.onnx"); }));
+}
+
+TEST_CASE(unknown_test_throw_print_error)
+{
+    migraphx::onnx_options options;
+    options.print_program_on_error = true;
+    EXPECT(test::throws([&] { migraphx::parse_onnx("unknown_test.onnx", options); }));
 }
 
 TEST_CASE(variable_batch_test)

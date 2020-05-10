@@ -4,13 +4,17 @@
 #include <migraphx/op/add.hpp>
 #include <migraphx/op/mul.hpp>
 #include <migraphx/op/concat.hpp>
+#include <migraphx/op/slice.hpp>
 #include <migraphx/op/convolution.hpp>
+#include <migraphx/op/contiguous.hpp>
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/neg.hpp>
 #include <migraphx/op/recip.hpp>
+#include <migraphx/op/rsqrt.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
+#include <migraphx/algorithm.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -245,6 +249,212 @@ struct find_concat_binary
     }
 };
 
+std::vector<instruction_ref> get_splits(instruction_ref ins)
+{
+    std::vector<instruction_ref> result;
+    std::copy_if(ins->outputs().begin(),
+                 ins->outputs().end(),
+                 std::back_inserter(result),
+                 [&](auto i) { return i->name() == "slice"; });
+    if(result.size() < 2)
+        return {};
+    auto get_slice = [](auto& i) -> auto& { return any_cast<op::slice>(i->get_operator()); };
+    auto&& axes    = get_slice(result.front()).axes;
+    if(std::any_of(result.begin(), result.end(), [&](auto i) { return get_slice(i).axes != axes; }))
+        return {};
+    auto get_start = [&](auto& i) -> auto& { return get_slice(i).starts; };
+    auto get_end   = [&](auto& i) -> auto& { return get_slice(i).ends; };
+    std::sort(
+        result.begin(), result.end(), [&](auto x, auto y) { return get_start(x) < get_start(y); });
+    if(std::any_of(get_start(result.front()).begin(), get_start(result.front()).end(), [&](auto i) {
+           return i != 0;
+       }))
+        return {};
+    auto it = std::adjacent_find(
+        result.begin(), result.end(), [&](auto x, auto y) { return get_end(x) != get_start(y); });
+    if(it != result.end())
+        return {};
+    for(std::size_t i = 0; i < axes.size(); i++)
+    {
+        auto axis = axes[i];
+        if(ins->get_shape().lens()[axis] != get_slice(result.back()).ends[i])
+            return {};
+    }
+    return result;
+}
+
+struct find_splits
+{
+    auto matcher() const
+    {
+        return match::any(match::any_of[match::outputs()](match::name("slice")(
+            match::any_of[match::outputs()](match::name("add", "mul", "relu")))));
+    }
+
+    static std::vector<std::vector<instruction_ref>>
+    get_split_groups(const std::vector<instruction_ref>& splits)
+    {
+        std::vector<std::vector<instruction_ref>> groups;
+        for(auto out : splits.front()->outputs())
+        {
+            if(out->name() == "slice")
+                continue;
+            std::vector<instruction_ref> group;
+            for(auto split : splits)
+            {
+                auto it =
+                    std::find_if(split->outputs().begin(), split->outputs().end(), [&](auto i) {
+                        return i->get_operator() == out->get_operator();
+                    });
+                if(it == split->outputs().end())
+                    break;
+                assert((*it)->name() != "slice");
+                // If there is a duplicate bail
+                if(contains(group, *it))
+                    return {};
+                group.push_back(*it);
+            }
+            if(group.size() != splits.size())
+                continue;
+            groups.push_back(group);
+        }
+        return groups;
+    }
+
+    void apply(program& p, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+
+        auto splits = get_splits(ins);
+        if(splits.empty())
+            return;
+        for(const auto& group : get_split_groups(splits))
+        {
+            auto start = group.front();
+            auto op    = start->get_operator();
+            if(op.name() == "slice")
+                continue;
+
+            // Make sure there is no duplicates
+            assert(std::none_of(
+                std::next(group.begin()), group.end(), [&](auto i) { return i == start; }));
+
+            auto split_idx    = 0;
+            instruction_ref c = p.end();
+            if(start->inputs().size() == 1)
+            {
+                c = p.insert_instruction(std::next(ins), op, ins);
+            }
+            else if(start->inputs().size() == 2)
+            {
+                assert(not std::none_of(start->inputs().begin(), start->inputs().end(), [](auto i) {
+                    return i->name() == "slice";
+                }) && "one argument must be a split");
+                auto data_idx = 1;
+                if(start->inputs().back()->name() == "slice")
+                {
+                    split_idx = 1;
+                    data_idx  = 0;
+                }
+
+                std::vector<instruction_ref> data_args;
+                std::transform(group.begin(),
+                               group.end(),
+                               std::back_inserter(data_args),
+                               [&](auto i) { return i->inputs()[data_idx]; });
+
+                // Data arguments must be a constant
+                if(std::any_of(data_args.begin(), data_args.end(), [](auto i) {
+                       return not i->can_eval();
+                   }))
+                    return;
+
+                for(auto data : data_args)
+                    p.move_instructions(data, ins);
+
+                auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
+                assert(not slice_op.axes.empty());
+                if(slice_op.axes.size() > 1)
+                    return;
+                auto concat_axis = slice_op.axes.front();
+                // TODO: Check if axises match
+                auto concat = p.insert_instruction(ins, op::concat{concat_axis}, data_args);
+
+                std::vector<instruction_ref> args;
+                args.resize(2);
+                args[split_idx] = ins;
+                args[data_idx]  = concat;
+                c               = p.insert_instruction(std::next(ins), op, args);
+            }
+            if(c != p.end())
+            {
+                for(auto i : group)
+                {
+                    auto split = i->inputs()[split_idx];
+                    assert(split->name() == "slice");
+                    // Insert contiguous for reshapes
+                    for(auto output : i->outputs())
+                    {
+                        if(not contains({"reshape", "squeeze", "unsqueeze"}, output->name()))
+                            continue;
+                        auto x = p.insert_instruction(output, op::contiguous{}, output->inputs());
+                        p.replace_instruction(output, output->get_operator(), x);
+                    }
+
+                    p.replace_instruction(i, split->get_operator(), c);
+                }
+            }
+        }
+    }
+};
+
+struct find_split_concat
+{
+    auto matcher() const
+    {
+        return match::any(match::any_of[match::outputs()](
+            match::name("slice")(match::all_of[match::outputs()](match::name("concat")))));
+    }
+
+    void apply(program& p, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+
+        auto splits = get_splits(ins);
+        if(splits.empty())
+            return;
+        if(std::any_of(
+               splits.begin(), splits.end(), [](auto i) { return i->outputs().size() != 1; }))
+            return;
+        // Check for concat operator
+        auto concat = splits.front()->outputs().front();
+        if(std::any_of(splits.begin(), splits.end(), [&](auto i) {
+               return i->outputs().front() != concat;
+           }))
+            return;
+        // Check axis match
+        auto concat_op = any_cast<op::concat>(concat->get_operator());
+        auto split_op  = any_cast<op::slice>(splits.front()->get_operator());
+        if(split_op.axes.size() != 1)
+            return;
+        if(split_op.axes.front() != concat_op.axis)
+            return;
+        // Replace args
+        auto args = concat->inputs();
+        auto it =
+            std::find_if(args.begin(), args.end(), [&](auto i) { return i == splits.front(); });
+        if(std::distance(it, args.end()) < splits.size())
+            return;
+        *it = splits.front()->inputs().front();
+        args.erase(std::next(it), it + splits.size());
+
+        if(args.size() == 1)
+            p.replace_instruction(concat, args.front());
+        else
+            p.replace_instruction(concat, concat->get_operator(), args);
+    }
+};
+
 bool axis_equal(const std::vector<std::size_t>& x,
                 const std::vector<std::size_t>& y,
                 std::size_t axis)
@@ -351,6 +561,83 @@ struct find_add_convs
     }
 };
 
+MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
+{
+    auto pred = [&](auto name) {
+        return [=](auto i) {
+            return i->name() == name and i->inputs().front() == ins and
+                   i->inputs().at(1)->can_eval();
+        };
+    };
+    auto dots  = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("dot"));
+    auto convs = std::count_if(ins->outputs().begin(), ins->outputs().end(), pred("convolution"));
+    return !(dots < 2 and convs < 2);
+}
+
+struct find_conv_dot_horiz_fusion
+{
+    auto matcher() const { return horiz_conv_dot(); }
+
+    void apply(program& p, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+
+        auto pred = [](auto i, auto j) {
+            if(i->get_operator() != j->get_operator())
+                return false;
+            if(not contains({"dot", "convolution"}, i->name()))
+                return true;
+            auto x = i->inputs()[1]->get_shape().lens();
+            auto y = j->inputs()[1]->get_shape().lens();
+            if(x.size() != y.size())
+                return false;
+            // Check that non-axises match
+            int axis = 1;
+            if(i->name() == "dot")
+            {
+                axis = x.size() - 1;
+            }
+            return axis_equal(x, y, axis);
+        };
+
+        auto each = [&](auto start, auto last) {
+            if(std::distance(start, last) < 2)
+                return;
+            auto&& name = (*start)->name();
+            if(not contains({"dot", "convolution"}, name))
+                return;
+            auto input = (*start)->inputs().front();
+            std::vector<instruction_ref> args;
+            std::transform(
+                start, last, std::back_inserter(args), [&](auto x) { return x->inputs().at(1); });
+            int axis        = 1;
+            int concat_axis = 0;
+            if(name == "dot")
+            {
+                axis        = int(args.front()->get_shape().lens().size() - 1);
+                concat_axis = axis;
+            }
+
+            for(auto arg : args)
+                p.move_instructions(arg, input);
+            // TODO: Check if axises match
+            auto concat = p.insert_instruction(input, op::concat{concat_axis}, args);
+            auto fused =
+                p.insert_instruction(std::next(input), (*start)->get_operator(), input, concat);
+            int64_t offset = 0;
+            for(auto arg : range(start, last))
+            {
+                int64_t len = arg->get_shape().lens()[axis];
+                p.replace_instruction(arg, op::slice{{axis}, {offset}, {offset + len}}, fused);
+                offset += len;
+            }
+        };
+
+        auto outputs = ins->outputs();
+        group_by(outputs.begin(), outputs.end(), each, pred);
+    }
+};
+
 struct find_div_const
 {
     auto matcher() const
@@ -391,22 +678,43 @@ struct find_sub_const
     }
 };
 
+struct find_rsqrt
+{
+    auto matcher() const
+    {
+        return match::name("recip")(match::args(
+            match::name("sqrt")(match::used_once(), match::args(match::any().bind("x")))));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+
+        p.replace_instruction(ins, op::rsqrt{}, x_ins);
+    }
+};
+
 void simplify_algebra::apply(program& p) const
 {
     // Run simplifications multiple times
-    for(int i = 0; i < 4; i++)
+    for(int i = 0; i < 8; i++)
     {
         match::find_matches(p,
                             find_inner_broadcast{},
                             find_double_add_lit_broadcast{},
                             find_add_lit_broadcast{},
                             find_add_convs{},
+                            find_conv_dot_horiz_fusion{},
                             find_mul_conv{},
                             find_mul_add{},
                             find_div_const{},
                             find_sub_const{},
+                            find_rsqrt{},
                             find_concat_unary{},
-                            find_concat_binary{});
+                            find_concat_binary{},
+                            find_split_concat{},
+                            find_splits{});
         dead_code_elimination{}.apply(p);
     }
 }

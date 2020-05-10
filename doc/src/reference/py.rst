@@ -192,12 +192,15 @@ program
 parse_onnx
 ----------
 
-.. py:function:: parse_onnx(filename, batch_size=1)
+.. py:function:: parse_onnx(filename, default_dim_value=1, map_input_dims={}, skip_unknown_operators=false, print_program_on_error=false)
 
     Load and parse an onnx file.
 
     :param str filename: Path to file.
-    :param str batch_size: default batch size to use (if not specified in onnx file).
+    :param str default_dim_value: default batch size to use (if not specified in onnx file).
+    :param str map_input_dims: Explicitly specify the dims of an input.
+    :param str skip_unknown_operators: Continue parsing onnx file if an unknown operator is found.
+    :param str print_program_on_error: Print program if an error occurs.
 
     :rtype: program
 

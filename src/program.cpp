@@ -11,6 +11,7 @@
 #include <iostream>
 #include <sstream>
 #include <algorithm>
+#include <set>
 #include <utility>
 
 namespace migraphx {
@@ -257,6 +258,14 @@ instruction_ref program::remove_instructions(instruction_ref first, instruction_
 instruction_ref program::move_instruction(instruction_ref src, instruction_ref dst)
 {
     impl->instructions.splice(dst, impl->instructions, src);
+    return src;
+}
+
+instruction_ref program::move_instructions(instruction_ref src, instruction_ref dst)
+{
+    this->move_instruction(src, dst);
+    for(auto ins : src->inputs())
+        this->move_instruction(ins, src);
     return src;
 }
 
@@ -794,6 +803,17 @@ void program::annotate(std::ostream& os, std::function<void(instruction_ref)> a)
         a(ins);
         os << std::endl;
     });
+}
+
+program& program::sort()
+{
+    fix([&](auto self, auto ins) {
+        this->move_instruction(ins, this->begin());
+        for(auto child : ins->inputs())
+            self(child);
+    })(std::prev(this->end()));
+    assert(this->validate() == this->end());
+    return *this;
 }
 
 bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }

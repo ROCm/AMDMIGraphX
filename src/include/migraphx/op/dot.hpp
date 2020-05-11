@@ -9,6 +9,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/gemm.hpp>
 #include <cmath>
 #include <utility>
 
@@ -66,6 +67,18 @@ struct dot
         }
 
         return {t, out_lens};
+    }
+
+    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    {
+        argument result;
+        if(args.size() == 3)
+            result = args[2];
+        else
+            result = argument{output_shape};
+        visit_all(result, args[0], args[1])(
+            [&](auto cmat, auto amat, auto bmat) { gemm(cmat, amat, bmat, alpha, beta); });
+        return result;
     }
 };
 

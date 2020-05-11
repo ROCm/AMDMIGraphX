@@ -20,11 +20,13 @@ void cse_range(program& p, Range&& r)
         // Skip dead instructions
         if(ins->outputs().empty())
             continue;
+        
+        // Find instruction with the same name
         auto found_instructions = range(instructions.equal_range(ins->name()));
         for(const auto& pp : found_instructions)
         {
             auto eq = pp.second;
-            if(processed_ins.find(eq) != processed_ins.end())
+            if(contains(processed_ins, eq))
                 continue;
             if(*eq != *ins)
                 continue;

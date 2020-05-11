@@ -73,7 +73,8 @@ struct rewrite_rnn
                                   instruction_ref last_cell_output,
                                   op::rnn_direction dirct) const;
 
-    std::size_t get_seq_len(const program& prog, instruction_ref input, instruction_ref seq_lens) const;                                  
+    std::size_t
+    get_seq_len(const program& prog, instruction_ref input, instruction_ref seq_lens) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

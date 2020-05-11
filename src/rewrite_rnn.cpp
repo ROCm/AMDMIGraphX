@@ -901,14 +901,14 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
 {
     // must have 7 args in the input vector
     assert(inputs.size() == 8);
-    auto seq  = inputs.at(0);
-    auto w    = inputs.at(1);
-    auto r    = inputs.at(2);
-    auto bias = inputs.at(3);
+    auto seq      = inputs.at(0);
+    auto w        = inputs.at(1);
+    auto r        = inputs.at(2);
+    auto bias     = inputs.at(3);
     auto seq_lens = inputs.at(4);
-    auto ih   = inputs.at(5);
-    auto ic   = inputs.at(6);
-    auto pph  = inputs.at(7);
+    auto ih       = inputs.at(5);
+    auto ic       = inputs.at(6);
+    auto pph      = inputs.at(7);
 
     instruction_ref hidden_states = prog.end();
     instruction_ref cell_outputs  = prog.end();
@@ -918,7 +918,7 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
 
     migraphx::shape seq_shape = seq->get_shape();
     migraphx::shape r_shape   = r->get_shape();
-    long max_seq_len              = static_cast<long>(seq_shape.lens()[0]);
+    long max_seq_len          = static_cast<long>(seq_shape.lens()[0]);
     long hs                   = static_cast<long>(r_shape.lens()[2]);
     auto bs                   = ih->get_shape().lens()[1];
 
@@ -1048,20 +1048,20 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
         }
     }
 
-    // condition of all sequence are of the same length and 
+    // condition of all sequence are of the same length and
     // less than max_seq_len, we need to append the hs outputs
-    // In this case, the cell_output is not used at all, so 
+    // In this case, the cell_output is not used at all, so
     // no need to extand it to the avariable length
-    if (seq_len < max_seq_len)
+    if(seq_len < max_seq_len)
     {
-        auto s = last_hs_output->get_shape();
+        auto s        = last_hs_output->get_shape();
         auto pad_lens = s.lens();
-        pad_lens[0] = static_cast<std::size_t>(max_seq_len - seq_len);
+        pad_lens[0]   = static_cast<std::size_t>(max_seq_len - seq_len);
         shape pad_s{s.type(), pad_lens};
         std::vector<float> data(pad_s.elements(), 0.0f);
-        auto pl = prog.add_literal(pad_s, data.begin(), data.end());
-        auto arg0 = is_forward ? hidden_states : pl;
-        auto arg1 = is_forward ? pl : hidden_states;
+        auto pl       = prog.add_literal(pad_s, data.begin(), data.end());
+        auto arg0     = is_forward ? hidden_states : pl;
+        auto arg1     = is_forward ? pl : hidden_states;
         hidden_states = prog.insert_instruction(ins, op::concat{0}, arg0, arg1);
     }
 
@@ -1171,12 +1171,13 @@ bool rewrite_rnn::is_variable_seq_lens(const program& prog, instruction_ref seq_
     return is_var_lens;
 }
 
-std::size_t rewrite_rnn::get_seq_len(const program& prog, instruction_ref input, instruction_ref seq_lens) const
+std::size_t
+rewrite_rnn::get_seq_len(const program& prog, instruction_ref input, instruction_ref seq_lens) const
 {
     bool is_var_lens = is_variable_seq_lens(prog, seq_lens);
     auto input_shape = input->get_shape();
-    auto length = input_shape.lens()[0];
-    if (!is_var_lens and seq_lens != prog.end())
+    auto length      = input_shape.lens()[0];
+    if(!is_var_lens and seq_lens != prog.end())
     {
         auto arg_len = seq_lens->eval();
         std::vector<std::size_t> vec_lens;

@@ -2514,22 +2514,21 @@ TEST_CASE(lstm_forward_more)
     // than max_seq_len
     {
         migraphx::program p;
-        auto seq_orig  = p.add_literal(migraphx::literal{in_shape, input_data});
-        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
-        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
-        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
-        auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
-        auto ic   = p.add_literal(migraphx::literal{ic_shape, ic_data});
+        auto seq_orig = p.add_literal(migraphx::literal{in_shape, input_data});
+        auto w        = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r        = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto bias     = p.add_literal(migraphx::literal{b_shape, bias_data});
+        auto ih       = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        auto ic       = p.add_literal(migraphx::literal{ic_shape, ic_data});
         migraphx::shape pad_seq_s{migraphx::shape::float_type, {2, batch_size, input_size}};
         std::vector<float> pad_data(pad_seq_s.elements(), 0.0f);
         auto seq_p = p.add_literal(migraphx::literal{pad_seq_s, pad_data});
-        auto seq = p.add_instruction(migraphx::op::concat{0}, seq_orig, seq_p);
+        auto seq   = p.add_instruction(migraphx::op::concat{0}, seq_orig, seq_p);
         migraphx::shape seq_len_s{migraphx::shape::int32_type, {batch_size}};
         std::vector<int32_t> len_data(batch_size, static_cast<int32_t>(seq_len));
         auto sql = p.add_literal(seq_len_s, len_data);
 
-        auto und  = p.add_instruction(migraphx::op::undefined{});
-
+        auto und = p.add_instruction(migraphx::op::undefined{});
 
         auto hs = p.add_instruction(
             migraphx::op::lstm{
@@ -2761,7 +2760,7 @@ TEST_CASE(lstm_reverse)
         migraphx::shape pad_seq_s{migraphx::shape::float_type, {2, batch_size, input_size}};
         std::vector<float> pad_data(pad_seq_s.elements(), 0.0f);
         auto seq_p = p.add_literal(migraphx::literal{pad_seq_s, pad_data});
-        auto seq = p.add_instruction(migraphx::op::concat{0}, seq_orig, seq_p);
+        auto seq   = p.add_instruction(migraphx::op::concat{0}, seq_orig, seq_p);
         migraphx::shape seq_len_s{migraphx::shape::int32_type, {batch_size}};
         std::vector<int32_t> len_data(batch_size, static_cast<int32_t>(seq_len));
         auto sql = p.add_literal(seq_len_s, len_data);
@@ -2791,9 +2790,11 @@ TEST_CASE(lstm_reverse)
             0.148524,  0.05108,   -0.0234895, -0.182201, -0.0232277, 0.235501,   -0.213485,
             0.960938,  0.133565,  0.269741,   0.130438,  -0.0252804, 0.267356,   0.146353,
             0.0789186, -0.185038, -0.026845,  0.177273,  -0.0774616, 0.946669,   0.0868676,
-            0.044508,  -0.373961, -0.0681467, 0.382748,  0.230211,   -0.161537, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            0.044508,  -0.373961, -0.0681467, 0.382748,  0.230211,   -0.161537,  0.0,
+            0.0,       0.0,       0.0,        0.0,       0.0,        0.0,        0.0,
+            0.0,       0.0,       0.0,        0.0,       0.0,        0.0,        0.0,
+            0.0,       0.0,       0.0,        0.0,       0.0,        0.0,        0.0,
+            0.0,       0.0};
         EXPECT(migraphx::verify_range(output_data, output_data_gold));
     }
 
@@ -2832,11 +2833,13 @@ TEST_CASE(lstm_reverse)
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{
-            -0.126517, 0.0359124, 0.107453, -0.0617278, 0.911307, 0.11468, 0.114449, 
-            0.0196755, -0.102969, 0.295872, 0.515859, 0.246501, -0.168327, 0.00023761, 
-            0.167567, -0.0621982, 0.96657, 0.0755112, 0.0620917, -0.264845, 0, 0, 0, 0, 
-            -0.204545, 0.0146403, 0.210057, 0.0296268, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-            0, 0, 0, 0, 0, 0, 0, 0, 0};
+            -0.126517, 0.0359124,  0.107453, -0.0617278, 0.911307,  0.11468,   0.114449,
+            0.0196755, -0.102969,  0.295872, 0.515859,   0.246501,  -0.168327, 0.00023761,
+            0.167567,  -0.0621982, 0.96657,  0.0755112,  0.0620917, -0.264845, 0,
+            0,         0,          0,        -0.204545,  0.0146403, 0.210057,  0.0296268,
+            0,         0,          0,        0,          0,         0,         0,
+            0,         0,          0,        0,          0,         0,         0,
+            0,         0,          0,        0,          0,         0};
         EXPECT(migraphx::verify_range(output_data, output_data_gold));
     }
 

@@ -1060,9 +1060,7 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
         shape pad_s{s.type(), pad_lens};
         std::vector<float> data(pad_s.elements(), 0.0f);
         auto pl       = prog.add_literal(pad_s, data.begin(), data.end());
-        auto arg0     = is_forward ? hidden_states : pl;
-        auto arg1     = is_forward ? pl : hidden_states;
-        hidden_states = prog.insert_instruction(ins, op::concat{0}, arg0, arg1);
+        hidden_states = prog.insert_instruction(ins, op::concat{0}, hidden_states, pl);
     }
 
     return {hidden_states, last_hs_output, cell_outputs, last_cell_output};

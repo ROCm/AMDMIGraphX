@@ -4108,7 +4108,7 @@ struct test_lstm_bidirct_hs : verify_program<test_lstm_bidirct_hs>
         auto r    = p.add_parameter("r", r_shape);
         auto bias = p.add_parameter("bias", b_shape);
         auto ih   = p.add_parameter("ih", ih_shape);
-        std::vector<int> sl_data{3, 2, 1};
+        std::vector<int> sl_data{3, 2};
         auto sql = p.add_literal(migraphx::literal{migraphx::literal{sl_shape, sl_data}});
 
         p.add_instruction(migraphx::op::lstm{hidden_size,

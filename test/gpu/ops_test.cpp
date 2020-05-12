@@ -4101,13 +4101,15 @@ struct test_lstm_bidirct_hs : verify_program<test_lstm_bidirct_hs>
                                 {num_dirct, 4 * hidden_size, hidden_size}};
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 8 * hidden_size}};
         migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape sl_shape{migraphx::shape::int32_type, {batch_size}};
 
         auto seq  = p.add_parameter("seq", in_shape);
         auto w    = p.add_parameter("w", w_shape);
         auto r    = p.add_parameter("r", r_shape);
         auto bias = p.add_parameter("bias", b_shape);
         auto ih   = p.add_parameter("ih", ih_shape);
-        auto und  = p.add_instruction(migraphx::op::undefined{});
+        std::vector<int> sl_data{3, 2, 1};
+        auto sql  = p.add_literal(migraphx::literal{migraphx::literal{sl_shape, sl_data}});
 
         p.add_instruction(migraphx::op::lstm{hidden_size,
                                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
@@ -4117,7 +4119,7 @@ struct test_lstm_bidirct_hs : verify_program<test_lstm_bidirct_hs>
                           w,
                           r,
                           bias,
-                          und,
+                          sql,
                           ih);
 
         return p;
@@ -4276,13 +4278,15 @@ struct test_lstm_bidirct_default_actv1 : verify_program<test_lstm_bidirct_defaul
                                 {num_dirct, 4 * hidden_size, hidden_size}};
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 8 * hidden_size}};
         migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape sl_shape{migraphx::shape::int32_type, {batch_size}};
 
         auto seq  = p.add_parameter("seq", in_shape);
         auto w    = p.add_parameter("w", w_shape);
         auto r    = p.add_parameter("r", r_shape);
         auto bias = p.add_parameter("bias", b_shape);
         auto ih   = p.add_parameter("ih", ih_shape);
-        auto und  = p.add_instruction(migraphx::op::undefined{});
+        std::vector<int> sl_data(batch_size, 2);
+        auto sql  = p.add_literal(migraphx::literal{sl_shape, sl_data});
 
         p.add_instruction(migraphx::op::lstm{hidden_size,
                                              {migraphx::op::sigmoid{}},
@@ -4292,7 +4296,7 @@ struct test_lstm_bidirct_default_actv1 : verify_program<test_lstm_bidirct_defaul
                           w,
                           r,
                           bias,
-                          und,
+                          sql,
                           ih);
 
         return p;

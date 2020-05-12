@@ -394,7 +394,7 @@ struct stream_info
         // Compute an index for each instruction
         std::unordered_map<instruction_ref, std::size_t> ins2index;
         std::size_t index_total = 0;
-        for(auto ins:iterator_for(p))
+        for(auto ins : iterator_for(p))
             ins2index[ins] = index_total++;
 
         std::vector<conflict_table_type> thread_conflict_tables(

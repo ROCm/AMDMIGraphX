@@ -385,10 +385,17 @@ struct stream_info
     std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>
     get_conflicts(program& p)
     {
+
         using conflict_table_type =
             std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
         conflict_table_type conflict_table;
         auto concur_ins = this->find_concurrent_instructions(p);
+
+        // Compute an index for each instruction
+        std::unordered_map<instruction_ref, std::size_t> ins2index;
+        std::size_t index_total = 0;
+        for(auto ins:iterator_for(p))
+            ins2index[ins] = index_total++;
 
         std::vector<conflict_table_type> thread_conflict_tables(
             std::thread::hardware_concurrency());
@@ -431,14 +438,13 @@ struct stream_info
 
                 for(auto ins1 : ins1_set)
                 {
-                    auto p1 = std::distance(ins1, merge_first);
+                    auto p1 = ins2index.at(ins1);
                     for(auto ins2 : ins2_set)
                     {
                         if(ins1 == ins2)
                             continue;
-                        auto p2 = std::distance(ins2, merge_first);
-                        // The smaller distance means the instruction occurs later
-                        if(p1 > p2)
+                        auto p2 = ins2index.at(ins2);
+                        if(p2 > p1)
                             thrd_table[ins2].insert(ins1);
                         else
                             thrd_table[ins1].insert(ins2);

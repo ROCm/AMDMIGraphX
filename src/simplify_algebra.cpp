@@ -445,6 +445,13 @@ struct find_split_concat
             std::find_if(args.begin(), args.end(), [&](auto i) { return i == splits.front(); });
         if(std::distance(it, args.end()) < splits.size())
             return;
+        // If the slices are not in order then stop
+        if (not std::is_sorted(it, it + splits.size(), [](instruction_ref x, instruction_ref y) {
+            auto xop  = any_cast<op::slice>(x->get_operator());
+            auto yop  = any_cast<op::slice>(y->get_operator());
+            return std::tie(xop.starts, xop.ends) < std::tie(yop.starts, yop.ends);
+        }))
+            return;
         *it = splits.front()->inputs().front();
         args.erase(std::next(it), it + splits.size());
 

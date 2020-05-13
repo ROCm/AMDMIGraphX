@@ -586,6 +586,86 @@ TEST_CASE(simplify_rsqrt_multi_use)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(simplify_slice_concat)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {256}};
+
+    migraphx::program p1;
+    {
+        auto x    = p1.add_parameter("x", s);
+        auto y    = p1.add_parameter("y", s);
+        auto xslice1 = p1.add_instruction(migraphx::op::slice{{0}, {0}, {128}}, x);
+        auto xslice2 = p1.add_instruction(migraphx::op::slice{{0}, {128}, {256}}, x);
+        auto yslice1 = p1.add_instruction(migraphx::op::slice{{0}, {0}, {128}}, y);
+        auto yslice2 = p1.add_instruction(migraphx::op::slice{{0}, {128}, {256}}, y);
+        auto concat = p1.add_instruction(migraphx::op::concat{0}, xslice1, xslice2, yslice1, yslice2);
+        p1.add_instruction(pass_op{}, concat);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto x    = p2.add_parameter("x", s);
+        auto y    = p2.add_parameter("y", s);
+        auto concat = p2.add_instruction(migraphx::op::concat{0}, x, y);
+        p2.add_instruction(pass_op{}, concat);
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(simplify_slice_concat_non_uniform)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {256}};
+
+    migraphx::program p1;
+    {
+        auto x    = p1.add_parameter("x", s);
+        auto y    = p1.add_parameter("y", s);
+        auto xslice1 = p1.add_instruction(migraphx::op::slice{{0}, {0}, {64}}, x);
+        auto xslice2 = p1.add_instruction(migraphx::op::slice{{0}, {64}, {192}}, x);
+        auto xslice3 = p1.add_instruction(migraphx::op::slice{{0}, {192}, {256}}, x);
+        auto yslice1 = p1.add_instruction(migraphx::op::slice{{0}, {0}, {64}}, y);
+        auto yslice2 = p1.add_instruction(migraphx::op::slice{{0}, {64}, {192}}, y);
+        auto yslice3 = p1.add_instruction(migraphx::op::slice{{0}, {192}, {256}}, y);
+        auto concat = p1.add_instruction(migraphx::op::concat{0}, xslice1, xslice2, xslice3, yslice1, yslice2, yslice3);
+        p1.add_instruction(pass_op{}, concat);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto x    = p2.add_parameter("x", s);
+        auto y    = p2.add_parameter("y", s);
+        auto concat = p2.add_instruction(migraphx::op::concat{0}, x, y);
+        p2.add_instruction(pass_op{}, concat);
+    }
+
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(simplify_slice_concat_flipped)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {256}};
+
+    migraphx::program p1;
+    {
+        auto x    = p1.add_parameter("x", s);
+        auto y    = p1.add_parameter("y", s);
+        auto xslice1 = p1.add_instruction(migraphx::op::slice{{0}, {0}, {64}}, x);
+        auto xslice2 = p1.add_instruction(migraphx::op::slice{{0}, {192}, {256}}, x);
+        auto xslice3 = p1.add_instruction(migraphx::op::slice{{0}, {64}, {192}}, x);
+        auto yslice1 = p1.add_instruction(migraphx::op::slice{{0}, {0}, {64}}, y);
+        auto yslice2 = p1.add_instruction(migraphx::op::slice{{0}, {192}, {256}}, y);
+        auto yslice3 = p1.add_instruction(migraphx::op::slice{{0}, {64}, {192}}, y);
+        auto concat = p1.add_instruction(migraphx::op::concat{0}, xslice1, xslice2, xslice3, yslice1, yslice2, yslice3);
+        p1.add_instruction(pass_op{}, concat);
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(simplify_split_add_relu)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};

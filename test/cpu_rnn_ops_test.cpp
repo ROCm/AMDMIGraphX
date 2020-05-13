@@ -3373,15 +3373,6 @@ TEST_CASE(lstm_bidirectional)
     }
 }
 
-void print_vec(std::vector<float>& vec)
-{
-    for(auto v : vec)
-    {
-        std::cout << v << ", ";
-    }
-    std::cout << std::endl;
-}
-
 TEST_CASE(lstm_bidirectional_var_seq_lens)
 {
     std::size_t batch_size  = 3;

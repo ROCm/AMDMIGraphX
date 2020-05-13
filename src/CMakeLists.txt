@@ -5,6 +5,7 @@ include(ROCMPackageConfigHelpers)
 add_library(migraphx 
     auto_contiguous.cpp
     eliminate_common_subexpression.cpp
+    decompose.cpp
     propagate_constant.cpp
     dead_code_elimination.cpp
     eliminate_allocation.cpp
@@ -20,6 +21,7 @@ add_library(migraphx
     instruction.cpp
     program.cpp
     quantization.cpp
+    remap.cpp
     shape.cpp
     schedule.cpp
     pass_manager.cpp

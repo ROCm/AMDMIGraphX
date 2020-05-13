@@ -207,6 +207,41 @@ TEST_CASE(simplify_mul_conv1)
     EXPECT(new_conv->outputs().front()->name() != "mul");
 }
 
+TEST_CASE(simplify_mul_slice_conv1)
+{
+    migraphx::program p1;
+    {
+        auto x   = p1.add_parameter("x", {migraphx::shape::int32_type, {1, 1024, 17, 17}});
+        auto w =
+            p1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {768, 1024, 1, 1}}));
+        auto conv = p1.add_instruction(migraphx::op::convolution{}, x, w);
+        auto slice1 = p1.add_instruction(migraphx::op::slice{{1}, {0}, {384}}, conv);
+        auto a    = p1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}));
+        auto b    = p1.add_instruction(migraphx::op::broadcast{1, {1, 384, 17, 17}}, a);
+        auto mul  = p1.add_instruction(migraphx::op::mul{}, slice1, b);
+        auto slice2 = p1.add_instruction(migraphx::op::slice{{1}, {384}, {768}}, conv);
+        auto add = p1.add_instruction(migraphx::op::add{}, mul, slice2);
+        p1.add_instruction(pass_op{}, add);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto x   = p2.add_parameter("x", {migraphx::shape::int32_type, {1, 1024, 17, 17}});
+        auto w =
+            p2.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {768, 1024, 1, 1}}));
+        auto conv = p2.add_instruction(migraphx::op::convolution{}, x, w);
+        auto slice1 = p2.add_instruction(migraphx::op::slice{{1}, {0}, {384}}, conv);
+        auto a    = p2.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}));
+        auto b    = p2.add_instruction(migraphx::op::broadcast{1, {1, 384, 17, 17}}, a);
+        auto mul  = p2.add_instruction(migraphx::op::mul{}, slice1, b);
+        auto slice2 = p2.add_instruction(migraphx::op::slice{{1}, {384}, {768}}, conv);
+        auto add = p2.add_instruction(migraphx::op::add{}, slice1, slice2);
+        p2.add_instruction(pass_op{}, add);
+    }
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(simplify_mul_add)
 {
     migraphx::program p1;

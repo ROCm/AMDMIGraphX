@@ -70,6 +70,70 @@ struct find_mul_conv
     }
 };
 
+struct find_mul_slice_conv
+{
+    static auto conv()
+    {
+        return match::name("convolution")(match::all_of[match::outputs()](match::name("slice")),
+                                      match::args(match::any(), match::is_constant().bind("w")));
+    }
+    auto matcher() const
+    {
+        return match::name("mul")(match::either_arg(0, 1)(match::name("slice")(match::arg(0)(conv().bind("conv"))).bind("slice"),
+                                                          match::name("broadcast")(match::is_constant()).bind("a")));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins      = r.result;
+        auto slice_ins = r.instructions["slice"];
+        auto conv_ins = r.instructions["conv"];
+        auto a_ins    = r.instructions["a"];
+        auto w_ins    = r.instructions["w"];
+
+        auto broadcast_op = any_cast<op::broadcast>(a_ins->get_operator());
+        if(broadcast_op.axis != 1)
+            return;
+
+        auto slice_op = any_cast<op::slice>(slice_ins->get_operator());
+        if(slice_op.axes.size() != 1)
+            return;
+        if(slice_op.axes.front() != 1)
+            return;
+
+
+        auto w_slice_op = slice_op;
+        w_slice_op.axes = {0};
+        auto slice_w_ins = p.insert_instruction(ins, w_slice_op, w_ins);
+
+        auto new_a = p.insert_instruction(
+            ins, op::broadcast{0, slice_w_ins->get_shape().lens()}, a_ins->inputs().front());
+        auto new_mul  = p.insert_instruction(ins, op::mul{}, new_a, slice_w_ins);
+
+        std::vector<instruction_ref> sliced_weights;
+        if (slice_op.starts.front() != 0)
+            sliced_weights.push_back(p.insert_instruction(ins, op::slice{{0}, {0}, slice_op.starts}, w_ins));
+        sliced_weights.push_back(new_mul);
+        int64_t end_axis = w_ins->get_shape().lens().at(0);
+        if (slice_op.ends.front() != end_axis)
+            sliced_weights.push_back(p.insert_instruction(ins, op::slice{{0}, {slice_op.ends}, {end_axis}}, w_ins));
+
+        auto new_weights = p.insert_instruction(ins, op::concat{0}, sliced_weights);
+
+        auto new_conv = p.insert_instruction(
+            ins, conv_ins->get_operator(), conv_ins->inputs().front(), new_weights);
+        assert(conv_ins->get_shape() == new_conv->get_shape());
+
+        auto slice1 = p.insert_instruction(ins, slice_op, new_conv);
+        assert(ins->get_shape().lens() == slice1->get_shape().lens());
+        p.replace_instruction(ins, slice1);
+        // TODO: Check each slice doesn't overlap and that it occurs after slice_ins
+        for(auto output:conv_ins->outputs())
+            if (output != slice_ins)
+                instruction::replace_argument(output, conv_ins, new_conv);
+    }
+};
+
 // a * (x + b) => a * x + a * b
 struct find_mul_add
 {
@@ -707,6 +771,7 @@ void simplify_algebra::apply(program& p) const
                             find_add_convs{},
                             find_conv_dot_horiz_fusion{},
                             find_mul_conv{},
+                            find_mul_slice_conv{},
                             find_mul_add{},
                             find_div_const{},
                             find_sub_const{},

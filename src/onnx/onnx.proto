@@ -8,7 +8,7 @@
 
 syntax = "proto2";
 
-package onnx;
+package onnx_for_migraphx;
 
 // Overview
 //

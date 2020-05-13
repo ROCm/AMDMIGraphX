@@ -107,8 +107,8 @@ struct find_mul_slice_conv
         if(std::any_of(conv_ins->outputs().begin(), conv_ins->outputs().end(), [&](auto i) {
                if(i == slice_ins)
                    return false;
-               if(i->name() != "slice")
-                   return true;
+               // Slice should already be checked by the matcher
+               assert(i->name() == "slice");
                if(std::distance(conv_ins, i) < slice_idx)
                    return true;
                auto sop = any_cast<op::slice>(i->get_operator());

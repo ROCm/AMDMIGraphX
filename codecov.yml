@@ -1,4 +1,4 @@
 ignore:
   - "test/"
   - "src/driver"
- 
+  - "build/" 

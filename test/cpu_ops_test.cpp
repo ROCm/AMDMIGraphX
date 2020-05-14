@@ -1993,6 +1993,36 @@ TEST_CASE(pad_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(pad_test_lowest_half)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::half_type, {2, 2}};
+    auto l0 = p.add_literal(migraphx::literal{s, {1, 2, 3, 4}});
+    p.add_instruction(migraphx::op::pad{{1, 1, 1, 1}, std::numeric_limits<float>::lowest()}, l0);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(16);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    const float x = std::numeric_limits<migraphx::half>::lowest();
+    std::vector<float> gold{x, x, x, x, x, 1, 2, x, x, 3, 4, x, x, x, x, x};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(pad_test_highest_half)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::half_type, {2, 2}};
+    auto l0 = p.add_literal(migraphx::literal{s, {1, 2, 3, 4}});
+    p.add_instruction(migraphx::op::pad{{1, 1, 1, 1}, std::numeric_limits<float>::max()}, l0);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(16);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    const float x = std::numeric_limits<migraphx::half>::max();
+    std::vector<float> gold{x, x, x, x, x, 1, 2, x, x, 3, 4, x, x, x, x, x};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(fp16_test)
 {
     migraphx::program p;
@@ -2043,11 +2073,12 @@ TEST_CASE(clip_test)
 {
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l = p.add_literal(migraphx::literal{s, {-1.0, 0.0, 10.0}});
-    migraphx::op::clip op;
-    op.max_val = 6.0;
-    op.min_val = 0.0;
-    p.add_instruction(op, l);
+    auto l       = p.add_literal(migraphx::literal{s, {-1.0, 0.0, 10.0}});
+    auto min_val = p.add_literal(0.0f);
+    auto max_val = p.add_literal(6.0f);
+    min_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, min_val);
+    max_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, max_val);
+    p.add_instruction(migraphx::op::clip{}, l, min_val, max_val);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
     std::vector<float> results_vector(3);
@@ -2416,6 +2447,21 @@ TEST_CASE(op_capture)
     res.visit([&](auto output) { vec.assign(output.begin(), output.end()); });
 
     EXPECT(migraphx::verify_range(vec, cap_vec));
+}
+
+TEST_CASE(recip_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::double_type, {3}};
+    std::vector<float> data{-0.5f, 0.1f, 0.5f};
+    auto l = p.add_literal(migraphx::literal{s, data});
+    p.add_instruction(migraphx::op::recip{}, l);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {-2.0f, 10.0f, 2.0f};
+    EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

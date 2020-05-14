@@ -117,6 +117,13 @@ TEST_CASE(contiguous_shape)
     expect_shape(single, migraphx::op::contiguous{}, single);
 }
 
+TEST_CASE(contiguous_shape_scalar)
+{
+    migraphx::shape output{migraphx::shape::float_type};
+    migraphx::shape input{migraphx::shape::float_type};
+    expect_shape(output, migraphx::op::contiguous{}, input);
+}
+
 TEST_CASE(reshape_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {24, 1, 1, 1}};
@@ -492,17 +499,62 @@ TEST_CASE(test_argmin)
 
 TEST_CASE(test_squeeze)
 {
-    {
-        migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
-        migraphx::shape s2{migraphx::shape::float_type, {4, 1, 3, 3}};
-        expect_shape(s2, migraphx::op::squeeze{{-2}}, s1);
-    }
+    migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 1, 3, 3}};
+    expect_shape(s2, migraphx::op::squeeze{{3}}, s1);
+}
 
-    {
-        migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
-        migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
-        expect_shape(s2, migraphx::op::unsqueeze{{-2}}, s1);
-    }
+TEST_CASE(test_squeeze_negative_axis)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 1, 3, 3}};
+    expect_shape(s2, migraphx::op::squeeze{{-2}}, s1);
+}
+
+TEST_CASE(test_squeeze_wrong_axis)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
+    throws_shape(migraphx::op::squeeze{{0}}, s1);
+}
+
+TEST_CASE(test_squeeze_all)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1}};
+    migraphx::shape s2{migraphx::shape::float_type};
+    expect_shape(s2, migraphx::op::squeeze{{0}}, s1);
+}
+
+TEST_CASE(test_unsqueeze_scalar)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1}, {0}};
+    migraphx::shape s2{migraphx::shape::float_type, {1}, {1}};
+    expect_shape(s2, migraphx::op::unsqueeze{{0}}, s1);
+}
+
+TEST_CASE(test_unsqueeze_scalar_tensor1)
+{
+    migraphx::shape s{migraphx::shape::float_type, {4, 3, 3}, {0, 0, 0}};
+    throws_shape(migraphx::op::unsqueeze{{-2}}, s);
+}
+
+TEST_CASE(test_unsqueeze_scalar_tensor2)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 1}, {0, 0, 0}};
+    throws_shape(migraphx::op::unsqueeze{{-2}}, s);
+}
+
+TEST_CASE(test_unsqueeze)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
+    expect_shape(s2, migraphx::op::unsqueeze{{2}}, s1);
+}
+
+TEST_CASE(test_unsqueeze_negative_axis)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
+    expect_shape(s2, migraphx::op::unsqueeze{{-2}}, s1);
 }
 
 template <class T>

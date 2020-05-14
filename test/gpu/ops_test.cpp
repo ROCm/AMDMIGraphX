@@ -18,6 +18,7 @@
 
 #include <future>
 #include <thread>
+#include <numeric>
 
 #include <test.hpp>
 
@@ -529,8 +530,12 @@ struct test_acosh : verify_program<test_acosh>
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::float_type, {16}};
-        auto x  = p.add_parameter("x", s);
-        auto cx = p.add_instruction(migraphx::op::clip{100.0f, 1.1f}, x);
+        auto x       = p.add_parameter("x", s);
+        auto min_val = p.add_literal(1.1f);
+        auto max_val = p.add_literal(100.0f);
+        min_val      = p.add_instruction(migraphx::op::multibroadcast{{16}}, min_val);
+        max_val      = p.add_instruction(migraphx::op::multibroadcast{{16}}, max_val);
+        auto cx      = p.add_instruction(migraphx::op::clip{}, x, min_val, max_val);
         p.add_instruction(migraphx::op::acosh{}, cx);
         return p;
     }
@@ -542,8 +547,12 @@ struct test_atanh : verify_program<test_atanh>
     {
         migraphx::program p;
         migraphx::shape s{migraphx::shape::double_type, {16}};
-        auto x  = p.add_parameter("x", s);
-        auto cx = p.add_instruction(migraphx::op::clip{0.95f, -0.95f}, x);
+        auto x       = p.add_parameter("x", s);
+        auto min_val = p.add_literal(-0.95);
+        auto max_val = p.add_literal(0.95);
+        min_val      = p.add_instruction(migraphx::op::multibroadcast{{16}}, min_val);
+        max_val      = p.add_instruction(migraphx::op::multibroadcast{{16}}, max_val);
+        auto cx      = p.add_instruction(migraphx::op::clip{}, x, min_val, max_val);
         p.add_instruction(migraphx::op::atanh{}, cx);
         return p;
     }
@@ -931,6 +940,7 @@ struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu>
     migraphx::program create_program() const
     {
         migraphx::program p;
+        std::vector<size_t> input_lens{4, 3, 3, 3};
         auto input =
             p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto weights =
@@ -942,7 +952,11 @@ struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu>
         auto bcast_add =
             p.add_instruction(migraphx::op::broadcast{1, conv->get_shape().lens()}, bias);
         auto bias_add = p.add_instruction(migraphx::op::add{}, conv, bcast_add);
-        p.add_instruction(migraphx::op::clip{6.0f, 0.0f}, bias_add);
+        auto min_val  = p.add_literal(0.0f);
+        auto max_val  = p.add_literal(6.0f);
+        min_val       = p.add_instruction(migraphx::op::multibroadcast{input_lens}, min_val);
+        max_val       = p.add_instruction(migraphx::op::multibroadcast{input_lens}, max_val);
+        p.add_instruction(migraphx::op::clip{}, bias_add, min_val, max_val);
         return p;
     }
 };
@@ -1703,6 +1717,25 @@ struct gemm_multi_3args_alpha0 : verify_program<gemm_multi_3args_alpha0>
     }
 };
 
+struct gemm_multi_transpose : verify_program<gemm_multi_transpose>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape m1_shape{migraphx::shape::float_type, {2, 2, 3}};
+        migraphx::shape m2_shape{migraphx::shape::float_type, {3, 2, 4}};
+        auto l1  = p.add_parameter("1", m1_shape);
+        auto l2  = p.add_parameter("2", m2_shape);
+        auto tl2 = p.add_instruction(migraphx::op::transpose{{1, 0, 2}}, l2);
+
+        float alpha = 1.0f;
+        float beta  = 1.0f;
+        p.add_instruction(migraphx::op::dot{alpha, beta}, l1, tl2);
+
+        return p;
+    }
+};
+
 struct quant_dot_3args_1 : verify_program<quant_dot_3args_1>
 {
     migraphx::program create_program() const
@@ -1928,8 +1961,12 @@ struct test_clip : verify_program<test_clip>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3}});
-        p.add_instruction(migraphx::op::clip{6.0, 0.0}, x);
+        auto x       = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3}});
+        auto min_val = p.add_literal(0.0f);
+        auto max_val = p.add_literal(6.0f);
+        min_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, min_val);
+        max_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, max_val);
+        p.add_instruction(migraphx::op::clip{}, x, min_val, max_val);
         return p;
     }
 };
@@ -2202,6 +2239,19 @@ struct test_pad : verify_program<test_pad>
     }
 };
 
+struct test_pad_transposed : verify_program<test_pad_transposed>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::int32_type, {1, 224, 224, 3}};
+        auto x = p.add_parameter("x", s);
+        auto t = p.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, x);
+        p.add_instruction(migraphx::op::pad{{0, 0, 2, 2, 0, 0, 3, 3}}, t);
+        return p;
+    }
+};
+
 struct test_pad_int8 : verify_program<test_pad_int8>
 {
     migraphx::program create_program() const
@@ -2212,6 +2262,40 @@ struct test_pad_int8 : verify_program<test_pad_int8>
         auto l0 = p.add_literal(migraphx::literal{s0, data0});
         migraphx::op::pad op{};
         op.value = std::numeric_limits<int8_t>::lowest();
+        op.pads  = {0, 0, 1, 1};
+        p.add_instruction(op, l0);
+        return p;
+    }
+};
+
+struct test_pad_lowest : verify_program<test_pad_lowest>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        std::vector<migraphx::half> data0(4);
+        std::iota(data0.begin(), data0.end(), 0);
+        migraphx::shape s0{migraphx::shape::half_type, {2, 2}};
+        auto l0 = p.add_literal(migraphx::literal{s0, data0});
+        migraphx::op::pad op{};
+        op.value = std::numeric_limits<float>::lowest();
+        op.pads  = {0, 0, 1, 1};
+        p.add_instruction(op, l0);
+        return p;
+    }
+};
+
+struct test_pad_highest : verify_program<test_pad_highest>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        std::vector<migraphx::half> data0(4);
+        std::iota(data0.begin(), data0.end(), 0);
+        migraphx::shape s0{migraphx::shape::half_type, {2, 2}};
+        auto l0 = p.add_literal(migraphx::literal{s0, data0});
+        migraphx::op::pad op{};
+        op.value = std::numeric_limits<float>::max();
         op.pads  = {0, 0, 1, 1};
         p.add_instruction(op, l0);
         return p;
@@ -4387,9 +4471,14 @@ struct test_rsqrt : verify_program<test_rsqrt>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        migraphx::shape s{migraphx::shape::float_type, {1, 3, 16, 16}};
-        auto x  = p.add_parameter("x", s);
-        auto l0 = p.add_instruction(migraphx::op::clip{std::numeric_limits<float>::max(), 1.0}, x);
+        std::vector<size_t> input_lens{1, 3, 16, 16};
+        migraphx::shape s{migraphx::shape::float_type, input_lens};
+        auto x       = p.add_parameter("x", s);
+        auto min_val = p.add_literal(1.0f);
+        auto max_val = p.add_literal(std::numeric_limits<float>::max());
+        min_val      = p.add_instruction(migraphx::op::multibroadcast{input_lens}, min_val);
+        max_val      = p.add_instruction(migraphx::op::multibroadcast{input_lens}, max_val);
+        auto l0      = p.add_instruction(migraphx::op::clip{}, x, min_val, max_val);
         p.add_instruction(migraphx::op::rsqrt{}, l0);
         return p;
     };
@@ -4449,6 +4538,18 @@ struct test_convert : verify_program<test_convert>
 
         return p;
     };
+};
+
+struct test_recip : verify_program<test_recip>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::double_type, {3}};
+        auto x = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::recip{}, x);
+        return p;
+    }
 };
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

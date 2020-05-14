@@ -601,8 +601,7 @@ struct find_slice_reshape_trans_cont_1
         p.replace_instruction(ins, op, ins->inputs().front(), arg1, ins->inputs().back());
     }
 };
-        
-        
+
 struct find_gelu_new
 {
 

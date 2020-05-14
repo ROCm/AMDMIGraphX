@@ -2010,7 +2010,6 @@ struct onnx_parser
             auto start_val = start.front();
             auto limit_val = limit.front();
             auto delta_val = delta.front();
-            assert(delta_val != 0);
 
             size_t num_elements = static_cast<size_t>(
                 ceil(static_cast<double>(limit_val - start_val) / static_cast<double>(delta_val)));
@@ -2019,12 +2018,13 @@ struct onnx_parser
 
             using type = decltype(start_val);
 
-            std::vector<type> range_vals;
+            std::vector<type> range_vals(num_elements);
 
-            for(int64_t i = 0; i < num_elements; i++)
-            {
-                range_vals.push_back(start_val + static_cast<type>(i) * delta_val);
-            }
+            std::generate(range_vals.begin(), range_vals.end(), [&](){
+                auto result = start_val;
+                start_val += delta_val;
+                return result;
+            });
 
             l0 = prog.add_literal({shape{args[0]->get_shape().type(), {num_elements}}, range_vals});
         });

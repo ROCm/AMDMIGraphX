@@ -114,6 +114,7 @@ struct onnx_parser
         add_mem_op("MatMulInteger", &onnx_parser::parse_matmul<op::quant_dot>);
         add_mem_op("MaxPool", &onnx_parser::parse_pooling);
         add_mem_op("OneHot", &onnx_parser::parse_onehot);
+        add_mem_op("Range", &onnx_parser::parse_range);
         add_mem_op("ReduceL1", &onnx_parser::parse_reduce_l1);
         add_mem_op("ReduceL2", &onnx_parser::parse_reduce_l2);
         add_mem_op("ReduceLogSum", &onnx_parser::parse_reduce_log_sum);
@@ -1904,6 +1905,45 @@ struct onnx_parser
                 l0 = prog.add_instruction(op::concat{i}, l0, l1);
             }
         }
+        return l0;
+    }
+
+    instruction_ref
+    parse_range(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        
+        auto start_arg = args[0]->eval();
+        check_arg_empty(start_arg, "PARSE_RANGE: start arg dynamic shape is not supported");
+        auto limit_arg = args[1]->eval();
+        check_arg_empty(limit_arg, "PARSE_RANGE: limit arg dynamic shape is not supported");
+        auto delta_arg = args[2]->eval();
+        check_arg_empty(limit_arg, "PARSE_RANGE: delta arg dynamic shape is not supported");
+
+        assert(args[0]->get_shape().elements() == args[1]->get_shape().elements() == args[2]->get_shape().elements() == 1);
+
+        instruction_ref l0;
+
+        visit_all(start_arg, limit_arg, delta_arg)([&](auto start, auto limit, auto delta){
+            auto start_val = start.front();
+            auto limit_val = limit.front();
+            auto delta_val = delta.front();
+            assert(delta_val != 0);
+
+            size_t num_elements = static_cast<size_t>(ceil(static_cast<double>(limit_val - start_val) / static_cast<double>(delta_val)));
+
+            assert(num_elements > 0);
+
+            using type = decltype(start_val);
+
+            std::vector<type> range_vals;
+
+            for (int64_t i = 0; i < num_elements; i++)
+            {
+                range_vals.push_back(start_val + static_cast<type>(i) * delta_val);
+            }
+
+            l0 = prog.add_literal({shape{args[0]->get_shape().type(), {num_elements}}, range_vals});
+        });
         return l0;
     }
 

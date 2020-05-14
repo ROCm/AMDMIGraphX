@@ -14,19 +14,24 @@ template <class Range>
 void cse_range(program& p, Range&& r)
 {
     std::unordered_multimap<std::string, instruction_ref> instructions;
+    std::unordered_set<instruction_ref> processed_ins;
     for(auto ins : r)
     {
         // Skip dead instructions
         if(ins->outputs().empty())
             continue;
+
         // Find instruction with the same name
         auto found_instructions = range(instructions.equal_range(ins->name()));
         for(const auto& pp : found_instructions)
         {
             auto eq = pp.second;
+            if(contains(processed_ins, eq))
+                continue;
             if(*eq != *ins)
                 continue;
             p.replace_instruction(ins, eq);
+            processed_ins.emplace(ins);
             auto outputs = eq->outputs();
             std::sort(outputs.begin(), outputs.end(), [&](auto x, auto y) {
                 return std::distance(eq, x) < std::distance(eq, y);

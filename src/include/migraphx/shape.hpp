@@ -114,6 +114,8 @@ struct shape
     /// Returns true if all strides are equal to 0 (scalar tensor)
     bool scalar() const;
 
+    shape normalize_standard() const;
+
     friend bool operator==(const shape& x, const shape& y);
     friend bool operator!=(const shape& x, const shape& y);
     friend std::ostream& operator<<(std::ostream& os, const shape& x);

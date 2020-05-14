@@ -45,6 +45,7 @@ struct fusion
     fusion(const shape& input)
     // : fp(make_fusion_plan(input))
     {
+        assert(input.standard());
         auto t = make_tensor(input);
         fp     = make_fusion_plan(t);
         keep_alive(std::move(t));
@@ -388,13 +389,13 @@ struct find_gelu_new
 
     static auto pow_fn()
     {
-        return match::name("gpu::pow")(match::arg(1)(match::args(match::has_value(3.0f))));
+        return match::name("gpu::pow")(match::used_once(), match::arg(1)(match::args(match::has_value(3.0f))));
     }
 
     static auto tanh_fn()
     {
         return match::name(
-            "gpu::tanh")(match::arg(0)(match::name("gpu::mul")(match::either_arg(0, 1)(
+            "gpu::tanh")(match::used_once(), match::arg(0)(match::name("gpu::mul")(match::either_arg(0, 1)(
             match::args(match::has_value(sqrt(M_2_PI))),
             match::name("gpu::add")(match::any_arg(0, 1)(match::name("gpu::mul")(
                 match::either_arg(0, 1)(match::args(match::has_value(0.044715f)), pow_fn()))))))));

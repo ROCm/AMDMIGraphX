@@ -1516,31 +1516,31 @@ def range_test():
     delta_val = np.array([-3])
 
     start_tensor = helper.make_tensor(name='start_val',
-                                    data_type=TensorProto.INT64,
-                                    dims=start_val.reshape(()).shape,
-                                    vals=start_val.astype(np.int64))
+                                      data_type=TensorProto.INT64,
+                                      dims=start_val.reshape(()).shape,
+                                      vals=start_val.astype(np.int64))
     start = onnx.helper.make_node('Constant',
-                                    inputs=[],
-                                    outputs=['start'],
-                                    value=start_tensor)
+                                  inputs=[],
+                                  outputs=['start'],
+                                  value=start_tensor)
 
     limit_tensor = helper.make_tensor(name='limit_val',
-                                    data_type=TensorProto.INT64,
-                                    dims=limit_val.reshape(()).shape,
-                                    vals=limit_val.astype(np.int64))
+                                      data_type=TensorProto.INT64,
+                                      dims=limit_val.reshape(()).shape,
+                                      vals=limit_val.astype(np.int64))
     limit = onnx.helper.make_node('Constant',
-                                    inputs=[],
-                                    outputs=['limit'],
-                                    value=limit_tensor)
+                                  inputs=[],
+                                  outputs=['limit'],
+                                  value=limit_tensor)
 
     delta_tensor = helper.make_tensor(name='delta_val',
-                                    data_type=TensorProto.INT64,
-                                    dims=delta_val.reshape(()).shape,
-                                    vals=delta_val.astype(np.int64))
+                                      data_type=TensorProto.INT64,
+                                      dims=delta_val.reshape(()).shape,
+                                      vals=delta_val.astype(np.int64))
     delta = onnx.helper.make_node('Constant',
-                                    inputs=[],
-                                    outputs=['delta'],
-                                    value=delta_tensor)
+                                  inputs=[],
+                                  outputs=['delta'],
+                                  value=delta_tensor)
 
     node = onnx.helper.make_node('Range',
                                  inputs=['start', 'limit', 'delta'],
@@ -1549,6 +1549,50 @@ def range_test():
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
 
     return ([start, limit, delta, node], [], [y])
+
+
+@onnx_test
+def range_float_test():
+
+    start_val = np.array([2])
+    limit_val = np.array([11])
+    delta_val = np.array([2])
+
+    start_tensor = helper.make_tensor(name='start_val',
+                                      data_type=TensorProto.FLOAT,
+                                      dims=start_val.reshape(()).shape,
+                                      vals=start_val.astype(np.float))
+    start = onnx.helper.make_node('Constant',
+                                  inputs=[],
+                                  outputs=['start'],
+                                  value=start_tensor)
+
+    limit_tensor = helper.make_tensor(name='limit_val',
+                                      data_type=TensorProto.FLOAT,
+                                      dims=limit_val.reshape(()).shape,
+                                      vals=limit_val.astype(np.float))
+    limit = onnx.helper.make_node('Constant',
+                                  inputs=[],
+                                  outputs=['limit'],
+                                  value=limit_tensor)
+
+    delta_tensor = helper.make_tensor(name='delta_val',
+                                      data_type=TensorProto.FLOAT,
+                                      dims=delta_val.reshape(()).shape,
+                                      vals=delta_val.astype(np.float))
+    delta = onnx.helper.make_node('Constant',
+                                  inputs=[],
+                                  outputs=['delta'],
+                                  value=delta_tensor)
+
+    node = onnx.helper.make_node('Range',
+                                 inputs=['start', 'limit', 'delta'],
+                                 outputs=['1'])
+
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
+
+    return ([start, limit, delta, node], [], [y])
+
 
 @onnx_test
 def recip_test():

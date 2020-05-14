@@ -1911,7 +1911,7 @@ struct onnx_parser
     instruction_ref
     parse_range(const std::string&, const node_info&, std::vector<instruction_ref> args)
     {
-        
+
         auto start_arg = args[0]->eval();
         check_arg_empty(start_arg, "PARSE_RANGE: start arg dynamic shape is not supported");
         auto limit_arg = args[1]->eval();
@@ -1919,17 +1919,19 @@ struct onnx_parser
         auto delta_arg = args[2]->eval();
         check_arg_empty(limit_arg, "PARSE_RANGE: delta arg dynamic shape is not supported");
 
-        assert(args[0]->get_shape().elements() == args[1]->get_shape().elements() == args[2]->get_shape().elements() == 1);
+        assert(args[0]->get_shape().elements() == args[1]->get_shape().elements() ==
+               args[2]->get_shape().elements() == 1);
 
         instruction_ref l0;
 
-        visit_all(start_arg, limit_arg, delta_arg)([&](auto start, auto limit, auto delta){
+        visit_all(start_arg, limit_arg, delta_arg)([&](auto start, auto limit, auto delta) {
             auto start_val = start.front();
             auto limit_val = limit.front();
             auto delta_val = delta.front();
             assert(delta_val != 0);
 
-            size_t num_elements = static_cast<size_t>(ceil(static_cast<double>(limit_val - start_val) / static_cast<double>(delta_val)));
+            size_t num_elements = static_cast<size_t>(
+                ceil(static_cast<double>(limit_val - start_val) / static_cast<double>(delta_val)));
 
             assert(num_elements > 0);
 
@@ -1937,7 +1939,7 @@ struct onnx_parser
 
             std::vector<type> range_vals;
 
-            for (int64_t i = 0; i < num_elements; i++)
+            for(int64_t i = 0; i < num_elements; i++)
             {
                 range_vals.push_back(start_val + static_cast<type>(i) * delta_val);
             }

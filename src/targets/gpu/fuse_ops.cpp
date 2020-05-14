@@ -406,7 +406,7 @@ struct find_gelu_new
 
     auto matcher() const
     {
-        return match::name("gpu::mul")(match::either_arg(0, 1)(
+        return match::name("gpu::mul")(match::used_once(), match::either_arg(0, 1)(
             match::any().bind("x"),
             match::name("gpu::add")(match::any_arg(0, 1)(match::name("gpu::mul")(
                 match::either_arg(0, 1)(match::args(match::has_value(0.5f)), tanh_fn()))))));

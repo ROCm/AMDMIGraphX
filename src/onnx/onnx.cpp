@@ -2020,7 +2020,7 @@ struct onnx_parser
 
             std::vector<type> range_vals(num_elements);
 
-            std::generate(range_vals.begin(), range_vals.end(), [&](){
+            std::generate(range_vals.begin(), range_vals.end(), [&]() {
                 auto result = start_val;
                 start_val += delta_val;
                 return result;

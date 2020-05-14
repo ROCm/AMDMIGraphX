@@ -1999,7 +1999,7 @@ struct onnx_parser
         auto limit_arg = args[1]->eval();
         check_arg_empty(limit_arg, "PARSE_RANGE: limit arg dynamic shape is not supported");
         auto delta_arg = args[2]->eval();
-        check_arg_empty(limit_arg, "PARSE_RANGE: delta arg dynamic shape is not supported");
+        check_arg_empty(delta_arg, "PARSE_RANGE: delta arg dynamic shape is not supported");
 
         assert(args[0]->get_shape().elements() == args[1]->get_shape().elements() ==
                args[2]->get_shape().elements() == 1);

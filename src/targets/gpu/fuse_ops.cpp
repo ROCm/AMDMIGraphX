@@ -7,7 +7,6 @@
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/oper.hpp>
 #include <migraphx/gpu/device/gelu.hpp>
-#include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/device/mul_add.hpp>
 #include <migraphx/gpu/device/add_clip.hpp>
 #include <migraphx/gpu/device/add_relu.hpp>
@@ -19,7 +18,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/array.hpp>
 #include <migraphx/op/clip.hpp>
-#include <migraphx/op/dot.hpp>
+#include <migraphx/gpu/gemm.hpp>
 #include <migraphx/op/transpose.hpp>
 #include <cmath>
 

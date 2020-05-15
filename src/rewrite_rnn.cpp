@@ -764,7 +764,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
 
         if(variable_seq_len)
         {
-            args[0] = prog.insert_instruction(ins, op::rnn_shift_sequence{}, args[0], seq_lens);
+            args[0] = prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
         }
         auto ret_reverse = lstm_cell(false,
                                      prog,
@@ -856,7 +856,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
 
         if(!is_forward and variable_seq_len)
         {
-            args[0] = prog.insert_instruction(ins, op::rnn_shift_sequence{}, args[0], seq_lens);
+            args[0] = prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
         }
         auto ret = lstm_cell(is_forward,
                              prog,
@@ -1197,7 +1197,7 @@ instruction_ref rewrite_rnn::replace_last_hs_output(program& prog,
     if(variable_seq_len)
     {
         result_ins = prog.insert_instruction(
-            std::next(ins), op::rnn_shift_output{"hidden_states", dirct}, ins, seq_lens);
+            std::next(ins), op::rnn_var_sl_shift_output{"hidden_states", dirct}, ins, seq_lens);
         prog.replace_instruction(ins, result_ins);
 
         // correct the direction used for the operator
@@ -1258,7 +1258,7 @@ void rewrite_rnn::replace_last_cell_output(program& prog,
         if(last_cell_output_it != ins->outputs().end())
         {
             cell_outputs = prog.insert_instruction(std::next(ins),
-                                                   op::rnn_shift_output{"cell_outputs", dirct},
+                                                   op::rnn_var_sl_shift_output{"cell_outputs", dirct},
                                                    cell_outputs,
                                                    seq_lens);
         }

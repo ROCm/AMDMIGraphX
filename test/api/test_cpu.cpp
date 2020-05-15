@@ -81,4 +81,22 @@ TEST_CASE(set_scalar_parameter)
     CHECK(bool{s_scalar == s_scalar_after});
 }
 
+TEST_CASE(scalar_shape)
+{
+    auto s = migraphx::shape(migraphx_shape_float_type);
+    EXPECT(s.lengths().size() == 1);
+    EXPECT(s.strides().size() == 1);
+    EXPECT(s.lengths().front() == 1);
+    EXPECT(s.strides().front() == 0);
+}
+
+TEST_CASE(strided_shape)
+{
+    std::vector<std::size_t> lens    = {2, 2};
+    std::vector<std::size_t> strides = {1, 2};
+    auto s                           = migraphx::shape(migraphx_shape_float_type, lens, strides);
+    EXPECT(s.lengths() == lens);
+    EXPECT(s.strides() == strides);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

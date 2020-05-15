@@ -84,23 +84,6 @@ struct highest
     }
 };
 
-inline std::vector<index_int> get_reduce_lens(const std::vector<size_t>& input_lens,
-                                              const std::vector<size_t>& output_lens)
-{
-    std::vector<index_int> reduce_lens;
-    std::transform(output_lens.begin(),
-                   output_lens.end(),
-                   input_lens.begin(),
-                   std::back_inserter(reduce_lens),
-                   [](auto x, auto y) -> index_int {
-                       if(x == y)
-                           return 1;
-                       else
-                           return y;
-                   });
-    return reduce_lens;
-}
-
 #ifdef MIGRAPHX_NO_DPP
 template <index_int N, class Op, class T, class F>
 __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)

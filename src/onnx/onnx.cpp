@@ -2001,8 +2001,7 @@ struct onnx_parser
         auto delta_arg = args[2]->eval();
         check_arg_empty(delta_arg, "PARSE_RANGE: delta arg dynamic shape is not supported");
 
-        assert(args[0]->get_shape().elements() == 1 and 
-               args[1]->get_shape().elements() == 1 and
+        assert(args[0]->get_shape().elements() == 1 and args[1]->get_shape().elements() == 1 and
                args[2]->get_shape().elements() == 1);
 
         instruction_ref l0;

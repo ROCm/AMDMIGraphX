@@ -764,7 +764,8 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
 
         if(variable_seq_len)
         {
-            args[0] = prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
+            args[0] =
+                prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
         }
         auto ret_reverse = lstm_cell(false,
                                      prog,
@@ -856,7 +857,8 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
 
         if(!is_forward and variable_seq_len)
         {
-            args[0] = prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
+            args[0] =
+                prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
         }
         auto ret = lstm_cell(is_forward,
                              prog,
@@ -1257,10 +1259,11 @@ void rewrite_rnn::replace_last_cell_output(program& prog,
             });
         if(last_cell_output_it != ins->outputs().end())
         {
-            cell_outputs = prog.insert_instruction(std::next(ins),
-                                                   op::rnn_var_sl_shift_output{"cell_outputs", dirct},
-                                                   cell_outputs,
-                                                   seq_lens);
+            cell_outputs =
+                prog.insert_instruction(std::next(ins),
+                                        op::rnn_var_sl_shift_output{"cell_outputs", dirct},
+                                        cell_outputs,
+                                        seq_lens);
         }
 
         last_cell_output_it = ins->outputs().begin();

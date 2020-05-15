@@ -494,6 +494,7 @@ struct find_slice_reshape_trans_cont
     auto matcher() const
     {
         return match::name("gpu::gemm")(
+            match::arg(0)(slice_reshape_trans_op(std::string("input0"), std::string("cont0"))),
             match::arg(1)(slice_reshape_trans_op(std::string("input1"), std::string("cont1"))));
     }
 

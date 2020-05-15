@@ -2327,7 +2327,7 @@ TEST_CASE(lstm_forward)
             ih,
             ic,
             und);
-        p.add_instruction(migraphx::op::lstm_last_cell_output{}, hs);
+        p.add_instruction(migraphx::op::rnn_last_cell_output{}, hs);
         p.compile(migraphx::cpu::target{});
 
         auto last_hs = p.eval({}).back();
@@ -2859,7 +2859,7 @@ TEST_CASE(lstm_reverse)
             seq,
             w,
             r);
-        p.add_instruction(migraphx::op::lstm_last_cell_output{}, hs);
+        p.add_instruction(migraphx::op::rnn_last_cell_output{}, hs);
 
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
@@ -2891,7 +2891,7 @@ TEST_CASE(lstm_reverse)
             seq,
             w,
             r);
-        p.add_instruction(migraphx::op::lstm_last_cell_output{}, hs);
+        p.add_instruction(migraphx::op::rnn_last_cell_output{}, hs);
 
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
@@ -3290,7 +3290,7 @@ TEST_CASE(lstm_bidirectional)
             ic,
             pph);
         p.add_instruction(
-            migraphx::op::lstm_last_cell_output{migraphx::op::rnn_direction::bidirectional}, hs);
+            migraphx::op::rnn_last_cell_output{migraphx::op::rnn_direction::bidirectional}, hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -3563,7 +3563,7 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
             ic,
             pph);
         p.add_instruction(
-            migraphx::op::lstm_last_cell_output{migraphx::op::rnn_direction::bidirectional},
+            migraphx::op::rnn_last_cell_output{migraphx::op::rnn_direction::bidirectional},
             hs,
             sql);
         p.compile(migraphx::cpu::target{});

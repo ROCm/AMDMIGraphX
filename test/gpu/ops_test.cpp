@@ -3796,7 +3796,7 @@ struct test_lstm_three_outputs : verify_program<test_lstm_three_outputs>
         auto last_hs = p.add_instruction(
             migraphx::op::rnn_last_hs_output{migraphx::op::rnn_direction::forward}, hs);
         auto last_cell = p.add_instruction(
-            migraphx::op::lstm_last_cell_output{migraphx::op::rnn_direction::forward}, hs);
+            migraphx::op::rnn_last_cell_output{migraphx::op::rnn_direction::forward}, hs);
         p.add_return({hs, last_hs, last_cell});
 
         return p;
@@ -4023,7 +4023,7 @@ struct test_lstm_reverse_3args_cell_output : verify_program<test_lstm_reverse_3a
             seq,
             w,
             r);
-        p.add_instruction(migraphx::op::lstm_last_cell_output{migraphx::op::rnn_direction::reverse},
+        p.add_instruction(migraphx::op::rnn_last_cell_output{migraphx::op::rnn_direction::reverse},
                           hs);
 
         return p;

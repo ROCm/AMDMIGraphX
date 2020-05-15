@@ -11,7 +11,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 template <class Op>
-struct dev_rnn_last_output
+struct hip_rnn_last_output
 {
     Op op;
 
@@ -43,8 +43,8 @@ struct dev_rnn_last_output
         return shapes.size() - 1;
     }
 
-    dev_rnn_last_output() {}
-    dev_rnn_last_output(Op o) : op(o) {}
+    // dev_rnn_last_output() {}
+    // dev_rnn_last_output(Op o) : op(o) {}
 };
 
 } // namespace gpu

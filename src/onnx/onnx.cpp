@@ -1801,10 +1801,10 @@ struct onnx_parser
         {
             vec_args.push_back(seq_lens);
         }
-        auto last_output = prog.add_instruction(op::rnn_last_hs_output{dirct}, vec_args);
+        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, vec_args);
 
         // third output for last cell output
-        auto last_cell_output = prog.add_instruction(op::lstm_last_cell_output{dirct}, vec_args);
+        auto last_cell_output = prog.add_instruction(op::rnn_last_cell_output{}, vec_args);
 
         return {hidden_states, last_output, last_cell_output};
     }

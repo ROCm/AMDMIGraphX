@@ -721,7 +721,7 @@ def vector_c_wrap(p):
     else:
         p.add_param(t)
         p.add_size_param()
-        p.bad_param('${name} == nullptr', 'Null pointer')
+        p.bad_param('${name} == nullptr and ${size} != 0', 'Null pointer')
         p.read = '${type}(${name}, ${name}+${size})'
 
 

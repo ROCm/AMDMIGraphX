@@ -68,7 +68,13 @@ And can be installed by using the 'install' target:
 
 ` cmake --build . --config Release --target install ` **OR** ` make install `
 
-This will install the library to the `CMAKE_INSTALL_PREFIX` path that was set. 
+This will install the library to the `CMAKE_INSTALL_PREFIX` path that was set.
+
+Alternatively, to build the library using the 'Debug' configuration:
+
+` cmake --build . --config Debug `
+
+The cmake environment variable `CMAKE_BUILD_TYPE` may also be modified to either `Debug` or `Release` to set the build mode.
 
 ## Running the tests
 

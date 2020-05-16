@@ -937,6 +937,37 @@ def gather_test():
 
     return ([node], [x, i], [y])
 
+@onnx_test
+def gather_elements_axis0_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT32,
+                                      [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node(
+        'GatherElements',
+        inputs=['data', 'indices'],
+        outputs=['y'],
+        axis=0,
+    )
+
+    return ([node], [x, i], [y])
+
+@onnx_test
+def gather_elements_axis1_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT32,
+                                      [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node(
+        'GatherElements',
+        inputs=['data', 'indices'],
+        outputs=['y'],
+        axis=1,
+    )
+
+    return ([node], [x, i], [y])
 
 @onnx_test
 def gemm_test():

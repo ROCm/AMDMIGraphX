@@ -75,10 +75,10 @@ void rnn_var_sl_shift_output(hipStream_t stream,
 }
 
 void rnn_var_sl_last_output(hipStream_t stream,
-                     const argument& result,
-                     const argument& arg_hs,
-                     const argument& arg_sl,
-                     bool is_reverse)
+                            const argument& result,
+                            const argument& arg_hs,
+                            const argument& arg_sl,
+                            bool is_reverse)
 {
     auto input_shape   = arg_hs.get_shape();
     auto out_comp_lens = input_shape.lens();

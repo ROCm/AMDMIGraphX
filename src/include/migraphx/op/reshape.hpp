@@ -34,7 +34,8 @@ struct reshape
         std::vector<std::size_t> rdims(dims.begin(), dims.end());
         auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
         if(n_neg_dims > 1)
-            MIGRAPHX_THROW("Dimensions for reshape can only have one -1 dim");
+            MIGRAPHX_THROW("Reshape: Dimensions for reshape can only have one -1 dim");
+
         for(std::size_t i = 0; i < dims.size(); i++)
         {
             if(dims[i] == 0)
@@ -45,6 +46,7 @@ struct reshape
             if(dims[i] == -1)
                 rdims[i] = 1;
         }
+
         if(n_neg_dims > 0)
         {
             size_t missing_dim =
@@ -59,15 +61,17 @@ struct reshape
 
         shape s{inputs.front().type(), rdims};
         if(s.elements() != inputs.front().elements())
-            MIGRAPHX_THROW("Wrong number of elements for reshape: reshape has " +
+            MIGRAPHX_THROW("Reshape: Wrong number of elements for reshape: reshape has " +
                            std::to_string(s.elements()) + " elements whereas the input has " +
                            std::to_string(inputs.front().elements()));
         return s;
     }
+
     argument compute(shape output_shape, std::vector<argument> args) const
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
+    
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 

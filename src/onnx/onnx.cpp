@@ -103,6 +103,7 @@ struct onnx_parser
         add_mem_op("Expand", &onnx_parser::parse_expand);
         add_mem_op("Flatten", &onnx_parser::parse_flatten);
         add_mem_op("Gather", &onnx_parser::parse_gather);
+        add_mem_op("GatherElements", &onnx_parser::parse_gather_elements);
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
         add_mem_op("GlobalAveragePool", &onnx_parser::parse_pooling);
         add_mem_op("GlobalMaxPool", &onnx_parser::parse_pooling);
@@ -840,6 +841,55 @@ struct onnx_parser
 
         op::gather op{axis};
         return prog.add_instruction(op, make_contiguous(args[0]), make_contiguous(args[1]));
+    }
+
+    instruction_ref
+    parse_gather_elements(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        int axis = 0;
+        if(contains(info.attributes, "axis"))
+        {
+            axis = parse_value(info.attributes.at("axis")).at<int>();
+        }
+
+        // standardize input data and index
+        auto arg_data = make_contiguous(args[0]);
+        auto arg_ind = make_contiguous(args[1]);
+
+        auto data_s = arg_data->get_shape();
+        auto ind_s = ard_ind->get_shape();
+
+        if (data_s.lens().size() != ind_s.lens().size())
+        {
+            MIGRAPHX_THROW("PARSE_GATHER_ELEMENTS: input data and index must have the same rank!");
+        }
+
+        int n_rank = static_cast<int>(data_s.lens().size());
+        int tuned_axis = (axis < 0) ? (axis + n_rank) : axis;
+
+        auto axis_stride = ind_s.strides()[tuned_axis];
+        int64_t data_elem_num = static_cast<int64_t>(data_s.elements());
+        // reshape the input data as one dimension and used as input data 
+        // to the gather operator
+        arg_data = prog.add_instruction(op::reshape{{data_elem_num}, arg_data);
+
+        std::size_t index_num = ind_s.elements();
+        std::vector<int> vec_ind(index_num);
+        std::vector<int> vec_axis_ind(index_num);
+        std::iota(vec_ind.begin(), vec_ind.end(), 0);
+        std::transform(vec_ind.begin(), vec_ind.end(), vec_axis_ind.begin(),
+            [&](auto i) { return ind_s.multi(i)[tuned_axis]; });
+        
+        auto l_shape_idx = prog.add_literal(literal(ind_s, vec_ind.begin(), vec_ind.end()));
+        auto l_dim_idx = prog.add_literal(literal(ind_s, vec_axis_ind.begin(), vec_axis_ind.end()));
+        auto l_stride = prog.add_literal(literal{axis_stride});
+        l_stride = prog.add_instruction(op::multibroadcast{ind_s.lens()}, l_stride);
+        auto dim_diff = prog.add_instruction(op::sub{}, arg_ind, l_dim_idx);
+        auto delta = prog.add_instruction(op::mul{}, dim_diff, l_stride);
+        auto ind = prog.add_instruction(op::add{}, l_shape_idx, delat);
+
+        op::gather op{0};
+        return prog.add_instruction(op, arg_data, ind);
     }
 
     instruction_ref

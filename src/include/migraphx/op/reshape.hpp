@@ -71,7 +71,7 @@ struct reshape
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
-    
+
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 

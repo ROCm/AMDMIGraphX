@@ -1054,7 +1054,27 @@ TEST_CASE(simplify_conv_horiz)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(simplify_conv_horiz_groups)
+TEST_CASE(simplify_group_conv_horiz)
+{
+    auto s  = migraphx::shape{migraphx::shape::int32_type, {1, 32, 111, 111}};
+    auto ws = migraphx::shape{migraphx::shape::int32_type, {32, 1, 7, 7}};
+    migraphx::program p1;
+    {
+        auto x =
+            p1.add_parameter("x", s);
+        auto w1     = p1.add_literal(migraphx::generate_literal(ws, 1));
+        auto w2     = p1.add_literal(migraphx::generate_literal(ws, 2));
+        auto conv1 = p1.add_instruction(migraphx::op::convolution{{3, 3},{2, 2}, {1, 1}, 32}, x, w1);
+        auto conv2 = p1.add_instruction(migraphx::op::convolution{{3, 3},{2, 2}, {1, 1}, 32}, x, w2);
+        p1.add_instruction(pass_op{}, conv1, conv2);
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(simplify_conv_horiz_grouped)
 {
     auto s   = migraphx::shape{migraphx::shape::int32_type, {8, 6, 64, 64}};
     auto ws1 = migraphx::shape{migraphx::shape::int32_type, {6, 6, 3, 3}};
@@ -1101,7 +1121,7 @@ TEST_CASE(simplify_conv_horiz_groups)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(simplify_conv_horiz_groups_extra1)
+TEST_CASE(simplify_conv_horiz_grouped_extra1)
 {
     auto s   = migraphx::shape{migraphx::shape::int32_type, {8, 6, 64, 64}};
     auto ws1 = migraphx::shape{migraphx::shape::int32_type, {6, 6, 3, 3}};
@@ -1155,7 +1175,7 @@ TEST_CASE(simplify_conv_horiz_groups_extra1)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(simplify_conv_horiz_groups_extra2)
+TEST_CASE(simplify_conv_horiz_grouped_extra2)
 {
     auto s   = migraphx::shape{migraphx::shape::int32_type, {8, 6, 64, 64}};
     auto ws1 = migraphx::shape{migraphx::shape::int32_type, {6, 6, 3, 3}};

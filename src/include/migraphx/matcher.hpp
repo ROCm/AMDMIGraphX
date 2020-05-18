@@ -6,6 +6,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/type_name.hpp>
 #include <migraphx/config.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -212,10 +213,13 @@ matcher_result match_instruction(program& p, instruction_ref ins, M&& m)
     return result;
 }
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
+
 /// Find matches for an instruction in the program
 template <class... Ms>
 void find_matches(program& p, instruction_ref ins, Ms&&... ms)
 {
+    const bool trace = enabled(MIGRAPHX_TRACE_MATCHES{});
     bool match = false;
     each_args(
         [&](auto&& m) {
@@ -224,6 +228,11 @@ void find_matches(program& p, instruction_ref ins, Ms&&... ms)
             auto r = match_instruction(p, ins, m.matcher());
             if(r.result == p.end())
                 return;
+            if (trace)
+            {
+                std::cout << "Matched by " << get_type_name(m) << std::endl;
+                p.debug_print(ins);
+            }
             m.apply(p, r);
             match = true;
         },

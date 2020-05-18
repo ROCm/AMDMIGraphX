@@ -45,7 +45,7 @@ struct convolution
         const shape& weights = inputs.at(1);
         auto t               = input.type();
 
-        if (input.lens().at(1) != (weights.lens().at(1) * group))
+        if(input.lens().at(1) != (weights.lens().at(1) * group))
             MIGRAPHX_THROW("CONVOLUTION: Mismatch channel numbers");
 
         return {t,

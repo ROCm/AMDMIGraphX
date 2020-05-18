@@ -1060,12 +1060,13 @@ TEST_CASE(simplify_group_conv_horiz)
     auto ws = migraphx::shape{migraphx::shape::int32_type, {32, 1, 7, 7}};
     migraphx::program p1;
     {
-        auto x =
-            p1.add_parameter("x", s);
-        auto w1     = p1.add_literal(migraphx::generate_literal(ws, 1));
-        auto w2     = p1.add_literal(migraphx::generate_literal(ws, 2));
-        auto conv1 = p1.add_instruction(migraphx::op::convolution{{3, 3},{2, 2}, {1, 1}, 32}, x, w1);
-        auto conv2 = p1.add_instruction(migraphx::op::convolution{{3, 3},{2, 2}, {1, 1}, 32}, x, w2);
+        auto x  = p1.add_parameter("x", s);
+        auto w1 = p1.add_literal(migraphx::generate_literal(ws, 1));
+        auto w2 = p1.add_literal(migraphx::generate_literal(ws, 2));
+        auto conv1 =
+            p1.add_instruction(migraphx::op::convolution{{3, 3}, {2, 2}, {1, 1}, 32}, x, w1);
+        auto conv2 =
+            p1.add_instruction(migraphx::op::convolution{{3, 3}, {2, 2}, {1, 1}, 32}, x, w2);
         p1.add_instruction(pass_op{}, conv1, conv2);
     }
     migraphx::program p2 = p1;

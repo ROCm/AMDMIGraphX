@@ -220,7 +220,7 @@ template <class... Ms>
 void find_matches(program& p, instruction_ref ins, Ms&&... ms)
 {
     const bool trace = enabled(MIGRAPHX_TRACE_MATCHES{});
-    bool match = false;
+    bool match       = false;
     each_args(
         [&](auto&& m) {
             if(match)
@@ -228,7 +228,7 @@ void find_matches(program& p, instruction_ref ins, Ms&&... ms)
             auto r = match_instruction(p, ins, m.matcher());
             if(r.result == p.end())
                 return;
-            if (trace)
+            if(trace)
             {
                 std::cout << "Matched by " << get_type_name(m) << std::endl;
                 p.debug_print(ins);

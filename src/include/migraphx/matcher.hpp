@@ -527,6 +527,11 @@ inline auto either_arg(std::size_t i, std::size_t j)
     };
 }
 
+inline auto any_arg(std::size_t i, std::size_t j)
+{
+    return [=](auto m) { return match::any_of(arg(i)(m), arg(j)(m)); };
+}
+
 template <class M>
 auto same_shape(M m)
 {
@@ -542,6 +547,21 @@ template <class... Ms>
 auto same_shape(Ms... ms)
 {
     return all_of(same_shape(ms)...);
+}
+
+template <class T>
+inline auto has_value(T x, float tolerance = 1e-6)
+{
+    return make_basic_pred_matcher([=](instruction_ref ins) {
+        if(ins->get_shape().elements() != 1)
+            return false;
+        auto l = ins->get_literal();
+        if(l.empty())
+            return false;
+        bool b = false;
+        l.visit([&](auto v) { b = v.front() - x < tolerance; });
+        return b;
+    });
 }
 
 } // namespace match

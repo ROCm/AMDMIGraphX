@@ -1,9 +1,13 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_RNN_VAR_SL_LAST_OUTPUT_HPP
 #define MIGRAPHX_GUARD_OPERATORS_RNN_VAR_SL_LAST_OUTPUT_HPP
 
-#include <migraphx/par_for.hpp>
+#include <array>
 #include <migraphx/op/common.hpp>
-#include <migraphx/op/name.hpp>
+#include <migraphx/check_shapes.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/streamutils.hpp>
+#include <migraphx/config.hpp>
+
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

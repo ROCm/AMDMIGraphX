@@ -3285,8 +3285,7 @@ TEST_CASE(lstm_bidirectional)
             ih,
             ic,
             pph);
-        p.add_instruction(
-            migraphx::op::rnn_last_cell_output{}, hs);
+        p.add_instruction(migraphx::op::rnn_last_cell_output{}, hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -3557,10 +3556,7 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
             ih,
             ic,
             pph);
-        p.add_instruction(
-            migraphx::op::rnn_last_cell_output{},
-            hs,
-            sql);
+        p.add_instruction(migraphx::op::rnn_last_cell_output{}, hs, sql);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
@@ -3730,8 +3726,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
                                     seq,
                                     w,
                                     r);
-        p.add_instruction(
-            migraphx::op::rnn_last_hs_output{}, hs);
+        p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         p.compile(migraphx::cpu::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;

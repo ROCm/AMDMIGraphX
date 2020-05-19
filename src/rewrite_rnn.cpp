@@ -1205,14 +1205,18 @@ instruction_ref rewrite_rnn::replace_last_hs_output(program& prog,
         auto last_hs_output_it = result_ins->outputs().begin();
         while(last_hs_output_it != result_ins->outputs().end())
         {
-            last_hs_output_it = std::find_if(last_hs_output_it, result_ins->outputs().end(), [](auto i) {
-                return i->name() == "rnn_last_hs_output";
-            });
+            last_hs_output_it =
+                std::find_if(last_hs_output_it, result_ins->outputs().end(), [](auto i) {
+                    return i->name() == "rnn_last_hs_output";
+                });
 
             if(last_hs_output_it != result_ins->outputs().end())
             {
-                auto inputs  = (*last_hs_output_it)->inputs();
-                prog.replace_instruction(*last_hs_output_it, op::rnn_var_sl_last_output{dirct}, inputs.front(), seq_lens);
+                auto inputs = (*last_hs_output_it)->inputs();
+                prog.replace_instruction(*last_hs_output_it,
+                                         op::rnn_var_sl_last_output{dirct},
+                                         inputs.front(),
+                                         seq_lens);
                 last_hs_output_it++;
             }
         }
@@ -1272,9 +1276,12 @@ void rewrite_rnn::replace_last_cell_output(program& prog,
 
             if(last_cell_output_it != ins->outputs().end())
             {
-                auto inputs  = (*last_cell_output_it)->inputs();
-                inputs[0]    = cell_outputs;
-                prog.replace_instruction(*last_cell_output_it, op::rnn_var_sl_last_output{dirct}, inputs.front(), seq_lens);
+                auto inputs = (*last_cell_output_it)->inputs();
+                inputs[0]   = cell_outputs;
+                prog.replace_instruction(*last_cell_output_it,
+                                         op::rnn_var_sl_last_output{dirct},
+                                         inputs.front(),
+                                         seq_lens);
                 last_cell_output_it++;
             }
         }

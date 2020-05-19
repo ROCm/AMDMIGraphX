@@ -3838,7 +3838,7 @@ struct test_lstm_three_outputs : verify_program<test_lstm_three_outputs>
             seq,
             w,
             r);
-        auto last_hs = p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
+        auto last_hs   = p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         auto last_cell = p.add_instruction(migraphx::op::rnn_last_cell_output{}, hs);
         p.add_return({hs, last_hs, last_cell});
 

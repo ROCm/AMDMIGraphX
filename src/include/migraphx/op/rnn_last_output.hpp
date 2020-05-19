@@ -19,10 +19,7 @@ struct rnn_var_sl_last_output
         return pack(f(self.direction, "direction"));
     }
 
-    std::string name() const 
-    {
-        return "rnn_var_sl_last_output";
-    }
+    std::string name() const { return "rnn_var_sl_last_output"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {

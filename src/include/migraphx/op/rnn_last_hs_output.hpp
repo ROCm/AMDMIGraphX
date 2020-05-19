@@ -9,10 +9,7 @@ namespace op {
 
 struct rnn_last_hs_output : rnn_var_sl_last_output
 {
-    std::string name() const 
-    {
-        return "rnn_last_hs_output";
-    }
+    std::string name() const { return "rnn_last_hs_output"; }
 };
 
 } // namespace op

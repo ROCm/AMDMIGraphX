@@ -721,15 +721,9 @@ struct cpu_rnn_var_sl_last_output
         return migraphx::reflect(self.op, f);
     }
 
-    std::string name() const
-    {
-        return "cpu::rnn_var_sl_last_output";
-    }
+    std::string name() const { return "cpu::rnn_var_sl_last_output"; }
 
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        return op.compute_shape(inputs);
-    }
+    shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
@@ -795,7 +789,8 @@ struct cpu_apply
         apply_map["lrn"]        = extend_op<cpu_lrn, op::lrn>();
         apply_map["pad"]        = extend_op<cpu_pad, op::pad>();
         apply_map["softmax"]    = extend_op<cpu_softmax<op::softmax>, op::softmax>();
-        apply_map["rnn_var_sl_last_output"]    = extend_op<cpu_rnn_var_sl_last_output, op::rnn_var_sl_last_output>();
+        apply_map["rnn_var_sl_last_output"] =
+            extend_op<cpu_rnn_var_sl_last_output, op::rnn_var_sl_last_output>();
     }
 
     void apply()

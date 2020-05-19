@@ -9,10 +9,7 @@ namespace op {
 
 struct rnn_last_cell_output : rnn_var_sl_last_output
 {
-    std::string name() const
-    {
-        return "rnn_last_cell_output";
-    }
+    std::string name() const { return "rnn_last_cell_output"; }
 };
 
 } // namespace op

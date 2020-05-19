@@ -1777,13 +1777,6 @@ struct onnx_parser
             input_forget = parse_value(info.attributes.at("input_forget")).at<int>();
         }
 
-        // input sequence lengths info is available
-        instruction_ref seq_lens = prog.end();
-        if(args.size() >= 5)
-        {
-            seq_lens = args[4];
-        }
-
         // append undefined opeator to make 6 arguments
         if(args.size() < 8)
         {
@@ -1795,17 +1788,10 @@ struct onnx_parser
         auto hidden_states = prog.add_instruction(
             op::lstm{hidden_size, vec_actv_funcs, dirct, clip, input_forget}, std::move(args));
 
-        // second output for last lstm output
-        std::vector<instruction_ref> vec_args;
-        vec_args.push_back(hidden_states);
-        if(seq_lens != prog.end())
-        {
-            vec_args.push_back(seq_lens);
-        }
-        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, vec_args);
+        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
 
         // third output for last cell output
-        auto last_cell_output = prog.add_instruction(op::rnn_last_cell_output{}, vec_args);
+        auto last_cell_output = prog.add_instruction(op::rnn_last_cell_output{}, hidden_states);
 
         return {hidden_states, last_output, last_cell_output};
     }

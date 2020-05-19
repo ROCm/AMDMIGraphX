@@ -18,6 +18,7 @@
 #include <migraphx/op/softmax.hpp>
 #include <migraphx/op/argmax.hpp>
 #include <migraphx/op/argmin.hpp>
+#include <migraphx/op/rnn_last_output.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/par_dfor.hpp>
@@ -710,6 +711,55 @@ struct cpu_softmax
     }
 };
 
+struct cpu_rnn_var_sl_last_output
+{
+    op::rnn_var_sl_last_output op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
+    std::string name() const
+    {
+        return "cpu::rnn_var_sl_last_output";
+    }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        return op.compute_shape(inputs);
+    }
+
+    argument compute(const shape& output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        auto out_comp_lens = args[0].get_shape().lens();
+        out_comp_lens[0]   = 1;
+        shape out_comp_s{output_shape.type(), out_comp_lens};
+
+        visit_all(result, args[0])([&](auto output, auto input) {
+            args[1].visit([&](auto seq_lens) {
+                par_for(output_shape.elements(), [&](auto i) {
+                    auto idx = out_comp_s.multi(i);
+                    auto b   = idx[2];
+                    if(op.direction == op::rnn_direction::reverse or idx[1] == 1)
+                    {
+                        idx[0] = 0;
+                    }
+                    else
+                    {
+                        idx[0] = seq_lens[b] - 1;
+                    }
+                    output[i] = input(idx.begin(), idx.end());
+                });
+            });
+        });
+
+        return result;
+    }
+};
+
 struct cpu_apply
 {
     program* prog;
@@ -745,6 +795,7 @@ struct cpu_apply
         apply_map["lrn"]        = extend_op<cpu_lrn, op::lrn>();
         apply_map["pad"]        = extend_op<cpu_pad, op::pad>();
         apply_map["softmax"]    = extend_op<cpu_softmax<op::softmax>, op::softmax>();
+        apply_map["rnn_var_sl_last_output"]    = extend_op<cpu_rnn_var_sl_last_output, op::rnn_var_sl_last_output>();
     }
 
     void apply()

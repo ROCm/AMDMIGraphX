@@ -7,10 +7,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct rnn_last_cell_output : rnn_last_output<rnn_last_cell_output>
+struct rnn_last_cell_output : rnn_var_sl_last_output
 {
-    rnn_last_cell_output() {}
-    rnn_last_cell_output(rnn_direction dirct) : rnn_last_output(dirct) {}
+    std::string name() const
+    {
+        return "rnn_last_cell_output";
+    }
 };
 
 } // namespace op

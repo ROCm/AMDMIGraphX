@@ -723,7 +723,10 @@ struct cpu_rnn_var_sl_last_output
 
     std::string name() const { return "cpu::rnn_var_sl_last_output"; }
 
-    shape compute_shape(std::vector<shape> inputs) const { return op.compute_shape(std::move(inputs)); }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        return op.compute_shape(std::move(inputs));
+    }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {

@@ -1,7 +1,7 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_RNN_LAST_HS_OUTPUT_HPP
 #define MIGRAPHX_GUARD_OPERATORS_RNN_LAST_HS_OUTPUT_HPP
 
-#include <migraphx/op/rnn_last_output.hpp>
+#include <migraphx/op/rnn_var_sl_last_output.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

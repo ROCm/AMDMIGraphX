@@ -4,7 +4,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/op/rnn_variable_seq_lens.hpp>
-#include <migraphx/op/rnn_last_output.hpp>
+#include <migraphx/op/rnn_var_sl_last_output.hpp>
 #include <migraphx/gpu/device/rnn_variable_seq_lens.hpp>
 
 namespace migraphx {

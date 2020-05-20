@@ -133,7 +133,7 @@ void replace(Range&& r, const T& old, const T& new_x)
 template <class R>
 using range_value = std::decay_t<decltype(*std::declval<R>().begin())>;
 
-template<class Range, class Predicate>
+template <class Range, class Predicate>
 std::vector<range_value<Range>> find_all(Range&& r, Predicate p)
 {
     std::vector<range_value<Range>> result;

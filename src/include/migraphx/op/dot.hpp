@@ -69,7 +69,7 @@ struct dot
         return {t, out_lens};
     }
 
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
+    argument compute(shape output_shape, std::vector<argument> args) const
     {
         argument result;
         if(args.size() == 3)

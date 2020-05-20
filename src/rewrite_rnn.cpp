@@ -15,11 +15,12 @@
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/unsqueeze.hpp>
 #include <migraphx/op/contiguous.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/dfor.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/rnn_var_sl_last_output.hpp>
 #include <migraphx/op/rnn_variable_seq_lens.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/dfor.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -1200,42 +1201,69 @@ instruction_ref rewrite_rnn::replace_last_hs_output(program& prog,
         result_ins = prog.insert_instruction(
             std::next(ins), op::rnn_var_sl_shift_output{"hidden_states", dirct}, ins, seq_lens);
         prog.replace_instruction(ins, result_ins);
+        auto hs_outputs = find_all(result_ins->outputs(), [&](auto i) {
+            return i->name() == "rnn_last_hs_output";
+        });
 
-        // correct the direction used for the operator
-        auto last_hs_output_it = result_ins->outputs().begin();
-        while(last_hs_output_it != result_ins->outputs().end())
+        for (auto& hs_out : hs_outputs)
         {
-            last_hs_output_it =
-                std::find_if(last_hs_output_it, result_ins->outputs().end(), [](auto i) {
-                    return i->name() == "rnn_last_hs_output";
-                });
-
-            if(last_hs_output_it != result_ins->outputs().end())
-            {
-                auto inputs = (*last_hs_output_it)->inputs();
-                prog.replace_instruction(*last_hs_output_it,
-                                         op::rnn_var_sl_last_output{dirct},
-                                         inputs.front(),
-                                         seq_lens);
-                last_hs_output_it++;
-            }
+            auto inputs = hs_out->inputs();
+            prog.replace_instruction(hs_out,
+                                        op::rnn_var_sl_last_output{dirct},
+                                        inputs.front(),
+                                        seq_lens);
         }
+
+        // // correct the direction used for the operator
+        // auto last_hs_output_it = result_ins->outputs().begin();
+        // while(last_hs_output_it != result_ins->outputs().end())
+        // {
+        //     last_hs_output_it =
+        //         std::find_if(last_hs_output_it, result_ins->outputs().end(), [](auto i) {
+        //             return i->name() == "rnn_last_hs_output";
+        //         });
+
+        //     if(last_hs_output_it != result_ins->outputs().end())
+        //     {
+        //         auto inputs = (*last_hs_output_it)->inputs();
+        //         prog.replace_instruction(*last_hs_output_it,
+        //                                  op::rnn_var_sl_last_output{dirct},
+        //                                  inputs.front(),
+        //                                  seq_lens);
+        //         last_hs_output_it++;
+        //     }
+        // }
     }
     else
     {
-        auto last_hs_output_it = ins->outputs().begin();
-        while(last_hs_output_it != ins->outputs().end())
-        {
-            last_hs_output_it = std::find_if(last_hs_output_it, ins->outputs().end(), [](auto i) {
-                return i->name() == "rnn_last_hs_output";
-            });
+        auto hs_outputs = find_all(ins->outputs(), [&](auto i) {
+            return i->name() == "rnn_last_hs_output";
+        });
 
-            if(last_hs_output_it != ins->outputs().end())
-            {
-                prog.replace_instruction(*last_hs_output_it, last_hs_output);
-                last_hs_output_it++;
-            }
+        for (auto& hs_out : hs_outputs)
+        {
+            auto inputs = hs_out->inputs();
+            prog.replace_instruction(hs_out,
+                                        op::rnn_var_sl_last_output{dirct},
+                                        inputs.front(),
+                                        seq_lens);
+            prog.replace_instruction(hs_out, last_hs_output);
         }
+
+        // auto last_hs_output_it = ins->outputs().begin();
+        // while(last_hs_output_it != ins->outputs().end())
+        // {
+        //     last_hs_output_it = std::find_if(last_hs_output_it, ins->outputs().end(), [](auto i) {
+        //         return i->name() == "rnn_last_hs_output";
+        //     });
+
+        //     if(last_hs_output_it != ins->outputs().end())
+        //     {
+        //         prog.replace_instruction(*last_hs_output_it, last_hs_output);
+        //         last_hs_output_it++;
+        //     }
+        // }
+
         result_ins = ins;
     }
 

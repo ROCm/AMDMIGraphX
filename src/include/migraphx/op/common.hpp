@@ -31,6 +31,13 @@ enum class rnn_direction
     bidirectional,
 };
 
+enum reduce_mode_t
+{
+    sum,
+    mean,
+    max_ 
+};
+
 std::ostream& operator<<(std::ostream& os, rnn_direction v);
 
 } // namespace op

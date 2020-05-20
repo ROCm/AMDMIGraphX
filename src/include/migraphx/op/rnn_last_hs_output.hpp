@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_OPERATORS_RNN_LAST_CELL_OUTPUT_HPP
-#define MIGRAPHX_GUARD_OPERATORS_RNN_LAST_CELL_OUTPUT_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_RNN_LAST_HS_OUTPUT_HPP
+#define MIGRAPHX_GUARD_OPERATORS_RNN_LAST_HS_OUTPUT_HPP
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
@@ -10,9 +10,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct rnn_last_cell_output
+struct rnn_last_hs_output
 {
-    std::string name() const { return "rnn_last_cell_output"; }
+    std::string name() const { return "rnn_last_hs_output"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {

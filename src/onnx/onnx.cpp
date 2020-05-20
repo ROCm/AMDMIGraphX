@@ -1486,7 +1486,7 @@ struct onnx_parser
                                                   std::move(args));
 
         // second output for the last hidden state
-        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
+        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
 
         return {hidden_states, last_output};
     }
@@ -1608,9 +1608,94 @@ struct onnx_parser
             std::move(args));
 
         // second output for last gru output
-        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
+        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
 
         return {hidden_states, last_output};
+    }
+
+    void lstm_actv_functions(op::rnn_direction dirct, std::vector<std::string>& actv_func_names)
+    {
+        // need 6 activation functions for bidirectional directions
+        if(dirct == op::rnn_direction::bidirectional)
+        {
+            // 6 activation functions are used in the bidirectional
+            // scenario. No spec is provided in onnx::operator. we
+            // use the algorithm that: if 1 actv function is provided,
+            // repeat 1st six times. If 2 actv functins are provided,
+            // repeat 2nd once, then repeat all three once
+            // if 3 actv funcs are provide, repeat all three once.
+            // the same algorithm is used for 4, 5, and 6 actv funcions
+            // provided. This may need change later
+            switch(actv_func_names.size())
+            {
+            case 1:
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0)};
+                break;
+
+            case 2:
+                // repeat the 2nd actv func once, then repeat all three another time
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(1)};
+                break;
+
+            case 3:
+                // repeat all three actv funcs once
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2)};
+                break;
+
+            case 4:
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2),
+                                   actv_func_names.at(3),
+                                   actv_func_names.at(3),
+                                   actv_func_names.at(3)};
+                break;
+
+            case 5:
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2),
+                                   actv_func_names.at(3),
+                                   actv_func_names.at(4),
+                                   actv_func_names.at(4)};
+                break;
+
+            default: break;
+            }
+        }
+        else
+        {
+            switch(actv_func_names.size())
+            {
+            case 1:
+                actv_func_names = {
+                    actv_func_names.at(0), actv_func_names.at(0), actv_func_names.at(0)};
+                break;
+
+            case 2:
+                // repeat the 2nd actv func once, so we have 3 actv funcs
+                actv_func_names = {
+                    actv_func_names.at(0), actv_func_names.at(1), actv_func_names.at(1)};
+                break;
+
+            default: break;
+            }
+        }
     }
 
     std::vector<instruction_ref>
@@ -1664,83 +1749,7 @@ struct onnx_parser
             });
         }
 
-        // need 6 activation functions for bidirectional directions
-        if(dirct == op::rnn_direction::bidirectional)
-        {
-            // 6 activation functions are used in the bidirectional
-            // scenario. No spec is provided in onnx::operator. we
-            // use the algorithm that: if 1 actv function is provided,
-            // repeat 1st six times. If 2 actv functins are provided,
-            // repeat 2nd once, then repeat all three once
-            // if 3 actv funcs are provide, repeat all three once.
-            // the same algorithm is used for 4, 5, and 6 actv funcions
-            // provided. This may need change later
-            switch(vec_names.size())
-            {
-            case 1:
-                vec_names = {vec_names.at(0),
-                             vec_names.at(0),
-                             vec_names.at(0),
-                             vec_names.at(0),
-                             vec_names.at(0),
-                             vec_names.at(0)};
-                break;
-
-            case 2:
-                // repeat the 2nd actv func once, then repeat all three another time
-                vec_names = {vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(1),
-                             vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(1)};
-                break;
-
-            case 3:
-                // repeat all three actv funcs once
-                vec_names = {vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(2),
-                             vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(2)};
-                break;
-
-            case 4:
-                vec_names = {vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(2),
-                             vec_names.at(3),
-                             vec_names.at(3),
-                             vec_names.at(3)};
-                break;
-
-            case 5:
-                vec_names = {vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(2),
-                             vec_names.at(3),
-                             vec_names.at(4),
-                             vec_names.at(4)};
-                break;
-
-            default: break;
-            }
-        }
-        else
-        {
-            switch(vec_names.size())
-            {
-            case 1: vec_names = {vec_names.at(0), vec_names.at(0), vec_names.at(0)}; break;
-
-            case 2:
-                // repeat the 2nd actv func once, so we have 3 actv funcs
-                vec_names = {vec_names.at(0), vec_names.at(1), vec_names.at(1)};
-                break;
-
-            default: break;
-            }
-        }
+        lstm_actv_functions(dirct, vec_names);
 
         auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
             return (map_actv_funcs.count(name) == 0);
@@ -1779,11 +1788,10 @@ struct onnx_parser
         auto hidden_states = prog.add_instruction(
             op::lstm{hidden_size, vec_actv_funcs, dirct, clip, input_forget}, std::move(args));
 
-        // second output for last lstm output
-        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
+        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
 
         // third output for last cell output
-        auto last_cell_output = prog.add_instruction(op::lstm_last_cell_output{}, hidden_states);
+        auto last_cell_output = prog.add_instruction(op::rnn_last_cell_output{}, hidden_states);
 
         return {hidden_states, last_output, last_cell_output};
     }

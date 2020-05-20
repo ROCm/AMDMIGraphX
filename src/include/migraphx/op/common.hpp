@@ -35,7 +35,7 @@ enum reduce_mode_t
 {
     sum,
     mean,
-    max_ 
+    max_
 };
 
 std::ostream& operator<<(std::ostream& os, rnn_direction v);

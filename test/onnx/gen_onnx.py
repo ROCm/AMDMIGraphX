@@ -856,16 +856,15 @@ def embedding_bag_test():
                                   outputs=['index'],
                                   value=index_tensor)
 
-
     offset_tensor = helper.make_tensor(name='offset_val',
-                                      data_type=TensorProto.INT32,
-                                      dims=offset_val.reshape(()).shape,
-                                      vals=offset_val.astype(np.int32))
+                                       data_type=TensorProto.INT32,
+                                       dims=offset_val.reshape(()).shape,
+                                       vals=offset_val.astype(np.int32))
 
     offset = onnx.helper.make_node('Constant',
-                                  inputs=[],
-                                  outputs=['offset'],
-                                  value=offset_tensor)
+                                   inputs=[],
+                                   outputs=['offset'],
+                                   value=offset_tensor)
 
     weight = helper.make_tensor_value_info('weight', TensorProto.FLOAT, [2, 3])
 
@@ -875,8 +874,7 @@ def embedding_bag_test():
                                  inputs=['weight', 'index', 'offset'],
                                  outputs=['y'],
                                  mode=0,
-                                 operator='embedding_bag'
-                                 )
+                                 operator='embedding_bag')
 
     return ([index, offset, node], [weight], [y])
 

@@ -111,16 +111,12 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
             ih_reverse = prog.add_literal(migraphx::literal{ih_shape, data});
         }
 
-        auto ret_forward = vanilla_rnn_cell(true,
-                                            prog,
-                                            ins,
-                                            {args[0],
-                                            w_forward,
-                                            r_forward,
-                                            bias_forward,
-                                            seq_lens,
-                                            ih_forward},
-                                            actv_funcs.at(0));
+        auto ret_forward =
+            vanilla_rnn_cell(true,
+                             prog,
+                             ins,
+                             {args[0], w_forward, r_forward, bias_forward, seq_lens, ih_forward},
+                             actv_funcs.at(0));
 
         if(variable_seq_len)
         {
@@ -128,16 +124,12 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
                 prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
         }
 
-        auto ret_reverse = vanilla_rnn_cell(false,
-                                            prog,
-                                            ins,
-                                            {args[0],
-                                            w_reverse,
-                                            r_reverse,
-                                            bias_reverse,
-                                            seq_lens,
-                                            ih_reverse},
-                                            actv_funcs.at(1));
+        auto ret_reverse =
+            vanilla_rnn_cell(false,
+                             prog,
+                             ins,
+                             {args[0], w_reverse, r_reverse, bias_reverse, seq_lens, ih_reverse},
+                             actv_funcs.at(1));
 
         auto concat_output =
             prog.insert_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
@@ -192,8 +184,8 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
                 prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
         }
 
-        auto ret =
-            vanilla_rnn_cell(is_forward, prog, ins, {args[0], w, r, bias, seq_lens, ih}, actv_funcs.at(0));
+        auto ret = vanilla_rnn_cell(
+            is_forward, prog, ins, {args[0], w, r, bias, seq_lens, ih}, actv_funcs.at(0));
         last_output = prog.insert_instruction(ins, op::squeeze{{0}}, ret[1]);
 
         // following logic is to ensure the last instruction is a
@@ -221,12 +213,12 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
                                                            operation& actv_func) const
 {
     assert(inputs.size() == 6);
-    auto seq = inputs.at(0);
-    auto w = inputs.at(1);
-    auto r = inputs.at(2);
-    auto bias = inputs.at(3);
+    auto seq      = inputs.at(0);
+    auto w        = inputs.at(1);
+    auto r        = inputs.at(2);
+    auto bias     = inputs.at(3);
     auto seq_lens = inputs.at(4);
-    auto ih = inputs.at(5);
+    auto ih       = inputs.at(5);
 
     // squeeze and transpose w
     std::vector<int64_t> perm{1, 0};
@@ -255,9 +247,9 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
 
     instruction_ref hidden_out = prog.end();
     instruction_ref last_out{};
-    last_out            = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, sih);
+    last_out         = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, sih);
     long max_seq_len = seq->get_shape().lens()[0];
-    long seq_len = static_cast<long>(get_seq_len(prog, seq, seq_lens));
+    long seq_len     = static_cast<long>(get_seq_len(prog, seq, seq_lens));
     for(long i = 0; i < seq_len; i++)
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
@@ -311,7 +303,7 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
         pad_lens[0]   = static_cast<std::size_t>(max_seq_len - seq_len);
         shape pad_s{s.type(), pad_lens};
         std::vector<float> pad_data(pad_s.elements(), 0.0f);
-        auto pl       = prog.add_literal(pad_s, pad_data.begin(), pad_data.end());
+        auto pl    = prog.add_literal(pad_s, pad_data.begin(), pad_data.end());
         hidden_out = prog.insert_instruction(ins, op::concat{0}, hidden_out, pl);
     }
 
@@ -418,13 +410,14 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
             ih_reverse = prog.add_literal(migraphx::literal{ih_shape, data});
         }
 
-        auto ret_forward = gru_cell(true,
-                                    prog,
-                                    ins,
-                                    {args[0], w_forward, r_forward, bias_forward, seq_lens, ih_forward},
-                                    gru_op.linear_before_reset,
-                                    actv_funcs.at(0),
-                                    actv_funcs.at(1));
+        auto ret_forward =
+            gru_cell(true,
+                     prog,
+                     ins,
+                     {args[0], w_forward, r_forward, bias_forward, seq_lens, ih_forward},
+                     gru_op.linear_before_reset,
+                     actv_funcs.at(0),
+                     actv_funcs.at(1));
 
         if(variable_seq_len)
         {
@@ -432,13 +425,14 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
                 prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
         }
 
-        auto ret_reverse = gru_cell(false,
-                                    prog,
-                                    ins,
-                                    {args[0], w_reverse, r_reverse, bias_reverse, seq_lens, ih_reverse},
-                                    gru_op.linear_before_reset,
-                                    actv_funcs.at(2),
-                                    actv_funcs.at(3));
+        auto ret_reverse =
+            gru_cell(false,
+                     prog,
+                     ins,
+                     {args[0], w_reverse, r_reverse, bias_reverse, seq_lens, ih_reverse},
+                     gru_op.linear_before_reset,
+                     actv_funcs.at(2),
+                     actv_funcs.at(3));
 
         auto concat_output =
             prog.insert_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
@@ -524,18 +518,18 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
                                                    const operation& actv_func2) const
 {
     assert(inputs.size() == 6);
-    auto seq  = inputs.at(0);
-    auto w    = inputs.at(1);
-    auto r    = inputs.at(2);
-    auto bias = inputs.at(3);
+    auto seq      = inputs.at(0);
+    auto w        = inputs.at(1);
+    auto r        = inputs.at(2);
+    auto bias     = inputs.at(3);
     auto seq_lens = inputs.at(4);
-    auto ih   = inputs.at(5);
+    auto ih       = inputs.at(5);
 
     instruction_ref hidden_states = prog.end();
     instruction_ref last_output{};
     migraphx::shape seq_shape = seq->get_shape();
     migraphx::shape r_shape   = r->get_shape();
-    long max_seq_len              = static_cast<long>(seq_shape.lens()[0]);
+    long max_seq_len          = static_cast<long>(seq_shape.lens()[0]);
     long hs                   = static_cast<long>(r_shape.lens()[2]);
 
     migraphx::shape ss(seq_shape.type(), {seq_shape.lens()[1], r_shape.lens()[2]});

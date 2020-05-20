@@ -219,11 +219,11 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
 template <class... Ms>
 void find_matches(program& p, instruction_ref ins, Ms&&... ms)
 {
-#if defined(__GNUC__) && __GNUC__ < 6
+#if !defined(__GNUC__) || defined (__clang__) || __GNUC__ > 5
     const
 #endif
-        bool trace = enabled(MIGRAPHX_TRACE_MATCHES{});
-    bool match     = false;
+    bool trace = enabled(MIGRAPHX_TRACE_MATCHES{});
+    bool match       = false;
     each_args(
         [&](auto&& m) {
             if(match)

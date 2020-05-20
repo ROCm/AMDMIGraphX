@@ -27,11 +27,7 @@ struct rewrite_rnn
     std::vector<instruction_ref> vanilla_rnn_cell(bool is_forward,
                                                   program& prog,
                                                   instruction_ref ins,
-                                                  instruction_ref input,
-                                                  instruction_ref w,
-                                                  instruction_ref r,
-                                                  instruction_ref bias,
-                                                  instruction_ref ih,
+                                                  std::vector<instruction_ref> inputs,
                                                   operation& actv_func) const;
     std::vector<operation> vanilla_rnn_actv_funcs(instruction_ref ins) const;
 

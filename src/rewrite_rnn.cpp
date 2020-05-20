@@ -21,6 +21,9 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/op/common.hpp>
+#include <migraphx/op/rnn_var_sl_last_output.hpp>
+#include <migraphx/op/rnn_variable_seq_lens.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -62,9 +65,19 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
 
     auto actv_funcs         = vanilla_rnn_actv_funcs(ins);
     auto rnn_op             = any_cast<op::rnn>(ins->get_operator());
-    op::rnn_direction dicrt = rnn_op.direction;
+    op::rnn_direction dirct = rnn_op.direction;
+
+    // process sequence length
+    instruction_ref seq_lens = prog.end();
+    if((args.size() >= 5) && args[4]->name() != "undefined")
+    {
+        seq_lens = args[4];
+    }
+
+    bool variable_seq_len = is_variable_seq_lens(prog, seq_lens);
+
     instruction_ref last_output{};
-    if(dicrt == op::rnn_direction::bidirectional)
+    if(dirct == op::rnn_direction::bidirectional)
     {
         // input weight matrix
         auto w_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[1]);
@@ -101,20 +114,29 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
         auto ret_forward = vanilla_rnn_cell(true,
                                             prog,
                                             ins,
-                                            args[0],
+                                            {args[0],
                                             w_forward,
                                             r_forward,
                                             bias_forward,
-                                            ih_forward,
+                                            seq_lens,
+                                            ih_forward},
                                             actv_funcs.at(0));
+
+        if(variable_seq_len)
+        {
+            args[0] =
+                prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
+        }
+
         auto ret_reverse = vanilla_rnn_cell(false,
                                             prog,
                                             ins,
-                                            args[0],
+                                            {args[0],
                                             w_reverse,
                                             r_reverse,
                                             bias_reverse,
-                                            ih_reverse,
+                                            seq_lens,
+                                            ih_reverse},
                                             actv_funcs.at(1));
 
         auto concat_output =
@@ -139,7 +161,7 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
     }
     else
     {
-        bool is_forward = (dicrt == op::rnn_direction::forward);
+        bool is_forward = (dirct == op::rnn_direction::forward);
         // input weight matrix
         auto w = args[1];
 
@@ -164,8 +186,14 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
             ih = prog.add_literal(migraphx::literal{ih_shape, data});
         }
 
+        if(!is_forward and variable_seq_len)
+        {
+            args[0] =
+                prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
+        }
+
         auto ret =
-            vanilla_rnn_cell(is_forward, prog, ins, args[0], w, r, bias, ih, actv_funcs.at(0));
+            vanilla_rnn_cell(is_forward, prog, ins, {args[0], w, r, bias, seq_lens, ih}, actv_funcs.at(0));
         last_output = prog.insert_instruction(ins, op::squeeze{{0}}, ret[1]);
 
         // following logic is to ensure the last instruction is a
@@ -183,33 +211,23 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
         }
     }
 
-    // search its output to find if there are rnn_last_hs_output operator
-    // while loop to handle case of multiple rnn_last_hs_output operators
-    auto last_hs_output_it = ins->outputs().begin();
-    while(last_hs_output_it != ins->outputs().end())
-    {
-        last_hs_output_it = std::find_if(last_hs_output_it, ins->outputs().end(), [](auto i) {
-            return i->name() == "rnn_last_hs_output";
-        });
-
-        if(last_hs_output_it != ins->outputs().end())
-        {
-            prog.replace_instruction(*last_hs_output_it, last_output);
-            last_hs_output_it++;
-        }
-    }
+    replace_last_hs_output(prog, ins, seq_lens, last_output, dirct);
 }
 
 std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
                                                            program& prog,
                                                            instruction_ref ins,
-                                                           instruction_ref input,
-                                                           instruction_ref w,
-                                                           instruction_ref r,
-                                                           instruction_ref bias,
-                                                           instruction_ref ih,
+                                                           std::vector<instruction_ref> inputs,
                                                            operation& actv_func) const
 {
+    assert(inputs.size() == 6);
+    auto seq = inputs.at(0);
+    auto w = inputs.at(1);
+    auto r = inputs.at(2);
+    auto bias = inputs.at(3);
+    auto seq_lens = inputs.at(4);
+    auto ih = inputs.at(5);
+
     // squeeze and transpose w
     std::vector<int64_t> perm{1, 0};
     auto sw      = prog.insert_instruction(ins, op::squeeze{{0}}, w);
@@ -238,11 +256,12 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
     instruction_ref hidden_out = prog.end();
     instruction_ref last_out{};
     last_out            = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, sih);
-    std::size_t seq_len = input->get_shape().lens()[0];
-    for(std::size_t i = 0; i < seq_len; i++)
+    long max_seq_len = seq->get_shape().lens()[0];
+    long seq_len = static_cast<long>(get_seq_len(prog, seq, seq_lens));
+    for(long i = 0; i < seq_len; i++)
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
-        auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, input);
+        auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, seq);
         auto cont_xt = prog.insert_instruction(ins, op::contiguous{}, xt);
         xt           = prog.insert_instruction(ins, op::squeeze{{0}}, cont_xt);
         auto xt_wi   = prog.insert_instruction(ins, op::dot{}, xt, tran_sw);
@@ -281,6 +300,19 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
                         : prog.insert_instruction(ins, op::concat{0}, last_out, hidden_out);
             }
         }
+    }
+
+    // condition of all sequence are of the same length and
+    // less than max_seq_len, we need to append the hs outputs
+    if(seq_len < max_seq_len)
+    {
+        auto s        = last_out->get_shape();
+        auto pad_lens = s.lens();
+        pad_lens[0]   = static_cast<std::size_t>(max_seq_len - seq_len);
+        shape pad_s{s.type(), pad_lens};
+        std::vector<float> pad_data(pad_s.elements(), 0.0f);
+        auto pl       = prog.add_literal(pad_s, pad_data.begin(), pad_data.end());
+        hidden_out = prog.insert_instruction(ins, op::concat{0}, hidden_out, pl);
     }
 
     return {hidden_out, last_out};
@@ -341,9 +373,19 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
     std::vector<float> data(ih_shape.elements(), 0.0);
 
     auto gru_op             = any_cast<op::gru>(ins->get_operator());
-    op::rnn_direction dicrt = gru_op.direction;
+    op::rnn_direction dirct = gru_op.direction;
+
+    // process sequence length
+    instruction_ref seq_lens = prog.end();
+    if((args.size() >= 5) && args[4]->name() != "undefined")
+    {
+        seq_lens = args[4];
+    }
+
+    bool variable_seq_len = is_variable_seq_lens(prog, seq_lens);
+
     instruction_ref last_output{};
-    if(dicrt == op::rnn_direction::bidirectional)
+    if(dirct == op::rnn_direction::bidirectional)
     {
         // w weight matrix
         auto w_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[1]);
@@ -379,15 +421,21 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
         auto ret_forward = gru_cell(true,
                                     prog,
                                     ins,
-                                    {args[0], w_forward, r_forward, bias_forward, ih_forward},
+                                    {args[0], w_forward, r_forward, bias_forward, seq_lens, ih_forward},
                                     gru_op.linear_before_reset,
                                     actv_funcs.at(0),
                                     actv_funcs.at(1));
 
+        if(variable_seq_len)
+        {
+            args[0] =
+                prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
+        }
+
         auto ret_reverse = gru_cell(false,
                                     prog,
                                     ins,
-                                    {args[0], w_reverse, r_reverse, bias_reverse, ih_reverse},
+                                    {args[0], w_reverse, r_reverse, bias_reverse, seq_lens, ih_reverse},
                                     gru_op.linear_before_reset,
                                     actv_funcs.at(2),
                                     actv_funcs.at(3));
@@ -413,7 +461,7 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
     }
     else
     {
-        bool is_forward = (dicrt == op::rnn_direction::forward);
+        bool is_forward = (dirct == op::rnn_direction::forward);
         // weight matrix
         auto w = args[1];
         auto r = args[2];
@@ -436,10 +484,16 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
             ih = prog.add_literal(migraphx::literal{ih_shape, data});
         }
 
+        if(!is_forward and variable_seq_len)
+        {
+            args[0] =
+                prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
+        }
+
         auto ret = gru_cell(is_forward,
                             prog,
                             ins,
-                            {args[0], w, r, bias, ih},
+                            {args[0], w, r, bias, seq_lens, ih},
                             gru_op.linear_before_reset,
                             actv_funcs.at(0),
                             actv_funcs.at(1));
@@ -458,22 +512,7 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
         }
     }
 
-    // replace the corresponding rnn_last_hs_output instruction
-    // with the last_output, if rnn_last_hs_output exists
-    // while loop to handle case of multiple rnn_last_hs_output operators
-    auto last_hs_output_it = ins->outputs().begin();
-    while(last_hs_output_it != ins->outputs().end())
-    {
-        last_hs_output_it = std::find_if(last_hs_output_it, ins->outputs().end(), [](auto i) {
-            return i->name() == "rnn_last_hs_output";
-        });
-
-        if(last_hs_output_it != ins->outputs().end())
-        {
-            prog.replace_instruction(*last_hs_output_it, last_output);
-            last_hs_output_it++;
-        }
-    }
+    replace_last_hs_output(prog, ins, seq_lens, last_output, dirct);
 }
 
 std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
@@ -484,23 +523,24 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
                                                    const operation& actv_func1,
                                                    const operation& actv_func2) const
 {
-    assert(inputs.size() == 5);
+    assert(inputs.size() == 6);
     auto seq  = inputs.at(0);
     auto w    = inputs.at(1);
     auto r    = inputs.at(2);
     auto bias = inputs.at(3);
-    auto ih   = inputs.at(4);
+    auto seq_lens = inputs.at(4);
+    auto ih   = inputs.at(5);
 
     instruction_ref hidden_states = prog.end();
     instruction_ref last_output{};
     migraphx::shape seq_shape = seq->get_shape();
     migraphx::shape r_shape   = r->get_shape();
-    long seq_len              = static_cast<long>(seq_shape.lens()[0]);
+    long max_seq_len              = static_cast<long>(seq_shape.lens()[0]);
     long hs                   = static_cast<long>(r_shape.lens()[2]);
 
-    migraphx::shape s(seq_shape.type(), {seq_shape.lens()[1], r_shape.lens()[2]});
-    std::vector<float> data(s.elements(), 1.0f);
-    auto l1 = prog.add_literal(migraphx::literal{s, data});
+    migraphx::shape ss(seq_shape.type(), {seq_shape.lens()[1], r_shape.lens()[2]});
+    std::vector<float> data(ss.elements(), 1.0f);
+    auto l1 = prog.add_literal(migraphx::literal{ss, data});
 
     // w matrix squeeze to 2-dim and do a transpose
     std::vector<int64_t> perm{1, 0};
@@ -536,6 +576,7 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
         brb_h = prog.insert_instruction(ins, op::broadcast{1, {bs, static_cast<size_t>(hs)}}, rb_h);
     }
 
+    long seq_len = static_cast<long>(get_seq_len(prog, seq, seq_lens));
     for(long i = 0; i < seq_len; i++)
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
@@ -613,6 +654,19 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
                         : prog.insert_instruction(ins, op::concat{0}, last_output, hidden_states);
             }
         }
+    }
+
+    // condition of all sequence are of the same length and
+    // less than max_seq_len, we need to append the hs outputs
+    if(seq_len < max_seq_len)
+    {
+        auto s        = last_output->get_shape();
+        auto pad_lens = s.lens();
+        pad_lens[0]   = static_cast<std::size_t>(max_seq_len - seq_len);
+        shape pad_s{s.type(), pad_lens};
+        std::vector<float> pad_data(pad_s.elements(), 0.0f);
+        auto pl       = prog.add_literal(pad_s, pad_data.begin(), pad_data.end());
+        hidden_states = prog.insert_instruction(ins, op::concat{0}, hidden_states, pl);
     }
 
     return {hidden_states, last_output};
@@ -1210,26 +1264,6 @@ instruction_ref rewrite_rnn::replace_last_hs_output(program& prog,
             prog.replace_instruction(
                 hs_out, op::rnn_var_sl_last_output{dirct}, inputs.front(), seq_lens);
         }
-
-        // // correct the direction used for the operator
-        // auto last_hs_output_it = result_ins->outputs().begin();
-        // while(last_hs_output_it != result_ins->outputs().end())
-        // {
-        //     last_hs_output_it =
-        //         std::find_if(last_hs_output_it, result_ins->outputs().end(), [](auto i) {
-        //             return i->name() == "rnn_last_hs_output";
-        //         });
-
-        //     if(last_hs_output_it != result_ins->outputs().end())
-        //     {
-        //         auto inputs = (*last_hs_output_it)->inputs();
-        //         prog.replace_instruction(*last_hs_output_it,
-        //                                  op::rnn_var_sl_last_output{dirct},
-        //                                  inputs.front(),
-        //                                  seq_lens);
-        //         last_hs_output_it++;
-        //     }
-        // }
     }
     else
     {
@@ -1238,26 +1272,8 @@ instruction_ref rewrite_rnn::replace_last_hs_output(program& prog,
 
         for(auto& hs_out : hs_outputs)
         {
-            auto inputs = hs_out->inputs();
-            prog.replace_instruction(
-                hs_out, op::rnn_var_sl_last_output{dirct}, inputs.front(), seq_lens);
             prog.replace_instruction(hs_out, last_hs_output);
         }
-
-        // auto last_hs_output_it = ins->outputs().begin();
-        // while(last_hs_output_it != ins->outputs().end())
-        // {
-        //     last_hs_output_it = std::find_if(last_hs_output_it, ins->outputs().end(), [](auto i)
-        //     {
-        //         return i->name() == "rnn_last_hs_output";
-        //     });
-
-        //     if(last_hs_output_it != ins->outputs().end())
-        //     {
-        //         prog.replace_instruction(*last_hs_output_it, last_hs_output);
-        //         last_hs_output_it++;
-        //     }
-        // }
 
         result_ins = ins;
     }

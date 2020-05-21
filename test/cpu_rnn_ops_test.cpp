@@ -3707,17 +3707,22 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
             ic,
             pph);
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
-        p.add_return({out_hs, lho});
+        auto lco = p.add_instruction(migraphx::op::rnn_last_cell_output{}, out_hs);
+        p.add_return({out_hs, lho, lco});
         p.compile(migraphx::cpu::target{});
 
         auto outputs = p.eval({});
         auto arg_hs  = outputs.front();
-        auto arg_lho = outputs.back();
+        auto arg_lho = outputs.at(1);
+        auto arg_lco = outputs.at(2);
 
         std::vector<float> output_data;
         std::vector<float> last_output_data;
+        std::vector<float> last_cell_data;
+
         arg_hs.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
         arg_lho.visit([&](auto output) { last_output_data.assign(output.begin(), output.end()); });
+        arg_lco.visit([&](auto output) { last_cell_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{
             0.079753,   -0.289854, 0.160043,  0.115056,  0.294074,   -0.0319677, -0.0955337,
             0.104168,   0.022618,  -0.121195, -0.4065,   -0.252054,  -0.141643,  0.0451978,
@@ -3737,9 +3742,14 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
             0.079753, -0.289854, 0.160043,  0.115056,  0.421857,  0.0459771, -0.144955, 0.0720673,
             0.103489, 0.0142918, -0.123408, 0.0401075, -0.141643, 0.0451978, 0.140804,  0.0745128,
             0.911307, 0.11468,   0.114449,  0.0196755, -0.262807, 0.275286,  0.358395,  0.266267};
+        std::vector<float> last_cell_data_gold{
+            0.600582, -0.601197, 0.353558,  0.789097,  0.737121,  0.134902, -0.303595, 0.241948,
+            0.391174, 0.0308845, -0.561745, 0.0730323, -0.326822, 0.301121, 0.219523,  0.415242,
+            2.08242,  0.442513,  0.187127,  0.0577626, -0.611307, 0.55454,  0.4364,    0.509436};
 
         EXPECT(migraphx::verify_range(output_data, output_data_gold));
         EXPECT(migraphx::verify_range(last_output_data, last_output_data_gold));
+        EXPECT(migraphx::verify_range(last_cell_data, last_cell_data_gold));
     }
 
     // last cell output as program output

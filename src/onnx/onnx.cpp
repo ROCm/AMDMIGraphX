@@ -732,10 +732,11 @@ struct onnx_parser
     {
         op::pooling op{ends_with(name, "MaxPool") ? "max" : "average"};
         auto l0 = args[0];
+        auto in_lens = l0->get_shape().lens();
+
         if(starts_with(name, "Global"))
         {
-            auto lens  = args.front()->get_shape().lens();
-            op.lengths = {lens[2], lens[3]};
+            op.lengths = std::vector<size_t>(in_lens.begin() + 2, in_lens.end());
         }
 
         if(contains(info.attributes, "pads"))
@@ -752,10 +753,6 @@ struct onnx_parser
 
             std::vector<std::int64_t> padding;
             copy(info.attributes["pads"].ints(), std::back_inserter(padding));
-            if(padding.size() != 4)
-            {
-                MIGRAPHX_THROW("PARSE_POOLING: padding should have 4 values");
-            }
             float pad_val = 0;
             if(op.mode == "max")
                 pad_val = std::numeric_limits<float>::lowest();
@@ -764,11 +761,15 @@ struct onnx_parser
 
         if(contains(info.attributes, "strides"))
         {
-            copy(info.attributes["strides"].ints(), op.stride.begin());
+            std::vector<size_t> strides;
+            copy(info.attributes["strides"].ints(), std::back_inserter(strides));
+            op.stride = strides;
         }
         if(contains(info.attributes, "kernel_shape"))
         {
-            copy(info.attributes["kernel_shape"].ints(), op.lengths.begin());
+            std::vector<size_t> kernel_shape;
+            copy(info.attributes["kernel_shape"].ints(), std::back_inserter(kernel_shape));
+            op.lengths = kernel_shape;
         }
 
         if(contains(info.attributes, "auto_pad"))
@@ -779,7 +780,6 @@ struct onnx_parser
                 op.padding_mode = op::padding_mode_t::same;
             }
 
-            auto in_lens = args[0]->get_shape().lens();
             float val    = 0.0f;
             // MaxPool
             if(op.mode == "max")

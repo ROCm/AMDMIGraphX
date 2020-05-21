@@ -3691,7 +3691,7 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
         auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto pph  = p.add_literal(migraphx::literal{pph_shape, pph_data});
         auto sql  = p.add_literal(migraphx::literal{sl_shape, sl_data});
-        p.add_instruction(
+        auto out_hs = p.add_instruction(
             migraphx::op::lstm{
                 hidden_size,
                 {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
@@ -3706,10 +3706,18 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
             ih,
             ic,
             pph);
+        auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
+        p.add_return({out_hs, lho});
         p.compile(migraphx::cpu::target{});
-        auto hs_concat = p.eval({}).back();
+
+        auto outputs = p.eval({});
+        auto arg_hs = outputs.front();
+        auto arg_lho = outputs.back();
+
         std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        std::vector<float> last_output_data;
+        arg_hs.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
+        arg_lho.visit([&](auto output) { last_output_data.assign(output.begin(), output.end()); });
         std::vector<float> output_data_gold{
             0.079753,   -0.289854, 0.160043,  0.115056,  0.294074,   -0.0319677, -0.0955337,
             0.104168,   0.022618,  -0.121195, -0.4065,   -0.252054,  -0.141643,  0.0451978,
@@ -3725,45 +3733,13 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
             0,          0,         0,         0,         0,          0,          0,
             0,          0,         0,         0,         0,          0,          0,
             0,          0,         0,         0,         0};
-        EXPECT(migraphx::verify_range(output_data, output_data_gold));
-    }
-
-    // last hidden state as program output
-    {
-        migraphx::program p;
-        auto seq  = p.add_literal(migraphx::literal{in_shape, input_data});
-        auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
-        auto ic   = p.add_literal(migraphx::literal{ic_shape, ic_data});
-        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
-        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
-        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
-        auto pph  = p.add_literal(migraphx::literal{pph_shape, pph_data});
-        auto sql  = p.add_literal(migraphx::literal{sl_shape, sl_data});
-        auto hs   = p.add_instruction(
-            migraphx::op::lstm{
-                hidden_size,
-                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
-                migraphx::op::rnn_direction::bidirectional,
-                clip,
-                0},
-            seq,
-            w,
-            r,
-            bias,
-            sql,
-            ih,
-            ic,
-            pph);
-        p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
-        p.compile(migraphx::cpu::target{});
-        auto hs_concat = p.eval({}).back();
-        std::vector<float> output_data;
-        hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
-        std::vector<float> output_data_gold{
+        std::vector<float> last_output_data_gold{
             0.079753, -0.289854, 0.160043,  0.115056,  0.421857,  0.0459771, -0.144955, 0.0720673,
             0.103489, 0.0142918, -0.123408, 0.0401075, -0.141643, 0.0451978, 0.140804,  0.0745128,
             0.911307, 0.11468,   0.114449,  0.0196755, -0.262807, 0.275286,  0.358395,  0.266267};
+
         EXPECT(migraphx::verify_range(output_data, output_data_gold));
+        EXPECT(migraphx::verify_range(last_output_data, last_output_data_gold));
     }
 
     // last cell output as program output

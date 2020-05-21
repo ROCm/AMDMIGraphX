@@ -23,8 +23,8 @@ struct convolution
     std::vector<std::size_t> stride{1, 1};
     std::vector<std::size_t> dilation{1, 1};
 
-    padding_mode_t padding_mode = default_;
     int group                   = 1;
+    padding_mode_t padding_mode = default_;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -32,8 +32,8 @@ struct convolution
         return pack(f(self.padding, "padding"),
                     f(self.stride, "stride"),
                     f(self.dilation, "dilation"),
-                    f(self.padding_mode, "padding_mode"),
-                    f(self.group, "group"));
+                    f(self.group, "group"),
+                    f(self.padding_mode, "padding_mode"));
     }
 
     std::string name() const { return "convolution"; }
@@ -45,6 +45,9 @@ struct convolution
         const shape& weights = inputs.at(1);
         auto t               = input.type();
         size_t kdims         = input.lens().size() - 2;
+
+        if(input.lens().at(1) != (weights.lens().at(1) * group))
+            MIGRAPHX_THROW("CONVOLUTION: Mismatch channel numbers");
 
         std::vector<size_t> output_lens{input.lens()[0], weights.lens()[0]};
 

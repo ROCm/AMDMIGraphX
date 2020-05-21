@@ -155,10 +155,7 @@ struct find_transpose
 
 struct find_nested_slice
 {
-    auto matcher() const
-    {
-        return match::name("slice")(match::arg(0)(match::name("slice")));
-    }
+    auto matcher() const { return match::name("slice")(match::arg(0)(match::name("slice"))); }
 
     using axes_map = std::map<std::size_t, std::pair<std::size_t, std::size_t>>;
 
@@ -166,7 +163,7 @@ struct find_nested_slice
     {
         axes_map result;
         auto op = any_cast<op::slice>(ins->get_operator());
-        for(std::size_t i = 0;i < op.axes.size();i++)
+        for(std::size_t i = 0; i < op.axes.size(); i++)
         {
             result[op.axes[i]] = std::make_pair(op.starts[i], op.ends[i]);
         }
@@ -177,27 +174,27 @@ struct find_nested_slice
     {
         axes_map result;
         // Non overlapping
-        for(auto&& p:m1)
+        for(auto&& p : m1)
         {
-            if (contains(m2, p.first)) 
+            if(contains(m2, p.first))
                 continue;
             result[p.first] = p.second;
         }
-        for(auto&& p:m2)
+        for(auto&& p : m2)
         {
-            if (contains(m1, p.first))
+            if(contains(m1, p.first))
                 continue;
             result[p.first] = p.second;
         }
         // Overlapping
-        for(auto&& p1:m1)
+        for(auto&& p1 : m1)
         {
-            if (not contains(m2, p1.first)) 
+            if(not contains(m2, p1.first))
                 continue;
-            auto&& v1 = p1.second;
-            auto&& v2 = m2[p1.first];
-            auto start = v1.first+v2.first;
-            auto end = start+(v2.second-v2.first);
+            auto&& v1        = p1.second;
+            auto&& v2        = m2[p1.first];
+            auto start       = v1.first + v2.first;
+            auto end         = start + (v2.second - v2.first);
             result[p1.first] = std::make_pair(start, end);
         }
         return result;
@@ -205,7 +202,7 @@ struct find_nested_slice
 
     void apply(program& p, const match::matcher_result& mr) const
     {
-        auto ins  = mr.result;
+        auto ins   = mr.result;
         auto slice = ins->inputs().front();
         auto input = slice->inputs().front();
 
@@ -215,7 +212,7 @@ struct find_nested_slice
         auto axes = merge(a2, a1);
 
         auto op = op::slice{};
-        for(auto&& pp:axes)
+        for(auto&& pp : axes)
         {
             op.axes.push_back(pp.first);
             op.starts.push_back(pp.second.first);

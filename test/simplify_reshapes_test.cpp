@@ -380,7 +380,7 @@ TEST_CASE(double_slice1)
 {
     migraphx::program p1;
     {
-        auto x    = p1.add_parameter("x", {migraphx::shape::int32_type, {256}});
+        auto x      = p1.add_parameter("x", {migraphx::shape::int32_type, {256}});
         auto slice1 = p1.add_instruction(migraphx::op::slice{{0}, {32}, {256}}, x);
         auto slice2 = p1.add_instruction(migraphx::op::slice{{0}, {32}, {64}}, slice1);
         p1.add_instruction(pass_op{}, slice2);
@@ -389,7 +389,7 @@ TEST_CASE(double_slice1)
 
     migraphx::program p2;
     {
-        auto x    = p2.add_parameter("x", {migraphx::shape::int32_type, {256}});
+        auto x     = p2.add_parameter("x", {migraphx::shape::int32_type, {256}});
         auto slice = p2.add_instruction(migraphx::op::slice{{0}, {64}, {96}}, x);
         p2.add_instruction(pass_op{}, slice);
     }
@@ -400,7 +400,7 @@ TEST_CASE(double_slice2)
 {
     migraphx::program p1;
     {
-        auto x    = p1.add_parameter("x", {migraphx::shape::int32_type, {256}});
+        auto x      = p1.add_parameter("x", {migraphx::shape::int32_type, {256}});
         auto slice1 = p1.add_instruction(migraphx::op::slice{{0}, {32}, {128}}, x);
         auto slice2 = p1.add_instruction(migraphx::op::slice{{0}, {0}, {32}}, slice1);
         p1.add_instruction(pass_op{}, slice2);
@@ -409,7 +409,7 @@ TEST_CASE(double_slice2)
 
     migraphx::program p2;
     {
-        auto x    = p2.add_parameter("x", {migraphx::shape::int32_type, {256}});
+        auto x     = p2.add_parameter("x", {migraphx::shape::int32_type, {256}});
         auto slice = p2.add_instruction(migraphx::op::slice{{0}, {32}, {64}}, x);
         p2.add_instruction(pass_op{}, slice);
     }
@@ -420,7 +420,7 @@ TEST_CASE(double_slice_multi_axes)
 {
     migraphx::program p1;
     {
-        auto x    = p1.add_parameter("x", {migraphx::shape::int32_type, {256, 128}});
+        auto x      = p1.add_parameter("x", {migraphx::shape::int32_type, {256, 128}});
         auto slice1 = p1.add_instruction(migraphx::op::slice{{0}, {32}, {128}}, x);
         auto slice2 = p1.add_instruction(migraphx::op::slice{{1}, {0}, {32}}, slice1);
         p1.add_instruction(pass_op{}, slice2);
@@ -429,7 +429,7 @@ TEST_CASE(double_slice_multi_axes)
 
     migraphx::program p2;
     {
-        auto x    = p2.add_parameter("x", {migraphx::shape::int32_type, {256, 128}});
+        auto x     = p2.add_parameter("x", {migraphx::shape::int32_type, {256, 128}});
         auto slice = p2.add_instruction(migraphx::op::slice{{0, 1}, {32, 0}, {128, 32}}, x);
         p2.add_instruction(pass_op{}, slice);
     }

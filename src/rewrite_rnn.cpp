@@ -1252,14 +1252,12 @@ void rewrite_rnn::replace_last_cell_output(program& prog,
                                            op::rnn_direction dirct) const
 {
     bool variable_seq_len = is_variable_seq_lens(prog, seq_lens);
+    auto ins_outputs = find_all(ins->outputs(),
+                                [&](auto i) { return i->name() == "rnn_last_cell_output"; });
 
     if(variable_seq_len)
     {
-        auto last_cell_output_it =
-            std::find_if(ins->outputs().begin(), ins->outputs().end(), [](auto i) {
-                return i->name() == "rnn_last_cell_output";
-            });
-        if(last_cell_output_it != ins->outputs().end())
+        if (!ins_outputs.empty())
         {
             cell_outputs =
                 prog.insert_instruction(std::next(ins),
@@ -1268,43 +1266,18 @@ void rewrite_rnn::replace_last_cell_output(program& prog,
                                         seq_lens);
         }
 
-        last_cell_output_it = ins->outputs().begin();
-        while(last_cell_output_it != ins->outputs().end())
+        for (auto co : ins_outputs)
         {
-            last_cell_output_it =
-                std::find_if(last_cell_output_it, ins->outputs().end(), [](auto i) {
-                    return i->name() == "rnn_last_cell_output";
-                });
-
-            if(last_cell_output_it != ins->outputs().end())
-            {
-                auto inputs = (*last_cell_output_it)->inputs();
-                inputs[0]   = cell_outputs;
-                prog.replace_instruction(*last_cell_output_it,
-                                         op::rnn_var_sl_last_output{dirct},
-                                         inputs.front(),
-                                         seq_lens);
-                last_cell_output_it++;
-            }
+            prog.replace_instruction(co, op::rnn_var_sl_last_output{dirct}, cell_outputs, seq_lens);
         }
     }
     // replace the rnn_last_cell_output with the last_cell_output. The while
     // loop is to handle the case of multiple rnn_last_cell_output operators
     else
     {
-        auto last_cell_output_it = ins->outputs().begin();
-        while(last_cell_output_it != ins->outputs().end())
+        for (auto co : ins_outputs)
         {
-            last_cell_output_it =
-                std::find_if(last_cell_output_it, ins->outputs().end(), [](auto i) {
-                    return i->name() == "rnn_last_cell_output";
-                });
-
-            if(last_cell_output_it != ins->outputs().end())
-            {
-                prog.replace_instruction(*last_cell_output_it, last_cell_output);
-                last_cell_output_it++;
-            }
+            prog.replace_instruction(co, last_cell_output);
         }
     }
 }

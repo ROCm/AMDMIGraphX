@@ -20,11 +20,11 @@ namespace op {
 
 struct pooling
 {
-    std::string mode                   = "average";
+    std::string mode = "average";
     std::vector<std::size_t> padding{0, 0};
     std::vector<std::size_t> stride{1, 1};
     std::vector<std::size_t> lengths{1, 1};
-    padding_mode_t padding_mode        = default_;
+    padding_mode_t padding_mode = default_;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -46,21 +46,19 @@ struct pooling
         auto t             = input.type();
 
         auto input_lens = input.lens();
-        size_t kdims = input_lens.size() - 2;
+        size_t kdims    = input_lens.size() - 2;
 
-        std::vector<std::size_t>output_lens(input_lens.begin(), input_lens.begin() + 2);
+        std::vector<std::size_t> output_lens(input_lens.begin(), input_lens.begin() + 2);
 
         for(size_t i = 0; i < kdims; i++)
         {
             assert(lengths[i] <= input_lens[i + 2] + 2 * padding[i]);
 
-            output_lens.push_back(
-                std::size_t(std::max<std::ptrdiff_t>(
-                        1,
-                        floor_divide<std::ptrdiff_t>(input_lens[i + 2] + 2 * padding[i] - lengths[i],
-                                                     stride[i]) +
-                            1))
-            );
+            output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
+                1,
+                floor_divide<std::ptrdiff_t>(input_lens[i + 2] + 2 * padding[i] - lengths[i],
+                                             stride[i]) +
+                    1)));
         }
         return {t, output_lens};
     }

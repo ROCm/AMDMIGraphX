@@ -51,11 +51,11 @@ struct convolution
         for(size_t i = 0; i < kdims; i++)
         {
             output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
-                        1,
-                        (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
-                         2 * padding[i]) /
-                                stride[i] +
-                            1)));
+                1,
+                (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
+                 2 * padding[i]) /
+                        stride[i] +
+                    1)));
         }
 
         return {t, output_lens};

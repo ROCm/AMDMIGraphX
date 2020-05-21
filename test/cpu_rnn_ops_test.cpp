@@ -209,11 +209,11 @@ TEST_CASE(rnn_forward)
 
     {
         migraphx::program p;
-        auto seq = p.add_literal(migraphx::literal{in_shape, input});
-        auto ih       = p.add_literal(migraphx::literal{ih_shape, ih_data});
-        auto w        = p.add_literal(migraphx::literal{w_shape, w_data});
-        auto r        = p.add_literal(migraphx::literal{r_shape, r_data});
-        auto bias     = p.add_literal(migraphx::literal{b_shape, bias_data});
+        auto seq  = p.add_literal(migraphx::literal{in_shape, input});
+        auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         migraphx::shape seq_len_s{migraphx::shape::int32_type, {batch_size}};
         std::vector<int32_t> len_data{2, 1};
         auto sql = p.add_literal(seq_len_s, len_data);
@@ -239,9 +239,24 @@ TEST_CASE(rnn_forward)
         arg_hs.visit([&](auto out) { hs_data.assign(out.begin(), out.end()); });
         arg_last_output.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
 
-        std::vector<float> hs_data_gold{
-            0.377808, 0.610551, 0.551685, -0.588848, -0.371446, 0.317082, 0.131042, -0.18736, 0.034457, 0.191679, -0.394683, -0.308897, 0, 0, 0, 0};
-        std::vector<float> last_output_data_gold{0.034457, 0.191679, -0.394683, -0.308897, -0.371446, 0.317082, 0.131042, -0.18736};
+        std::vector<float> hs_data_gold{0.377808,
+                                        0.610551,
+                                        0.551685,
+                                        -0.588848,
+                                        -0.371446,
+                                        0.317082,
+                                        0.131042,
+                                        -0.18736,
+                                        0.034457,
+                                        0.191679,
+                                        -0.394683,
+                                        -0.308897,
+                                        0,
+                                        0,
+                                        0,
+                                        0};
+        std::vector<float> last_output_data_gold{
+            0.034457, 0.191679, -0.394683, -0.308897, -0.371446, 0.317082, 0.131042, -0.18736};
         EXPECT(migraphx::verify_range(last_output_data, last_output_data_gold));
         EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
     }

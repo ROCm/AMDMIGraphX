@@ -14,15 +14,6 @@
 #include <migraphx/onnx.hpp>
 #include "test.hpp"
 
-void print_vec(std::vector<float>& vec)
-{
-    for(auto v : vec)
-    {
-        std::cout << v << ", ";
-    }
-    std::cout << std::endl;
-}
-
 TEST_CASE(rnn_forward)
 {
     std::size_t batch_size  = 2;
@@ -82,7 +73,7 @@ TEST_CASE(rnn_forward)
         auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
-        p.add_instruction(migraphx::op::rnn{hidden_size,
+        auto hs = p.add_instruction(migraphx::op::rnn{hidden_size,
                                             {migraphx::op::tanh{}, migraphx::op::tanh{}},
                                             migraphx::op::rnn_direction::forward,
                                             clip},
@@ -92,10 +83,18 @@ TEST_CASE(rnn_forward)
                           bias,
                           und,
                           ih);
+        auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
+        p.add_return({hs, lho});
         p.compile(migraphx::cpu::target{});
-        auto hs_concat = p.eval({}).back();
+
+        auto outputs = p.eval({});
+        auto res_hs = outputs.front();
+        auto res_lho = outputs.back();
+
         std::vector<float> hs_data;
-        hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        std::vector<float> lho_data;
+        res_hs.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
+        res_lho.visit([&](auto output) { lho_data.assign(output.begin(), output.end()); });
 
         std::vector<float> hs_data_gold{0.37780784,
                                         0.61055139,
@@ -113,36 +112,8 @@ TEST_CASE(rnn_forward)
                                         0.44193283,
                                         -0.16477929,
                                         -0.11893477};
-        EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
-    }
 
-    // rnn last output as program output
-    {
-        migraphx::program p;
-        auto seq  = p.add_literal(migraphx::literal{in_shape, input});
-        auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
-        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
-        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
-        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
-        auto und  = p.add_instruction(migraphx::op::undefined{});
-
-        auto out_hs = p.add_instruction(
-            migraphx::op::rnn{hidden_size, {}, migraphx::op::rnn_direction::forward, clip},
-            seq,
-            w,
-            r,
-            bias,
-            und,
-            ih);
-
-        p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
-        p.compile(migraphx::cpu::target{});
-
-        auto last_output = p.eval({}).back();
-        std::vector<float> last_output_data;
-        last_output.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
-
-        std::vector<float> last_output_data_gold{0.03445704,
+        std::vector<float> lho_data_gold{0.03445704,
                                                  0.19167931,
                                                  -0.3946827,
                                                  -0.30889652,
@@ -150,7 +121,9 @@ TEST_CASE(rnn_forward)
                                                  0.44193283,
                                                  -0.16477929,
                                                  -0.11893477};
-        EXPECT(migraphx::verify_range(last_output_data, last_output_data_gold));
+
+        EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
+        EXPECT(migraphx::verify_range(lho_data, lho_data_gold));
     }
 
     {

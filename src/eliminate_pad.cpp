@@ -41,7 +41,7 @@ void eliminate_pad::update_op(T,
         return;
 
     std::vector<int64_t> pads = pad_op.pads;
-    std::array<size_t, 2> new_pads{static_cast<size_t>(pads[2]), static_cast<size_t>(pads[3])};
+    std::vector<size_t> new_pads{static_cast<size_t>(pads[2]), static_cast<size_t>(pads[3])};
 
     T op       = any_cast<T>(ins->get_operator());
     op.padding = new_pads;

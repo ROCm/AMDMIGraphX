@@ -323,16 +323,33 @@ struct onnx_parser
                             Op& op,
                             float pad_val = 0)
     {
-        if(padding[0] != padding[2] || padding[1] != padding[3])
+        bool asym_padding = false;
+        size_t num_pad_dims = padding.size() / 2;
+
+        auto left_pad_it = padding.begin();
+        auto right_pad_it = left_pad_it + num_pad_dims;
+
+        for(size_t i = 0; i < num_pad_dims; i++)
         {
-            ins = prog.add_instruction(
-                op::pad{{0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]}, pad_val},
-                ins);
+            if(padding[i] != padding[i + num_pad_dims])
+            {
+                asym_padding = true;
+                break;
+            }
+        }
+
+        if(asym_padding)
+        {
+            std::vector<int64_t> asym_pads{0, 0, 0, 0}; // don't pad N and C
+            // add left pads
+            asym_pads.insert(asym_pads.begin() + 2, left_pad_it, right_pad_it);
+            // add right pads
+            asym_pads.insert(asym_pads.begin() + num_pad_dims + 4, right_pad_it, padding.end());
+            ins = prog.add_instruction(op::pad{asym_pads, pad_val}, ins);
         }
         else
         {
-            op.padding[0] = padding[0];
-            op.padding[1] = padding[1];
+            op.padding = std::vector<size_t>(left_pad_it, right_pad_it);
         }
     }
 
@@ -427,8 +444,8 @@ struct onnx_parser
     instruction_ref process_auto_pad_attribute(instruction_ref ins,
                                                node_info info,
                                                Op& op,
-                                               std::array<std::size_t, 2> k_lens,
-                                               std::array<std::size_t, 2> dilation,
+                                               std::vector<std::size_t> k_lens,
+                                               std::vector<std::size_t> dilation,
                                                const std::vector<std::size_t>& in_lens,
                                                float value = 0.0f)
     {
@@ -441,11 +458,12 @@ struct onnx_parser
         if(auto_pad.find("SAME") != std::string::npos)
         {
             bool is_same_upper = (auto_pad.find("SAME_UPPER") != std::string::npos);
-            std::vector<int64_t> padding(in_lens.size());
-            calculate_padding(
-                0, padding, in_lens[2], op.stride[0], dilation[0], k_lens[0], is_same_upper);
-            calculate_padding(
-                1, padding, in_lens[3], op.stride[1], dilation[1], k_lens[1], is_same_upper);
+            std::vector<int64_t> padding(2*(in_lens.size() - 2));
+
+            for(size_t i = 0; i < padding.size() / 2; i++)
+            {
+                calculate_padding(i, padding, in_lens[i + 2], op.stride[i], dilation[i], k_lens[i], is_same_upper);
+            }
 
             check_asym_padding(ins, padding, op, value);
         }
@@ -549,43 +567,42 @@ struct onnx_parser
                 }
             }
             copy(info.attributes["pads"].ints(), std::back_inserter(padding));
-            if(padding.size() != 4)
-            {
-                MIGRAPHX_THROW("PARSE_CONV: padding should have 4 values");
-            }
             check_asym_padding(l0, padding, op);
         }
         if(contains(info.attributes, "strides"))
         {
-            copy(info.attributes["strides"].ints(), op.stride.begin());
+            std::vector<size_t> strides;
+            copy(info.attributes["strides"].ints(), std::back_inserter(strides));
+            op.stride = strides;
         }
         if(contains(info.attributes, "dilations"))
         {
-            copy(info.attributes["dilations"].ints(), op.dilation.begin());
+            std::vector<size_t> dilations;
+            copy(info.attributes["dilations"].ints(), std::back_inserter(dilations));
+            op.dilation = dilations;
         }
         if(contains(info.attributes, "auto_pad"))
         {
+            auto in_lens     = l0->get_shape().lens();
+            auto weight_lens = weights->get_shape().lens();
+
             auto s = info.attributes["auto_pad"].s();
             if(s.find("SAME") != std::string::npos)
             {
                 op.padding_mode                 = op::padding_mode_t::same;
-                std::vector<size_t> weight_dims = weights->get_shape().lens();
-                size_t weight_h                 = weight_dims[2];
-                size_t weight_w                 = weight_dims[3];
+                
+                padding.resize(2*(in_lens.size()-2));
 
-                auto input_dims = l0->get_shape().lens();
-                padding.resize(input_dims.size());
-                calculate_padding(
-                    0, padding, input_dims[2], op.stride[0], op.dilation[0], weight_h);
-                calculate_padding(
-                    1, padding, input_dims[3], op.stride[1], op.dilation[1], weight_w);
-
+                for(size_t i = 0; i < padding.size() / 2; i++)
+                {
+                    calculate_padding(
+                    i, padding, in_lens[i+2], op.stride[i], op.dilation[i], weight_lens[i+2]);
+                }
                 check_asym_padding(l0, padding, op);
             }
 
-            auto in_lens                      = args[0]->get_shape().lens();
-            auto weight_lens                  = args[1]->get_shape().lens();
-            std::array<std::size_t, 2> k_lens = {weight_lens[2], weight_lens[3]};
+            
+            std::vector<std::size_t> k_lens(weight_lens.begin() + 2, weight_lens.end());
             l0 = process_auto_pad_attribute(l0, info, op, k_lens, op.dilation, in_lens);
         }
         if(contains(info.attributes, "group"))

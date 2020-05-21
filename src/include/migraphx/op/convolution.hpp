@@ -19,9 +19,9 @@ namespace op {
 
 struct convolution
 {
-    std::array<std::size_t, 2> padding  = {{0, 0}};
-    std::array<std::size_t, 2> stride   = {{1, 1}};
-    std::array<std::size_t, 2> dilation = {{1, 1}};
+    std::vector<std::size_t> padding{0, 0};
+    std::vector<std::size_t> stride{1, 1};
+    std::vector<std::size_t> dilation{1, 1};
 
     padding_mode_t padding_mode = default_;
     int group                   = 1;
@@ -39,29 +39,26 @@ struct convolution
     std::string name() const { return "convolution"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_type().same_ndims().only_dims(4);
+        check_shapes{inputs, *this}.has(2).same_type().same_ndims();
 
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
         auto t               = input.type();
+        size_t kdims         = input.lens().size() - 2;
 
-        return {t,
-                {
-                    input.lens()[0],
-                    weights.lens()[0],
-                    std::size_t(std::max<std::ptrdiff_t>(
+        std::vector<size_t> output_lens{input.lens()[0], weights.lens()[0]};
+
+        for(size_t i = 0; i < kdims; i++)
+        {
+            output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
                         1,
-                        (input.lens()[2] - (1 + dilation[0] * (weights.lens()[2] - 1)) +
-                         2 * padding[0]) /
-                                stride[0] +
-                            1)),
-                    std::size_t(std::max<std::ptrdiff_t>(
-                        1,
-                        (input.lens()[3] - (1 + dilation[1] * (weights.lens()[3] - 1)) +
-                         2 * padding[1]) /
-                                stride[1] +
-                            1)),
-                }};
+                        (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
+                         2 * padding[i]) /
+                                stride[i] +
+                            1)));
+        }
+
+        return {t, output_lens};
     }
 };
 

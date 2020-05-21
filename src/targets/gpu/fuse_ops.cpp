@@ -163,10 +163,10 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
     auto op = conv.op;
     // Dont fuse winograd for non-3x3s since there is no fused windograd for those configs
     if(conv.algo == miopenConvolutionFwdAlgoWinograd and wei.lens()[2] != 3 and
-       wei.lens()[3] != 3 and op.stride == make_array<size_t>(1, 1))
+       wei.lens()[3] != 3 and contains({{1, 1}}, op.stride))
         return false;
     return contains({{0, 0}, {1, 1}, {2, 2}}, op.padding) and
-           contains({{0, 0}, {1, 1}}, op.stride) and op.dilation == make_array<size_t>(1, 1);
+           contains({{0, 0}, {1, 1}}, op.stride) and contains({{1, 1}}, op.dilation);
 }
 
 struct hip_triadd

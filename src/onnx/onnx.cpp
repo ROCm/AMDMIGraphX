@@ -731,7 +731,7 @@ struct onnx_parser
     parse_pooling(const std::string& name, node_info info, std::vector<instruction_ref> args)
     {
         op::pooling op{ends_with(name, "MaxPool") ? "max" : "average"};
-        auto l0 = args[0];
+        auto l0      = args[0];
         auto in_lens = l0->get_shape().lens();
 
         if(starts_with(name, "Global"))
@@ -780,7 +780,7 @@ struct onnx_parser
                 op.padding_mode = op::padding_mode_t::same;
             }
 
-            float val    = 0.0f;
+            float val = 0.0f;
             // MaxPool
             if(op.mode == "max")
             {

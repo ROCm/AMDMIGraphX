@@ -617,12 +617,12 @@ TEST_CASE(rnn_bidirectional)
     {
 
         migraphx::program p;
-        auto seq  = p.add_literal(migraphx::literal{in_shape, input});
-        auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
-        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
-        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
-        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
-        auto und  = p.add_instruction(migraphx::op::undefined{});
+        auto seq    = p.add_literal(migraphx::literal{in_shape, input});
+        auto ih     = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        auto w      = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r      = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto bias   = p.add_literal(migraphx::literal{b_shape, bias_data});
+        auto und    = p.add_instruction(migraphx::op::undefined{});
         auto out_hs = p.add_instruction(
             migraphx::op::rnn{hidden_size, {}, migraphx::op::rnn_direction::bidirectional, clip},
             seq,
@@ -636,7 +636,7 @@ TEST_CASE(rnn_bidirectional)
         p.compile(migraphx::cpu::target{});
 
         auto outputs = p.eval({});
-        auto arg_hs = outputs.front();
+        auto arg_hs  = outputs.front();
         auto arg_lho = outputs.back();
 
         std::vector<float> hs_data;
@@ -697,11 +697,11 @@ TEST_CASE(rnn_bidirectional)
                               sql,
                               ih);
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
-        p.add_return({out_hs, lho});        
+        p.add_return({out_hs, lho});
         p.compile(migraphx::cpu::target{});
 
         auto outputs = p.eval({});
-        auto arg_hs = outputs.front();
+        auto arg_hs  = outputs.front();
         auto arg_lho = outputs.back();
 
         std::vector<float> hs_data;
@@ -709,8 +709,27 @@ TEST_CASE(rnn_bidirectional)
         arg_hs.visit([&](auto out) { hs_data.assign(out.begin(), out.end()); });
         arg_lho.visit([&](auto out) { last_output_data.assign(out.begin(), out.end()); });
 
-        std::vector<float> hs_data_gold{0.377808, 0.610551, 0.551685, -0.588848, -0.371446, 0.317082, 0.131042, -0.18736, -0.169158, 0.193817, 0.206679, 0.586097, -0.138188, 0.441244, 0.143656, 0.148037, 0, 0, 0, 0, -0.222764, 0.441933, -0.164779, -0.118935, 0, 0, 0, 0, -0.0070999, 0.46251, -0.206392, 0.374889};
-        std::vector<float> last_output_data_gold{0.377808, 0.610551, 0.551685, -0.588848, -0.222764, 0.441933, -0.164779, -0.118935, -0.169158, 0.193817, 0.206679, 0.586097, -0.138188, 0.441244, 0.143656, 0.148037};
+        std::vector<float> hs_data_gold{
+            0.377808,  0.610551, 0.551685, -0.588848, -0.371446,  0.317082, 0.131042,  -0.18736,
+            -0.169158, 0.193817, 0.206679, 0.586097,  -0.138188,  0.441244, 0.143656,  0.148037,
+            0,         0,        0,        0,         -0.222764,  0.441933, -0.164779, -0.118935,
+            0,         0,        0,        0,         -0.0070999, 0.46251,  -0.206392, 0.374889};
+        std::vector<float> last_output_data_gold{0.377808,
+                                                 0.610551,
+                                                 0.551685,
+                                                 -0.588848,
+                                                 -0.222764,
+                                                 0.441933,
+                                                 -0.164779,
+                                                 -0.118935,
+                                                 -0.169158,
+                                                 0.193817,
+                                                 0.206679,
+                                                 0.586097,
+                                                 -0.138188,
+                                                 0.441244,
+                                                 0.143656,
+                                                 0.148037};
 
         EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
         EXPECT(migraphx::verify_range(last_output_data, last_output_data_gold));

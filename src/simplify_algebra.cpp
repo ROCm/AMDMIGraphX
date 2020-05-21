@@ -81,7 +81,8 @@ struct find_mul_slice_conv
     auto matcher() const
     {
         return match::name("mul")(match::either_arg(0, 1)(
-            match::name("slice")(match::used_once(), match::arg(0)(conv().bind("conv"))).bind("slice"),
+            match::name("slice")(match::used_once(), match::arg(0)(conv().bind("conv")))
+                .bind("slice"),
             match::name("broadcast")(match::is_constant()).bind("a")));
     }
 

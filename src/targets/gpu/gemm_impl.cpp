@@ -1,4 +1,4 @@
-#include <rocblas-types.h>
+#include <rocblas.h>
 #include <migraphx/gpu/gemm_impl.hpp>
 
 namespace migraphx {

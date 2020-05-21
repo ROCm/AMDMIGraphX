@@ -1252,12 +1252,12 @@ void rewrite_rnn::replace_last_cell_output(program& prog,
                                            op::rnn_direction dirct) const
 {
     bool variable_seq_len = is_variable_seq_lens(prog, seq_lens);
-    auto ins_outputs = find_all(ins->outputs(),
-                                [&](auto i) { return i->name() == "rnn_last_cell_output"; });
+    auto ins_outputs =
+        find_all(ins->outputs(), [&](auto i) { return i->name() == "rnn_last_cell_output"; });
 
     if(variable_seq_len)
     {
-        if (!ins_outputs.empty())
+        if(!ins_outputs.empty())
         {
             cell_outputs =
                 prog.insert_instruction(std::next(ins),
@@ -1266,7 +1266,7 @@ void rewrite_rnn::replace_last_cell_output(program& prog,
                                         seq_lens);
         }
 
-        for (auto co : ins_outputs)
+        for(auto co : ins_outputs)
         {
             prog.replace_instruction(co, op::rnn_var_sl_last_output{dirct}, cell_outputs, seq_lens);
         }
@@ -1275,7 +1275,7 @@ void rewrite_rnn::replace_last_cell_output(program& prog,
     // loop is to handle the case of multiple rnn_last_cell_output operators
     else
     {
-        for (auto co : ins_outputs)
+        for(auto co : ins_outputs)
         {
             prog.replace_instruction(co, last_cell_output);
         }

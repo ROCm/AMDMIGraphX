@@ -4,11 +4,14 @@
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/concat.hpp>
+#include <migraphx/op/slice.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/permutation.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <unordered_set>
+#include <map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -150,6 +153,78 @@ struct find_transpose
     }
 };
 
+struct find_nested_slice
+{
+    auto matcher() const
+    {
+        return match::name("slice")(match::arg(0)(match::name("slice")));
+    }
+
+    using axes_map = std::map<std::size_t, std::pair<std::size_t, std::size_t>>;
+
+    static axes_map get_axes(instruction_ref ins)
+    {
+        axes_map result;
+        auto op = any_cast<op::slice>(ins->get_operator());
+        for(std::size_t i = 0;i < op.axes.size();i++)
+        {
+            result[op.axes[i]] = std::make_pair(op.starts[i], op.ends[i]);
+        }
+        return result;
+    }
+
+    static axes_map merge(axes_map m1, axes_map m2)
+    {
+        axes_map result;
+        // Non overlapping
+        for(auto&& p:m1)
+        {
+            if (contains(m2, p.first)) 
+                continue;
+            result[p.first] = p.second;
+        }
+        for(auto&& p:m2)
+        {
+            if (contains(m1, p.first))
+                continue;
+            result[p.first] = p.second;
+        }
+        // Overlapping
+        for(auto&& p1:m1)
+        {
+            if (not contains(m2, p1.first)) 
+                continue;
+            auto&& v1 = p1.second;
+            auto&& v2 = m2[p1.first];
+            auto start = v1.first+v2.first;
+            auto end = start+(v2.second-v2.first);
+            result[p1.first] = std::make_pair(start, end);
+        }
+        return result;
+    }
+
+    void apply(program& p, const match::matcher_result& mr) const
+    {
+        auto ins  = mr.result;
+        auto slice = ins->inputs().front();
+        auto input = slice->inputs().front();
+
+        auto a1 = get_axes(ins);
+        auto a2 = get_axes(slice);
+
+        auto axes = merge(a2, a1);
+
+        auto op = op::slice{};
+        for(auto&& pp:axes)
+        {
+            op.axes.push_back(pp.first);
+            op.starts.push_back(pp.second.first);
+            op.ends.push_back(pp.second.second);
+        }
+        p.replace_instruction(ins, op, input);
+    }
+};
+
 struct find_concat_transpose
 {
     auto matcher() const
@@ -215,22 +290,14 @@ void simplify_reshapes::apply(program& p) const
 {
     for(int i = 0; i < 2; i++)
     {
-        auto end = std::prev(p.end());
-        for(auto ins : iterator_for(p))
-        {
-            if(ins == end and ins->name() == "contiguous")
-                continue;
-            // Skip possible dead instructions
-            if(ins->outputs().empty() and ins != end)
-                continue;
-            match::find_matches(p,
-                                ins,
-                                find_nop_reshapes{},
-                                find_reshaper{},
-                                find_transpose{},
-                                find_concat_transpose{},
-                                find_nested_concat{});
-        }
+        match::find_matches(p,
+                            find_nop_reshapes{},
+                            find_reshaper{},
+                            find_transpose{},
+                            find_concat_transpose{},
+                            find_nested_slice{},
+                            find_nested_concat{});
+        dead_code_elimination{}.apply(p);
     }
 }
 

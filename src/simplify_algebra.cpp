@@ -81,7 +81,7 @@ struct find_mul_slice_conv
     auto matcher() const
     {
         return match::name("mul")(match::either_arg(0, 1)(
-            match::name("slice")(match::arg(0)(conv().bind("conv"))).bind("slice"),
+            match::name("slice")(match::used_once(), match::arg(0)(conv().bind("conv"))).bind("slice"),
             match::name("broadcast")(match::is_constant()).bind("a")));
     }
 
@@ -309,7 +309,7 @@ struct find_concat_binary
     {
         return match::name("concat")(args_has_same_ops(),
                                      match::arg(0)(match::nargs(2),
-                                                   match::name("add", "multiply").bind("x"),
+                                                   match::name("add", "mul").bind("x"),
                                                    match::used_once()));
     }
 

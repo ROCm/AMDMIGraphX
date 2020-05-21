@@ -1387,16 +1387,19 @@ TEST_CASE(simplify_mul_slice_conv_horiz_fusion)
             migraphx::generate_literal({migraphx::shape::int32_type, {768, 1024, 1, 1}}));
         auto conv   = p1.add_instruction(migraphx::op::convolution{}, x, w);
         auto slice1 = p1.add_instruction(migraphx::op::slice{{1}, {0}, {384}}, conv);
-        auto a1   = p1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}, 1));
-        auto b1   = p1.add_instruction(migraphx::op::broadcast{1, {1, 384, 17, 17}}, a1);
+        auto a1 =
+            p1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}, 1));
+        auto b1  = p1.add_instruction(migraphx::op::broadcast{1, {1, 384, 17, 17}}, a1);
         auto mul = p1.add_instruction(migraphx::op::mul{}, slice1, b1);
-        auto a2   = p1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}, 2));
+        auto a2 =
+            p1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}, 2));
         auto b2   = p1.add_instruction(migraphx::op::broadcast{1, {1, 384, 17, 17}}, a2);
-        auto add1    = p1.add_instruction(migraphx::op::add{}, mul, b2);
-        auto a3   = p1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}, 3));
-        auto b3   = p1.add_instruction(migraphx::op::broadcast{1, {1, 384, 17, 17}}, a3);
+        auto add1 = p1.add_instruction(migraphx::op::add{}, mul, b2);
+        auto a3 =
+            p1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}, 3));
+        auto b3     = p1.add_instruction(migraphx::op::broadcast{1, {1, 384, 17, 17}}, a3);
         auto slice2 = p1.add_instruction(migraphx::op::slice{{1}, {384}, {768}}, conv);
-        auto add2    = p1.add_instruction(migraphx::op::add{}, slice2, b3);
+        auto add2   = p1.add_instruction(migraphx::op::add{}, slice2, b3);
         p1.add_instruction(pass_op{}, add1, add2);
     }
     run_pass(p1);
@@ -1407,16 +1410,19 @@ TEST_CASE(simplify_mul_slice_conv_horiz_fusion)
         auto w = p2.add_literal(
             migraphx::generate_literal({migraphx::shape::int32_type, {768, 1024, 1, 1}}));
         auto wslice1 = p2.add_instruction(migraphx::op::slice{{0}, {0}, {384}}, w);
-        auto a1   = p2.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}, 1));
-        auto b1   = p2.add_instruction(migraphx::op::broadcast{0, {384, 1024, 1, 1}}, a1);
-        auto mul = p2.add_instruction(migraphx::op::mul{}, b1, wslice1);
+        auto a1 =
+            p2.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}, 1));
+        auto b1      = p2.add_instruction(migraphx::op::broadcast{0, {384, 1024, 1, 1}}, a1);
+        auto mul     = p2.add_instruction(migraphx::op::mul{}, b1, wslice1);
         auto wslice2 = p2.add_instruction(migraphx::op::slice{{0}, {384}, {768}}, w);
-        auto concat1  = p2.add_instruction(migraphx::op::concat{0}, mul, wslice2);
+        auto concat1 = p2.add_instruction(migraphx::op::concat{0}, mul, wslice2);
         auto conv    = p2.add_instruction(migraphx::op::convolution{}, x, concat1);
-        auto a2   = p1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}, 2));
-        auto a3   = p1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}, 3));
+        auto a2 =
+            p1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}, 2));
+        auto a3 =
+            p1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}, 3));
         auto concat2 = p2.add_instruction(migraphx::op::concat{}, a2, a3);
-        auto b4 = p2.add_instruction(migraphx::op::broadcast{1, {1, 768, 17, 17}}, concat2);
+        auto b4      = p2.add_instruction(migraphx::op::broadcast{1, {1, 768, 17, 17}}, concat2);
         auto add     = p2.add_instruction(migraphx::op::add{}, conv, b4);
         auto slice1  = p2.add_instruction(migraphx::op::slice{{1}, {0}, {384}}, add);
         auto slice2  = p2.add_instruction(migraphx::op::slice{{1}, {384}, {768}}, add);
@@ -1424,6 +1430,5 @@ TEST_CASE(simplify_mul_slice_conv_horiz_fusion)
     }
     EXPECT(p1.sort() == p2.sort());
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

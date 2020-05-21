@@ -51,6 +51,11 @@ struct pad
         return s;
     }
 
+    std::size_t pad_ndims() const
+    {
+        return pads.size() / 2;
+    }
+
     bool symmetric() const
     {
         std::size_t num_dims = pads.size() / 2;

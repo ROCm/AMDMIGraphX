@@ -72,8 +72,10 @@ struct rewrite_rnn
     std::size_t
     get_seq_len(const program& prog, instruction_ref input, instruction_ref seq_lens) const;
 
-    instruction_ref 
-    pad_hidden_states(program& prog, instruction_ref seq, instruction_ref seq_lens, instruction_ref hs) const;
+    instruction_ref pad_hidden_states(program& prog,
+                                      instruction_ref seq,
+                                      instruction_ref seq_lens,
+                                      instruction_ref hs) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

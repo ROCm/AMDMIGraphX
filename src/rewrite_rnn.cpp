@@ -250,8 +250,8 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
 
     instruction_ref hidden_out = prog.end();
     instruction_ref last_out{};
-    last_out         = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, sih);
-    long seq_len     = static_cast<long>(get_seq_len(prog, seq, seq_lens));
+    last_out     = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, sih);
+    long seq_len = static_cast<long>(get_seq_len(prog, seq, seq_lens));
     for(long i = 0; i < seq_len; i++)
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
@@ -1309,10 +1309,13 @@ void rewrite_rnn::replace_last_cell_output(program& prog,
     }
 }
 
-instruction_ref rewrite_rnn::pad_hidden_states(program& prog, instruction_ref seq, instruction_ref seq_lens, instruction_ref hs) const
+instruction_ref rewrite_rnn::pad_hidden_states(program& prog,
+                                               instruction_ref seq,
+                                               instruction_ref seq_lens,
+                                               instruction_ref hs) const
 {
     auto max_seq_len = seq->get_shape().lens()[0];
-    auto seq_len = get_seq_len(prog, seq, seq_lens);
+    auto seq_len     = get_seq_len(prog, seq, seq_lens);
 
     // condition of all sequence are of the same length and
     // less than max_seq_len, we need to append the hs outputs
@@ -1324,7 +1327,7 @@ instruction_ref rewrite_rnn::pad_hidden_states(program& prog, instruction_ref se
         pad_lens[0]   = static_cast<std::size_t>(max_seq_len - seq_len);
         shape pad_s{s.type(), pad_lens};
         std::vector<float> pad_data(pad_s.elements(), 0.0f);
-        auto pl    = prog.add_literal(pad_s, pad_data.begin(), pad_data.end());
+        auto pl   = prog.add_literal(pad_s, pad_data.begin(), pad_data.end());
         hs_padded = prog.insert_instruction(std::next(hs), op::concat{0}, hs, pl);
         prog.replace_instruction(hs, hs_padded);
     }

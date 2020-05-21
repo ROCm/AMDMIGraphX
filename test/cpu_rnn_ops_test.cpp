@@ -16,7 +16,7 @@
 
 void print_vec(std::vector<float>& vec)
 {
-    for (auto v : vec)
+    for(auto v : vec)
     {
         std::cout << v << ", ";
     }
@@ -155,11 +155,11 @@ TEST_CASE(rnn_forward)
     // multiple rnn_last_hs_output operators
     {
         migraphx::program p;
-        auto seq_orig  = p.add_literal(migraphx::literal{in_shape, input});
-        auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
-        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
-        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
-        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
+        auto seq_orig = p.add_literal(migraphx::literal{in_shape, input});
+        auto ih       = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        auto w        = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r        = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto bias     = p.add_literal(migraphx::literal{b_shape, bias_data});
         migraphx::shape pad_seq_s{migraphx::shape::float_type, {2, batch_size, input_size}};
         std::vector<float> pad_data(pad_seq_s.elements(), 0.0f);
         auto seq_p = p.add_literal(migraphx::literal{pad_seq_s, pad_data});
@@ -182,7 +182,7 @@ TEST_CASE(rnn_forward)
 
         auto outputs = p.eval({});
 
-        auto arg_hs = outputs.front();
+        auto arg_hs          = outputs.front();
         auto arg_last_output = outputs.back();
         std::vector<float> last_output_data;
         std::vector<float> hs_data;
@@ -191,22 +191,12 @@ TEST_CASE(rnn_forward)
 
         print_vec(hs_data);
 
-        std::vector<float> hs_data_gold{0.37780784,
-                                        0.61055139,
-                                        0.55168478,
-                                        -0.5888475,
-                                        -0.37144644,
-                                        0.31708236,
-                                        0.13104209,
-                                        -0.18736027,
-                                        0.03445704,
-                                        0.19167931,
-                                        -0.3946827,
-                                        -0.30889652,
-                                        -0.22276389,
-                                        0.44193283,
-                                        -0.16477929,
-                                        -0.11893477, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        std::vector<float> hs_data_gold{
+            0.37780784,  0.61055139,  0.55168478, -0.5888475, -0.37144644, 0.31708236,  0.13104209,
+            -0.18736027, 0.03445704,  0.19167931, -0.3946827, -0.30889652, -0.22276389, 0.44193283,
+            -0.16477929, -0.11893477, 0.0,        0.0,        0.0,         0.0,         0.0,
+            0.0,         0.0,         0.0,        0.0,        0.0,         0.0,         0.0,
+            0.0,         0.0,         0.0,        0.0};
 
         std::vector<float> last_output_data_gold{0.03445704,
                                                  0.19167931,

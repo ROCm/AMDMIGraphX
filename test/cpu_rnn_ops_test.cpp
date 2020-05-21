@@ -73,22 +73,22 @@ TEST_CASE(rnn_forward)
         auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
         auto und  = p.add_instruction(migraphx::op::undefined{});
 
-        auto hs = p.add_instruction(migraphx::op::rnn{hidden_size,
-                                            {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::forward,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          und,
-                          ih);
+        auto hs  = p.add_instruction(migraphx::op::rnn{hidden_size,
+                                                      {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                      migraphx::op::rnn_direction::forward,
+                                                      clip},
+                                    seq,
+                                    w,
+                                    r,
+                                    bias,
+                                    und,
+                                    ih);
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         p.add_return({hs, lho});
         p.compile(migraphx::cpu::target{});
 
         auto outputs = p.eval({});
-        auto res_hs = outputs.front();
+        auto res_hs  = outputs.front();
         auto res_lho = outputs.back();
 
         std::vector<float> hs_data;
@@ -114,13 +114,13 @@ TEST_CASE(rnn_forward)
                                         -0.11893477};
 
         std::vector<float> lho_data_gold{0.03445704,
-                                                 0.19167931,
-                                                 -0.3946827,
-                                                 -0.30889652,
-                                                 -0.22276389,
-                                                 0.44193283,
-                                                 -0.16477929,
-                                                 -0.11893477};
+                                         0.19167931,
+                                         -0.3946827,
+                                         -0.30889652,
+                                         -0.22276389,
+                                         0.44193283,
+                                         -0.16477929,
+                                         -0.11893477};
 
         EXPECT(migraphx::verify_range(hs_data, hs_data_gold));
         EXPECT(migraphx::verify_range(lho_data, lho_data_gold));

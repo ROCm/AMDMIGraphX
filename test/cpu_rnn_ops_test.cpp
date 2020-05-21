@@ -3683,14 +3683,14 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
     // concatenation of hidden states as program output
     {
         migraphx::program p;
-        auto seq  = p.add_literal(migraphx::literal{in_shape, input_data});
-        auto ih   = p.add_literal(migraphx::literal{ih_shape, ih_data});
-        auto ic   = p.add_literal(migraphx::literal{ic_shape, ic_data});
-        auto w    = p.add_literal(migraphx::literal{w_shape, w_data});
-        auto r    = p.add_literal(migraphx::literal{r_shape, r_data});
-        auto bias = p.add_literal(migraphx::literal{b_shape, bias_data});
-        auto pph  = p.add_literal(migraphx::literal{pph_shape, pph_data});
-        auto sql  = p.add_literal(migraphx::literal{sl_shape, sl_data});
+        auto seq    = p.add_literal(migraphx::literal{in_shape, input_data});
+        auto ih     = p.add_literal(migraphx::literal{ih_shape, ih_data});
+        auto ic     = p.add_literal(migraphx::literal{ic_shape, ic_data});
+        auto w      = p.add_literal(migraphx::literal{w_shape, w_data});
+        auto r      = p.add_literal(migraphx::literal{r_shape, r_data});
+        auto bias   = p.add_literal(migraphx::literal{b_shape, bias_data});
+        auto pph    = p.add_literal(migraphx::literal{pph_shape, pph_data});
+        auto sql    = p.add_literal(migraphx::literal{sl_shape, sl_data});
         auto out_hs = p.add_instruction(
             migraphx::op::lstm{
                 hidden_size,
@@ -3711,7 +3711,7 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
         p.compile(migraphx::cpu::target{});
 
         auto outputs = p.eval({});
-        auto arg_hs = outputs.front();
+        auto arg_hs  = outputs.front();
         auto arg_lho = outputs.back();
 
         std::vector<float> output_data;

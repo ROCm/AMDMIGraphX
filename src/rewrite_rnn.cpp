@@ -203,6 +203,9 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
         }
     }
 
+    // in case of all sequences are of the same lengths and shorter than the
+    // max sequence length, need to pad 0's at the end for output hidden states
+    ins = pad_hidden_states(prog, args[0], seq_lens, ins);
     replace_last_hs_output(prog, ins, seq_lens, last_output, dirct);
 }
 
@@ -248,7 +251,6 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
     instruction_ref hidden_out = prog.end();
     instruction_ref last_out{};
     last_out         = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, sih);
-    long max_seq_len = seq->get_shape().lens()[0];
     long seq_len     = static_cast<long>(get_seq_len(prog, seq, seq_lens));
     for(long i = 0; i < seq_len; i++)
     {
@@ -292,19 +294,6 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
                         : prog.insert_instruction(ins, op::concat{0}, last_out, hidden_out);
             }
         }
-    }
-
-    // condition of all sequence are of the same length and
-    // less than max_seq_len, we need to append the hs outputs
-    if(seq_len < max_seq_len)
-    {
-        auto s        = last_out->get_shape();
-        auto pad_lens = s.lens();
-        pad_lens[0]   = static_cast<std::size_t>(max_seq_len - seq_len);
-        shape pad_s{s.type(), pad_lens};
-        std::vector<float> pad_data(pad_s.elements(), 0.0f);
-        auto pl    = prog.add_literal(pad_s, pad_data.begin(), pad_data.end());
-        hidden_out = prog.insert_instruction(ins, op::concat{0}, hidden_out, pl);
     }
 
     return {hidden_out, last_out};
@@ -506,6 +495,9 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
         }
     }
 
+    // in case of all sequences are of the same lengths and shorter than the
+    // max sequence length, need to pad 0's at the end for output hidden states
+    ins = pad_hidden_states(prog, args[0], seq_lens, ins);
     replace_last_hs_output(prog, ins, seq_lens, last_output, dirct);
 }
 
@@ -529,7 +521,6 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
     instruction_ref last_output{};
     migraphx::shape seq_shape = seq->get_shape();
     migraphx::shape r_shape   = r->get_shape();
-    long max_seq_len          = static_cast<long>(seq_shape.lens()[0]);
     long hs                   = static_cast<long>(r_shape.lens()[2]);
 
     migraphx::shape ss(seq_shape.type(), {seq_shape.lens()[1], r_shape.lens()[2]});
@@ -648,19 +639,6 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
                         : prog.insert_instruction(ins, op::concat{0}, last_output, hidden_states);
             }
         }
-    }
-
-    // condition of all sequence are of the same length and
-    // less than max_seq_len, we need to append the hs outputs
-    if(seq_len < max_seq_len)
-    {
-        auto s        = last_output->get_shape();
-        auto pad_lens = s.lens();
-        pad_lens[0]   = static_cast<std::size_t>(max_seq_len - seq_len);
-        shape pad_s{s.type(), pad_lens};
-        std::vector<float> pad_data(pad_s.elements(), 0.0f);
-        auto pl       = prog.add_literal(pad_s, pad_data.begin(), pad_data.end());
-        hidden_states = prog.insert_instruction(ins, op::concat{0}, hidden_states, pl);
     }
 
     return {hidden_states, last_output};
@@ -937,7 +915,14 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
         }
     }
 
+    // in case of all sequences are of the same lengths and shorter than the
+    // max sequence length, need to pad 0's at the end for output hidden states
+    hidden_state = pad_hidden_states(prog, args[0], seq_lens, hidden_state);
+
+    // replace last hidden states with corresponding instructions
     ins = replace_last_hs_output(prog, hidden_state, seq_lens, last_hs_output, dirct);
+
+    // replace last cell outputs with corresponding instructions
     replace_last_cell_output(prog, ins, seq_lens, cell_outputs, last_cell_output, dirct);
 }
 
@@ -968,7 +953,6 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
 
     migraphx::shape seq_shape = seq->get_shape();
     migraphx::shape r_shape   = r->get_shape();
-    long max_seq_len          = static_cast<long>(seq_shape.lens()[0]);
     long hs                   = static_cast<long>(r_shape.lens()[2]);
     auto bs                   = ih->get_shape().lens()[1];
 
@@ -1096,21 +1080,6 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
                     prog.insert_instruction(ins, op::concat{0}, concat_cell_arg0, concat_cell_arg1);
             }
         }
-    }
-
-    // condition of all sequence are of the same length and
-    // less than max_seq_len, we need to append the hs outputs
-    // In this case, the cell_output is not used at all, so
-    // no need to extand it to the avariable length
-    if(seq_len < max_seq_len)
-    {
-        auto s        = last_hs_output->get_shape();
-        auto pad_lens = s.lens();
-        pad_lens[0]   = static_cast<std::size_t>(max_seq_len - seq_len);
-        shape pad_s{s.type(), pad_lens};
-        std::vector<float> data(pad_s.elements(), 0.0f);
-        auto pl       = prog.add_literal(pad_s, data.begin(), data.end());
-        hidden_states = prog.insert_instruction(ins, op::concat{0}, hidden_states, pl);
     }
 
     return {hidden_states, last_hs_output, cell_outputs, last_cell_output};
@@ -1338,6 +1307,29 @@ void rewrite_rnn::replace_last_cell_output(program& prog,
             }
         }
     }
+}
+
+instruction_ref rewrite_rnn::pad_hidden_states(program& prog, instruction_ref seq, instruction_ref seq_lens, instruction_ref hs) const
+{
+    auto max_seq_len = seq->get_shape().lens()[0];
+    auto seq_len = get_seq_len(prog, seq, seq_lens);
+
+    // condition of all sequence are of the same length and
+    // less than max_seq_len, we need to append the hs outputs
+    auto hs_padded = hs;
+    if(seq_len < max_seq_len)
+    {
+        auto s        = hs->get_shape();
+        auto pad_lens = s.lens();
+        pad_lens[0]   = static_cast<std::size_t>(max_seq_len - seq_len);
+        shape pad_s{s.type(), pad_lens};
+        std::vector<float> pad_data(pad_s.elements(), 0.0f);
+        auto pl    = prog.add_literal(pad_s, pad_data.begin(), pad_data.end());
+        hs_padded = prog.insert_instruction(std::next(hs), op::concat{0}, hs, pl);
+        prog.replace_instruction(hs, hs_padded);
+    }
+
+    return hs_padded;
 }
 
 namespace op {

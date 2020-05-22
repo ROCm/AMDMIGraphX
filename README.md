@@ -70,9 +70,9 @@ And can be installed by using the 'install' target:
 
 This will install the library to the `CMAKE_INSTALL_PREFIX` path that was set.
 
-To build the library using the 'Debug' configuration, the cmake environment variable `CMAKE_BUILD_TYPE` can be modified to `Debug`:
+To build a debug version of the library, the cmake variable `CMAKE_BUILD_TYPE` can be set to `Debug`:
 
-` cmake -DCMAKE_BUILD_TYPE=Debug . ; make `
+` cmake -DCMAKE_BUILD_TYPE=Debug . `
 
 ## Running the tests
 

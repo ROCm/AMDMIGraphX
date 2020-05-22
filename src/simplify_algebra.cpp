@@ -182,6 +182,20 @@ struct find_concat_op
             match::used_once());
     }
 
+    template<class Iterator>
+    static std::vector<std::size_t> get_output_lens(Iterator start, Iterator last, std::size_t axis)
+    {
+        assert(start != last);
+        std::size_t dim = 0;
+        for(auto ins:range(start, last))
+        {
+            dim += ins->get_shape().lens().at(axis);
+        }
+        auto lens = (*start)->get_shape().lens();
+        lens[axis] = dim;
+        return lens;
+    }
+
     void apply(program& p, match::matcher_result r) const
     {
         auto ins  = r.result;
@@ -197,15 +211,16 @@ struct find_concat_op
             if(not contains({"add", "multiply", "relu", "broadcast"}, name))
                 return {start, last};
             auto op = x->get_operator();
+            auto iaxis = axis;
             // Adjust broadcast lens
             if(op.name() == "broadcast")
             {
                 auto b = any_cast<op::broadcast>(op);
-                if(b.axis != axis)
+                if(b.axis != iaxis)
                     return {start, last};
-                b.broadcast_lens = ins->get_shape().lens();
+                b.broadcast_lens = get_output_lens(start, last, iaxis);
                 op               = b;
-                axis             = 0;
+                iaxis             = 0;
             }
 
             std::vector<instruction_ref> concats;
@@ -215,7 +230,7 @@ struct find_concat_op
                 std::transform(start, last, std::back_inserter(inputs), [&](auto j) {
                     return j->inputs().at(i);
                 });
-                auto concat = p.insert_instruction(ins, op::concat{axis}, inputs);
+                auto concat = p.insert_instruction(ins, op::concat{iaxis}, inputs);
                 concats.push_back(concat);
             }
             auto y = p.insert_instruction(ins, op, concats);

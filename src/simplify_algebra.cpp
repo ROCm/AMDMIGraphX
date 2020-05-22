@@ -182,70 +182,68 @@ struct find_inner_broadcast
     }
 };
 
-struct find_concat_unary
+struct find_concat_op
 {
     auto matcher() const
     {
-        return match::name("concat")(args_has_same_ops(),
-                                     match::arg(0)(match::nargs(1),
-                                                   match::name("relu", "broadcast").bind("x"),
-                                                   match::used_once()));
+        return match::name("concat")(match::any_of[match::inputs()](match::name("add", "multiply", "relu", "broadcast")),
+                                                   match::used_once());
     }
 
     void apply(program& p, match::matcher_result r) const
     {
         auto ins  = r.result;
-        auto x    = r.instructions["x"];
-        auto op   = x->get_operator();
         auto axis = any_cast<op::concat>(ins->get_operator()).axis;
-        // Adjust broadcast lens
-        if(op.name() == "broadcast")
-        {
-            auto b = any_cast<op::broadcast>(op);
-            if(b.axis != axis)
-                return;
-            b.broadcast_lens = ins->get_shape().lens();
-            op               = b;
-            axis             = 0;
-        }
 
-        auto inputs = ins->inputs();
-        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto i) {
-            return i->inputs().front();
-        });
-        auto concat = p.insert_instruction(ins, op::concat{axis}, inputs);
-        p.replace_instruction(ins, op, concat);
-    }
-};
+        auto each = [&](auto start, auto last) -> std::vector<instruction_ref> {
+            if(std::distance(start, last) < 2)
+                return {start, last};
+            auto x = *start;
+            if (x->inputs().size() > 2 or x->inputs().empty())
+                return {start, last};
+            auto&& name = x->name();
+            if (not contains({"add", "multiply", "relu", "broadcast"}, name))
+                return {start, last};
+            auto op = x->get_operator();
+            // Adjust broadcast lens
+            if(op.name() == "broadcast")
+            {
+                auto b = any_cast<op::broadcast>(op);
+                if(b.axis != axis)
+                    return {start, last};
+                b.broadcast_lens = ins->get_shape().lens();
+                op               = b;
+                axis             = 0;
+            }
 
-struct find_concat_binary
-{
-    auto matcher() const
-    {
-        return match::name("concat")(args_has_same_ops(),
-                                     match::arg(0)(match::nargs(2),
-                                                   match::name("add", "multiply").bind("x"),
-                                                   match::used_once()));
-    }
+            std::vector<instruction_ref> concats;
+            for(std::size_t i = 0;i< x->inputs().size();i++)
+            {
+                std::vector<instruction_ref> inputs;
+                std::transform(start, last, std::back_inserter(inputs), [&](auto j) {
+                    return j->inputs().at(i);
+                });
+                auto concat = p.insert_instruction(ins, op::concat{axis}, inputs);
+                concats.push_back(concat);
+            }
+            auto y = p.insert_instruction(ins, op, concats);
+            return {y};
 
-    void apply(program& p, match::matcher_result r) const
-    {
-        auto ins       = r.result;
-        auto x         = r.instructions["x"];
-        auto op        = x->get_operator();
-        auto concat_op = ins->get_operator();
+        };
 
-        auto xinputs = ins->inputs();
-        std::transform(xinputs.begin(), xinputs.end(), xinputs.begin(), [&](auto i) {
-            return i->inputs().front();
-        });
-        auto yinputs = ins->inputs();
-        std::transform(yinputs.begin(), yinputs.end(), yinputs.begin(), [&](auto i) {
-            return i->inputs().back();
-        });
-        auto xconcat = p.insert_instruction(ins, concat_op, xinputs);
-        auto yconcat = p.insert_instruction(ins, concat_op, yinputs);
-        p.replace_instruction(ins, op, xconcat, yconcat);
+        std::vector<instruction_ref> args;
+        auto update_args = [&](auto start, auto last) {
+            auto x = each(start, last);
+            args.insert(args.end(), x.begin(), x.end());
+        };
+        auto pred = [](auto i, auto j) {
+            return i->get_operator() == j->get_operator() and i->inputs().size() == i->inputs().size();
+        };
+        group_unique(ins->inputs().begin(), ins->inputs().end(), update_args, pred);
+        if (args.size() == 1)
+            p.replace_instruction(ins, args.front());
+        else
+            p.replace_instruction(ins, op::concat{axis}, args);
     }
 };
 
@@ -724,8 +722,7 @@ void simplify_algebra::apply(program& p) const
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},
-                            find_concat_unary{},
-                            find_concat_binary{},
+                            find_concat_op{},
                             find_split_concat{},
                             find_splits{});
         dead_code_elimination{}.apply(p);

@@ -434,6 +434,42 @@ TEST_CASE(simplify_concat_add_relu)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(simplify_concat_add_relu_partial)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {1}};
+    migraphx::program p1;
+    {
+        auto x      = p1.add_parameter("x", s);
+        auto y      = p1.add_parameter("y", s);
+        auto one    = p1.add_literal({s, {1}});
+        auto two    = p1.add_literal({s, {2}});
+        auto sum1   = p1.add_instruction(migraphx::op::add{}, x, one);
+        auto relu1  = p1.add_instruction(migraphx::op::relu{}, sum1);
+        auto sum2   = p1.add_instruction(migraphx::op::add{}, y, two);
+        auto relu2  = p1.add_instruction(migraphx::op::relu{}, sum2);
+        auto sum3 = p1.add_instruction(migraphx::op::add{}, x, y);
+        auto concat = p1.add_instruction(migraphx::op::concat{0}, sum3, relu1, relu2);
+        p1.add_instruction(pass_op{}, concat);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto x       = p2.add_parameter("x", s);
+        auto y       = p2.add_parameter("y", s);
+        auto one     = p2.add_literal({s, {1}});
+        auto two     = p2.add_literal({s, {2}});
+        auto concat1 = p2.add_instruction(migraphx::op::concat{0}, x, y);
+        auto concat2 = p2.add_instruction(migraphx::op::concat{0}, one, two);
+        auto sum1     = p2.add_instruction(migraphx::op::add{}, concat1, concat2);
+        auto relu    = p2.add_instruction(migraphx::op::relu{}, sum1);
+        auto sum2 = p2.add_instruction(migraphx::op::add{}, x, y);
+        auto concat = p2.add_instruction(migraphx::op::concat{0}, sum2, relu);
+        p2.add_instruction(pass_op{}, concat);
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(simplify_concat_add_relu_broadcast_different_axis)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {2, 1, 4, 5}};

@@ -900,7 +900,7 @@ struct onnx_parser
         op::gather op{0};
         return prog.add_instruction(op, arg_data, ind);
     }
-    
+
     instruction_ref
     parse_slice(const std::string&, node_info info, std::vector<instruction_ref> args)
     {

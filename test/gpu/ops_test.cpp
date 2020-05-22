@@ -3016,17 +3016,16 @@ struct test_rnn_bidirectional10 : verify_program<test_rnn_bidirectional10>
         auto ih   = p.add_parameter("ih", ih_shape);
         std::vector<int> sl_data{5, 9};
         auto sql = p.add_literal(migraphx::literal{s_shape, sl_data});
-        auto hs =
-            p.add_instruction(migraphx::op::rnn{hidden_size,
-                                                {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::bidirectional,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              sql,
-                              ih);
+        auto hs  = p.add_instruction(migraphx::op::rnn{hidden_size,
+                                                      {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                      migraphx::op::rnn_direction::bidirectional,
+                                                      clip},
+                                    seq,
+                                    w,
+                                    r,
+                                    bias,
+                                    sql,
+                                    ih);
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         p.add_return({hs, lho});
 
@@ -3141,18 +3140,19 @@ struct test_var_sl_gru_forward : verify_program<test_var_sl_gru_forward>
         auto bias = p.add_parameter("bias", b_shape);
         auto ih   = p.add_parameter("ih", ih_shape);
         std::vector<int> sl_data{3, 2, 1};
-        auto sql  = p.add_literal(migraphx::literal{sl_shape, sl_data});
+        auto sql = p.add_literal(migraphx::literal{sl_shape, sl_data});
 
-        auto hs = p.add_instruction(migraphx::op::gru{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::forward,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          sql,
-                          ih);
+        auto hs =
+            p.add_instruction(migraphx::op::gru{hidden_size,
+                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                                migraphx::op::rnn_direction::forward,
+                                                clip},
+                              seq,
+                              w,
+                              r,
+                              bias,
+                              sql,
+                              ih);
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         p.add_return({lho, hs});
 
@@ -3516,16 +3516,17 @@ struct test_var_sl_gru_bidirct : verify_program<test_var_sl_gru_bidirct>
         std::vector<int> sl_data{2, 1, 3};
         auto sql = p.add_literal(migraphx::literal{sl_shape, sl_data});
 
-        auto hs = p.add_instruction(migraphx::op::gru{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::bidirectional,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          sql,
-                          ih);
+        auto hs =
+            p.add_instruction(migraphx::op::gru{hidden_size,
+                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                                migraphx::op::rnn_direction::bidirectional,
+                                                clip},
+                              seq,
+                              w,
+                              r,
+                              bias,
+                              sql,
+                              ih);
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         p.add_return({hs, lho});
 

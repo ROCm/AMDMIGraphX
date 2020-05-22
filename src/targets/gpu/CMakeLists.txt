@@ -68,7 +68,6 @@ add_library(migraphx_device
     device/tan.cpp
     device/tanh.cpp
     device/rnn_variable_seq_lens.cpp
-    device/rnn_last_output.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})

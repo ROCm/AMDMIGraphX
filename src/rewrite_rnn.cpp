@@ -18,8 +18,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/op/common.hpp>
-#include <migraphx/op/rnn_last_hs_output.hpp>
-#include <migraphx/op/rnn_last_cell_output.hpp>
+#include <migraphx/op/rnn_var_sl_last_output.hpp>
 #include <migraphx/op/rnn_variable_seq_lens.hpp>
 
 namespace migraphx {
@@ -1203,20 +1202,21 @@ instruction_ref rewrite_rnn::replace_last_hs_output(program& prog,
         prog.replace_instruction(ins, result_ins);
 
         // correct the direction used for the operator
-        auto last_hs_output_it = ins->outputs().begin();
-        while(last_hs_output_it != ins->outputs().end())
+        auto last_hs_output_it = result_ins->outputs().begin();
+        while(last_hs_output_it != result_ins->outputs().end())
         {
-            last_hs_output_it = std::find_if(last_hs_output_it, ins->outputs().end(), [](auto i) {
-                return i->name() == "rnn_last_hs_output";
-            });
+            last_hs_output_it =
+                std::find_if(last_hs_output_it, result_ins->outputs().end(), [](auto i) {
+                    return i->name() == "rnn_last_hs_output";
+                });
 
-            if(last_hs_output_it != ins->outputs().end())
+            if(last_hs_output_it != result_ins->outputs().end())
             {
-                auto op = any_cast<op::rnn_last_hs_output>((*last_hs_output_it)->get_operator());
-                op.direction = dirct;
-                auto inputs  = (*last_hs_output_it)->inputs();
-                prog.replace_instruction(*last_hs_output_it, op, inputs);
-                // instruction::replace_argument(*last_hs_output_it, ins, cell_outputs);
+                auto inputs = (*last_hs_output_it)->inputs();
+                prog.replace_instruction(*last_hs_output_it,
+                                         op::rnn_var_sl_last_output{dirct},
+                                         inputs.front(),
+                                         seq_lens);
                 last_hs_output_it++;
             }
         }
@@ -1276,13 +1276,12 @@ void rewrite_rnn::replace_last_cell_output(program& prog,
 
             if(last_cell_output_it != ins->outputs().end())
             {
-                auto op =
-                    any_cast<op::rnn_last_cell_output>((*last_cell_output_it)->get_operator());
-                op.direction = dirct;
-                auto inputs  = (*last_cell_output_it)->inputs();
-                inputs[0]    = cell_outputs;
-                prog.replace_instruction(*last_cell_output_it, op, inputs);
-                // instruction::replace_argument(*last_cell_output_it, ins, cell_outputs);
+                auto inputs = (*last_cell_output_it)->inputs();
+                inputs[0]   = cell_outputs;
+                prog.replace_instruction(*last_cell_output_it,
+                                         op::rnn_var_sl_last_output{dirct},
+                                         inputs.front(),
+                                         seq_lens);
                 last_cell_output_it++;
             }
         }

@@ -73,7 +73,6 @@
 #include <migraphx/gpu/prelu.hpp>
 #include <migraphx/gpu/recip.hpp>
 #include <migraphx/gpu/rnn_variable_seq_lens.hpp>
-#include <migraphx/gpu/rnn_last_output.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -190,10 +189,8 @@ struct miopen_apply
             "rnn_var_sl_shift_output");
         add_extend_op<hip_rnn_var_sl_shift_sequence, op::rnn_var_sl_shift_sequence>(
             "rnn_var_sl_shift_sequence");
-        add_extend_op<hip_rnn_last_output<op::rnn_last_cell_output>, op::rnn_last_cell_output>(
-            "rnn_last_cell_output");
-        add_extend_op<hip_rnn_last_output<op::rnn_last_hs_output>, op::rnn_last_hs_output>(
-            "rnn_last_hs_output");
+        add_extend_op<hip_rnn_var_sl_last_output, op::rnn_var_sl_last_output>(
+            "rnn_var_sl_last_output");
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
         add_lrn_op();

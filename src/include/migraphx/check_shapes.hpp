@@ -78,7 +78,8 @@ struct check_shapes
         if(begin != end)
         {
             if(begin->lens().size() < n)
-                MIGRAPHX_THROW(prefix() + "Shape must have at least " + std::to_string(n) + " dimensions");
+                MIGRAPHX_THROW(prefix() + "Shape must have at least " + std::to_string(n) +
+                               " dimensions");
         }
         return *this;
     }

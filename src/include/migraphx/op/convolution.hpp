@@ -26,7 +26,8 @@ struct convolution
     int group                   = 1;
     padding_mode_t padding_mode = default_;
 
-    convolution(std::size_t ndims=2) {
+    convolution(std::size_t ndims = 2)
+    {
         if(padding.size() != ndims)
             std::fill_n(padding.begin(), ndims, 0);
         if(stride.size() != ndims)
@@ -34,7 +35,6 @@ struct convolution
         if(dilation.size() != ndims)
             std::fill_n(dilation.begin(), ndims, 1);
     }
-
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

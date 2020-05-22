@@ -186,8 +186,9 @@ struct find_concat_op
 {
     auto matcher() const
     {
-        return match::name("concat")(match::any_of[match::inputs()](match::name("add", "multiply", "relu", "broadcast")),
-                                                   match::used_once());
+        return match::name("concat")(
+            match::any_of[match::inputs()](match::name("add", "multiply", "relu", "broadcast")),
+            match::used_once());
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -199,10 +200,10 @@ struct find_concat_op
             if(std::distance(start, last) < 2)
                 return {start, last};
             auto x = *start;
-            if (x->inputs().size() > 2 or x->inputs().empty())
+            if(x->inputs().size() > 2 or x->inputs().empty())
                 return {start, last};
             auto&& name = x->name();
-            if (not contains({"add", "multiply", "relu", "broadcast"}, name))
+            if(not contains({"add", "multiply", "relu", "broadcast"}, name))
                 return {start, last};
             auto op = x->get_operator();
             // Adjust broadcast lens
@@ -217,7 +218,7 @@ struct find_concat_op
             }
 
             std::vector<instruction_ref> concats;
-            for(std::size_t i = 0;i< x->inputs().size();i++)
+            for(std::size_t i = 0; i < x->inputs().size(); i++)
             {
                 std::vector<instruction_ref> inputs;
                 std::transform(start, last, std::back_inserter(inputs), [&](auto j) {
@@ -237,10 +238,11 @@ struct find_concat_op
             args.insert(args.end(), x.begin(), x.end());
         };
         auto pred = [](auto i, auto j) {
-            return i->get_operator() == j->get_operator() and i->inputs().size() == i->inputs().size();
+            return i->get_operator() == j->get_operator() and
+                   i->inputs().size() == i->inputs().size();
         };
         group_unique(ins->inputs().begin(), ins->inputs().end(), update_args, pred);
-        if (args.size() == 1)
+        if(args.size() == 1)
             p.replace_instruction(ins, args.front());
         else
             p.replace_instruction(ins, op::concat{axis}, args);

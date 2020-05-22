@@ -951,7 +951,6 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     instruction_ref last_hs_output{};
     instruction_ref last_cell_output{};
 
-    migraphx::shape seq_shape = seq->get_shape();
     migraphx::shape r_shape   = r->get_shape();
     long hs                   = static_cast<long>(r_shape.lens()[2]);
     auto bs                   = ih->get_shape().lens()[1];

@@ -33,15 +33,6 @@ auto conv_const_weights()
                                       match::args(match::any(), match::is_constant().bind("w")));
 }
 
-MIGRAPHX_PRED_MATCHER(args_has_same_ops, instruction_ref ins)
-{
-    if(ins->inputs().empty())
-        return true;
-    return std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto j) {
-        return j->get_operator() == ins->inputs().front()->get_operator();
-    });
-}
-
 struct find_mul_conv
 {
     auto matcher() const

@@ -178,8 +178,7 @@ struct find_concat_op
     auto matcher() const
     {
         return match::name("concat")(
-            match::any_of[match::inputs()](match::name("add", "multiply", "relu", "broadcast")),
-            match::used_once());
+            match::any_of[match::inputs()](match::name("add", "multiply", "relu", "broadcast"), match::used_once()));
     }
 
     template <class Iterator>
@@ -205,7 +204,7 @@ struct find_concat_op
             if(std::distance(start, last) < 2)
                 return {start, last};
             auto x = *start;
-            if(x->inputs().size() > 2 or x->inputs().empty())
+            if(x->inputs().size() > 2 or x->inputs().empty() or x->outputs().size() > 1)
                 return {start, last};
             auto&& name = x->name();
             if(not contains({"add", "multiply", "relu", "broadcast"}, name))
@@ -245,7 +244,8 @@ struct find_concat_op
         };
         auto pred = [](auto i, auto j) {
             return i->get_operator() == j->get_operator() and
-                   i->inputs().size() == i->inputs().size();
+                   i->inputs().size() == i->inputs().size() and
+                   i->outputs().size() == i->outputs().size();
         };
         group_unique(ins->inputs().begin(), ins->inputs().end(), update_args, pred);
         if(args.size() == 1)

@@ -26,6 +26,16 @@ struct convolution
     int group                   = 1;
     padding_mode_t padding_mode = default_;
 
+    convolution(std::size_t ndims=2) {
+        if(padding.size() != ndims)
+            std::fill_n(padding.begin(), ndims, 0);
+        if(stride.size() != ndims)
+            std::fill_n(stride.begin(), ndims, 1);
+        if(dilation.size() != ndims)
+            std::fill_n(dilation.begin(), ndims, 1);
+    }
+
+
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
@@ -39,7 +49,7 @@ struct convolution
     std::string name() const { return "convolution"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_type().same_ndims();
+        check_shapes{inputs, *this}.has(2).same_type().same_ndims().min_ndims(3);
 
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);

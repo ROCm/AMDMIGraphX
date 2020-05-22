@@ -577,15 +577,11 @@ struct onnx_parser
         }
         if(contains(info.attributes, "strides"))
         {
-            std::vector<size_t> strides;
-            copy(info.attributes["strides"].ints(), std::back_inserter(strides));
-            op.stride = strides;
+            copy(info.attributes["strides"].ints(), op.stride.begin());
         }
         if(contains(info.attributes, "dilations"))
         {
-            std::vector<size_t> dilations;
-            copy(info.attributes["dilations"].ints(), std::back_inserter(dilations));
-            op.dilation = dilations;
+            copy(info.attributes["dilations"].ints(), op.dilation.begin());
         }
         if(contains(info.attributes, "auto_pad"))
         {
@@ -761,15 +757,11 @@ struct onnx_parser
 
         if(contains(info.attributes, "strides"))
         {
-            std::vector<size_t> strides;
-            copy(info.attributes["strides"].ints(), std::back_inserter(strides));
-            op.stride = strides;
+            copy(info.attributes["strides"].ints(), op.stride.begin());
         }
         if(contains(info.attributes, "kernel_shape"))
         {
-            std::vector<size_t> kernel_shape;
-            copy(info.attributes["kernel_shape"].ints(), std::back_inserter(kernel_shape));
-            op.lengths = kernel_shape;
+            copy(info.attributes["kernel_shape"].ints(), op.lengths.begin());
         }
 
         if(contains(info.attributes, "auto_pad"))

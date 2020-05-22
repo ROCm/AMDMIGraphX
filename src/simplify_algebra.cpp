@@ -177,8 +177,8 @@ struct find_concat_op
 {
     auto matcher() const
     {
-        return match::name("concat")(
-            match::any_of[match::inputs()](match::name("add", "multiply", "relu", "broadcast"), match::used_once()));
+        return match::name("concat")(match::any_of[match::inputs()](
+            match::name("add", "multiply", "relu", "broadcast"), match::used_once()));
     }
 
     template <class Iterator>

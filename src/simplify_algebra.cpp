@@ -182,16 +182,16 @@ struct find_concat_op
             match::used_once());
     }
 
-    template<class Iterator>
+    template <class Iterator>
     static std::vector<std::size_t> get_output_lens(Iterator start, Iterator last, std::size_t axis)
     {
         assert(start != last);
         std::size_t dim = 0;
-        for(auto ins:range(start, last))
+        for(auto ins : range(start, last))
         {
             dim += ins->get_shape().lens().at(axis);
         }
-        auto lens = (*start)->get_shape().lens();
+        auto lens  = (*start)->get_shape().lens();
         lens[axis] = dim;
         return lens;
     }
@@ -210,7 +210,7 @@ struct find_concat_op
             auto&& name = x->name();
             if(not contains({"add", "multiply", "relu", "broadcast"}, name))
                 return {start, last};
-            auto op = x->get_operator();
+            auto op    = x->get_operator();
             auto iaxis = axis;
             // Adjust broadcast lens
             if(op.name() == "broadcast")
@@ -220,7 +220,7 @@ struct find_concat_op
                     return {start, last};
                 b.broadcast_lens = get_output_lens(start, last, iaxis);
                 op               = b;
-                iaxis             = 0;
+                iaxis            = 0;
             }
 
             std::vector<instruction_ref> concats;

@@ -482,7 +482,7 @@ TEST_CASE(simplify_concat_add_relu_partial_broadcast)
         auto oneb   = p1.add_instruction(b, one);
         auto two    = p1.add_literal(2);
         auto twob   = p1.add_instruction(b, two);
-        auto sum   = p1.add_instruction(migraphx::op::add{}, x, y);
+        auto sum    = p1.add_instruction(migraphx::op::add{}, x, y);
         auto concat = p1.add_instruction(migraphx::op::concat{1}, sum, oneb, twob);
         p1.add_instruction(pass_op{}, concat);
     }
@@ -490,14 +490,14 @@ TEST_CASE(simplify_concat_add_relu_partial_broadcast)
 
     migraphx::program p2;
     {
-        auto b      = migraphx::op::broadcast{1, {2, 2, 4, 5}};
-        auto x      = p2.add_parameter("x", s);
-        auto y      = p2.add_parameter("y", s);
-        auto one    = p2.add_literal(1);
-        auto two    = p2.add_literal(2);
+        auto b       = migraphx::op::broadcast{1, {2, 2, 4, 5}};
+        auto x       = p2.add_parameter("x", s);
+        auto y       = p2.add_parameter("y", s);
+        auto one     = p2.add_literal(1);
+        auto two     = p2.add_literal(2);
         auto concat1 = p2.add_instruction(migraphx::op::concat{0}, one, two);
-        auto concatb   = p2.add_instruction(b, concat1);
-        auto sum   = p2.add_instruction(migraphx::op::add{}, x, y);
+        auto concatb = p2.add_instruction(b, concat1);
+        auto sum     = p2.add_instruction(migraphx::op::add{}, x, y);
         auto concat2 = p2.add_instruction(migraphx::op::concat{1}, sum, concatb);
         p2.add_instruction(pass_op{}, concat2);
     }

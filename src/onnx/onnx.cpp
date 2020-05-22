@@ -324,14 +324,14 @@ struct onnx_parser
                             float pad_val = 0)
     {
         bool asym_padding   = false;
-        size_t num_pad_dims = padding.size() / 2;
+        size_t pad_ndims = padding.size() / 2;
 
         auto left_pad_it  = padding.begin();
-        auto right_pad_it = left_pad_it + num_pad_dims;
+        auto right_pad_it = left_pad_it + pad_ndims;
 
-        for(size_t i = 0; i < num_pad_dims; i++)
+        for(size_t i = 0; i < pad_ndims; i++)
         {
-            if(padding[i] != padding[i + num_pad_dims])
+            if(padding[i] != padding[i + pad_ndims])
             {
                 asym_padding = true;
                 break;
@@ -344,7 +344,7 @@ struct onnx_parser
             // add left pads
             asym_pads.insert(asym_pads.begin() + 2, left_pad_it, right_pad_it);
             // add right pads
-            asym_pads.insert(asym_pads.begin() + num_pad_dims + 4, right_pad_it, padding.end());
+            asym_pads.insert(asym_pads.begin() + pad_ndims + 4, right_pad_it, padding.end());
             ins = prog.add_instruction(op::pad{asym_pads, pad_val}, ins);
         }
         else

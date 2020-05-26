@@ -19,9 +19,9 @@ namespace op {
 
 struct quant_convolution
 {
-    std::vector<std::size_t> padding{0, 0};
-    std::vector<std::size_t> stride{1, 1};
-    std::vector<std::size_t> dilation{1, 1};
+    std::vector<std::size_t> padding = {0, 0};
+    std::vector<std::size_t> stride = {1, 1};
+    std::vector<std::size_t> dilation = {1, 1};
 
     padding_mode_t padding_mode = default_;
     int group                   = 1;

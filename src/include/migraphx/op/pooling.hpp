@@ -20,11 +20,11 @@ namespace op {
 
 struct pooling
 {
-    std::string mode = "average";
+    std::string mode                 = "average";
     std::vector<std::size_t> padding = {0, 0};
-    std::vector<std::size_t> stride = {1, 1};
+    std::vector<std::size_t> stride  = {1, 1};
     std::vector<std::size_t> lengths = {1, 1};
-    padding_mode_t padding_mode = default_;
+    padding_mode_t padding_mode      = default_;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

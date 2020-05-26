@@ -600,7 +600,7 @@ struct miopen_conv_bias
     }
 
     miopen_conv_bias(op::convolution c, const shape& input, const shape& weights, const shape& b)
-        : op(c), f(input)
+        : op(std::move(c)), f(input)
     {
         conv = f.create_conv(op, weights);
         bias = f.create_bias(b);
@@ -649,7 +649,7 @@ struct miopen_conv_bias_relu
                           const shape& input,
                           const shape& weights,
                           const shape& b)
-        : op(c), f(input)
+        : op(std::move(c)), f(input)
     {
         conv = f.create_conv(op, weights);
         bias = f.create_bias(b);

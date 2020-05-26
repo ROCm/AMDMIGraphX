@@ -83,7 +83,10 @@ TEST_CASE(convolution_shape)
     migraphx::shape output_3d{migraphx::shape::float_type, {4, 4, 1, 1, 1}};
     migraphx::shape input_3d{migraphx::shape::float_type, {4, 3, 3, 3, 3}};
     migraphx::shape weights_3d{migraphx::shape::float_type, {4, 3, 3, 3, 3}};
-    expect_shape(output_3d, migraphx::op::convolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}}, input_3d, weights_3d);
+    expect_shape(output_3d,
+                 migraphx::op::convolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}},
+                 input_3d,
+                 weights_3d);
 }
 
 TEST_CASE(quant_convolution_shape)

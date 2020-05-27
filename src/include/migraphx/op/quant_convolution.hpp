@@ -39,7 +39,11 @@ struct quant_convolution
     std::string name() const { return "quant_convolution"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_type().same_ndims().only_dims(4);
+        check_shapes{inputs, *this}.has(2).same_type().same_ndims().min_ndims(3);
+        if (not (padding.size() == stride.size() and padding.size() == dilation.size()))
+        {
+            MIGRAPHX_THROW("quant_convolution: inconsistent attribute sizes");
+        }
 
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);

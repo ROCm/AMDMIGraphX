@@ -41,6 +41,10 @@ struct pooling
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
+        if (not (padding.size() == stride.size() and padding.size() == lengths.size()))
+        {
+            MIGRAPHX_THROW("pooling: inconsistent attribute sizes");
+        }
 
         const shape& input = inputs.at(0);
         auto t             = input.type();

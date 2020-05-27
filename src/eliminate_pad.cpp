@@ -40,10 +40,10 @@ void eliminate_pad::update_op(T,
     if(!pad_op.symmetric())
         return;
 
-    auto pad_ndims = pad_op.pad_ndims();
+    auto kdims     = input->get_shape().lens().size() - 2;
     auto kdims_it  = pad_op.pads.begin() + 2;
 
-    std::vector<size_t> new_pads(kdims_it, kdims_it + pad_ndims);
+    std::vector<size_t> new_pads(kdims_it, kdims_it + kdims);
 
     T op       = any_cast<T>(ins->get_operator());
     op.padding = new_pads;

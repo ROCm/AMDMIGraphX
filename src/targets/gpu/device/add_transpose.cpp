@@ -14,9 +14,9 @@ namespace gpu {
 namespace device {
 
 // the operator performed in this kernel is:
-// shape of arg is {1, 128, 2304}
+// shape of arg is {bs, 128, 2304}
 // slice[axis=2, {1536, 2304}] of arg to generate shape of {1, 128, 768}
-// reshape to shape of ({batch_size, 128, 12, 64}, sum_arg)
+// reshape to shape of ({bs, 128, 12, 64}, sum_arg)
 // transpose to shape of ([0, 2, 1, 3], rs_arg)
 // template argument is the order of transpose
 void add_transpose_arg0(hipStream_t stream,

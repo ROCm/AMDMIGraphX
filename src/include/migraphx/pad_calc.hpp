@@ -20,7 +20,7 @@ inline void calculate_padding(int64_t idx,
     int64_t new_weight_dim = weight_dim + (weight_dim - 1) * (dilation - 1);
     int64_t pad =
         std::max(static_cast<int64_t>(0), (output_dim - 1) * stride + new_weight_dim - input_dim);
-    size_t pad_ndims = pads.size() / 2;
+    auto pad_ndims = pads.size() / 2;
 
     if(is_same_upper)
     {

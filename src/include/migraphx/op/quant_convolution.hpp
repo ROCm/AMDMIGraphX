@@ -44,6 +44,7 @@ struct quant_convolution
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
         auto t               = input.type();
+        size_t kdims         = input.lens().size() - 2;
 
         // all input type must be int8_type and output is float_type
         if(t != shape::int8_type)
@@ -52,23 +53,19 @@ struct quant_convolution
         }
         t = shape::int32_type;
 
-        return {t,
-                {
-                    input.lens()[0],
-                    weights.lens()[0],
-                    std::size_t(std::max<std::ptrdiff_t>(
-                        1,
-                        (input.lens()[2] - (1 + dilation[0] * (weights.lens()[2] - 1)) +
-                         2 * padding[0]) /
-                                stride[0] +
-                            1)),
-                    std::size_t(std::max<std::ptrdiff_t>(
-                        1,
-                        (input.lens()[3] - (1 + dilation[1] * (weights.lens()[3] - 1)) +
-                         2 * padding[1]) /
-                                stride[1] +
-                            1)),
-                }};
+        std::vector<size_t> output_lens{input.lens()[0], weights.lens()[0]};
+
+        for(size_t i = 0; i < kdims; i++)
+        {
+            output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
+                1,
+                (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
+                 2 * padding[i]) /
+                        stride[i] +
+                    1)));
+        }
+
+        return {t, output_lens};
     }
 };
 

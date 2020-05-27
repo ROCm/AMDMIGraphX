@@ -7,7 +7,7 @@ namespace gpu {
 
 shape miopen_pooling::compute_shape(const std::vector<shape>& inputs) const
 {
-    check_shapes{inputs, *this}.has(2).standard();
+    check_shapes{inputs, *this}.has(2).standard().only_dims(4);
     return op.compute_shape({inputs.at(0)});
 }
 argument miopen_pooling::compute(context& ctx,

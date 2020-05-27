@@ -581,10 +581,10 @@ struct onnx_parser
     parse_conv(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         Op op;
-        auto l0          = args[0];
-        auto weights     = args[1];
-        auto in_lens     = l0->get_shape().lens();
-        auto kdims       = in_lens.size() - 2;
+        auto l0      = args[0];
+        auto weights = args[1];
+        auto in_lens = l0->get_shape().lens();
+        auto kdims   = in_lens.size() - 2;
 
         std::vector<int64_t> padding;
         if(contains(info.attributes, "pads"))
@@ -615,7 +615,7 @@ struct onnx_parser
         if(contains(info.attributes, "auto_pad"))
         {
             op.padding.clear();
-            
+
             auto weight_lens = weights->get_shape().lens();
 
             auto s = info.attributes["auto_pad"].s();
@@ -761,7 +761,7 @@ struct onnx_parser
         op::pooling op{ends_with(name, "MaxPool") ? "max" : "average"};
         auto l0      = args[0];
         auto in_lens = l0->get_shape().lens();
-        auto kdims       = in_lens.size() - 2;
+        auto kdims   = in_lens.size() - 2;
 
         if(starts_with(name, "Global"))
         {
@@ -816,10 +816,9 @@ struct onnx_parser
                 val = std::numeric_limits<float>::lowest();
             }
 
-            l0 = process_auto_pad_attribute(l0, info, op, op.lengths, {1, 1}, in_lens, val);
+            l0      = process_auto_pad_attribute(l0, info, op, op.lengths, {1, 1}, in_lens, val);
             in_lens = l0->get_shape().lens();
         }
-        
 
         if(op.padding.size() != kdims)
         {

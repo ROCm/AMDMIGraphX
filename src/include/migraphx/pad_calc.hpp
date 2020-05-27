@@ -24,13 +24,13 @@ inline void calculate_padding(int64_t idx,
 
     if(is_same_upper)
     {
-        pads[idx]     = pad / 2;
+        pads[idx]             = pad / 2;
         pads[idx + pad_ndims] = pad - pad / 2;
     }
     else
     {
         pads[idx + pad_ndims] = pad / 2;
-        pads[idx]     = pad - pad / 2;
+        pads[idx]             = pad - pad / 2;
     }
 }
 

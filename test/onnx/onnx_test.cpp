@@ -387,8 +387,8 @@ TEST_CASE(conv_autopad_fail_test)
 TEST_CASE(conv_1d_test)
 {
     migraphx::program p;
-    auto l0       = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 5}});
-    auto l1       = p.add_parameter("1", {migraphx::shape::float_type, {1, 3, 3}});
+    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 5}});
+    auto l1 = p.add_parameter("1", {migraphx::shape::float_type, {1, 3, 3}});
     p.add_instruction(migraphx::op::convolution{{0}, {1}, {1}}, l0, l1);
 
     auto prog = optimize_onnx("conv_1d_test.onnx");
@@ -398,8 +398,8 @@ TEST_CASE(conv_1d_test)
 TEST_CASE(conv_3d_test)
 {
     migraphx::program p;
-    auto l0       = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 5, 5, 5}});
-    auto l1       = p.add_parameter("1", {migraphx::shape::float_type, {1, 3, 3, 3, 3}});
+    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+    auto l1 = p.add_parameter("1", {migraphx::shape::float_type, {1, 3, 3, 3, 3}});
     p.add_instruction(migraphx::op::convolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}}, l0, l1);
 
     auto prog = optimize_onnx("conv_3d_test.onnx");

@@ -325,7 +325,7 @@ struct onnx_parser
     {
         bool asym_padding = false;
         assert(padding.size() % 2 == 0);
-        size_t pad_ndims  = padding.size() / 2;
+        size_t pad_ndims = padding.size() / 2;
 
         auto left_pad_it  = padding.begin();
         auto right_pad_it = left_pad_it + pad_ndims;

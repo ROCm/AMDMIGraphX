@@ -324,6 +324,7 @@ struct onnx_parser
                             float pad_val = 0)
     {
         bool asym_padding = false;
+        assert(padding.size() % 2 == 0);
         size_t pad_ndims  = padding.size() / 2;
 
         auto left_pad_it  = padding.begin();
@@ -557,7 +558,7 @@ struct onnx_parser
     }
 
     template <class Op>
-    void recalc_conv_attributes(Op op, size_t kdims)
+    void recalc_conv_attributes(Op& op, size_t kdims)
     {
         if(op.padding.size() != kdims)
         {

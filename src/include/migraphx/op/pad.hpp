@@ -51,7 +51,7 @@ struct pad
         return s;
     }
 
-    std::size_t pad_ndims() const { return pads.size() / 2; }
+    std::size_t pad_ndims() const { assert(pads.size() % 2 == 0); return pads.size() / 2; }
 
     bool symmetric() const
     {

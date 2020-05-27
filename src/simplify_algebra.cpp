@@ -712,8 +712,10 @@ struct find_rsqrt
 
 auto slice_reshape_transpose_ops(const std::string& input, const std::string& reshape)
 {
-    return match::name("transpose")(match::arg(0)(match::name("reshape")(match::arg(0)(
-                match::name("contiguous")(match::arg(0)(match::name("slice").bind(input))))).bind(reshape)));
+    return match::name("transpose")(
+        match::arg(0)(match::name("reshape")(match::arg(0)(match::name("contiguous")(
+                                                 match::arg(0)(match::name("slice").bind(input)))))
+                          .bind(reshape)));
 }
 
 struct find_slice_reshape_transpose
@@ -726,20 +728,21 @@ struct find_slice_reshape_transpose
     instruction_ref
     get_reshape_ins(program& p, instruction_ref ins, std::vector<int64_t>& lens) const
     {
-        auto outputs = ins->outputs();
+        auto outputs          = ins->outputs();
         instruction_ref r_ins = p.end();
         // if the reshape instruction is already there, we can reused
         // the existing one
-        auto it = std::find_if(outputs.begin(), outputs.end(), [](auto i) { return i->name() == "reshape"; });
-        if (it != outputs.end())
+        auto it = std::find_if(
+            outputs.begin(), outputs.end(), [](auto i) { return i->name() == "reshape"; });
+        if(it != outputs.end())
         {
-            if (lens == any_cast<op::reshape>((*it)->get_operator()).dims)
+            if(lens == any_cast<op::reshape>((*it)->get_operator()).dims)
             {
                 r_ins = *it;
             }
         }
 
-        if (r_ins == p.end())
+        if(r_ins == p.end())
         {
             r_ins = p.insert_instruction(std::next(ins), op::reshape{lens}, ins);
         }
@@ -747,23 +750,23 @@ struct find_slice_reshape_transpose
         return r_ins;
     }
 
-    instruction_ref
-    get_trans_ins(program& p, instruction_ref ins, std::vector<int64_t>& perm) const
+    instruction_ref get_trans_ins(program& p, instruction_ref ins, std::vector<int64_t>& perm) const
     {
-        auto outputs = ins->outputs();
+        auto outputs          = ins->outputs();
         instruction_ref t_ins = p.end();
         // if the reshape instruction is already there, we can reused
         // the existing one
-        auto it = std::find_if(outputs.begin(), outputs.end(), [](auto i) { return i->name() == "transpose"; });
-        if (it != outputs.end())
+        auto it = std::find_if(
+            outputs.begin(), outputs.end(), [](auto i) { return i->name() == "transpose"; });
+        if(it != outputs.end())
         {
-            if (perm == any_cast<op::transpose>((*it)->get_operator()).dims)
+            if(perm == any_cast<op::transpose>((*it)->get_operator()).dims)
             {
                 t_ins = *it;
             }
         }
 
-        if (t_ins == p.end())
+        if(t_ins == p.end())
         {
             t_ins = p.insert_instruction(std::next(ins), op::transpose{perm}, ins);
         }
@@ -773,34 +776,34 @@ struct find_slice_reshape_transpose
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto ins   = r.result;
+        auto ins = r.result;
         auto slc = r.instructions["slice"];
         auto rsp = r.instructions["reshape"];
 
-        auto tran_op = any_cast<op::transpose>(ins->get_operator());
-        auto perm = tran_op.dims;
+        auto tran_op               = any_cast<op::transpose>(ins->get_operator());
+        auto perm                  = tran_op.dims;
         std::vector<int64_t> perm0 = {0, 2, 1, 3};
         std::vector<int64_t> perm1 = {0, 2, 3, 1};
-        if (perm != perm0 and perm != perm1)
+        if(perm != perm0 and perm != perm1)
         {
             return;
         }
 
-        auto slc_op = any_cast<op::slice>(slc->get_operator());
+        auto slc_op               = any_cast<op::slice>(slc->get_operator());
         std::vector<int64_t> axes = {2};
-        if (slc_op.axes != axes)
+        if(slc_op.axes != axes)
         {
             return;
         }
 
         auto starts = slc_op.starts;
-        auto ends = slc_op.ends;
+        auto ends   = slc_op.ends;
 
         std::transform(starts.begin(), starts.end(), starts.begin(), [](auto i) { return i / 64; });
         std::transform(ends.begin(), ends.end(), ends.begin(), [](auto i) { return i / 64; });
 
         auto rsp_op = any_cast<op::reshape>(rsp->get_operator());
-        auto dims = rsp_op.dims;
+        auto dims   = rsp_op.dims;
         dims[2] *= 3;
 
         auto input = slc->inputs().front();

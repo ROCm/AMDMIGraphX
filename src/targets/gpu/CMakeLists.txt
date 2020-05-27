@@ -67,7 +67,6 @@ add_library(migraphx_device
     device/sub.cpp
     device/tan.cpp
     device/tanh.cpp
-    device/add_transpose.cpp
     device/rnn_variable_seq_lens.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)

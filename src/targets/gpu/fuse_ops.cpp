@@ -14,12 +14,9 @@
 #include <migraphx/gpu/device/add_tanh.hpp>
 #include <migraphx/gpu/device/mul_add_relu.hpp>
 #include <migraphx/gpu/device/add.hpp>
-#include <migraphx/gpu/device/add_transpose.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/array.hpp>
 #include <migraphx/op/clip.hpp>
-#include <migraphx/gpu/gemm.hpp>
-#include <migraphx/op/transpose.hpp>
 #include <cmath>
 
 namespace migraphx {
@@ -315,35 +312,6 @@ struct hip_mul_add_relu
     }
 };
 
-template <void (*DF)(hipStream_t, const argument&, const argument&, int)>
-struct hip_slice_reshape_trans_cont
-{
-    int slice_start;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.slice_start, "slice_start"));
-    }
-
-    std::string name() const { return "gpu::slice_reshape_trans_contiguous"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(2).same_type();
-        return inputs[1];
-    }
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
-    {
-        DF(ctx.get_stream().get(), args.at(1), args.at(0), slice_start);
-        return args.at(1);
-    }
-
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
-};
-
 void move_broadcasted_back(std::vector<instruction_ref>& args)
 {
     // Ensure the last arguments is the broadcasted one
@@ -413,74 +381,6 @@ struct find_add_gelu
 
         args.back() = ins->inputs().back();
         p.replace_instruction(ins, hip_add_gelu{}, args);
-    }
-};
-
-auto slice_reshape_trans_op(const std::string& input, const std::string& cont_op)
-{
-    return match::name("gpu::contiguous")(
-        match::arg(0)(
-            match::name("transpose")(match::arg(0)(match::name("reshape")(match::arg(0)(
-                match::name("gpu::contiguous")(match::arg(0)(match::name("slice").bind(input))))))))
-            .bind(cont_op));
-}
-
-struct find_slice_reshape_trans_cont
-{
-    auto matcher() const
-    {
-        return match::name("gpu::gemm")(
-            match::arg(0)(slice_reshape_trans_op(std::string("input0"), std::string("cont0"))),
-            match::arg(1)(slice_reshape_trans_op(std::string("input1"), std::string("cont1"))));
-    }
-
-    void apply(program& p, match::matcher_result r) const
-    {
-        auto ins   = r.result;
-        auto in0   = r.instructions["input0"]->inputs().front();
-        auto in1   = r.instructions["input1"]->inputs().front();
-        auto cont0 = r.instructions["cont0"];
-        auto cont1 = r.instructions["cont1"];
-
-        auto arg0 =
-            p.insert_instruction(ins,
-                                 hip_slice_reshape_trans_cont<device::add_transpose_arg0>{0},
-                                 in0,
-                                 cont0->inputs().back());
-        auto arg1 =
-            p.insert_instruction(ins,
-                                 hip_slice_reshape_trans_cont<device::add_transpose_arg1>{768},
-                                 in1,
-                                 cont1->inputs().back());
-
-        auto&& op = any_cast<gpu::rocblas_gemm<op::dot>>(ins->get_operator());
-        p.replace_instruction(ins, op, arg0, arg1, ins->inputs().back());
-    }
-};
-
-struct find_slice_reshape_trans_cont_1
-{
-    auto matcher() const
-    {
-        return match::name("gpu::gemm")(
-            match::arg(0)(match::name("gpu::softmax")),
-            match::arg(1)(slice_reshape_trans_op(std::string("input1"), std::string("cont1"))));
-    }
-
-    void apply(program& p, match::matcher_result r) const
-    {
-        auto ins   = r.result;
-        auto in1   = r.instructions["input1"]->inputs().front();
-        auto cont1 = r.instructions["cont1"];
-
-        auto arg1 =
-            p.insert_instruction(ins,
-                                 hip_slice_reshape_trans_cont<device::add_transpose_arg0>{1536},
-                                 in1,
-                                 cont1->inputs().back());
-
-        auto&& op = any_cast<gpu::rocblas_gemm<op::dot>>(ins->get_operator());
-        p.replace_instruction(ins, op, ins->inputs().front(), arg1, ins->inputs().back());
     }
 };
 
@@ -839,8 +739,6 @@ void fuse_ops::apply(program& p) const
 {
     match::find_matches(p, find_gelu{}, find_gelu_new{});
     run_passes(p, {dead_code_elimination{}});
-    // match::find_matches(p, find_slice_reshape_trans_cont{});
-    // match::find_matches(p, find_slice_reshape_trans_cont_1{});
     match::find_matches(p, find_triadd{});
     match::find_matches(p,
                         find_conv_bias_relu{ctx},

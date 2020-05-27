@@ -195,7 +195,7 @@ struct find_concat_op
         return lens;
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(program& p, const match::matcher_result& r) const
     {
         auto ins  = r.result;
         auto axis = any_cast<op::concat>(ins->get_operator()).axis;

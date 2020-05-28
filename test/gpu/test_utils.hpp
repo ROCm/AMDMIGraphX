@@ -75,18 +75,18 @@ struct auto_print
                 handle();
         });
     }
-    //static std::array<std::function<void()>, 2> handlers;
+    // static std::array<std::function<void()>, 2> handlers;
     int index;
     template <class T>
     auto_print(T& x, int i) : index(i)
     {
-        auto hdlers = handlers();
+        auto hdlers   = handlers();
         hdlers[index] = [&x] { std::cout << x << std::endl; };
     }
 
     ~auto_print()
     {
-        auto hdlers = handlers();
+        auto hdlers   = handlers();
         hdlers[index] = [] {};
     }
 };

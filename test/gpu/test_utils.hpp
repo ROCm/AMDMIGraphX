@@ -31,6 +31,12 @@
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_GPU_COMPILE)
 
+static std::array<std::function<void()>, 2>& handlers()
+{
+    static std::array<std::function<void()>, 2> r = {};
+    return r;
+};
+
 // An improved async, that doesn't block
 template <class Function>
 std::future<typename std::result_of<Function()>::type> detach_async(Function&& f,
@@ -64,24 +70,26 @@ struct auto_print
                 std::cout << "    what(): " << e.what() << std::endl;
             }
             std::cout << std::endl;
-            for(auto&& handle : auto_print::handlers)
+            auto hdlers = handlers();
+            for(auto&& handle : hdlers)
                 handle();
         });
     }
-    static std::array<std::function<void()>, 2> handlers;
+    //static std::array<std::function<void()>, 2> handlers;
     int index;
     template <class T>
     auto_print(T& x, int i) : index(i)
     {
-        handlers[index] = [&x] { std::cout << x << std::endl; };
+        auto hdlers = handlers();
+        hdlers[index] = [&x] { std::cout << x << std::endl; };
     }
 
     ~auto_print()
     {
-        handlers[index] = [] {};
+        auto hdlers = handlers();
+        hdlers[index] = [] {};
     }
 };
-std::array<std::function<void()>, 2> auto_print::handlers = {};
 
 template <class T>
 auto get_hash(const T& x)
@@ -89,7 +97,7 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-void compile_check(migraphx::program& p, const migraphx::target& t, bool show_trace = false)
+inline void compile_check(migraphx::program& p, const migraphx::target& t, bool show_trace = false)
 {
     auto name   = t.name();
     auto shapes = p.get_output_shapes();

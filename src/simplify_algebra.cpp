@@ -264,7 +264,7 @@ struct find_concat_op
     auto matcher() const
     {
         return match::name("concat")(match::any_of[match::inputs()](
-            match::name("add", "multiply", "relu", "broadcast"), match::used_once()));
+            match::name("add", "mul", "relu", "broadcast"), match::used_once()));
     }
 
     template <class Iterator>
@@ -293,7 +293,7 @@ struct find_concat_op
             if(x->inputs().size() > 2 or x->inputs().empty() or x->outputs().size() > 1)
                 return {start, last};
             auto&& name = x->name();
-            if(not contains({"add", "multiply", "relu", "broadcast"}, name))
+            if(not contains({"add", "mul", "relu", "broadcast"}, name))
                 return {start, last};
             auto op    = x->get_operator();
             auto iaxis = axis;

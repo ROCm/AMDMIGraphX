@@ -1509,9 +1509,9 @@ TEST_CASE(simplify_mul_slice_conv_horiz_fusion)
         auto concat1 = p2.add_instruction(migraphx::op::concat{0}, mul, wslice2);
         auto conv    = p2.add_instruction(migraphx::op::convolution{}, x, concat1);
         auto a2 =
-            p1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}, 2));
+            p2.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}, 2));
         auto a3 =
-            p1.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}, 3));
+            p2.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}, 3));
         auto concat2 = p2.add_instruction(migraphx::op::concat{}, a2, a3);
         auto b4      = p2.add_instruction(migraphx::op::broadcast{1, {1, 768, 17, 17}}, concat2);
         auto add     = p2.add_instruction(migraphx::op::add{}, conv, b4);

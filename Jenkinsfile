@@ -18,6 +18,7 @@ def rocmtestnode(variant, name, body) {
             if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
                 archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
             }
+            stash includes: 'build/*.deb', name: 'migraphx-package'
         }
     }
     node(name) {
@@ -143,6 +144,16 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
             lcov --list coverage.info
             curl -s https://codecov.io/bash | bash
             echo "Uploaded"
+        '''
+    }
+}
+
+rocmtest onnx: rocmnode('rocmtest') { cmake_build ->
+    stage("Onnx runtime") {
+        unstash 'migraphx-package'
+        sh '''
+            dpkg -i *.deb
+            /onnxruntime/build_and_test_onnxrt.sh
         '''
     }
 }

@@ -815,13 +815,10 @@ TEST_CASE(simplify_split_add_relu_reshape)
         auto concatb  = p2.add_instruction(b, concat);
         auto sum      = p2.add_instruction(migraphx::op::add{}, input, concatb);
         auto relu     = p2.add_instruction(migraphx::op::relu{}, sum);
-        auto slice1   = p2.add_instruction(migraphx::op::slice{{1}, {0}, {1}}, relu);
-        auto cont1    = p2.add_instruction(migraphx::op::contiguous{}, slice1);
-        auto reshape1 = p2.add_instruction(r, cont1);
-        auto slice2   = p2.add_instruction(migraphx::op::slice{{1}, {1}, {2}}, relu);
-        auto cont2    = p2.add_instruction(migraphx::op::contiguous{}, slice2);
-        auto reshape2 = p2.add_instruction(r, cont2);
-        auto add      = p2.add_instruction(migraphx::op::add{}, reshape1, reshape2);
+        auto rsp      = p2.add_instruction(migraphx::op::reshape{{3, 8}}, relu);
+        auto slc1   = p2.add_instruction(migraphx::op::slice{{1}, {0}, {4}}, rsp);
+        auto slc2   = p2.add_instruction(migraphx::op::slice{{1}, {4}, {8}}, rsp);
+        auto add      = p2.add_instruction(migraphx::op::add{}, slc1, slc2);
         p2.add_instruction(pass_op{}, add);
     }
     EXPECT(p1.sort() == p2.sort());
@@ -1425,14 +1422,17 @@ TEST_CASE(reorder_reshape_slice_transpose)
         auto input = p2.add_parameter("input", s);
         std::vector<int64_t> lens = {static_cast<int64_t>(batch_size), 128, 30, 64};
         auto r                    = p2.add_instruction(migraphx::op::reshape{lens}, input);
-        auto t0                   = p2.add_instruction(migraphx::op::transpose{perm0}, r);
-        auto t1                   = p2.add_instruction(migraphx::op::transpose{perm1}, r);
 
-        auto slc0 = p2.add_instruction(migraphx::op::slice{{1}, {0}, {10}}, t0);
-        auto slc1 = p2.add_instruction(migraphx::op::slice{{1}, {10}, {20}}, t0);
-        auto slc2 = p2.add_instruction(migraphx::op::slice{{1}, {20}, {30}}, t1);
-        auto sum  = p2.add_instruction(migraphx::op::add{}, slc0, slc1);
-        auto ret  = p2.add_instruction(migraphx::op::dot{}, sum, slc2);
+        auto slc0 = p2.add_instruction(migraphx::op::slice{{2}, {0}, {10}}, r);
+        auto slc1 = p2.add_instruction(migraphx::op::slice{{2}, {10}, {20}}, r);
+        auto slc2 = p2.add_instruction(migraphx::op::slice{{2}, {20}, {30}}, r);
+
+        auto t0                   = p2.add_instruction(migraphx::op::transpose{perm0}, slc0);
+        auto t1                   = p2.add_instruction(migraphx::op::transpose{perm0}, slc1);
+        auto t2                   = p2.add_instruction(migraphx::op::transpose{perm1}, slc2);
+
+        auto sum  = p2.add_instruction(migraphx::op::add{}, t0, t1);
+        auto ret  = p2.add_instruction(migraphx::op::dot{}, sum, t2);
         p2.add_return({ret});
 
         return p2;

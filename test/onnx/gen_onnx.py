@@ -193,8 +193,7 @@ def averagepool_1d_test():
     node = onnx.helper.make_node('AveragePool',
                                  inputs=['0'],
                                  outputs=['1'],
-                                 kernel_shape=[3]
-                                 )
+                                 kernel_shape=[3])
 
     return ([node], [x], [out])
 
@@ -202,13 +201,13 @@ def averagepool_1d_test():
 @onnx_test
 def averagepool_3d_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 5, 5, 5])
-    out = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 3, 3, 3])
+    out = helper.make_tensor_value_info('1', TensorProto.FLOAT,
+                                        [1, 3, 3, 3, 3])
 
     node = onnx.helper.make_node('AveragePool',
                                  inputs=['0'],
                                  outputs=['1'],
-                                 kernel_shape=[3, 3, 3]
-                                 )
+                                 kernel_shape=[3, 3, 3])
 
     return ([node], [x], [out])
 
@@ -264,14 +263,13 @@ def batchnorm_1d_test():
     bias = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
     mean = helper.make_tensor_value_info('3', TensorProto.FLOAT, [3])
     var = helper.make_tensor_value_info('4', TensorProto.FLOAT, [3])
-    out = helper.make_tensor_value_info('5', TensorProto.FLOAT,
-                                        [1, 3, 5])
+    out = helper.make_tensor_value_info('5', TensorProto.FLOAT, [1, 3, 5])
 
     node = onnx.helper.make_node('BatchNormalization',
-                                  inputs=['0', '1', '2', '3', '4'],
-                                  outputs=['5'],
-                                  epsilon=1e-6,
-                                  momentum=0.9)
+                                 inputs=['0', '1', '2', '3', '4'],
+                                 outputs=['5'],
+                                 epsilon=1e-6,
+                                 momentum=0.9)
 
     return ([node], [x, scale, bias, mean, var], [out])
 
@@ -287,10 +285,10 @@ def batchnorm_3d_test():
                                         [1, 3, 5, 5, 5])
 
     node = onnx.helper.make_node('BatchNormalization',
-                                  inputs=['0', '1', '2', '3', '4'],
-                                  outputs=['5'],
-                                  epsilon=1e-6,
-                                  momentum=0.9)
+                                 inputs=['0', '1', '2', '3', '4'],
+                                 outputs=['5'],
+                                 epsilon=1e-6,
+                                 momentum=0.9)
 
     return ([node], [x, scale, bias, mean, var], [out])
 

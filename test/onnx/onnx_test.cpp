@@ -156,6 +156,26 @@ TEST_CASE(atanh_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(averagepool_1d_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 5}});
+    p.add_instruction(migraphx::op::pooling{"average", {0}, {1}, {3}}, l0);
+
+    auto prog = optimize_onnx("averagepool_1d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(averagepool_3d_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+    p.add_instruction(migraphx::op::pooling{"average", {0, 0, 0}, {1, 1, 1}, {3, 3, 3}}, l0);
+
+    auto prog = optimize_onnx("averagepool_3d_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(averagepool_notset_test)
 {
     migraphx::program p;
@@ -198,6 +218,34 @@ TEST_CASE(averagepool_same_upper_test)
 
     auto prog = optimize_onnx("averagepool_same_upper_test.onnx");
 
+    EXPECT(p == prog);
+}
+
+TEST_CASE(batchnorm_1d_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 5}});
+    auto l1 = p.add_parameter("1", {migraphx::shape::float_type, {3}});
+    auto l2 = p.add_parameter("2", {migraphx::shape::float_type, {3}});
+    auto l3 = p.add_parameter("3", {migraphx::shape::float_type, {3}});
+    auto l4 = p.add_parameter("4", {migraphx::shape::float_type, {3}});
+    p.add_instruction(migraphx::op::batch_norm_inference{}, l0, l1, l2, l3, l4);
+
+    auto prog = optimize_onnx("batchnorm_1d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(batchnorm_3d_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+    auto l1 = p.add_parameter("1", {migraphx::shape::float_type, {3}});
+    auto l2 = p.add_parameter("2", {migraphx::shape::float_type, {3}});
+    auto l3 = p.add_parameter("3", {migraphx::shape::float_type, {3}});
+    auto l4 = p.add_parameter("4", {migraphx::shape::float_type, {3}});
+    p.add_instruction(migraphx::op::batch_norm_inference{}, l0, l1, l2, l3, l4);
+
+    auto prog = optimize_onnx("batchnorm_3d_test.onnx");
     EXPECT(p == prog);
 }
 

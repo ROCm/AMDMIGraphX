@@ -109,6 +109,14 @@ TEST_CASE(quant_convolution_shape)
     throws_shape(migraphx::op::quant_convolution{}, input3, weight3);
 }
 
+TEST_CASE(inconsistent_attr_shape)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
+    throws_shape(migraphx::op::convolution{{1, 1}, {2}, {3, 3, 3}}, input, weights);
+    throws_shape(migraphx::op::pooling{"max", {1}, {0}, {1, 1}}, input);
+}
+
 TEST_CASE(transpose_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 2}};

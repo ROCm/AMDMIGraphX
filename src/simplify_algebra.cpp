@@ -710,6 +710,77 @@ struct find_rsqrt
     }
 };
 
+struct find_split_reshape
+{
+    auto matcher() const
+    {
+        return match::name("reshape")(match::arg(0)(match::name("contiguous")(
+                    match::arg(0)(match::name("slice").bind("slice"))))).bind("reshape");
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto slc = r.instructions["slice"];
+        auto rsp = r.instructions["reshape"];
+
+        auto input = slc->inputs().front();
+        auto split_outputs = get_splits(input);
+        if (split_outputs.empty())
+        {
+            return;
+        }
+
+        std::vector<instruction_ref> vec_rsp(split_outputs.size());
+        std::transform(split_outputs.begin(), split_outputs.end(), vec_rsp.begin(), [](auto i) {
+            assert(i->outputs().size() == 1);
+            auto cont = i->outputs().front();
+            assert(cont->outputs().size() == 1);
+            return cont->outputs().front();
+        });
+
+        // all outputs are reshape
+        auto dims = any_cast<op::reshape>(rsp->get_operator()).dims;
+        if (!std::all_of(vec_rsp.begin(), vec_rsp.end(), [&](auto i) { 
+            return (i->name() == "reshape") and (any_cast<op::reshape>(i->get_operator()).dims == dims);
+            }))
+        {
+            return;
+        }
+
+        auto axis = any_cast<op::slice>(slc->get_operator()).axes[0];
+        auto in_lens = input->get_shape().lens();
+        if (!std::equal(in_lens.begin(), in_lens.begin() + axis, dims.begin(), dims.begin() + axis))
+        {
+            return;
+        }
+
+        // calculate reshape output shape
+        auto tmp_lens = vec_rsp.front()->get_shape().lens();
+        std::vector<int64_t> rsp_lens(tmp_lens.begin(), tmp_lens.end());
+        int64_t dim_size = rsp_lens[axis];
+        rsp_lens[axis] *= vec_rsp.size();
+
+        // insert the reshape instruction
+        auto rsp_ins = p.insert_instruction(std::next(input), op::reshape{rsp_lens}, input);
+        
+        // replace the original reshape with slice 
+        int64_t i = 0;
+        for (auto in : vec_rsp)
+        {
+            p.replace_instruction(in, op::slice{{axis}, {i * dim_size}, {(i + 1) * dim_size}}, rsp_ins);
+            ++i;
+        }
+        // remove the original slice instructions
+        for (auto in : split_outputs)
+        {
+            // remove the contiguous instruction
+            p.remove_instruction(in->outputs().front());
+            // remove the original slice instruction
+            p.remove_instruction(in);
+        }
+    }
+};
+
 auto slice_reshape_transpose_ops(const std::string& input, const std::string& reshape)
 {
     return match::name("transpose")(
@@ -833,7 +904,7 @@ void simplify_algebra::apply(program& p) const
                             find_concat_binary{},
                             find_split_concat{},
                             find_splits{},
-                            find_slice_reshape_transpose{});
+                            find_split_reshape{});
         dead_code_elimination{}.apply(p);
     }
 }

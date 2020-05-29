@@ -715,7 +715,8 @@ struct find_split_reshape
     auto matcher() const
     {
         return match::name("reshape")(match::arg(0)(match::name("contiguous")(
-                    match::arg(0)(match::name("slice").bind("slice"))))).bind("reshape");
+                                          match::arg(0)(match::name("slice").bind("slice")))))
+            .bind("reshape");
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -723,9 +724,9 @@ struct find_split_reshape
         auto slc = r.instructions["slice"];
         auto rsp = r.instructions["reshape"];
 
-        auto input = slc->inputs().front();
+        auto input         = slc->inputs().front();
         auto split_outputs = get_splits(input);
-        if (split_outputs.empty())
+        if(split_outputs.empty())
         {
             return;
         }
@@ -740,16 +741,17 @@ struct find_split_reshape
 
         // all outputs are reshape
         auto dims = any_cast<op::reshape>(rsp->get_operator()).dims;
-        if (!std::all_of(vec_rsp.begin(), vec_rsp.end(), [&](auto i) { 
-            return (i->name() == "reshape") and (any_cast<op::reshape>(i->get_operator()).dims == dims);
-            }))
+        if(!std::all_of(vec_rsp.begin(), vec_rsp.end(), [&](auto i) {
+               return (i->name() == "reshape") and
+                      (any_cast<op::reshape>(i->get_operator()).dims == dims);
+           }))
         {
             return;
         }
 
-        auto axis = any_cast<op::slice>(slc->get_operator()).axes[0];
+        auto axis    = any_cast<op::slice>(slc->get_operator()).axes[0];
         auto in_lens = input->get_shape().lens();
-        if (!std::equal(in_lens.begin(), in_lens.begin() + axis, dims.begin(), dims.begin() + axis))
+        if(!std::equal(in_lens.begin(), in_lens.begin() + axis, dims.begin(), dims.begin() + axis))
         {
             return;
         }
@@ -762,16 +764,17 @@ struct find_split_reshape
 
         // insert the reshape instruction
         auto rsp_ins = p.insert_instruction(std::next(input), op::reshape{rsp_lens}, input);
-        
-        // replace the original reshape with slice 
+
+        // replace the original reshape with slice
         int64_t i = 0;
-        for (auto in : vec_rsp)
+        for(auto in : vec_rsp)
         {
-            p.replace_instruction(in, op::slice{{axis}, {i * dim_size}, {(i + 1) * dim_size}}, rsp_ins);
+            p.replace_instruction(
+                in, op::slice{{axis}, {i * dim_size}, {(i + 1) * dim_size}}, rsp_ins);
             ++i;
         }
         // remove the original slice instructions
-        for (auto in : split_outputs)
+        for(auto in : split_outputs)
         {
             // remove the contiguous instruction
             p.remove_instruction(in->outputs().front());

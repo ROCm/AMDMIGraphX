@@ -806,19 +806,19 @@ TEST_CASE(simplify_split_add_relu_reshape)
 
     migraphx::program p2;
     {
-        auto b        = migraphx::op::broadcast{1, {3, 2, 4}};
-        auto r        = migraphx::op::reshape{{3, 4}};
-        auto input    = p2.add_parameter("input", s);
-        auto one      = p2.add_literal(1);
-        auto two      = p2.add_literal(2);
-        auto concat   = p2.add_instruction(migraphx::op::concat{0}, one, two);
-        auto concatb  = p2.add_instruction(b, concat);
-        auto sum      = p2.add_instruction(migraphx::op::add{}, input, concatb);
-        auto relu     = p2.add_instruction(migraphx::op::relu{}, sum);
-        auto rsp      = p2.add_instruction(migraphx::op::reshape{{3, 8}}, relu);
-        auto slc1   = p2.add_instruction(migraphx::op::slice{{1}, {0}, {4}}, rsp);
-        auto slc2   = p2.add_instruction(migraphx::op::slice{{1}, {4}, {8}}, rsp);
-        auto add      = p2.add_instruction(migraphx::op::add{}, slc1, slc2);
+        auto b       = migraphx::op::broadcast{1, {3, 2, 4}};
+        auto r       = migraphx::op::reshape{{3, 4}};
+        auto input   = p2.add_parameter("input", s);
+        auto one     = p2.add_literal(1);
+        auto two     = p2.add_literal(2);
+        auto concat  = p2.add_instruction(migraphx::op::concat{0}, one, two);
+        auto concatb = p2.add_instruction(b, concat);
+        auto sum     = p2.add_instruction(migraphx::op::add{}, input, concatb);
+        auto relu    = p2.add_instruction(migraphx::op::relu{}, sum);
+        auto rsp     = p2.add_instruction(migraphx::op::reshape{{3, 8}}, relu);
+        auto slc1    = p2.add_instruction(migraphx::op::slice{{1}, {0}, {4}}, rsp);
+        auto slc2    = p2.add_instruction(migraphx::op::slice{{1}, {4}, {8}}, rsp);
+        auto add     = p2.add_instruction(migraphx::op::add{}, slc1, slc2);
         p2.add_instruction(pass_op{}, add);
     }
     EXPECT(p1.sort() == p2.sort());
@@ -1427,12 +1427,12 @@ TEST_CASE(reorder_reshape_slice_transpose)
         auto slc1 = p2.add_instruction(migraphx::op::slice{{2}, {10}, {20}}, r);
         auto slc2 = p2.add_instruction(migraphx::op::slice{{2}, {20}, {30}}, r);
 
-        auto t0                   = p2.add_instruction(migraphx::op::transpose{perm0}, slc0);
-        auto t1                   = p2.add_instruction(migraphx::op::transpose{perm0}, slc1);
-        auto t2                   = p2.add_instruction(migraphx::op::transpose{perm1}, slc2);
+        auto t0 = p2.add_instruction(migraphx::op::transpose{perm0}, slc0);
+        auto t1 = p2.add_instruction(migraphx::op::transpose{perm0}, slc1);
+        auto t2 = p2.add_instruction(migraphx::op::transpose{perm1}, slc2);
 
-        auto sum  = p2.add_instruction(migraphx::op::add{}, t0, t1);
-        auto ret  = p2.add_instruction(migraphx::op::dot{}, sum, t2);
+        auto sum = p2.add_instruction(migraphx::op::add{}, t0, t1);
+        auto ret = p2.add_instruction(migraphx::op::dot{}, sum, t2);
         p2.add_return({ret});
 
         return p2;

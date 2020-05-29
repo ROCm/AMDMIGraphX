@@ -44,6 +44,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     rocm-opencl \
     rocm-opencl-dev \
     software-properties-common \
+    sudo \
     wget \
     zlib1g-dev && \
     apt-get clean && \

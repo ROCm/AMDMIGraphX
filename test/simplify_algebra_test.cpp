@@ -807,7 +807,6 @@ TEST_CASE(simplify_split_add_relu_reshape)
     migraphx::program p2;
     {
         auto b       = migraphx::op::broadcast{1, {3, 2, 4}};
-        auto r       = migraphx::op::reshape{{3, 4}};
         auto input   = p2.add_parameter("input", s);
         auto one     = p2.add_literal(1);
         auto two     = p2.add_literal(2);

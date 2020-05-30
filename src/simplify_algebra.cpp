@@ -779,14 +779,6 @@ struct find_split_reshape
                 in, op::slice{{axis}, {i * dim_size}, {(i + 1) * dim_size}}, rsp_ins);
             ++i;
         }
-        // remove the original slice instructions
-        for(auto in : split_outputs)
-        {
-            // remove the contiguous instruction
-            p.remove_instruction(in->outputs().front());
-            // remove the original slice instruction
-            p.remove_instruction(in);
-        }
     }
 };
 

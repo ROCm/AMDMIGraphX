@@ -1,5 +1,5 @@
 
-def rocmtestnode(variant, name, body) {
+def rocmtestnode(variant, name, body, args) {
     def image = 'migraphxlib'
     def cmake_build = { compiler, flags ->
         def cmd = """
@@ -34,7 +34,7 @@ def rocmtestnode(variant, name, body) {
 
                 }
             }
-            withDockerContainer(image: image, args: '--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE') {
+            withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE ${args}") {
                 timeout(time: 1, unit: 'HOURS') {
                     body(cmake_build)
                 }
@@ -56,7 +56,7 @@ def rocmtest(m) {
 }
 
 @NonCPS
-def rocmnode(name, body) {
+def rocmnode(name, body, args='') {
     def node_name = 'rocmtest || rocm'
     if(name == 'fiji') {
         node_name = 'rocmtest && fiji';
@@ -66,7 +66,7 @@ def rocmnode(name, body) {
         node_name = name
     }
     return { label ->
-        rocmtestnode(label, node_name, body)
+        rocmtestnode(label, node_name, body, args)
     }
 }
 
@@ -148,12 +148,12 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     }
 }
 
-rocmtest onnx: rocmnode('rocmtest') { cmake_build ->
+rocmtest onnx: rocmnode('rocmtest', '-u root') { cmake_build ->
     stage("Onnx runtime") {
         unstash 'migraphx-package'
         sh '''
-            sudo dpkg -i *.deb
-            sudo /onnxruntime/build_and_test_onnxrt.sh
+            dpkg -i *.deb
+            cd /onnxruntime && ./build_and_test_onnxrt.sh
         '''
     }
 }

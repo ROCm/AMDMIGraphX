@@ -461,7 +461,7 @@ struct onnx_parser
         auto auto_pad = info.attributes["auto_pad"].s();
         if(auto_pad.find("SAME") != std::string::npos)
         {
-            op.padding_mode = op::padding_mode_t::same;
+            op.padding_mode    = op::padding_mode_t::same;
             bool is_same_upper = (auto_pad.find("SAME_UPPER") != std::string::npos);
             std::vector<int64_t> padding(2 * kdims);
 

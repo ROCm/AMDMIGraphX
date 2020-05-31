@@ -786,12 +786,13 @@ struct find_split_transpose
 {
     auto matcher() const
     {
-        return match::name("transpose")(match::arg(0)(match::name("slice").bind("slice"))).bind("trans");
+        return match::name("transpose")(match::arg(0)(match::name("slice").bind("slice")))
+            .bind("trans");
     }
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto slc = r.instructions["slice"];
+        auto slc   = r.instructions["slice"];
         auto trans = r.instructions["trans"];
 
         auto input         = slc->inputs().front();
@@ -820,16 +821,16 @@ struct find_split_transpose
         auto axis = any_cast<op::slice>(slc->get_operator()).axes.front();
 
         auto it = std::find(perm.begin(), perm.end(), axis);
-        if (it == perm.end())
+        if(it == perm.end())
         {
             return;
         }
         auto axis_new = *it;
 
-        for (auto in : split_outputs)
+        for(auto in : split_outputs)
         {
-            auto starts = any_cast<op::slice>(in->get_operator()).starts;
-            auto ends = any_cast<op::slice>(in->get_operator()).ends;
+            auto starts  = any_cast<op::slice>(in->get_operator()).starts;
+            auto ends    = any_cast<op::slice>(in->get_operator()).ends;
             auto tr_orig = in->outputs().front();
             p.replace_instruction(tr_orig, op::slice{{axis_new}, starts, ends}, tr);
         }

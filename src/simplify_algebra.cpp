@@ -829,7 +829,7 @@ struct find_split_transpose
 
         for(auto in : split_outputs)
         {
-            auto oper = any_cast<op::slice>(in->get_operator());
+            auto oper    = any_cast<op::slice>(in->get_operator());
             auto starts  = oper.starts;
             auto ends    = oper.ends;
             auto tr_orig = in->outputs().front();

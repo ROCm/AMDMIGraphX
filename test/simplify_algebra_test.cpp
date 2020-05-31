@@ -1452,7 +1452,7 @@ TEST_CASE(reorder_reshape_slice)
 TEST_CASE(reorder_slice_trans)
 {
     std::vector<int64_t> perm = {0, 2, 1};
-    auto create_p1             = [&](std::size_t batch_size) {
+    auto create_p1            = [&](std::size_t batch_size) {
         migraphx::program p1;
         auto s     = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
         auto input = p1.add_parameter("input", s);

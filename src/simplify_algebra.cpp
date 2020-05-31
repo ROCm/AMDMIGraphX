@@ -825,12 +825,13 @@ struct find_split_transpose
         {
             return;
         }
-        auto axis_new = *it;
+        auto axis_new = static_cast<int64_t>(std::distance(perm.begin(), it));
 
         for(auto in : split_outputs)
         {
-            auto starts  = any_cast<op::slice>(in->get_operator()).starts;
-            auto ends    = any_cast<op::slice>(in->get_operator()).ends;
+            auto oper = any_cast<op::slice>(in->get_operator());
+            auto starts  = oper.starts;
+            auto ends    = oper.ends;
             auto tr_orig = in->outputs().front();
             p.replace_instruction(tr_orig, op::slice{{axis_new}, starts, ends}, tr);
         }

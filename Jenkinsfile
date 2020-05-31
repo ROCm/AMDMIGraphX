@@ -1,5 +1,5 @@
 
-def rocmtestnode(variant, name, body, args) {
+def rocmtestnode(variant, name, body, args, stashed) {
     def image = 'migraphxlib'
     def cmake_build = { compiler, flags ->
         def cmd = """
@@ -23,6 +23,8 @@ def rocmtestnode(variant, name, body, args) {
     }
     node(name) {
         withEnv(['HSA_ENABLE_SDMA=0', 'MIOPEN_DEBUG_GCN_ASM_KERNELS=0']) {
+            if (stashed != '')
+                unstash stashed
             stage("checkout ${variant}") {
                 checkout scm
             }
@@ -56,7 +58,7 @@ def rocmtest(m) {
 }
 
 @NonCPS
-def rocmnode(name, body, args='') {
+def rocmnode(name, body, args='', stashed='') {
     def node_name = 'rocmtest || rocm'
     if(name == 'fiji') {
         node_name = 'rocmtest && fiji';
@@ -66,7 +68,7 @@ def rocmnode(name, body, args='') {
         node_name = name
     }
     return { label ->
-        rocmtestnode(label, node_name, body, args)
+        rocmtestnode(label, node_name, body, args, stashed)
     }
 }
 
@@ -148,9 +150,8 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     }
 }
 
-rocmtest onnx: rocmnode('rocmtest', '-u root') { cmake_build ->
+rocmtest onnx: rocmnode('rocmtest', '-u root', 'migraphx-package') { cmake_build ->
     stage("Onnx runtime") {
-        unstash 'migraphx-package'
         sh '''
             dpkg -i *.deb
             cd /onnxruntime && ./build_and_test_onnxrt.sh

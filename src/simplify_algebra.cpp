@@ -745,7 +745,7 @@ struct find_split_reshape
             return cont->outputs().front();
         });
 
-        // all outputs are reshape
+        // all outputs are reshape and of the same shape
         auto dims = any_cast<op::reshape>(rsp->get_operator()).dims;
         if(!std::all_of(vec_rsp.begin(), vec_rsp.end(), [&](auto i) {
                return (i->name() == "reshape") and
@@ -782,6 +782,60 @@ struct find_split_reshape
     }
 };
 
+struct find_split_transpose
+{
+    auto matcher() const
+    {
+        return match::name("transpose")(match::arg(0)(match::name("slice").bind("slice"))).bind("trans");
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto slc = r.instructions["slice"];
+        auto trans = r.instructions["trans"];
+
+        auto input         = slc->inputs().front();
+        auto split_outputs = get_splits(input);
+        if(split_outputs.empty())
+        {
+            return;
+        }
+
+        // all transpose are the same
+        auto perm = any_cast<op::transpose>(trans->get_operator()).dims;
+        if(!std::all_of(split_outputs.begin(), split_outputs.end(), [&](auto i) {
+               assert(i->outputs().size() == 1);
+               auto tr_ins = i->outputs().front();
+               return (tr_ins->name() == "transpose") and
+                      (any_cast<op::transpose>(tr_ins->get_operator()).dims == perm);
+           }))
+        {
+            return;
+        }
+
+        // insert an transpose instruction
+        auto tr = p.insert_instruction(std::next(input), op::transpose{perm}, input);
+
+        // compute the axis in the slice
+        auto axis = any_cast<op::slice>(slc->get_operator()).axes.front();
+
+        auto it = std::find(perm.begin(), perm.end(), axis);
+        if (it == perm.end())
+        {
+            return;
+        }
+        auto axis_new = *it;
+
+        for (auto in : split_outputs)
+        {
+            auto starts = any_cast<op::slice>(in->get_operator()).starts;
+            auto ends = any_cast<op::slice>(in->get_operator()).ends;
+            auto tr_orig = in->outputs().front();
+            p.replace_instruction(tr_orig, op::slice{{axis_new}, starts, ends}, tr);
+        }
+    }
+};
+
 void simplify_algebra::apply(program& p) const
 {
     // Run simplifications multiple times
@@ -801,7 +855,8 @@ void simplify_algebra::apply(program& p) const
                             find_concat_op{},
                             find_split_concat{},
                             find_splits{},
-                            find_split_reshape{});
+                            find_split_reshape{},
+                            find_split_transpose{});
         dead_code_elimination{}.apply(p);
     }
 }

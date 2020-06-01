@@ -1,4 +1,10 @@
 
+@NonCPS
+def unstash_package(stashed) {
+    if (stashed != '')
+        unstash "${stashed}"
+}
+
 def rocmtestnode(variant, name, body, args, stashed) {
     def image = 'migraphxlib'
     def cmake_build = { compiler, flags ->
@@ -21,8 +27,7 @@ def rocmtestnode(variant, name, body, args, stashed) {
         }
     }
     node(name) {
-        if (stashed != '')
-            unstash "${stashed}"
+        unstash_package(stashed)
         withEnv(['HSA_ENABLE_SDMA=0', 'MIOPEN_DEBUG_GCN_ASM_KERNELS=0']) {
             stage("checkout ${variant}") {
                 checkout scm

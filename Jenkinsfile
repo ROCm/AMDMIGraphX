@@ -44,7 +44,7 @@ def rocmtestnode(variant, name, body, args, stashed) {
         }
     }
 }
-@NonCPS
+// @NonCPS
 def rocmtest(m) {
     def builders = [:]
     for(e in m) {
@@ -57,7 +57,7 @@ def rocmtest(m) {
     parallel builders
 }
 
-@NonCPS
+// @NonCPS
 def rocmnode(name, body, args='', stashed='') {
     def node_name = 'rocmtest || rocm'
     if(name == 'fiji') {
@@ -72,7 +72,7 @@ def rocmnode(name, body, args='', stashed='') {
     }
 }
 
-@NonCPS
+// @NonCPS
 def rocmnode(body) {
     rocmnode('rocmtest', body)
 }

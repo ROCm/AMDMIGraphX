@@ -44,7 +44,7 @@ def rocmtestnode(variant, name, body, args, stashed) {
         }
     }
 }
-@NonCPS
+// @NonCPS
 def rocmtest(m) {
     def builders = [:]
     for(e in m) {

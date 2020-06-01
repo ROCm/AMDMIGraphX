@@ -717,7 +717,9 @@ struct find_rsqrt
 };
 
 template <class Op>
-static bool check_dims(const std::string& name, std::vector<instruction_ref>& vec_ins, const std::vector<int64_t>& dims)
+static bool check_dims(const std::string& name,
+                       std::vector<instruction_ref>& vec_ins,
+                       const std::vector<int64_t>& dims)
 {
     return std::all_of(vec_ins.begin(), vec_ins.end(), [&](auto i) {
         return (i->name() == name) and (any_cast<Op>(i->get_operator()).dims == dims);
@@ -755,7 +757,7 @@ struct find_split_reshape
 
         // all outputs are reshape and of the same shape
         auto dims = any_cast<op::reshape>(rsp->get_operator()).dims;
-        if (!check_dims<op::reshape>("reshape", vec_rsp, dims))
+        if(!check_dims<op::reshape>("reshape", vec_rsp, dims))
         {
             return;
         }
@@ -816,7 +818,7 @@ struct find_split_transpose
 
         // all transpose are the same
         auto perm = any_cast<op::transpose>(trans->get_operator()).dims;
-        if (!check_dims<op::transpose>("transpose", vec_trans, perm))
+        if(!check_dims<op::transpose>("transpose", vec_trans, perm))
         {
             return;
         }
@@ -825,8 +827,8 @@ struct find_split_transpose
         auto tr = p.insert_instruction(std::next(input), op::transpose{perm}, input);
 
         // compute the axis in the slice
-        auto axis = any_cast<op::slice>(slc->get_operator()).axes.front();
-        auto it = std::find(perm.begin(), perm.end(), axis);
+        auto axis     = any_cast<op::slice>(slc->get_operator()).axes.front();
+        auto it       = std::find(perm.begin(), perm.end(), axis);
         auto axis_new = static_cast<int64_t>(std::distance(perm.begin(), it));
 
         for(auto in : split_outputs)

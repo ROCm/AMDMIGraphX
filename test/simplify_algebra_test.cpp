@@ -1451,15 +1451,15 @@ TEST_CASE(reorder_reshape_slice)
 
 TEST_CASE(reorder_reshape_slice_invalid_axis)
 {
-    auto create_p1             = [](std::size_t batch_size) {
+    auto create_p1 = [](std::size_t batch_size) {
         migraphx::program p1;
-        auto s     = migraphx::shape{migraphx::shape::float_type, {batch_size, 129, 96}};
+        auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 129, 96}};
         std::vector<int64_t> perm0 = {0, 2, 1, 3};
         std::vector<int64_t> perm1 = {0, 2, 3, 1};
-        auto input = p1.add_parameter("input", s);
-        auto slc0  = p1.add_instruction(migraphx::op::slice{{2}, {0}, {32}}, input);
-        auto slc1  = p1.add_instruction(migraphx::op::slice{{2}, {32}, {64}}, input);
-        auto slc2  = p1.add_instruction(migraphx::op::slice{{2}, {64}, {96}}, input);
+        auto input                 = p1.add_parameter("input", s);
+        auto slc0                  = p1.add_instruction(migraphx::op::slice{{2}, {0}, {32}}, input);
+        auto slc1 = p1.add_instruction(migraphx::op::slice{{2}, {32}, {64}}, input);
+        auto slc2 = p1.add_instruction(migraphx::op::slice{{2}, {64}, {96}}, input);
 
         auto c0 = p1.add_instruction(migraphx::op::contiguous{}, slc0);
         auto c1 = p1.add_instruction(migraphx::op::contiguous{}, slc1);
@@ -1494,25 +1494,25 @@ TEST_CASE(reorder_reshape_slice_invalid_axis)
 
 TEST_CASE(reorder_reshape_slice_diff_dims)
 {
-    auto create_p1             = [](std::size_t batch_size) {
+    auto create_p1 = [](std::size_t batch_size) {
         migraphx::program p1;
-        auto s     = migraphx::shape{migraphx::shape::float_type, {batch_size, 96, 96}};
+        auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 96, 96}};
         std::vector<int64_t> perm0 = {0, 2, 1, 3};
         std::vector<int64_t> perm1 = {0, 2, 3, 1};
-        auto input = p1.add_parameter("input", s);
-        auto slc0  = p1.add_instruction(migraphx::op::slice{{2}, {0}, {32}}, input);
-        auto slc1  = p1.add_instruction(migraphx::op::slice{{2}, {32}, {64}}, input);
-        auto slc2  = p1.add_instruction(migraphx::op::slice{{2}, {64}, {96}}, input);
+        auto input                 = p1.add_parameter("input", s);
+        auto slc0                  = p1.add_instruction(migraphx::op::slice{{2}, {0}, {32}}, input);
+        auto slc1 = p1.add_instruction(migraphx::op::slice{{2}, {32}, {64}}, input);
+        auto slc2 = p1.add_instruction(migraphx::op::slice{{2}, {64}, {96}}, input);
 
         auto c0 = p1.add_instruction(migraphx::op::contiguous{}, slc0);
         auto c1 = p1.add_instruction(migraphx::op::contiguous{}, slc1);
         auto c2 = p1.add_instruction(migraphx::op::contiguous{}, slc2);
 
-        std::vector<int64_t> lens = {static_cast<int64_t>(batch_size), 32, 3, 32};
+        std::vector<int64_t> lens  = {static_cast<int64_t>(batch_size), 32, 3, 32};
         std::vector<int64_t> lens1 = {static_cast<int64_t>(batch_size), 48, 2, 32};
-        auto r0                   = p1.add_instruction(migraphx::op::reshape{lens}, c0);
-        auto r1                   = p1.add_instruction(migraphx::op::reshape{lens}, c1);
-        auto r2                   = p1.add_instruction(migraphx::op::reshape{lens1}, c2);
+        auto r0                    = p1.add_instruction(migraphx::op::reshape{lens}, c0);
+        auto r1                    = p1.add_instruction(migraphx::op::reshape{lens}, c1);
+        auto r2                    = p1.add_instruction(migraphx::op::reshape{lens1}, c2);
 
         p1.add_return({r0, r1, r2});
 
@@ -1582,15 +1582,15 @@ TEST_CASE(reorder_slice_trans)
 
 TEST_CASE(reorder_slice_trans_diff_perm)
 {
-    auto create_p1            = [](std::size_t batch_size) {
+    auto create_p1 = [](std::size_t batch_size) {
         migraphx::program p1;
-        auto s     = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
+        auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
         std::vector<int64_t> perm0 = {0, 2, 1};
         std::vector<int64_t> perm1 = {0, 1, 2};
-        auto input = p1.add_parameter("input", s);
-        auto slc0  = p1.add_instruction(migraphx::op::slice{{2}, {0}, {640}}, input);
-        auto slc1  = p1.add_instruction(migraphx::op::slice{{2}, {640}, {1280}}, input);
-        auto slc2  = p1.add_instruction(migraphx::op::slice{{2}, {1280}, {1920}}, input);
+        auto input                 = p1.add_parameter("input", s);
+        auto slc0 = p1.add_instruction(migraphx::op::slice{{2}, {0}, {640}}, input);
+        auto slc1 = p1.add_instruction(migraphx::op::slice{{2}, {640}, {1280}}, input);
+        auto slc2 = p1.add_instruction(migraphx::op::slice{{2}, {1280}, {1920}}, input);
 
         auto t0 = p1.add_instruction(migraphx::op::transpose{perm0}, slc0);
         auto t1 = p1.add_instruction(migraphx::op::transpose{perm0}, slc1);

@@ -716,6 +716,14 @@ struct find_rsqrt
     }
 };
 
+template <class Op>
+static bool check_dims(const std::string& name, std::vector<instruction_ref>& vec_ins, const std::vector<int64_t>& dims)
+{
+    return std::all_of(vec_ins.begin(), vec_ins.end(), [&](auto i) {
+        return (i->name() == name) and (any_cast<Op>(i->get_operator()).dims == dims);
+    });
+}
+
 struct find_split_reshape
 {
     auto matcher() const
@@ -747,14 +755,12 @@ struct find_split_reshape
 
         // all outputs are reshape and of the same shape
         auto dims = any_cast<op::reshape>(rsp->get_operator()).dims;
-        if(!std::all_of(vec_rsp.begin(), vec_rsp.end(), [&](auto i) {
-               return (i->name() == "reshape") and
-                      (any_cast<op::reshape>(i->get_operator()).dims == dims);
-           }))
+        if (!check_dims<op::reshape>("reshape", vec_rsp, dims))
         {
             return;
         }
 
+        // ensure reshape happens after the axis dimension
         auto axis    = any_cast<op::slice>(slc->get_operator()).axes[0];
         auto in_lens = input->get_shape().lens();
         if(!std::equal(in_lens.begin(), in_lens.begin() + axis, dims.begin(), dims.begin() + axis))
@@ -802,14 +808,15 @@ struct find_split_transpose
             return;
         }
 
+        std::vector<instruction_ref> vec_trans(split_outputs.size());
+        std::transform(split_outputs.begin(), split_outputs.end(), vec_trans.begin(), [](auto i) {
+            assert(i->outputs().size() == 1);
+            return i->outputs().front();
+        });
+
         // all transpose are the same
         auto perm = any_cast<op::transpose>(trans->get_operator()).dims;
-        if(!std::all_of(split_outputs.begin(), split_outputs.end(), [&](auto i) {
-               assert(i->outputs().size() == 1);
-               auto tr_ins = i->outputs().front();
-               return (tr_ins->name() == "transpose") and
-                      (any_cast<op::transpose>(tr_ins->get_operator()).dims == perm);
-           }))
+        if (!check_dims<op::transpose>("transpose", vec_trans, perm))
         {
             return;
         }
@@ -819,12 +826,7 @@ struct find_split_transpose
 
         // compute the axis in the slice
         auto axis = any_cast<op::slice>(slc->get_operator()).axes.front();
-
         auto it = std::find(perm.begin(), perm.end(), axis);
-        if(it == perm.end())
-        {
-            return;
-        }
         auto axis_new = static_cast<int64_t>(std::distance(perm.begin(), it));
 
         for(auto in : split_outputs)

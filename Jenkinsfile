@@ -47,7 +47,7 @@ def rocmtestnode(variant, name, body, args, stashed) {
 // @NonCPS
 def rocmtest(m) {
     def builders = [:]
-    for(e in m) {
+    m.each { e ->
         def label = e.key;
         def action = e.value;
         builders[label] = {

@@ -23,8 +23,8 @@ def rocmtestnode(variant, name, body, args, stashed) {
     }
     node(name) {
         withEnv(['HSA_ENABLE_SDMA=0', 'MIOPEN_DEBUG_GCN_ASM_KERNELS=0']) {
-            if (stashed != '')
-                unstash stashed
+            // if (stashed != '')
+                // unstash stashed
             stage("checkout ${variant}") {
                 checkout scm
             }
@@ -152,6 +152,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
 
 rocmtest onnx: rocmnode('rocmtest', '-u root', 'migraphx-package') { cmake_build ->
     stage("Onnx runtime") {
+        unstash 'migraphx-package'
         sh '''
             dpkg -i *.deb
             cd /onnxruntime && ./build_and_test_onnxrt.sh

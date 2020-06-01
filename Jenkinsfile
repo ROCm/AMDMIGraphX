@@ -18,13 +18,12 @@ def rocmtestnode(variant, name, body, args, stashed) {
             if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
                 archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
             }
-            stash includes: 'build/*.deb', name: 'migraphx-package'
         }
     }
     node(name) {
         withEnv(['HSA_ENABLE_SDMA=0', 'MIOPEN_DEBUG_GCN_ASM_KERNELS=0']) {
-            // if (stashed != '')
-                // unstash stashed
+            if (stashed != '')
+                unstash "${stashed}"
             stage("checkout ${variant}") {
                 checkout scm
             }
@@ -115,6 +114,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
 }, clang_release: rocmnode('vega') { cmake_build ->
     stage('Clang Release') {
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release")
+        stash includes: 'build/*.deb', name: 'migraphx-package'
     }
 }, clang_release_py3: rocmnode('vega') { cmake_build ->
     stage('Clang Release Python 3') {
@@ -152,7 +152,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
 
 rocmtest onnx: rocmnode('rocmtest', '-u root', 'migraphx-package') { cmake_build ->
     stage("Onnx runtime") {
-        unstash 'migraphx-package'
+        // unstash 'migraphx-package'
         sh '''
             dpkg -i *.deb
             cd /onnxruntime && ./build_and_test_onnxrt.sh

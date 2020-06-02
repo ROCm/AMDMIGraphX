@@ -1,11 +1,5 @@
 
-// @NonCPS
-def unstash_package(stashed) {
-    if (stashed != '')
-        unstash "${stashed}"
-}
-
-def rocmtestnode(variant, name, body, args, stashed) {
+def rocmtestnode(variant, name, body, args, pre) {
     def image = 'migraphxlib'
     def cmake_build = { compiler, flags ->
         def cmd = """
@@ -32,6 +26,7 @@ def rocmtestnode(variant, name, body, args, stashed) {
             stage("checkout ${variant}") {
                 checkout scm
             }
+            pre();
             stage("image ${variant}") {
                 try {
                     docker.build("${image}", '.')
@@ -62,7 +57,7 @@ def rocmtest(m) {
 }
 
 // @NonCPS
-def rocmnode(name, body, args='', stashed='') {
+def rocmnode(name, body, args='', pre={}) {
     def node_name = 'rocmtest || rocm'
     if(name == 'fiji') {
         node_name = 'rocmtest && fiji';
@@ -72,7 +67,7 @@ def rocmnode(name, body, args='', stashed='') {
         node_name = name
     }
     return { label ->
-        rocmtestnode(label, node_name, body, args, stashed)
+        rocmtestnode(label, node_name, body, args, pre)
     }
 }
 
@@ -155,9 +150,8 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     }
 }
 
-rocmtest onnx: rocmnode('rocmtest', '-u root', 'migraphx-package') { cmake_build ->
+rocmtest onnx: rocmnode('rocmtest', '-u root', { unstash 'migraphx-package' }) { cmake_build ->
     stage("Onnx runtime") {
-        // unstash 'migraphx-package'
         sh '''
             dpkg -i *.deb
             cd /onnxruntime && ./build_and_test_onnxrt.sh

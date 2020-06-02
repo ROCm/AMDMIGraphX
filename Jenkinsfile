@@ -21,12 +21,11 @@ def rocmtestnode(variant, name, body, args, pre) {
         }
     }
     node(name) {
-        unstash_package(stashed)
         withEnv(['HSA_ENABLE_SDMA=0', 'MIOPEN_DEBUG_GCN_ASM_KERNELS=0']) {
             stage("checkout ${variant}") {
                 checkout scm
             }
-            pre();
+            pre()
             stage("image ${variant}") {
                 try {
                     docker.build("${image}", '.')

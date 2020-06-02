@@ -1,5 +1,5 @@
 
-@NonCPS
+// @NonCPS
 def unstash_package(stashed) {
     if (stashed != '')
         unstash "${stashed}"

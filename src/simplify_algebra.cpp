@@ -825,8 +825,8 @@ struct find_split_transpose
         auto tr = p.insert_instruction(std::next(input), op::transpose{perm}, input);
 
         // compute the axis in the slice
-        auto axis     = any_cast<op::slice>(slc->get_operator()).axes.front();
-        auto it       = std::find(perm.begin(), perm.end(), axis);
+        auto axis = any_cast<op::slice>(slc->get_operator()).axes.front();
+        auto it   = std::find(perm.begin(), perm.end(), axis);
         assert(it != perm.end());
         auto axis_new = static_cast<int64_t>(std::distance(perm.begin(), it));
 

@@ -56,7 +56,7 @@ def rocmtest(m) {
 }
 
 // @NonCPS
-def rocmnode(name, body, args='', pre={}) {
+def rocmnode(name, args, pre, body) {
     def node_name = 'rocmtest || rocm'
     if(name == 'fiji') {
         node_name = 'rocmtest && fiji';

@@ -2083,7 +2083,7 @@ struct onnx_parser
             auto op_name = info.attributes.at("operator").s();
             if(op_name.find("embedding_bag") != std::string::npos)
             {
-                return parse_embedding_bag(info, args);
+                return parse_embedding_bag(info, std::move(args));
             }
         }
         MIGRAPHX_THROW("PARSE_ATEN: unsupported custom operator");

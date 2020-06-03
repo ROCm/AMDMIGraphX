@@ -2042,6 +2042,8 @@ struct onnx_parser
 
     instruction_ref parse_embedding_bag(const node_info& info, std::vector<instruction_ref> args)
     {
+        if(args[2]->get_shape().elements() != 1)
+            MIGRAPHX_THROW("PARSE_EMBEDDING_BAG: MIGraphX only supports offsets of size 1");
         op::reduce_mode_t reduce_mode = op::reduce_mode_t::sum;
         if(contains(info.attributes, "mode"))
         {

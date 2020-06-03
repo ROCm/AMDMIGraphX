@@ -843,7 +843,7 @@ def elu_test():
 @onnx_test
 def embedding_bag_test():
 
-    index_val = np.array([1, 0])
+    index_val = np.array([1, 0, 2])
     offset_val = np.array([0])
 
     index_tensor = helper.make_tensor(name='index_val',
@@ -866,9 +866,9 @@ def embedding_bag_test():
                                    outputs=['offset'],
                                    value=offset_tensor)
 
-    weight = helper.make_tensor_value_info('weight', TensorProto.FLOAT, [2, 3])
+    weight = helper.make_tensor_value_info('weight', TensorProto.FLOAT, [4, 2])
 
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2])
 
     node = onnx.helper.make_node('ATen',
                                  inputs=['weight', 'index', 'offset'],

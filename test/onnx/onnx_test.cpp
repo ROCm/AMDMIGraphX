@@ -610,6 +610,23 @@ TEST_CASE(elu_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(embedding_bag_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("weight", migraphx::shape{migraphx::shape::float_type, {4, 2}});
+    migraphx::literal l{migraphx::shape{migraphx::shape::int32_type, {3}}, {1, 0, 2}};
+    p.add_literal(l);
+    p.add_literal(0);
+    auto l1 = p.add_literal(l);
+    auto l2 = p.add_instruction(migraphx::op::gather{}, l0, l1);
+    auto r  = p.add_instruction(migraphx::op::reduce_sum{{0}}, l2);
+    p.add_return({r});
+
+    auto prog = migraphx::parse_onnx("embedding_bag_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(erf_test)
 {
     migraphx::program p;

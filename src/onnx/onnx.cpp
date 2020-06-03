@@ -2068,9 +2068,7 @@ struct onnx_parser
             switch(reduce_mode)
             {
             case reduce_mode_t::sum: l1 = prog.add_instruction(op::reduce_sum{{0}}, l1); break;
-            case reduce_mode_t::mean:
-                l1 = prog.add_instruction(op::reduce_mean{{0}}, l1);
-                break;
+            case reduce_mode_t::mean: l1 = prog.add_instruction(op::reduce_mean{{0}}, l1); break;
             case reduce_mode_t::max: l1 = prog.add_instruction(op::reduce_max{{0}}, l1); break;
             }
         }

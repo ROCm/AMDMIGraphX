@@ -795,7 +795,7 @@ struct onnx_parser
         {
             op.lengths.clear();
             copy(info.attributes["kernel_shape"].ints(), std::back_inserter(op.lengths));
-            check_attr_sizes(kdims, op.dilation.size(), "PARSE_POOLING: inconsistent dilations");
+            check_attr_sizes(kdims, op.lengths.size(), "PARSE_POOLING: inconsistent lengths");
         }
 
         if(contains(info.attributes, "auto_pad"))

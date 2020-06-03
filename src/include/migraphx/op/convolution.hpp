@@ -68,10 +68,7 @@ struct convolution
         return {t, output_lens};
     }
 
-    size_t kdims()
-    {
-        return padding.size();
-    }
+    size_t kdims() { return padding.size(); }
 };
 
 } // namespace op

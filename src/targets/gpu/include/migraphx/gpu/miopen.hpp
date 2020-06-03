@@ -86,12 +86,8 @@ inline convolution_descriptor make_conv(const T& op)
     std::vector<int> stride(op.stride.begin(), op.stride.end());
     std::vector<int> dilation(op.dilation.begin(), op.dilation.end());
 
-    miopenInitConvolutionNdDescriptor(c.get(),
-                                    padding.size(),
-                                    padding.data(),
-                                    stride.data(),
-                                    dilation.data(),
-                                    c_mode);
+    miopenInitConvolutionNdDescriptor(
+        c.get(), padding.size(), padding.data(), stride.data(), dilation.data(), c_mode);
     if(op.group > 1)
         miopenSetConvolutionGroupCount(c.get(), op.group);
     return c;

@@ -156,7 +156,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
 rocmtest onnx: rocmnode('rocmtest', '-u root', { unstash 'migraphx-package' }) { cmake_build ->
     stage("Onnx runtime") {
         sh '''
-            ls -lr
+            ls -lR
             dpkg -i *.deb
             cd /onnxruntime && ./build_and_test_onnxrt.sh
         '''

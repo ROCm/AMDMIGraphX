@@ -2040,14 +2040,21 @@ struct onnx_parser
         return l0;
     }
 
+    enum reduce_mode_t
+    {
+        sum,
+        mean,
+        max
+    };
+
     instruction_ref parse_embedding_bag(const node_info& info, std::vector<instruction_ref> args)
     {
         if(args[2]->get_shape().elements() != 1)
             MIGRAPHX_THROW("PARSE_EMBEDDING_BAG: MIGraphX only supports offsets of size 1");
-        op::reduce_mode_t reduce_mode = op::reduce_mode_t::sum;
+        reduce_mode_t reduce_mode = reduce_mode_t::sum;
         if(contains(info.attributes, "mode"))
         {
-            reduce_mode = static_cast<op::reduce_mode_t>(info.attributes.at("mode").i());
+            reduce_mode = static_cast<reduce_mode_t>(info.attributes.at("mode").i());
         }
         auto input_arg = args[1]->eval();
         check_arg_empty(input_arg, "PARSE_EMBEDDING_BAG: input arg dynamic shape is not supported");
@@ -2060,11 +2067,11 @@ struct onnx_parser
         {
             switch(reduce_mode)
             {
-            case op::reduce_mode_t::sum: l1 = prog.add_instruction(op::reduce_sum{{0}}, l1); break;
-            case op::reduce_mode_t::mean:
+            case reduce_mode_t::sum: l1 = prog.add_instruction(op::reduce_sum{{0}}, l1); break;
+            case reduce_mode_t::mean:
                 l1 = prog.add_instruction(op::reduce_mean{{0}}, l1);
                 break;
-            case op::reduce_mode_t::max_: l1 = prog.add_instruction(op::reduce_max{{0}}, l1); break;
+            case reduce_mode_t::max: l1 = prog.add_instruction(op::reduce_max{{0}}, l1); break;
             }
         }
         return l1;

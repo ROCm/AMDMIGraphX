@@ -612,8 +612,8 @@ struct onnx_parser
             }
             op.padding.clear();
             copy(info.attributes["pads"].ints(), std::back_inserter(padding));
+            check_attr_sizes(kdims, padding.size() / 2, "PARSE_CONV: inconsistent paddings");
             check_asym_padding(l0, padding, op);
-            check_attr_sizes(kdims, op.padding.size(), "PARSE_CONV: inconsistent paddings");
         }
         if(contains(info.attributes, "strides"))
         {
@@ -777,11 +777,12 @@ struct onnx_parser
             op.padding.clear();
             std::vector<std::int64_t> padding;
             copy(info.attributes["pads"].ints(), std::back_inserter(padding));
+            check_attr_sizes(kdims, padding.size() / 2, "PARSE_POOLING: inconsistent paddings");
+
             float pad_val = 0;
             if(op.mode == "max")
                 pad_val = std::numeric_limits<float>::lowest();
             check_asym_padding(l0, padding, op, pad_val);
-            check_attr_sizes(kdims, op.padding.size(), "PARSE_POOLING: inconsistent paddings");
             in_lens = l0->get_shape().lens();
         }
 

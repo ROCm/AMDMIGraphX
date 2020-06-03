@@ -562,7 +562,8 @@ struct onnx_parser
     {
         if(kdims != attr_size)
         {
-            MIGRAPHX_THROW(error_msg + " k-dims: " + to_string(kdims) + " attribute size: " + to_string(attr_size));
+            MIGRAPHX_THROW(error_msg + " k-dims: " + to_string(kdims) +
+                           " attribute size: " + to_string(attr_size));
         }
     }
 
@@ -595,7 +596,7 @@ struct onnx_parser
         auto weights = args[1];
         auto in_lens = l0->get_shape().lens();
         assert(in_lens > 2);
-        auto kdims   = in_lens.size() - 2;
+        auto kdims = in_lens.size() - 2;
 
         std::vector<int64_t> padding;
         if(contains(info.attributes, "pads"))
@@ -755,7 +756,7 @@ struct onnx_parser
         auto l0      = args[0];
         auto in_lens = l0->get_shape().lens();
         assert(in_lens > 2);
-        auto kdims   = in_lens.size() - 2;
+        auto kdims = in_lens.size() - 2;
 
         if(starts_with(name, "Global"))
         {

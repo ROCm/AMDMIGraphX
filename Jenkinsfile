@@ -70,9 +70,13 @@ def rocmnode(name, args, pre, body) {
     }
 }
 
+def rocmnode(name, body) {
+    rocmnode(name, '', {}, body)
+}
+
 // @NonCPS
 def rocmnode(body) {
-    rocmnode('rocmtest', body)
+    rocmnode('rocmtest', '', {}, body)
 }
 
 // Static checks

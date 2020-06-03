@@ -454,6 +454,11 @@ TEST_CASE(conv_3d_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(conv_attr_fail_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("conv_attr_fail_test.onnx"); }));
+}
+
 TEST_CASE(conv_autopad_same_test)
 {
     migraphx::program p;

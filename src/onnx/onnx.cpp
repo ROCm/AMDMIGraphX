@@ -558,6 +558,14 @@ struct onnx_parser
         return input;
     }
 
+    void check_attr_sizes(size_t kdims, size_t attr_size, const std::string& error_msg)
+    {
+        if(kdims != attr_size)
+        {
+            MIGRAPHX_THROW(error_msg + " k-dims: " + to_string(kdims) + " attribute size: " + to_string(attr_size));
+        }
+    }
+
     template <class Op>
     void recalc_conv_attributes(Op& op, size_t kdims)
     {
@@ -586,6 +594,7 @@ struct onnx_parser
         auto l0      = args[0];
         auto weights = args[1];
         auto in_lens = l0->get_shape().lens();
+        assert(in_lens > 2);
         auto kdims   = in_lens.size() - 2;
 
         std::vector<int64_t> padding;
@@ -603,16 +612,19 @@ struct onnx_parser
             op.padding.clear();
             copy(info.attributes["pads"].ints(), std::back_inserter(padding));
             check_asym_padding(l0, padding, op);
+            check_attr_sizes(kdims, op.padding.size(), "PARSE_CONV: inconsistent paddings");
         }
         if(contains(info.attributes, "strides"))
         {
             op.stride.clear();
             copy(info.attributes["strides"].ints(), std::back_inserter(op.stride));
+            check_attr_sizes(kdims, op.stride.size(), "PARSE_CONV: inconsistent strides");
         }
         if(contains(info.attributes, "dilations"))
         {
             op.dilation.clear();
             copy(info.attributes["dilations"].ints(), std::back_inserter(op.dilation));
+            check_attr_sizes(kdims, op.dilation.size(), "PARSE_CONV: inconsistent dilations");
         }
         if(contains(info.attributes, "auto_pad"))
         {
@@ -742,6 +754,7 @@ struct onnx_parser
         op::pooling op{ends_with(name, "MaxPool") ? "max" : "average"};
         auto l0      = args[0];
         auto in_lens = l0->get_shape().lens();
+        assert(in_lens > 2);
         auto kdims   = in_lens.size() - 2;
 
         if(starts_with(name, "Global"))
@@ -767,6 +780,7 @@ struct onnx_parser
             if(op.mode == "max")
                 pad_val = std::numeric_limits<float>::lowest();
             check_asym_padding(l0, padding, op, pad_val);
+            check_attr_sizes(kdims, op.padding.size(), "PARSE_POOLING: inconsistent paddings");
             in_lens = l0->get_shape().lens();
         }
 
@@ -774,22 +788,18 @@ struct onnx_parser
         {
             op.stride.clear();
             copy(info.attributes["strides"].ints(), std::back_inserter(op.stride));
+            check_attr_sizes(kdims, op.stride.size(), "PARSE_POOLING: inconsistent strides");
         }
         if(contains(info.attributes, "kernel_shape"))
         {
             op.lengths.clear();
             copy(info.attributes["kernel_shape"].ints(), std::back_inserter(op.lengths));
+            check_attr_sizes(kdims, op.dilation.size(), "PARSE_POOLING: inconsistent dilations");
         }
 
         if(contains(info.attributes, "auto_pad"))
         {
             op.padding.clear();
-            auto s = info.attributes["auto_pad"].s();
-            if(s.find("SAME") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::same;
-            }
-
             float val = 0.0f;
             // MaxPool
             if(op.mode == "max")

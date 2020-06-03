@@ -716,8 +716,7 @@ struct find_rsqrt
     }
 };
 
-template <class Op>
-static bool check_dims(const std::vector<instruction_ref>& vec_ins)
+static bool same_ops(const std::vector<instruction_ref>& vec_ins)
 {
     return std::all_of(vec_ins.begin(), vec_ins.end(), [&](auto i) {
         return i->get_operator() == vec_ins.front()->get_operator();
@@ -755,7 +754,7 @@ struct find_split_reshape
 
         // all outputs are reshape and of the same shape
         auto dims = any_cast<op::reshape>(rsp->get_operator()).dims;
-        if(!check_dims<op::reshape>(vec_rsp))
+        if(!same_ops(vec_rsp))
         {
             return;
         }
@@ -816,7 +815,7 @@ struct find_split_transpose
 
         // all transpose are the same
         auto perm = any_cast<op::transpose>(trans->get_operator()).dims;
-        if(!check_dims<op::transpose>(vec_trans))
+        if(!same_ops(vec_trans))
         {
             return;
         }

@@ -775,7 +775,7 @@ struct onnx_parser
                 }
             }
             op.padding.clear();
-            std::vector<std::int64_t> padding;
+            std::vector<int64_t> padding;
             copy(info.attributes["pads"].ints(), std::back_inserter(padding));
             check_attr_sizes(kdims, padding.size() / 2, "PARSE_POOLING: inconsistent paddings");
 

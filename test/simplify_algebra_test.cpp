@@ -434,6 +434,76 @@ TEST_CASE(simplify_concat_add_relu)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(simplify_concat_add_relu_partial)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {1}};
+    migraphx::program p1;
+    {
+        auto x      = p1.add_parameter("x", s);
+        auto y      = p1.add_parameter("y", s);
+        auto one    = p1.add_literal({s, {1}});
+        auto two    = p1.add_literal({s, {2}});
+        auto sum1   = p1.add_instruction(migraphx::op::add{}, x, one);
+        auto relu1  = p1.add_instruction(migraphx::op::relu{}, sum1);
+        auto sum2   = p1.add_instruction(migraphx::op::add{}, y, two);
+        auto relu2  = p1.add_instruction(migraphx::op::relu{}, sum2);
+        auto sum3   = p1.add_instruction(migraphx::op::add{}, x, y);
+        auto concat = p1.add_instruction(migraphx::op::concat{0}, sum3, relu1, relu2);
+        p1.add_instruction(pass_op{}, concat);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto x       = p2.add_parameter("x", s);
+        auto y       = p2.add_parameter("y", s);
+        auto one     = p2.add_literal({s, {1}});
+        auto two     = p2.add_literal({s, {2}});
+        auto concat1 = p2.add_instruction(migraphx::op::concat{0}, x, y);
+        auto concat2 = p2.add_instruction(migraphx::op::concat{0}, one, two);
+        auto sum1    = p2.add_instruction(migraphx::op::add{}, concat1, concat2);
+        auto relu    = p2.add_instruction(migraphx::op::relu{}, sum1);
+        auto sum2    = p2.add_instruction(migraphx::op::add{}, x, y);
+        auto concat  = p2.add_instruction(migraphx::op::concat{0}, sum2, relu);
+        p2.add_instruction(pass_op{}, concat);
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(simplify_concat_add_relu_partial_broadcast)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {2, 1, 4, 5}};
+    migraphx::program p1;
+    {
+        auto b      = migraphx::op::broadcast{1, {2, 1, 4, 5}};
+        auto x      = p1.add_parameter("x", s);
+        auto y      = p1.add_parameter("y", s);
+        auto one    = p1.add_literal(1);
+        auto oneb   = p1.add_instruction(b, one);
+        auto two    = p1.add_literal(2);
+        auto twob   = p1.add_instruction(b, two);
+        auto sum    = p1.add_instruction(migraphx::op::add{}, x, y);
+        auto concat = p1.add_instruction(migraphx::op::concat{1}, sum, oneb, twob);
+        p1.add_instruction(pass_op{}, concat);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto b       = migraphx::op::broadcast{1, {2, 2, 4, 5}};
+        auto x       = p2.add_parameter("x", s);
+        auto y       = p2.add_parameter("y", s);
+        auto one     = p2.add_literal(1);
+        auto two     = p2.add_literal(2);
+        auto concat1 = p2.add_instruction(migraphx::op::concat{0}, one, two);
+        auto concatb = p2.add_instruction(b, concat1);
+        auto sum     = p2.add_instruction(migraphx::op::add{}, x, y);
+        auto concat2 = p2.add_instruction(migraphx::op::concat{1}, sum, concatb);
+        p2.add_instruction(pass_op{}, concat2);
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(simplify_concat_add_relu_broadcast_different_axis)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {2, 1, 4, 5}};
@@ -586,6 +656,89 @@ TEST_CASE(simplify_rsqrt_multi_use)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(simplify_slice_concat)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {256}};
+
+    migraphx::program p1;
+    {
+        auto x       = p1.add_parameter("x", s);
+        auto y       = p1.add_parameter("y", s);
+        auto xslice1 = p1.add_instruction(migraphx::op::slice{{0}, {0}, {128}}, x);
+        auto xslice2 = p1.add_instruction(migraphx::op::slice{{0}, {128}, {256}}, x);
+        auto yslice1 = p1.add_instruction(migraphx::op::slice{{0}, {0}, {128}}, y);
+        auto yslice2 = p1.add_instruction(migraphx::op::slice{{0}, {128}, {256}}, y);
+        auto concat =
+            p1.add_instruction(migraphx::op::concat{0}, xslice1, xslice2, yslice1, yslice2);
+        p1.add_instruction(pass_op{}, concat);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto x      = p2.add_parameter("x", s);
+        auto y      = p2.add_parameter("y", s);
+        auto concat = p2.add_instruction(migraphx::op::concat{0}, x, y);
+        p2.add_instruction(pass_op{}, concat);
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(simplify_slice_concat_non_uniform)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {256}};
+
+    migraphx::program p1;
+    {
+        auto x       = p1.add_parameter("x", s);
+        auto y       = p1.add_parameter("y", s);
+        auto xslice1 = p1.add_instruction(migraphx::op::slice{{0}, {0}, {64}}, x);
+        auto xslice2 = p1.add_instruction(migraphx::op::slice{{0}, {64}, {192}}, x);
+        auto xslice3 = p1.add_instruction(migraphx::op::slice{{0}, {192}, {256}}, x);
+        auto yslice1 = p1.add_instruction(migraphx::op::slice{{0}, {0}, {64}}, y);
+        auto yslice2 = p1.add_instruction(migraphx::op::slice{{0}, {64}, {192}}, y);
+        auto yslice3 = p1.add_instruction(migraphx::op::slice{{0}, {192}, {256}}, y);
+        auto concat  = p1.add_instruction(
+            migraphx::op::concat{0}, xslice1, xslice2, xslice3, yslice1, yslice2, yslice3);
+        p1.add_instruction(pass_op{}, concat);
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto x      = p2.add_parameter("x", s);
+        auto y      = p2.add_parameter("y", s);
+        auto concat = p2.add_instruction(migraphx::op::concat{0}, x, y);
+        p2.add_instruction(pass_op{}, concat);
+    }
+
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(simplify_slice_concat_flipped)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {256}};
+
+    migraphx::program p1;
+    {
+        auto x       = p1.add_parameter("x", s);
+        auto y       = p1.add_parameter("y", s);
+        auto xslice1 = p1.add_instruction(migraphx::op::slice{{0}, {0}, {64}}, x);
+        auto xslice2 = p1.add_instruction(migraphx::op::slice{{0}, {192}, {256}}, x);
+        auto xslice3 = p1.add_instruction(migraphx::op::slice{{0}, {64}, {192}}, x);
+        auto yslice1 = p1.add_instruction(migraphx::op::slice{{0}, {0}, {64}}, y);
+        auto yslice2 = p1.add_instruction(migraphx::op::slice{{0}, {192}, {256}}, y);
+        auto yslice3 = p1.add_instruction(migraphx::op::slice{{0}, {64}, {192}}, y);
+        auto concat  = p1.add_instruction(
+            migraphx::op::concat{0}, xslice1, xslice2, xslice3, yslice1, yslice2, yslice3);
+        p1.add_instruction(pass_op{}, concat);
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(simplify_split_add_relu)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};
@@ -653,22 +806,18 @@ TEST_CASE(simplify_split_add_relu_reshape)
 
     migraphx::program p2;
     {
-        auto b        = migraphx::op::broadcast{1, {3, 2, 4}};
-        auto r        = migraphx::op::reshape{{3, 4}};
-        auto input    = p2.add_parameter("input", s);
-        auto one      = p2.add_literal(1);
-        auto two      = p2.add_literal(2);
-        auto concat   = p2.add_instruction(migraphx::op::concat{0}, one, two);
-        auto concatb  = p2.add_instruction(b, concat);
-        auto sum      = p2.add_instruction(migraphx::op::add{}, input, concatb);
-        auto relu     = p2.add_instruction(migraphx::op::relu{}, sum);
-        auto slice1   = p2.add_instruction(migraphx::op::slice{{1}, {0}, {1}}, relu);
-        auto cont1    = p2.add_instruction(migraphx::op::contiguous{}, slice1);
-        auto reshape1 = p2.add_instruction(r, cont1);
-        auto slice2   = p2.add_instruction(migraphx::op::slice{{1}, {1}, {2}}, relu);
-        auto cont2    = p2.add_instruction(migraphx::op::contiguous{}, slice2);
-        auto reshape2 = p2.add_instruction(r, cont2);
-        auto add      = p2.add_instruction(migraphx::op::add{}, reshape1, reshape2);
+        auto b       = migraphx::op::broadcast{1, {3, 2, 4}};
+        auto input   = p2.add_parameter("input", s);
+        auto one     = p2.add_literal(1);
+        auto two     = p2.add_literal(2);
+        auto concat  = p2.add_instruction(migraphx::op::concat{0}, one, two);
+        auto concatb = p2.add_instruction(b, concat);
+        auto sum     = p2.add_instruction(migraphx::op::add{}, input, concatb);
+        auto relu    = p2.add_instruction(migraphx::op::relu{}, sum);
+        auto rsp     = p2.add_instruction(migraphx::op::reshape{{3, 8}}, relu);
+        auto slc1    = p2.add_instruction(migraphx::op::slice{{1}, {0}, {4}}, rsp);
+        auto slc2    = p2.add_instruction(migraphx::op::slice{{1}, {4}, {8}}, rsp);
+        auto add     = p2.add_instruction(migraphx::op::add{}, slc1, slc2);
         p2.add_instruction(pass_op{}, add);
     }
     EXPECT(p1.sort() == p2.sort());
@@ -1054,7 +1203,28 @@ TEST_CASE(simplify_conv_horiz)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(simplify_conv_horiz_groups)
+TEST_CASE(simplify_group_conv_horiz)
+{
+    auto s  = migraphx::shape{migraphx::shape::int32_type, {1, 32, 111, 111}};
+    auto ws = migraphx::shape{migraphx::shape::int32_type, {32, 1, 7, 7}};
+    migraphx::program p1;
+    {
+        auto x  = p1.add_parameter("x", s);
+        auto w1 = p1.add_literal(migraphx::generate_literal(ws, 1));
+        auto w2 = p1.add_literal(migraphx::generate_literal(ws, 2));
+        auto conv1 =
+            p1.add_instruction(migraphx::op::convolution{{3, 3}, {2, 2}, {1, 1}, 32}, x, w1);
+        auto conv2 =
+            p1.add_instruction(migraphx::op::convolution{{3, 3}, {2, 2}, {1, 1}, 32}, x, w2);
+        p1.add_instruction(pass_op{}, conv1, conv2);
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(simplify_conv_horiz_grouped)
 {
     auto s   = migraphx::shape{migraphx::shape::int32_type, {8, 6, 64, 64}};
     auto ws1 = migraphx::shape{migraphx::shape::int32_type, {6, 6, 3, 3}};
@@ -1101,7 +1271,7 @@ TEST_CASE(simplify_conv_horiz_groups)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(simplify_conv_horiz_groups_extra1)
+TEST_CASE(simplify_conv_horiz_grouped_extra1)
 {
     auto s   = migraphx::shape{migraphx::shape::int32_type, {8, 6, 64, 64}};
     auto ws1 = migraphx::shape{migraphx::shape::int32_type, {6, 6, 3, 3}};
@@ -1155,7 +1325,7 @@ TEST_CASE(simplify_conv_horiz_groups_extra1)
     EXPECT(p1.sort() == p2.sort());
 }
 
-TEST_CASE(simplify_conv_horiz_groups_extra2)
+TEST_CASE(simplify_conv_horiz_grouped_extra2)
 {
     auto s   = migraphx::shape{migraphx::shape::int32_type, {8, 6, 64, 64}};
     auto ws1 = migraphx::shape{migraphx::shape::int32_type, {6, 6, 3, 3}};
@@ -1211,6 +1381,237 @@ TEST_CASE(simplify_conv_horiz_groups_extra2)
         p2.add_instruction(pass_op{}, sum5);
     }
     EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(reorder_reshape_slice)
+{
+    std::vector<int64_t> perm0 = {0, 2, 1, 3};
+    std::vector<int64_t> perm1 = {0, 2, 3, 1};
+    auto create_p1             = [&](std::size_t batch_size) {
+        migraphx::program p1;
+        auto s     = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
+        auto input = p1.add_parameter("input", s);
+        auto slc0  = p1.add_instruction(migraphx::op::slice{{2}, {0}, {640}}, input);
+        auto slc1  = p1.add_instruction(migraphx::op::slice{{2}, {640}, {1280}}, input);
+        auto slc2  = p1.add_instruction(migraphx::op::slice{{2}, {1280}, {1920}}, input);
+
+        auto c0 = p1.add_instruction(migraphx::op::contiguous{}, slc0);
+        auto c1 = p1.add_instruction(migraphx::op::contiguous{}, slc1);
+        auto c2 = p1.add_instruction(migraphx::op::contiguous{}, slc2);
+
+        std::vector<int64_t> lens = {static_cast<int64_t>(batch_size), 128, 10, 64};
+        auto r0                   = p1.add_instruction(migraphx::op::reshape{lens}, c0);
+        auto r1                   = p1.add_instruction(migraphx::op::reshape{lens}, c1);
+        auto r2                   = p1.add_instruction(migraphx::op::reshape{lens}, c2);
+
+        auto t0 = p1.add_instruction(migraphx::op::transpose{perm0}, r0);
+        auto t1 = p1.add_instruction(migraphx::op::transpose{perm0}, r1);
+        auto t2 = p1.add_instruction(migraphx::op::transpose{perm1}, r2);
+
+        auto sum = p1.add_instruction(migraphx::op::add{}, t0, t1);
+        auto ret = p1.add_instruction(migraphx::op::dot{}, sum, t2);
+        p1.add_return({ret});
+
+        return p1;
+    };
+
+    auto create_p2 = [&](std::size_t batch_size) {
+        migraphx::program p2;
+        auto s     = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
+        auto input = p2.add_parameter("input", s);
+        std::vector<int64_t> lens = {static_cast<int64_t>(batch_size), 128, 30, 64};
+        auto r                    = p2.add_instruction(migraphx::op::reshape{lens}, input);
+
+        auto slc0 = p2.add_instruction(migraphx::op::slice{{2}, {0}, {10}}, r);
+        auto slc1 = p2.add_instruction(migraphx::op::slice{{2}, {10}, {20}}, r);
+        auto slc2 = p2.add_instruction(migraphx::op::slice{{2}, {20}, {30}}, r);
+
+        auto t0 = p2.add_instruction(migraphx::op::transpose{perm0}, slc0);
+        auto t1 = p2.add_instruction(migraphx::op::transpose{perm0}, slc1);
+        auto t2 = p2.add_instruction(migraphx::op::transpose{perm1}, slc2);
+
+        auto sum = p2.add_instruction(migraphx::op::add{}, t0, t1);
+        auto ret = p2.add_instruction(migraphx::op::dot{}, sum, t2);
+        p2.add_return({ret});
+
+        return p2;
+    };
+
+    auto test = [&](std::size_t batch_size) {
+        auto p1 = create_p1(batch_size);
+        run_pass(p1);
+        auto p2 = create_p2(batch_size);
+        EXPECT(p1.sort() == p2.sort());
+    };
+
+    test(1);
+    test(4);
+    test(8);
+}
+
+TEST_CASE(reorder_reshape_slice_invalid_axis)
+{
+    auto create_p1 = [](std::size_t batch_size) {
+        migraphx::program p1;
+        auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 129, 96}};
+        std::vector<int64_t> perm0 = {0, 2, 1, 3};
+        std::vector<int64_t> perm1 = {0, 2, 3, 1};
+        auto input                 = p1.add_parameter("input", s);
+        auto slc0                  = p1.add_instruction(migraphx::op::slice{{2}, {0}, {32}}, input);
+        auto slc1 = p1.add_instruction(migraphx::op::slice{{2}, {32}, {64}}, input);
+        auto slc2 = p1.add_instruction(migraphx::op::slice{{2}, {64}, {96}}, input);
+
+        auto c0 = p1.add_instruction(migraphx::op::contiguous{}, slc0);
+        auto c1 = p1.add_instruction(migraphx::op::contiguous{}, slc1);
+        auto c2 = p1.add_instruction(migraphx::op::contiguous{}, slc2);
+
+        std::vector<int64_t> lens = {static_cast<int64_t>(batch_size), 43, 3, 32};
+        auto r0                   = p1.add_instruction(migraphx::op::reshape{lens}, c0);
+        auto r1                   = p1.add_instruction(migraphx::op::reshape{lens}, c1);
+        auto r2                   = p1.add_instruction(migraphx::op::reshape{lens}, c2);
+
+        auto t0 = p1.add_instruction(migraphx::op::transpose{perm0}, r0);
+        auto t1 = p1.add_instruction(migraphx::op::transpose{perm0}, r1);
+        auto t2 = p1.add_instruction(migraphx::op::transpose{perm1}, r2);
+
+        auto sum = p1.add_instruction(migraphx::op::add{}, t0, t1);
+        auto ret = p1.add_instruction(migraphx::op::dot{}, sum, t2);
+        p1.add_return({ret});
+
+        return p1;
+    };
+
+    auto test = [&](std::size_t batch_size) {
+        auto p1 = create_p1(batch_size);
+        auto p2 = p1;
+        run_pass(p1);
+        EXPECT(p1.sort() == p2.sort());
+    };
+
+    test(4);
+    test(8);
+}
+
+TEST_CASE(reorder_reshape_slice_diff_dims)
+{
+    auto create_p1 = [](std::size_t batch_size) {
+        migraphx::program p1;
+        auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 96, 96}};
+        std::vector<int64_t> perm0 = {0, 2, 1, 3};
+        std::vector<int64_t> perm1 = {0, 2, 3, 1};
+        auto input                 = p1.add_parameter("input", s);
+        auto slc0                  = p1.add_instruction(migraphx::op::slice{{2}, {0}, {32}}, input);
+        auto slc1 = p1.add_instruction(migraphx::op::slice{{2}, {32}, {64}}, input);
+        auto slc2 = p1.add_instruction(migraphx::op::slice{{2}, {64}, {96}}, input);
+
+        auto c0 = p1.add_instruction(migraphx::op::contiguous{}, slc0);
+        auto c1 = p1.add_instruction(migraphx::op::contiguous{}, slc1);
+        auto c2 = p1.add_instruction(migraphx::op::contiguous{}, slc2);
+
+        std::vector<int64_t> lens  = {static_cast<int64_t>(batch_size), 32, 3, 32};
+        std::vector<int64_t> lens1 = {static_cast<int64_t>(batch_size), 48, 2, 32};
+        auto r0                    = p1.add_instruction(migraphx::op::reshape{lens}, c0);
+        auto r1                    = p1.add_instruction(migraphx::op::reshape{lens}, c1);
+        auto r2                    = p1.add_instruction(migraphx::op::reshape{lens1}, c2);
+
+        p1.add_return({r0, r1, r2});
+
+        return p1;
+    };
+
+    auto test = [&](std::size_t batch_size) {
+        auto p1 = create_p1(batch_size);
+        auto p2 = p1;
+        run_pass(p1);
+        EXPECT(p1.sort() == p2.sort());
+    };
+
+    test(4);
+    test(8);
+}
+
+TEST_CASE(reorder_slice_trans)
+{
+    std::vector<int64_t> perm = {0, 2, 1};
+    auto create_p1            = [&](std::size_t batch_size) {
+        migraphx::program p1;
+        auto s     = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
+        auto input = p1.add_parameter("input", s);
+        auto slc0  = p1.add_instruction(migraphx::op::slice{{2}, {0}, {640}}, input);
+        auto slc1  = p1.add_instruction(migraphx::op::slice{{2}, {640}, {1280}}, input);
+        auto slc2  = p1.add_instruction(migraphx::op::slice{{2}, {1280}, {1920}}, input);
+
+        auto t0 = p1.add_instruction(migraphx::op::transpose{perm}, slc0);
+        auto t1 = p1.add_instruction(migraphx::op::transpose{perm}, slc1);
+        auto t2 = p1.add_instruction(migraphx::op::transpose{perm}, slc2);
+
+        auto sum = p1.add_instruction(migraphx::op::add{}, t0, t1);
+        auto ret = p1.add_instruction(migraphx::op::mul{}, sum, t2);
+        p1.add_return({ret});
+
+        return p1;
+    };
+
+    auto create_p2 = [&](std::size_t batch_size) {
+        migraphx::program p2;
+        auto s     = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
+        auto input = p2.add_parameter("input", s);
+        auto r     = p2.add_instruction(migraphx::op::transpose{perm}, input);
+
+        auto slc0 = p2.add_instruction(migraphx::op::slice{{1}, {0}, {640}}, r);
+        auto slc1 = p2.add_instruction(migraphx::op::slice{{1}, {640}, {1280}}, r);
+        auto slc2 = p2.add_instruction(migraphx::op::slice{{1}, {1280}, {1920}}, r);
+
+        auto sum = p2.add_instruction(migraphx::op::add{}, slc0, slc1);
+        auto ret = p2.add_instruction(migraphx::op::mul{}, sum, slc2);
+        p2.add_return({ret});
+
+        return p2;
+    };
+
+    auto test = [&](std::size_t batch_size) {
+        auto p1 = create_p1(batch_size);
+        run_pass(p1);
+        auto p2 = create_p2(batch_size);
+        EXPECT(p1.sort() == p2.sort());
+    };
+
+    test(1);
+    test(8);
+}
+
+TEST_CASE(reorder_slice_trans_diff_perm)
+{
+    auto create_p1 = [](std::size_t batch_size) {
+        migraphx::program p1;
+        auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
+        std::vector<int64_t> perm0 = {0, 2, 1};
+        std::vector<int64_t> perm1 = {0, 1, 2};
+        auto input                 = p1.add_parameter("input", s);
+        auto slc0 = p1.add_instruction(migraphx::op::slice{{2}, {0}, {640}}, input);
+        auto slc1 = p1.add_instruction(migraphx::op::slice{{2}, {640}, {1280}}, input);
+        auto slc2 = p1.add_instruction(migraphx::op::slice{{2}, {1280}, {1920}}, input);
+
+        auto t0 = p1.add_instruction(migraphx::op::transpose{perm0}, slc0);
+        auto t1 = p1.add_instruction(migraphx::op::transpose{perm0}, slc1);
+        auto t2 = p1.add_instruction(migraphx::op::transpose{perm1}, slc2);
+
+        auto sum = p1.add_instruction(migraphx::op::add{}, t0, t1);
+        auto ret = p1.add_instruction(migraphx::op::dot{}, sum, t2);
+        p1.add_return({ret});
+
+        return p1;
+    };
+
+    auto test = [&](std::size_t batch_size) {
+        auto p1 = create_p1(batch_size);
+        run_pass(p1);
+        auto p2 = p1;
+        EXPECT(p1.sort() == p2.sort());
+    };
+
+    test(1);
+    test(4);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

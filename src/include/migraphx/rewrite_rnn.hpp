@@ -6,6 +6,7 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/op/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -26,11 +27,7 @@ struct rewrite_rnn
     std::vector<instruction_ref> vanilla_rnn_cell(bool is_forward,
                                                   program& prog,
                                                   instruction_ref ins,
-                                                  instruction_ref input,
-                                                  instruction_ref w,
-                                                  instruction_ref r,
-                                                  instruction_ref bias,
-                                                  instruction_ref ih,
+                                                  std::vector<instruction_ref> inputs,
                                                   operation& actv_func) const;
     std::vector<operation> vanilla_rnn_actv_funcs(instruction_ref ins) const;
 
@@ -57,6 +54,28 @@ struct rewrite_rnn
                                            const operation& actv_func3) const;
 
     std::vector<operation> lstm_actv_funcs(instruction_ref ins) const;
+
+    bool is_variable_seq_lens(const program& prog, instruction_ref seq_lens) const;
+    instruction_ref replace_last_hs_output(program& prog,
+                                           instruction_ref ins,
+                                           instruction_ref seq_lens,
+                                           instruction_ref last_hs_output,
+                                           op::rnn_direction dirct) const;
+
+    void replace_last_cell_output(program& prog,
+                                  instruction_ref ins,
+                                  instruction_ref seq_lens,
+                                  instruction_ref cell_outputs,
+                                  instruction_ref last_cell_output,
+                                  op::rnn_direction dirct) const;
+
+    std::size_t
+    get_seq_len(const program& prog, instruction_ref input, instruction_ref seq_lens) const;
+
+    instruction_ref pad_hidden_states(program& prog,
+                                      instruction_ref seq,
+                                      instruction_ref seq_lens,
+                                      instruction_ref hs) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

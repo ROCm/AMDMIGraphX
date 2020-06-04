@@ -160,7 +160,7 @@ rocmtest onnx: rocmnode('rocmtest', '-u root', {
     stage("Onnx runtime") {
         sh '''
             ls -lR
-            dpkg -i ./build/*.deb
+            dpkg -i --force-depends ./build/*.deb
             cd /onnxruntime && ./build_and_test_onnxrt.sh
         '''
     }

@@ -618,9 +618,15 @@ TEST_CASE(embedding_bag_test)
     p.add_literal(l);
     p.add_literal(0);
     auto l1 = p.add_literal(l);
-    auto l2 = p.add_instruction(migraphx::op::gather{}, l0, l1);
-    auto r  = p.add_instruction(migraphx::op::reduce_sum{{0}}, l2);
-    p.add_return({r});
+    auto l2 = p.add_literal(l);
+    auto l3 = p.add_literal(l);
+    auto l4 = p.add_instruction(migraphx::op::gather{}, l0, l1);
+    auto r1  = p.add_instruction(migraphx::op::reduce_sum{{0}}, l4);
+    auto l5 = p.add_instruction(migraphx::op::gather{}, l0, l2);
+    auto r2  = p.add_instruction(migraphx::op::reduce_mean{{0}}, l5);
+    auto l6 = p.add_instruction(migraphx::op::gather{}, l0, l3);
+    auto r3  = p.add_instruction(migraphx::op::reduce_max{{0}}, l6);
+    p.add_return({r1, r2, r3});
 
     auto prog = migraphx::parse_onnx("embedding_bag_test.onnx");
 

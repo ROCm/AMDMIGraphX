@@ -83,6 +83,9 @@ ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 RUN cget -p $PREFIX install -f /dev-requirements.txt -DMIOPEN_CACHE_DIR=""
 
+# Install newer cmake for onnx runtime
+RUN cget -p /opt/cmake install kitware/cmake@v3.13.0
+
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=master
 ARG ONNXRUNTIME_COMMIT=7759136610cd8415264892ad83acdf9d8ed7e87a

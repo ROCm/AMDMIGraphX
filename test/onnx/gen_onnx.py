@@ -873,22 +873,22 @@ def embedding_bag_test():
     y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [1, 2])
 
     node1 = onnx.helper.make_node('ATen',
-                                 inputs=['weight', 'index', 'offset'],
-                                 outputs=['y1'],
-                                 mode=0,
-                                 operator='embedding_bag')
+                                  inputs=['weight', 'index', 'offset'],
+                                  outputs=['y1'],
+                                  mode=0,
+                                  operator='embedding_bag')
 
     node2 = onnx.helper.make_node('ATen',
-                                 inputs=['weight', 'index', 'offset'],
-                                 outputs=['y2'],
-                                 mode=1,
-                                 operator='embedding_bag')
+                                  inputs=['weight', 'index', 'offset'],
+                                  outputs=['y2'],
+                                  mode=1,
+                                  operator='embedding_bag')
 
     node3 = onnx.helper.make_node('ATen',
-                                 inputs=['weight', 'index', 'offset'],
-                                 outputs=['y3'],
-                                 mode=2,
-                                 operator='embedding_bag')
+                                  inputs=['weight', 'index', 'offset'],
+                                  outputs=['y3'],
+                                  mode=2,
+                                  operator='embedding_bag')
 
     return ([index, offset, node1, node2, node3], [weight], [y1, y2, y3])
 

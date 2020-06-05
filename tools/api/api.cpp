@@ -6,6 +6,7 @@
 #include <migraphx/target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/cpu/target.hpp>
+#include <migraphx/quantization.hpp>
 
 #ifdef HAVE_GPU
 #include <migraphx/gpu/target.hpp>
@@ -106,6 +107,38 @@ std::vector<const char*> get_names(const std::unordered_map<std::string, Value>&
     std::transform(
         m.begin(), m.end(), std::back_inserter(result), [](auto&& p) { return p.first.c_str(); });
     return result;
+}
+
+void quantize_fp16_wrap(program& prog, const char *const*names, std::size_t num)
+{
+    std::vector<std::string> vec_names;
+    for (std::size_t i = 0; i < num; ++i)
+    {
+        vec_names.push_back(names[i]);
+    }
+
+    if (vec_names.empty())
+    {
+        vec_names = {"all"};
+    }
+
+    migraphx::quantize_fp16(prog, vec_names);
+}
+
+void quantize_int8_wrap(program& prog, target t, const std::vector<std::unordered_map<std::string, migraphx::argument>>& data, const char *const*names, std::size_t num)
+{
+    std::vector<std::string> vec_names;
+    for (std::size_t i = 0; i < num; ++i)
+    {
+        vec_names.push_back(names[i]);
+    }
+
+    if (vec_names.empty())
+    {
+        vec_names = {"dot", "convolution"};
+    }
+
+    migraphx::quantize_int8(prog, t, data, vec_names);
 }
 
 template <class T>

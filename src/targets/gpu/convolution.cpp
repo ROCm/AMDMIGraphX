@@ -19,7 +19,7 @@ void recompute_shape(shape& input)
     if(dims.size() == 1)
     {
         auto orig_dim = dims.at(0);
-        input = shape{input.type(), {1, orig_dim}};
+        input         = shape{input.type(), {1, orig_dim}};
     }
 }
 

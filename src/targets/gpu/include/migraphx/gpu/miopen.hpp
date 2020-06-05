@@ -75,6 +75,13 @@ inline tensor_descriptor make_tensor(const migraphx::shape& os, bool pack = fals
     return t;
 }
 
+inline void insert_attr(std::vector<int>& padding, std::vector<int>& stride, std::vector<int>& dilation)
+{
+    padding.insert(padding.begin(), 0);
+    stride.insert(stride.begin(), 1);
+    dilation.insert(dilation.begin(), 1);
+}
+
 template <class T>
 inline convolution_descriptor make_conv(const T& op)
 {
@@ -85,6 +92,9 @@ inline convolution_descriptor make_conv(const T& op)
     std::vector<int> padding(op.padding.begin(), op.padding.end());
     std::vector<int> stride(op.stride.begin(), op.stride.end());
     std::vector<int> dilation(op.dilation.begin(), op.dilation.end());
+
+    if(op.kdims() == 1)
+        insert_attr(padding, stride, dilation);
 
     miopenInitConvolutionNdDescriptor(
         c.get(), padding.size(), padding.data(), stride.data(), dilation.data(), c_mode);

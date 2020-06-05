@@ -71,6 +71,8 @@ struct quant_convolution
 
         return {t, output_lens};
     }
+
+    size_t kdims() const { return padding.size(); }
 };
 
 } // namespace op

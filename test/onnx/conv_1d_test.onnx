@@ -1,11 +1,9 @@
-conv_1d_test:š
+conv_1d_test:Œ
 1
 0
 12"Conv*
 	dilations@ *
-strides@ 
-
-23"Reluconv_1d_testZ
+strides@ conv_1d_testZ
 0
 
 
@@ -16,7 +14,7 @@
 
 
 b
-3
+2
 
 
 

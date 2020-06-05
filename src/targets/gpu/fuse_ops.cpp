@@ -737,22 +737,20 @@ struct find_conv_bias_relu
 
 void fuse_ops::apply(program& p) const
 {
-    // clang-format off
     match::find_matches(p, find_gelu{}, find_gelu_new{});
     run_passes(p, {dead_code_elimination{}});
     match::find_matches(p, find_triadd{});
-    match::find_matches(p, 
-        find_conv_bias_relu{ctx},
-        find_conv_bias{ctx},
-        find_add_gelu{},
-        find_add_gelu_new{},
-        find_mul_add{},
-        find_mul_add_relu{},
-        find_add_unary{"gpu::relu", hip_add_relu{}, hip_triadd_relu{}},
-        find_add_unary{"gpu::sigmoid", hip_add_sigmoid{}, hip_triadd_sigmoid{}},
-        find_add_unary{"gpu::tanh", hip_add_tanh{}, hip_triadd_tanh{}},
-        find_add_clip{}
-    );
+    match::find_matches(p,
+                        find_conv_bias_relu{ctx},
+                        find_conv_bias{ctx},
+                        find_add_gelu{},
+                        find_add_gelu_new{},
+                        find_mul_add{},
+                        find_mul_add_relu{},
+                        find_add_unary{"gpu::relu", hip_add_relu{}, hip_triadd_relu{}},
+                        find_add_unary{"gpu::sigmoid", hip_add_sigmoid{}, hip_triadd_sigmoid{}},
+                        find_add_unary{"gpu::tanh", hip_add_tanh{}, hip_triadd_tanh{}},
+                        find_add_clip{});
     // clang-format on
 }
 

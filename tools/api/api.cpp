@@ -109,15 +109,15 @@ std::vector<const char*> get_names(const std::unordered_map<std::string, Value>&
     return result;
 }
 
-void quantize_fp16_wrap(program& prog, const char *const*names, std::size_t num)
+void quantize_fp16_wrap(program& prog, const char* const* names, std::size_t num)
 {
     std::vector<std::string> vec_names;
-    for (std::size_t i = 0; i < num; ++i)
+    for(std::size_t i = 0; i < num; ++i)
     {
         vec_names.push_back(names[i]);
     }
 
-    if (vec_names.empty())
+    if(vec_names.empty())
     {
         vec_names = {"all"};
     }
@@ -125,15 +125,20 @@ void quantize_fp16_wrap(program& prog, const char *const*names, std::size_t num)
     migraphx::quantize_fp16(prog, vec_names);
 }
 
-void quantize_int8_wrap(program& prog, target t, const std::vector<std::unordered_map<std::string, migraphx::argument>>& data, const char *const*names, std::size_t num)
+void quantize_int8_wrap(
+    program& prog,
+    target t,
+    const std::vector<std::unordered_map<std::string, migraphx::argument>>& data,
+    const char* const* names,
+    std::size_t num)
 {
     std::vector<std::string> vec_names;
-    for (std::size_t i = 0; i < num; ++i)
+    for(std::size_t i = 0; i < num; ++i)
     {
         vec_names.push_back(names[i]);
     }
 
-    if (vec_names.empty())
+    if(vec_names.empty())
     {
         vec_names = {"dot", "convolution"};
     }

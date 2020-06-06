@@ -127,7 +127,7 @@ void quantize_fp16_wrap(program& prog, const char* const* names, std::size_t num
 
 void quantize_int8_wrap(
     program& prog,
-    target t,
+    const target& t,
     const std::vector<std::unordered_map<std::string, migraphx::argument>>& data,
     const char* const* names,
     std::size_t num)

@@ -2056,23 +2056,15 @@ struct onnx_parser
         {
             reduce_mode = static_cast<reduce_mode_t>(info.attributes.at("mode").i());
         }
-        auto input_arg = args[1]->eval();
-        check_arg_empty(input_arg, "PARSE_EMBEDDING_BAG: input arg dynamic shape is not supported");
-
-        std::vector<int> indices;
-        input_arg.visit([&](auto v) { copy(v, std::back_inserter(indices)); });
-        auto l0 = prog.add_literal({{shape::int32_type, {indices.size()}}, indices});
-        auto l1 = prog.add_instruction(op::gather{}, args[0], l0);
-        if(args[2]->get_shape().lens().size() < indices.size())
+        
+        auto l0 = prog.add_instruction(op::gather{}, args[0], args[1]);
+        switch(reduce_mode)
         {
-            switch(reduce_mode)
-            {
-            case reduce_mode_t::sum: l1 = prog.add_instruction(op::reduce_sum{{0}}, l1); break;
-            case reduce_mode_t::mean: l1 = prog.add_instruction(op::reduce_mean{{0}}, l1); break;
-            case reduce_mode_t::max: l1 = prog.add_instruction(op::reduce_max{{0}}, l1); break;
-            }
+            case reduce_mode_t::sum: l0 = prog.add_instruction(op::reduce_sum{{0}}, l0); break;
+            case reduce_mode_t::mean: l0 = prog.add_instruction(op::reduce_mean{{0}}, l0); break;
+            case reduce_mode_t::max: l0 = prog.add_instruction(op::reduce_max{{0}}, l0); break;
         }
-        return l1;
+        return l0;
     }
 
     instruction_ref

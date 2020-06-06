@@ -2056,13 +2056,13 @@ struct onnx_parser
         {
             reduce_mode = static_cast<reduce_mode_t>(info.attributes.at("mode").i());
         }
-        
+
         auto l0 = prog.add_instruction(op::gather{}, args[0], args[1]);
         switch(reduce_mode)
         {
-            case reduce_mode_t::sum: l0 = prog.add_instruction(op::reduce_sum{{0}}, l0); break;
-            case reduce_mode_t::mean: l0 = prog.add_instruction(op::reduce_mean{{0}}, l0); break;
-            case reduce_mode_t::max: l0 = prog.add_instruction(op::reduce_max{{0}}, l0); break;
+        case reduce_mode_t::sum: l0 = prog.add_instruction(op::reduce_sum{{0}}, l0); break;
+        case reduce_mode_t::mean: l0 = prog.add_instruction(op::reduce_mean{{0}}, l0); break;
+        case reduce_mode_t::max: l0 = prog.add_instruction(op::reduce_max{{0}}, l0); break;
         }
         return l0;
     }

@@ -583,7 +583,7 @@ inline void quantize_fp16(const program& prog)
 }
 
 // int8 quantization apis
-struct calibration_data : MIGRAPHX_HANDLE_BASE(calibration_data), array_base<calibration_data>
+struct calibration_data : MIGRAPHX_HANDLE_BASE(calibration_data)
 {
     calibration_data() { this->make_handle(&migraphx_calibration_data_create); }
 
@@ -598,23 +598,17 @@ struct calibration_data : MIGRAPHX_HANDLE_BASE(calibration_data), array_base<cal
         return pout;
     }
 
+    void add(const program_parameters& pp)
+    {
+        call(&migraphx_calibration_data_add_element, this->get_handle_ptr(), pp.get_handle_ptr());
+    }
+
     program_parameters operator[](size_t pidx) const
     {
         migraphx_program_parameters_t pout;
         call(&migraphx_calibration_data_get, &pout, this->get_handle_ptr(), pidx);
         return program_parameters(pout);
     }
-
-    struct iterator_read
-    {
-        migraphx_calibration_data* self;
-        program_parameters operator()(size_t pidx) const
-        {
-            migraphx_program_parameters_t pout;
-            call(&migraphx_calibration_data_get, &pout, self, pidx);
-            return program_parameters(pout);
-        }
-    };
 };
 
 inline void quantize_int8(const program& prog,

@@ -29,7 +29,7 @@ TEST_CASE(quantize_fp16)
     migraphx::quantize_fp16(p1);
     CHECK(bool{p1 != p2});
 
-    std::vector<const char*> op_names = {"dot"};
+    std::vector<const char*> op_names;
     migraphx::quantize_fp16(p2, op_names);
     CHECK(bool{p1 == p2});
 }
@@ -40,13 +40,25 @@ TEST_CASE(quantize_int8)
     const auto& p2 = p1;
     auto t         = migraphx::target("cpu");
     migraphx::calibration_data cali_data;
+    CHECK(bool{cali_data.size() == 0});
+
+    migraphx::program_parameters pp;
+    auto param_shapes = p1.get_parameter_shapes();
+    for(auto&& name : param_shapes.names())
+    {
+        pp.add(name, migraphx::argument::generate(param_shapes[name]));
+    }
+    cali_data.add(pp);
+    CHECK(bool{cali_data.size() == 1});
+
     migraphx::quantize_int8(p1, t, cali_data);
     CHECK(bool{p1 != p2});
 
-    std::vector<const char*> op_names = {"dot"};
+    std::vector<const char*> op_names;
     migraphx::quantize_int8(p1, t, cali_data, op_names);
     CHECK(bool{p1 == p2});
 }
+
 
 TEST_CASE(load_and_run_user_input_shape)
 {

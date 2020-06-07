@@ -59,7 +59,6 @@ TEST_CASE(quantize_int8)
     CHECK(bool{p1 == p2});
 }
 
-
 TEST_CASE(load_and_run_user_input_shape)
 {
     migraphx::onnx_options options;

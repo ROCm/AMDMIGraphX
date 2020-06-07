@@ -25,7 +25,7 @@ TEST_CASE(load_and_run)
 TEST_CASE(quantize_fp16)
 {
     auto p1 = migraphx::parse_onnx("gemm_ex_test.onnx");
-    auto p2 = p1;
+    const auto& p2 = p1;
     migraphx::quantize_fp16(p1);
     CHECK(bool{p1 != p2});
 
@@ -37,7 +37,7 @@ TEST_CASE(quantize_fp16)
 TEST_CASE(quantize_int8)
 {
     auto p1 = migraphx::parse_onnx("gemm_ex_test.onnx");
-    auto p2 = p1;
+    const auto& p2 = p1;
     auto t  = migraphx::target("cpu");
     migraphx::calibration_data cali_data;
     migraphx::quantize_int8(p1, t, cali_data);

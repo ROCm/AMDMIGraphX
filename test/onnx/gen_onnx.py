@@ -958,8 +958,8 @@ def gemm_test():
 
 @onnx_test
 def gemm_ex_test():
-    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 1, 5, 6])
-    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1, 1, 5, 7])
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 1, 8, 6])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1, 1, 8, 7])
     m3 = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1, 1, 6, 7])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 6, 7])
 

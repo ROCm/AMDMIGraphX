@@ -995,6 +995,45 @@ def embedding_bag_test():
 
 
 @onnx_test
+def embedding_bag_offset_test():
+
+    index_val = np.array([1, 0])
+    offset_val = np.array([0, 1])
+
+    index_tensor = helper.make_tensor(name='index_val',
+                                      data_type=TensorProto.INT32,
+                                      dims=index_val.shape,
+                                      vals=index_val.astype(np.int32))
+
+    index = onnx.helper.make_node('Constant',
+                                  inputs=[],
+                                  outputs=['index'],
+                                  value=index_tensor)
+
+    offset_tensor = helper.make_tensor(name='offset_val',
+                                       data_type=TensorProto.INT32,
+                                       dims=offset_val.shape,
+                                       vals=offset_val.astype(np.int32))
+
+    offset = onnx.helper.make_node('Constant',
+                                   inputs=[],
+                                   outputs=['offset'],
+                                   value=offset_tensor)
+
+    weight = helper.make_tensor_value_info('weight', TensorProto.FLOAT, [2, 3])
+
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node('ATen',
+                                  inputs=['weight', 'index', 'offset'],
+                                  outputs=['y'],
+                                  mode=0,
+                                  operator='embedding_bag')
+
+    return ([index, offset, node], [weight], [y])
+
+
+@onnx_test
 def erf_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 15])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10, 15])
@@ -2528,6 +2567,19 @@ def unknown_test():
     node2 = onnx.helper.make_node('Unknown', inputs=['2'], outputs=['3'])
 
     return ([node, node2], [x, y], [a])
+
+@onnx_test
+def unknown_aten_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 4])
+
+    helper.make_tensor_value_info('2', TensorProto.FLOAT, [2, 3, 4, 5])
+
+    a = helper.make_tensor_value_info('3', TensorProto.FLOAT, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('ATen', inputs=['0', '1'], outputs=['2'], operator='unknown')
+
+    return ([node], [x, y], [a])
 
 
 @onnx_test

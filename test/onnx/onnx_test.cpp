@@ -705,6 +705,11 @@ TEST_CASE(embedding_bag_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(embedding_bag_offset_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("embedding_bag_offset_test.onnx"); }));
+}
+
 TEST_CASE(erf_test)
 {
     migraphx::program p;
@@ -1872,6 +1877,11 @@ TEST_CASE(unknown_test)
     auto prog = optimize_onnx("unknown_test.onnx");
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(unknown_aten_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("unknown_aten_test.onnx"); }));
 }
 
 TEST_CASE(unknown_test_throw)

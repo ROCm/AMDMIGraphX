@@ -1025,10 +1025,10 @@ def embedding_bag_offset_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
 
     node = onnx.helper.make_node('ATen',
-                                  inputs=['weight', 'index', 'offset'],
-                                  outputs=['y'],
-                                  mode=0,
-                                  operator='embedding_bag')
+                                 inputs=['weight', 'index', 'offset'],
+                                 outputs=['y'],
+                                 mode=0,
+                                 operator='embedding_bag')
 
     return ([index, offset, node], [weight], [y])
 
@@ -2568,6 +2568,7 @@ def unknown_test():
 
     return ([node, node2], [x, y], [a])
 
+
 @onnx_test
 def unknown_aten_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
@@ -2577,7 +2578,10 @@ def unknown_aten_test():
 
     a = helper.make_tensor_value_info('3', TensorProto.FLOAT, [2, 3, 4, 5])
 
-    node = onnx.helper.make_node('ATen', inputs=['0', '1'], outputs=['2'], operator='unknown')
+    node = onnx.helper.make_node('ATen',
+                                 inputs=['0', '1'],
+                                 outputs=['2'],
+                                 operator='unknown')
 
     return ([node], [x, y], [a])
 

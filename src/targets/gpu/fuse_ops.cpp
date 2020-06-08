@@ -163,10 +163,10 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
     auto op = conv.op;
     // Dont fuse winograd for non-3x3s since there is no fused windograd for those configs
     if(conv.algo == miopenConvolutionFwdAlgoWinograd and wei.lens()[2] != 3 and
-       wei.lens()[3] != 3 and op.stride == make_array<size_t>(1, 1))
+       wei.lens()[3] != 3 and contains({{1, 1}}, op.stride))
         return false;
     return contains({{0, 0}, {1, 1}, {2, 2}}, op.padding) and
-           contains({{0, 0}, {1, 1}}, op.stride) and op.dilation == make_array<size_t>(1, 1);
+           contains({{0, 0}, {1, 1}}, op.stride) and contains({{1, 1}}, op.dilation);
 }
 
 struct hip_triadd
@@ -600,7 +600,7 @@ struct miopen_conv_bias
     }
 
     miopen_conv_bias(op::convolution c, const shape& input, const shape& weights, const shape& b)
-        : op(c), f(input)
+        : op(std::move(c)), f(input)
     {
         conv = f.create_conv(op, weights);
         bias = f.create_bias(b);
@@ -649,7 +649,7 @@ struct miopen_conv_bias_relu
                           const shape& input,
                           const shape& weights,
                           const shape& b)
-        : op(c), f(input)
+        : op(std::move(c)), f(input)
     {
         conv = f.create_conv(op, weights);
         bias = f.create_bias(b);
@@ -737,22 +737,20 @@ struct find_conv_bias_relu
 
 void fuse_ops::apply(program& p) const
 {
-    // clang-format off
     match::find_matches(p, find_gelu{}, find_gelu_new{});
     run_passes(p, {dead_code_elimination{}});
     match::find_matches(p, find_triadd{});
-    match::find_matches(p, 
-        find_conv_bias_relu{ctx},
-        find_conv_bias{ctx},
-        find_add_gelu{},
-        find_add_gelu_new{},
-        find_mul_add{},
-        find_mul_add_relu{},
-        find_add_unary{"gpu::relu", hip_add_relu{}, hip_triadd_relu{}},
-        find_add_unary{"gpu::sigmoid", hip_add_sigmoid{}, hip_triadd_sigmoid{}},
-        find_add_unary{"gpu::tanh", hip_add_tanh{}, hip_triadd_tanh{}},
-        find_add_clip{}
-    );
+    match::find_matches(p,
+                        find_conv_bias_relu{ctx},
+                        find_conv_bias{ctx},
+                        find_add_gelu{},
+                        find_add_gelu_new{},
+                        find_mul_add{},
+                        find_mul_add_relu{},
+                        find_add_unary{"gpu::relu", hip_add_relu{}, hip_triadd_relu{}},
+                        find_add_unary{"gpu::sigmoid", hip_add_sigmoid{}, hip_triadd_sigmoid{}},
+                        find_add_unary{"gpu::tanh", hip_add_tanh{}, hip_triadd_tanh{}},
+                        find_add_clip{});
     // clang-format on
 }
 

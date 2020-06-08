@@ -408,9 +408,9 @@ TEST_CASE(im2col_3x3_no_pad_identity_test)
 {
     std::size_t f[2]    = {3, 3};
     std::size_t size[2] = {3, 3};
-    std::array<std::size_t, 2> padding{{0, 0}};
-    std::array<std::size_t, 2> stride{{1, 1}};
-    std::array<std::size_t, 2> dilation{{1, 1}};
+    std::vector<std::size_t> padding{0, 0};
+    std::vector<std::size_t> stride{1, 1};
+    std::vector<std::size_t> dilation{1, 1};
     std::size_t channels = 1;
 
     std::vector<int32_t> weights(channels * f[0] * f[1]);
@@ -437,9 +437,9 @@ TEST_CASE(im2col_3x3_no_pad_test)
 {
     std::size_t f[2]    = {3, 3};
     std::size_t size[2] = {4, 4};
-    std::array<std::size_t, 2> padding{{0, 0}};
-    std::array<std::size_t, 2> stride{{1, 1}};
-    std::array<std::size_t, 2> dilation{{1, 1}};
+    std::vector<std::size_t> padding{0, 0};
+    std::vector<std::size_t> stride{1, 1};
+    std::vector<std::size_t> dilation{1, 1};
     std::size_t channels = 1;
 
     std::vector<int32_t> weights(channels * f[0] * f[1]);
@@ -469,9 +469,9 @@ TEST_CASE(im2col_3x3_stride_2_no_pad_test)
 {
     std::size_t f[2]    = {3, 3};
     std::size_t size[2] = {6, 6};
-    std::array<std::size_t, 2> padding{{0, 0}};
-    std::array<std::size_t, 2> stride{{2, 2}};
-    std::array<std::size_t, 2> dilation{{1, 1}};
+    std::vector<std::size_t> padding{0, 0};
+    std::vector<std::size_t> stride{2, 2};
+    std::vector<std::size_t> dilation{1, 1};
     std::size_t channels = 1;
 
     std::vector<int32_t> weights(channels * f[0] * f[1]);
@@ -502,9 +502,9 @@ TEST_CASE(im2col_3x3_with_padding_test)
 {
     std::size_t f[2]    = {3, 3};
     std::size_t size[2] = {2, 2};
-    std::array<std::size_t, 2> padding{{1, 1}};
-    std::array<std::size_t, 2> stride{{1, 1}};
-    std::array<std::size_t, 2> dilation{{1, 1}};
+    std::vector<std::size_t> padding{1, 1};
+    std::vector<std::size_t> stride{1, 1};
+    std::vector<std::size_t> dilation{1, 1};
     std::size_t channels = 1;
 
     std::vector<int32_t> weights(channels * f[0] * f[1]);
@@ -580,9 +580,9 @@ TEST_CASE(im2col_3x3_with_channels_identity_test)
 {
     std::size_t f[2]    = {3, 3};
     std::size_t size[2] = {3, 3};
-    std::array<std::size_t, 2> padding{{0, 0}};
-    std::array<std::size_t, 2> stride{{1, 1}};
-    std::array<std::size_t, 2> dilation{{1, 1}};
+    std::vector<std::size_t> padding{0, 0};
+    std::vector<std::size_t> stride{1, 1};
+    std::vector<std::size_t> dilation{1, 1};
     std::size_t channels = 2;
 
     std::vector<int32_t> weights(channels * f[0] * f[1]);

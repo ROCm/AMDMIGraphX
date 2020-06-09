@@ -2108,9 +2108,9 @@ struct onnx_parser
 
     enum class reduce_mode_t
     {
-        sum = 0,
+        sum  = 0,
         mean = 1,
-        max = 2
+        max  = 2
     };
 
     instruction_ref parse_embedding_bag(const node_info& info, std::vector<instruction_ref> args)

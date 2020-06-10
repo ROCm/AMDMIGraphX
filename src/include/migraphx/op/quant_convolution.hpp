@@ -37,13 +37,19 @@ struct quant_convolution
     }
 
     std::string name() const { return "quant_convolution"; }
-    shape compute_shape(std::vector<shape> inputs) const
+
+    void check_attribute_size() const
     {
-        check_shapes{inputs, *this}.has(2).same_type().same_ndims().min_ndims(3);
         if(not(padding.size() == stride.size() and padding.size() == dilation.size()))
         {
             MIGRAPHX_THROW("quant_convolution: inconsistent attribute sizes");
         }
+    }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(2).same_type().same_ndims().min_ndims(3);
+        check_attribute_size();
 
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
@@ -72,7 +78,7 @@ struct quant_convolution
         return {t, output_lens};
     }
 
-    size_t kdims() const { return padding.size(); }
+    size_t kdims() const { check_attribute_size(); return padding.size(); }
 };
 
 } // namespace op

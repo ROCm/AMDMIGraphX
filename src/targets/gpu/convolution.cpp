@@ -16,10 +16,11 @@ void recompute_shape(shape& input)
 {
     auto dims = input.lens();
 
-    if(dims.size() == 1)
+    if(dims.size() == 3)
     {
-        auto orig_dim = dims.at(0);
-        input         = shape{input.type(), {1, orig_dim}};
+        std::vector<size_t> new_dims = dims;
+        new_dims.insert(new_dims.begin() + 2, 1);
+        input         = shape{input.type(), new_dims};
     }
 }
 

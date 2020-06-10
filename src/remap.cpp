@@ -8,9 +8,6 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/add.hpp>
-#include <migraphx/op/convolution.hpp>
-#include <migraphx/op/squeeze.hpp>
-#include <migraphx/op/unsqueeze.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

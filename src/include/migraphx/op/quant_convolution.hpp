@@ -78,7 +78,11 @@ struct quant_convolution
         return {t, output_lens};
     }
 
-    size_t kdims() const { check_attribute_size(); return padding.size(); }
+    size_t kdims() const
+    {
+        check_attribute_size();
+        return padding.size();
+    }
 };
 
 } // namespace op

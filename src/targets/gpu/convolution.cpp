@@ -20,7 +20,7 @@ void recompute_shape(shape& input)
     {
         std::vector<size_t> new_dims = dims;
         new_dims.insert(new_dims.begin() + 2, 1);
-        input         = shape{input.type(), new_dims};
+        input = shape{input.type(), new_dims};
     }
 }
 

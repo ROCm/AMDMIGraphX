@@ -414,7 +414,6 @@ struct cpu_pooling
                 shape_for_each(win_shape, [&](auto idx_w) {
                     auto idx = idx_o;
                     std::transform(idx_w.begin(), idx_w.end(), win_start.begin(), idx.begin() + 2, [](auto ii, auto jj) { return ii + jj; });
-
                     if (std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and idx < in_lens)
                     {
                         acc = Op::apply(acc, input[in_s.index(idx)]);

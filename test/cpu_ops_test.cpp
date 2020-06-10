@@ -371,7 +371,6 @@ TEST_CASE(avgpool_test)
         migraphx::program p;
         auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
         auto op    = migraphx::op::pooling{"average"};
-        auto lens  = s.lens();
         op.lengths = {2};
         op.padding = {0};
         op.stride  = {1};
@@ -393,7 +392,6 @@ TEST_CASE(avgpool_test)
         migraphx::program p;
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 4}};
         auto op    = migraphx::op::pooling{"average"};
-        auto lens  = s.lens();
         op.lengths = {2};
         op.padding = {1};
         op.stride  = {2};
@@ -441,7 +439,6 @@ TEST_CASE(avgpool_test)
         migraphx::program p;
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
         auto op    = migraphx::op::pooling{"average"};
-        auto lens  = s.lens();
         op.lengths = {2, 2, 2};
         op.padding = {0, 0, 0};
         op.stride  = {1, 1, 1};
@@ -479,7 +476,6 @@ TEST_CASE(maxpool_test_1D_3D)
         migraphx::program p;
         auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
         auto op    = migraphx::op::pooling{"max"};
-        auto lens  = s.lens();
         op.lengths = {2};
         op.padding = {0};
         op.stride  = {1};
@@ -501,7 +497,6 @@ TEST_CASE(maxpool_test_1D_3D)
         migraphx::program p;
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 5}};
         auto op    = migraphx::op::pooling{"max"};
-        auto lens  = s.lens();
         op.lengths = {2};
         op.padding = {0};
         op.stride  = {2};
@@ -525,7 +520,6 @@ TEST_CASE(maxpool_test_1D_3D)
         migraphx::program p;
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
         auto op    = migraphx::op::pooling{"max"};
-        auto lens  = s.lens();
         op.lengths = {2, 2, 2};
         op.padding = {0, 0, 0};
         op.stride  = {2, 2, 2};

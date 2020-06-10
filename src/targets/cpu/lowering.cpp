@@ -388,33 +388,39 @@ struct cpu_pooling
     {
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
-            using type = typename decltype(output)::value_type;
-            auto in_s = input.get_shape();
+            using type   = typename decltype(output)::value_type;
+            auto in_s    = input.get_shape();
             auto in_lens = in_s.lens();
             std::vector<std::size_t> vec_len(in_lens.begin() + 2, in_lens.end());
 
-            par_for(output_shape.elements(), [&](auto i){
+            par_for(output_shape.elements(), [&](auto i) {
                 auto idx_o = output_shape.multi(i);
                 auto n_dim = idx_o.size();
                 std::vector<std::size_t> win_start;
                 std::vector<std::size_t> win_size;
-                for (std::size_t dim = 2; dim < n_dim; ++dim)
+                for(std::size_t dim = 2; dim < n_dim; ++dim)
                 {
-                    auto d_2 = dim - 2;
-                    int start = static_cast<int>(idx_o[dim] * op.stride[d_2]) - static_cast<int>(op.padding[d_2]);
+                    auto d_2  = dim - 2;
+                    int start = static_cast<int>(idx_o[dim] * op.stride[d_2]) -
+                                static_cast<int>(op.padding[d_2]);
                     int end = std::min(start + op.lengths[d_2], in_lens[dim]);
-                    start = std::max(start, 0);
+                    start   = std::max(start, 0);
                     win_start.push_back(start);
                     win_size.push_back(end - start);
                 }
 
                 shape win_shape{output_shape.type(), win_size};
                 auto pool_size = win_shape.elements();
-                double acc = Op::start();
+                double acc     = Op::start();
                 shape_for_each(win_shape, [&](auto idx_w) {
                     auto idx = idx_o;
-                    std::transform(idx_w.begin(), idx_w.end(), win_start.begin(), idx.begin() + 2, [](auto ii, auto jj) { return ii + jj; });
-                    if (std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and idx < in_lens)
+                    std::transform(idx_w.begin(),
+                                   idx_w.end(),
+                                   win_start.begin(),
+                                   idx.begin() + 2,
+                                   [](auto ii, auto jj) { return ii + jj; });
+                    if(std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
+                       idx < in_lens)
                     {
                         acc = Op::apply(acc, input[in_s.index(idx)]);
                     }

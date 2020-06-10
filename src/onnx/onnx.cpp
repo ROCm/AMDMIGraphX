@@ -589,26 +589,6 @@ struct onnx_parser
     }
 
     template <class Op>
-    void recalc_conv_attributes(Op& op, size_t kdims)
-    {
-        if(op.padding.size() != kdims)
-        {
-            op.padding.resize(kdims);
-            std::fill_n(op.padding.begin(), kdims, 0);
-        }
-        if(op.stride.size() != kdims)
-        {
-            op.stride.resize(kdims);
-            std::fill_n(op.stride.begin(), kdims, 1);
-        }
-        if(op.dilation.size() != kdims)
-        {
-            op.dilation.resize(kdims);
-            std::fill_n(op.dilation.begin(), kdims, 1);
-        }
-    }
-
-    template <class Op>
     instruction_ref
     parse_conv(const std::string&, node_info info, std::vector<instruction_ref> args)
     {

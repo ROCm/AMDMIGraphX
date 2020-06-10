@@ -1,9 +1,16 @@
+<<<<<<< HEAD
 conv_1d_test:Œ
 1
 0
 12"Conv*
 	dilations@ *
 strides@ conv_1d_testZ
+=======
+conv_1d_test:j
+
+0
+12"Convconv_1d_testZ
+>>>>>>> 39dca6ac4f60877e557264dfc72e9ee4b5c47b3a
 0
 
 

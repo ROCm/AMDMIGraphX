@@ -364,6 +364,100 @@ TEST_CASE(unsqueeze_test)
     }
 }
 
+TEST_CASE(avgpool_test)
+{
+    // 1D case, input is 3D
+    {
+        migraphx::program p;
+        auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+        auto op    = migraphx::op::pooling{"average"};
+        auto lens  = s.lens();
+        op.lengths = {2};
+        op.padding = {0};
+        op.stride = {1};
+
+        std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+        auto l0 = p.add_literal(migraphx::literal{s, data});
+        p.add_instruction(op, l0);
+        p.compile(migraphx::cpu::target{});
+        auto result = p.eval({}).back();
+
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{0.25, 0.3, 0.25, 0.65, 0.7, 0.5, 0.4, 0.4, 0.35};
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    // 1D case, stride 2
+    {
+        migraphx::program p;
+        auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 4}};
+        auto op    = migraphx::op::pooling{"average"};
+        auto lens  = s.lens();
+        op.lengths = {2};
+        op.padding = {0};
+        op.stride = {2};
+
+        std::vector<float> data{0.182, 0.469, -0.379, 0.408, -1.216, -0.099, -0.594, 0.486, -0.556, -0.014, 0.288, -0.27, 0.979, 0.362, -0.027, -0.499};
+        auto l0 = p.add_literal(migraphx::literal{s, data});
+        p.add_instruction(op, l0);
+        p.compile(migraphx::cpu::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{0.3255, 0.0145, -0.6575, -0.054, -0.285, 0.00899999, 0.6705, -0.263};
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    // 3D, input is 5D
+    {
+        migraphx::program p;
+        auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
+        auto op    = migraphx::op::pooling{"average"};
+        auto lens  = s.lens();
+        op.lengths = {2, 2, 2};
+        op.padding = {0, 0, 0};
+        op.stride = {1, 1, 1};
+
+        std::vector<float> data{-0.179, -1.756, 0.651, 1.955, 1.87, -0.604, 0.247, 0.449, -0.137, 1.187, 1.593, 0.424, 2.698, -0.104, -0.069, -1.293, 0.538, 1.291, 0.974, 1.096, 0.74, -0.669, -1.08, -1.041, -1.407, 1.43, -0.211, -0.017, 0.532, 1.276, 0.627, 0.236, -0.396, -0.204, 0.501, -0.599, -1.414, -0.615, -0.274, 0.168, -0.144, 0.5, 1.42, 1.082, -0.952, -0.846, -1.244, 1.475, 1.246, 1.344, -1.722, -1.24, -0.851, 0.06, 0.507, 0.762, -0.007, -1.484, 1.028, 0.317, 1.077, -1.289, 0.875, -0.417, -0.673, 1.715, -0.307, 0.264, -0.973, 1.412, 2.561, -0.515, -0.201, 0.827, -1.231, 1.958, -0.552, 0.036, -0.993, -0.859, -1.458, -0.575, 0.048, -0.779, -1.025, -1.135, 1.166, -0.131, 0.726, 0.52, 0.467, -0.494, 0.675, 0.203, -0.63, -0.918, -0.5, -1.395, 1.39, 1.705, 0.444, -0.835, -0.506, 0.101, 0.602, 0.543, 0.357, 1.042};
+        auto l0 = p.add_literal(migraphx::literal{s, data});
+        p.add_instruction(op, l0);
+        p.compile(migraphx::cpu::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{0.908, 0.250625, 0.795, 0.40425, 0.711875, 0.194875, 0.014125, 0.09425, -0.078375, 0.139375, 0.46075, 0.0285, -0.188125, -0.085, 0.378125, -0.085375, -0.04, 0.304125, 0.40775, 0.2835, 0.112375, -0.073375, 0.4355, -0.187, -0.392625, -0.258375, -0.485875, -0.0345, 0.16125, -0.131875, -0.228375, 0.068625};
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+}
+
+TEST_CASE(maxpool_test_1D_3D)
+{
+    // 1D case, input is 3D
+    {
+        migraphx::program p;
+        auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+        auto op    = migraphx::op::pooling{"max"};
+        auto lens  = s.lens();
+        op.lengths = {2};
+        op.padding = {0};
+        op.stride = {1};
+
+        std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+        auto l0 = p.add_literal(migraphx::literal{s, data});
+        p.add_instruction(op, l0);
+        p.compile(migraphx::cpu::target{});
+        auto result = p.eval({}).back();
+
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{0.3, 0.4, 0.4, 0.8, 0.9, 0.9, 0.7, 0.7, 0.6};
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    // 3D, input is 5D
+}
+
 TEST_CASE(globalavgpool_test)
 {
     migraphx::program p;

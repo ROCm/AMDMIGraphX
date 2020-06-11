@@ -75,8 +75,9 @@ inline tensor_descriptor make_tensor(const migraphx::shape& os, bool pack = fals
     return t;
 }
 
-inline void
-insert_attribute_dim(std::vector<int>& padding, std::vector<int>& stride, std::vector<int>& dilation)
+inline void insert_attribute_dim(std::vector<int>& padding,
+                                 std::vector<int>& stride,
+                                 std::vector<int>& dilation)
 {
     padding.insert(padding.begin(), 0);
     stride.insert(stride.begin(), 1);

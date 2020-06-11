@@ -9,7 +9,9 @@ namespace gpu {
 shape miopen_convolution::compute_shape(const std::vector<shape>& inputs) const
 {
     check_shapes{inputs, *this}.has(4).standard();
-    return op.compute_shape({inputs.at(0), inputs.at(1)});
+    std::vector<shape> conv_inputs(inputs.begin(), inputs.begin() + 2);
+    check_shapes{conv_inputs, *this}.max_ndims(5);
+    return op.compute_shape(conv_inputs);
 }
 
 void recompute_shape(shape& input)

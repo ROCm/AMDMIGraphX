@@ -190,47 +190,50 @@ struct cpu_convolution
             using type = typename decltype(output)::value_type;
 
             visit_all(args[0], args[1])([&](auto input, auto weights) {
-                auto in_lens   = input.get_shape().lens();
+                auto in_lens = input.get_shape().lens();
 
-                auto wei_lens   = weights.get_shape().lens();
-                auto wei_n = wei_lens[0];
-                auto wei_c = wei_lens[1];
+                auto wei_lens                     = weights.get_shape().lens();
+                auto wei_n                        = wei_lens[0];
+                auto wei_c                        = wei_lens[1];
                 std::vector<std::size_t> win_size = {};
-                std::copy(wei_lens.begin()+1, wei_lens.end(), std::back_inserter(win_size));
+                std::copy(wei_lens.begin() + 1, wei_lens.end(), std::back_inserter(win_size));
 
                 par_for(output_shape.elements(), [&](auto i) {
                     auto idx_o = output_shape.multi(i);
-                    auto w = idx_o[1];
+                    auto w     = idx_o[1];
                     auto n_dim = idx_o.size();
 
                     std::vector<std::ptrdiff_t> win_start;
                     for(std::size_t dim = 2; dim < n_dim; ++dim)
                     {
-                        auto d_2  = dim - 2;
-                        win_start.push_back(std::ptrdiff_t(idx_o[dim] * op.stride[d_2]) - std::ptrdiff_t(op.padding[d_2]));
+                        auto d_2 = dim - 2;
+                        win_start.push_back(std::ptrdiff_t(idx_o[dim] * op.stride[d_2]) -
+                                            std::ptrdiff_t(op.padding[d_2]));
                     }
                     const auto group_id = w / (wei_n / op.group);
 
                     shape win_shape{output_shape.type(), win_size};
 
-                    double acc     = 0.0;
+                    double acc = 0.0;
                     shape_for_each(win_shape, [&](auto idx_win) {
-                        auto k = idx_win[0];
+                        auto k           = idx_win[0];
                         const auto in_ch = group_id * wei_c + k;
-                        auto idx = idx_o;
-                        idx[1] = in_ch;
-                        std::transform(idx_win.begin()+1,
+                        auto idx         = idx_o;
+                        idx[1]           = in_ch;
+                        std::transform(idx_win.begin() + 1,
                                        idx_win.end(),
                                        win_start.begin(),
                                        idx.begin() + 2,
                                        [](auto ii, auto jj) { return ii + jj; });
                         auto idx_wei = idx_o;
-                        idx_wei[0] = w;
-                        std::copy(idx_win.begin(), idx_win.end(), idx_wei.begin()+1);
-                        if(std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
+                        idx_wei[0]   = w;
+                        std::copy(idx_win.begin(), idx_win.end(), idx_wei.begin() + 1);
+                        if(std::all_of(
+                               idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
                            idx < in_lens)
                         {
-                            acc += input(idx.begin(), idx.end()) * weights(idx_wei.begin(), idx_wei.end());
+                            acc += input(idx.begin(), idx.end()) *
+                                   weights(idx_wei.begin(), idx_wei.end());
                         }
                     });
 
@@ -247,7 +250,8 @@ struct cpu_convolution
                 //         const auto group_id = w / (wei_n / op.group);
 
                 //         type acc = type{0};
-                //         dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t y) {
+                //         dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t
+                //         y) {
                 //             const auto in_x  = start_x + x;
                 //             const auto in_y  = start_y + y;
                 //             const auto in_ch = group_id * wei_c + k;

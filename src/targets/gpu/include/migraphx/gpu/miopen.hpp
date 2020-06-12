@@ -145,12 +145,8 @@ inline pooling_descriptor make_pooling(const migraphx::op::pooling& op)
         insert_attribute_dim(lengths, 1);
     }
 
-    miopenSetNdPoolingDescriptor(p.get(),
-                                 mode,
-                                 padding.size(),
-                                 lengths.data(),
-                                 padding.data(),
-                                 stride.data());
+    miopenSetNdPoolingDescriptor(
+        p.get(), mode, padding.size(), lengths.data(), padding.data(), stride.data());
     return p;
 }
 

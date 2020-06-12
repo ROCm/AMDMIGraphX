@@ -75,13 +75,9 @@ inline tensor_descriptor make_tensor(const migraphx::shape& os, bool pack = fals
     return t;
 }
 
-inline void insert_attribute_dim(std::vector<int>& padding,
-                                 std::vector<int>& stride,
-                                 std::vector<int>& dilation)
+inline void insert_attribute_dim(std::vector<int>& attr, size_t val)
 {
-    padding.insert(padding.begin(), 0);
-    stride.insert(stride.begin(), 1);
-    dilation.insert(dilation.begin(), 1);
+    attr.insert(attr.begin(), val);
 }
 
 template <class T>
@@ -96,7 +92,11 @@ inline convolution_descriptor make_conv(const T& op)
     std::vector<int> dilation(op.dilation.begin(), op.dilation.end());
 
     if(op.kdims() == 1)
-        insert_attribute_dim(padding, stride, dilation);
+    {
+        insert_attribute_dim(padding, 0);
+        insert_attribute_dim(stride, 1);
+        insert_attribute_dim(dilation, 1);
+    }
 
     miopenInitConvolutionNdDescriptor(
         c.get(), padding.size(), padding.data(), stride.data(), dilation.data(), c_mode);
@@ -133,14 +133,24 @@ inline pooling_descriptor make_pooling(const migraphx::op::pooling& op)
     else
         MIGRAPHX_THROW("Unknown mode for pooling: " + op.mode);
     auto p = make_obj<pooling_descriptor>(&miopenCreatePoolingDescriptor);
-    miopenSet2dPoolingDescriptor(p.get(),
+
+    std::vector<int> padding(op.padding.begin(), op.padding.end());
+    std::vector<int> stride(op.stride.begin(), op.stride.end());
+    std::vector<int> lengths(op.lengths.begin(), op.lengths.end());
+
+    if(op.kdims() == 1)
+    {
+        insert_attribute_dim(padding, 0);
+        insert_attribute_dim(stride, 1);
+        insert_attribute_dim(lengths, 1);
+    }
+
+    miopenSetNdPoolingDescriptor(p.get(),
                                  mode,
-                                 op.lengths[0],
-                                 op.lengths[1],
-                                 op.padding[0],
-                                 op.padding[1],
-                                 op.stride[0],
-                                 op.stride[1]);
+                                 padding.size(),
+                                 lengths.data(),
+                                 padding.data(),
+                                 stride.data());
     return p;
 }
 

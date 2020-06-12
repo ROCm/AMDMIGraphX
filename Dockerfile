@@ -35,6 +35,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libnuma-dev \
     libpthread-stubs0-dev \
     libssl-dev \
+    locales \
     pkg-config \
     python3 \
     python3-dev \
@@ -50,6 +51,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     zlib1g-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+RUN locale-gen en_US.UTF-8
+RUN update-locale LANG=en_US.UTF-8
 
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8

@@ -70,6 +70,9 @@ typedef const struct migraphx_program* const_migraphx_program_t;
 typedef struct migraphx_onnx_options* migraphx_onnx_options_t;
 typedef const struct migraphx_onnx_options* const_migraphx_onnx_options_t;
 
+typedef struct migraphx_op_names* migraphx_op_names_t;
+typedef const struct migraphx_op_names* const_migraphx_op_names_t;
+
 typedef struct migraphx_calibration_data* migraphx_calibration_data_t;
 typedef const struct migraphx_calibration_data* const_migraphx_calibration_data_t;
 
@@ -200,8 +203,17 @@ migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
                                            size_t size,
                                            migraphx_onnx_options_t options);
 
-migraphx_status
-migraphx_quantize_fp16(migraphx_program_t prog, const char* const* name, size_t num);
+migraphx_status migraphx_op_names_destroy(migraphx_op_names_t op_names);
+
+migraphx_status migraphx_op_names_create(migraphx_op_names_t* op_names);
+
+migraphx_status migraphx_op_names_add(migraphx_op_names_t op_names, const char* name);
+
+migraphx_status migraphx_op_names_size(size_t* out, migraphx_op_names_t op_names);
+
+migraphx_status migraphx_op_names_get(const char** out, migraphx_op_names_t op_names, size_t idx);
+
+migraphx_status migraphx_quantize_fp16(migraphx_program_t prog, migraphx_op_names_t name);
 
 migraphx_status migraphx_quantize_fp16_default(migraphx_program_t prog);
 
@@ -222,8 +234,7 @@ migraphx_status migraphx_calibration_data_add_element(migraphx_calibration_data_
 migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
                                        migraphx_target_t target,
                                        migraphx_calibration_data_t data,
-                                       const char* const* name,
-                                       size_t num);
+                                       migraphx_op_names_t name);
 
 migraphx_status migraphx_quantize_int8_default(migraphx_program_t prog,
                                                migraphx_target_t target,

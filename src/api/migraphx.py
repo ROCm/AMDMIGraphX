@@ -204,10 +204,23 @@ api.add_function('migraphx_parse_onnx_buffer',
                  fname='migraphx::parse_onnx_buffer',
                  returns='migraphx::program')
 
+@api.handle('migraphx_op_names', 'std::vector<std::string>')
+def op_names(h):
+    h.constructor('create')
+    h.method('add',
+        api.params(name='const char*'),
+        fname='push_back')
+    h.method('size', returns='size_t')
+    h.method('get',
+             api.params(idx='size_t'),
+             invoke='migraphx::get_c_str($@)',
+             cpp_name='operator[]',
+             returns='const char *'),
+             
+
 api.add_function('migraphx_quantize_fp16',
                  api.params(prog='migraphx::program&',
-                            name='const char *const*',
-                            num='size_t'),
+                            name='std::vector<std::string>&'),
                  fname='migraphx::quantize_fp16_wrap')
 
 api.add_function('migraphx_quantize_fp16_default',
@@ -237,8 +250,7 @@ api.add_function(
         prog='migraphx::program&',
         target='migraphx::target',
         data='std::vector<std::unordered_map<std::string, migraphx::argument>>',
-        name='const char *const*',
-        num='size_t'),
+        name='std::vector<std::string>&'),
     fname='migraphx::quantize_int8_wrap')
 
 api.add_function(

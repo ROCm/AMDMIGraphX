@@ -109,41 +109,33 @@ std::vector<const char*> get_names(const std::unordered_map<std::string, Value>&
     return result;
 }
 
-void quantize_fp16_wrap(program& prog, const char* const* names, std::size_t num)
+const char * get_c_str(const std::vector<std::string>& names, std::size_t i)
 {
-    std::vector<std::string> vec_names;
-    for(std::size_t i = 0; i < num; ++i)
+    return names[i].c_str();
+}
+
+void quantize_fp16_wrap(program& prog, std::vector<std::string>& names)
+{
+    if(names.empty())
     {
-        vec_names.push_back(names[i]);
+        names = {"all"};
     }
 
-    if(vec_names.empty())
-    {
-        vec_names = {"all"};
-    }
-
-    migraphx::quantize_fp16(prog, vec_names);
+    migraphx::quantize_fp16(prog, names);
 }
 
 void quantize_int8_wrap(
     program& prog,
     const target& t,
     const std::vector<std::unordered_map<std::string, migraphx::argument>>& data,
-    const char* const* names,
-    std::size_t num)
+    std::vector<std::string>& names)
 {
-    std::vector<std::string> vec_names;
-    for(std::size_t i = 0; i < num; ++i)
+    if(names.empty())
     {
-        vec_names.push_back(names[i]);
+        names = {"dot", "convolution"};
     }
 
-    if(vec_names.empty())
-    {
-        vec_names = {"dot", "convolution"};
-    }
-
-    migraphx::quantize_int8(prog, t, data, vec_names);
+    migraphx::quantize_int8(prog, t, data, names);
 }
 
 template <class T>

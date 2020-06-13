@@ -29,12 +29,14 @@ TEST_CASE(quantize_fp16)
     const auto& p3 = p1;
     migraphx::quantize_fp16(p1);
 
-    std::vector<const char*> op_names;
-    migraphx::quantize_fp16(p2, op_names);
+    migraphx::op_names names;
+    migraphx::quantize_fp16(p2, names);
     CHECK(bool{p1 == p2});
 
-    op_names.push_back("dot");
-    migraphx::quantize_fp16(p3, op_names);
+    names.add("dot");
+    auto name = names[0];
+    names.add(name);
+    migraphx::quantize_fp16(p3, names);
     CHECK(bool{p1 == p3});
 }
 
@@ -60,12 +62,12 @@ TEST_CASE(quantize_int8)
     auto pp1 = cali_data[0];
     cali_data.add(pp1);
 
-    std::vector<const char*> op_names;
-    migraphx::quantize_int8(p2, t, cali_data, op_names);
+    migraphx::op_names names;
+    migraphx::quantize_int8(p2, t, cali_data, names);
     CHECK(bool{p1 == p2});
 
-    op_names.push_back("dot");
-    migraphx::quantize_int8(p1, t, cali_data, op_names);
+    names.add("dot");
+    migraphx::quantize_int8(p1, t, cali_data, names);
     CHECK(bool{p1 == p3});
 }
 

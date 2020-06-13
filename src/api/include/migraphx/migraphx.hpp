@@ -571,10 +571,38 @@ inline program parse_onnx_buffer(const std::string& buffer)
         own{});
 }
 
-// fp16 quantization apis
-inline void quantize_fp16(const program& prog, const std::vector<const char*>& names)
+struct op_names : MIGRAPHX_HANDLE_BASE(op_names)
 {
-    call(&migraphx_quantize_fp16, prog.get_handle_ptr(), names.data(), names.size());
+    op_names() { this->make_handle(&migraphx_op_names_create); }
+
+    op_names(migraphx_op_names* p, own) { this->set_handle(p, own{}); }
+
+    void add(const std::string& name)
+    {
+        call(&migraphx_op_names_add,
+             this->get_handle_ptr(),
+             name.c_str());
+    }
+
+    size_t size() const
+    {
+        size_t pout;
+        call(&migraphx_op_names_size, &pout, this->get_handle_ptr());
+        return pout;
+    }
+
+    std::string operator[](size_t pidx) const
+    {
+        const char* pout;
+        call(&migraphx_op_names_get, &pout, this->get_handle_ptr(), pidx);
+        return std::string(pout);
+    }
+};
+
+// fp16 quantization apis
+inline void quantize_fp16(const program& prog, const op_names& names)
+{
+    call(&migraphx_quantize_fp16, prog.get_handle_ptr(), names.get_handle_ptr());
 }
 
 inline void quantize_fp16(const program& prog)
@@ -614,14 +642,13 @@ struct calibration_data : MIGRAPHX_HANDLE_BASE(calibration_data)
 inline void quantize_int8(const program& prog,
                           const target& ptarget,
                           const calibration_data& data,
-                          const std::vector<const char*>& names)
+                          const op_names& names)
 {
     call(&migraphx_quantize_int8,
          prog.get_handle_ptr(),
          ptarget.get_handle_ptr(),
          data.get_handle_ptr(),
-         names.data(),
-         names.size());
+         names.get_handle_ptr());
 }
 
 inline void quantize_int8(const program& prog, const target& ptarget, const calibration_data& data)

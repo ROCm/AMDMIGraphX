@@ -579,9 +579,7 @@ struct op_names : MIGRAPHX_HANDLE_BASE(op_names)
 
     void add(const std::string& name)
     {
-        call(&migraphx_op_names_add,
-             this->get_handle_ptr(),
-             name.c_str());
+        call(&migraphx_op_names_add, this->get_handle_ptr(), name.c_str());
     }
 
     size_t size() const

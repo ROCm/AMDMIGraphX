@@ -109,7 +109,7 @@ std::vector<const char*> get_names(const std::unordered_map<std::string, Value>&
     return result;
 }
 
-const char * get_c_str(const std::vector<std::string>& names, std::size_t i)
+const char* get_c_str(const std::vector<std::string>& names, std::size_t i)
 {
     return names[i].c_str();
 }

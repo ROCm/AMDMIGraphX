@@ -204,19 +204,18 @@ api.add_function('migraphx_parse_onnx_buffer',
                  fname='migraphx::parse_onnx_buffer',
                  returns='migraphx::program')
 
+
 @api.handle('migraphx_op_names', 'std::vector<std::string>')
 def op_names(h):
     h.constructor('create')
-    h.method('add',
-        api.params(name='const char*'),
-        fname='push_back')
+    h.method('add', api.params(name='const char*'), fname='push_back')
     h.method('size', returns='size_t')
     h.method('get',
              api.params(idx='size_t'),
              invoke='migraphx::get_c_str($@)',
              cpp_name='operator[]',
              returns='const char *'),
-             
+
 
 api.add_function('migraphx_quantize_fp16',
                  api.params(prog='migraphx::program&',

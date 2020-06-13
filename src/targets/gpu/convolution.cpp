@@ -14,7 +14,7 @@ shape miopen_convolution::compute_shape(const std::vector<shape>& inputs) const
     return op.compute_shape(conv_inputs);
 }
 
-void recompute_shape(shape& input)
+inline void recompute_shape_to_2d(shape& input)
 {
     auto dims = input.lens();
 
@@ -34,9 +34,9 @@ argument miopen_convolution::compute(context& ctx,
     shape w_shape = args[1].get_shape();
     shape y_shape = output_shape;
 
-    recompute_shape(x_shape);
-    recompute_shape(w_shape);
-    recompute_shape(y_shape);
+    recompute_shape_to_2d(x_shape);
+    recompute_shape_to_2d(w_shape);
+    recompute_shape_to_2d(y_shape);
 
     auto x_desc = make_tensor(x_shape);
     auto w_desc = make_tensor(w_shape);
@@ -72,9 +72,9 @@ shape miopen_convolution::compile(context& ctx,
     shape w_shape = inputs[1];
     shape y_shape = output_shape;
 
-    recompute_shape(x_shape);
-    recompute_shape(w_shape);
-    recompute_shape(y_shape);
+    recompute_shape_to_2d(x_shape);
+    recompute_shape_to_2d(w_shape);
+    recompute_shape_to_2d(y_shape);
 
     auto x_desc = make_tensor(x_shape);
     auto w_desc = make_tensor(w_shape);

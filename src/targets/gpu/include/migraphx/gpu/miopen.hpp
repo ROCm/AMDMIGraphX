@@ -75,7 +75,7 @@ inline tensor_descriptor make_tensor(const migraphx::shape& os, bool pack = fals
     return t;
 }
 
-inline void insert_attribute_dim(std::vector<int>& attr, size_t val)
+inline void insert_attribute_1d_dims(std::vector<int>& attr, size_t val)
 {
     attr.insert(attr.begin(), val);
 }
@@ -93,9 +93,9 @@ inline convolution_descriptor make_conv(const T& op)
 
     if(op.kdims() == 1)
     {
-        insert_attribute_dim(padding, 0);
-        insert_attribute_dim(stride, 1);
-        insert_attribute_dim(dilation, 1);
+        insert_attribute_1d_dims(padding, 0);
+        insert_attribute_1d_dims(stride, 1);
+        insert_attribute_1d_dims(dilation, 1);
     }
 
     miopenInitConvolutionNdDescriptor(
@@ -140,9 +140,9 @@ inline pooling_descriptor make_pooling(const migraphx::op::pooling& op)
 
     if(op.kdims() == 1)
     {
-        insert_attribute_dim(padding, 0);
-        insert_attribute_dim(stride, 1);
-        insert_attribute_dim(lengths, 1);
+        insert_attribute_1d_dims(padding, 0);
+        insert_attribute_1d_dims(stride, 1);
+        insert_attribute_1d_dims(lengths, 1);
     }
 
     miopenSetNdPoolingDescriptor(

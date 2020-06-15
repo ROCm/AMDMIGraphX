@@ -1097,8 +1097,7 @@ struct test_avg_pooling_1d : verify_program<test_avg_pooling_1d>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto input =
-            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5}});
+        auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5}});
         auto op    = migraphx::op::pooling{"average", {0}, {1}, {3}};
         p.add_instruction(op, input);
         return p;
@@ -1112,7 +1111,7 @@ struct test_avg_pooling_3d : verify_program<test_avg_pooling_3d>
         migraphx::program p;
         auto input =
             p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5, 5, 5}});
-        auto op    = migraphx::op::pooling{"average", {0, 0, 0}, {1, 1, 1}, {3, 3, 3}};
+        auto op = migraphx::op::pooling{"average", {0, 0, 0}, {1, 1, 1}, {3, 3, 3}};
         p.add_instruction(op, input);
         return p;
     }

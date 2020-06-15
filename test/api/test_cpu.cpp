@@ -31,6 +31,7 @@ TEST_CASE(quantize_fp16)
 
     migraphx::op_names names;
     migraphx::quantize_fp16(p2, names);
+    CHECK(bool{names.size() == 1});
     CHECK(bool{p1 == p2});
 
     names.add("dot");

@@ -318,29 +318,32 @@ struct onnx_parser
         return curr_ins;
     }
 
+    bool is_asym_padding(const std::vector<int64_t>& padding)
+    {
+        assert(padding.size() % 2 == 0);
+        size_t pad_ndims = padding.size() / 2;
+
+        for(size_t i = 0; i < pad_ndims; i++)
+        {
+            if(padding[i] != padding[i + pad_ndims])
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     template <class Op>
     void check_asym_padding(instruction_ref& ins,
                             const std::vector<int64_t>& padding,
                             Op& op,
                             float pad_val = 0)
     {
-        bool asym_padding = false;
-        assert(padding.size() % 2 == 0);
         size_t pad_ndims = padding.size() / 2;
-
         auto left_pad_it  = padding.begin();
         auto right_pad_it = left_pad_it + pad_ndims;
 
-        for(size_t i = 0; i < pad_ndims; i++)
-        {
-            if(padding[i] != padding[i + pad_ndims])
-            {
-                asym_padding = true;
-                break;
-            }
-        }
-
-        if(asym_padding)
+        if(is_asym_padding(padding))
         {
             std::vector<int64_t> asym_pads{0, 0, 0, 0}; // don't pad N and C
             // add left pads
@@ -652,7 +655,11 @@ struct onnx_parser
         op::deconvolution op;
         auto l0 = args[0];
         std::vector<std::int64_t> padding;
-        bool asymm_padding = false;
+        bool asym_padding = false;
+        auto in_lens = l0->get_shape().lens();
+        assert(in_lens.size() > 2);
+        auto kdims = in_lens.size() - 2;
+
         if(contains(info.attributes, "pads"))
         {
             if(contains(info.attributes, "auto_pad"))
@@ -664,27 +671,29 @@ struct onnx_parser
                 }
             }
             copy(info.attributes["pads"].ints(), std::back_inserter(padding));
-            if(padding.size() != 4)
+            
+            asym_padding = is_asym_padding(padding);
+            
+            if(not asym_padding)
             {
-                MIGRAPHX_THROW("padding should have 4 values");
-            }
-            if(padding[0] != padding[2] || padding[1] != padding[3])
-            {
-                asymm_padding = true;
-            }
-            else
-            {
-                op.padding[0] = padding[0];
-                op.padding[1] = padding[1];
+                size_t pad_ndims = padding.size() / 2;
+                check_attr_sizes(kdims, pad_ndims, "PARSE_CONV_TRANSPOSE: inconsistent paddings");
+                op.padding.clear();
+                std::transform(padding.begin(), padding.begin() + pad_ndims, std::back_inserter(op.padding), [](auto pad_val){ return pad_val;});
+
             }
         }
         if(contains(info.attributes, "strides"))
         {
-            copy(info.attributes["strides"].ints(), op.stride.begin());
+            op.stride.clear();
+            copy(info.attributes["strides"].ints(), std::back_inserter(op.stride));
+            check_attr_sizes(kdims, op.stride.size(), "PARSE_CONV_TRANSPOSE: inconsistent strides");
         }
         if(contains(info.attributes, "dilations"))
         {
-            copy(info.attributes["dilations"].ints(), op.dilation.begin());
+            op.dilation.clear();
+            copy(info.attributes["dilations"].ints(), std::back_inserter(op.dilation));
+            check_attr_sizes(kdims, op.dilation.size(), "PARSE_CONV_TRANSPOSE: inconsistent dilations");
         }
         if(contains(info.attributes, "auto_pad"))
         {
@@ -708,7 +717,7 @@ struct onnx_parser
         auto l1                   = prog.add_instruction(op, l0, args[1]);
         std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
         std::vector<int64_t> curr_shape{dims[2], dims[3]};
-        if(asymm_padding)
+        if(asym_padding)
         {
             op::slice slice_op;
             slice_op.axes   = {0, 1, 2, 3};
@@ -718,6 +727,8 @@ struct onnx_parser
 
             l1 = prog.add_instruction(slice_op, l1);
         }
+
+        recalc_conv_attributes(op, kdims);
 
         if(contains(info.attributes, "output_padding"))
         {

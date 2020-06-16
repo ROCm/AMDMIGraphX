@@ -339,7 +339,7 @@ struct onnx_parser
                             Op& op,
                             float pad_val = 0)
     {
-        size_t pad_ndims = padding.size() / 2;
+        size_t pad_ndims  = padding.size() / 2;
         auto left_pad_it  = padding.begin();
         auto right_pad_it = left_pad_it + pad_ndims;
 
@@ -656,7 +656,7 @@ struct onnx_parser
         auto l0 = args[0];
         std::vector<std::int64_t> padding;
         bool asym_padding = false;
-        auto in_lens = l0->get_shape().lens();
+        auto in_lens      = l0->get_shape().lens();
         assert(in_lens.size() > 2);
         auto kdims = in_lens.size() - 2;
 
@@ -671,16 +671,18 @@ struct onnx_parser
                 }
             }
             copy(info.attributes["pads"].ints(), std::back_inserter(padding));
-            
+
             asym_padding = is_asym_padding(padding);
-            
+
             if(not asym_padding)
             {
                 size_t pad_ndims = padding.size() / 2;
                 check_attr_sizes(kdims, pad_ndims, "PARSE_CONV_TRANSPOSE: inconsistent paddings");
                 op.padding.clear();
-                std::transform(padding.begin(), padding.begin() + pad_ndims, std::back_inserter(op.padding), [](auto pad_val){ return pad_val;});
-
+                std::transform(padding.begin(),
+                               padding.begin() + pad_ndims,
+                               std::back_inserter(op.padding),
+                               [](auto pad_val) { return pad_val; });
             }
         }
         if(contains(info.attributes, "strides"))
@@ -693,7 +695,8 @@ struct onnx_parser
         {
             op.dilation.clear();
             copy(info.attributes["dilations"].ints(), std::back_inserter(op.dilation));
-            check_attr_sizes(kdims, op.dilation.size(), "PARSE_CONV_TRANSPOSE: inconsistent dilations");
+            check_attr_sizes(
+                kdims, op.dilation.size(), "PARSE_CONV_TRANSPOSE: inconsistent dilations");
         }
         if(contains(info.attributes, "auto_pad"))
         {

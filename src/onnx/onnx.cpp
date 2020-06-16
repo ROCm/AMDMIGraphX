@@ -323,7 +323,7 @@ struct onnx_parser
                             const std::vector<int64_t>& padding,
                             Op& op,
                             int count_include_pad = 0,
-                            float pad_val = 0)
+                            float pad_val         = 0)
     {
         bool asym_padding = false;
         assert(padding.size() % 2 == 0);
@@ -451,7 +451,7 @@ struct onnx_parser
                                                std::vector<std::size_t> dilation,
                                                const std::vector<std::size_t>& in_lens,
                                                int count_include_pad = 0,
-                                               float value = 0.0f)
+                                               float value           = 0.0f)
     {
         size_t kdims = in_lens.size() - 2;
         assert(k_lens.size() == kdims and dilation.size() == kdims);
@@ -752,30 +752,34 @@ struct onnx_parser
         return add_bias(args, l1, 1);
     }
 
-    void tune_padding_to_symmetric(int64_t& left, int64_t& right, const int stride, int64_t& s_start)
+    void
+    tune_padding_to_symmetric(int64_t& left, int64_t& right, const int stride, int64_t& s_start)
     {
         s_start = 0;
-        if (left > right)
+        if(left > right)
         {
-            right = left;
+            right   = left;
             s_start = 0;
         }
-        else if (left < right)
+        else if(left < right)
         {
             auto diff = right - left;
-            s_start = (diff + stride - 1) / stride;
-            left = left + s_start * stride;
-            right = left;
+            s_start   = (diff + stride - 1) / stride;
+            left      = left + s_start * stride;
+            right     = left;
         }
 
         return;
     }
 
     template <class Op>
-    void tune_padding_size(Op& op, std::vector<int64_t>& padding, int count_include_pad, std::vector<int64_t>& s_start)
+    void tune_padding_size(Op& op,
+                           std::vector<int64_t>& padding,
+                           int count_include_pad,
+                           std::vector<int64_t>& s_start)
     {
         // maxpooling or convolution, no need to handle that.
-        if (op.mode == "max" or count_include_pad == 1)
+        if(op.mode == "max" or count_include_pad == 1)
         {
             return;
         }
@@ -795,14 +799,14 @@ struct onnx_parser
         }
 
         // padding is symmetric, return directly
-        if (!asym_padding)
+        if(!asym_padding)
         {
             return;
         }
 
         // asymmetric padding, make it symmetric
         s_start.resize(n_dims);
-        for (std::size_t i = 0; i < n_dims; ++i)
+        for(std::size_t i = 0; i < n_dims; ++i)
         {
             tune_padding_to_symmetric(padding[i], padding[i + n_dims], op.stride[i], s_start[i]);
         }
@@ -860,10 +864,10 @@ struct onnx_parser
 
         // does not support ceil_mode
         int ceil_mode = 0;
-        if (contains(info.attributes, "ceil_mode"))
+        if(contains(info.attributes, "ceil_mode"))
         {
             ceil_mode = info.attributes.at("ceil_mode").i();
-            if (ceil_mode == 1)
+            if(ceil_mode == 1)
             {
                 MIGRAPHX_THROW("PARSE_POOLING: pool does not support ceil_mode");
             }
@@ -872,7 +876,7 @@ struct onnx_parser
         // count include padding, if count include pad is 1, we always use
         // explicit pad
         int count_include_pad = 0;
-        if (contains(info.attributes, "count_include_pad"))
+        if(contains(info.attributes, "count_include_pad"))
         {
             count_include_pad = info.attributes.at("count_include_pad").i();
         }
@@ -907,7 +911,8 @@ struct onnx_parser
         {
             op.padding.clear();
             copy(info.attributes["pads"].ints(), std::back_inserter(paddings));
-            check_attr_sizes(kdims, paddings.size() / 2, "PARSE_POOLING: inconsistent explicit paddings");
+            check_attr_sizes(
+                kdims, paddings.size() / 2, "PARSE_POOLING: inconsistent explicit paddings");
         }
 
         if(contains(info.attributes, "auto_pad"))
@@ -931,7 +936,7 @@ struct onnx_parser
         std::vector<int64_t> slice_start, slice_end;
         tune_padding_size(op, paddings, count_include_pad, slice_start);
 
-        if (!slice_start.empty())
+        if(!slice_start.empty())
         {
             // calculate expected output shape
             std::vector<int64_t> explicit_padding(paddings.begin(), paddings.end());
@@ -939,10 +944,14 @@ struct onnx_parser
             explicit_padding.insert(explicit_padding.begin(), 2, 0);
             op::pad pad{explicit_padding, 0.0f};
             shape padded_shape = pad.compute_shape({l0->get_shape()});
-            auto out_lens = op.compute_shape({padded_shape}).lens();
+            auto out_lens      = op.compute_shape({padded_shape}).lens();
 
             // compute slice_end information
-            std::transform(out_lens.begin() + 2, out_lens.end(), slice_start.begin(), slice_end.begin(), [](auto i, auto j) { return i + j; });
+            std::transform(out_lens.begin() + 2,
+                           out_lens.end(),
+                           slice_start.begin(),
+                           slice_end.begin(),
+                           [](auto i, auto j) { return i + j; });
         }
 
         check_asym_padding(l0, paddings, op, count_include_pad, pad_val);
@@ -955,7 +964,7 @@ struct onnx_parser
         }
 
         auto l1 = prog.add_instruction(op, l0);
-        if (!slice_start.empty())
+        if(!slice_start.empty())
         {
             std::vector<int64_t> axes(kdims);
             std::iota(axes.begin(), axes.end(), 2);

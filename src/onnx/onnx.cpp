@@ -592,8 +592,8 @@ struct onnx_parser
             auto s = info.attributes["auto_pad"].s();
             if(to_upper(s) != "NOTSET")
             {
-                MIGRAPHX_THROW(
-                    "PARSE_" + op_name + ": auto_pad and padding cannot be specified simultaneously");
+                MIGRAPHX_THROW("PARSE_" + op_name +
+                               ": auto_pad and padding cannot be specified simultaneously");
             }
         }
     }
@@ -632,7 +632,7 @@ struct onnx_parser
             copy(info.attributes["pads"].ints(), std::back_inserter(padding));
             check_attr_sizes(kdims, padding.size() / 2, "PARSE_CONV: inconsistent paddings");
         }
-        
+
         if(contains(info.attributes, "auto_pad"))
         {
             auto weight_lens = weights->get_shape().lens();

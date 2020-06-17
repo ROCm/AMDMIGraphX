@@ -98,9 +98,9 @@ inline convolution_descriptor make_conv(const T& op)
     if(op.group > 1)
         c_mode = miopenGroupConv;
 
-    size_t kdims = op.kdims();
-    std::vector<int> padding = get_attributes(op.padding, kdims, 0);
-    std::vector<int> stride = get_attributes(op.stride, kdims, 1);
+    size_t kdims              = op.kdims();
+    std::vector<int> padding  = get_attributes(op.padding, kdims, 0);
+    std::vector<int> stride   = get_attributes(op.stride, kdims, 1);
     std::vector<int> dilation = get_attributes(op.dilation, kdims, 1);
 
     miopenInitConvolutionNdDescriptor(

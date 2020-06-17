@@ -922,16 +922,25 @@ struct onnx_parser
             cal_auto_padding_size(info, op, op.lengths, {1, 1}, in_lens, paddings);
         }
 
-        if(paddings.size() != kdims)
+        if(paddings.size() != 2 * kdims)
         {
-            paddings.resize(kdims);
-            std::fill_n(paddings.begin(), kdims, 0);
+            paddings.resize(kdims * 2);
+            std::fill_n(paddings.begin(), 2 * kdims, 0);
         }
+
+        if(op.padding.size() != kdims)
+        {
+            op.padding.resize(kdims);
+            std::fill_n(op.padding.begin(), kdims, 0);
+        }
+
         if(op.stride.size() != kdims)
         {
             op.stride.resize(kdims);
             std::fill_n(op.stride.begin(), kdims, 1);
         }
+        // used to calculate the supposed output shape
+        std::vector<int64_t> orig_padding(paddings.begin(), paddings.end());
 
         std::vector<int64_t> slice_start, slice_end;
         tune_padding_size(op, paddings, count_include_pad, slice_start);
@@ -939,14 +948,14 @@ struct onnx_parser
         if(!slice_start.empty())
         {
             // calculate expected output shape
-            std::vector<int64_t> explicit_padding(paddings.begin(), paddings.end());
-            explicit_padding.insert(explicit_padding.begin() + kdims, 2, 0);
-            explicit_padding.insert(explicit_padding.begin(), 2, 0);
-            op::pad pad{explicit_padding, 0.0f};
+            orig_padding.insert(orig_padding.begin() + kdims, 2, 0);
+            orig_padding.insert(orig_padding.begin(), 2, 0);
+            op::pad pad{orig_padding, 0.0f};
             shape padded_shape = pad.compute_shape({l0->get_shape()});
             auto out_lens      = op.compute_shape({padded_shape}).lens();
 
             // compute slice_end information
+            slice_end.resize(slice_start.size());
             std::transform(out_lens.begin() + 2,
                            out_lens.end(),
                            slice_start.begin(),

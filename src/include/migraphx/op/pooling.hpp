@@ -42,7 +42,7 @@ struct pooling
     {
         if(not(padding.size() == stride.size() and padding.size() == lengths.size()))
         {
-            MIGRAPHX_THROW("convolution: inconsistent attribute sizes");
+            MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");
         }
     }
 

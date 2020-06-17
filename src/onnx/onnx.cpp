@@ -964,6 +964,7 @@ struct onnx_parser
         }
 
         check_asym_padding(l0, paddings, op, count_include_pad, pad_val);
+        in_lens = l0->get_shape().lens();
         for(size_t i = 0; i < kdims; i++)
         {
             if(op.lengths[i] > in_lens[i + 2] + 2 * op.padding[i])

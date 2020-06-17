@@ -83,7 +83,7 @@ inline convolution_descriptor make_conv(const T& op)
     if(op.group > 1)
         c_mode = miopenGroupConv;
 
-    int kdims              = op.kdims();
+    int kdims = op.kdims();
     std::vector<int> padding(std::max(2, kdims), 0);
     std::vector<int> stride(std::max(2, kdims), 1);
     std::vector<int> dilation(std::max(2, kdims), 1);

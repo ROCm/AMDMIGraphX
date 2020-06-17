@@ -667,7 +667,8 @@ struct onnx_parser
                 auto s = info.attributes["auto_pad"].s();
                 if(contains(info.attributes, "pads") and to_upper(s) != "NOTSET")
                 {
-                    MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: auto_pad and padding cannot be specified simultaneously");
+                    MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: auto_pad and padding cannot be specified "
+                                   "simultaneously");
                 }
             }
             copy(info.attributes["pads"].ints(), std::back_inserter(padding));
@@ -703,7 +704,8 @@ struct onnx_parser
             auto s = info.attributes["auto_pad"].s();
             if(contains(info.attributes, "pads") and to_upper(s) != "NOTSET")
             {
-                MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: auto_pad and padding cannot be specified simultaneously");
+                MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: auto_pad and padding cannot be specified "
+                               "simultaneously");
             }
 
             if(s.find("SAME") != std::string::npos)
@@ -744,9 +746,10 @@ struct onnx_parser
             size_t non_kdims = (dims.size() - 1) * 2;
             std::vector<int64_t> output_padding(non_kdims, 0);
             copy(info.attributes["output_padding"].ints(), std::back_inserter(output_padding));
-            check_attr_sizes(
-                kdims, output_padding.size() - non_kdims, "PARSE_CONV_TRANSPOSE: inconsistent output padding");
-            l1             = prog.add_instruction(op::pad{output_padding}, l1);
+            check_attr_sizes(kdims,
+                             output_padding.size() - non_kdims,
+                             "PARSE_CONV_TRANSPOSE: inconsistent output padding");
+            l1 = prog.add_instruction(op::pad{output_padding}, l1);
         }
 
         if(contains(info.attributes, "output_shape"))
@@ -755,7 +758,7 @@ struct onnx_parser
             copy(info.attributes["output_shape"].ints(), std::back_inserter(output_shape));
             check_attr_sizes(
                 kdims, op.dilation.size(), "PARSE_CONV_TRANSPOSE: inconsistent output shape");
-            dims       = to_int64_vector(l1->get_shape().lens());
+            dims = to_int64_vector(l1->get_shape().lens());
             copy(dims.begin() + 2, dims.end(), curr_shape.begin());
             if(curr_shape != output_shape)
             {

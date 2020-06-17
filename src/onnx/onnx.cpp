@@ -667,7 +667,7 @@ struct onnx_parser
                 auto s = info.attributes["auto_pad"].s();
                 if(contains(info.attributes, "pads") and to_upper(s) != "NOTSET")
                 {
-                    MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                    MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: auto_pad and padding cannot be specified simultaneously");
                 }
             }
             copy(info.attributes["pads"].ints(), std::back_inserter(padding));
@@ -703,7 +703,7 @@ struct onnx_parser
             auto s = info.attributes["auto_pad"].s();
             if(contains(info.attributes, "pads") and to_upper(s) != "NOTSET")
             {
-                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: auto_pad and padding cannot be specified simultaneously");
             }
 
             if(s.find("SAME") != std::string::npos)
@@ -719,25 +719,33 @@ struct onnx_parser
 
         auto l1                   = prog.add_instruction(op, l0, args[1]);
         std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
-        std::vector<int64_t> curr_shape{dims[2], dims[3]};
+        std::vector<int64_t> curr_shape(dims.begin() + 2, dims.end());
         if(asym_padding)
         {
-            op::slice slice_op;
-            slice_op.axes   = {0, 1, 2, 3};
-            slice_op.starts = {0, 0, 0 + padding[0], 0 + padding[1]};
-            slice_op.ends   = {
-                dims[0], dims[1], curr_shape[0] - padding[2], curr_shape[1] - padding[3]};
+            std::vector<int64_t> axes(dims.size());
+            std::iota(axes.begin(), axes.end(), 0);
 
-            l1 = prog.add_instruction(slice_op, l1);
+            std::vector<int64_t> starts{0, 0};
+            copy(padding.begin(), padding.begin() + 2, std::back_inserter(starts));
+
+            std::vector<int64_t> ends{dims[0], dims[1]};
+            for(size_t i = 0; i < kdims; i++)
+            {
+                ends.push_back(curr_shape[i] - padding[i + 2]);
+            }
+
+            l1 = prog.add_instruction(op::slice{axes, starts, ends}, l1);
         }
 
         recalc_conv_attributes(op, kdims);
 
         if(contains(info.attributes, "output_padding"))
         {
-            std::vector<int64_t> output_padding;
+            size_t non_kdims = (dims.size() - 1) * 2;
+            std::vector<int64_t> output_padding(non_kdims, 0);
             copy(info.attributes["output_padding"].ints(), std::back_inserter(output_padding));
-            output_padding = {0, 0, 0, 0, 0, 0, output_padding[0], output_padding[1]};
+            check_attr_sizes(
+                kdims, output_padding.size() - non_kdims, "PARSE_CONV_TRANSPOSE: inconsistent output padding");
             l1             = prog.add_instruction(op::pad{output_padding}, l1);
         }
 
@@ -745,18 +753,17 @@ struct onnx_parser
         {
             std::vector<int64_t> output_shape;
             copy(info.attributes["output_shape"].ints(), std::back_inserter(output_shape));
+            check_attr_sizes(
+                kdims, op.dilation.size(), "PARSE_CONV_TRANSPOSE: inconsistent output shape");
             dims       = to_int64_vector(l1->get_shape().lens());
-            curr_shape = {dims[2], dims[3]};
+            copy(dims.begin() + 2, dims.end(), curr_shape.begin());
             if(curr_shape != output_shape)
             {
-                std::vector<int64_t> target_padding = {0,
-                                                       0,
-                                                       0,
-                                                       0,
-                                                       0,
-                                                       0,
-                                                       output_shape[0] - curr_shape[0],
-                                                       output_shape[1] - curr_shape[1]};
+                std::vector<int64_t> target_padding((dims.size() - 1) * 2, 0);
+                for(size_t i = 0; i < kdims; i++)
+                {
+                    target_padding.push_back(output_shape[i] - curr_shape[i]);
+                }
                 l1 = prog.add_instruction(op::pad{target_padding}, l1);
             }
         }

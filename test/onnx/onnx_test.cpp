@@ -180,8 +180,8 @@ TEST_CASE(averagepool_notset_test)
 {
     migraphx::program p;
     auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
-    auto ins = p.add_instruction(migraphx::op::pooling{"average", {2, 2}, {2, 2}, {6, 6}}, input);
-    auto ret = p.add_instruction(migraphx::op::slice{{2, 3}, {1, 1}, {2, 2}}, ins);
+    auto ins   = p.add_instruction(migraphx::op::pooling{"average", {2, 2}, {2, 2}, {6, 6}}, input);
+    auto ret   = p.add_instruction(migraphx::op::slice{{2, 3}, {1, 1}, {2, 2}}, ins);
     p.add_return({ret});
     auto prog = migraphx::parse_onnx("averagepool_notset_test.onnx");
 
@@ -192,7 +192,7 @@ TEST_CASE(averagepool_same_lower_test)
 {
     migraphx::program p;
     auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
-    auto ins = p.add_instruction(
+    auto ins   = p.add_instruction(
         migraphx::op::pooling{
             "average", {1, 1}, {1, 1}, {2, 2}, migraphx::op::padding_mode_t::same},
         input);
@@ -207,7 +207,7 @@ TEST_CASE(averagepool_same_upper_test)
 {
     migraphx::program p;
     auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
-    auto ins = p.add_instruction(
+    auto ins   = p.add_instruction(
         migraphx::op::pooling{
             "average", {1, 1}, {1, 1}, {2, 2}, migraphx::op::padding_mode_t::same},
         input);

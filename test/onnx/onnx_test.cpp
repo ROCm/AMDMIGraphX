@@ -188,6 +188,19 @@ TEST_CASE(averagepool_notset_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(averagepool_nt_cip_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
+    std::vector<int64_t> pads = {0, 0, 0, 0, 0, 0, 1, 1};
+    auto ins_pad              = p.add_instruction(migraphx::op::pad{pads}, input);
+    auto ret = p.add_instruction(migraphx::op::pooling{"average", {0, 0}, {2, 2}, {6, 6}}, ins_pad);
+    p.add_return({ret});
+
+    auto prog = migraphx::parse_onnx("averagepool_nt_cip_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(averagepool_same_lower_test)
 {
     migraphx::program p;
@@ -199,6 +212,22 @@ TEST_CASE(averagepool_same_lower_test)
     auto ret = p.add_instruction(migraphx::op::slice{{2, 3}, {0, 0}, {5, 5}}, ins);
     p.add_return({ret});
     auto prog = migraphx::parse_onnx("averagepool_same_lower_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(averagepool_sl_cip_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
+    std::vector<int64_t> pads = {0, 0, 1, 1, 0, 0, 0, 0};
+    auto ins_pad              = p.add_instruction(migraphx::op::pad{pads}, input);
+    auto ret = p.add_instruction(
+        migraphx::op::pooling{
+            "average", {0, 0}, {1, 1}, {2, 2}, migraphx::op::padding_mode_t::same},
+        ins_pad);
+    p.add_return({ret});
+    auto prog = migraphx::parse_onnx("averagepool_sl_cip_test.onnx");
 
     EXPECT(p == prog);
 }

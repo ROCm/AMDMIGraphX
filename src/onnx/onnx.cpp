@@ -878,7 +878,7 @@ struct onnx_parser
         int count_include_pad = 0;
         if(contains(info.attributes, "count_include_pad"))
         {
-            count_include_pad = info.attributes.at("count_include_pad").i();
+            count_include_pad = parse_value(info.attributes.at("count_include_pad")).at<int>();
         }
 
         if(contains(info.attributes, "strides"))

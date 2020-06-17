@@ -11,7 +11,9 @@
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/neg.hpp>
 #include <migraphx/op/recip.hpp>
+#include <migraphx/op/reshape.hpp>
 #include <migraphx/op/rsqrt.hpp>
+#include <migraphx/op/transpose.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/algorithm.hpp>
@@ -31,15 +33,6 @@ auto conv_const_weights()
 {
     return match::name("convolution")(match::used_once(),
                                       match::args(match::any(), match::is_constant().bind("w")));
-}
-
-MIGRAPHX_PRED_MATCHER(args_has_same_ops, instruction_ref ins)
-{
-    if(ins->inputs().empty())
-        return true;
-    return std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto j) {
-        return j->get_operator() == ins->inputs().front()->get_operator();
-    });
 }
 
 struct find_mul_conv
@@ -182,70 +175,85 @@ struct find_inner_broadcast
     }
 };
 
-struct find_concat_unary
+struct find_concat_op
 {
     auto matcher() const
     {
-        return match::name("concat")(args_has_same_ops(),
-                                     match::arg(0)(match::nargs(1),
-                                                   match::name("relu", "broadcast").bind("x"),
-                                                   match::used_once()));
+        return match::name("concat")(match::any_of[match::inputs()](
+            match::name("add", "multiply", "relu", "broadcast"), match::used_once()));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    template <class Iterator>
+    static std::vector<std::size_t> get_output_lens(Iterator start, Iterator last, std::size_t axis)
+    {
+        assert(start != last);
+        std::size_t dim = 0;
+        for(auto ins : range(start, last))
+        {
+            dim += ins->get_shape().lens().at(axis);
+        }
+        auto lens  = (*start)->get_shape().lens();
+        lens[axis] = dim;
+        return lens;
+    }
+
+    void apply(program& p, const match::matcher_result& r) const
     {
         auto ins  = r.result;
-        auto x    = r.instructions["x"];
-        auto op   = x->get_operator();
         auto axis = any_cast<op::concat>(ins->get_operator()).axis;
-        // Adjust broadcast lens
-        if(op.name() == "broadcast")
-        {
-            auto b = any_cast<op::broadcast>(op);
-            if(b.axis != axis)
-                return;
-            b.broadcast_lens = ins->get_shape().lens();
-            op               = b;
-            axis             = 0;
-        }
 
-        auto inputs = ins->inputs();
-        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto i) {
-            return i->inputs().front();
-        });
-        auto concat = p.insert_instruction(ins, op::concat{axis}, inputs);
-        p.replace_instruction(ins, op, concat);
-    }
-};
+        auto each = [&](auto start, auto last) -> std::vector<instruction_ref> {
+            if(std::distance(start, last) < 2)
+                return {start, last};
+            auto x = *start;
+            if(x->inputs().size() > 2 or x->inputs().empty() or x->outputs().size() > 1)
+                return {start, last};
+            auto&& name = x->name();
+            if(not contains({"add", "multiply", "relu", "broadcast"}, name))
+                return {start, last};
+            auto op    = x->get_operator();
+            auto iaxis = axis;
+            // Adjust broadcast lens
+            if(op.name() == "broadcast")
+            {
+                auto b = any_cast<op::broadcast>(op);
+                if(b.axis != iaxis)
+                    return {start, last};
+                b.broadcast_lens = get_output_lens(start, last, iaxis);
+                op               = b;
+                iaxis            = 0;
+            }
 
-struct find_concat_binary
-{
-    auto matcher() const
-    {
-        return match::name("concat")(args_has_same_ops(),
-                                     match::arg(0)(match::nargs(2),
-                                                   match::name("add", "multiply").bind("x"),
-                                                   match::used_once()));
-    }
+            std::vector<instruction_ref> concats;
+            for(std::size_t i = 0; i < x->inputs().size(); i++)
+            {
+                std::vector<instruction_ref> inputs;
+                std::transform(start, last, std::back_inserter(inputs), [&](auto j) {
+                    return j->inputs().at(i);
+                });
+                auto concat = p.insert_instruction(ins, op::concat{iaxis}, inputs);
+                concats.push_back(concat);
+            }
+            auto y = p.insert_instruction(ins, op, concats);
+            return {y};
 
-    void apply(program& p, match::matcher_result r) const
-    {
-        auto ins       = r.result;
-        auto x         = r.instructions["x"];
-        auto op        = x->get_operator();
-        auto concat_op = ins->get_operator();
+        };
 
-        auto xinputs = ins->inputs();
-        std::transform(xinputs.begin(), xinputs.end(), xinputs.begin(), [&](auto i) {
-            return i->inputs().front();
-        });
-        auto yinputs = ins->inputs();
-        std::transform(yinputs.begin(), yinputs.end(), yinputs.begin(), [&](auto i) {
-            return i->inputs().back();
-        });
-        auto xconcat = p.insert_instruction(ins, concat_op, xinputs);
-        auto yconcat = p.insert_instruction(ins, concat_op, yinputs);
-        p.replace_instruction(ins, op, xconcat, yconcat);
+        std::vector<instruction_ref> args;
+        auto update_args = [&](auto start, auto last) {
+            auto x = each(start, last);
+            args.insert(args.end(), x.begin(), x.end());
+        };
+        auto pred = [](auto i, auto j) {
+            return i->get_operator() == j->get_operator() and
+                   i->inputs().size() == i->inputs().size() and
+                   i->outputs().size() == i->outputs().size();
+        };
+        group_unique(ins->inputs().begin(), ins->inputs().end(), update_args, pred);
+        if(args.size() == 1)
+            p.replace_instruction(ins, args.front());
+        else
+            p.replace_instruction(ins, op::concat{axis}, args);
     }
 };
 
@@ -708,6 +716,130 @@ struct find_rsqrt
     }
 };
 
+static bool same_ops(const std::vector<instruction_ref>& vec_ins)
+{
+    return std::all_of(vec_ins.begin(), vec_ins.end(), [&](auto i) {
+        return i->get_operator() == vec_ins.front()->get_operator();
+    });
+}
+
+struct find_split_reshape
+{
+    auto matcher() const
+    {
+        return match::name("reshape")(match::arg(0)(match::name("contiguous")(
+                                          match::arg(0)(match::name("slice").bind("slice")))))
+            .bind("reshape");
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto slc = r.instructions["slice"];
+        auto rsp = r.instructions["reshape"];
+
+        auto input         = slc->inputs().front();
+        auto split_outputs = get_splits(input);
+        if(split_outputs.empty())
+        {
+            return;
+        }
+
+        std::vector<instruction_ref> vec_rsp(split_outputs.size());
+        std::transform(split_outputs.begin(), split_outputs.end(), vec_rsp.begin(), [](auto i) {
+            assert(i->outputs().size() == 1);
+            auto cont = i->outputs().front();
+            assert(cont->outputs().size() == 1);
+            return cont->outputs().front();
+        });
+
+        // all outputs are reshape and of the same shape
+        auto dims = any_cast<op::reshape>(rsp->get_operator()).dims;
+        if(!same_ops(vec_rsp))
+        {
+            return;
+        }
+
+        // ensure reshape happens after the axis dimension
+        auto axis    = any_cast<op::slice>(slc->get_operator()).axes[0];
+        auto in_lens = input->get_shape().lens();
+        if(!std::equal(in_lens.begin(), in_lens.begin() + axis, dims.begin(), dims.begin() + axis))
+        {
+            return;
+        }
+
+        // calculate reshape output shape
+        auto tmp_lens = vec_rsp.front()->get_shape().lens();
+        std::vector<int64_t> rsp_lens(tmp_lens.begin(), tmp_lens.end());
+        int64_t dim_size = rsp_lens[axis];
+        rsp_lens[axis] *= vec_rsp.size();
+
+        // insert the reshape instruction
+        auto rsp_ins = p.insert_instruction(std::next(input), op::reshape{rsp_lens}, input);
+
+        // replace the original reshape with slice
+        int64_t i = 0;
+        for(auto in : vec_rsp)
+        {
+            p.replace_instruction(
+                in, op::slice{{axis}, {i * dim_size}, {(i + 1) * dim_size}}, rsp_ins);
+            ++i;
+        }
+    }
+};
+
+struct find_split_transpose
+{
+    auto matcher() const
+    {
+        return match::name("transpose")(match::arg(0)(match::name("slice").bind("slice")))
+            .bind("trans");
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto slc   = r.instructions["slice"];
+        auto trans = r.instructions["trans"];
+
+        auto input         = slc->inputs().front();
+        auto split_outputs = get_splits(input);
+        if(split_outputs.empty())
+        {
+            return;
+        }
+
+        std::vector<instruction_ref> vec_trans(split_outputs.size());
+        std::transform(split_outputs.begin(), split_outputs.end(), vec_trans.begin(), [](auto i) {
+            assert(i->outputs().size() == 1);
+            return i->outputs().front();
+        });
+
+        // all transpose are the same
+        auto perm = any_cast<op::transpose>(trans->get_operator()).dims;
+        if(!same_ops(vec_trans))
+        {
+            return;
+        }
+
+        // insert an transpose instruction
+        auto tr = p.insert_instruction(std::next(input), op::transpose{perm}, input);
+
+        // compute the axis in the slice
+        auto axis = any_cast<op::slice>(slc->get_operator()).axes.front();
+        auto it   = std::find(perm.begin(), perm.end(), axis);
+        assert(it != perm.end());
+        auto axis_new = static_cast<int64_t>(std::distance(perm.begin(), it));
+
+        for(auto in : split_outputs)
+        {
+            auto oper    = any_cast<op::slice>(in->get_operator());
+            auto starts  = oper.starts;
+            auto ends    = oper.ends;
+            auto tr_orig = in->outputs().front();
+            p.replace_instruction(tr_orig, op::slice{{axis_new}, starts, ends}, tr);
+        }
+    }
+};
+
 void simplify_algebra::apply(program& p) const
 {
     // Run simplifications multiple times
@@ -724,10 +856,11 @@ void simplify_algebra::apply(program& p) const
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},
-                            find_concat_unary{},
-                            find_concat_binary{},
+                            find_concat_op{},
                             find_split_concat{},
-                            find_splits{});
+                            find_splits{},
+                            find_split_reshape{},
+                            find_split_transpose{});
         dead_code_elimination{}.apply(p);
     }
 }

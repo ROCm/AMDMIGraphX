@@ -156,6 +156,26 @@ TEST_CASE(atanh_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(averagepool_1d_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 5}});
+    p.add_instruction(migraphx::op::pooling{"average", {0}, {1}, {3}}, l0);
+
+    auto prog = optimize_onnx("averagepool_1d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(averagepool_3d_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+    p.add_instruction(migraphx::op::pooling{"average", {0, 0, 0}, {1, 1, 1}, {3, 3, 3}}, l0);
+
+    auto prog = optimize_onnx("averagepool_3d_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(averagepool_notset_test)
 {
     migraphx::program p;
@@ -198,6 +218,34 @@ TEST_CASE(averagepool_same_upper_test)
 
     auto prog = optimize_onnx("averagepool_same_upper_test.onnx");
 
+    EXPECT(p == prog);
+}
+
+TEST_CASE(batchnorm_1d_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 5}});
+    auto l1 = p.add_parameter("1", {migraphx::shape::float_type, {3}});
+    auto l2 = p.add_parameter("2", {migraphx::shape::float_type, {3}});
+    auto l3 = p.add_parameter("3", {migraphx::shape::float_type, {3}});
+    auto l4 = p.add_parameter("4", {migraphx::shape::float_type, {3}});
+    p.add_instruction(migraphx::op::batch_norm_inference{}, l0, l1, l2, l3, l4);
+
+    auto prog = optimize_onnx("batchnorm_1d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(batchnorm_3d_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+    auto l1 = p.add_parameter("1", {migraphx::shape::float_type, {3}});
+    auto l2 = p.add_parameter("2", {migraphx::shape::float_type, {3}});
+    auto l3 = p.add_parameter("3", {migraphx::shape::float_type, {3}});
+    auto l4 = p.add_parameter("4", {migraphx::shape::float_type, {3}});
+    p.add_instruction(migraphx::op::batch_norm_inference{}, l0, l1, l2, l3, l4);
+
+    auto prog = optimize_onnx("batchnorm_3d_test.onnx");
     EXPECT(p == prog);
 }
 
@@ -382,6 +430,33 @@ TEST_CASE(const_of_shape_no_value_attr_test)
 TEST_CASE(conv_autopad_fail_test)
 {
     EXPECT(test::throws([&] { optimize_onnx("conv_autopad_fail_test.onnx"); }));
+}
+
+TEST_CASE(conv_1d_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 5}});
+    auto l1 = p.add_parameter("1", {migraphx::shape::float_type, {1, 3, 3}});
+    p.add_instruction(migraphx::op::convolution{{0}, {1}, {1}}, l0, l1);
+
+    auto prog = optimize_onnx("conv_1d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(conv_3d_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("0", {migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+    auto l1 = p.add_parameter("1", {migraphx::shape::float_type, {1, 3, 3, 3, 3}});
+    p.add_instruction(migraphx::op::convolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}}, l0, l1);
+
+    auto prog = optimize_onnx("conv_3d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(conv_attr_fail_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("conv_attr_fail_test.onnx"); }));
 }
 
 TEST_CASE(conv_autopad_same_test)
@@ -608,6 +683,31 @@ TEST_CASE(elu_test)
     auto prog = optimize_onnx("elu_test.onnx");
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(embedding_bag_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("weight", migraphx::shape{migraphx::shape::float_type, {4, 2}});
+    migraphx::literal l{migraphx::shape{migraphx::shape::int32_type, {3}}, {1, 0, 2}};
+    auto l1 = p.add_literal(l);
+    p.add_literal(0);
+    auto l4 = p.add_instruction(migraphx::op::gather{}, l0, l1);
+    auto r1 = p.add_instruction(migraphx::op::reduce_sum{{0}}, l4);
+    auto l5 = p.add_instruction(migraphx::op::gather{}, l0, l1);
+    auto r2 = p.add_instruction(migraphx::op::reduce_mean{{0}}, l5);
+    auto l6 = p.add_instruction(migraphx::op::gather{}, l0, l1);
+    auto r3 = p.add_instruction(migraphx::op::reduce_max{{0}}, l6);
+    p.add_return({r1, r2, r3});
+
+    auto prog = migraphx::parse_onnx("embedding_bag_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(embedding_bag_offset_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("embedding_bag_offset_test.onnx"); }));
 }
 
 TEST_CASE(erf_test)
@@ -1777,6 +1877,11 @@ TEST_CASE(unknown_test)
     auto prog = optimize_onnx("unknown_test.onnx");
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(unknown_aten_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("unknown_aten_test.onnx"); }));
 }
 
 TEST_CASE(unknown_test_throw)

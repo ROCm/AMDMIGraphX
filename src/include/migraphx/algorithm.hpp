@@ -12,7 +12,18 @@ void group_by(Iterator start, Iterator last, Output out, Predicate pred)
 {
     while(start != last)
     {
-        auto it = std::partition(start, last, [&](auto x) { return pred(x, *start); });
+        auto it = std::partition(start, last, [&](auto&& x) { return pred(x, *start); });
+        out(start, it);
+        start = it;
+    }
+}
+
+template <class Iterator, class Output, class Predicate>
+void group_unique(Iterator start, Iterator last, Output out, Predicate pred)
+{
+    while(start != last)
+    {
+        auto it = std::find_if(start, last, [&](auto&& x) { return not pred(*start, x); });
         out(start, it);
         start = it;
     }

@@ -75,21 +75,6 @@ inline tensor_descriptor make_tensor(const migraphx::shape& os, bool pack = fals
     return t;
 }
 
-inline std::vector<int> get_attributes(const std::vector<size_t>& op_attr, int kdims, int one_d_val)
-{
-    std::vector<int> attr{one_d_val}; // initialize with 1d value
-    if(kdims == 1)
-    {
-        attr.push_back(op_attr.front());
-    }
-    else
-    {
-        attr.resize(op_attr.size());
-        std::copy(op_attr.begin(), op_attr.end(), attr.begin());
-    }
-    return attr;
-}
-
 template <class T>
 inline convolution_descriptor make_conv(const T& op)
 {
@@ -98,10 +83,14 @@ inline convolution_descriptor make_conv(const T& op)
     if(op.group > 1)
         c_mode = miopenGroupConv;
 
-    size_t kdims              = op.kdims();
-    std::vector<int> padding  = get_attributes(op.padding, kdims, 0);
-    std::vector<int> stride   = get_attributes(op.stride, kdims, 1);
-    std::vector<int> dilation = get_attributes(op.dilation, kdims, 1);
+    int kdims              = op.kdims();
+    std::vector<int> padding(std::max(2, kdims), 0);
+    std::vector<int> stride(std::max(2, kdims), 1);
+    std::vector<int> dilation(std::max(2, kdims), 1);
+
+    std::copy_backward(op.padding.begin(), op.padding.end(), padding.end());
+    std::copy_backward(op.stride.begin(), op.stride.end(), stride.end());
+    std::copy_backward(op.dilation.begin(), op.dilation.end(), dilation.end());
 
     miopenInitConvolutionNdDescriptor(
         c.get(), padding.size(), padding.data(), stride.data(), dilation.data(), c_mode);

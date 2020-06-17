@@ -222,7 +222,7 @@ TEST_CASE(averagepool_sl_cip_test)
     auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
     std::vector<int64_t> pads = {0, 0, 1, 1, 0, 0, 0, 0};
     auto ins_pad              = p.add_instruction(migraphx::op::pad{pads}, input);
-    auto ret = p.add_instruction(
+    auto ret                  = p.add_instruction(
         migraphx::op::pooling{
             "average", {0, 0}, {1, 1}, {2, 2}, migraphx::op::padding_mode_t::same},
         ins_pad);

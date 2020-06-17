@@ -443,48 +443,6 @@ struct onnx_parser
         }
     }
 
-    template <class Op>
-    instruction_ref process_auto_pad_attribute(instruction_ref ins,
-                                               node_info info,
-                                               Op& op,
-                                               std::vector<std::size_t> k_lens,
-                                               std::vector<std::size_t> dilation,
-                                               const std::vector<std::size_t>& in_lens,
-                                               int count_include_pad = 0,
-                                               float value           = 0.0f)
-    {
-        size_t kdims = in_lens.size() - 2;
-        assert(k_lens.size() == kdims and dilation.size() == kdims);
-
-        if(!contains(info.attributes, "auto_pad"))
-        {
-            return ins;
-        }
-
-        auto auto_pad = info.attributes["auto_pad"].s();
-        if(auto_pad.find("SAME") != std::string::npos)
-        {
-            op.padding_mode    = op::padding_mode_t::same;
-            bool is_same_upper = (auto_pad.find("SAME_UPPER") != std::string::npos);
-            std::vector<int64_t> padding(2 * kdims);
-
-            for(size_t i = 0; i < padding.size() / 2; i++)
-            {
-                calculate_padding(i,
-                                  padding,
-                                  in_lens[i + 2],
-                                  op.stride[i],
-                                  dilation[i],
-                                  k_lens[i],
-                                  is_same_upper);
-            }
-
-            check_asym_padding(ins, padding, op, count_include_pad, value);
-        }
-
-        return ins;
-    }
-
     void calc_reflect_indices(std::vector<int>& indices, const int64_t num_dims)
     {
         int k         = 0;
@@ -591,6 +549,56 @@ struct onnx_parser
     }
 
     template <class Op>
+    void cal_auto_padding_size(node_info info,
+                               Op& op,
+                               std::vector<std::size_t> k_lens,
+                               std::vector<std::size_t> dilation,
+                               const std::vector<std::size_t>& in_lens,
+                               std::vector<int64_t>& paddings)
+    {
+        size_t kdims = in_lens.size() - 2;
+        assert(k_lens.size() == kdims and dilation.size() == kdims);
+
+        if(!contains(info.attributes, "auto_pad"))
+        {
+            return;
+        }
+
+        auto auto_pad = info.attributes["auto_pad"].s();
+        if(auto_pad.find("SAME") != std::string::npos)
+        {
+            op.padding_mode    = op::padding_mode_t::same;
+            bool is_same_upper = (auto_pad.find("SAME_UPPER") != std::string::npos);
+            paddings.resize(2 * kdims);
+
+            for(size_t i = 0; i < paddings.size() / 2; i++)
+            {
+                calculate_padding(i,
+                                  paddings,
+                                  in_lens[i + 2],
+                                  op.stride[i],
+                                  dilation[i],
+                                  k_lens[i],
+                                  is_same_upper);
+            }
+        }
+    }
+
+    void check_padding_mode(node_info info, const std::string& op_name)
+    {
+        // ensure pads availabe only when auto_pad is "NOT_SET"
+        if(contains(info.attributes, "pads") and contains(info.attributes, "auto_pad"))
+        {
+            auto s = info.attributes["auto_pad"].s();
+            if(to_upper(s) != "NOTSET")
+            {
+                MIGRAPHX_THROW(
+                    "PARSE_" + op_name + ": auto_pad and padding cannot be specified simultaneously");
+            }
+        }
+    }
+
+    template <class Op>
     instruction_ref
     parse_conv(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
@@ -601,23 +609,9 @@ struct onnx_parser
         assert(in_lens.size() > 2);
         auto kdims = in_lens.size() - 2;
 
-        std::vector<int64_t> padding;
-        if(contains(info.attributes, "pads"))
-        {
-            if(contains(info.attributes, "auto_pad"))
-            {
-                auto s = info.attributes["auto_pad"].s();
-                if(contains(info.attributes, "pads") and to_upper(s) != "NOTSET")
-                {
-                    MIGRAPHX_THROW(
-                        "PARSE_CONV: auto_pad and padding cannot be specified simultaneously");
-                }
-            }
-            op.padding.clear();
-            copy(info.attributes["pads"].ints(), std::back_inserter(padding));
-            check_attr_sizes(kdims, padding.size() / 2, "PARSE_CONV: inconsistent paddings");
-            check_asym_padding(l0, padding, op);
-        }
+        // ensure pads availabe only when auto_pad is "NOT_SET"
+        check_padding_mode(info, "CONV");
+
         if(contains(info.attributes, "strides"))
         {
             op.stride.clear();
@@ -630,13 +624,24 @@ struct onnx_parser
             copy(info.attributes["dilations"].ints(), std::back_inserter(op.dilation));
             check_attr_sizes(kdims, op.dilation.size(), "PARSE_CONV: inconsistent dilations");
         }
+
+        std::vector<int64_t> padding;
+        if(contains(info.attributes, "pads"))
+        {
+            op.padding.clear();
+            copy(info.attributes["pads"].ints(), std::back_inserter(padding));
+            check_attr_sizes(kdims, padding.size() / 2, "PARSE_CONV: inconsistent paddings");
+        }
+        
         if(contains(info.attributes, "auto_pad"))
         {
             auto weight_lens = weights->get_shape().lens();
 
             std::vector<std::size_t> k_lens(weight_lens.begin() + 2, weight_lens.end());
-            l0 = process_auto_pad_attribute(l0, info, op, k_lens, op.dilation, in_lens);
+            cal_auto_padding_size(info, op, k_lens, op.dilation, in_lens, padding);
         }
+        check_asym_padding(l0, padding, op);
+
         if(contains(info.attributes, "group"))
         {
             op.group = parse_value(info.attributes.at("group")).at<int>();
@@ -655,16 +660,12 @@ struct onnx_parser
         auto l0 = args[0];
         std::vector<std::int64_t> padding;
         bool asymm_padding = false;
+
+        // ensure pads availabe only when auto_pad is "NOT_SET"
+        check_padding_mode(info, "CONV_TRANSPOSE");
+
         if(contains(info.attributes, "pads"))
         {
-            if(contains(info.attributes, "auto_pad"))
-            {
-                auto s = info.attributes["auto_pad"].s();
-                if(contains(info.attributes, "pads") and to_upper(s) != "NOTSET")
-                {
-                    MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
-                }
-            }
             copy(info.attributes["pads"].ints(), std::back_inserter(padding));
             if(padding.size() != 4)
             {
@@ -778,7 +779,7 @@ struct onnx_parser
                            int count_include_pad,
                            std::vector<int64_t>& s_start)
     {
-        // maxpooling or convolution, no need to handle that.
+        // maxpooling or count_include_pad is 1, no change is required.
         if(op.mode == "max" or count_include_pad == 1)
         {
             return;
@@ -812,42 +813,6 @@ struct onnx_parser
         }
     }
 
-    template <class Op>
-    void cal_auto_padding_size(node_info info,
-                               Op& op,
-                               std::vector<std::size_t> k_lens,
-                               std::vector<std::size_t> dilation,
-                               const std::vector<std::size_t>& in_lens,
-                               std::vector<int64_t>& paddings)
-    {
-        size_t kdims = in_lens.size() - 2;
-        assert(k_lens.size() == kdims and dilation.size() == kdims);
-
-        if(!contains(info.attributes, "auto_pad"))
-        {
-            return;
-        }
-
-        auto auto_pad = info.attributes["auto_pad"].s();
-        if(auto_pad.find("SAME") != std::string::npos)
-        {
-            op.padding_mode    = op::padding_mode_t::same;
-            bool is_same_upper = (auto_pad.find("SAME_UPPER") != std::string::npos);
-            paddings.resize(2 * kdims);
-
-            for(size_t i = 0; i < paddings.size() / 2; i++)
-            {
-                calculate_padding(i,
-                                  paddings,
-                                  in_lens[i + 2],
-                                  op.stride[i],
-                                  dilation[i],
-                                  k_lens[i],
-                                  is_same_upper);
-            }
-        }
-    }
-
     instruction_ref
     parse_pooling(const std::string& name, node_info info, std::vector<instruction_ref> args)
     {
@@ -878,7 +843,7 @@ struct onnx_parser
         int count_include_pad = 0;
         if(contains(info.attributes, "count_include_pad"))
         {
-            count_include_pad = parse_value(info.attributes.at("count_include_pad")).at<int>();
+            count_include_pad = info.attributes.at("count_include_pad").i();
         }
 
         if(contains(info.attributes, "strides"))
@@ -895,15 +860,7 @@ struct onnx_parser
         }
 
         // ensure pads availabe only when auto_pad is "NOT_SET"
-        if(contains(info.attributes, "pads") and contains(info.attributes, "auto_pad"))
-        {
-            auto s = info.attributes["auto_pad"].s();
-            if(to_upper(s) != "NOTSET")
-            {
-                MIGRAPHX_THROW(
-                    "PARSE_POOLING: auto_pad and padding cannot be specified simultaneously");
-            }
-        }
+        check_padding_mode(info, "POOLING");
 
         std::vector<int64_t> paddings;
         float pad_val = ((op.mode == "max") ? std::numeric_limits<float>::lowest() : 0.0f);

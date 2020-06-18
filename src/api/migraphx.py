@@ -236,6 +236,7 @@ def calibration_data(h):
         api.params(elem='std::unordered_map<std::string, migraphx::argument>'),
         fname='push_back')
 
+
 @auto_handle
 def quantize_options(h):
     h.constructor('create')
@@ -250,10 +251,9 @@ def quantize_options(h):
         invoke='migraphx::add_calibration_data($@)',
     )
 
-api.add_function(
-    'migraphx_quantize_int8',
-    api.params(
-        prog='migraphx::program&',
-        target='migraphx::target',
-        options='migraphx::quantize_options'),
-    fname='migraphx::quantize_int8')
+
+api.add_function('migraphx_quantize_int8',
+                 api.params(prog='migraphx::program&',
+                            target='migraphx::target',
+                            options='migraphx::quantize_options'),
+                 fname='migraphx::quantize_int8')

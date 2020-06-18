@@ -122,23 +122,17 @@ void quantize_fp16_wrap(program& prog, std::vector<std::string>& names)
 struct quantize_options
 {
     std::vector<program::parameter_map> calibration = {};
-    std::vector<std::string> op_names = {};
+    std::vector<std::string> op_names               = {};
 };
 
-void add_op_name(quantize_options& options, const char *name)
-{
-    options.op_names.push_back(name);
-}
+void add_op_name(quantize_options& options, const char* name) { options.op_names.push_back(name); }
 
 void add_calibration_data(quantize_options& options, program::parameter_map& data)
 {
     options.calibration.push_back(data);
 }
 
-void quantize_int8(
-    program& prog,
-    const target& t,
-    quantize_options& options)
+void quantize_int8(program& prog, const target& t, quantize_options& options)
 {
     if(options.op_names.empty())
     {

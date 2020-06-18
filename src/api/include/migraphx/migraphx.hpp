@@ -638,13 +638,14 @@ struct quantize_options : MIGRAPHX_HANDLE_BASE(quantize_options)
 
     void add_calibration_data(const program_parameters& pp)
     {
-        call(&migraphx_quantize_options_add_calibration_data, this->get_handle_ptr(), pp.get_handle_ptr());
+        call(&migraphx_quantize_options_add_calibration_data,
+             this->get_handle_ptr(),
+             pp.get_handle_ptr());
     }
 };
 
-inline void quantize_int8(const program& prog,
-                          const target& ptarget,
-                          const quantize_options& options)
+inline void
+quantize_int8(const program& prog, const target& ptarget, const quantize_options& options)
 {
     call(&migraphx_quantize_int8,
          prog.get_handle_ptr(),

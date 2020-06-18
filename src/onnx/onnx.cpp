@@ -732,7 +732,11 @@ struct onnx_parser
             copy(padding.begin(), pad_kdim_start, std::back_inserter(starts));
 
             std::vector<int64_t> ends{dims[0], dims[1]};
-            std::transform(curr_shape.begin(), curr_shape.end(), pad_kdim_start, std::back_inserter(ends), [](auto curr_dim, auto pad_dim) { return curr_dim - pad_dim;});
+            std::transform(curr_shape.begin(),
+                           curr_shape.end(),
+                           pad_kdim_start,
+                           std::back_inserter(ends),
+                           [](auto curr_dim, auto pad_dim) { return curr_dim - pad_dim; });
 
             l1 = prog.add_instruction(op::slice{axes, starts, ends}, l1);
         }
@@ -761,7 +765,11 @@ struct onnx_parser
             if(curr_shape != output_shape)
             {
                 std::vector<int64_t> target_padding((dims.size() - 1) * 2, 0);
-                std::transform(output_shape.begin(), output_shape.end(), curr_shape.begin(), std::back_inserter(target_padding), [](auto out_dim, auto curr_dim) { return out_dim - curr_dim;});
+                std::transform(output_shape.begin(),
+                               output_shape.end(),
+                               curr_shape.begin(),
+                               std::back_inserter(target_padding),
+                               [](auto out_dim, auto curr_dim) { return out_dim - curr_dim; });
                 l1 = prog.add_instruction(op::pad{target_padding}, l1);
             }
         }

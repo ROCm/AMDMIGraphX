@@ -728,13 +728,11 @@ struct onnx_parser
             std::iota(axes.begin(), axes.end(), 0);
 
             std::vector<int64_t> starts{0, 0};
-            copy(padding.begin(), padding.begin() + 2, std::back_inserter(starts));
+            auto pad_kdim_start = padding.begin() + 2;
+            copy(padding.begin(), pad_kdim_start, std::back_inserter(starts));
 
             std::vector<int64_t> ends{dims[0], dims[1]};
-            for(size_t i = 0; i < kdims; i++)
-            {
-                ends.push_back(curr_shape[i] - padding[i + 2]);
-            }
+            std::transform(curr_shape.begin(), curr_shape.end(), pad_kdim_start, std::back_inserter(ends), [](auto curr_dim, auto pad_dim) { return curr_dim - pad_dim;});
 
             l1 = prog.add_instruction(op::slice{axes, starts, ends}, l1);
         }
@@ -763,10 +761,7 @@ struct onnx_parser
             if(curr_shape != output_shape)
             {
                 std::vector<int64_t> target_padding((dims.size() - 1) * 2, 0);
-                for(size_t i = 0; i < kdims; i++)
-                {
-                    target_padding.push_back(output_shape[i] - curr_shape[i]);
-                }
+                std::transform(output_shape.begin(), output_shape.end(), curr_shape.begin(), std::back_inserter(target_padding), [](auto out_dim, auto curr_dim) { return out_dim - curr_dim;});
                 l1 = prog.add_instruction(op::pad{target_padding}, l1);
             }
         }

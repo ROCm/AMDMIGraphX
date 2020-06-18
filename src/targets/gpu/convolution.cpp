@@ -14,33 +14,27 @@ shape miopen_convolution::compute_shape(const std::vector<shape>& inputs) const
     return op.compute_shape(conv_inputs);
 }
 
-inline void recompute_shape_to_2d(shape& input)
+inline shape recompute_shape_to_2d(const shape& input)
 {
-    auto dims = input.lens();
+    shape new_shape{input};
+    auto dims = new_shape.lens();
 
     if(dims.size() == 3)
     {
         std::vector<size_t> new_dims = dims;
         new_dims.insert(new_dims.begin() + 2, 1);
-        input = shape{input.type(), new_dims};
+        new_shape = shape{input.type(), new_dims};
     }
+    return new_shape;
 }
 
 argument miopen_convolution::compute(context& ctx,
                                      const shape& output_shape,
                                      const std::vector<argument>& args) const
 {
-    shape x_shape = args[0].get_shape();
-    shape w_shape = args[1].get_shape();
-    shape y_shape = output_shape;
-
-    recompute_shape_to_2d(x_shape);
-    recompute_shape_to_2d(w_shape);
-    recompute_shape_to_2d(y_shape);
-
-    auto x_desc = make_tensor(x_shape);
-    auto w_desc = make_tensor(w_shape);
-    auto y_desc = make_tensor(y_shape);
+    auto x_desc = make_tensor(recompute_shape_to_2d(args[0].get_shape()));
+    auto w_desc = make_tensor(recompute_shape_to_2d(args[1].get_shape()));
+    auto y_desc = make_tensor(recompute_shape_to_2d(output_shape));
 
     float alpha = 1;
     float beta  = 0;
@@ -68,17 +62,9 @@ shape miopen_convolution::compile(context& ctx,
 {
     shape workspace_shape{};
 
-    shape x_shape = inputs[0];
-    shape w_shape = inputs[1];
-    shape y_shape = output_shape;
-
-    recompute_shape_to_2d(x_shape);
-    recompute_shape_to_2d(w_shape);
-    recompute_shape_to_2d(y_shape);
-
-    auto x_desc = make_tensor(x_shape);
-    auto w_desc = make_tensor(w_shape);
-    auto y_desc = make_tensor(y_shape);
+    auto x_desc = make_tensor(recompute_shape_to_2d(inputs[0]));
+    auto w_desc = make_tensor(recompute_shape_to_2d(inputs[1]));
+    auto y_desc = make_tensor(recompute_shape_to_2d(output_shape));
 
     std::size_t workspace_size = 0;
     miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),

@@ -132,7 +132,7 @@ void add_calibration_data(quantize_options& options, program::parameter_map& dat
     options.calibration.push_back(data);
 }
 
-void quantize_int8(program& prog, const target& t, quantize_options& options)
+void quantize_int8_wrap(program& prog, const target& t, quantize_options& options)
 {
     if(options.op_names.empty())
     {

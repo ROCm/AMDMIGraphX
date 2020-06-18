@@ -221,22 +221,6 @@ api.add_function('migraphx_quantize_fp16_default',
                  fname='migraphx::quantize_fp16')
 
 
-@api.handle('migraphx_calibration_data',
-            'std::vector<std::unordered_map<std::string, migraphx::argument>>')
-def calibration_data(h):
-    h.constructor('create')
-    h.method('size', returns='size_t')
-    h.method('get',
-             api.params(idx='size_t'),
-             fname='at',
-             cpp_name='operator[]',
-             returns='std::unordered_map<std::string, migraphx::argument>&'),
-    h.method(
-        'add_element',
-        api.params(elem='std::unordered_map<std::string, migraphx::argument>'),
-        fname='push_back')
-
-
 @auto_handle
 def quantize_options(h):
     h.constructor('create')
@@ -256,4 +240,4 @@ api.add_function('migraphx_quantize_int8',
                  api.params(prog='migraphx::program&',
                             target='migraphx::target',
                             options='migraphx::quantize_options'),
-                 fname='migraphx::quantize_int8')
+                 fname='migraphx::quantize_int8_wrap')

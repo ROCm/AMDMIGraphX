@@ -36,12 +36,6 @@ capture_arguments(program& prog, T&& t, const std::vector<std::string>& ins_name
     return capture_arguments_impl(prog, t, ins_names);
 }
 
-// struct quantize_options
-// {
-//     std::vector<program::parameter_map> calibration = {};
-//     std::vector<std::string> op_names = {};
-// };
-
 void quantize_int8(program& prog,
                    const target& t,
                    const std::vector<program::parameter_map>& calibration,

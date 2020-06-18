@@ -132,7 +132,7 @@ void add_calibration_data(quantize_options& options, program::parameter_map& dat
     options.calibration.push_back(data);
 }
 
-void quantize_int8(program& prog, const target& t, quantize_options& options)
+void quantize_int8_wrap(program& prog, const target& t, quantize_options& options)
 {
     if(options.op_names.empty())
     {
@@ -280,16 +280,6 @@ struct migraphx_quantize_op_names
     {
     }
     std::vector<std::string> object;
-};
-
-extern "C" struct migraphx_calibration_data;
-struct migraphx_calibration_data
-{
-    template <class... Ts>
-    migraphx_calibration_data(Ts&&... xs) : object(std::forward<Ts>(xs)...)
-    {
-    }
-    std::vector<std::unordered_map<std::string, migraphx::argument>> object;
 };
 
 extern "C" struct migraphx_quantize_options;
@@ -787,57 +777,6 @@ extern "C" migraphx_status migraphx_quantize_fp16_default(migraphx_program_t pro
 }
 
 extern "C" migraphx_status
-migraphx_calibration_data_destroy(migraphx_calibration_data_t calibration_data)
-{
-    return migraphx::try_([&] { destroy((calibration_data)); });
-}
-
-extern "C" migraphx_status
-migraphx_calibration_data_create(migraphx_calibration_data_t* calibration_data)
-{
-    return migraphx::try_([&] {
-        *calibration_data = object_cast<migraphx_calibration_data_t>(
-            allocate<std::vector<std::unordered_map<std::string, migraphx::argument>>>());
-    });
-}
-
-extern "C" migraphx_status
-migraphx_calibration_data_size(size_t* out, migraphx_calibration_data_t calibration_data)
-{
-    return migraphx::try_([&] {
-        if(calibration_data == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param,
-                           "Bad parameter calibration_data: Null pointer");
-        *out = (calibration_data->object).size();
-    });
-}
-
-extern "C" migraphx_status migraphx_calibration_data_get(
-    migraphx_program_parameters_t* out, migraphx_calibration_data_t calibration_data, size_t idx)
-{
-    return migraphx::try_([&] {
-        if(calibration_data == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param,
-                           "Bad parameter calibration_data: Null pointer");
-        *out = object_cast<migraphx_program_parameters_t>(&((calibration_data->object).at((idx))));
-    });
-}
-
-extern "C" migraphx_status
-migraphx_calibration_data_add_element(migraphx_calibration_data_t calibration_data,
-                                      migraphx_program_parameters_t elem)
-{
-    return migraphx::try_([&] {
-        if(calibration_data == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param,
-                           "Bad parameter calibration_data: Null pointer");
-        if(elem == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter elem: Null pointer");
-        (calibration_data->object).push_back((elem->object));
-    });
-}
-
-extern "C" migraphx_status
 migraphx_quantize_options_destroy(migraphx_quantize_options_t quantize_options)
 {
     return migraphx::try_([&] { destroy((quantize_options)); });
@@ -889,6 +828,6 @@ extern "C" migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter target: Null pointer");
         if(options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
-        migraphx::quantize_int8((prog->object), (target->object), (options->object));
+        migraphx::quantize_int8_wrap((prog->object), (target->object), (options->object));
     });
 }

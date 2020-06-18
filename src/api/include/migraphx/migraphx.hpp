@@ -594,35 +594,6 @@ inline void quantize_fp16(const program& prog)
     call(&migraphx_quantize_fp16_default, prog.get_handle_ptr());
 }
 
-// int8 quantization apis
-struct calibration_data : MIGRAPHX_HANDLE_BASE(calibration_data)
-{
-    calibration_data() { this->make_handle(&migraphx_calibration_data_create); }
-
-    calibration_data(migraphx_calibration_data* p, own) { this->set_handle(p, own{}); }
-
-    calibration_data(migraphx_calibration_data* p, borrow) { this->set_handle(p, borrow{}); }
-
-    size_t size() const
-    {
-        size_t pout;
-        call(&migraphx_calibration_data_size, &pout, this->get_handle_ptr());
-        return pout;
-    }
-
-    void add(const program_parameters& pp)
-    {
-        call(&migraphx_calibration_data_add_element, this->get_handle_ptr(), pp.get_handle_ptr());
-    }
-
-    program_parameters operator[](size_t pidx) const
-    {
-        migraphx_program_parameters_t pout;
-        call(&migraphx_calibration_data_get, &pout, this->get_handle_ptr(), pidx);
-        return program_parameters(pout);
-    }
-};
-
 struct quantize_options : MIGRAPHX_HANDLE_BASE(quantize_options)
 {
     quantize_options() { this->make_handle(&migraphx_quantize_options_create); }

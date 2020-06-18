@@ -70,11 +70,14 @@ typedef const struct migraphx_program* const_migraphx_program_t;
 typedef struct migraphx_onnx_options* migraphx_onnx_options_t;
 typedef const struct migraphx_onnx_options* const_migraphx_onnx_options_t;
 
-typedef struct migraphx_op_names* migraphx_op_names_t;
-typedef const struct migraphx_op_names* const_migraphx_op_names_t;
+typedef struct migraphx_quantize_op_names* migraphx_quantize_op_names_t;
+typedef const struct migraphx_quantize_op_names* const_migraphx_quantize_op_names_t;
 
 typedef struct migraphx_calibration_data* migraphx_calibration_data_t;
 typedef const struct migraphx_calibration_data* const_migraphx_calibration_data_t;
+
+typedef struct migraphx_quantize_options* migraphx_quantize_options_t;
+typedef const struct migraphx_quantize_options* const_migraphx_quantize_options_t;
 
 migraphx_status migraphx_shape_destroy(migraphx_shape_t shape);
 
@@ -203,17 +206,14 @@ migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
                                            size_t size,
                                            migraphx_onnx_options_t options);
 
-migraphx_status migraphx_op_names_destroy(migraphx_op_names_t op_names);
+migraphx_status migraphx_quantize_op_names_destroy(migraphx_quantize_op_names_t quantize_op_names);
 
-migraphx_status migraphx_op_names_create(migraphx_op_names_t* op_names);
+migraphx_status migraphx_quantize_op_names_create(migraphx_quantize_op_names_t* quantize_op_names);
 
-migraphx_status migraphx_op_names_add(migraphx_op_names_t op_names, const char* name);
+migraphx_status migraphx_quantize_op_names_add(migraphx_quantize_op_names_t quantize_op_names,
+                                               const char* name);
 
-migraphx_status migraphx_op_names_size(size_t* out, migraphx_op_names_t op_names);
-
-migraphx_status migraphx_op_names_get(const char** out, migraphx_op_names_t op_names, size_t idx);
-
-migraphx_status migraphx_quantize_fp16(migraphx_program_t prog, migraphx_op_names_t name);
+migraphx_status migraphx_quantize_fp16(migraphx_program_t prog, migraphx_quantize_op_names_t name);
 
 migraphx_status migraphx_quantize_fp16_default(migraphx_program_t prog);
 
@@ -231,14 +231,20 @@ migraphx_status migraphx_calibration_data_get(migraphx_program_parameters_t* out
 migraphx_status migraphx_calibration_data_add_element(migraphx_calibration_data_t calibration_data,
                                                       migraphx_program_parameters_t elem);
 
+migraphx_status migraphx_quantize_options_destroy(migraphx_quantize_options_t quantize_options);
+
+migraphx_status migraphx_quantize_options_create(migraphx_quantize_options_t* quantize_options);
+
+migraphx_status migraphx_quantize_options_add_op_name(migraphx_quantize_options_t quantize_options,
+                                                      const char* name);
+
+migraphx_status
+migraphx_quantize_options_add_calibration_data(migraphx_quantize_options_t quantize_options,
+                                               migraphx_program_parameters_t data);
+
 migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
                                        migraphx_target_t target,
-                                       migraphx_calibration_data_t data,
-                                       migraphx_op_names_t name);
-
-migraphx_status migraphx_quantize_int8_default(migraphx_program_t prog,
-                                               migraphx_target_t target,
-                                               migraphx_calibration_data_t data);
+                                       migraphx_quantize_options_t options);
 
 #ifdef __cplusplus
 }

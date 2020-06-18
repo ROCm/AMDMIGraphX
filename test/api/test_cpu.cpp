@@ -29,14 +29,11 @@ TEST_CASE(quantize_fp16)
     const auto& p3 = p1;
     migraphx::quantize_fp16(p1);
 
-    migraphx::op_names names;
+    migraphx::quantize_op_names names;
     migraphx::quantize_fp16(p2, names);
-    CHECK(bool{names.size() == 1});
     CHECK(bool{p1 == p2});
 
     names.add("dot");
-    auto name = names[0];
-    names.add(name);
     migraphx::quantize_fp16(p3, names);
     CHECK(bool{p1 == p3});
 }
@@ -45,10 +42,9 @@ TEST_CASE(quantize_int8)
 {
     auto p1        = migraphx::parse_onnx("gemm_ex_test.onnx");
     const auto& p2 = p1;
-    const auto& p3 = p1;
     auto t         = migraphx::target("cpu");
-    migraphx::calibration_data cali_data;
-    CHECK(bool{cali_data.size() == 0});
+    migraphx::quantize_options options;
+    migraphx::quantize_int8(p1, t, options);
 
     migraphx::program_parameters pp;
     auto param_shapes = p1.get_parameter_shapes();
@@ -56,20 +52,11 @@ TEST_CASE(quantize_int8)
     {
         pp.add(name, migraphx::argument::generate(param_shapes[name]));
     }
-    cali_data.add(pp);
-    CHECK(bool{cali_data.size() == 1});
+    options.add_calibration_data(pp);
+    options.add_op_name("dot");
 
-    migraphx::quantize_int8(p1, t, cali_data);
-    auto pp1 = cali_data[0];
-    cali_data.add(pp1);
-
-    migraphx::op_names names;
-    migraphx::quantize_int8(p2, t, cali_data, names);
+    migraphx::quantize_int8(p2, t, options);
     CHECK(bool{p1 == p2});
-
-    names.add("dot");
-    migraphx::quantize_int8(p1, t, cali_data, names);
-    CHECK(bool{p1 == p3});
 }
 
 TEST_CASE(load_and_run_user_input_shape)

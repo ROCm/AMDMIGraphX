@@ -55,9 +55,9 @@ struct deconvolution
         for(size_t i = 0; i < kdims; i++)
         {
             output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
-                        1,
-                        stride[i] * (input.lens()[i + 2] - 1) +
-                            ((weights.lens()[i + 2] - 1) * dilation[i] + 1) - 2 * padding[i])));
+                1,
+                stride[i] * (input.lens()[i + 2] - 1) +
+                    ((weights.lens()[i + 2] - 1) * dilation[i] + 1) - 2 * padding[i])));
         }
         return {t, output_lens};
         // return {t,

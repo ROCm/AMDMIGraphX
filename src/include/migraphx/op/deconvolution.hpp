@@ -60,19 +60,6 @@ struct deconvolution
                     ((weights.lens()[i + 2] - 1) * dilation[i] + 1) - 2 * padding[i])));
         }
         return {t, output_lens};
-        // return {t,
-        //         {
-        //             input.lens()[0],
-        //             weights.lens()[1],
-        //             std::size_t(std::max<std::ptrdiff_t>(
-        //                 1,
-        //                 stride[0] * (input.lens()[2] - 1) +
-        //                     ((weights.lens()[2] - 1) * dilation[0] + 1) - 2 * padding[0])),
-        //             std::size_t(std::max<std::ptrdiff_t>(
-        //                 1,
-        //                 stride[1] * (input.lens()[3] - 1) +
-        //                     ((weights.lens()[3] - 1) * dilation[1] + 1) - 2 * padding[1])),
-        //         }};
     }
 };
 

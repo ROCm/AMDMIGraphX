@@ -880,7 +880,8 @@ def deconv_input_pads_asymm_1d_test():
                                  inputs=['x', 'w'],
                                  outputs=['y'],
                                  strides=[2],
-                                 pads=[0, 1])
+                                 pads=[0, 1],
+                                 dilations=[1])
 
     return ([node], [x, w], [y])
 

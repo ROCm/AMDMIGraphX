@@ -719,6 +719,8 @@ struct onnx_parser
             op.group = parse_value(info.attributes.at("group")).at<int>();
         }
 
+        recalc_conv_attributes(op, kdims);
+
         auto l1                   = prog.add_instruction(op, l0, args[1]);
         std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
         std::vector<int64_t> curr_shape(dims.begin() + 2, dims.end());
@@ -728,7 +730,7 @@ struct onnx_parser
             std::iota(axes.begin(), axes.end(), 0);
 
             std::vector<int64_t> starts{0, 0};
-            auto pad_kdim_start = padding.begin() + 2;
+            auto pad_kdim_start = padding.begin() + kdims;
             copy(padding.begin(), pad_kdim_start, std::back_inserter(starts));
 
             std::vector<int64_t> ends{dims[0], dims[1]};
@@ -741,11 +743,9 @@ struct onnx_parser
             l1 = prog.add_instruction(op::slice{axes, starts, ends}, l1);
         }
 
-        recalc_conv_attributes(op, kdims);
-
         if(contains(info.attributes, "output_padding"))
         {
-            size_t non_kdims = (dims.size() - 1) * 2;
+            size_t non_kdims = dims.size() * 2 - kdims;
             std::vector<int64_t> output_padding(non_kdims, 0);
             copy(info.attributes["output_padding"].ints(), std::back_inserter(output_padding));
             check_attr_sizes(kdims,
@@ -759,12 +759,12 @@ struct onnx_parser
             std::vector<int64_t> output_shape;
             copy(info.attributes["output_shape"].ints(), std::back_inserter(output_shape));
             check_attr_sizes(
-                kdims, op.dilation.size(), "PARSE_CONV_TRANSPOSE: inconsistent output shape");
+                kdims, output_shape.size(), "PARSE_CONV_TRANSPOSE: inconsistent output shape");
             dims = to_int64_vector(l1->get_shape().lens());
             copy(dims.begin() + 2, dims.end(), curr_shape.begin());
             if(curr_shape != output_shape)
             {
-                std::vector<int64_t> target_padding((dims.size() - 1) * 2, 0);
+                std::vector<int64_t> target_padding(dims.size() * 2 - kdims, 0);
                 std::transform(output_shape.begin(),
                                output_shape.end(),
                                curr_shape.begin(),

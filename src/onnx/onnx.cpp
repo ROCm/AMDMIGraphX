@@ -835,7 +835,7 @@ struct onnx_parser
         return prog.add_instruction(op, l0);
     }
 
-    instruction_ref parse_neg(const std::string&, node_info info, std::vector<instruction_ref> args)
+    instruction_ref parse_neg(const std::string&, node_info, std::vector<instruction_ref> args)
     {
         auto s = args[0]->get_shape();
         std::vector<float> zero(s.elements(), 0.0f);

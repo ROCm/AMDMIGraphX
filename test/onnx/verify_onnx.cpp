@@ -46,7 +46,7 @@ TEST_CASE(neg_test)
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     std::vector<float> data = {1.0f, 1.3f, -1.2f, 0.0f, -100.f, 200.f};
     migraphx::program::parameter_map pp;
-    pp["0"] = migraphx::argument(s, data.data());
+    pp["0"]     = migraphx::argument(s, data.data());
     auto result = p.eval({pp}).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });

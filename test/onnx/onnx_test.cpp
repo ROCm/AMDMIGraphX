@@ -1224,7 +1224,7 @@ TEST_CASE(neg_test)
     auto l0 = p.add_parameter("0", s);
     std::vector<float> zero_data(s.elements(), 0.0f);
     auto zero = p.add_literal(migraphx::literal(s, zero_data));
-    auto ret = p.add_instruction(migraphx::op::sub{}, zero, l0);
+    auto ret  = p.add_instruction(migraphx::op::sub{}, zero, l0);
     p.add_return({ret});
 
     auto prog = migraphx::parse_onnx("neg_test.onnx");

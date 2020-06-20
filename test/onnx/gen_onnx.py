@@ -1594,9 +1594,7 @@ def neg_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 3])
 
-    node = onnx.helper.make_node('Neg',
-                                 inputs=['0'],
-                                 outputs=['1'])
+    node = onnx.helper.make_node('Neg', inputs=['0'], outputs=['1'])
 
     return ([node], [x], [y])
 

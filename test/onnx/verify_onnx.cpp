@@ -39,4 +39,20 @@ TEST_CASE(instance_norm_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+TEST_CASE(neg_test)
+{
+    migraphx::program p = migraphx::parse_onnx("neg_test.onnx");
+    p.compile(migraphx::cpu::target{});
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> data = {1.0f, 1.3f, -1.2f, 0.0f, -100.f, 200.f};
+    migraphx::program::parameter_map pp;
+    pp["0"] = migraphx::argument(s, data.data());
+    auto result = p.eval({pp}).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {-1.0f, -1.3f, 1.2f, 0.0f, 100.f, -200.f};
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -55,8 +55,8 @@ void eliminate_pad::update_op(T,
 }
 
 void eliminate_pad::update_pooling(const instruction_ref& input,
-                              const instruction_ref& ins,
-                              program& p) const
+                                   const instruction_ref& ins,
+                                   program& p) const
 {
     auto pad_op = any_cast<op::pad>(input->get_operator());
     if(!pad_op.symmetric())
@@ -67,8 +67,8 @@ void eliminate_pad::update_pooling(const instruction_ref& input,
 
     std::vector<size_t> new_pads(kdims_it, kdims_it + kdims);
 
-    auto op       = any_cast<op::pooling>(ins->get_operator());
-    if (op.mode == "average")
+    auto op = any_cast<op::pooling>(ins->get_operator());
+    if(op.mode == "average")
     {
         return;
     }

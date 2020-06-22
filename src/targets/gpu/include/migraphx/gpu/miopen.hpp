@@ -104,7 +104,7 @@ inline convolution_descriptor make_deconv(const T& op)
 {
     auto c = make_obj<convolution_descriptor>(&miopenCreateConvolutionDescriptor);
     miopenConvolutionMode_t c_mode = miopenTranspose;
-    int kdims = op.kdims();
+    int kdims                      = op.kdims();
     std::vector<int> padding(std::max(2, kdims), 0);
     std::vector<int> stride(std::max(2, kdims), 1);
     std::vector<int> dilation(std::max(2, kdims), 1);

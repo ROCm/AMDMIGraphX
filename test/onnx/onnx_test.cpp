@@ -1222,7 +1222,7 @@ TEST_CASE(neg_test)
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     auto input = p.add_parameter("0", s);
-    auto ret  = p.add_instruction(migraphx::op::neg{}, input);
+    auto ret   = p.add_instruction(migraphx::op::neg{}, input);
     p.add_return({ret});
 
     auto prog = migraphx::parse_onnx("neg_test.onnx");

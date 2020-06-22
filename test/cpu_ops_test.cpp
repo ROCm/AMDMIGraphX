@@ -1678,8 +1678,8 @@ TEST_CASE(neg_test)
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     std::vector<float> data = {1.0f, 1.3f, -1.2f, 0.0f, -100.f, 200.f};
-    auto input = p.add_literal(migraphx::literal(s, data));
-    auto ret = p.add_instruction(migraphx::op::neg{}, input);
+    auto input              = p.add_literal(migraphx::literal(s, data));
+    auto ret                = p.add_instruction(migraphx::op::neg{}, input);
     p.add_return({ret});
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();

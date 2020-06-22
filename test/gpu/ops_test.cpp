@@ -2551,4 +2551,17 @@ struct test_recip : verify_program<test_recip>
     }
 };
 
+struct test_neg : verify_program<test_neg>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+
+        migraphx::shape s{migraphx::shape::double_type, {2, 3, 4, 6}};
+        auto input = p.add_parameter("x", s);
+        p.add_instruction(migraphx::op::neg{}, input);
+        return p;
+    };
+};
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

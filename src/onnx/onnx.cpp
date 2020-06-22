@@ -61,9 +61,10 @@ struct onnx_parser
         add_generic_op("Erf", op::erf{});
         add_generic_op("Exp", op::exp{});
         add_generic_op("Dropout", op::identity{});
-        add_generic_op("Log", op::log{});
         add_generic_op("Floor", op::floor{});
         add_generic_op("Identity", op::identity{});
+        add_generic_op("Log", op::log{});
+        add_generic_op("Neg", op::neg{});
         add_generic_op("Reciprocal", op::recip{});
         add_generic_op("Relu", op::relu{});
         add_generic_op("Round", op::round{});
@@ -117,7 +118,6 @@ struct onnx_parser
         add_mem_op("MatMul", &onnx_parser::parse_matmul<op::dot>);
         add_mem_op("MatMulInteger", &onnx_parser::parse_matmul<op::quant_dot>);
         add_mem_op("MaxPool", &onnx_parser::parse_pooling);
-        add_mem_op("Neg", &onnx_parser::parse_neg);
         add_mem_op("OneHot", &onnx_parser::parse_onehot);
         add_mem_op("Pad", &onnx_parser::parse_pad);
         add_mem_op("Range", &onnx_parser::parse_range);
@@ -833,14 +833,6 @@ struct onnx_parser
         }
 
         return prog.add_instruction(op, l0);
-    }
-
-    instruction_ref parse_neg(const std::string&, node_info, std::vector<instruction_ref> args)
-    {
-        auto s = args[0]->get_shape();
-        std::vector<float> zero(s.elements(), 0.0f);
-        auto l_zero = prog.add_literal(literal(s, zero));
-        return prog.add_instruction(op::sub{}, l_zero, args[0]);
     }
 
     instruction_ref

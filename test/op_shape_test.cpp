@@ -118,6 +118,7 @@ TEST_CASE(quant_convolution_shape)
     migraphx::shape weights{migraphx::shape::int8_type, {4, 3, 3, 3}};
     expect_shape(output, migraphx::op::quant_convolution{}, input, weights);
     throws_shape(migraphx::op::quant_convolution{}, input);
+    throws_shape(migraphx::op::quant_convolution{{0}, {1, 1}, {1, 1}}, input, weights);
 
     migraphx::shape input2{migraphx::shape::int32_type, {3, 3}};
     migraphx::shape weights2{migraphx::shape::float_type, {3, 3}};

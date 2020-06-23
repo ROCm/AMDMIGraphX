@@ -586,37 +586,37 @@ struct quantize_op_names : MIGRAPHX_HANDLE_BASE(quantize_op_names)
 // fp16 quantization apis
 inline void quantize_fp16(const program& prog, const quantize_op_names& names)
 {
-    call(&migraphx_quantize_fp16, prog.get_handle_ptr(), names.get_handle_ptr());
+    call(&migraphx_quantize_fp16_with_op_names, prog.get_handle_ptr(), names.get_handle_ptr());
 }
 
 inline void quantize_fp16(const program& prog)
 {
-    call(&migraphx_quantize_fp16_default, prog.get_handle_ptr());
+    call(&migraphx_quantize_fp16, prog.get_handle_ptr());
 }
 
-struct quantize_options : MIGRAPHX_HANDLE_BASE(quantize_options)
+struct quantize_int8_options : MIGRAPHX_HANDLE_BASE(quantize_int8_options)
 {
-    quantize_options() { this->make_handle(&migraphx_quantize_options_create); }
+    quantize_int8_options() { this->make_handle(&migraphx_quantize_int8_options_create); }
 
-    quantize_options(migraphx_quantize_options* p, own) { this->set_handle(p, own{}); }
+    quantize_int8_options(migraphx_quantize_int8_options* p, own) { this->set_handle(p, own{}); }
 
-    quantize_options(migraphx_quantize_options* p, borrow) { this->set_handle(p, borrow{}); }
+    quantize_int8_options(migraphx_quantize_int8_options* p, borrow) { this->set_handle(p, borrow{}); }
 
     void add_op_name(const std::string& name)
     {
-        call(&migraphx_quantize_options_add_op_name, this->get_handle_ptr(), name.c_str());
+        call(&migraphx_quantize_int8_options_add_op_name, this->get_handle_ptr(), name.c_str());
     }
 
     void add_calibration_data(const program_parameters& pp)
     {
-        call(&migraphx_quantize_options_add_calibration_data,
+        call(&migraphx_quantize_int8_options_add_calibration_data,
              this->get_handle_ptr(),
              pp.get_handle_ptr());
     }
 };
 
 inline void
-quantize_int8(const program& prog, const target& ptarget, const quantize_options& options)
+quantize_int8(const program& prog, const target& ptarget, const quantize_int8_options& options)
 {
     call(&migraphx_quantize_int8,
          prog.get_handle_ptr(),

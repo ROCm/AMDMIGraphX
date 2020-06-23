@@ -109,7 +109,7 @@ std::vector<const char*> get_names(const std::unordered_map<std::string, Value>&
     return result;
 }
 
-void quantize_fp16_wrap(program& prog, std::vector<std::string>& names)
+void quantize_fp16_with_op_names(program& prog, std::vector<std::string>& names)
 {
     if(names.empty())
     {
@@ -119,20 +119,20 @@ void quantize_fp16_wrap(program& prog, std::vector<std::string>& names)
     migraphx::quantize_fp16(prog, names);
 }
 
-struct quantize_options
+struct quantize_int8_options
 {
     std::vector<program::parameter_map> calibration = {};
     std::vector<std::string> op_names               = {};
 };
 
-void add_op_name(quantize_options& options, const char* name) { options.op_names.push_back(name); }
+void add_op_name(quantize_int8_options& options, const char* name) { options.op_names.push_back(name); }
 
-void add_calibration_data(quantize_options& options, program::parameter_map& data)
+void add_calibration_data(quantize_int8_options& options, program::parameter_map& data)
 {
     options.calibration.push_back(data);
 }
 
-void quantize_int8_wrap(program& prog, const target& t, quantize_options& options)
+void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& options)
 {
     if(options.op_names.empty())
     {

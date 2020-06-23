@@ -43,7 +43,7 @@ TEST_CASE(quantize_int8)
     auto p1        = migraphx::parse_onnx("gemm_ex_test.onnx");
     const auto& p2 = p1;
     auto t         = migraphx::target("cpu");
-    migraphx::quantize_options options;
+    migraphx::quantize_int8_options options;
     migraphx::quantize_int8(p1, t, options);
 
     migraphx::program_parameters pp;

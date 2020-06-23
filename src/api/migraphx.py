@@ -211,18 +211,18 @@ def quantize_op_names(h):
     h.method('add', api.params(name='const char*'), fname='push_back')
 
 
-api.add_function('migraphx_quantize_fp16',
+api.add_function('migraphx_quantize_fp16_with_op_names',
                  api.params(prog='migraphx::program&',
                             name='std::vector<std::string>&'),
-                 fname='migraphx::quantize_fp16_wrap')
+                 fname='migraphx::quantize_fp16_with_op_names')
 
-api.add_function('migraphx_quantize_fp16_default',
+api.add_function('migraphx_quantize_fp16',
                  api.params(prog='migraphx::program&'),
                  fname='migraphx::quantize_fp16')
 
 
 @auto_handle
-def quantize_options(h):
+def quantize_int8_options(h):
     h.constructor('create')
     h.method(
         'add_op_name',
@@ -239,5 +239,5 @@ def quantize_options(h):
 api.add_function('migraphx_quantize_int8',
                  api.params(prog='migraphx::program&',
                             target='migraphx::target',
-                            options='migraphx::quantize_options'),
+                            options='migraphx::quantize_int8_options'),
                  fname='migraphx::quantize_int8_wrap')

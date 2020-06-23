@@ -600,7 +600,10 @@ struct quantize_int8_options : MIGRAPHX_HANDLE_BASE(quantize_int8_options)
 
     quantize_int8_options(migraphx_quantize_int8_options* p, own) { this->set_handle(p, own{}); }
 
-    quantize_int8_options(migraphx_quantize_int8_options* p, borrow) { this->set_handle(p, borrow{}); }
+    quantize_int8_options(migraphx_quantize_int8_options* p, borrow)
+    {
+        this->set_handle(p, borrow{});
+    }
 
     void add_op_name(const std::string& name)
     {

@@ -401,7 +401,8 @@ struct find_splits
                     auto split = i->inputs()[split_idx];
                     assert(split->name() == "slice");
                     // Insert contiguous for reshapes
-                    for(auto output : i->outputs())
+                    auto outputs = i->outputs();
+                    for(auto output : outputs)
                     {
                         if(not contains({"reshape", "squeeze", "unsqueeze"}, output->name()))
                             continue;

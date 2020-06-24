@@ -1,5 +1,6 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/op/abnormal_ops.hpp>
 #include <migraphx/op/add.hpp>
@@ -121,7 +122,9 @@ TEST_CASE(undefined_test)
     auto count = std::distance(p.begin(), p.end());
     run_pass(p);
     EXPECT(std::distance(p.begin(), p.end()) == count - 1);
-    EXPECT(not p.has_instruction(undef));
+    EXPECT(std::none_of(p.begin(), p.end(), [](auto&& ins) {
+        return ins.name() == "undefined";
+    }));
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});

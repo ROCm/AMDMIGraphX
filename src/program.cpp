@@ -632,10 +632,28 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
        << ", " << std::round(calculate_overhead_percent) << "%" << std::endl;
 }
 
+template<class Iterator>
+auto is_end(rank<2>, Iterator it, Iterator last) -> decltype(!it._M_dereferenceable())
+{
+    return !it._M_dereferenceable();
+}
+
+template<class Iterator>
+auto is_end(rank<1>, Iterator it, Iterator last)
+{
+    return it == last;
+}
+
+template<class Iterator>
+bool is_end(Iterator it, Iterator last)
+{
+    return is_end(rank<2>{}, it, last);
+}
+
 void program::debug_print() const { std::cout << *this << std::endl; }
 void program::debug_print(instruction_ref ins) const
 {
-    if(ins == this->end())
+    if(is_end(ins, this->end()))
     {
         std::cout << "End instruction" << std::endl;
         return;

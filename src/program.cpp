@@ -633,7 +633,7 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 }
 
 template <class Iterator>
-auto is_end(rank<2>, Iterator it, Iterator last) -> decltype(!it._M_dereferenceable())
+auto is_end(rank<2>, Iterator it, Iterator) -> decltype(!it._M_dereferenceable())
 {
     return !it._M_dereferenceable();
 }

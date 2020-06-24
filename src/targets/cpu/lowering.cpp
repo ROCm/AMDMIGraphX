@@ -205,7 +205,8 @@ struct cpu_convolution
                     for(std::size_t dim = 2; dim < n_dim; ++dim)
                     {
                         auto d_2 = dim - 2;
-                        win_start.push_back(std::ptrdiff_t(idx_o[dim] * op.stride[d_2]) - std::ptrdiff_t(op.padding[d_2]));
+                        win_start.push_back(std::ptrdiff_t(idx_o[dim] * op.stride[d_2]) -
+                                            std::ptrdiff_t(op.padding[d_2]));
                     }
                     const auto group_id = w / (wei_n / op.group);
 
@@ -228,8 +229,11 @@ struct cpu_convolution
                         std::copy(idx_win.begin(), idx_win.end(), idx_wei.begin() + 1);
                         if(std::all_of(
                                idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
-                           std::equal(
-                               idx.begin(), idx.end(), in_lens.begin(), in_lens.end(), std::less<std::ptrdiff_t>{}))
+                           std::equal(idx.begin(),
+                                      idx.end(),
+                                      in_lens.begin(),
+                                      in_lens.end(),
+                                      std::less<std::ptrdiff_t>{}))
                         {
                             acc += input(idx.begin(), idx.end()) *
                                    weights(idx_wei.begin(), idx_wei.end());

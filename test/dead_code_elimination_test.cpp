@@ -122,9 +122,7 @@ TEST_CASE(undefined_test)
     auto count = std::distance(p.begin(), p.end());
     run_pass(p);
     EXPECT(std::distance(p.begin(), p.end()) == count - 1);
-    EXPECT(std::none_of(p.begin(), p.end(), [](auto&& ins) {
-        return ins.name() == "undefined";
-    }));
+    EXPECT(std::none_of(p.begin(), p.end(), [](auto&& ins) { return ins.name() == "undefined"; }));
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});

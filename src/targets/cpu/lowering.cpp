@@ -187,8 +187,6 @@ struct cpu_convolution
     {
         argument result{output_shape};
         result.visit([&](auto output) {
-            using type = typename decltype(output)::value_type;
-
             visit_all(args[0], args[1])([&](auto input, auto weights) {
                 auto in_lens = input.get_shape().lens();
 
@@ -207,8 +205,7 @@ struct cpu_convolution
                     for(std::size_t dim = 2; dim < n_dim; ++dim)
                     {
                         auto d_2 = dim - 2;
-                        win_start.push_back(std::max<std::ptrdiff_t>(
-                            0, idx_o[dim] * op.stride[d_2] - op.padding[d_2]));
+                        win_start.push_back(std::ptrdiff_t(idx_o[dim] * op.stride[d_2]) - std::ptrdiff_t(op.padding[d_2]));
                     }
                     const auto group_id = w / (wei_n / op.group);
 
@@ -231,8 +228,8 @@ struct cpu_convolution
                         std::copy(idx_win.begin(), idx_win.end(), idx_wei.begin() + 1);
                         if(std::all_of(
                                idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
-                           std::lexicographical_compare(
-                               idx.begin(), idx.end(), in_lens.begin(), in_lens.end()))
+                           std::equal(
+                               idx.begin(), idx.end(), in_lens.begin(), in_lens.end(), std::less<std::ptrdiff_t>{}))
                         {
                             acc += input(idx.begin(), idx.end()) *
                                    weights(idx_wei.begin(), idx_wei.end());
@@ -241,27 +238,6 @@ struct cpu_convolution
 
                     output[i] = acc;
                 });
-
-                // par_dfor(output_shape.lens()[0],
-                //          output_shape.lens()[1],
-                //          output_shape.lens()[2],
-                //          output_shape.lens()[3])(
-                //     [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
-                //         const auto start_x  = i * op.stride[0] - op.padding[0];
-                //         const auto start_y  = j * op.stride[1] - op.padding[1];
-                //         const auto group_id = w / (wei_n / op.group);
-
-                //         type acc = type{0};
-                //         dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t
-                //         y) {
-                //             const auto in_x  = start_x + x;
-                //             const auto in_y  = start_y + y;
-                //             const auto in_ch = group_id * wei_c + k;
-                //             if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
-                //                 acc += input(o, in_ch, in_x, in_y) * weights(w, k, x, y);
-                //         });
-                //         output(o, w, i, j) = acc;
-                //     });
             });
         });
         return result;

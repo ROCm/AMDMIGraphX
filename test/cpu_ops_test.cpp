@@ -1673,6 +1673,23 @@ TEST_CASE(argmin_test_neg_1)
     EXPECT(migraphx::verify_range(result_vec, res_gold));
 }
 
+TEST_CASE(neg_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> data = {1.0f, 1.3f, -1.2f, 0.0f, -100.f, 200.f};
+    auto input              = p.add_literal(migraphx::literal(s, data));
+    auto ret                = p.add_instruction(migraphx::op::neg{}, input);
+    p.add_return({ret});
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {-1.0f, -1.3f, 1.2f, 0.0f, 100.f, -200.f};
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 TEST_CASE(conv2d_test)
 {
     migraphx::program p;

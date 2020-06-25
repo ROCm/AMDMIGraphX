@@ -318,7 +318,7 @@ void move_broadcasted_back(std::vector<instruction_ref>& args)
     auto last = std::prev(args.end());
     auto it =
         std::find_if(args.begin(), last, [](auto arg) { return arg->get_shape().broadcasted(); });
-    if(it != last)
+    if(it != last and *it != *std::prev(last))
         std::swap(*it, *std::prev(last));
 }
 
@@ -328,7 +328,7 @@ void move_standard_front(std::vector<instruction_ref>& args)
     auto last = std::prev(args.end());
     auto it =
         std::find_if(args.begin(), last, [](auto arg) { return arg->get_shape().standard(); });
-    if(it != last)
+    if(it != last and *it != args.front())
         std::swap(*it, args.front());
 }
 

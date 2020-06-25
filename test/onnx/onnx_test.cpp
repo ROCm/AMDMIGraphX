@@ -815,6 +815,60 @@ TEST_CASE(gather_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(gather_elements_axis0_test)
+{
+    migraphx::program p;
+    auto data    = p.add_parameter("data", {migraphx::shape::float_type, {3, 4}});
+    auto indices = p.add_parameter("indices", {migraphx::shape::int32_type, {2, 3}});
+    std::vector<int> ind_indices{0, 1, 2, 4, 5, 6};
+    std::vector<int> ind_axis_indices{0, 0, 0, 1, 1, 1};
+    migraphx::shape ind_s{migraphx::shape::int32_type, {2, 3}};
+    auto l_data_indices =
+        p.add_literal(migraphx::literal{ind_s, ind_indices.begin(), ind_indices.end()});
+    auto l_ind_axis_indices =
+        p.add_literal(migraphx::literal{ind_s, ind_axis_indices.begin(), ind_axis_indices.end()});
+    auto l_stride = p.add_literal(migraphx::literal{{migraphx::shape::int32_type, {1}}, {4}});
+
+    auto rsp_data    = p.add_instruction(migraphx::op::reshape{{12}}, data);
+    auto lbst_stride = p.add_instruction(migraphx::op::multibroadcast{ind_s.lens()}, l_stride);
+    auto axis_delta  = p.add_instruction(migraphx::op::sub{}, indices, l_ind_axis_indices);
+    auto mul_delta   = p.add_instruction(migraphx::op::mul{}, axis_delta, lbst_stride);
+    auto ind         = p.add_instruction(migraphx::op::add{}, l_data_indices, mul_delta);
+    auto ret         = p.add_instruction(migraphx::op::gather{0}, rsp_data, ind);
+    p.add_return({ret});
+
+    auto prog = migraphx::parse_onnx("gather_elements_axis0_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(gather_elements_axis1_test)
+{
+    migraphx::program p;
+    auto data    = p.add_parameter("data", {migraphx::shape::float_type, {3, 4}});
+    auto indices = p.add_parameter("indices", {migraphx::shape::int32_type, {2, 3}});
+    std::vector<int> ind_indices{0, 1, 2, 4, 5, 6};
+    std::vector<int> ind_axis_indices{0, 1, 2, 0, 1, 2};
+    migraphx::shape ind_s{migraphx::shape::int32_type, {2, 3}};
+    auto l_data_indices =
+        p.add_literal(migraphx::literal{ind_s, ind_indices.begin(), ind_indices.end()});
+    auto l_ind_axis_indices =
+        p.add_literal(migraphx::literal{ind_s, ind_axis_indices.begin(), ind_axis_indices.end()});
+    auto l_stride = p.add_literal(migraphx::literal{{migraphx::shape::int32_type, {1}}, {1}});
+
+    auto rsp_data    = p.add_instruction(migraphx::op::reshape{{12}}, data);
+    auto lbst_stride = p.add_instruction(migraphx::op::multibroadcast{ind_s.lens()}, l_stride);
+    auto axis_delta  = p.add_instruction(migraphx::op::sub{}, indices, l_ind_axis_indices);
+    auto mul_delta   = p.add_instruction(migraphx::op::mul{}, axis_delta, lbst_stride);
+    auto ind         = p.add_instruction(migraphx::op::add{}, l_data_indices, mul_delta);
+    auto ret         = p.add_instruction(migraphx::op::gather{0}, rsp_data, ind);
+    p.add_return({ret});
+
+    auto prog = migraphx::parse_onnx("gather_elements_axis1_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(gemm_test)
 {
     migraphx::program p;
@@ -1251,6 +1305,19 @@ TEST_CASE(no_pad_test)
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 2}});
     p.add_instruction(migraphx::op::identity{}, l0);
     auto prog = optimize_onnx("no_pad_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(neg_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto input = p.add_parameter("0", s);
+    auto ret   = p.add_instruction(migraphx::op::neg{}, input);
+    p.add_return({ret});
+
+    auto prog = migraphx::parse_onnx("neg_test.onnx");
 
     EXPECT(p == prog);
 }

@@ -92,12 +92,12 @@ struct cpu_batch_norm_inference
                 [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
                     par_for(output_shape.elements(), [&](auto i) {
                         auto idx = output_shape.multi(i);
-                        auto c = idx[1];
+                        auto c   = idx[1];
                         assert((variance[c] + epsilon) > 0);
-                        result[i] = gamma[c] * (buffer[i] - mean[c]) /
-                                                    std::sqrt(variance[c] + epsilon) +
-                                                bias[c];
-                        });
+                        result[i] =
+                            gamma[c] * (buffer[i] - mean[c]) / std::sqrt(variance[c] + epsilon) +
+                            bias[c];
+                    });
                 });
         }
 
@@ -106,15 +106,15 @@ struct cpu_batch_norm_inference
             visit_all(output, input, mini_batch_mean, mini_batch_mean, arg_gamma, arg_bias)(
                 [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
                     par_for(output_shape.elements(), [&](auto i) {
-                        auto idx = output_shape.multi(i);
-                        idx[0] = 0;
+                        auto idx   = output_shape.multi(i);
+                        idx[0]     = 0;
                         auto index = output_shape.index(idx);
 
                         assert((variance[index] + epsilon) > 0);
                         result[i] = gamma[index] * (buffer[i] - mean[index]) /
-                                                   std::sqrt(variance[index] + epsilon) +
-                                                bias[index];
-                        });
+                                        std::sqrt(variance[index] + epsilon) +
+                                    bias[index];
+                    });
                 });
         }
 

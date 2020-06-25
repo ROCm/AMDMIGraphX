@@ -86,22 +86,17 @@ struct cpu_batch_norm_inference
         auto mini_batch_mean     = args[3];
         auto mini_batch_variance = args[4];
 
-        auto num_batch    = output_shape.lens()[0];
-        auto num_channels = output_shape.lens()[1];
-        auto image_height = output_shape.lens()[2];
-        auto image_width  = output_shape.lens()[3];
-
         if(op.bn_mode == op::batch_norm_inference::spatial)
         {
             visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
                 [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
-
-                    par_dfor(num_batch, num_channels, image_height, image_width)(
-                        [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
-                            assert((variance[c] + epsilon) > 0);
-                            result(n, c, h, w) = gamma[c] * (buffer(n, c, h, w) - mean[c]) /
-                                                     std::sqrt(variance[c] + epsilon) +
-                                                 bias[c];
+                    par_for(output_shape.elements(), [&](auto i) {
+                        auto idx = output_shape.multi(i);
+                        auto c = idx[1];
+                        assert((variance[c] + epsilon) > 0);
+                        result[i] = gamma[c] * (buffer[i] - mean[c]) /
+                                                    std::sqrt(variance[c] + epsilon) +
+                                                bias[c];
                         });
                 });
         }
@@ -110,14 +105,15 @@ struct cpu_batch_norm_inference
         {
             visit_all(output, input, mini_batch_mean, mini_batch_mean, arg_gamma, arg_bias)(
                 [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
+                    par_for(output_shape.elements(), [&](auto i) {
+                        auto idx = output_shape.multi(i);
+                        idx[0] = 0;
+                        auto index = output_shape.index(idx);
 
-                    par_dfor(num_batch, num_channels, image_height, image_width)(
-                        [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
-                            assert((variance(c, h, w) + epsilon) > 0);
-                            result(n, c, h, w) = gamma(c, h, w) *
-                                                     (buffer(n, c, h, w) - mean(c, h, w)) /
-                                                     std::sqrt(variance(c, h, w) + epsilon) +
-                                                 bias(c, h, w);
+                        assert((variance[index] + epsilon) > 0);
+                        result[i] = gamma[index] * (buffer[i] - mean[index]) /
+                                                   std::sqrt(variance[index] + epsilon) +
+                                                bias[index];
                         });
                 });
         }

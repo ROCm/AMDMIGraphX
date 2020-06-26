@@ -103,7 +103,7 @@ struct cpu_batch_norm_inference
 
         if(op.bn_mode == op::batch_norm_inference::per_activation)
         {
-            visit_all(output, input, mini_batch_mean, mini_batch_mean, arg_gamma, arg_bias)(
+            visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
                 [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
                     par_for(output_shape.elements(), [&](auto i) {
                         auto idx   = output_shape.multi(i);

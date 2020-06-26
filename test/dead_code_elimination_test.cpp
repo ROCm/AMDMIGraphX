@@ -115,8 +115,8 @@ TEST_CASE(undefined_test)
 {
     migraphx::program p;
 
-    auto one   = p.add_literal(1);
-    auto two   = p.add_literal(2);
+    auto one = p.add_literal(1);
+    auto two = p.add_literal(2);
     p.add_instruction(migraphx::op::undefined{});
     p.add_instruction(sum_op{}, one, two);
     auto count = std::distance(p.begin(), p.end());

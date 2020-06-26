@@ -61,9 +61,10 @@ struct onnx_parser
         add_generic_op("Erf", op::erf{});
         add_generic_op("Exp", op::exp{});
         add_generic_op("Dropout", op::identity{});
-        add_generic_op("Log", op::log{});
         add_generic_op("Floor", op::floor{});
         add_generic_op("Identity", op::identity{});
+        add_generic_op("Log", op::log{});
+        add_generic_op("Neg", op::neg{});
         add_generic_op("Reciprocal", op::recip{});
         add_generic_op("Relu", op::relu{});
         add_generic_op("Round", op::round{});

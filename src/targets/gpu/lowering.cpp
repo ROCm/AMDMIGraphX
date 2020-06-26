@@ -199,6 +199,7 @@ struct miopen_apply
         add_quant_convolution_op();
         add_pooling_op();
         add_batch_norm_inference_op();
+        add_neg_op();
     }
 
     void copy_params()
@@ -446,6 +447,18 @@ struct miopen_apply
                                              reshapes[2],
                                              reshapes[3],
                                              output);
+        });
+    }
+
+    // use 0 - input to represent neg
+    void add_neg_op()
+    {
+        apply_map.emplace("neg", [=](instruction_ref ins) {
+            auto s = ins->get_shape();
+            std::vector<float> zeros(s.elements(), 0.0f);
+            auto l0     = prog->add_literal(literal(s, zeros));
+            auto output = insert_allocation(ins, s);
+            return prog->replace_instruction(ins, hip_sub{}, l0, ins->inputs().front(), output);
         });
     }
 };

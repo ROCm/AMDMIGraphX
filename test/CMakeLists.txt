@@ -7,7 +7,7 @@ find_package(Threads REQUIRED)
 include(ProcessorCount)
 ProcessorCount(N)
 set(CTEST_PARALLEL_LEVEL ${N} CACHE STRING "CTest parallel level")
-add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j ${CTEST_PARALLEL_LEVEL} -C ${CMAKE_CFG_INTDIR} --timeout 1500)
+add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j ${CTEST_PARALLEL_LEVEL} -C ${CMAKE_CFG_INTDIR} --timeout 2000)
 add_custom_target(tests)
 
 find_program(MIGRAPHX_GDB gdb)

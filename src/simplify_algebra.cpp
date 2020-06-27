@@ -760,25 +760,25 @@ struct find_split_reshape
         }
 
         // ensure reshape happens after the axis dimension
-        auto axis    = any_cast<op::slice>(slc->get_operator()).axes[0];
+        auto axis         = any_cast<op::slice>(slc->get_operator()).axes[0];
         auto slc_dim_size = slc->get_shape().lens()[axis];
-        
+
         // search the reshape output to decide which axis are in its output
         // corresponding to the slc_dim_size
-        auto rsp_lens = rsp->get_shape().lens();
+        auto rsp_lens            = rsp->get_shape().lens();
         std::size_t rsp_dim_size = 1;
-        int64_t rsp_axis = -1;
-        for (int i = static_cast<int>(rsp_lens.size() - 1); i >= 0; --i)
+        int64_t rsp_axis         = -1;
+        for(int i = static_cast<int>(rsp_lens.size() - 1); i >= 0; --i)
         {
             rsp_dim_size *= rsp_lens[i];
-            if (rsp_dim_size == slc_dim_size)
+            if(rsp_dim_size == slc_dim_size)
             {
                 rsp_axis = i;
                 break;
             }
         }
 
-        if (rsp_axis == -1)
+        if(rsp_axis == -1)
         {
             return;
         }

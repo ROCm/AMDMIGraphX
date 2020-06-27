@@ -761,28 +761,48 @@ struct find_split_reshape
 
         // ensure reshape happens after the axis dimension
         auto axis    = any_cast<op::slice>(slc->get_operator()).axes[0];
-        auto in_lens = input->get_shape().lens();
-        if(!std::equal(in_lens.begin(), in_lens.begin() + axis, dims.begin(), dims.begin() + axis))
+        auto slc_dim_size = slc->get_shape().lens()[axis];
+        
+        // search the reshape output to decide which axis are in its output
+        // corresponding to the slc_dim_size
+        auto rsp_lens = rsp->get_shape().lens();
+        std::size_t rsp_dim_size = 1;
+        int64_t rsp_axis = -1;
+        for (int i = static_cast<int>(rsp_lens.size() - 1); i >= 0; --i)
+        {
+            rsp_dim_size *= rsp_lens[i];
+            if (rsp_dim_size == slc_dim_size)
+            {
+                rsp_axis = i;
+                break;
+            }
+        }
+
+        if (rsp_axis == -1)
         {
             return;
         }
 
         // calculate reshape output shape
+        std::vector<int64_t> vec_dims(vec_rsp.size());
+        std::transform(vec_rsp.begin(), vec_rsp.end(), vec_dims.begin(), [&](auto is) {
+            return is->get_shape().lens()[rsp_axis];
+        });
+
         auto tmp_lens = vec_rsp.front()->get_shape().lens();
-        std::vector<int64_t> rsp_lens(tmp_lens.begin(), tmp_lens.end());
-        int64_t dim_size = rsp_lens[axis];
-        rsp_lens[axis] *= vec_rsp.size();
+        std::vector<int64_t> rsp_out_lens(tmp_lens.begin(), tmp_lens.end());
+        rsp_out_lens[rsp_axis] = std::accumulate(vec_dims.begin(), vec_dims.end(), 0);
 
         // insert the reshape instruction
-        auto rsp_ins = p.insert_instruction(std::next(input), op::reshape{rsp_lens}, input);
+        auto rsp_ins = p.insert_instruction(std::next(input), op::reshape{rsp_out_lens}, input);
 
         // replace the original reshape with slice
-        int64_t i = 0;
-        for(auto in : vec_rsp)
+        int64_t start = 0;
+        for(int i = 0; i < vec_rsp.size(); ++i)
         {
             p.replace_instruction(
-                in, op::slice{{axis}, {i * dim_size}, {(i + 1) * dim_size}}, rsp_ins);
-            ++i;
+                vec_rsp[i], op::slice{{rsp_axis}, {start}, {start + vec_dims[i]}}, rsp_ins);
+            start += vec_dims[i];
         }
     }
 };

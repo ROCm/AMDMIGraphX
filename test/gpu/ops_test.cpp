@@ -1793,7 +1793,7 @@ struct test_batchnorm_inference : verify_program<test_batchnorm_inference>
 
 struct test_batchnorm_1d : verify_program<test_batchnorm_1d>
 {
-    const size_t size   = 3;
+    const size_t size     = 3;
     const size_t channels = 3;
     const size_t batches  = 4;
 
@@ -1815,9 +1815,9 @@ struct test_batchnorm_1d : verify_program<test_batchnorm_1d>
 
 struct test_batchnorm_3d : verify_program<test_batchnorm_3d>
 {
-    const size_t d1   = 2;
-    const size_t d2   = 2;
-    const size_t d3   = 2;
+    const size_t d1       = 2;
+    const size_t d2       = 2;
+    const size_t d3       = 2;
     const size_t channels = 2;
     const size_t batches  = 2;
 
@@ -1839,9 +1839,9 @@ struct test_batchnorm_3d : verify_program<test_batchnorm_3d>
 
 struct test_batchnorm_3d_per_actv : verify_program<test_batchnorm_3d_per_actv>
 {
-    const size_t d1   = 2;
-    const size_t d2   = 3;
-    const size_t d3   = 2;
+    const size_t d1       = 2;
+    const size_t d2       = 3;
+    const size_t d3       = 2;
     const size_t channels = 2;
     const size_t batches  = 3;
 
@@ -1856,8 +1856,13 @@ struct test_batchnorm_3d_per_actv : verify_program<test_batchnorm_3d_per_actv>
         auto bias     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
         auto mean     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
         auto variance = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
-        p.add_instruction(migraphx::op::batch_norm_inference{migraphx::op::batch_norm_inference::per_activation}, 
-                          x, scale, bias, mean, variance);
+        p.add_instruction(
+            migraphx::op::batch_norm_inference{migraphx::op::batch_norm_inference::per_activation},
+            x,
+            scale,
+            bias,
+            mean,
+            variance);
         return p;
     }
 };

@@ -851,8 +851,8 @@ TEST_CASE(gemm_test)
 TEST_CASE(gemm_ex_test)
 {
     migraphx::program p;
-    auto l0    = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 6}});
-    auto l1    = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 7}});
+    auto l0    = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 1, 8, 6}});
+    auto l1    = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 1, 8, 7}});
     auto l2    = p.add_parameter("3", migraphx::shape{migraphx::shape::float_type, {1, 1, 6, 7}});
     auto t0    = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, l0);
     auto alpha = 0.5f;

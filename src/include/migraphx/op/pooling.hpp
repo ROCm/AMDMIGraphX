@@ -43,7 +43,11 @@ struct pooling
         check_shapes{inputs, *this}.has(1);
         if(not(padding.size() == stride.size() and padding.size() == lengths.size()))
         {
-            MIGRAPHX_THROW("pooling: inconsistent attribute sizes");
+            MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");
+        }
+        if (padding.size() + 2 != inputs[0].lens().size())
+        {
+            MIGRAPHX_THROW("POOLING: input and attribute dim size mismatch!");
         }
 
         const shape& input = inputs.at(0);

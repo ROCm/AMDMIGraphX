@@ -134,6 +134,77 @@ TEST_CASE(as_literal)
     visit_all(result1, result2)([&](auto r1, auto r2) { EXPECT(migraphx::verify_range(r1, r2)); });
 }
 
+TEST_CASE(as_literal_1d)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {1, 3, 8}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 3, 1}};
+    migraphx::shape vars{migraphx::shape::float_type, {4}};
+    auto create_program = [&]() {
+        migraphx::program p;
+        auto x        = p.add_literal(migraphx::generate_literal(xs, 1));
+        auto w        = p.add_literal(migraphx::generate_literal(ws, 1));
+        auto conv     = p.add_instruction(migraphx::op::convolution{{0}, {1}, {1}}, x, w);
+        auto scale    = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
+        auto bias     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
+        auto mean     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
+        auto variance = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
+        p.add_instruction(migraphx::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
+        return p;
+    };
+
+    migraphx::program p1 = create_program();
+    migraphx::program p2 = create_program();
+    migraphx::rewrite_batchnorm opt;
+    opt.apply(p2);
+    EXPECT(any_of(p1, &is_batch_norm));
+    EXPECT(none_of(p2, &is_batch_norm));
+
+    p1.compile(migraphx::cpu::target{});
+    p2.compile(migraphx::cpu::target{});
+
+    auto result1 = p1.eval({}).back();
+    auto result2 = p2.eval({}).back();
+    visit_all(result1, result2)([&](auto r1, auto r2) { EXPECT(migraphx::verify_range(r1, r2)); });
+}
+
+TEST_CASE(as_literal_3d)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {1, 3, 2, 4, 8}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 3, 1, 1, 1}};
+    migraphx::shape vars{migraphx::shape::float_type, {4}};
+    auto create_program = [&]() {
+        migraphx::program p;
+        migraphx::op::convolution conv_op;
+        conv_op.padding  = {0, 0, 0};
+        conv_op.stride   = {1, 1, 1};
+        conv_op.dilation = {1, 1, 1};
+
+        auto x        = p.add_literal(migraphx::generate_literal(xs, 1));
+        auto w        = p.add_literal(migraphx::generate_literal(ws, 1));
+        auto conv     = p.add_instruction(conv_op, x, w);
+        auto scale    = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
+        auto bias     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
+        auto mean     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
+        auto variance = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
+        p.add_instruction(migraphx::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
+        return p;
+    };
+
+    migraphx::program p1 = create_program();
+    migraphx::program p2 = create_program();
+    migraphx::rewrite_batchnorm opt;
+    opt.apply(p2);
+    EXPECT(any_of(p1, &is_batch_norm));
+    EXPECT(none_of(p2, &is_batch_norm));
+
+    p1.compile(migraphx::cpu::target{});
+    p2.compile(migraphx::cpu::target{});
+
+    auto result1 = p1.eval({}).back();
+    auto result2 = p2.eval({}).back();
+    visit_all(result1, result2)([&](auto r1, auto r2) { EXPECT(migraphx::verify_range(r1, r2)); });
+}
+
 TEST_CASE(literal_reshape)
 {
     migraphx::shape xs{migraphx::shape::float_type, {1, 3, 8, 8}};

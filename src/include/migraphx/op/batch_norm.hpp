@@ -43,8 +43,7 @@ struct batch_norm_inference
     {
         check_shapes{inputs, *this}.has(5);
         check_shapes{inputs.data(), inputs.data() + 1, *this}.same_ndims();
-        check_shapes{inputs.data() + 1, inputs.data() + inputs.size(), *this}.same_shape().elements(
-            inputs.front().lens()[1]);
+        check_shapes{inputs.data() + 1, inputs.data() + inputs.size(), *this}.same_shape();
         return inputs.front();
     }
 };

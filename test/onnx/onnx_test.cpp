@@ -633,7 +633,7 @@ TEST_CASE(deconv_input_pads_asymm_test)
     auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     auto l2 = p.add_instruction(migraphx::op::deconvolution{{0, 0}, {3, 2}}, l0, l1);
-    p.add_instruction(migraphx::op::slice{{0, 1, 2, 3}, {0, 0, 0, 0}, {1, 2, 8, 6}}, l2);
+    p.add_instruction(migraphx::op::slice{{2, 3}, {0, 0}, {8, 6}}, l2);
 
     auto prog = optimize_onnx("deconv_input_pads_asymm_test.onnx");
     EXPECT(p == prog);
@@ -645,7 +645,7 @@ TEST_CASE(deconv_input_pads_asymm_1d_test)
     auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3}});
     auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 2, 3}});
     auto l2 = p.add_instruction(migraphx::op::deconvolution{{0}, {2}, {1}}, l0, l1);
-    p.add_instruction(migraphx::op::slice{{0, 1, 2}, {0, 0, 0}, {1, 2, 6}}, l2);
+    p.add_instruction(migraphx::op::slice{{2}, {0}, {6}}, l2);
 
     auto prog = optimize_onnx("deconv_input_pads_asymm_1d_test.onnx");
     EXPECT(p == prog);
@@ -889,8 +889,8 @@ TEST_CASE(gemm_test)
 TEST_CASE(gemm_ex_test)
 {
     migraphx::program p;
-    auto l0    = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 6}});
-    auto l1    = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 7}});
+    auto l0    = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 1, 8, 6}});
+    auto l1    = p.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 1, 8, 7}});
     auto l2    = p.add_parameter("3", migraphx::shape{migraphx::shape::float_type, {1, 1, 6, 7}});
     auto t0    = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, l0);
     auto alpha = 0.5f;

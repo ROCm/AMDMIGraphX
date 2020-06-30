@@ -728,14 +728,13 @@ struct onnx_parser
         std::vector<int64_t> curr_shape(dims.begin() + 2, dims.end());
         if(asym_padding)
         {
-            std::vector<int64_t> axes(dims.size());
-            std::iota(axes.begin(), axes.end(), 0);
+            std::vector<int64_t> axes(kdims);
+            std::iota(axes.begin(), axes.end(), 2); // ignore first 2 dims
 
-            std::vector<int64_t> starts{0, 0};
             auto pad_kdim_start = padding.begin() + kdims;
-            copy(padding.begin(), pad_kdim_start, std::back_inserter(starts));
+            std::vector<int64_t> starts(padding.begin(), pad_kdim_start);
 
-            std::vector<int64_t> ends{dims[0], dims[1]};
+            std::vector<int64_t> ends{};
             std::transform(curr_shape.begin(),
                            curr_shape.end(),
                            pad_kdim_start,

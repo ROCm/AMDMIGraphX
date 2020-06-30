@@ -746,10 +746,38 @@ struct test_deconv : verify_program<test_deconv>
     {
         migraphx::program p;
         auto input =
-            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 3}});
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
         auto weights =
-            p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 3}});
+            p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
         p.add_instruction(migraphx::op::deconvolution{}, input, weights);
+        return p;
+    }
+};
+
+struct test_deconv_1d : verify_program<test_deconv_1d>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3}});
+        auto weights =
+            p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3}});
+        p.add_instruction(migraphx::op::deconvolution{{0}, {1}, {1}}, input, weights);
+        return p;
+    }
+};
+
+struct test_deconv_3d : verify_program<test_deconv_3d>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3, 3}});
+        auto weights =
+            p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3, 3}});
+        p.add_instruction(migraphx::op::deconvolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}}, input, weights);
         return p;
     }
 };

@@ -1993,6 +1993,27 @@ TEST_CASE(deconv_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(deconv_1d_test)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3}};
+    std::vector<float> x_data{0, 0.5, 1};
+    std::vector<float> w_data{0.5, 0.5, 0.5};
+
+    std::vector<float> gold{0, 0.25, 0.75, 0.75, 0.5};
+
+    migraphx::program p;
+    auto x = p.add_literal(migraphx::literal{s, x_data});
+    auto w = p.add_literal(migraphx::literal{s, w_data});
+
+    p.add_instruction(migraphx::op::deconvolution{{0}, {1}, {1}}, x, w);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(transpose_test)
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 2, 2, 3}};

@@ -51,7 +51,7 @@ struct convolution
         check_shapes{inputs, *this}.has(2).same_type().same_ndims().min_ndims(3);
         check_attribute_size();
         // dim num of input and attribute should match
-        if (inputs[0].lens().size() != padding.size() + 2)
+        if(inputs[0].lens().size() != padding.size() + 2)
         {
             MIGRAPHX_THROW("CONVOLUTION: input and attribute size mismatch!");
         }

@@ -320,6 +320,21 @@ struct onnx_parser
         return curr_ins;
     }
 
+    bool is_asym_padding(const std::vector<int64_t>& padding)
+    {
+        assert(padding.size() % 2 == 0);
+        size_t pad_ndims = padding.size() / 2;
+
+        for(size_t i = 0; i < pad_ndims; i++)
+        {
+            if(padding[i] != padding[i + pad_ndims])
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     template <class Op>
     void check_asym_padding(instruction_ref& ins,
                             const std::vector<int64_t>& padding,
@@ -327,23 +342,11 @@ struct onnx_parser
                             int count_include_pad = 0,
                             float pad_val         = 0)
     {
-        bool asym_padding = false;
-        assert(padding.size() % 2 == 0);
-        size_t pad_ndims = padding.size() / 2;
-
+        size_t pad_ndims  = padding.size() / 2;
         auto left_pad_it  = padding.begin();
         auto right_pad_it = left_pad_it + pad_ndims;
 
-        for(size_t i = 0; i < pad_ndims; i++)
-        {
-            if(padding[i] != padding[i + pad_ndims])
-            {
-                asym_padding = true;
-                break;
-            }
-        }
-
-        if(asym_padding or count_include_pad == 1)
+        if(is_asym_padding(padding) or count_include_pad == 1)
         {
             std::vector<int64_t> asym_pads{0, 0, 0, 0}; // don't pad N and C
             // add left pads
@@ -661,7 +664,10 @@ struct onnx_parser
         op::deconvolution op;
         auto l0 = args[0];
         std::vector<std::int64_t> padding;
-        bool asymm_padding = false;
+        bool asym_padding = false;
+        auto in_lens      = l0->get_shape().lens();
+        assert(in_lens.size() > 2);
+        auto kdims = in_lens.size() - 2;
 
         // ensure pads availabe only when auto_pad is "NOT_SET"
         check_padding_mode(info, "CONV_TRANSPOSE");
@@ -669,34 +675,40 @@ struct onnx_parser
         if(contains(info.attributes, "pads"))
         {
             copy(info.attributes["pads"].ints(), std::back_inserter(padding));
-            if(padding.size() != 4)
+
+            asym_padding = is_asym_padding(padding);
+
+            if(not asym_padding)
             {
-                MIGRAPHX_THROW("padding should have 4 values");
-            }
-            if(padding[0] != padding[2] || padding[1] != padding[3])
-            {
-                asymm_padding = true;
-            }
-            else
-            {
-                op.padding[0] = padding[0];
-                op.padding[1] = padding[1];
+                size_t pad_ndims = padding.size() / 2;
+                check_attr_sizes(kdims, pad_ndims, "PARSE_CONV_TRANSPOSE: inconsistent paddings");
+                op.padding.clear();
+                std::transform(padding.begin(),
+                               padding.begin() + pad_ndims,
+                               std::back_inserter(op.padding),
+                               [](auto pad_val) { return pad_val; });
             }
         }
         if(contains(info.attributes, "strides"))
         {
-            copy(info.attributes["strides"].ints(), op.stride.begin());
+            op.stride.clear();
+            copy(info.attributes["strides"].ints(), std::back_inserter(op.stride));
+            check_attr_sizes(kdims, op.stride.size(), "PARSE_CONV_TRANSPOSE: inconsistent strides");
         }
         if(contains(info.attributes, "dilations"))
         {
-            copy(info.attributes["dilations"].ints(), op.dilation.begin());
+            op.dilation.clear();
+            copy(info.attributes["dilations"].ints(), std::back_inserter(op.dilation));
+            check_attr_sizes(
+                kdims, op.dilation.size(), "PARSE_CONV_TRANSPOSE: inconsistent dilations");
         }
         if(contains(info.attributes, "auto_pad"))
         {
             auto s = info.attributes["auto_pad"].s();
             if(contains(info.attributes, "pads") and to_upper(s) != "NOTSET")
             {
-                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: auto_pad and padding cannot be specified "
+                               "simultaneously");
             }
 
             if(s.find("SAME") != std::string::npos)
@@ -710,44 +722,56 @@ struct onnx_parser
             op.group = parse_value(info.attributes.at("group")).at<int>();
         }
 
+        recalc_conv_attributes(op, kdims);
+
         auto l1                   = prog.add_instruction(op, l0, args[1]);
         std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
-        std::vector<int64_t> curr_shape{dims[2], dims[3]};
-        if(asymm_padding)
+        std::vector<int64_t> curr_shape(dims.begin() + 2, dims.end());
+        if(asym_padding)
         {
-            op::slice slice_op;
-            slice_op.axes   = {0, 1, 2, 3};
-            slice_op.starts = {0, 0, 0 + padding[0], 0 + padding[1]};
-            slice_op.ends   = {
-                dims[0], dims[1], curr_shape[0] - padding[2], curr_shape[1] - padding[3]};
+            std::vector<int64_t> axes(kdims);
+            std::iota(axes.begin(), axes.end(), 2); // ignore first 2 dims
 
-            l1 = prog.add_instruction(slice_op, l1);
+            auto pad_kdim_start = padding.begin() + kdims;
+            std::vector<int64_t> starts(padding.begin(), pad_kdim_start);
+
+            std::vector<int64_t> ends{};
+            std::transform(curr_shape.begin(),
+                           curr_shape.end(),
+                           pad_kdim_start,
+                           std::back_inserter(ends),
+                           [](auto curr_dim, auto pad_dim) { return curr_dim - pad_dim; });
+
+            l1 = prog.add_instruction(op::slice{axes, starts, ends}, l1);
         }
 
         if(contains(info.attributes, "output_padding"))
         {
-            std::vector<int64_t> output_padding;
+            size_t non_kdims = dims.size() * 2 - kdims;
+            std::vector<int64_t> output_padding(non_kdims, 0);
             copy(info.attributes["output_padding"].ints(), std::back_inserter(output_padding));
-            output_padding = {0, 0, 0, 0, 0, 0, output_padding[0], output_padding[1]};
-            l1             = prog.add_instruction(op::pad{output_padding}, l1);
+            check_attr_sizes(kdims,
+                             output_padding.size() - non_kdims,
+                             "PARSE_CONV_TRANSPOSE: inconsistent output padding");
+            l1 = prog.add_instruction(op::pad{output_padding}, l1);
         }
 
         if(contains(info.attributes, "output_shape"))
         {
             std::vector<int64_t> output_shape;
             copy(info.attributes["output_shape"].ints(), std::back_inserter(output_shape));
-            dims       = to_int64_vector(l1->get_shape().lens());
-            curr_shape = {dims[2], dims[3]};
+            check_attr_sizes(
+                kdims, output_shape.size(), "PARSE_CONV_TRANSPOSE: inconsistent output shape");
+            dims = to_int64_vector(l1->get_shape().lens());
+            copy(dims.begin() + 2, dims.end(), curr_shape.begin());
             if(curr_shape != output_shape)
             {
-                std::vector<int64_t> target_padding = {0,
-                                                       0,
-                                                       0,
-                                                       0,
-                                                       0,
-                                                       0,
-                                                       output_shape[0] - curr_shape[0],
-                                                       output_shape[1] - curr_shape[1]};
+                std::vector<int64_t> target_padding(dims.size() * 2 - kdims, 0);
+                std::transform(output_shape.begin(),
+                               output_shape.end(),
+                               curr_shape.begin(),
+                               std::back_inserter(target_padding),
+                               [](auto out_dim, auto curr_dim) { return out_dim - curr_dim; });
                 l1 = prog.add_instruction(op::pad{target_padding}, l1);
             }
         }

@@ -633,9 +633,46 @@ TEST_CASE(deconv_input_pads_asymm_test)
     auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
     auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
     auto l2 = p.add_instruction(migraphx::op::deconvolution{{0, 0}, {3, 2}}, l0, l1);
-    p.add_instruction(migraphx::op::slice{{0, 1, 2, 3}, {0, 0, 0, 0}, {1, 2, 8, 6}}, l2);
+    p.add_instruction(migraphx::op::slice{{2, 3}, {0, 0}, {8, 6}}, l2);
 
     auto prog = optimize_onnx("deconv_input_pads_asymm_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(deconv_input_pads_asymm_1d_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3}});
+    auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 2, 3}});
+    auto l2 = p.add_instruction(migraphx::op::deconvolution{{0}, {2}, {1}}, l0, l1);
+    p.add_instruction(migraphx::op::slice{{2}, {0}, {6}}, l2);
+
+    auto prog = optimize_onnx("deconv_input_pads_asymm_1d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(deconv_output_padding_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
+    auto l2 = p.add_instruction(migraphx::op::deconvolution{{0, 0}, {3, 2}}, l0, l1);
+    p.add_instruction(migraphx::op::pad{{0, 0, 0, 0, 0, 0, 1, 1}}, l2);
+
+    auto prog = optimize_onnx("deconv_output_padding_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(deconv_output_padding_3d_test)
+{
+    migraphx::program p;
+    auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3, 3}});
+    auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3, 3}});
+    auto l2 =
+        p.add_instruction(migraphx::op::deconvolution{{0, 0, 0}, {3, 2, 2}, {1, 1, 1}}, l0, l1);
+    p.add_instruction(migraphx::op::pad{{0, 0, 0, 0, 0, 0, 0, 1, 1, 1}}, l2);
+
+    auto prog = optimize_onnx("deconv_output_padding_3d_test.onnx");
     EXPECT(p == prog);
 }
 
@@ -651,15 +688,16 @@ TEST_CASE(deconv_output_shape_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(deconv_output_padding_test)
+TEST_CASE(deconv_output_shape_3d_test)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3}});
-    auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3}});
-    auto l2 = p.add_instruction(migraphx::op::deconvolution{{0, 0}, {3, 2}}, l0, l1);
-    p.add_instruction(migraphx::op::pad{{0, 0, 0, 0, 0, 0, 1, 1}}, l2);
+    auto l0 = p.add_parameter("x", {migraphx::shape::float_type, {1, 1, 3, 3, 3}});
+    auto l1 = p.add_parameter("w", {migraphx::shape::float_type, {1, 2, 3, 3, 3}});
+    auto l2 =
+        p.add_instruction(migraphx::op::deconvolution{{0, 0, 0}, {3, 2, 2}, {1, 1, 1}}, l0, l1);
+    p.add_instruction(migraphx::op::pad{{0, 0, 0, 0, 0, 0, 0, 1, 1, 1}}, l2);
 
-    auto prog = optimize_onnx("deconv_output_padding_test.onnx");
+    auto prog = optimize_onnx("deconv_output_shape_3d_test.onnx");
     EXPECT(p == prog);
 }
 

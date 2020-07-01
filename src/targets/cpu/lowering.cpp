@@ -189,9 +189,9 @@ struct cpu_convolution
         visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
             auto in_lens = input.get_shape().lens();
 
-            auto wei_lens                     = weights.get_shape().lens();
-            auto wei_n                        = wei_lens[0];
-            auto wei_c                        = wei_lens[1];
+            auto wei_lens = weights.get_shape().lens();
+            auto wei_n    = wei_lens[0];
+            auto wei_c    = wei_lens[1];
             std::vector<std::size_t> win_size(wei_lens.begin() + 1, wei_lens.end());
 
             par_for(output_shape.elements(), [&](auto i) {
@@ -216,25 +216,23 @@ struct cpu_convolution
                     const auto in_ch = group_id * wei_c + k;
                     std::vector<std::ptrdiff_t> idx(idx_o.begin(), idx_o.end());
                     idx[1] = in_ch;
-                    std::transform(
-                        idx_win.begin() + 1,
-                        idx_win.end(),
-                        win_start.begin(),
-                        idx.begin() + 2,
-                        [](std::ptrdiff_t ii, std::ptrdiff_t jj) { return ii + jj; });
+                    std::transform(idx_win.begin() + 1,
+                                   idx_win.end(),
+                                   win_start.begin(),
+                                   idx.begin() + 2,
+                                   [](std::ptrdiff_t ii, std::ptrdiff_t jj) { return ii + jj; });
                     std::vector<std::ptrdiff_t> idx_wei(idx_o.size());
                     idx_wei[0] = w;
                     std::copy(idx_win.begin(), idx_win.end(), idx_wei.begin() + 1);
-                    if(std::all_of(
-                           idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
+                    if(std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
                        std::equal(idx.begin(),
                                   idx.end(),
                                   in_lens.begin(),
                                   in_lens.end(),
                                   std::less<std::ptrdiff_t>{}))
                     {
-                        acc += input(idx.begin(), idx.end()) *
-                               weights(idx_wei.begin(), idx_wei.end());
+                        acc +=
+                            input(idx.begin(), idx.end()) * weights(idx_wei.begin(), idx_wei.end());
                     }
                 });
 

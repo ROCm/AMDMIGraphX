@@ -14,7 +14,7 @@ shape miopen_deconvolution::compute_shape(const std::vector<shape>& inputs) cons
     return op.compute_shape(conv_inputs);
 }
 
-inline shape recompute_shape_to_2d(const shape& input)
+inline shape reshape_if_1d(const shape& input)
 {
     shape new_shape{input};
     auto dims = new_shape.lens();
@@ -32,9 +32,9 @@ argument miopen_deconvolution::compute(context& ctx,
                                        const shape& output_shape,
                                        const std::vector<argument>& args) const
 {
-    auto x_desc = make_tensor(recompute_shape_to_2d(args[0].get_shape()));
-    auto w_desc = make_tensor(recompute_shape_to_2d(args[1].get_shape()));
-    auto y_desc = make_tensor(recompute_shape_to_2d(output_shape));
+    auto x_desc = make_tensor(reshape_if_1d(args[0].get_shape()));
+    auto w_desc = make_tensor(reshape_if_1d(args[1].get_shape()));
+    auto y_desc = make_tensor(reshape_if_1d(output_shape));
 
     float alpha = 1;
     float beta  = 0;
@@ -61,9 +61,9 @@ shape miopen_deconvolution::compile(context& ctx,
                                     std::vector<shape> inputs)
 {
     shape workspace_shape{};
-    auto x_desc = make_tensor(recompute_shape_to_2d(inputs[0]));
-    auto w_desc = make_tensor(recompute_shape_to_2d(inputs[1]));
-    auto y_desc = make_tensor(recompute_shape_to_2d(output_shape));
+    auto x_desc = make_tensor(reshape_if_1d(inputs[0]));
+    auto w_desc = make_tensor(reshape_if_1d(inputs[1]));
+    auto y_desc = make_tensor(reshape_if_1d(output_shape));
 
     std::size_t workspace_size = 0;
     miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),

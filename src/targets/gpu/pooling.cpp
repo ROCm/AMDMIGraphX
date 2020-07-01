@@ -13,7 +13,7 @@ shape miopen_pooling::compute_shape(const std::vector<shape>& inputs) const
     return op.compute_shape(pooling_input);
 }
 
-inline void recompute_shape_to_2d(shape& input)
+inline void reshape_if_1d(shape& input)
 {
     auto dims = input.lens();
 
@@ -32,8 +32,8 @@ argument miopen_pooling::compute(context& ctx,
     shape x_shape = args[0].get_shape();
     shape y_shape = output_shape;
 
-    recompute_shape_to_2d(x_shape);
-    recompute_shape_to_2d(y_shape);
+    reshape_if_1d(x_shape);
+    reshape_if_1d(y_shape);
 
     auto x_desc = make_tensor(x_shape);
     auto y_desc = make_tensor(y_shape);

@@ -416,6 +416,7 @@ TEST_CASE(avgpool_test)
         p.add_instruction(op, l0);
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({}).back();
+        std::cout << "result = " << result << std::endl;
         std::vector<float> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold{1.6321,
@@ -713,109 +714,6 @@ TEST_CASE(im2col_3x3_with_padding_test)
     EXPECT(migraphx::verify_range(results_vector, correct));
 }
 
-TEST_CASE(batch_norm_1d_test)
-{
-    migraphx::program p;
-    migraphx::shape x_shape{migraphx::shape::float_type, {2, 3, 4}};
-    migraphx::shape c_shape(migraphx::shape::float_type, {3});
-
-    std::vector<float> x_data        = {0.7253,  -0.6356, 0.4606,  -0.8689, -1.1932, 0.4538,
-                                 -1.0018, -0.365,  -0.214,  -0.9553, -0.7672, 0.2331,
-                                 -0.8416, -0.6142, 0.0814,  0.2498,  -0.6706, 1.4872,
-                                 0.5112,  -1.5212, -0.9126, 0.0735,  1.085,   -0.3417};
-    std::vector<float> scale_data    = {1.1, 1.2, 1.3};
-    std::vector<float> bias_data     = {0.1, 0.2, 0.3};
-    std::vector<float> mean_data     = {-0.1804, -0.2875, -0.2249};
-    std::vector<float> variance_data = {2.7914, 7.3424, 3.3287};
-
-    auto x        = p.add_literal(migraphx::literal{x_shape, x_data});
-    auto scale    = p.add_literal(migraphx::literal{c_shape, scale_data});
-    auto bias     = p.add_literal(migraphx::literal{c_shape, bias_data});
-    auto mean     = p.add_literal(migraphx::literal{c_shape, mean_data});
-    auto variance = p.add_literal(migraphx::literal{c_shape, variance_data});
-
-    p.add_instruction(migraphx::op::batch_norm_inference{1e-5}, x, scale, bias, mean, variance);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<float> result_vector;
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0.696301,  -0.199697, 0.522026,  -0.353299, -0.201094, 0.528289,
-                               -0.116332, 0.165679,  0.307767,  -0.220435, -0.086407, 0.62634,
-                               -0.335325, -0.185608, 0.272366,  0.383238,  0.0303421, 0.985936,
-                               0.553709,  -0.346351, -0.190009, 0.51262,   1.23335,   0.216776};
-    EXPECT(migraphx::verify_range(result_vector, gold));
-}
-
-TEST_CASE(batch_norm_1d_per_actv_test)
-{
-    migraphx::program p;
-    migraphx::shape x_shape{migraphx::shape::float_type, {2, 2, 4}};
-    migraphx::shape c_shape(migraphx::shape::float_type, {2, 4});
-
-    std::vector<float> x_data     = {0.3547,
-                                 0.477,
-                                 -1.8575,
-                                 0.663,
-                                 -0.1881,
-                                 -0.5113,
-                                 -0.1803,
-                                 -0.5915,
-                                 -0.1552,
-                                 0.9821,
-                                 1.827,
-                                 0.0558,
-                                 -0.0417,
-                                 -1.0693,
-                                 1.9948,
-                                 -0.7448};
-    std::vector<float> scale_data = {
-        -0.3181, -0.3885, 1.655, 0.0704, -0.2565, -1.1761, -0.3751, 0.1057};
-    std::vector<float> bias_data = {
-        -1.2118, -2.1156, 0.0046, -0.1341, -0.2724, -1.0718, 0.5535, -0.889};
-    std::vector<float> mean_data = {
-        0.0997, 0.7295, -0.0153, 0.3594, -0.1149, -0.7903, 0.9073, -0.6681};
-    std::vector<float> variance_data = {
-        0.13, 0.1276, 6.7878, 0.1843, 0.0107, 0.1556, 2.3655, 0.0117};
-
-    auto x        = p.add_literal(migraphx::literal{x_shape, x_data});
-    auto scale    = p.add_literal(migraphx::literal{c_shape, scale_data});
-    auto bias     = p.add_literal(migraphx::literal{c_shape, bias_data});
-    auto mean     = p.add_literal(migraphx::literal{c_shape, mean_data});
-    auto variance = p.add_literal(migraphx::literal{c_shape, variance_data});
-
-    p.add_instruction(
-        migraphx::op::batch_norm_inference{
-            1e-6, 0.9, migraphx::op::batch_norm_inference::per_activation},
-        x,
-        scale,
-        bias,
-        mean,
-        variance);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<float> result_vector;
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-1.43677,
-                               -1.84098,
-                               -1.16563,
-                               -0.0843136,
-                               -0.090896,
-                               -1.90364,
-                               0.81875,
-                               -0.81415,
-                               -0.986915,
-                               -2.39032,
-                               1.17489,
-                               -0.183886,
-                               -0.453904,
-                               -0.239955,
-                               0.288275,
-                               -0.963948};
-    EXPECT(migraphx::verify_range(result_vector, gold));
-}
-
 TEST_CASE(batch_norm_inference_test)
 {
     migraphx::program p;
@@ -859,41 +757,6 @@ TEST_CASE(batch_norm_inference_test)
     std::fill(gold.begin(), gold.end(), output_val);
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify_range(result_vector, gold));
-}
-
-TEST_CASE(batch_norm_3d_test)
-{
-    migraphx::program p;
-    migraphx::shape x_shape{migraphx::shape::float_type, {2, 2, 2, 2, 2}};
-    migraphx::shape c_shape(migraphx::shape::float_type, {2});
-
-    std::vector<float> x_data     = {-1.0833, 1.9681,  1.2075,  -0.723,  -0.4076, -0.8738, 0.5853,
-                                 -0.5357, 1.734,   0.7904,  0.6953,  -0.468,  -0.425,  0.6895,
-                                 0.0096,  0.4205,  -0.1749, 1.2821,  2.1453,  -0.8538, 1.0687,
-                                 0.0906,  0.0714,  -1.3079, -0.6376, 1.3023,  0.945,   0.0927,
-                                 -0.7421, -1.4341, -1.0309, 1.5153};
-    std::vector<float> scale_data = {1.1, 1.3};
-    std::vector<float> bias_data  = {0.1, 0.2};
-    std::vector<float> mean_data  = {0.1537, 0.2161};
-    std::vector<float> variance_data = {18.0805, 13.3906};
-
-    auto x        = p.add_literal(migraphx::literal{x_shape, x_data});
-    auto scale    = p.add_literal(migraphx::literal{c_shape, scale_data});
-    auto bias     = p.add_literal(migraphx::literal{c_shape, bias_data});
-    auto mean     = p.add_literal(migraphx::literal{c_shape, mean_data});
-    auto variance = p.add_literal(migraphx::literal{c_shape, variance_data});
-
-    p.add_instruction(migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> result_vector;
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {
-        -0.220005, 0.569376, 0.372612, -0.126798,  -0.0452053, -0.165809, 0.211653,  -0.0783441,
-        0.739245,  0.404024, 0.370239, -0.0430317, -0.0277556, 0.368179,  0.126639,  0.272615,
-        0.0149929, 0.391911, 0.615216, -0.160635,  0.336706,   0.0836764, 0.0787094, -0.278108,
-        -0.103283, 0.585881, 0.458947, 0.156161,   -0.140408,  -0.386246, -0.243006, 0.661551};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
@@ -1882,6 +1745,69 @@ TEST_CASE(conv2d_test)
     auto cl = p.add_literal(migraphx::literal{c_shape, c});
 
     p.add_instruction(migraphx::op::convolution{}, al, cl);
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector(16);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, s));
+}
+
+TEST_CASE(conv3d_test)
+{
+    migraphx::program p;
+    std::vector<float> a = {
+        2.71567607,  -0.9960829,  0.91671127,  0.28140706,  0.63235772,  0.08077253,  0.80927712,
+        -0.59108931, -1.05421555, -2.76622486, -0.85044265, -0.52049929, 0.67726439,  -0.65290606,
+        0.02345525,  -0.33579525, 0.38901961,  1.05473483,  -1.31188095, 1.8963089,   -0.07265259,
+        0.947339,    0.41949373,  -0.70814759, 0.25892952,  1.07311416,  1.2571274,   -0.62318051,
+        -0.19951548, -0.94232577, -0.29393643, 0.42292568,  -0.80230367, 1.40909171,  0.63617158,
+        0.13900366,  1.09253144,  -0.15265895, 1.54781747,  0.72780299,  1.09189606,  -0.38068101,
+        0.97057933,  -0.58958799, 1.56188643,  0.21474874,  0.58725154,  -1.27097559, -0.03024297,
+        1.09437096,  -0.4897908,  0.34838957,  -1.31042492, -1.69069934, 0.86956722,  -0.40457946,
+        0.46691212,  1.29273605,  0.26464137,  0.22073045,  -1.02178168, 0.22163901,  -1.84387338,
+        0.75522131,  -0.45775682, -0.42241111, -1.50944722, 1.07256448,  -1.95876884, -0.28106022,
+        0.3341668,   2.13129425,  -1.14728117, -1.06555498, -0.298444,   -0.88322699, -0.65866792,
+        -2.06007552, 0.01374334,  0.45612028,  0.52715492,  1.01914406,  -1.72659791, 0.80650896,
+        0.16860051,  2.24112225,  -0.78620857, 0.36566174,  -0.07020134, -0.47976932, -0.68230027,
+        -0.94711417, -0.54506505, 1.66504931,  -0.71860826, 0.61132306};
+
+    std::vector<float> c = {
+        2.82721668e-02,  6.44195229e-02,  1.53499246e-02,  1.72468081e-01,  -6.33238107e-02,
+        9.49496776e-02,  1.40258059e-01,  -7.92879611e-02, -1.29301161e-01, 3.11307609e-03,
+        -1.90624535e-01, 1.13238767e-01,  -2.80647576e-02, 3.12882811e-02,  -3.52091640e-02,
+        3.33581865e-02,  6.43158704e-02,  7.40238279e-02,  -1.00106120e-01, -9.56912562e-02,
+        1.44342467e-01,  9.40258950e-02,  6.36333972e-02,  1.66158378e-03,  -8.91554281e-02,
+        2.58734226e-02,  1.70919895e-02,  1.78214177e-01,  8.84564668e-02,  8.98126513e-02,
+        -1.63809001e-01, 1.37802169e-01,  1.66439757e-01,  -1.45631135e-02, 1.88469887e-04,
+        4.76950556e-02,  -1.91969007e-01, -1.76233292e-01, -7.70473927e-02, 1.14828631e-01,
+        1.76608220e-01,  -1.50728196e-01, 1.99946314e-02,  -5.88052124e-02, 1.31612435e-01,
+        1.61106288e-02,  -1.35080189e-01, 1.49512306e-01,  3.86456847e-02,  1.29330024e-01,
+        -3.22975963e-02, -5.60784787e-02, -5.41997552e-02, 4.78562862e-02};
+
+    std::vector<float> s = {0.27039781,
+                            0.19105849,
+                            -0.06339942,
+                            -0.65087199,
+                            0.40867025,
+                            0.05063812,
+                            -0.14907975,
+                            0.49018705,
+                            -0.49197209,
+                            0.33236548,
+                            -0.39374301,
+                            0.16012701,
+                            0.06574871,
+                            0.71606487,
+                            -0.55201721,
+                            -0.46427044};
+    migraphx::shape a_shape{migraphx::shape::float_type, {2, 3, 4, 4, 1}};
+    auto al = p.add_literal(migraphx::literal{a_shape, a});
+
+    migraphx::shape c_shape{migraphx::shape::float_type, {2, 3, 3, 3, 1}};
+    auto cl = p.add_literal(migraphx::literal{c_shape, c});
+
+    p.add_instruction(migraphx::op::convolution{{0,0,0}, {1,1,1}, {1,1,1}}, al, cl);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
 

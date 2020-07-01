@@ -86,35 +86,39 @@ struct cpu_batch_norm_inference
         auto mini_batch_mean     = args[3];
         auto mini_batch_variance = args[4];
 
+        auto num_batch    = output_shape.lens()[0];
+        auto num_channels = output_shape.lens()[1];
+        auto image_height = output_shape.lens()[2];
+        auto image_width  = output_shape.lens()[3];
+
         if(op.bn_mode == op::batch_norm_inference::spatial)
         {
             visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
                 [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
-                    par_for(output_shape.elements(), [&](auto i) {
-                        auto idx = output_shape.multi(i);
-                        auto c   = idx[1];
-                        assert((variance[c] + epsilon) > 0);
-                        result[i] =
-                            gamma[c] * (buffer[i] - mean[c]) / std::sqrt(variance[c] + epsilon) +
-                            bias[c];
-                    });
+
+                    par_dfor(num_batch, num_channels, image_height, image_width)(
+                        [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
+                            assert((variance[c] + epsilon) > 0);
+                            result(n, c, h, w) = gamma[c] * (buffer(n, c, h, w) - mean[c]) /
+                                                     std::sqrt(variance[c] + epsilon) +
+                                                 bias[c];
+                        });
                 });
         }
 
         if(op.bn_mode == op::batch_norm_inference::per_activation)
         {
-            visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
+            visit_all(output, input, mini_batch_mean, mini_batch_mean, arg_gamma, arg_bias)(
                 [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
-                    par_for(output_shape.elements(), [&](auto i) {
-                        auto idx   = output_shape.multi(i);
-                        idx[0]     = 0;
-                        auto index = output_shape.index(idx);
 
-                        assert((variance[index] + epsilon) > 0);
-                        result[i] = gamma[index] * (buffer[i] - mean[index]) /
-                                        std::sqrt(variance[index] + epsilon) +
-                                    bias[index];
-                    });
+                    par_dfor(num_batch, num_channels, image_height, image_width)(
+                        [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
+                            assert((variance(c, h, w) + epsilon) > 0);
+                            result(n, c, h, w) = gamma(c, h, w) *
+                                                     (buffer(n, c, h, w) - mean(c, h, w)) /
+                                                     std::sqrt(variance(c, h, w) + epsilon) +
+                                                 bias(c, h, w);
+                        });
                 });
         }
 
@@ -182,57 +186,59 @@ struct cpu_convolution
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
-            auto in_lens = input.get_shape().lens();
+        result.visit([&](auto output) {
+            visit_all(args[0], args[1])([&](auto input, auto weights) {
+                auto in_lens = input.get_shape().lens();
 
-            auto wei_lens = weights.get_shape().lens();
-            auto wei_n    = wei_lens[0];
-            auto wei_c    = wei_lens[1];
-            std::vector<std::size_t> win_size(wei_lens.begin() + 1, wei_lens.end());
+                auto wei_lens = weights.get_shape().lens();
+                auto wei_n    = wei_lens[0];
+                auto wei_c    = wei_lens[1];
+                std::vector<std::size_t> win_size(wei_lens.begin() + 1, wei_lens.end());
 
-            par_for(output_shape.elements(), [&](auto i) {
-                auto idx_o = output_shape.multi(i);
-                auto w     = idx_o[1];
-                auto n_dim = idx_o.size();
+                par_for(output_shape.elements(), [&](auto i) {
+                    auto idx_o = output_shape.multi(i);
+                    auto w     = idx_o[1];
+                    auto n_dim = idx_o.size();
 
-                std::vector<std::ptrdiff_t> win_start;
-                for(std::size_t dim = 2; dim < n_dim; ++dim)
-                {
-                    auto d_2 = dim - 2;
-                    win_start.push_back(std::ptrdiff_t(idx_o[dim] * op.stride[d_2]) -
-                                        std::ptrdiff_t(op.padding[d_2]));
-                }
-                const auto group_id = w / (wei_n / op.group);
-
-                shape win_shape{output_shape.type(), win_size};
-
-                double acc = 0.0;
-                shape_for_each(win_shape, [&](auto idx_win) {
-                    auto k           = idx_win[0];
-                    const auto in_ch = group_id * wei_c + k;
-                    std::vector<std::ptrdiff_t> idx(idx_o.begin(), idx_o.end());
-                    idx[1] = in_ch;
-                    std::transform(idx_win.begin() + 1,
-                                   idx_win.end(),
-                                   win_start.begin(),
-                                   idx.begin() + 2,
-                                   [](std::ptrdiff_t ii, std::ptrdiff_t jj) { return ii + jj; });
-                    std::vector<std::ptrdiff_t> idx_wei(idx_o.size());
-                    idx_wei[0] = w;
-                    std::copy(idx_win.begin(), idx_win.end(), idx_wei.begin() + 1);
-                    if(std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
-                       std::equal(idx.begin(),
-                                  idx.end(),
-                                  in_lens.begin(),
-                                  in_lens.end(),
-                                  std::less<std::ptrdiff_t>{}))
+                    std::vector<std::ptrdiff_t> win_start;
+                    for(std::size_t dim = 2; dim < n_dim; ++dim)
                     {
-                        acc +=
-                            input(idx.begin(), idx.end()) * weights(idx_wei.begin(), idx_wei.end());
+                        auto d_2 = dim - 2;
+                        win_start.push_back(std::ptrdiff_t(idx_o[dim] * op.stride[d_2]) -
+                                            std::ptrdiff_t(op.padding[d_2]));
                     }
-                });
+                    const auto group_id = w / (wei_n / op.group);
 
-                output[i] = acc;
+                    shape win_shape{output_shape.type(), win_size};
+
+                    double acc = 0.0;
+                    shape_for_each(win_shape, [&](auto idx_win) {
+                        auto k           = idx_win[0];
+                        const auto in_ch = group_id * wei_c + k;
+                        std::vector<std::ptrdiff_t> idx(idx_o.begin(), idx_o.end());
+                        idx[1] = in_ch;
+                        std::transform(idx_win.begin() + 1,
+                                       idx_win.end(),
+                                       win_start.begin(),
+                                       idx.begin() + 2,
+                                       [](std::ptrdiff_t ii, std::ptrdiff_t jj) { return ii + jj; });
+                        std::vector<std::ptrdiff_t> idx_wei(idx_o.size());
+                        idx_wei[0] = w;
+                        std::copy(idx_win.begin(), idx_win.end(), idx_wei.begin() + 1);
+                        if(std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
+                           std::equal(idx.begin(),
+                                      idx.end(),
+                                      in_lens.begin(),
+                                      in_lens.end(),
+                                      std::less<std::ptrdiff_t>{}))
+                        {
+                            acc +=
+                                input(idx.begin(), idx.end()) * weights(idx_wei.begin(), idx_wei.end());
+                        }
+                    });
+
+                    output[i] = acc;
+                });
             });
         });
         return result;

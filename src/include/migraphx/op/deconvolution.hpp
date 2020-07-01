@@ -49,12 +49,15 @@ struct deconvolution
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2).same_type().same_ndims().min_ndims(3);
-        check_attribute_size();
 
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
         auto t               = input.type();
         size_t kdims         = input.lens().size() - 2;
+        if(kdims != this->kdims())
+        {
+            MIGRAPHX_THROW("deconvolution: input k-dims does not match attribute size");
+        }
 
         std::vector<size_t> output_lens{input.lens()[0], weights.lens()[1]};
 

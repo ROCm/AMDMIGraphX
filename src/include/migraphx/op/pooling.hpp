@@ -42,20 +42,23 @@ struct pooling
     {
         if(not(padding.size() == stride.size() and padding.size() == lengths.size()))
         {
-            MIGRAPHX_THROW("convolution: inconsistent attribute sizes");
+            MIGRAPHX_THROW("pooling: inconsistent attribute sizes");
         }
     }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        check_attribute_size();
 
         const shape& input = inputs.at(0);
         auto t             = input.type();
 
         auto input_lens = input.lens();
         size_t kdims    = input_lens.size() - 2;
+        if(kdims != this->kdims())
+        {
+            MIGRAPHX_THROW("pooling: input k-dims does not match attribute size");
+        }
 
         std::vector<std::size_t> output_lens(input_lens.begin(), input_lens.begin() + 2);
 

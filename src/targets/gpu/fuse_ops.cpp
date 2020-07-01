@@ -18,6 +18,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/array.hpp>
 #include <migraphx/op/clip.hpp>
+#include <migraphx/op/batch_norm.hpp>
 #include <cmath>
 
 namespace migraphx {

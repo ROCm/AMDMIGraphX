@@ -1807,7 +1807,7 @@ TEST_CASE(conv3d_test)
     migraphx::shape c_shape{migraphx::shape::float_type, {2, 3, 3, 3, 1}};
     auto cl = p.add_literal(migraphx::literal{c_shape, c});
 
-    p.add_instruction(migraphx::op::convolution{{0,0,0}, {1,1,1}, {1,1,1}}, al, cl);
+    p.add_instruction(migraphx::op::convolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}}, al, cl);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
 

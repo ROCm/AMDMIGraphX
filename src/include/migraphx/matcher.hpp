@@ -6,6 +6,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/type_name.hpp>
 #include <migraphx/config.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -212,11 +213,17 @@ matcher_result match_instruction(program& p, instruction_ref ins, M&& m)
     return result;
 }
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
+
 /// Find matches for an instruction in the program
 template <class... Ms>
 void find_matches(program& p, instruction_ref ins, Ms&&... ms)
 {
-    bool match = false;
+#if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
+    const
+#endif
+        bool trace = enabled(MIGRAPHX_TRACE_MATCHES{});
+    bool match     = false;
     each_args(
         [&](auto&& m) {
             if(match)
@@ -224,6 +231,11 @@ void find_matches(program& p, instruction_ref ins, Ms&&... ms)
             auto r = match_instruction(p, ins, m.matcher());
             if(r.result == p.end())
                 return;
+            if(trace)
+            {
+                std::cout << "Matched by " << get_type_name(m) << std::endl;
+                p.debug_print(ins);
+            }
             m.apply(p, r);
             match = true;
         },
@@ -518,6 +530,11 @@ inline auto either_arg(std::size_t i, std::size_t j)
     };
 }
 
+inline auto any_arg(std::size_t i, std::size_t j)
+{
+    return [=](auto m) { return match::any_of(arg(i)(m), arg(j)(m)); };
+}
+
 template <class M>
 auto same_shape(M m)
 {
@@ -533,6 +550,21 @@ template <class... Ms>
 auto same_shape(Ms... ms)
 {
     return all_of(same_shape(ms)...);
+}
+
+template <class T>
+inline auto has_value(T x, float tolerance = 1e-6)
+{
+    return make_basic_pred_matcher([=](instruction_ref ins) {
+        if(ins->get_shape().elements() != 1)
+            return false;
+        auto l = ins->get_literal();
+        if(l.empty())
+            return false;
+        bool b = false;
+        l.visit([&](auto v) { b = v.front() - x < tolerance; });
+        return b;
+    });
 }
 
 } // namespace match

@@ -52,9 +52,11 @@
 #include <migraphx/op/outline.hpp>
 #include <migraphx/op/pad.hpp>
 #include <migraphx/op/pooling.hpp>
+#include <migraphx/op/prelu.hpp>
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/op/pow.hpp>
+#include <migraphx/op/recip.hpp>
 #include <migraphx/op/reduce_max.hpp>
 #include <migraphx/op/reduce_mean.hpp>
 #include <migraphx/op/reduce_min.hpp>
@@ -64,7 +66,9 @@
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/rnn.hpp>
 #include <migraphx/op/rnn_last_cell_output.hpp>
-#include <migraphx/op/rnn_last_output.hpp>
+#include <migraphx/op/rnn_last_hs_output.hpp>
+#include <migraphx/op/rnn_variable_seq_lens.hpp>
+#include <migraphx/op/rnn_var_sl_last_output.hpp>
 #include <migraphx/op/round.hpp>
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/scalar.hpp>

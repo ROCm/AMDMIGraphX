@@ -211,9 +211,26 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
 
     shape(migraphx_shape* p, borrow) { this->set_handle(p, borrow{}); }
 
+    shape(migraphx_shape_datatype_t type)
+    {
+        this->make_handle(&migraphx_shape_create_scalar, type);
+    }
+
     shape(migraphx_shape_datatype_t type, std::vector<size_t> plengths)
     {
         this->make_handle(&migraphx_shape_create, type, plengths.data(), plengths.size());
+    }
+
+    shape(migraphx_shape_datatype_t type,
+          std::vector<size_t> plengths,
+          std::vector<size_t> pstrides)
+    {
+        this->make_handle(&migraphx_shape_create_with_strides,
+                          type,
+                          plengths.data(),
+                          plengths.size(),
+                          pstrides.data(),
+                          pstrides.size());
     }
 
     std::vector<size_t> lengths() const
@@ -344,7 +361,10 @@ struct program_parameter_shapes : MIGRAPHX_HANDLE_BASE(program_parameter_shapes)
     std::vector<const char*> names() const
     {
         std::vector<const char*> result(this->size());
-        call(&migraphx_program_parameter_shapes_names, result.data(), this->get_handle_ptr());
+        if(!result.empty())
+        {
+            call(&migraphx_program_parameter_shapes_names, result.data(), this->get_handle_ptr());
+        }
         return result;
     }
 };
@@ -354,6 +374,8 @@ struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
     program_parameters(migraphx_program_parameters* p, own) { this->set_handle(p, own{}); }
 
     program_parameters(migraphx_program_parameters* p, borrow) { this->set_handle(p, borrow{}); }
+
+    program_parameters(migraphx_program_parameters* p) { this->set_handle(p, borrow{}); }
 
     program_parameters() { this->make_handle(&migraphx_program_parameters_create); }
 
@@ -482,39 +504,127 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     friend bool operator!=(const program& px, const program& py) { return !(px == py); }
 };
 
-inline program parse_onnx(const char* filename, migraphx_onnx_options options)
+struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
 {
-    return program(make<migraphx_program>(&migraphx_parse_onnx, filename, &options), own{});
+    onnx_options() { this->make_handle(&migraphx_onnx_options_create); }
+
+    onnx_options(migraphx_onnx_options* p, own) { this->set_handle(p, own{}); }
+
+    void set_input_parameter_shape(const std::string& name, std::vector<std::size_t> dim)
+    {
+        call(&migraphx_onnx_options_set_input_parameter_shape,
+             this->get_handle_ptr(),
+             name.c_str(),
+             dim.data(),
+             dim.size());
+    }
+
+    void set_default_dim_value(unsigned int value)
+    {
+        call(&migraphx_onnx_options_set_default_dim_value, this->get_handle_ptr(), value);
+    }
+};
+
+inline program parse_onnx(const char* filename, const migraphx::onnx_options& options)
+{
+    return program(make<migraphx_program>(&migraphx_parse_onnx, filename, options.get_handle_ptr()),
+                   own{});
 }
 
 inline program parse_onnx(const char* filename)
 {
-    return program(make<migraphx_program>(&migraphx_parse_onnx, filename, nullptr), own{});
+    migraphx::onnx_options options;
+    return program(make<migraphx_program>(&migraphx_parse_onnx, filename, options.get_handle_ptr()),
+                   own{});
 }
 
-inline program parse_onnx_buffer(const void* data, size_t size, migraphx_onnx_options options)
+inline program
+parse_onnx_buffer(const void* data, size_t size, const migraphx::onnx_options& options)
 {
-    return program(make<migraphx_program>(&migraphx_parse_onnx_buffer, data, size, &options),
-                   own{});
+    return program(
+        make<migraphx_program>(&migraphx_parse_onnx_buffer, data, size, options.get_handle_ptr()),
+        own{});
 }
 
 inline program parse_onnx_buffer(const void* data, size_t size)
 {
-    return program(make<migraphx_program>(&migraphx_parse_onnx_buffer, data, size, nullptr), own{});
+    migraphx::onnx_options options;
+    return program(
+        make<migraphx_program>(&migraphx_parse_onnx_buffer, data, size, options.get_handle_ptr()),
+        own{});
 }
 
-inline program parse_onnx_buffer(const std::string& buffer, migraphx_onnx_options options)
+inline program parse_onnx_buffer(const std::string& buffer, const migraphx::onnx_options& options)
 {
     return program(
-        make<migraphx_program>(&migraphx_parse_onnx_buffer, buffer.data(), buffer.size(), &options),
+        make<migraphx_program>(
+            &migraphx_parse_onnx_buffer, buffer.data(), buffer.size(), options.get_handle_ptr()),
         own{});
 }
 
 inline program parse_onnx_buffer(const std::string& buffer)
 {
+    migraphx::onnx_options options;
     return program(
-        make<migraphx_program>(&migraphx_parse_onnx_buffer, buffer.data(), buffer.size(), nullptr),
+        make<migraphx_program>(
+            &migraphx_parse_onnx_buffer, buffer.data(), buffer.size(), options.get_handle_ptr()),
         own{});
+}
+
+struct quantize_op_names : MIGRAPHX_HANDLE_BASE(quantize_op_names)
+{
+    quantize_op_names() { this->make_handle(&migraphx_quantize_op_names_create); }
+
+    quantize_op_names(migraphx_quantize_op_names* p, own) { this->set_handle(p, own{}); }
+
+    void add(const std::string& name)
+    {
+        call(&migraphx_quantize_op_names_add, this->get_handle_ptr(), name.c_str());
+    }
+};
+
+// fp16 quantization apis
+inline void quantize_fp16(const program& prog, const quantize_op_names& names)
+{
+    call(&migraphx_quantize_fp16_with_op_names, prog.get_handle_ptr(), names.get_handle_ptr());
+}
+
+inline void quantize_fp16(const program& prog)
+{
+    call(&migraphx_quantize_fp16, prog.get_handle_ptr());
+}
+
+struct quantize_int8_options : MIGRAPHX_HANDLE_BASE(quantize_int8_options)
+{
+    quantize_int8_options() { this->make_handle(&migraphx_quantize_int8_options_create); }
+
+    quantize_int8_options(migraphx_quantize_int8_options* p, own) { this->set_handle(p, own{}); }
+
+    quantize_int8_options(migraphx_quantize_int8_options* p, borrow)
+    {
+        this->set_handle(p, borrow{});
+    }
+
+    void add_op_name(const std::string& name)
+    {
+        call(&migraphx_quantize_int8_options_add_op_name, this->get_handle_ptr(), name.c_str());
+    }
+
+    void add_calibration_data(const program_parameters& pp)
+    {
+        call(&migraphx_quantize_int8_options_add_calibration_data,
+             this->get_handle_ptr(),
+             pp.get_handle_ptr());
+    }
+};
+
+inline void
+quantize_int8(const program& prog, const target& ptarget, const quantize_int8_options& options)
+{
+    call(&migraphx_quantize_int8,
+         prog.get_handle_ptr(),
+         ptarget.get_handle_ptr(),
+         options.get_handle_ptr());
 }
 
 } // namespace api

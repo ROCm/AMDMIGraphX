@@ -43,11 +43,6 @@ typedef struct
     bool offload_copy;
 } migraphx_compile_options;
 
-typedef struct
-{
-    size_t batch_size;
-} migraphx_onnx_options;
-
 typedef struct migraphx_shape* migraphx_shape_t;
 typedef const struct migraphx_shape* const_migraphx_shape_t;
 
@@ -72,12 +67,31 @@ typedef const struct migraphx_shapes* const_migraphx_shapes_t;
 typedef struct migraphx_program* migraphx_program_t;
 typedef const struct migraphx_program* const_migraphx_program_t;
 
+typedef struct migraphx_onnx_options* migraphx_onnx_options_t;
+typedef const struct migraphx_onnx_options* const_migraphx_onnx_options_t;
+
+typedef struct migraphx_quantize_op_names* migraphx_quantize_op_names_t;
+typedef const struct migraphx_quantize_op_names* const_migraphx_quantize_op_names_t;
+
+typedef struct migraphx_quantize_int8_options* migraphx_quantize_int8_options_t;
+typedef const struct migraphx_quantize_int8_options* const_migraphx_quantize_int8_options_t;
+
 migraphx_status migraphx_shape_destroy(migraphx_shape_t shape);
 
 migraphx_status migraphx_shape_create(migraphx_shape_t* shape,
                                       migraphx_shape_datatype_t type,
                                       size_t* lengths,
                                       size_t lengths_size);
+
+migraphx_status migraphx_shape_create_with_strides(migraphx_shape_t* shape,
+                                                   migraphx_shape_datatype_t type,
+                                                   size_t* lengths,
+                                                   size_t lengths_size,
+                                                   size_t* strides,
+                                                   size_t strides_size);
+
+migraphx_status migraphx_shape_create_scalar(migraphx_shape_t* shape,
+                                             migraphx_shape_datatype_t type);
 
 migraphx_status
 migraphx_shape_lengths(const size_t** out, size_t* out_size, const_migraphx_shape_t shape);
@@ -171,13 +185,52 @@ migraphx_status migraphx_program_run(migraphx_arguments_t* out,
 migraphx_status
 migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migraphx_program_t x);
 
+migraphx_status migraphx_onnx_options_destroy(migraphx_onnx_options_t onnx_options);
+
+migraphx_status migraphx_onnx_options_create(migraphx_onnx_options_t* onnx_options);
+
+migraphx_status migraphx_onnx_options_set_input_parameter_shape(
+    migraphx_onnx_options_t onnx_options, const char* name, size_t* dims, size_t dims_size);
+
+migraphx_status migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options,
+                                                            size_t value);
+
 migraphx_status
-migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options* options);
+migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options_t options);
 
 migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
                                            const void* data,
                                            size_t size,
-                                           migraphx_onnx_options* options);
+                                           migraphx_onnx_options_t options);
+
+migraphx_status migraphx_quantize_op_names_destroy(migraphx_quantize_op_names_t quantize_op_names);
+
+migraphx_status migraphx_quantize_op_names_create(migraphx_quantize_op_names_t* quantize_op_names);
+
+migraphx_status migraphx_quantize_op_names_add(migraphx_quantize_op_names_t quantize_op_names,
+                                               const char* name);
+
+migraphx_status migraphx_quantize_fp16_with_op_names(migraphx_program_t prog,
+                                                     migraphx_quantize_op_names_t name);
+
+migraphx_status migraphx_quantize_fp16(migraphx_program_t prog);
+
+migraphx_status
+migraphx_quantize_int8_options_destroy(migraphx_quantize_int8_options_t quantize_int8_options);
+
+migraphx_status
+migraphx_quantize_int8_options_create(migraphx_quantize_int8_options_t* quantize_int8_options);
+
+migraphx_status
+migraphx_quantize_int8_options_add_op_name(migraphx_quantize_int8_options_t quantize_int8_options,
+                                           const char* name);
+
+migraphx_status migraphx_quantize_int8_options_add_calibration_data(
+    migraphx_quantize_int8_options_t quantize_int8_options, migraphx_program_parameters_t data);
+
+migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
+                                       migraphx_target_t target,
+                                       migraphx_quantize_int8_options_t options);
 
 #ifdef __cplusplus
 }

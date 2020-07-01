@@ -38,8 +38,9 @@ Result make_obj(F f, Ts... xs)
     return r;
 }
 
-inline tensor_descriptor make_tensor(const migraphx::shape& s, bool pack = false)
+inline tensor_descriptor make_tensor(const migraphx::shape& os, bool pack = false)
 {
+    auto s = os.normalize_standard();
     auto t = make_obj<tensor_descriptor>(&miopenCreateTensorDescriptor);
     // Convert to ints
     std::vector<int> lens(s.lens().begin(), s.lens().end());
@@ -81,14 +82,18 @@ inline convolution_descriptor make_conv(const T& op)
     miopenConvolutionMode_t c_mode = miopenConvolution;
     if(op.group > 1)
         c_mode = miopenGroupConv;
-    miopenInitConvolutionDescriptor(c.get(),
-                                    c_mode,
-                                    op.padding[0],
-                                    op.padding[1],
-                                    op.stride[0],
-                                    op.stride[1],
-                                    op.dilation[0],
-                                    op.dilation[1]);
+
+    int kdims = op.kdims();
+    std::vector<int> padding(std::max(2, kdims), 0);
+    std::vector<int> stride(std::max(2, kdims), 1);
+    std::vector<int> dilation(std::max(2, kdims), 1);
+
+    std::copy_backward(op.padding.begin(), op.padding.end(), padding.end());
+    std::copy_backward(op.stride.begin(), op.stride.end(), stride.end());
+    std::copy_backward(op.dilation.begin(), op.dilation.end(), dilation.end());
+
+    miopenInitConvolutionNdDescriptor(
+        c.get(), padding.size(), padding.data(), stride.data(), dilation.data(), c_mode);
     if(op.group > 1)
         miopenSetConvolutionGroupCount(c.get(), op.group);
     return c;

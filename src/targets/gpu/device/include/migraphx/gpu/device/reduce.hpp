@@ -69,7 +69,7 @@ struct min
 struct lowest
 {
     template <class T>
-    operator T() const
+    __device__ __host__ operator T() const
     {
         return device_cast(std::numeric_limits<host_type<T>>::lowest());
     }
@@ -78,7 +78,7 @@ struct lowest
 struct highest
 {
     template <class T>
-    operator T() const
+    __device__ __host__ operator T() const
     {
         return device_cast(std::numeric_limits<host_type<T>>::max());
     }
@@ -140,7 +140,11 @@ __device__ T dpp_mov(T& x)
     input.data = x;
     for(index_int i = 0; i < n; i++)
     {
+#if defined(__HCC__)
         output.reg[i] = __llvm_amdgcn_move_dpp(input.reg[i], DppCtrl, RowMask, BankMask, BoundCtrl);
+#else
+        output.reg[i] = __hip_move_dpp(input.reg[i], DppCtrl, RowMask, BankMask, BoundCtrl);
+#endif
     }
     return output.data;
 }

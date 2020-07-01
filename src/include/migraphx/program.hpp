@@ -74,6 +74,7 @@ struct program
     instruction_ref remove_instructions(instruction_ref first, instruction_ref last);
 
     instruction_ref move_instruction(instruction_ref src, instruction_ref dst);
+    instruction_ref move_instructions(instruction_ref src, instruction_ref dst);
 
     template <class... Ts>
     instruction_ref add_literal(Ts&&... xs)
@@ -86,6 +87,8 @@ struct program
     instruction_ref add_outline(const shape& s);
 
     instruction_ref add_parameter(std::string name, shape s);
+
+    instruction_ref add_return(std::vector<instruction_ref> args);
 
     shape get_parameter_shape(std::string name) const;
 
@@ -122,6 +125,8 @@ struct program
     void dry_run(parameter_map params) const;
 
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
+
+    program& sort();
 
     friend std::ostream& operator<<(std::ostream& os, const program& p);
     friend bool operator==(const program& x, const program& y);

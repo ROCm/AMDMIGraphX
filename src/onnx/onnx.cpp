@@ -16,21 +16,31 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/onnx.hpp>
+#include <migraphx/pad_calc.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+namespace onnx = onnx_for_migraphx;
+
 struct onnx_parser
 {
     using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
-    using node_map      = std::unordered_map<std::string, onnx::NodeProto>;
+    struct node_info
+    {
+        attribute_map attributes{};
+        std::size_t num_outputs = 1;
+    };
+    using node_map = std::unordered_map<std::string, onnx::NodeProto>;
     using op_func =
-        std::function<std::vector<instruction_ref>(attribute_map, std::vector<instruction_ref>)>;
+        std::function<std::vector<instruction_ref>(node_info, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
-    program prog            = program();
-    bool is_pytorch         = false;
-    unsigned int batch_size = 1;
+    program prog                  = program();
+    bool is_pytorch               = false;
+    std::size_t default_dim_value = 1;
+    std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
+    bool skip_unknown_operators = false;
 
     std::unordered_map<std::string, op_func> ops;
     std::unordered_map<std::string, operation> map_actv_funcs;
@@ -51,9 +61,11 @@ struct onnx_parser
         add_generic_op("Erf", op::erf{});
         add_generic_op("Exp", op::exp{});
         add_generic_op("Dropout", op::identity{});
-        add_generic_op("Log", op::log{});
         add_generic_op("Floor", op::floor{});
         add_generic_op("Identity", op::identity{});
+        add_generic_op("Log", op::log{});
+        add_generic_op("Neg", op::neg{});
+        add_generic_op("Reciprocal", op::recip{});
         add_generic_op("Relu", op::relu{});
         add_generic_op("Round", op::round{});
         add_generic_op("Sigmoid", op::sigmoid{});
@@ -68,12 +80,14 @@ struct onnx_parser
         add_binary_op("Div", op::div{});
         add_binary_op("Mul", op::mul{});
         add_binary_op("Pow", op::pow{});
+        add_binary_op("PRelu", op::prelu{});
         add_binary_op("Sub", op::sub{});
 
         add_variadic_op("Sum", op::add{});
         add_variadic_op("Max", op::max{});
         add_variadic_op("Min", op::min{});
 
+        add_mem_op("ATen", &onnx_parser::parse_aten);
         add_mem_op("AveragePool", &onnx_parser::parse_pooling);
         add_mem_op("ArgMax", &onnx_parser::parse_arg_op<op::argmax>);
         add_mem_op("ArgMin", &onnx_parser::parse_arg_op<op::argmin>);
@@ -91,6 +105,7 @@ struct onnx_parser
         add_mem_op("Expand", &onnx_parser::parse_expand);
         add_mem_op("Flatten", &onnx_parser::parse_flatten);
         add_mem_op("Gather", &onnx_parser::parse_gather);
+        add_mem_op("GatherElements", &onnx_parser::parse_gather_elements);
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
         add_mem_op("GlobalAveragePool", &onnx_parser::parse_pooling);
         add_mem_op("GlobalMaxPool", &onnx_parser::parse_pooling);
@@ -100,9 +115,13 @@ struct onnx_parser
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
         add_mem_op("LogSoftmax", &onnx_parser::parse_softmax<op::logsoftmax>);
         add_mem_op("LRN", &onnx_parser::parse_lrn);
+        add_mem_op("LSTM", &onnx_parser::parse_lstm);
         add_mem_op("MatMul", &onnx_parser::parse_matmul<op::dot>);
         add_mem_op("MatMulInteger", &onnx_parser::parse_matmul<op::quant_dot>);
         add_mem_op("MaxPool", &onnx_parser::parse_pooling);
+        add_mem_op("OneHot", &onnx_parser::parse_onehot);
+        add_mem_op("Pad", &onnx_parser::parse_pad);
+        add_mem_op("Range", &onnx_parser::parse_range);
         add_mem_op("ReduceL1", &onnx_parser::parse_reduce_l1);
         add_mem_op("ReduceL2", &onnx_parser::parse_reduce_l2);
         add_mem_op("ReduceLogSum", &onnx_parser::parse_reduce_log_sum);
@@ -115,14 +134,14 @@ struct onnx_parser
         add_mem_op("ReduceSumSquare", &onnx_parser::parse_reduce_sum_square);
         add_mem_op("Reshape", &onnx_parser::parse_reshape);
         add_mem_op("RNN", &onnx_parser::parse_rnn);
-        add_mem_op("Pad", &onnx_parser::parse_pad);
         add_mem_op("Shape", &onnx_parser::parse_shape);
         add_mem_op("Slice", &onnx_parser::parse_slice);
         add_mem_op("Softmax", &onnx_parser::parse_softmax<op::softmax>);
+        add_mem_op("Split", &onnx_parser::parse_split);
         add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
+        add_mem_op("Tile", &onnx_parser::parse_tile);
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
         add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
-        add_mem_op("LSTM", &onnx_parser::parse_lstm);
 
         // init the activation function map
         init_actv_func();
@@ -164,15 +183,15 @@ struct onnx_parser
     template <class T>
     void add_binary_op(std::string name, T x)
     {
-        add_op(name, [this, x](attribute_map attributes, std::vector<instruction_ref> args) {
+        add_op(name, [this, x](node_info info, std::vector<instruction_ref> args) {
             if(args.size() != 2)
                 MIGRAPHX_THROW("binary operators should have 2 operands");
-            if(contains(attributes, "broadcast") and contains(attributes, "axis"))
+            if(contains(info.attributes, "broadcast") and contains(info.attributes, "axis"))
             {
-                uint64_t broadcasted = parse_value(attributes.at("broadcast")).at<uint64_t>();
+                uint64_t broadcasted = parse_value(info.attributes.at("broadcast")).at<uint64_t>();
                 if(broadcasted != 0)
                 {
-                    uint64_t axis = parse_value(attributes.at("axis")).at<uint64_t>();
+                    uint64_t axis = parse_value(info.attributes.at("axis")).at<uint64_t>();
                     auto l = prog.add_instruction(op::broadcast{axis, args[0]->get_shape().lens()},
                                                   args[1]);
                     return prog.add_instruction(x, args[0], l);
@@ -264,7 +283,7 @@ struct onnx_parser
     template <class T>
     void add_generic_op(std::string name, T x)
     {
-        add_op(name, [this, x](const attribute_map&, std::vector<instruction_ref> args) {
+        add_op(name, [this, x](const node_info&, std::vector<instruction_ref> args) {
             return prog.add_instruction(x, args);
         });
     }
@@ -272,7 +291,7 @@ struct onnx_parser
     template <class T>
     void add_variadic_op(std::string name, T x)
     {
-        add_op(name, [this, x](const attribute_map&, std::vector<instruction_ref> args) {
+        add_op(name, [this, x](const node_info&, std::vector<instruction_ref> args) {
             return std::accumulate(std::next(args.begin()),
                                    args.end(),
                                    args.front(),
@@ -301,51 +320,120 @@ struct onnx_parser
         return curr_ins;
     }
 
-    instruction_ref parse_clip(const std::string&,
-                               const attribute_map& attributes,
-                               std::vector<instruction_ref> args)
+    bool is_asym_padding(const std::vector<int64_t>& padding)
     {
-        op::clip op;
-        if(contains(attributes, "max"))
+        assert(padding.size() % 2 == 0);
+        size_t pad_ndims = padding.size() / 2;
+
+        for(size_t i = 0; i < pad_ndims; i++)
         {
-            op.max_val = parse_value(attributes.at("max")).at<float>();
+            if(padding[i] != padding[i + pad_ndims])
+            {
+                return true;
+            }
         }
-        if(contains(attributes, "min"))
-        {
-            op.min_val = parse_value(attributes.at("min")).at<float>();
-        }
-        return prog.add_instruction(op, std::move(args));
+        return false;
     }
 
     template <class Op>
-    instruction_ref parse_softmax(const std::string&,
-                                  const attribute_map& attributes,
-                                  std::vector<instruction_ref> args)
+    void check_asym_padding(instruction_ref& ins,
+                            const std::vector<int64_t>& padding,
+                            Op& op,
+                            float pad_val = 0)
+    {
+        size_t pad_ndims  = padding.size() / 2;
+        auto left_pad_it  = padding.begin();
+        auto right_pad_it = left_pad_it + pad_ndims;
+
+        if(is_asym_padding(padding))
+        {
+            std::vector<int64_t> asym_pads{0, 0, 0, 0}; // don't pad N and C
+            // add left pads
+            asym_pads.insert(asym_pads.begin() + 2, left_pad_it, right_pad_it);
+            // add right pads
+            asym_pads.insert(asym_pads.begin() + pad_ndims + 4, right_pad_it, padding.end());
+            ins = prog.add_instruction(op::pad{asym_pads, pad_val}, ins);
+        }
+        else
+        {
+            op.padding = std::vector<size_t>(left_pad_it, right_pad_it);
+        }
+    }
+
+    instruction_ref
+    parse_clip(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        auto input_lens = args[0]->get_shape().lens();
+        instruction_ref min_arg;
+        instruction_ref max_arg;
+        bool min_used = false;
+        bool max_used = false;
+
+        if(args.size() == 3)
+        {
+            min_arg  = args[1];
+            max_arg  = args[2];
+            min_used = true;
+            max_used = true;
+        }
+        else if(args.size() == 2)
+        {
+            min_arg  = args[1];
+            min_used = true;
+        }
+        // if using previous opset for attributes
+        else if(contains(info.attributes, "min") and contains(info.attributes, "max"))
+        {
+
+            float min_val = parse_value(info.attributes.at("min")).at<float>();
+            float max_val = parse_value(info.attributes.at("max")).at<float>();
+            min_arg       = prog.add_literal(min_val);
+            max_arg       = prog.add_literal(max_val);
+            min_used      = true;
+            max_used      = true;
+        }
+
+        if(min_used)
+            min_arg = prog.add_instruction(op::multibroadcast{input_lens}, min_arg);
+
+        if(max_used)
+            max_arg = prog.add_instruction(op::multibroadcast{input_lens}, max_arg);
+
+        if(min_used and max_used)
+            return prog.add_instruction(op::clip{}, args[0], min_arg, max_arg);
+        if(min_used)
+            return prog.add_instruction(op::max{}, args[0], min_arg);
+
+        return prog.add_instruction(op::identity{}, args[0]);
+    }
+
+    template <class Op>
+    instruction_ref
+    parse_softmax(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         int64_t axis = 1;
-        if(contains(attributes, "axis"))
+        if(contains(info.attributes, "axis"))
         {
-            axis = parse_value(attributes.at("axis")).at<int>();
+            axis = parse_value(info.attributes.at("axis")).at<int>();
         }
 
         return prog.add_instruction(Op{axis}, std::move(args));
     }
 
     template <class Op>
-    instruction_ref parse_arg_op(const std::string&,
-                                 const attribute_map& attributes,
-                                 std::vector<instruction_ref> args)
+    instruction_ref
+    parse_arg_op(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         int64_t axis = 0;
-        if(contains(attributes, "axis"))
+        if(contains(info.attributes, "axis"))
         {
-            axis = static_cast<int64_t>(parse_value(attributes.at("axis")).at<int>());
+            axis = static_cast<int64_t>(parse_value(info.attributes.at("axis")).at<int>());
         }
 
         int keep_dims = 1;
-        if(contains(attributes, "keepdims"))
+        if(contains(info.attributes, "keepdims"))
         {
-            keep_dims = parse_value(attributes.at("keepdims")).at<int>();
+            keep_dims = parse_value(info.attributes.at("keepdims")).at<int>();
         }
 
         if(keep_dims == 0)
@@ -361,174 +449,265 @@ struct onnx_parser
 
     template <class Op>
     instruction_ref process_auto_pad_attribute(instruction_ref ins,
-                                               attribute_map& attributes,
+                                               node_info info,
                                                Op& op,
-                                               const std::vector<std::size_t>& in_lens)
+                                               std::vector<std::size_t> k_lens,
+                                               std::vector<std::size_t> dilation,
+                                               const std::vector<std::size_t>& in_lens,
+                                               float value = 0.0f)
     {
-        if(!contains(attributes, "auto_pad"))
+        size_t kdims = in_lens.size() - 2;
+        assert(k_lens.size() == kdims and dilation.size() == kdims);
+
+        if(!contains(info.attributes, "auto_pad"))
         {
             return ins;
         }
 
-        auto auto_pad = attributes["auto_pad"].s();
+        auto auto_pad = info.attributes["auto_pad"].s();
         if(auto_pad.find("SAME") != std::string::npos)
         {
-            // calculate the padding
-            std::array<std::size_t, 2> out_lens;
-            out_lens[0] = (in_lens[2] + op.stride[0] - 1) / op.stride[0];
-            out_lens[1] = (in_lens[3] + op.stride[1] - 1) / op.stride[1];
+            op.padding_mode    = op::padding_mode_t::same;
+            bool is_same_upper = (auto_pad.find("SAME_UPPER") != std::string::npos);
+            std::vector<int64_t> padding(2 * kdims);
 
-            std::array<std::size_t, 2> explicit_pads;
-            explicit_pads[0] = (out_lens[0] - 1) * op.stride[0] + op.lengths[0] - in_lens[2];
-            explicit_pads[1] = (out_lens[1] - 1) * op.stride[1] + op.lengths[1] - in_lens[3];
-            op.padding[0]    = explicit_pads[0] / 2;
-            op.padding[1]    = explicit_pads[1] / 2;
-            explicit_pads[0] -= 2 * op.padding[0];
-            explicit_pads[1] -= 2 * op.padding[1];
-            std::vector<std::int64_t> pads(8, 0);
-            if(explicit_pads[0] != 0 or explicit_pads[1] != 0)
+            for(size_t i = 0; i < padding.size() / 2; i++)
             {
-                if(auto_pad == "SAME_UPPER")
-                {
-                    pads[6] = explicit_pads[0];
-                    pads[7] = explicit_pads[1];
-                }
-                else if(auto_pad == "SAME_LOWER")
-                {
-                    pads[2] = explicit_pads[0];
-                    pads[3] = explicit_pads[1];
-                }
-
-                // MaxPool
-                if(op.mode == "max")
-                {
-                    ins = prog.add_instruction(op::pad{pads, std::numeric_limits<float>::lowest()},
-                                               ins);
-                }
-                // AveragePool
-                else
-                {
-                    ins = prog.add_instruction(op::pad{pads}, ins);
-                }
+                calculate_padding(i,
+                                  padding,
+                                  in_lens[i + 2],
+                                  op.stride[i],
+                                  dilation[i],
+                                  k_lens[i],
+                                  is_same_upper);
             }
 
-            op.padding_mode = op::padding_mode_t::same;
+            check_asym_padding(ins, padding, op, value);
         }
 
         return ins;
     }
 
+    void calc_reflect_indices(std::vector<int>& indices, const int64_t num_dims)
+    {
+        int k         = 0;
+        bool reversed = false;
+        // in reflect padding, if the num_pads > num_dims,
+        // compute the extra pad indices periodically, ex. ( 1, 2, 3, 2, 1, 0)
+        for(int& idx : indices)
+        {
+            if(k == num_dims - 1)
+                reversed = true;
+            if(k == 0)
+                reversed = false;
+            if(reversed)
+                k--;
+            else
+                k++;
+            idx = k;
+        }
+    }
+
+    instruction_ref reflect_pad(const std::vector<int64_t>& pads, instruction_ref input)
+    {
+        size_t num_dims = pads.size() / 2;
+        std::vector<int> ldims(pads.begin(), pads.begin() + num_dims);
+        std::vector<int> rdims(pads.begin() + num_dims, pads.end());
+        assert(ldims.size() == rdims.size());
+
+        std::vector<int64_t> axes(num_dims);
+        std::iota(axes.begin(), axes.end(), int64_t{0});
+
+        // iterate over dimensions, starting from lowest dimension
+        for(int64_t i = num_dims - 1; i >= 0; i--)
+        {
+            auto axis   = i;
+            auto lcount = ldims.at(i);
+            auto rcount = rdims.at(i);
+            if(lcount == 0 and rcount == 0) // no padding for current dim
+                continue;
+
+            // calculate starts and ends for each iteration since shape may change
+            std::vector<size_t> dims = input->get_shape().lens();
+            std::vector<int64_t> starts(axes.size(), 0);
+            std::vector<int64_t> ends(dims.begin(), dims.end());
+            std::vector<instruction_ref> slices;
+
+            auto starts_it = starts.begin() + i;
+            auto ends_it   = ends.begin() + i;
+            auto dims_it   = dims.begin() + i;
+
+            std::vector<int> l_indices(lcount);
+            std::vector<int> r_indices(rcount);
+
+            // compute slice indices in a periodic fashion
+            calc_reflect_indices(l_indices, *dims_it);
+            calc_reflect_indices(r_indices, *dims_it);
+
+            for(int idx : l_indices)
+            {
+                *starts_it = idx;
+                *ends_it   = *starts_it + 1;
+                slices.push_back(prog.add_instruction(op::slice{axes, starts, ends}, input));
+            }
+            // when padding on the left side, the outermost pad should be at the beginning
+            std::reverse(slices.begin(), slices.end());
+            slices.push_back(input);
+            for(int idx : r_indices)
+            {
+                *starts_it = *dims_it - idx - 1;
+                *ends_it   = *starts_it + 1;
+                slices.push_back(prog.add_instruction(op::slice{axes, starts, ends}, input));
+            }
+            input = prog.add_instruction(op::concat{axis}, slices);
+        }
+        return input;
+    }
+
+    void check_attr_sizes(size_t kdims, size_t attr_size, const std::string& error_msg)
+    {
+        if(kdims != attr_size)
+        {
+            MIGRAPHX_THROW(error_msg + " k-dims: " + to_string(kdims) +
+                           " attribute size: " + to_string(attr_size));
+        }
+    }
+
+    template <class Op>
+    void recalc_conv_attributes(Op& op, size_t kdims)
+    {
+        if(op.padding.size() != kdims)
+        {
+            op.padding.resize(kdims);
+            std::fill_n(op.padding.begin(), kdims, 0);
+        }
+        if(op.stride.size() != kdims)
+        {
+            op.stride.resize(kdims);
+            std::fill_n(op.stride.begin(), kdims, 1);
+        }
+        if(op.dilation.size() != kdims)
+        {
+            op.dilation.resize(kdims);
+            std::fill_n(op.dilation.begin(), kdims, 1);
+        }
+    }
+
     template <class Op>
     instruction_ref
-    parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_conv(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         Op op;
-        auto l0 = args[0];
-        if(contains(attributes, "pads"))
+        auto l0      = args[0];
+        auto weights = args[1];
+        auto in_lens = l0->get_shape().lens();
+        assert(in_lens.size() > 2);
+        auto kdims = in_lens.size() - 2;
+
+        std::vector<int64_t> padding;
+        if(contains(info.attributes, "pads"))
         {
-            if(contains(attributes, "auto_pad"))
+            if(contains(info.attributes, "auto_pad"))
             {
-                auto s = attributes["auto_pad"].s();
-                if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
+                auto s = info.attributes["auto_pad"].s();
+                if(contains(info.attributes, "pads") and to_upper(s) != "NOTSET")
                 {
-                    MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                    MIGRAPHX_THROW(
+                        "PARSE_CONV: auto_pad and padding cannot be specified simultaneously");
                 }
             }
-            std::vector<std::int64_t> padding;
-            copy(attributes["pads"].ints(), std::back_inserter(padding));
-            if(padding.size() != 4)
-            {
-                MIGRAPHX_THROW("padding should have 4 values");
-            }
-            if(padding[0] != padding[2] || padding[1] != padding[3])
-            {
-                // insert zeros for pad op (args[0] has 4 dims)
-                padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
-                l0      = prog.add_instruction(op::pad{padding}, l0);
-            }
-            else
-            {
-                op.padding[0] = padding[0];
-                op.padding[1] = padding[1];
-            }
+            op.padding.clear();
+            copy(info.attributes["pads"].ints(), std::back_inserter(padding));
+            check_attr_sizes(kdims, padding.size() / 2, "PARSE_CONV: inconsistent paddings");
+            check_asym_padding(l0, padding, op);
         }
-        if(contains(attributes, "strides"))
+        if(contains(info.attributes, "strides"))
         {
-            copy(attributes["strides"].ints(), op.stride.begin());
+            op.stride.clear();
+            copy(info.attributes["strides"].ints(), std::back_inserter(op.stride));
+            check_attr_sizes(kdims, op.stride.size(), "PARSE_CONV: inconsistent strides");
         }
-        if(contains(attributes, "dilations"))
+        if(contains(info.attributes, "dilations"))
         {
-            copy(attributes["dilations"].ints(), op.dilation.begin());
+            op.dilation.clear();
+            copy(info.attributes["dilations"].ints(), std::back_inserter(op.dilation));
+            check_attr_sizes(kdims, op.dilation.size(), "PARSE_CONV: inconsistent dilations");
         }
-        if(contains(attributes, "auto_pad"))
+        if(contains(info.attributes, "auto_pad"))
         {
-            auto s = attributes["auto_pad"].s();
-            if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
-            {
-                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
-            }
+            auto weight_lens = weights->get_shape().lens();
 
-            if(s.find("SAME") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::same;
-            }
+            std::vector<std::size_t> k_lens(weight_lens.begin() + 2, weight_lens.end());
+            l0 = process_auto_pad_attribute(l0, info, op, k_lens, op.dilation, in_lens);
         }
-        if(contains(attributes, "group"))
+        if(contains(info.attributes, "group"))
         {
-            op.group = parse_value(attributes.at("group")).at<int>();
+            op.group = parse_value(info.attributes.at("group")).at<int>();
         }
+
+        recalc_conv_attributes(op, kdims);
 
         auto l1 = prog.add_instruction(op, l0, args[1]);
         return add_bias(args, l1, 1);
     }
 
-    instruction_ref parse_conv_transpose(const std::string&,
-                                         attribute_map attributes,
-                                         std::vector<instruction_ref> args)
+    instruction_ref
+    parse_conv_transpose(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         op::deconvolution op;
         auto l0 = args[0];
         std::vector<std::int64_t> padding;
-        bool asymm_padding = false;
-        if(contains(attributes, "pads"))
+        bool asym_padding = false;
+        auto in_lens      = l0->get_shape().lens();
+        assert(in_lens.size() > 2);
+        auto kdims = in_lens.size() - 2;
+
+        if(contains(info.attributes, "pads"))
         {
-            if(contains(attributes, "auto_pad"))
+            if(contains(info.attributes, "auto_pad"))
             {
-                auto s = attributes["auto_pad"].s();
-                if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
+                auto s = info.attributes["auto_pad"].s();
+                if(contains(info.attributes, "pads") and to_upper(s) != "NOTSET")
                 {
-                    MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                    MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: auto_pad and padding cannot be specified "
+                                   "simultaneously");
                 }
             }
-            copy(attributes["pads"].ints(), std::back_inserter(padding));
-            if(padding.size() != 4)
+            copy(info.attributes["pads"].ints(), std::back_inserter(padding));
+
+            asym_padding = is_asym_padding(padding);
+
+            if(not asym_padding)
             {
-                MIGRAPHX_THROW("padding should have 4 values");
-            }
-            if(padding[0] != padding[2] || padding[1] != padding[3])
-            {
-                asymm_padding = true;
-            }
-            else
-            {
-                op.padding[0] = padding[0];
-                op.padding[1] = padding[1];
+                size_t pad_ndims = padding.size() / 2;
+                check_attr_sizes(kdims, pad_ndims, "PARSE_CONV_TRANSPOSE: inconsistent paddings");
+                op.padding.clear();
+                std::transform(padding.begin(),
+                               padding.begin() + pad_ndims,
+                               std::back_inserter(op.padding),
+                               [](auto pad_val) { return pad_val; });
             }
         }
-        if(contains(attributes, "strides"))
+        if(contains(info.attributes, "strides"))
         {
-            copy(attributes["strides"].ints(), op.stride.begin());
+            op.stride.clear();
+            copy(info.attributes["strides"].ints(), std::back_inserter(op.stride));
+            check_attr_sizes(kdims, op.stride.size(), "PARSE_CONV_TRANSPOSE: inconsistent strides");
         }
-        if(contains(attributes, "dilations"))
+        if(contains(info.attributes, "dilations"))
         {
-            copy(attributes["dilations"].ints(), op.dilation.begin());
+            op.dilation.clear();
+            copy(info.attributes["dilations"].ints(), std::back_inserter(op.dilation));
+            check_attr_sizes(
+                kdims, op.dilation.size(), "PARSE_CONV_TRANSPOSE: inconsistent dilations");
         }
-        if(contains(attributes, "auto_pad"))
+        if(contains(info.attributes, "auto_pad"))
         {
-            auto s = attributes["auto_pad"].s();
-            if(contains(attributes, "pads") and to_upper(s) != "NOTSET")
+            auto s = info.attributes["auto_pad"].s();
+            if(contains(info.attributes, "pads") and to_upper(s) != "NOTSET")
             {
-                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: auto_pad and padding cannot be specified "
+                               "simultaneously");
             }
 
             if(s.find("SAME") != std::string::npos)
@@ -537,49 +716,61 @@ struct onnx_parser
             }
         }
 
-        if(contains(attributes, "group"))
+        if(contains(info.attributes, "group"))
         {
-            op.group = parse_value(attributes.at("group")).at<int>();
+            op.group = parse_value(info.attributes.at("group")).at<int>();
         }
+
+        recalc_conv_attributes(op, kdims);
 
         auto l1                   = prog.add_instruction(op, l0, args[1]);
         std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
-        std::vector<int64_t> curr_shape{dims[2], dims[3]};
-        if(asymm_padding)
+        std::vector<int64_t> curr_shape(dims.begin() + 2, dims.end());
+        if(asym_padding)
         {
-            op::slice slice_op;
-            slice_op.axes   = {0, 1, 2, 3};
-            slice_op.starts = {0, 0, 0 + padding[0], 0 + padding[1]};
-            slice_op.ends   = {
-                dims[0], dims[1], curr_shape[0] - padding[2], curr_shape[1] - padding[3]};
+            std::vector<int64_t> axes(kdims);
+            std::iota(axes.begin(), axes.end(), 2); // ignore first 2 dims
 
-            l1 = prog.add_instruction(slice_op, l1);
+            auto pad_kdim_start = padding.begin() + kdims;
+            std::vector<int64_t> starts(padding.begin(), pad_kdim_start);
+
+            std::vector<int64_t> ends{};
+            std::transform(curr_shape.begin(),
+                           curr_shape.end(),
+                           pad_kdim_start,
+                           std::back_inserter(ends),
+                           [](auto curr_dim, auto pad_dim) { return curr_dim - pad_dim; });
+
+            l1 = prog.add_instruction(op::slice{axes, starts, ends}, l1);
         }
 
-        if(contains(attributes, "output_padding"))
+        if(contains(info.attributes, "output_padding"))
         {
-            std::vector<int64_t> output_padding;
-            copy(attributes["output_padding"].ints(), std::back_inserter(output_padding));
-            output_padding = {0, 0, 0, 0, 0, 0, output_padding[0], output_padding[1]};
-            l1             = prog.add_instruction(op::pad{output_padding}, l1);
+            size_t non_kdims = dims.size() * 2 - kdims;
+            std::vector<int64_t> output_padding(non_kdims, 0);
+            copy(info.attributes["output_padding"].ints(), std::back_inserter(output_padding));
+            check_attr_sizes(kdims,
+                             output_padding.size() - non_kdims,
+                             "PARSE_CONV_TRANSPOSE: inconsistent output padding");
+            l1 = prog.add_instruction(op::pad{output_padding}, l1);
         }
 
-        if(contains(attributes, "output_shape"))
+        if(contains(info.attributes, "output_shape"))
         {
             std::vector<int64_t> output_shape;
-            copy(attributes["output_shape"].ints(), std::back_inserter(output_shape));
-            dims       = to_int64_vector(l1->get_shape().lens());
-            curr_shape = {dims[2], dims[3]};
+            copy(info.attributes["output_shape"].ints(), std::back_inserter(output_shape));
+            check_attr_sizes(
+                kdims, output_shape.size(), "PARSE_CONV_TRANSPOSE: inconsistent output shape");
+            dims = to_int64_vector(l1->get_shape().lens());
+            copy(dims.begin() + 2, dims.end(), curr_shape.begin());
             if(curr_shape != output_shape)
             {
-                std::vector<int64_t> target_padding = {0,
-                                                       0,
-                                                       0,
-                                                       0,
-                                                       0,
-                                                       0,
-                                                       output_shape[0] - curr_shape[0],
-                                                       output_shape[1] - curr_shape[1]};
+                std::vector<int64_t> target_padding(dims.size() * 2 - kdims, 0);
+                std::transform(output_shape.begin(),
+                               output_shape.end(),
+                               curr_shape.begin(),
+                               std::back_inserter(target_padding),
+                               [](auto out_dim, auto curr_dim) { return out_dim - curr_dim; });
                 l1 = prog.add_instruction(op::pad{target_padding}, l1);
             }
         }
@@ -587,84 +778,97 @@ struct onnx_parser
         return add_bias(args, l1, 1);
     }
 
-    instruction_ref parse_pooling(const std::string& name,
-                                  attribute_map attributes,
-                                  std::vector<instruction_ref> args)
+    instruction_ref
+    parse_pooling(const std::string& name, node_info info, std::vector<instruction_ref> args)
     {
         op::pooling op{ends_with(name, "MaxPool") ? "max" : "average"};
-        auto l0 = args[0];
+        auto l0      = args[0];
+        auto in_lens = l0->get_shape().lens();
+        assert(in_lens.size() > 2);
+        auto kdims = in_lens.size() - 2;
+
         if(starts_with(name, "Global"))
         {
-            auto lens  = args.front()->get_shape().lens();
-            op.lengths = {lens[2], lens[3]};
+            op.lengths = std::vector<size_t>(in_lens.begin() + 2, in_lens.end());
         }
 
-        if(contains(attributes, "pads"))
+        if(contains(info.attributes, "pads"))
         {
-            if(contains(attributes, "auto_pad"))
+            if(contains(info.attributes, "auto_pad"))
             {
-                auto s = attributes["auto_pad"].s();
+                auto s = info.attributes["auto_pad"].s();
                 if(to_upper(s) != "NOTSET")
                 {
                     MIGRAPHX_THROW(
                         "PARSE_POOLING: auto_pad and padding cannot be specified simultaneously");
                 }
             }
+            op.padding.clear();
+            std::vector<int64_t> padding;
+            copy(info.attributes["pads"].ints(), std::back_inserter(padding));
+            check_attr_sizes(kdims, padding.size() / 2, "PARSE_POOLING: inconsistent paddings");
 
-            std::vector<std::int64_t> padding;
-            copy(attributes["pads"].ints(), std::back_inserter(padding));
-            if(padding.size() != 4)
-            {
-                MIGRAPHX_THROW("PARSE_POOLING: padding should have 4 values");
-            }
-            if(padding[0] != padding[2] || padding[1] != padding[3])
-            {
-                // insert zeros for pad op (args[0] has 4 dims)
-                padding = {0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]};
-                // MaxPool
-                if(op.mode == "max")
-                {
-                    l0 = prog.add_instruction(
-                        op::pad{padding, std::numeric_limits<float>::lowest()}, l0);
-                }
-                // AveragePool
-                else
-                {
-                    l0 = prog.add_instruction(op::pad{padding}, l0);
-                }
-            }
-            else
-            {
-                op.padding[0] = padding[0];
-                op.padding[1] = padding[1];
-            }
+            float pad_val = 0;
+            if(op.mode == "max")
+                pad_val = std::numeric_limits<float>::lowest();
+            check_asym_padding(l0, padding, op, pad_val);
+            in_lens = l0->get_shape().lens();
         }
 
-        if(contains(attributes, "strides"))
+        if(contains(info.attributes, "strides"))
         {
-            copy(attributes["strides"].ints(), op.stride.begin());
+            op.stride.clear();
+            copy(info.attributes["strides"].ints(), std::back_inserter(op.stride));
+            check_attr_sizes(kdims, op.stride.size(), "PARSE_POOLING: inconsistent strides");
         }
-        if(contains(attributes, "kernel_shape"))
+        if(contains(info.attributes, "kernel_shape"))
         {
-            copy(attributes["kernel_shape"].ints(), op.lengths.begin());
+            op.lengths.clear();
+            copy(info.attributes["kernel_shape"].ints(), std::back_inserter(op.lengths));
+            check_attr_sizes(kdims, op.lengths.size(), "PARSE_POOLING: inconsistent lengths");
         }
 
-        if(contains(attributes, "auto_pad"))
+        if(contains(info.attributes, "auto_pad"))
         {
-            auto in_lens = args[0]->get_shape().lens();
-            l0           = process_auto_pad_attribute(l0, attributes, op, in_lens);
+            op.padding.clear();
+            float val = 0.0f;
+            // MaxPool
+            if(op.mode == "max")
+            {
+                val = std::numeric_limits<float>::lowest();
+            }
+
+            l0      = process_auto_pad_attribute(l0, info, op, op.lengths, {1, 1}, in_lens, val);
+            in_lens = l0->get_shape().lens();
+        }
+
+        if(op.padding.size() != kdims)
+        {
+            op.padding.resize(kdims);
+            std::fill_n(op.padding.begin(), kdims, 0);
+        }
+        if(op.stride.size() != kdims)
+        {
+            op.stride.resize(kdims);
+            std::fill_n(op.stride.begin(), kdims, 1);
+        }
+
+        for(size_t i = 0; i < kdims; i++)
+        {
+            if(op.lengths[i] > in_lens[i + 2] + 2 * op.padding[i])
+                MIGRAPHX_THROW("PARSE_POOLING: kernel shape is too large");
         }
 
         return prog.add_instruction(op, l0);
     }
 
     instruction_ref
-    parse_reshape(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_reshape(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         op::reshape op;
         if(args.size() == 1)
         {
-            literal s = parse_value(attributes.at("shape"));
+            literal s = parse_value(info.attributes.at("shape"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
         }
         if(args.size() == 2)
@@ -678,55 +882,55 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_flatten(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_flatten(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         int64_t axis = 1;
-        if(contains(attributes, "axis"))
+        if(contains(info.attributes, "axis"))
         {
-            axis = parse_value(attributes.at("axis")).at<int>();
+            axis = parse_value(info.attributes.at("axis")).at<int>();
         }
         return prog.add_instruction(op::flatten{axis}, args[0]);
     }
 
     instruction_ref
-    parse_squeeze(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_squeeze(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         op::squeeze op;
-        literal s = parse_value(attributes.at("axes"));
+        literal s = parse_value(info.attributes.at("axes"));
         s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
-        return prog.add_instruction(op, args[0]);
+        return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
     instruction_ref
-    parse_unsqueeze(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_unsqueeze(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         op::unsqueeze op;
-        literal s = parse_value(attributes.at("axes"));
+        literal s = parse_value(info.attributes.at("axes"));
         s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
-        return prog.add_instruction(op, args[0]);
+        return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
     instruction_ref
-    parse_concat(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_concat(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         // change to hande axis to be negative values
-        if(!contains(attributes, "axis"))
+        if(!contains(info.attributes, "axis"))
         {
             MIGRAPHX_THROW("PARSE_CONCAT: attribute axis is required!");
         }
 
-        int axis = parse_value(attributes.at("axis")).at<int>();
+        int axis = parse_value(info.attributes.at("axis")).at<int>();
         op::concat op{axis};
         return prog.add_instruction(op, std::move(args));
     }
 
     instruction_ref
-    parse_gather(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_gather(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         int axis = 0;
-        if(contains(attributes, "axis"))
+        if(contains(info.attributes, "axis"))
         {
-            axis = parse_value(attributes.at("axis")).at<int>();
+            axis = parse_value(info.attributes.at("axis")).at<int>();
         }
 
         op::gather op{axis};
@@ -734,46 +938,139 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_slice(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_gather_elements(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
-        op::slice op;
-        std::vector<size_t> dims = args[0]->get_shape().lens();
-        size_t num_dims          = dims.size();
-        if(contains(attributes, "axes"))
+        int axis = 0;
+        if(contains(info.attributes, "axis"))
         {
-            literal s = parse_value(attributes.at("axes"));
-            s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
-        }
-        else
-        {
-            op.axes = std::vector<int64_t>(num_dims);
-            std::iota(op.axes.begin(), op.axes.end(), 0);
+            axis = parse_value(info.attributes.at("axis")).at<int>();
         }
 
-        if(contains(attributes, "ends"))
+        // standardize input data and index
+        auto arg_data = make_contiguous(args[0]);
+        auto arg_ind  = make_contiguous(args[1]);
+
+        auto data_s = arg_data->get_shape();
+        auto ind_s  = arg_ind->get_shape();
+
+        if(data_s.lens().size() != ind_s.lens().size())
         {
-            op.ends = get_indices(attributes.at("ends"));
+            MIGRAPHX_THROW("PARSE_GATHER_ELEMENTS: input data and index must have the same rank!");
         }
-        if(contains(attributes, "starts"))
+
+        int n_rank     = static_cast<int>(data_s.lens().size());
+        int tuned_axis = (axis < 0) ? (axis + n_rank) : axis;
+
+        auto axis_stride      = data_s.strides()[tuned_axis];
+        int64_t data_elem_num = static_cast<int64_t>(data_s.elements());
+        // reshape the input data as one dimension and used as input data
+        // to the gather operator
+        arg_data = prog.add_instruction(op::reshape{{data_elem_num}}, arg_data);
+
+        std::size_t elem_num = ind_s.elements();
+        std::vector<int> ind_index(elem_num);
+        std::iota(ind_index.begin(), ind_index.end(), 0);
+
+        // convert index in input indices to that in input data
+        std::vector<int> data_indices(elem_num);
+        std::transform(ind_index.begin(), ind_index.end(), data_indices.begin(), [&](auto i) {
+            return data_s.index(ind_s.multi(i));
+        });
+
+        std::vector<int> vec_axis_ind(elem_num);
+        std::transform(ind_index.begin(), ind_index.end(), vec_axis_ind.begin(), [&](auto i) {
+            return ind_s.multi(i)[tuned_axis];
+        });
+
+        auto l_shape_idx =
+            prog.add_literal(literal(ind_s, data_indices.begin(), data_indices.end()));
+        auto l_dim_idx = prog.add_literal(literal(ind_s, vec_axis_ind.begin(), vec_axis_ind.end()));
+        auto l_stride  = prog.add_literal(literal{{ind_s.type(), {1}}, {axis_stride}});
+        l_stride       = prog.add_instruction(op::multibroadcast{ind_s.lens()}, l_stride);
+        auto dim_diff  = prog.add_instruction(op::sub{}, arg_ind, l_dim_idx);
+        auto delta     = prog.add_instruction(op::mul{}, dim_diff, l_stride);
+        auto ind       = prog.add_instruction(op::add{}, l_shape_idx, delta);
+
+        op::gather op{0};
+        return prog.add_instruction(op, arg_data, ind);
+    }
+
+    instruction_ref
+    parse_slice(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        op::slice op;
+
+        // slice can have up to 5 inputs, we first check the 5th one
+        // to decide whether MIGRAPHX can handle this slice
+        if(args.size() == 5)
         {
-            literal s = parse_value(attributes.at("starts"));
+            migraphx::argument step_arg = args.back()->eval();
+            check_arg_empty(step_arg, "PARSE_SLICE: cannot handle variable steps for slice");
+            std::vector<int> steps;
+            step_arg.visit([&](auto s) { steps.assign(s.begin(), s.end()); });
+            if(!std::all_of(steps.begin(), steps.end(), [](auto s) { return s == 1; }))
+            {
+                MIGRAPHX_THROW("PARSE_SLICE: cannot handle step other than 1");
+            }
+        }
+
+        if(args.size() >= 4)
+        {
+            migraphx::argument axes_arg = args.at(3)->eval();
+            check_arg_empty(axes_arg, "PARSE_SLICE: cannot handle variable axes for slice");
+            axes_arg.visit([&](auto s) { op.axes.assign(s.begin(), s.end()); });
+        }
+        else if(contains(info.attributes, "axes"))
+        {
+            literal s = parse_value(info.attributes.at("axes"));
+            s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
+        }
+
+        if(args.size() >= 3)
+        {
+            migraphx::argument end_arg = args.at(2)->eval();
+            check_arg_empty(end_arg, "PARSE_SLICE: cannot handle variable ends for slice");
+            end_arg.visit([&](auto s) { op.ends.assign(s.begin(), s.end()); });
+        }
+        else if(contains(info.attributes, "ends"))
+        {
+            literal s = parse_value(info.attributes.at("ends"));
+            s.visit([&](auto v) { copy(v, std::back_inserter(op.ends)); });
+        }
+
+        if(args.size() >= 2)
+        {
+            migraphx::argument start_arg = args.at(1)->eval();
+            check_arg_empty(start_arg, "PARSE_SLICE: cannot handle variable starts for slice");
+            start_arg.visit([&](auto s) { op.starts.assign(s.begin(), s.end()); });
+        }
+        else if(contains(info.attributes, "starts"))
+        {
+            literal s = parse_value(info.attributes.at("starts"));
             s.visit([&](auto v) { copy(v, std::back_inserter(op.starts)); });
         }
+
+        if(op.axes.empty())
+        {
+            std::vector<int64_t> axes(args[0]->get_shape().lens().size());
+            std::iota(axes.begin(), axes.end(), int64_t{0});
+            op.axes = axes;
+        }
+
         return prog.add_instruction(op, args[0]);
     }
 
-    instruction_ref parse_constant(const std::string&,
-                                   attribute_map attributes,
-                                   const std::vector<instruction_ref>&)
+    instruction_ref
+    parse_constant(const std::string&, node_info info, const std::vector<instruction_ref>&)
     {
-        literal v = parse_value(attributes.at("value"));
+        literal v = parse_value(info.attributes.at("value"));
         // return empty literal
         if(v.get_shape().elements() == 0)
         {
             return prog.add_literal(literal{});
         }
 
-        auto dim_size = attributes.at("value").t().dims_size();
+        auto dim_size = info.attributes.at("value").t().dims_size();
         // if dim_size is 0, it is a scalar
         if(dim_size == 0)
         {
@@ -785,27 +1082,27 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_gemm(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_gemm(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         float alpha = 1.0f;
         float beta  = 1.0f;
         bool transa = false;
         bool transb = false;
-        if(contains(attributes, "alpha"))
+        if(contains(info.attributes, "alpha"))
         {
-            alpha = parse_value(attributes.at("alpha")).at<float>();
+            alpha = parse_value(info.attributes.at("alpha")).at<float>();
         }
-        if(contains(attributes, "beta"))
+        if(contains(info.attributes, "beta"))
         {
-            beta = parse_value(attributes.at("beta")).at<float>();
+            beta = parse_value(info.attributes.at("beta")).at<float>();
         }
-        if(contains(attributes, "transA"))
+        if(contains(info.attributes, "transA"))
         {
-            transa = parse_value(attributes.at("transA")).at<bool>();
+            transa = parse_value(info.attributes.at("transA")).at<bool>();
         }
-        if(contains(attributes, "transB"))
+        if(contains(info.attributes, "transB"))
         {
-            transb = parse_value(attributes.at("transB")).at<bool>();
+            transb = parse_value(info.attributes.at("transB")).at<bool>();
         }
 
         std::vector<int64_t> perm(args[0]->get_shape().lens().size());
@@ -836,7 +1133,7 @@ struct onnx_parser
 
     template <class Op>
     instruction_ref
-    parse_matmul(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    parse_matmul(const std::string&, const node_info&, std::vector<instruction_ref> args)
     {
         auto l0      = args[0];
         auto l1      = args[1];
@@ -899,22 +1196,22 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_batchnorm(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_batchnorm(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         float epsilon                                     = 1e-5f;
         float momentum                                    = 0.9f;
         op::batch_norm_inference::bn_infer_mode_t bn_mode = op::batch_norm_inference::spatial;
-        if(contains(attributes, "epsilon"))
+        if(contains(info.attributes, "epsilon"))
         {
-            epsilon = parse_value(attributes.at("epsilon")).at<float>();
+            epsilon = parse_value(info.attributes.at("epsilon")).at<float>();
         }
-        if(contains(attributes, "momentum"))
+        if(contains(info.attributes, "momentum"))
         {
-            momentum = parse_value(attributes.at("momentum")).at<float>();
+            momentum = parse_value(info.attributes.at("momentum")).at<float>();
         }
-        if(contains(attributes, "spatial"))
+        if(contains(info.attributes, "spatial"))
         {
-            bn_mode = (parse_value(attributes.at("spatial")).at<uint64_t>() > 0)
+            bn_mode = (parse_value(info.attributes.at("spatial")).at<uint64_t>() > 0)
                           ? op::batch_norm_inference::spatial
                           : op::batch_norm_inference::per_activation;
         }
@@ -922,18 +1219,17 @@ struct onnx_parser
         return prog.add_instruction(op, std::move(args));
     }
 
-    instruction_ref parse_instancenorm(const std::string&,
-                                       attribute_map attributes,
-                                       std::vector<instruction_ref> args)
+    instruction_ref
+    parse_instancenorm(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         // y = scale * ( x - mean ) / sqrt ( variance + epsilon ) + bias
         // mean = reduce_mean({H, W}, x)
         // variance = reduce_mean({H, W}, (x - mean)^2)
 
         float epsilon = 1e-5f;
-        if(contains(attributes, "epsilon"))
+        if(contains(info.attributes, "epsilon"))
         {
-            epsilon = parse_value(attributes.at("epsilon")).at<float>();
+            epsilon = parse_value(info.attributes.at("epsilon")).at<float>();
         }
         auto x     = args[0];
         auto scale = args[1];
@@ -958,71 +1254,68 @@ struct onnx_parser
         return prog.add_instruction(op::add{}, l5, bias_bcast);
     }
 
-    instruction_ref parse_leaky_relu(const std::string&,
-                                     attribute_map attributes,
-                                     std::vector<instruction_ref> args)
+    instruction_ref
+    parse_leaky_relu(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         float alpha = 0.01; // default alpha val for leaky relu
-        if(contains(attributes, "alpha"))
+        if(contains(info.attributes, "alpha"))
         {
-            alpha = parse_value(attributes.at("alpha")).at<float>();
+            alpha = parse_value(info.attributes.at("alpha")).at<float>();
         }
         op::leaky_relu op{alpha};
         return prog.add_instruction(op, args.front());
     }
 
-    instruction_ref
-    parse_elu(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_elu(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         float alpha = 1.0; // default alpha val for elu
-        if(contains(attributes, "alpha"))
+        if(contains(info.attributes, "alpha"))
         {
-            alpha = parse_value(attributes.at("alpha")).at<float>();
+            alpha = parse_value(info.attributes.at("alpha")).at<float>();
         }
         op::elu op{alpha};
         return prog.add_instruction(op, args.front());
     }
 
-    instruction_ref
-    parse_lrn(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_lrn(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         float alpha = 0.0001;
         float beta  = 0.75;
         float bias  = 1.0;
         int size    = 1;
-        if(contains(attributes, "alpha"))
-            alpha = parse_value(attributes.at("alpha")).at<float>();
-        if(contains(attributes, "beta"))
-            beta = parse_value(attributes.at("beta")).at<float>();
-        if(contains(attributes, "bias"))
-            bias = parse_value(attributes.at("bias")).at<float>();
-        if(contains(attributes, "size"))
-            size = parse_value(attributes.at("size")).at<int>();
+        if(contains(info.attributes, "alpha"))
+            alpha = parse_value(info.attributes.at("alpha")).at<float>();
+        if(contains(info.attributes, "beta"))
+            beta = parse_value(info.attributes.at("beta")).at<float>();
+        if(contains(info.attributes, "bias"))
+            bias = parse_value(info.attributes.at("bias")).at<float>();
+        if(contains(info.attributes, "size"))
+            size = parse_value(info.attributes.at("size")).at<int>();
         op::lrn op{alpha, beta, bias, size};
         return prog.add_instruction(op, args.front());
     }
 
-    instruction_ref parse_imagescaler(const std::string&,
-                                      attribute_map attributes,
-                                      std::vector<instruction_ref> args)
+    instruction_ref
+    parse_imagescaler(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         float scale = 1.0;
         std::vector<float> bias{};
-        if(contains(attributes, "scale"))
+        if(contains(info.attributes, "scale"))
         {
-            scale = parse_value(attributes.at("scale")).at<float>();
+            scale = parse_value(info.attributes.at("scale")).at<float>();
         }
 
-        if(contains(attributes, "bias"))
+        if(contains(info.attributes, "bias"))
         {
-            auto&& bias_floats = attributes["bias"].floats();
+            auto&& bias_floats = info.attributes["bias"].floats();
             bias               = std::vector<float>(bias_floats.begin(), bias_floats.end());
         }
-        auto input_lens = args.front()->get_shape().lens();
+        auto input_shape       = args.front()->get_shape();
+        auto const& input_lens = input_shape.lens();
+        auto input_type        = input_shape.type();
 
-        auto scale_val = prog.add_literal(scale);
-        auto bias_vals = prog.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {bias.size()}}, bias});
+        auto scale_val = prog.add_literal(literal{shape{input_type}, {scale}});
+        auto bias_vals = prog.add_literal(literal{shape{input_type, {bias.size()}}, bias});
 
         auto scale_tensor = prog.add_instruction(migraphx::op::scalar{input_lens}, scale_val);
         auto img_scaled   = prog.add_instruction(migraphx::op::mul{}, args.front(), scale_tensor);
@@ -1031,48 +1324,81 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_transpose(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_transpose(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         std::vector<int64_t> perm{};
-        if(contains(attributes, "perm"))
+        if(contains(info.attributes, "perm"))
         {
-            auto&& perm_vals = attributes["perm"].ints();
+            auto&& perm_vals = info.attributes["perm"].ints();
             perm             = std::vector<int64_t>(perm_vals.begin(), perm_vals.end());
         }
         return prog.add_instruction(migraphx::op::transpose{perm}, args.front());
     }
 
-    instruction_ref
-    parse_pad(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    instruction_ref parse_pad(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         std::vector<int64_t> pads{};
-        float value = 0.0f;
-        if(contains(attributes, "pads"))
+        if(args.size() >= 2)
         {
-            auto&& pad_vals = attributes["pads"].ints();
+            auto pad_arg = args.at(1)->eval();
+            check_arg_empty(pad_arg, "PARSE_PAD: pad input must be constant");
+            pad_arg.visit([&](auto v) { pads.assign(v.begin(), v.end()); });
+        }
+        else if(contains(info.attributes, "pads"))
+        {
+            auto&& pad_vals = info.attributes["pads"].ints();
             pads            = std::vector<int64_t>(pad_vals.begin(), pad_vals.end());
         }
+        else
+        {
+            MIGRAPHX_THROW("PARSE_PAD: pad must be available");
+        }
+
         // check if padding is actually being done (at least one value is nonzero)
         if(std::all_of(pads.begin(), pads.end(), [](const int& i) { return i == 0; }))
         {
             return prog.add_instruction(migraphx::op::identity{}, args.front());
         }
-        if(contains(attributes, "value"))
+
+        if(contains(info.attributes, "mode"))
         {
-            value = parse_value(attributes.at("value")).at<float>();
-        }
-        if(contains(attributes, "mode"))
-        {
-            auto mode = attributes.at("mode").s();
+            auto mode = info.attributes.at("mode").s();
+            if(mode == "reflect")
+                return reflect_pad(pads, args.front());
             if(mode != "constant")
-                MIGRAPHX_THROW("migraphx currently only supports constant padding");
+            {
+                MIGRAPHX_THROW(
+                    "PARSE_PAD: migraphx currently only supports constant and reflect padding");
+            }
         }
+
+        float value = 0.0f;
+        // third input is the value
+        if(args.size() == 3)
+        {
+            auto val_ins = args.at(2);
+            if(!val_ins->can_eval())
+            {
+                MIGRAPHX_THROW("PARSE_PAD: input value must be constant");
+            }
+            auto val_arg = val_ins->eval();
+            if(val_arg.get_shape().elements() != 1)
+            {
+                MIGRAPHX_THROW("PARSE_PAD: value should contain only one element");
+            }
+            value = val_arg.at<float>();
+        }
+        else if(contains(info.attributes, "value"))
+        {
+            value = parse_value(info.attributes.at("value")).at<float>();
+        }
+
         return prog.add_instruction(migraphx::op::pad{pads, value}, args.front());
     }
     // Use a literal instruction to replace the shape since, output of
     // shape operator are literals in migraphx
     instruction_ref
-    parse_shape(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    parse_shape(const std::string&, const node_info&, std::vector<instruction_ref> args)
     {
         if(args.size() != 1)
             MIGRAPHX_THROW("Shape: operator should have 1 operand");
@@ -1088,31 +1414,30 @@ struct onnx_parser
     // Use a literal instruction to replace the constantFill operator. In RNN, input shape
     // and value are fixed, so no need to do the actual computation for the constantFill
     // operator
-    instruction_ref parse_constant_fill(const std::string&,
-                                        attribute_map attributes,
-                                        std::vector<instruction_ref> args)
+    instruction_ref
+    parse_constant_fill(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         int input_as_shape = 0;
         int dtype          = 1;
         float value        = 0.0f;
 
-        if(contains(attributes, "dtype"))
+        if(contains(info.attributes, "dtype"))
         {
-            dtype = parse_value(attributes.at("dtype")).at<int>();
+            dtype = parse_value(info.attributes.at("dtype")).at<int>();
         }
         shape::type_t type = get_type(dtype);
 
-        if(contains(attributes, "input_as_shape"))
+        if(contains(info.attributes, "input_as_shape"))
         {
-            input_as_shape = parse_value(attributes.at("input_as_shape")).at<int>();
+            input_as_shape = parse_value(info.attributes.at("input_as_shape")).at<int>();
         }
 
-        if(contains(attributes, "value"))
+        if(contains(info.attributes, "value"))
         {
-            value = parse_value(attributes.at("value")).at<float>();
+            value = parse_value(info.attributes.at("value")).at<float>();
         }
 
-        if(contains(attributes, "extra_shape"))
+        if(contains(info.attributes, "extra_shape"))
         {
             MIGRAPHX_THROW("ConstantFill: cannot handle extra shape attribute");
         }
@@ -1124,7 +1449,7 @@ struct onnx_parser
                 MIGRAPHX_THROW("ConstantFill: need an input argument as output shape");
             }
 
-            if(contains(attributes, "shape"))
+            if(contains(info.attributes, "shape"))
             {
                 MIGRAPHX_THROW("ConstantFill: cannot set the shape argument and pass in an input "
                                "at the same time");
@@ -1141,12 +1466,12 @@ struct onnx_parser
         }
         else if(input_as_shape == 0)
         {
-            if(!contains(attributes, "shape"))
+            if(!contains(info.attributes, "shape"))
             {
                 MIGRAPHX_THROW("ConstantFill: attribute output shape is needed");
             }
 
-            literal ls = parse_value(attributes.at("shape"));
+            literal ls = parse_value(info.attributes.at("shape"));
             std::vector<std::size_t> dims;
             ls.visit([&](auto s) { dims.assign(s.begin(), s.end()); });
             migraphx::shape s{type, dims};
@@ -1159,14 +1484,13 @@ struct onnx_parser
         }
     }
 
-    instruction_ref parse_constant_of_shape(const std::string&,
-                                            attribute_map attributes,
-                                            std::vector<instruction_ref> args)
+    instruction_ref
+    parse_constant_of_shape(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         literal l_val{};
-        if(contains(attributes, "value"))
+        if(contains(info.attributes, "value"))
         {
-            l_val = parse_value(attributes.at("value"));
+            l_val = parse_value(info.attributes.at("value"));
             if(l_val.get_shape().elements() != 1)
             {
                 MIGRAPHX_THROW("ConstantOfShape: attribute value can contain only 1 elements!");
@@ -1215,7 +1539,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_expand(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    parse_expand(const std::string&, const node_info&, std::vector<instruction_ref> args)
     {
         auto in_lens             = args[0]->get_shape().lens();
         migraphx::argument arg_s = args[1]->eval();
@@ -1227,14 +1551,14 @@ struct onnx_parser
     }
 
     std::vector<instruction_ref>
-    parse_rnn(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_rnn(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         migraphx::shape input_shape = args[0]->get_shape();
         std::size_t hidden_size     = args[1]->get_shape().lens()[1];
 
-        if(contains(attributes, "hidden_size"))
+        if(contains(info.attributes, "hidden_size"))
         {
-            std::size_t hidden_size_att = parse_value(attributes.at("hidden_size")).at<int>();
+            std::size_t hidden_size_att = parse_value(info.attributes.at("hidden_size")).at<int>();
             if(hidden_size != hidden_size_att)
             {
                 MIGRAPHX_THROW("RNN: hidden size mismatch in input and attribute");
@@ -1243,9 +1567,9 @@ struct onnx_parser
 
         // Handling of direction to be added later
         std::string direction{"forward"};
-        if(contains(attributes, "direction"))
+        if(contains(info.attributes, "direction"))
         {
-            direction = attributes.at("direction").s();
+            direction = info.attributes.at("direction").s();
         }
 
         op::rnn_direction dirct = op::rnn_direction::forward;
@@ -1259,9 +1583,9 @@ struct onnx_parser
         }
 
         std::vector<std::string> vec_names{"tanh"};
-        if(contains(attributes, "activations"))
+        if(contains(info.attributes, "activations"))
         {
-            auto names = attributes.at("activations").strings();
+            auto names = info.attributes.at("activations").strings();
             vec_names.clear();
             vec_names.resize(names.size());
             std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) {
@@ -1297,9 +1621,9 @@ struct onnx_parser
 
         // To be added later
         float clip = 0.0;
-        if(contains(attributes, "clip"))
+        if(contains(info.attributes, "clip"))
         {
-            clip = parse_value(attributes.at("clip")).at<float>();
+            clip = parse_value(info.attributes.at("clip")).at<float>();
         }
 
         // if the number of arguments is less than 6, append
@@ -1315,20 +1639,20 @@ struct onnx_parser
                                                   std::move(args));
 
         // second output for the last hidden state
-        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
+        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
 
         return {hidden_states, last_output};
     }
 
     std::vector<instruction_ref>
-    parse_gru(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_gru(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         migraphx::shape input_shape = args[0]->get_shape();
         std::size_t hidden_size     = args[2]->get_shape().lens()[2];
 
-        if(contains(attributes, "hidden_size"))
+        if(contains(info.attributes, "hidden_size"))
         {
-            std::size_t hidden_size_att = parse_value(attributes.at("hidden_size")).at<int>();
+            std::size_t hidden_size_att = parse_value(info.attributes.at("hidden_size")).at<int>();
             if(hidden_size != hidden_size_att)
             {
                 MIGRAPHX_THROW("GRU: hidden size mismatch in input and attribute");
@@ -1337,9 +1661,9 @@ struct onnx_parser
 
         // Handling of direction to be added later
         std::string direction{"forward"};
-        if(contains(attributes, "direction"))
+        if(contains(info.attributes, "direction"))
         {
-            direction = attributes.at("direction").s();
+            direction = info.attributes.at("direction").s();
         }
 
         op::rnn_direction dirct = op::rnn_direction::forward;
@@ -1353,9 +1677,9 @@ struct onnx_parser
         }
 
         std::vector<std::string> vec_names = {"sigmoid", "tanh"};
-        if(contains(attributes, "activations"))
+        if(contains(info.attributes, "activations"))
         {
-            auto names = attributes.at("activations").strings();
+            auto names = info.attributes.at("activations").strings();
             vec_names.clear();
             vec_names.resize(names.size());
             std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) {
@@ -1413,15 +1737,15 @@ struct onnx_parser
                        [&](const auto& name) { return map_actv_funcs[name]; });
 
         float clip = 0.0;
-        if(contains(attributes, "clip"))
+        if(contains(info.attributes, "clip"))
         {
-            clip = parse_value(attributes.at("clip")).at<float>();
+            clip = parse_value(info.attributes.at("clip")).at<float>();
         }
 
         int linear_before_reset = 0;
-        if(contains(attributes, "linear_before_reset"))
+        if(contains(info.attributes, "linear_before_reset"))
         {
-            linear_before_reset = parse_value(attributes.at("linear_before_reset")).at<int>();
+            linear_before_reset = parse_value(info.attributes.at("linear_before_reset")).at<int>();
         }
 
         // append undefined opeator to make 6 arguments
@@ -1437,20 +1761,105 @@ struct onnx_parser
             std::move(args));
 
         // second output for last gru output
-        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
+        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
 
         return {hidden_states, last_output};
     }
 
+    void lstm_actv_functions(op::rnn_direction dirct, std::vector<std::string>& actv_func_names)
+    {
+        // need 6 activation functions for bidirectional directions
+        if(dirct == op::rnn_direction::bidirectional)
+        {
+            // 6 activation functions are used in the bidirectional
+            // scenario. No spec is provided in onnx::operator. we
+            // use the algorithm that: if 1 actv function is provided,
+            // repeat 1st six times. If 2 actv functins are provided,
+            // repeat 2nd once, then repeat all three once
+            // if 3 actv funcs are provide, repeat all three once.
+            // the same algorithm is used for 4, 5, and 6 actv funcions
+            // provided. This may need change later
+            switch(actv_func_names.size())
+            {
+            case 1:
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0)};
+                break;
+
+            case 2:
+                // repeat the 2nd actv func once, then repeat all three another time
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(1)};
+                break;
+
+            case 3:
+                // repeat all three actv funcs once
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2)};
+                break;
+
+            case 4:
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2),
+                                   actv_func_names.at(3),
+                                   actv_func_names.at(3),
+                                   actv_func_names.at(3)};
+                break;
+
+            case 5:
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2),
+                                   actv_func_names.at(3),
+                                   actv_func_names.at(4),
+                                   actv_func_names.at(4)};
+                break;
+
+            default: break;
+            }
+        }
+        else
+        {
+            switch(actv_func_names.size())
+            {
+            case 1:
+                actv_func_names = {
+                    actv_func_names.at(0), actv_func_names.at(0), actv_func_names.at(0)};
+                break;
+
+            case 2:
+                // repeat the 2nd actv func once, so we have 3 actv funcs
+                actv_func_names = {
+                    actv_func_names.at(0), actv_func_names.at(1), actv_func_names.at(1)};
+                break;
+
+            default: break;
+            }
+        }
+    }
+
     std::vector<instruction_ref>
-    parse_lstm(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_lstm(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         migraphx::shape input_shape = args[0]->get_shape();
         std::size_t hidden_size     = args[2]->get_shape().lens()[2];
 
-        if(contains(attributes, "hidden_size"))
+        if(contains(info.attributes, "hidden_size"))
         {
-            std::size_t hidden_size_att = parse_value(attributes.at("hidden_size")).at<int>();
+            std::size_t hidden_size_att = parse_value(info.attributes.at("hidden_size")).at<int>();
             if(hidden_size != hidden_size_att)
             {
                 MIGRAPHX_THROW("LSTM: hidden size mismatch in input and attribute");
@@ -1459,9 +1868,9 @@ struct onnx_parser
 
         // Handling of direction to be added later
         std::string direction{"forward"};
-        if(contains(attributes, "direction"))
+        if(contains(info.attributes, "direction"))
         {
-            direction = attributes.at("direction").s();
+            direction = info.attributes.at("direction").s();
         }
 
         op::rnn_direction dirct = op::rnn_direction::forward;
@@ -1483,9 +1892,9 @@ struct onnx_parser
         }
 
         std::vector<std::string> vec_names = {"sigmoid", "tanh", "tanh"};
-        if(contains(attributes, "activations"))
+        if(contains(info.attributes, "activations"))
         {
-            auto names = attributes.at("activations").strings();
+            auto names = info.attributes.at("activations").strings();
             vec_names.clear();
             vec_names.resize(names.size());
             std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) {
@@ -1493,83 +1902,7 @@ struct onnx_parser
             });
         }
 
-        // need 6 activation functions for bidirectional directions
-        if(dirct == op::rnn_direction::bidirectional)
-        {
-            // 6 activation functions are used in the bidirectional
-            // scenario. No spec is provided in onnx::operator. we
-            // use the algorithm that: if 1 actv function is provided,
-            // repeat 1st six times. If 2 actv functins are provided,
-            // repeat 2nd once, then repeat all three once
-            // if 3 actv funcs are provide, repeat all three once.
-            // the same algorithm is used for 4, 5, and 6 actv funcions
-            // provided. This may need change later
-            switch(vec_names.size())
-            {
-            case 1:
-                vec_names = {vec_names.at(0),
-                             vec_names.at(0),
-                             vec_names.at(0),
-                             vec_names.at(0),
-                             vec_names.at(0),
-                             vec_names.at(0)};
-                break;
-
-            case 2:
-                // repeat the 2nd actv func once, then repeat all three another time
-                vec_names = {vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(1),
-                             vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(1)};
-                break;
-
-            case 3:
-                // repeat all three actv funcs once
-                vec_names = {vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(2),
-                             vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(2)};
-                break;
-
-            case 4:
-                vec_names = {vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(2),
-                             vec_names.at(3),
-                             vec_names.at(3),
-                             vec_names.at(3)};
-                break;
-
-            case 5:
-                vec_names = {vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(2),
-                             vec_names.at(3),
-                             vec_names.at(4),
-                             vec_names.at(4)};
-                break;
-
-            default: break;
-            }
-        }
-        else
-        {
-            switch(vec_names.size())
-            {
-            case 1: vec_names = {vec_names.at(0), vec_names.at(0), vec_names.at(0)}; break;
-
-            case 2:
-                // repeat the 2nd actv func once, so we have 3 actv funcs
-                vec_names = {vec_names.at(0), vec_names.at(1), vec_names.at(1)};
-                break;
-
-            default: break;
-            }
-        }
+        lstm_actv_functions(dirct, vec_names);
 
         auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
             return (map_actv_funcs.count(name) == 0);
@@ -1586,15 +1919,15 @@ struct onnx_parser
                        [&](const auto& name) { return map_actv_funcs[name]; });
 
         float clip = 0.0;
-        if(contains(attributes, "clip"))
+        if(contains(info.attributes, "clip"))
         {
-            clip = parse_value(attributes.at("clip")).at<float>();
+            clip = parse_value(info.attributes.at("clip")).at<float>();
         }
 
         int input_forget = 0;
-        if(contains(attributes, "input_forget"))
+        if(contains(info.attributes, "input_forget"))
         {
-            input_forget = parse_value(attributes.at("input_forget")).at<int>();
+            input_forget = parse_value(info.attributes.at("input_forget")).at<int>();
         }
 
         // append undefined opeator to make 6 arguments
@@ -1608,36 +1941,34 @@ struct onnx_parser
         auto hidden_states = prog.add_instruction(
             op::lstm{hidden_size, vec_actv_funcs, dirct, clip, input_forget}, std::move(args));
 
-        // second output for last lstm output
-        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
+        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
 
         // third output for last cell output
-        auto last_cell_output = prog.add_instruction(op::lstm_last_cell_output{}, hidden_states);
+        auto last_cell_output = prog.add_instruction(op::rnn_last_cell_output{}, hidden_states);
 
         return {hidden_states, last_output, last_cell_output};
     }
 
     template <class T>
-    instruction_ref parse_reduce_oper(const std::string&,
-                                      attribute_map attributes,
-                                      std::vector<instruction_ref> args)
+    instruction_ref
+    parse_reduce_oper(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         std::size_t n_dim = args.front()->get_shape().lens().size();
 
         // default to reduce over all dimensions
         std::vector<int64_t> axes(n_dim);
         std::iota(axes.begin(), axes.end(), 0);
-        if(contains(attributes, "axes"))
+        if(contains(info.attributes, "axes"))
         {
             axes.clear();
-            auto&& attr_axes = attributes["axes"].ints();
+            auto&& attr_axes = info.attributes["axes"].ints();
             axes             = std::vector<int64_t>(attr_axes.begin(), attr_axes.end());
         }
 
         int keep_dims = 1;
-        if(contains(attributes, "keepdims"))
+        if(contains(info.attributes, "keepdims"))
         {
-            keep_dims = parse_value(attributes.at("keepdims")).at<int>();
+            keep_dims = parse_value(info.attributes.at("keepdims")).at<int>();
         }
 
         if(keep_dims == 1)
@@ -1652,57 +1983,254 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_reduce_l1(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_reduce_l1(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         auto abs_ins = prog.add_instruction(op::abs{}, args[0]);
-        return parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {abs_ins});
+        return parse_reduce_oper<op::reduce_sum>({}, std::move(info), {abs_ins});
     }
 
     instruction_ref
-    parse_reduce_l2(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_reduce_l2(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
-        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {square_ins});
+        auto sum_ins    = parse_reduce_oper<op::reduce_sum>({}, std::move(info), {square_ins});
         return prog.add_instruction(op::sqrt{}, sum_ins);
     }
 
-    instruction_ref parse_reduce_log_sum(const std::string&,
-                                         attribute_map attributes,
-                                         std::vector<instruction_ref> args)
+    instruction_ref
+    parse_reduce_log_sum(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
-        auto sum_ins =
-            parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), std::move(args));
+        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(info), std::move(args));
         return prog.add_instruction(op::log{}, sum_ins);
-    }
-
-    instruction_ref parse_reduce_log_sum_exp(const std::string&,
-                                             attribute_map attributes,
-                                             std::vector<instruction_ref> args)
-    {
-        auto exp_ins = prog.add_instruction(op::exp{}, args[0]);
-        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {exp_ins});
-        return prog.add_instruction(op::log{}, sum_ins);
-    }
-
-    instruction_ref parse_reduce_sum_square(const std::string&,
-                                            attribute_map attributes,
-                                            std::vector<instruction_ref> args)
-    {
-        auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
-        return parse_reduce_oper<op::reduce_sum>({}, std::move(attributes), {square_ins});
     }
 
     instruction_ref
-    parse_cast(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_reduce_log_sum_exp(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
-        if(!contains(attributes, "to"))
+        auto exp_ins = prog.add_instruction(op::exp{}, args[0]);
+        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(info), {exp_ins});
+        return prog.add_instruction(op::log{}, sum_ins);
+    }
+
+    instruction_ref
+    parse_reduce_sum_square(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
+        return parse_reduce_oper<op::reduce_sum>({}, std::move(info), {square_ins});
+    }
+
+    instruction_ref
+    parse_cast(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        if(!contains(info.attributes, "to"))
         {
             MIGRAPHX_THROW("PARSE_CAST: missing to type attribute!");
         }
 
-        int to_type        = parse_value(attributes.at("to")).at<int>();
+        int to_type        = parse_value(info.attributes.at("to")).at<int>();
         shape::type_t type = get_type(to_type);
         return prog.add_instruction(op::convert{type}, std::move(args));
+    }
+
+    std::vector<instruction_ref>
+    parse_split(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        int64_t axis = 0;
+        if(contains(info.attributes, "axis"))
+        {
+            axis = parse_value(info.attributes.at("axis")).at<int>();
+        }
+
+        auto lens      = args[0]->get_shape().lens();
+        int64_t n_rank = static_cast<int64_t>(lens.size());
+        if((axis < -n_rank) || (axis >= n_rank))
+        {
+            MIGRAPHX_THROW("PARSE_SPLIT: axis attribute out of rank!");
+        }
+        int64_t tuned_axis = (axis < 0) ? axis + n_rank : axis;
+
+        std::vector<int64_t> vec_splits;
+        if(contains(info.attributes, "split"))
+        {
+            literal s = parse_value(info.attributes.at("split"));
+            s.visit([&](auto v) { vec_splits.assign(v.begin(), v.end()); });
+
+            if(std::accumulate(vec_splits.begin(), vec_splits.end(), int64_t(0)) !=
+               static_cast<int64_t>(lens[tuned_axis]))
+            {
+                MIGRAPHX_THROW("PARSE_SPLIT: sum of split attribute unequal to dim size of axis!");
+            }
+        }
+        // no split attribute, input is equally divided
+        else
+        {
+            if((lens[tuned_axis] % info.num_outputs) != 0)
+            {
+                MIGRAPHX_THROW("PARSE_SPLIT: input cannot be equally divided into " +
+                               to_string(info.num_outputs) + " splits!");
+            }
+            auto dl = lens[tuned_axis] / info.num_outputs;
+            vec_splits.resize(info.num_outputs, dl);
+        }
+
+        std::vector<instruction_ref> ret_ins;
+        int64_t start = 0;
+        for(auto sl : vec_splits)
+        {
+            ret_ins.push_back(
+                prog.add_instruction(op::slice{{axis}, {start}, {start + sl}}, args[0]));
+            start += sl;
+        }
+
+        return ret_ins;
+    }
+
+    instruction_ref
+    parse_onehot(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        migraphx::argument depth_arg = args[1]->eval();
+        check_arg_empty(depth_arg, "PARSE_ONEHOT: depth - dynamic shape not supported");
+        size_t depth = depth_arg.at<size_t>();
+
+        int64_t axis = -1;
+        if(contains(info.attributes, "axis"))
+        {
+            axis = info.attributes.at("axis").i();
+        }
+
+        std::vector<float> depth_input(depth * depth, 0.0f);
+        for(int i = 0; i < depth; i++)
+        {
+            depth_input[depth * i + i] = 1.0f;
+        }
+
+        auto type = args[2]->get_shape().type();
+        shape s{type, {depth, depth}};
+        auto l_val      = prog.add_literal({s, depth_input});
+        auto gather_out = prog.add_instruction(op::gather{0}, {l_val, args[0]});
+
+        // Finally, we need a transpose to move the inner most dim to the axis dim
+        int n_rank = gather_out->get_shape().lens().size();
+        if(axis < -n_rank or axis >= n_rank)
+        {
+            MIGRAPHX_THROW("PARSE_ONEHOT: axis out of range");
+        }
+        int64_t tuned_axis = (axis < 0) ? axis + n_rank : axis;
+        std::vector<int64_t> perm(n_rank - 1);
+        std::iota(perm.begin(), perm.end(), 0);
+        perm.insert(perm.begin() + tuned_axis, n_rank - 1);
+        auto tr_out = prog.add_instruction(op::transpose{perm}, gather_out);
+        auto lens   = tr_out->get_shape().lens();
+
+        auto off_val       = prog.add_instruction(op::slice{{0}, {0}, {1}}, args[2]);
+        auto on_val        = prog.add_instruction(op::slice{{0}, {1}, {2}}, args[2]);
+        auto diff          = prog.add_instruction(op::sub{}, on_val, off_val);
+        auto unsq_off_val  = prog.add_instruction(op::multibroadcast{lens}, off_val);
+        auto unsq_diff_val = prog.add_instruction(op::multibroadcast{lens}, diff);
+        auto l_mul         = prog.add_instruction(op::mul{}, tr_out, unsq_diff_val);
+        return prog.add_instruction(op::add{}, l_mul, unsq_off_val);
+    }
+
+    instruction_ref
+    parse_tile(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        migraphx::argument arg_s = args[1]->eval();
+        check_arg_empty(arg_s, "PARSE_TILE: dynamic shape is not supported");
+        std::vector<std::int64_t> repeats;
+        arg_s.visit([&](auto input) { repeats.assign(input.begin(), input.end()); });
+
+        auto l0 = args[0];
+        for(int i = 0; i < repeats.size(); i++)
+        {
+            auto l1 = l0;
+            for(int j = 1; j < repeats[i]; j++)
+            {
+                l0 = prog.add_instruction(op::concat{i}, l0, l1);
+            }
+        }
+        return l0;
+    }
+
+    instruction_ref
+    parse_range(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+
+        auto start_arg = args[0]->eval();
+        check_arg_empty(start_arg, "PARSE_RANGE: start arg dynamic shape is not supported");
+        auto limit_arg = args[1]->eval();
+        check_arg_empty(limit_arg, "PARSE_RANGE: limit arg dynamic shape is not supported");
+        auto delta_arg = args[2]->eval();
+        check_arg_empty(delta_arg, "PARSE_RANGE: delta arg dynamic shape is not supported");
+
+        assert(args[0]->get_shape().elements() == 1 and args[1]->get_shape().elements() == 1 and
+               args[2]->get_shape().elements() == 1);
+
+        instruction_ref l0;
+
+        visit_all(start_arg, limit_arg, delta_arg)([&](auto start, auto limit, auto delta) {
+            auto start_val = start.front();
+            auto limit_val = limit.front();
+            auto delta_val = delta.front();
+
+            size_t num_elements = static_cast<size_t>(
+                ceil(static_cast<double>(limit_val - start_val) / static_cast<double>(delta_val)));
+
+            assert(num_elements > 0);
+
+            using type = decltype(start_val);
+
+            std::vector<type> range_vals(num_elements);
+
+            std::generate(range_vals.begin(), range_vals.end(), [&]() {
+                auto result = start_val;
+                start_val += delta_val;
+                return result;
+            });
+
+            l0 = prog.add_literal({shape{args[0]->get_shape().type(), {num_elements}}, range_vals});
+        });
+        return l0;
+    }
+
+    enum class reduce_mode_t
+    {
+        sum  = 0,
+        mean = 1,
+        max  = 2
+    };
+
+    instruction_ref parse_embedding_bag(const node_info& info, std::vector<instruction_ref> args)
+    {
+        if(args[2]->get_shape().elements() != 1)
+            MIGRAPHX_THROW("PARSE_EMBEDDING_BAG: MIGraphX only supports offsets of size 1");
+        reduce_mode_t reduce_mode = reduce_mode_t::sum;
+        if(contains(info.attributes, "mode"))
+        {
+            reduce_mode = static_cast<reduce_mode_t>(info.attributes.at("mode").i());
+        }
+
+        auto l0 = prog.add_instruction(op::gather{}, args[0], args[1]);
+        switch(reduce_mode)
+        {
+        case reduce_mode_t::sum: l0 = prog.add_instruction(op::reduce_sum{{0}}, l0); break;
+        case reduce_mode_t::mean: l0 = prog.add_instruction(op::reduce_mean{{0}}, l0); break;
+        case reduce_mode_t::max: l0 = prog.add_instruction(op::reduce_max{{0}}, l0); break;
+        }
+        return l0;
+    }
+
+    instruction_ref
+    parse_aten(const std::string&, const node_info& info, std::vector<instruction_ref> args)
+    {
+        if(contains(info.attributes, "operator"))
+        {
+            auto op_name = info.attributes.at("operator").s();
+            if(op_name.find("embedding_bag") != std::string::npos)
+            {
+                return parse_embedding_bag(info, std::move(args));
+            }
+        }
+        MIGRAPHX_THROW("PARSE_ATEN: unsupported custom operator");
     }
 
     void parse_from(std::istream& is)
@@ -1739,7 +2267,6 @@ struct onnx_parser
 
     void parse_graph(const onnx::GraphProto& graph)
     {
-        nodes = get_nodes(graph);
         for(auto&& f : graph.initializer())
             instructions[f.name()] = prog.add_literal(parse_tensor(f));
 
@@ -1749,43 +2276,19 @@ struct onnx_parser
             // input not in initializer_data, so it is a real input
             if(!contains(instructions, name))
             {
-                // TODO: Get shape of input parameter
-                shape s            = parse_type(input.type(), batch_size);
+                std::vector<std::size_t> dims;
+                if(map_input_dims.count(name) > 0)
+                {
+                    dims = map_input_dims.at(name);
+                }
+
+                shape s            = parse_type(input.type(), dims);
                 instructions[name] = prog.add_parameter(name, s);
             }
         }
-        for(auto&& output : graph.output())
+
+        for(auto&& node : graph.node())
         {
-            this->parse_node(output.name());
-        }
-
-        // For now, the last output with a valid name is considered
-        // as the program output, and add an identity instruction at
-        // the program end
-        auto prog_output = graph.output();
-        auto oit         = std::find_if(prog_output.rbegin(), prog_output.rend(), [](auto& node) {
-            return !node.name().empty();
-        });
-
-        if(instructions.count(oit->name()) > 0)
-        {
-            prog.add_instruction(op::identity{}, instructions[oit->name()]);
-        }
-    }
-
-    void parse_undefined(const std::string& name)
-    {
-        auto ins           = prog.add_instruction(op::undefined{});
-        instructions[name] = ins;
-    }
-
-    void parse_node(const std::string& name)
-    {
-        if(name.empty())
-            MIGRAPHX_THROW("Onnx node must have a name");
-        if(instructions.count(name) == 0)
-        {
-            auto&& node = nodes.at(name);
             std::vector<instruction_ref> args;
             for(auto&& input : node.input())
             {
@@ -1793,37 +2296,64 @@ struct onnx_parser
                 {
                     this->parse_undefined(input);
                 }
-                else if(nodes.count(input) > 0)
+                if(instructions.count(input) == 0)
                 {
-                    assert(name != input);
-                    this->parse_node(input);
+                    MIGRAPHX_THROW("PARSE_GRAPH: invalid onnx file. Input \"" + input +
+                                   "\" is unavailable due to unordered nodes!");
                 }
                 args.push_back(instructions.at(input));
             }
+
             std::vector<instruction_ref> result;
+            std::size_t output_num = static_cast<std::size_t>(node.output().size());
             if(ops.count(node.op_type()) == 0)
             {
-                result.push_back(prog.add_instruction(op::unknown{node.op_type()}, args));
+                if(skip_unknown_operators)
+                    result.push_back(prog.add_instruction(op::unknown{node.op_type()}, args));
+                else
+                    MIGRAPHX_THROW("Unknown operator: " + node.op_type());
             }
             else
             {
-                result = ops[node.op_type()](get_attributes(node), args);
+                result = ops[node.op_type()]({get_attributes(node), output_num}, args);
             }
-            // Even no output nodes produce output in migraphx
-            if(node.output().empty() and result.size() == 1)
-            {
-                instructions[name] = result.front();
-            }
-            else
-            {
-                assert(node.output().size() <= result.size());
-                std::transform(node.output().begin(),
-                               node.output().end(),
-                               result.begin(),
-                               std::inserter(instructions, instructions.end()),
-                               [](auto&& x, auto&& y) { return std::make_pair(x, y); });
-            }
+
+            output_num = std::min<std::size_t>(output_num, result.size());
+            std::transform(node.output().begin(),
+                           node.output().begin() + output_num,
+                           result.begin(),
+                           std::inserter(instructions, instructions.end()),
+                           [](auto&& x, auto&& y) { return std::make_pair(x, y); });
         }
+
+        // Find instructions corresponding to the output
+        auto prog_output = graph.output();
+        std::vector<std::string> all_output_names;
+        std::vector<std::string> prog_output_names;
+        std::transform(prog_output.begin(),
+                       prog_output.end(),
+                       std::back_inserter(all_output_names),
+                       [](auto& node) { return node.name(); });
+        std::copy_if(
+            all_output_names.begin(),
+            all_output_names.end(),
+            std::back_inserter(prog_output_names),
+            [&](const auto& name) { return !(name.empty() or instructions.count(name) == 0); });
+
+        std::vector<instruction_ref> output_ins;
+        std::transform(prog_output_names.begin(),
+                       prog_output_names.end(),
+                       std::back_inserter(output_ins),
+                       [&](const auto& name) { return instructions[name]; });
+
+        // add the return instuction
+        prog.add_return(output_ins);
+    }
+
+    void parse_undefined(const std::string& name)
+    {
+        auto ins           = prog.add_instruction(op::undefined{});
+        instructions[name] = ins;
     }
 
     static attribute_map get_attributes(const onnx::NodeProto& node)
@@ -1833,46 +2363,6 @@ struct onnx_parser
         {
             result[attr.name()] = attr;
         }
-        return result;
-    }
-
-    static node_map get_nodes(const onnx::GraphProto& graph)
-    {
-        std::unordered_map<std::string, onnx::NodeProto> result;
-        std::size_t n = 0;
-        for(auto&& node : graph.node())
-        {
-            if(node.output().empty())
-            {
-                if(node.name().empty())
-                {
-                    result["migraphx_unamed_node_" + std::to_string(n)] = node;
-                    n++;
-                }
-                else
-                {
-                    result[node.name()] = node;
-                }
-            }
-            for(auto&& output : node.output())
-            {
-                result[output] = node;
-            }
-        }
-        return result;
-    }
-
-    static std::vector<int64_t> get_indices(const onnx::AttributeProto& attr)
-    {
-        std::vector<int64_t> result;
-        literal s = parse_value(attr);
-        s.visit([&](auto v) { copy(v, std::back_inserter(result)); });
-        // Clamp large indices to -1
-        std::replace_if(
-            result.begin(),
-            result.end(),
-            [](auto x) { return x > int64_t{std::numeric_limits<std::int32_t>::max()} / 2; },
-            -1);
         return result;
     }
 
@@ -1985,7 +2475,7 @@ struct onnx_parser
         return literal{{shape_type, dims}, data.begin(), data.end()};
     }
 
-    static shape parse_type(const onnx::TypeProto& t, const unsigned int batch_size)
+    shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims)
     {
         shape::type_t shape_type{};
         switch(t.tensor_type().elem_type())
@@ -2000,7 +2490,7 @@ struct onnx_parser
         case onnx::TensorProto::DOUBLE: shape_type = shape::double_type; break;
         case onnx::TensorProto::UINT32: shape_type = shape::uint32_type; break;
         case onnx::TensorProto::UINT64: shape_type = shape::uint64_type; break;
-        case onnx::TensorProto::UINT8:
+        case onnx::TensorProto::UINT8: shape_type = shape::uint8_type; break;
         case onnx::TensorProto::STRING:
         case onnx::TensorProto::BOOL:
         case onnx::TensorProto::UNDEFINED:
@@ -2008,6 +2498,12 @@ struct onnx_parser
         case onnx::TensorProto::COMPLEX128:
             break; // throw std::runtime_error("Unsupported type");
         }
+
+        if(!input_dims.empty())
+        {
+            return {shape_type, input_dims};
+        }
+
         std::vector<std::size_t> dims;
         auto&& tensor_dims = t.tensor_type().shape().dim();
         std::transform(tensor_dims.begin(),
@@ -2017,11 +2513,17 @@ struct onnx_parser
                            if(d.has_dim_value())
                            {
                                if(static_cast<int>(d.dim_value()) <= 0)
-                                   return batch_size;
+                               {
+                                   return default_dim_value;
+                               }
                                return d.dim_value();
                            }
-                           return batch_size;
+                           else
+                           {
+                               return default_dim_value;
+                           }
                        });
+
         if(dims.empty())
             return {shape_type};
 
@@ -2060,39 +2562,45 @@ struct onnx_parser
 };
 
 template <class... Ts>
-program parse_onnx_from(onnx_options options, Ts&&... xs)
+program parse_onnx_from(const onnx_options& options, Ts&&... xs)
 {
     onnx_parser parser;
-    parser.batch_size = options.batch_size;
-#ifndef NDEBUG
-    // Log the program when it can't be parsed
-    try
+    parser.map_input_dims         = options.map_input_dims;
+    parser.default_dim_value      = options.default_dim_value;
+    parser.skip_unknown_operators = options.skip_unknown_operators;
+
+    if(options.print_program_on_error)
+    {
+        // Log the program when it can't be parsed
+        try
+        {
+            parser.parse_from(std::forward<Ts>(xs)...);
+        }
+        catch(...)
+        {
+            std::cerr << parser.prog << std::endl;
+            throw;
+        }
+    }
+    else
     {
         parser.parse_from(std::forward<Ts>(xs)...);
     }
-    catch(...)
-    {
-        std::cerr << parser.prog << std::endl;
-        throw;
-    }
-#else
-    parser.parse_from(std::forward<Ts>(xs)...);
-#endif
     return std::move(parser.prog);
 }
 
-program parse_onnx(const std::string& name, onnx_options options)
+program parse_onnx(const std::string& name, const onnx_options& options)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     return parse_onnx_from(options, input);
 }
 
-program parse_onnx_buffer(const std::string& buffer, onnx_options options)
+program parse_onnx_buffer(const std::string& buffer, const onnx_options& options)
 {
     return parse_onnx_from(options, buffer.data(), buffer.size());
 }
 
-program parse_onnx_buffer(const void* data, std::size_t size, onnx_options options)
+program parse_onnx_buffer(const void* data, std::size_t size, const onnx_options& options)
 {
     return parse_onnx_from(options, data, size);
 }

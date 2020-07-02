@@ -57,7 +57,7 @@ struct convolution
         size_t kdims         = input.lens().size() - 2;
         if(kdims != this->kdims())
         {
-            MIGRAPHX_THROW("quant_convolution: input k-dims does not match attribute size");
+            MIGRAPHX_THROW("convolution: input k-dims does not match attribute size");
         }
 
         if(input.lens().at(1) != (weights.lens().at(1) * group))

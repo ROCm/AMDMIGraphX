@@ -92,7 +92,7 @@ RUN cget -p /opt/cmake install kitware/cmake@v3.13.0
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=master
-ARG ONNXRUNTIME_COMMIT=7759136610cd8415264892ad83acdf9d8ed7e87a
+ARG ONNXRUNTIME_COMMIT=bfc888613f4e831d29c8b0bc17182ae061712553
 RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXRUNTIME_REPO} onnxruntime && \
     cd onnxruntime && \
     git checkout ${ONNXRUNTIME_COMMIT} && \

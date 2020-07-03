@@ -852,10 +852,9 @@ struct onnx_parser
         }
 
         // does not support ceil_mode
-        int ceil_mode = 0;
         if(contains(info.attributes, "ceil_mode"))
         {
-            ceil_mode = info.attributes.at("ceil_mode").i();
+            int ceil_mode = info.attributes.at("ceil_mode").i();
             if(ceil_mode == 1)
             {
                 MIGRAPHX_THROW("PARSE_POOLING: pool does not support ceil_mode");

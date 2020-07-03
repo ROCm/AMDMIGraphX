@@ -795,8 +795,6 @@ struct onnx_parser
             left      = left + s_start * stride;
             right     = left;
         }
-
-        return;
     }
 
     template <class Op>
@@ -925,7 +923,8 @@ struct onnx_parser
         // used to calculate the supposed output shape
         std::vector<int64_t> orig_padding(paddings.begin(), paddings.end());
 
-        std::vector<int64_t> slice_start, slice_end;
+        std::vector<int64_t> slice_start;
+        std::vector<int64_t> slice_end;
         tune_padding_size(op, paddings, count_include_pad, slice_start);
 
         if(!slice_start.empty())

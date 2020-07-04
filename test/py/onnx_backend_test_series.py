@@ -11,7 +11,7 @@ import onnx
 import onnx.backend.test
 
 import numpy as np
-import backend as c2
+from backend import MIGraphXBackend as c2
 
 pytest_plugins = 'onnx.backend.test.report',
 
@@ -31,14 +31,15 @@ class MIGraphXBackendTest(onnx.backend.test.BackendTest):
                 np.testing.assert_allclose(ref_outputs[i], outputs[i], rtol=1e-3, atol=1e-5)
 
 
-def create_backend_test(testname=None):
+def create_backend_test(testname=None, target_device = None):
+    if target_device is not None:
+    	c2.set_device(target_device)
     backend_test = MIGraphXBackendTest(c2, __name__)
 
     # Type not supported
     backend_test.exclude(r'(FLOAT16)')
 
     if testname:
-        print("test_name = {}".format(testname))
         backend_test.include(testname + '.*')
     else:
         # read filters data
@@ -103,6 +104,7 @@ def parse_args():
         '-d',
         '--device',
         dest='device',
+        default='GPU',
         type=str,
         help="Specify the device to run test on")
 
@@ -110,11 +112,16 @@ def parse_args():
     args, left = parser.parse_known_args()
     sys.argv = sys.argv[:1] + left
 
+    if args.device is not None:
+        print("run on {} device....".format(args.device))
+    else:
+        print("Default GPU device is used ....")
+
     return args
 
 
 if __name__ == '__main__':
     args = parse_args()
 
-    backend_test = create_backend_test(args.testname)
+    backend_test = create_backend_test(args.testname, args.device)
     unittest.main()

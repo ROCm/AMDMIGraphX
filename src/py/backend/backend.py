@@ -15,6 +15,10 @@ def get_device():
    return ("CPU", "GPU")
 
 class MIGraphXBackend(Backend):
+    _device = "GPU"
+    @classmethod
+    def set_device(cls, device):
+        cls._device = device
     """
     Implements
     `ONNX's backend API <https://github.com/onnx/onnx/blob/master/docs/ImplementingAnOnnxBackend.md>`_
@@ -35,8 +39,7 @@ class MIGraphXBackend(Backend):
         :param device: None to use the default device or a string (ex: `'CPU'`)
         :return: boolean
         """
-        if device is None:
-            device = "CPU"
+        device = cls._device
         return cls.supports_device(device)
 
     @classmethod
@@ -49,7 +52,6 @@ class MIGraphXBackend(Backend):
 
     @classmethod
     def prepare(cls, model, device=None, **kwargs):
-        print("In prepare(), model = {}".format(model))
         """
         Load the model and creates a :class:`migraphx.program`
         ready to be used as a backend.
@@ -67,13 +69,13 @@ class MIGraphXBackend(Backend):
         elif isinstance(model, migraphx.program):
             return MIGraphXBackendRep(model)
         elif isinstance(model, (str, bytes)):
-#            for k, v in kwargs.items():
-#                if hasattr(options, k):
-#                    setattr(options, k, v)
+            for k, v in kwargs.items():
+                if hasattr(options, k):
+                    setattr(options, k, v)
             if device is not None and not cls.supports_device(device):
                 raise RuntimeError("Incompatible device expected '{0}', got '{1}'".format(device, get_device()))
-            print("prepare(), model = \n{}".format(model))
             inf = migraphx.parse_onnx_buffer(model)
+            device = cls._device
             inf.compile(migraphx.get_target(device.lower()))
             return cls.prepare(inf, device, **kwargs)
         else:
@@ -97,7 +99,6 @@ class MIGraphXBackend(Backend):
         :return: predictions
         """
         rep = cls.prepare(model, device, **kwargs)
-        print("run_model().....")
         return rep.run(inputs, **kwargs)
 
     @classmethod

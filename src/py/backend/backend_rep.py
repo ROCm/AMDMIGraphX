@@ -1,5 +1,5 @@
 # -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Advanced Micro Device Inc. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 """
@@ -8,6 +8,7 @@ Implements ONNX's backend API.
 import migraphx
 from onnx.backend.base import BackendRep
 from typing import Any, Tuple
+import numpy as np
 
 
 class MIGraphXBackendRep(BackendRep):
@@ -31,12 +32,19 @@ class MIGraphXBackendRep(BackendRep):
         if isinstance(inputs, list):
             inps = {}
             for i, name in enumerate(self._program.get_parameter_shapes().keys()):
-                inps[name] = inputs[i]
-            outs = self._program.run(inps)
+                inps[name] = migraphx.argument(inputs[i])
+            mgx_outputs = self._program.run(inps)
+            outs = []
+            for out in mgx_outputs:
+                outs.append(np.array(out))
             return outs
         else:
             inp = self._program.get_parameter_shapes().keys()
             if len(inp) != 1:
                 raise RuntimeError("Model expect {0} inputs".format(len(inp)))
-            inps = {inp[0]: inputs}
+            inps = {inp[0]: migraphx.argument(inputs)}
+            mgx_outputs = self._program.run(inps)
+            outs = []
+            for out in mgx_outputs:
+                outs.append(np.array(out))
             return self._program.run(inps)

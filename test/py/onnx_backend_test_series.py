@@ -11,14 +11,14 @@ import onnx
 import onnx.backend.test
 
 import numpy as np
-import onnxruntime.backend as c2
+import backend as c2
 
 pytest_plugins = 'onnx.backend.test.report',
 
 
-class OrtBackendTest(onnx.backend.test.BackendTest):
+class MIGraphXBackendTest(onnx.backend.test.BackendTest):
     def __init__(self, backend, parent_module=None):
-        super(OrtBackendTest, self).__init__(backend, parent_module)
+        super(MIGraphXBackendTest, self).__init__(backend, parent_module)
 
     @classmethod
     def assert_similar_outputs(cls, ref_outputs, outputs, rtol, atol):
@@ -32,12 +32,13 @@ class OrtBackendTest(onnx.backend.test.BackendTest):
 
 
 def create_backend_test(testname=None):
-    backend_test = OrtBackendTest(c2, __name__)
+    backend_test = MIGraphXBackendTest(c2, __name__)
 
     # Type not supported
     backend_test.exclude(r'(FLOAT16)')
 
     if testname:
+        print("test_name = {}".format(testname))
         backend_test.include(testname + '.*')
     else:
         # read filters data
@@ -53,25 +54,7 @@ def create_backend_test(testname=None):
         if platform.architecture()[0] == '32bit':
             current_failing_tests += filters['current_failing_tests_x86']
 
-        if c2.supports_device('NGRAPH'):
-            current_failing_tests += filters['current_failing_tests_NGRAPH']
-
-        if c2.supports_device('DNNL'):
-            current_failing_tests += filters['current_failing_tests_DNNL']
-
-        if c2.supports_device('NNAPI'):
-            current_failing_tests += filters['current_failing_tests_NNAPI']
-
-        if c2.supports_device('OPENVINO_GPU_FP32') or c2.supports_device('OPENVINO_GPU_FP16'):
-            current_failing_tests += filters['current_failing_tests_OPENVINO_GPU']
-
-        if c2.supports_device('OPENVINO_GPU_FP32'):
-            current_failing_tests += filters['current_failing_tests_OPENVINO_GPU_FP32']
-
-        if c2.supports_device('OPENVINO_CPU_FP32'):
-            current_failing_tests += filters['current_failing_tests_OPENVINO_CPU_FP32']
-
-        if c2.supports_device('MIGRAPHX'):
+        if c2.supports_device('gpu'):
             current_failing_tests += [
                 '^test_constant_pad_cpu', '^test_softmax_axis_1_cpu', '^test_softmax_axis_0_cpu',
                 '^test_softmax_default_axis_cpu', '^test_round_cpu', '^test_lrn_default_cpu', '^test_lrn_cpu',
@@ -104,7 +87,7 @@ def create_backend_test(testname=None):
 
 def parse_args():
     parser = argparse.ArgumentParser(os.path.basename(__file__),
-                                     description='Run the ONNX backend tests using ONNXRuntime.')
+                                     description='Run the ONNX backend tests using MIGraphX.')
 
     # Add an argument to match a single test name, by adding the name to the 'include' filter.
     # Using -k with python unittest (https://docs.python.org/3/library/unittest.html#command-line-options)
@@ -116,6 +99,12 @@ def parse_args():
         dest='testname',
         type=str,
         help="Only run tests that match this value. Matching is regex based, and '.*' is automatically appended")
+    parser.add_argument(
+        '-d',
+        '--device',
+        dest='device',
+        type=str,
+        help="Specify the device to run test on")
 
     # parse just our args. python unittest has its own args and arg parsing, and that runs inside unittest.main()
     args, left = parser.parse_known_args()

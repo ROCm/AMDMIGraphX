@@ -9,10 +9,10 @@ from onnx import ModelProto
 from onnx.checker import check_model
 from onnx.backend.base import Backend
 import migraphx
-from migraphx.backend.backend_rep import MIGraphXBackendRep
+from backend_rep import MIGraphXBackendRep
 
 def get_device():
-   return ("cpu", "gpu")
+   return ("CPU", "GPU")
 
 class MIGraphXBackend(Backend):
     """
@@ -36,7 +36,7 @@ class MIGraphXBackend(Backend):
         :return: boolean
         """
         if device is None:
-            device = "gpu"
+            device = "CPU"
         return cls.supports_device(device)
 
     @classmethod
@@ -49,6 +49,7 @@ class MIGraphXBackend(Backend):
 
     @classmethod
     def prepare(cls, model, device=None, **kwargs):
+        print("In prepare(), model = {}".format(model))
         """
         Load the model and creates a :class:`migraphx.program`
         ready to be used as a backend.
@@ -71,15 +72,15 @@ class MIGraphXBackend(Backend):
 #                    setattr(options, k, v)
             if device is not None and not cls.supports_device(device):
                 raise RuntimeError("Incompatible device expected '{0}', got '{1}'".format(device, get_device()))
-            inf = migraphx.parse_onnx(model, options)
-            inf.compile(migraphx.get_target(device))
+            print("prepare(), model = \n{}".format(model))
+            inf = migraphx.parse_onnx_buffer(model)
+            inf.compile(migraphx.get_target(device.lower()))
             return cls.prepare(inf, device, **kwargs)
         else:
-            raise RuntimeError("MIGraphX does not support load serialized model, to be added later")
             # type: ModelProto
-            #check_model(model)
-            #bin = model.SerializeToString()
-            #return cls.prepare(bin, device, **kwargs)
+            check_model(model)
+            bin = model.SerializeToString()
+            return cls.prepare(bin, device, **kwargs)
 
     @classmethod
     def run_model(cls, model, inputs, device=None, **kwargs):
@@ -96,6 +97,7 @@ class MIGraphXBackend(Backend):
         :return: predictions
         """
         rep = cls.prepare(model, device, **kwargs)
+        print("run_model().....")
         return rep.run(inputs, **kwargs)
 
     @classmethod

@@ -52,23 +52,19 @@ def create_backend_test(testname=None, target_device = None):
 
         current_failing_tests = filters['current_failing_tests']
 
-        if platform.architecture()[0] == '32bit':
-            current_failing_tests += filters['current_failing_tests_x86']
-
-        if c2.supports_device('gpu'):
-            current_failing_tests += [
-                '^test_constant_pad_cpu', '^test_softmax_axis_1_cpu', '^test_softmax_axis_0_cpu',
-                '^test_softmax_default_axis_cpu', '^test_round_cpu', '^test_lrn_default_cpu', '^test_lrn_cpu',
-                '^test_logsoftmax_axis_0_cpu', '^test_logsoftmax_axis_1_cpu', '^test_logsoftmax_default_axis_cpu',
-                '^test_dynamicquantizelinear_expanded_cpu', '^test_dynamicquantizelinear_max_adjusted_cpu',
-                '^test_dynamicquantizelinear_max_adjusted_expanded_cpu', '^test_dynamicquantizelinear_min_adjusted_cpu',
-                '^test_dynamicquantizelinear_min_adjusted_expanded_cpu',
-                '^test_range_float_type_positive_delta_expanded_cpu',
-                '^test_range_int32_type_negative_delta_expanded_cpu', 
-                '^test_operator_symbolic_override_nested_cpu',
-                '^test_negative_log_likelihood_loss',
-                '^test_softmax_cross_entropy'
-            ]
+        current_failing_tests += [
+            '^test_constant_pad_cpu', '^test_softmax_axis_1_cpu', '^test_softmax_axis_0_cpu',
+            '^test_softmax_default_axis_cpu', '^test_round_cpu', '^test_lrn_default_cpu', '^test_lrn_cpu',
+            '^test_logsoftmax_axis_0_cpu', '^test_logsoftmax_axis_1_cpu', '^test_logsoftmax_default_axis_cpu',
+            '^test_dynamicquantizelinear_expanded_cpu', '^test_dynamicquantizelinear_max_adjusted_cpu',
+            '^test_dynamicquantizelinear_max_adjusted_expanded_cpu', '^test_dynamicquantizelinear_min_adjusted_cpu',
+            '^test_dynamicquantizelinear_min_adjusted_expanded_cpu',
+            '^test_range_float_type_positive_delta_expanded_cpu',
+            '^test_range_int32_type_negative_delta_expanded_cpu', 
+            '^test_operator_symbolic_override_nested_cpu',
+            '^test_negative_log_likelihood_loss',
+            '^test_softmax_cross_entropy'
+        ]
 
         filters = current_failing_tests + \
             filters['tests_with_pre_opset7_dependencies'] + \
@@ -104,7 +100,6 @@ def parse_args():
         '-d',
         '--device',
         dest='device',
-        default='GPU',
         type=str,
         help="Specify the device to run test on")
 

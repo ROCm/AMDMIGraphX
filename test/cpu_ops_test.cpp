@@ -416,7 +416,6 @@ TEST_CASE(avgpool_test)
         p.add_instruction(op, l0);
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({}).back();
-        std::cout << "result = " << result << std::endl;
         std::vector<float> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold{1.6321,

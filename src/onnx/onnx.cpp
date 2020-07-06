@@ -809,27 +809,14 @@ struct onnx_parser
             return;
         }
 
-        // check assymetric padding
-        bool asym_padding = false;
-        assert(padding.size() % 2 == 0);
-        size_t n_dims = padding.size() / 2;
-
-        for(size_t i = 0; i < n_dims; i++)
-        {
-            if(padding[i] != padding[i + n_dims])
-            {
-                asym_padding = true;
-                break;
-            }
-        }
-
-        // padding is symmetric, return directly
-        if(!asym_padding)
+        // if padding is symmetric, return directly
+        if(!is_asym_padding(padding))
         {
             return;
         }
 
         // asymmetric padding, make it symmetric
+        std::size_t n_dims = padding.size() / 2;
         s_start.resize(n_dims);
         for(std::size_t i = 0; i < n_dims; ++i)
         {
@@ -854,8 +841,7 @@ struct onnx_parser
         // does not support ceil_mode
         if(contains(info.attributes, "ceil_mode"))
         {
-            int ceil_mode = info.attributes.at("ceil_mode").i();
-            if(ceil_mode == 1)
+            if(info.attributes.at("ceil_mode").i() == 1)
             {
                 MIGRAPHX_THROW("PARSE_POOLING: pool does not support ceil_mode");
             }

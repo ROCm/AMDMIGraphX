@@ -761,27 +761,20 @@ struct find_split_reshape
 
         // ensure reshape happens after the axis dimension
         auto axis         = any_cast<op::slice>(slc->get_operator()).axes[0];
-        auto slc_dim_size = slc->get_shape().lens()[axis];
+        auto slc_lens = slc->get_shape().lens();
+        auto slc_dim_size = std::accumulate(slc_lens.begin() + axis, slc_lens.end(), 1, std::multiplies<std::size_t>());
 
-        // search the reshape output to decide which axis are in its output
-        // corresponding to the slc_dim_size
-        auto rsp_lens            = rsp->get_shape().lens();
-        std::size_t rsp_dim_size = 1;
-        int64_t rsp_axis         = -1;
-        for(int i = static_cast<int>(rsp_lens.size() - 1); i >= 0; --i)
-        {
-            rsp_dim_size *= rsp_lens[i];
-            if(rsp_dim_size == slc_dim_size)
-            {
-                rsp_axis = i;
-                break;
-            }
-        }
-
-        if(rsp_axis == -1)
+        // search the reshape output (standard shape) to decide which axis are
+        // in its output corresponding to the slc_dim_size
+        auto rsp_lens    = rsp->get_shape().lens();
+        auto rsp_strides = rsp->get_shape().strides();
+        rsp_strides.insert(rsp_strides.begin(), rsp_strides[0] * rsp_lens[0]);
+        auto ait = std::find(rsp_strides.begin(), rsp_strides.end(), slc_dim_size);
+        if (ait == rsp_strides.end())
         {
             return;
         }
+        int rsp_axis = std::distance(rsp_strides.begin(), ait);
 
         // calculate reshape output shape
         std::vector<int64_t> vec_dims(vec_rsp.size());
@@ -789,8 +782,7 @@ struct find_split_reshape
             return is->get_shape().lens()[rsp_axis];
         });
 
-        auto tmp_lens = vec_rsp.front()->get_shape().lens();
-        std::vector<int64_t> rsp_out_lens(tmp_lens.begin(), tmp_lens.end());
+        std::vector<int64_t> rsp_out_lens(rsp_lens.begin(), rsp_lens.end());
         rsp_out_lens[rsp_axis] = std::accumulate(vec_dims.begin(), vec_dims.end(), 0);
 
         // insert the reshape instruction

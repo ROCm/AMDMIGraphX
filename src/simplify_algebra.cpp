@@ -791,7 +791,7 @@ struct find_split_reshape
 
         // replace the original reshape with slice
         int64_t start = 0;
-        for(int i = 0; i < vec_rsp.size(); ++i)
+        for(std::size_t i = 0; i < vec_rsp.size(); ++i)
         {
             p.replace_instruction(
                 vec_rsp[i], op::slice{{rsp_axis}, {start}, {start + vec_dims[i]}}, rsp_ins);

@@ -27,6 +27,7 @@ add_library(migraphx
     pass_manager.cpp
     simplify_algebra.cpp
     simplify_reshapes.cpp
+    value.cpp
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp
 )

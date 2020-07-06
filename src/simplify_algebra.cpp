@@ -784,7 +784,7 @@ struct find_split_reshape
         });
 
         std::vector<int64_t> rsp_out_lens(rsp_lens.begin(), rsp_lens.end());
-        rsp_out_lens[rsp_axis] = std::accumulate(vec_dims.begin(), vec_dims.end(), 0);
+        rsp_out_lens[rsp_axis] = std::accumulate(vec_dims.begin(), vec_dims.end(), std::int64_t{0});
 
         // insert the reshape instruction
         auto rsp_ins = p.insert_instruction(std::next(input), op::reshape{rsp_out_lens}, input);

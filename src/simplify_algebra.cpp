@@ -761,8 +761,9 @@ struct find_split_reshape
 
         // ensure reshape happens after the axis dimension
         auto axis         = any_cast<op::slice>(slc->get_operator()).axes[0];
-        auto slc_lens = slc->get_shape().lens();
-        auto slc_dim_size = std::accumulate(slc_lens.begin() + axis, slc_lens.end(), 1, std::multiplies<std::size_t>());
+        auto slc_lens     = slc->get_shape().lens();
+        auto slc_dim_size = std::accumulate(
+            slc_lens.begin() + axis, slc_lens.end(), 1, std::multiplies<std::size_t>());
 
         // search the reshape output (standard shape) to decide which axis are
         // in its output corresponding to the slc_dim_size
@@ -770,7 +771,7 @@ struct find_split_reshape
         auto rsp_strides = rsp->get_shape().strides();
         rsp_strides.insert(rsp_strides.begin(), rsp_strides[0] * rsp_lens[0]);
         auto ait = std::find(rsp_strides.begin(), rsp_strides.end(), slc_dim_size);
-        if (ait == rsp_strides.end())
+        if(ait == rsp_strides.end())
         {
             return;
         }

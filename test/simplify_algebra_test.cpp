@@ -1487,14 +1487,14 @@ TEST_CASE(reorder_reshape_slice_transfer_axis1)
         std::vector<int64_t> perm0 = {0, 2, 1, 3};
         std::vector<int64_t> perm1 = {0, 2, 3, 1};
         auto input                 = p.add_parameter("input", s);
-        std::vector<int64_t> lens = {static_cast<int64_t>(batch_size), 64, 4, 96};
-        auto rsp = p.add_instruction(migraphx::op::reshape{lens}, input);
-        auto slc0 = p.add_instruction(migraphx::op::slice{{3}, {0}, {32}}, rsp);
-        auto t0 = p.add_instruction(migraphx::op::transpose{perm0}, slc0);
-        auto slc1 = p.add_instruction(migraphx::op::slice{{3}, {32}, {64}}, rsp);
-        auto t1 = p.add_instruction(migraphx::op::transpose{perm0}, slc1);
-        auto slc2 = p.add_instruction(migraphx::op::slice{{3}, {64}, {96}}, rsp);
-        auto t2 = p.add_instruction(migraphx::op::transpose{perm1}, slc2);
+        std::vector<int64_t> lens  = {static_cast<int64_t>(batch_size), 64, 4, 96};
+        auto rsp                   = p.add_instruction(migraphx::op::reshape{lens}, input);
+        auto slc0                  = p.add_instruction(migraphx::op::slice{{3}, {0}, {32}}, rsp);
+        auto t0                    = p.add_instruction(migraphx::op::transpose{perm0}, slc0);
+        auto slc1                  = p.add_instruction(migraphx::op::slice{{3}, {32}, {64}}, rsp);
+        auto t1                    = p.add_instruction(migraphx::op::transpose{perm0}, slc1);
+        auto slc2                  = p.add_instruction(migraphx::op::slice{{3}, {64}, {96}}, rsp);
+        auto t2                    = p.add_instruction(migraphx::op::transpose{perm1}, slc2);
 
         auto sum = p.add_instruction(migraphx::op::add{}, t0, t1);
         auto ret = p.add_instruction(migraphx::op::dot{}, sum, t2);
@@ -1521,8 +1521,8 @@ TEST_CASE(reorder_reshape_slice_transfer_axis2)
         migraphx::shape s{migraphx::shape::float_type, {128, 96}};
         auto input = p1.add_parameter("input", s);
         auto slc0  = p1.add_instruction(migraphx::op::slice{{1}, {0}, {32}}, input);
-        auto slc1 = p1.add_instruction(migraphx::op::slice{{1}, {32}, {64}}, input);
-        auto slc2 = p1.add_instruction(migraphx::op::slice{{1}, {64}, {96}}, input);
+        auto slc1  = p1.add_instruction(migraphx::op::slice{{1}, {32}, {64}}, input);
+        auto slc2  = p1.add_instruction(migraphx::op::slice{{1}, {64}, {96}}, input);
 
         auto c0 = p1.add_instruction(migraphx::op::contiguous{}, slc0);
         auto c1 = p1.add_instruction(migraphx::op::contiguous{}, slc1);
@@ -1542,13 +1542,13 @@ TEST_CASE(reorder_reshape_slice_transfer_axis2)
 
     auto create_p2 = [] {
         migraphx::program p;
-        auto s = migraphx::shape{migraphx::shape::float_type, {128, 96}};
-        auto input                 = p.add_parameter("input", s);
+        auto s                    = migraphx::shape{migraphx::shape::float_type, {128, 96}};
+        auto input                = p.add_parameter("input", s);
         std::vector<int64_t> lens = {1, 16, 8, 96};
-        auto rsp = p.add_instruction(migraphx::op::reshape{lens}, input);
-        auto slc0 = p.add_instruction(migraphx::op::slice{{3}, {0}, {32}}, rsp);
-        auto slc1 = p.add_instruction(migraphx::op::slice{{3}, {32}, {64}}, rsp);
-        auto slc2 = p.add_instruction(migraphx::op::slice{{3}, {64}, {96}}, rsp);
+        auto rsp                  = p.add_instruction(migraphx::op::reshape{lens}, input);
+        auto slc0                 = p.add_instruction(migraphx::op::slice{{3}, {0}, {32}}, rsp);
+        auto slc1                 = p.add_instruction(migraphx::op::slice{{3}, {32}, {64}}, rsp);
+        auto slc2                 = p.add_instruction(migraphx::op::slice{{3}, {64}, {96}}, rsp);
 
         auto sum = p.add_instruction(migraphx::op::add{}, slc0, slc1);
         auto ret = p.add_instruction(migraphx::op::mul{}, sum, slc2);

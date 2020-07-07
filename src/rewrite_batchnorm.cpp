@@ -29,6 +29,9 @@ void rewrite_batchnorm::apply(program& p) const
         auto s = shape{ins->get_shape().type(), {ins->get_shape().lens()[1]}};
         // Get epsilon
         auto bn_op   = any_cast<op::batch_norm_inference>(ins->get_operator());
+        if (bn_op.bn_mode != op::batch_norm_inference::spatial)
+            continue;
+
         auto epsilon = bn_op.epsilon;
 
         argument a{s};

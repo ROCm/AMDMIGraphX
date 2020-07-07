@@ -37,12 +37,12 @@ argument miopen_batch_norm_inference::compute(context& ctx,
     shape y_shape  = output_shape;
     shape bn_shape = args[3].get_shape();
 
-    reshape_to_nd<2>(x_shape);
-    reshape_to_nd<2>(y_shape);
-    if(op.bn_mode == op::batch_norm_inference::per_activation)
-    {
-        reshape_to_nd<1>(bn_shape);
-    }
+    // reshape_to_nd<2>(x_shape);
+    // reshape_to_nd<2>(y_shape);
+    // if(op.bn_mode == op::batch_norm_inference::per_activation)
+    // {
+    //     reshape_to_nd<1>(bn_shape);
+    // }
 
     auto x_desc  = make_tensor(x_shape);
     auto y_desc  = make_tensor(y_shape);

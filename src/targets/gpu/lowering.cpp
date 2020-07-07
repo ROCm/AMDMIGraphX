@@ -447,20 +447,19 @@ struct miopen_apply
 
             auto reshape_op = op::reshape{rsp_lens};
             std::vector<instruction_ref> reshapes;
-            std::transform(
-                ins->inputs().begin() + 1,
-                ins->inputs().end(),
-                std::back_inserter(reshapes),
-                [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
+            std::transform(ins->inputs().begin() + 1,
+                           ins->inputs().end(),
+                           std::back_inserter(reshapes),
+                           [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
 
             return prog->replace_instruction(ins,
-                                                miopen_batch_norm_inference{op},
-                                                input,
-                                                reshapes[0],
-                                                reshapes[1],
-                                                reshapes[2],
-                                                reshapes[3],
-                                                output);
+                                             miopen_batch_norm_inference{op},
+                                             input,
+                                             reshapes[0],
+                                             reshapes[1],
+                                             reshapes[2],
+                                             reshapes[3],
+                                             output);
 
         });
     }

@@ -60,6 +60,10 @@ struct convolution
         const shape& weights = inputs.at(1);
         auto t               = input.type();
         size_t kdims         = input.lens().size() - 2;
+        if(kdims != this->kdims())
+        {
+            MIGRAPHX_THROW("convolution: input k-dims does not match attribute size");
+        }
 
         if(input.lens().at(1) != (weights.lens().at(1) * group))
             MIGRAPHX_THROW("CONVOLUTION: Mismatch channel numbers");

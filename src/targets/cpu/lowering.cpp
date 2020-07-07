@@ -166,11 +166,18 @@ struct cpu_lrn
     }
 };
 
+template <class V, class T, class... Ts>
+void visit_quantize_impl(V&& v, T&& x, Ts&&... xs)
+{
+    x.visit([&](auto y) { visit_all(xs...)([&](auto... ys) { v(y, ys...); }); });
+}
+
 template <class T, class... Ts>
 auto visit_quantize(T&& x, Ts&&... xs)
 {
     return [&](auto v) {
-        x.visit([&](auto y) { visit_all(xs...)([&](auto... ys) { v(y, ys...); }); });
+        // Workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70100
+        visit_quantize_impl(v, x, xs...);
     };
 }
 

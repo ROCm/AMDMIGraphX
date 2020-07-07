@@ -12,21 +12,15 @@ shape miopen_batch_norm_inference::compute_shape(const std::vector<shape>& input
     return op.compute_shape({inputs.at(0), inputs.at(1), inputs.at(2), inputs.at(3), inputs.at(4)});
 }
 
-template <int N>
-inline void reshape_to_nd(shape& input)
+inline void reshape_1d_to_2d(shape& input)
 {
     auto dims = input.lens();
+    if (dims.size() >= 4)
+        return;
 
-    // not nd input, reshape to nd (total is (n + 2)d)
-    if(dims.size() != N + 2)
-    {
-        std::size_t reshape_loc = N + 1;
-        auto num                = std::accumulate(
-            dims.begin() + reshape_loc, dims.end(), 1, std::multiplies<std::size_t>());
-        std::vector<size_t> new_dims(dims.begin(), dims.begin() + reshape_loc);
-        new_dims.push_back(num);
-        input = shape{input.type(), new_dims};
-    }
+    std::vector<size_t> new_dims(dims.begin(), dims.end());
+    new_dims.push_back(1);
+    input = shape{input.type(), new_dims};
 }
 
 argument miopen_batch_norm_inference::compute(context& ctx,
@@ -37,12 +31,9 @@ argument miopen_batch_norm_inference::compute(context& ctx,
     shape y_shape  = output_shape;
     shape bn_shape = args[3].get_shape();
 
-    // reshape_to_nd<2>(x_shape);
-    // reshape_to_nd<2>(y_shape);
-    // if(op.bn_mode == op::batch_norm_inference::per_activation)
-    // {
-    //     reshape_to_nd<1>(bn_shape);
-    // }
+    reshape_1d_to_2d(x_shape);
+    reshape_1d_to_2d(y_shape);
+    reshape_1d_to_2d(bn_shape);
 
     auto x_desc  = make_tensor(x_shape);
     auto y_desc  = make_tensor(y_shape);

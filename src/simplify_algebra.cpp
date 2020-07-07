@@ -11,7 +11,9 @@
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/neg.hpp>
 #include <migraphx/op/recip.hpp>
+#include <migraphx/op/reshape.hpp>
 #include <migraphx/op/rsqrt.hpp>
+#include <migraphx/op/transpose.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/algorithm.hpp>
@@ -800,6 +802,130 @@ struct find_rsqrt
     }
 };
 
+static bool same_ops(const std::vector<instruction_ref>& vec_ins)
+{
+    return std::all_of(vec_ins.begin(), vec_ins.end(), [&](auto i) {
+        return i->get_operator() == vec_ins.front()->get_operator();
+    });
+}
+
+struct find_split_reshape
+{
+    auto matcher() const
+    {
+        return match::name("reshape")(match::arg(0)(match::name("contiguous")(
+                                          match::arg(0)(match::name("slice").bind("slice")))))
+            .bind("reshape");
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto slc = r.instructions["slice"];
+        auto rsp = r.instructions["reshape"];
+
+        auto input         = slc->inputs().front();
+        auto split_outputs = get_splits(input);
+        if(split_outputs.empty())
+        {
+            return;
+        }
+
+        std::vector<instruction_ref> vec_rsp(split_outputs.size());
+        std::transform(split_outputs.begin(), split_outputs.end(), vec_rsp.begin(), [](auto i) {
+            assert(i->outputs().size() == 1);
+            auto cont = i->outputs().front();
+            assert(cont->outputs().size() == 1);
+            return cont->outputs().front();
+        });
+
+        // all outputs are reshape and of the same shape
+        auto dims = any_cast<op::reshape>(rsp->get_operator()).dims;
+        if(!same_ops(vec_rsp))
+        {
+            return;
+        }
+
+        // ensure reshape happens after the axis dimension
+        auto axis    = any_cast<op::slice>(slc->get_operator()).axes[0];
+        auto in_lens = input->get_shape().lens();
+        if(!std::equal(in_lens.begin(), in_lens.begin() + axis, dims.begin(), dims.begin() + axis))
+        {
+            return;
+        }
+
+        // calculate reshape output shape
+        auto tmp_lens = vec_rsp.front()->get_shape().lens();
+        std::vector<int64_t> rsp_lens(tmp_lens.begin(), tmp_lens.end());
+        int64_t dim_size = rsp_lens[axis];
+        rsp_lens[axis] *= vec_rsp.size();
+
+        // insert the reshape instruction
+        auto rsp_ins = p.insert_instruction(std::next(input), op::reshape{rsp_lens}, input);
+
+        // replace the original reshape with slice
+        int64_t i = 0;
+        for(auto in : vec_rsp)
+        {
+            p.replace_instruction(
+                in, op::slice{{axis}, {i * dim_size}, {(i + 1) * dim_size}}, rsp_ins);
+            ++i;
+        }
+    }
+};
+
+struct find_split_transpose
+{
+    auto matcher() const
+    {
+        return match::name("transpose")(match::arg(0)(match::name("slice").bind("slice")))
+            .bind("trans");
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto slc   = r.instructions["slice"];
+        auto trans = r.instructions["trans"];
+
+        auto input         = slc->inputs().front();
+        auto split_outputs = get_splits(input);
+        if(split_outputs.empty())
+        {
+            return;
+        }
+
+        std::vector<instruction_ref> vec_trans(split_outputs.size());
+        std::transform(split_outputs.begin(), split_outputs.end(), vec_trans.begin(), [](auto i) {
+            assert(i->outputs().size() == 1);
+            return i->outputs().front();
+        });
+
+        // all transpose are the same
+        auto perm = any_cast<op::transpose>(trans->get_operator()).dims;
+        if(!same_ops(vec_trans))
+        {
+            return;
+        }
+
+        // insert an transpose instruction
+        auto tr = p.insert_instruction(std::next(input), op::transpose{perm}, input);
+
+        // compute the axis in the slice
+        auto axis = any_cast<op::slice>(slc->get_operator()).axes.front();
+        auto it   = std::find(perm.begin(), perm.end(), axis);
+        assert(it != perm.end());
+        auto axis_new = static_cast<int64_t>(std::distance(perm.begin(), it));
+
+        for(auto in : split_outputs)
+        {
+            auto oper    = any_cast<op::slice>(in->get_operator());
+            auto starts  = oper.starts;
+            auto ends    = oper.ends;
+            auto tr_orig = in->outputs().front();
+            p.replace_instruction(tr_orig, op::slice{{axis_new}, starts, ends}, tr);
+        }
+    }
+};
+
 void simplify_algebra::apply(program& p) const
 {
     // Run simplifications multiple times
@@ -819,7 +945,9 @@ void simplify_algebra::apply(program& p) const
                             find_rsqrt{},
                             find_concat_op{},
                             find_split_concat{},
-                            find_splits{});
+                            find_splits{},
+                            find_split_reshape{},
+                            find_split_transpose{});
         dead_code_elimination{}.apply(p);
     }
 }

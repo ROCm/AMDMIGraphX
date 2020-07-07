@@ -71,6 +71,32 @@ struct check_shapes
         return *this;
     }
 
+    const check_shapes& max_ndims(std::size_t n) const
+    {
+        assert(begin != nullptr);
+        assert(end != nullptr);
+        if(begin != end)
+        {
+            if(begin->lens().size() > n)
+                MIGRAPHX_THROW(prefix() + "Shape must have at most " + std::to_string(n) +
+                               " dimensions");
+        }
+        return *this;
+    }
+
+    const check_shapes& min_ndims(std::size_t n) const
+    {
+        assert(begin != nullptr);
+        assert(end != nullptr);
+        if(begin != end)
+        {
+            if(begin->lens().size() < n)
+                MIGRAPHX_THROW(prefix() + "Shape must have at least " + std::to_string(n) +
+                               " dimensions");
+        }
+        return *this;
+    }
+
     const check_shapes& same_shape() const
     {
         if(!this->same([](const shape& s) { return s; }))

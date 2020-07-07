@@ -432,46 +432,48 @@ struct miopen_apply
             auto&& op       = any_cast<op::batch_norm_inference>(ins->get_operator());
             auto output     = insert_allocation(ins, ins->get_shape());
             shape old_shape = ins->inputs().at(1)->get_shape();
-            auto input  = ins->inputs()[0];
+            auto input      = ins->inputs()[0];
             auto input_lens = input->get_shape().lens();
             // for per_activation case, also need to reshape input
-            if (op.bn_mode == op::batch_norm_inference::per_activation)
+            if(op.bn_mode == op::batch_norm_inference::per_activation)
             {
                 std::vector<int64_t> new_lens(input_lens.begin(), input_lens.end());
-                new_lens[0] = 1;
+                new_lens[0]     = 1;
                 auto reshape_op = op::reshape{new_lens};
                 std::vector<instruction_ref> reshapes;
-                std::transform(ins->inputs().begin() + 1,
-                            ins->inputs().end(),
-                            std::back_inserter(reshapes),
-                            [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
+                std::transform(
+                    ins->inputs().begin() + 1,
+                    ins->inputs().end(),
+                    std::back_inserter(reshapes),
+                    [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
 
                 return prog->replace_instruction(ins,
-                                                miopen_batch_norm_inference{op},
-                                                input,
-                                                reshapes[0],
-                                                reshapes[1],
-                                                reshapes[2],
-                                                reshapes[3],
-                                                output);
+                                                 miopen_batch_norm_inference{op},
+                                                 input,
+                                                 reshapes[0],
+                                                 reshapes[1],
+                                                 reshapes[2],
+                                                 reshapes[3],
+                                                 output);
             }
-            else 
+            else
             {
                 std::vector<int64_t> new_shape{1, static_cast<int64_t>(old_shape.elements()), 1, 1};
                 auto reshape_op = op::reshape{new_shape};
                 std::vector<instruction_ref> reshapes;
-                std::transform(ins->inputs().begin() + 1,
-                            ins->inputs().end(),
-                            std::back_inserter(reshapes),
-                            [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
+                std::transform(
+                    ins->inputs().begin() + 1,
+                    ins->inputs().end(),
+                    std::back_inserter(reshapes),
+                    [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
                 return prog->replace_instruction(ins,
-                                                miopen_batch_norm_inference{op},
-                                                input,
-                                                reshapes[0],
-                                                reshapes[1],
-                                                reshapes[2],
-                                                reshapes[3],
-                                                output);
+                                                 miopen_batch_norm_inference{op},
+                                                 input,
+                                                 reshapes[0],
+                                                 reshapes[1],
+                                                 reshapes[2],
+                                                 reshapes[3],
+                                                 output);
             }
         });
     }

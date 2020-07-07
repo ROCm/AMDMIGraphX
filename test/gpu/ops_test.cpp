@@ -1871,7 +1871,8 @@ struct test_batchnorm_2d_per_actv : verify_program<test_batchnorm_2d_per_actv>
         auto mean     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
         auto variance = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
         p.add_instruction(
-            migraphx::op::batch_norm_inference{1.0e-6, 0.9f, migraphx::op::batch_norm_inference::per_activation},
+            migraphx::op::batch_norm_inference{
+                1.0e-6, 0.9f, migraphx::op::batch_norm_inference::per_activation},
             x,
             scale,
             bias,

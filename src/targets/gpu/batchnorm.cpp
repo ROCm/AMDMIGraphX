@@ -15,7 +15,7 @@ shape miopen_batch_norm_inference::compute_shape(const std::vector<shape>& input
 inline void reshape_1d_to_2d(shape& input)
 {
     auto dims = input.lens();
-    if (dims.size() >= 4)
+    if(dims.size() >= 4)
         return;
 
     std::vector<size_t> new_dims(dims.begin(), dims.end());

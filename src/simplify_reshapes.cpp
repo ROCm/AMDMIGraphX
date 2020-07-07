@@ -170,7 +170,7 @@ struct find_nested_slice
         return result;
     }
 
-    static axes_map merge(axes_map m1, axes_map m2)
+    static axes_map merge(const axes_map& m1, const axes_map& m2)
     {
         axes_map result;
         // Non overlapping
@@ -192,7 +192,7 @@ struct find_nested_slice
             if(not contains(m2, p1.first))
                 continue;
             auto&& v1        = p1.second;
-            auto&& v2        = m2[p1.first];
+            auto&& v2        = m2.at(p1.first);
             auto start       = v1.first + v2.first;
             auto end         = start + (v2.second - v2.first);
             result[p1.first] = std::make_pair(start, end);

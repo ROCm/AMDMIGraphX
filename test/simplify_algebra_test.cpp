@@ -1449,7 +1449,7 @@ TEST_CASE(reorder_reshape_slice)
     test(8);
 }
 
-TEST_CASE(reorder_reshape_slice_transfer_axis1)
+TEST_CASE(reorder_reshape_slice_move_axis1)
 {
     auto create_p1 = [](std::size_t batch_size) {
         migraphx::program p1;
@@ -1514,7 +1514,7 @@ TEST_CASE(reorder_reshape_slice_transfer_axis1)
     test(8);
 }
 
-TEST_CASE(reorder_reshape_slice_transfer_axis2)
+TEST_CASE(reorder_reshape_slice_move_axis2)
 {
     auto create_p1 = [] {
         migraphx::program p1;
@@ -1557,14 +1557,42 @@ TEST_CASE(reorder_reshape_slice_transfer_axis2)
         return p;
     };
 
-    auto test = [&] {
-        auto p1 = create_p1();
-        auto p2 = create_p2();
-        run_pass(p1);
-        EXPECT(p1.sort() == p2.sort());
+    auto p1 = create_p1();
+    auto p2 = create_p2();
+    run_pass(p1);
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(reorder_reshape_slice_not_apply)
+{
+    auto create_p = [] {
+        migraphx::program p;
+        migraphx::shape s{migraphx::shape::float_type, {128, 96}};
+        auto input = p.add_parameter("input", s);
+        auto slc0  = p.add_instruction(migraphx::op::slice{{1}, {0}, {32}}, input);
+        auto slc1  = p.add_instruction(migraphx::op::slice{{1}, {32}, {64}}, input);
+        auto slc2  = p.add_instruction(migraphx::op::slice{{1}, {64}, {96}}, input);
+
+        auto c0 = p.add_instruction(migraphx::op::contiguous{}, slc0);
+        auto c1 = p.add_instruction(migraphx::op::contiguous{}, slc1);
+        auto c2 = p.add_instruction(migraphx::op::contiguous{}, slc2);
+
+        std::vector<int64_t> lens = {1, 16, 16, 16};
+        auto r0                   = p.add_instruction(migraphx::op::reshape{lens}, c0);
+        auto r1                   = p.add_instruction(migraphx::op::reshape{lens}, c1);
+        auto r2                   = p.add_instruction(migraphx::op::reshape{lens}, c2);
+
+        auto sum = p.add_instruction(migraphx::op::add{}, r0, r1);
+        auto ret = p.add_instruction(migraphx::op::mul{}, sum, r2);
+        p.add_return({ret});
+
+        return p;
     };
 
-    test();
+    auto p1 = create_p();
+    auto p2 = p1;
+    run_pass(p1);
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(reorder_reshape_slice_diff_dims)

@@ -247,14 +247,22 @@ TEST_CASE(literal_reshape_per_actv)
 
     auto create_program = [&]() {
         migraphx::program p;
-        auto x        = p.add_literal(migraphx::generate_literal(xs, 1));
-        auto w        = p.add_literal(migraphx::generate_literal(ws, 1));
-        auto conv     = p.add_instruction(migraphx::op::convolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}}, x, w);
+        auto x = p.add_literal(migraphx::generate_literal(xs, 1));
+        auto w = p.add_literal(migraphx::generate_literal(ws, 1));
+        auto conv =
+            p.add_instruction(migraphx::op::convolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}}, x, w);
         auto scale    = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
         auto bias     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
         auto mean     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
         auto variance = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
-        p.add_instruction(migraphx::op::batch_norm_inference{1.0e-5, 0.88, migraphx::op::batch_norm_inference::per_activation}, conv, scale, bias, mean, variance);
+        p.add_instruction(
+            migraphx::op::batch_norm_inference{
+                1.0e-5, 0.88, migraphx::op::batch_norm_inference::per_activation},
+            conv,
+            scale,
+            bias,
+            mean,
+            variance);
         return p;
     };
 

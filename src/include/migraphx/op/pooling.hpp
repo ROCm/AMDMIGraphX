@@ -38,9 +38,8 @@ struct pooling
 
     std::string name() const { return "pooling"; }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    void check_attribute_size() const
     {
-        check_shapes{inputs, *this}.has(1);
         if(not(padding.size() == stride.size() and padding.size() == lengths.size()))
         {
             MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");
@@ -49,12 +48,21 @@ struct pooling
         {
             MIGRAPHX_THROW("POOLING: input and attribute dim size mismatch!");
         }
+    }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
 
         const shape& input = inputs.at(0);
         auto t             = input.type();
 
         auto input_lens = input.lens();
         size_t kdims    = input_lens.size() - 2;
+        if(kdims != this->kdims())
+        {
+            MIGRAPHX_THROW("pooling: input k-dims does not match attribute size");
+        }
 
         std::vector<std::size_t> output_lens(input_lens.begin(), input_lens.begin() + 2);
 
@@ -69,6 +77,12 @@ struct pooling
                     1)));
         }
         return {t, output_lens};
+    }
+
+    size_t kdims() const
+    {
+        check_attribute_size();
+        return padding.size();
     }
 };
 

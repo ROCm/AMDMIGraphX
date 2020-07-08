@@ -304,6 +304,13 @@ value* value::insert(const value* pos, const value& v)
     return std::addressof(*it);
 }
 
+value value::without_key() const
+{
+    value result = *this;
+    result.key = "";
+    return result;
+}
+
 template <class F, class T, class U, class Common = typename std::common_type<T, U>::type>
 auto compare_common_impl(
     rank<1>, F f, const std::string& keyx, const T& x, const std::string& keyy, const U& y)
@@ -381,6 +388,11 @@ std::ostream& operator<<(std::ostream& os, const value& d)
 {
     d.visit([&](auto&& y) { print_value(os, y); });
     return os;
+}
+
+void value::debug_print() const
+{
+    std::cout << *this << std::endl;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

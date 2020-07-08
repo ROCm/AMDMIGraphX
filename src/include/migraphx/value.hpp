@@ -84,7 +84,7 @@ To try_convert_value_impl(rank<0>, const From& x)
 template <class To, class From>
 To try_convert_value(const From& x)
 {
-    return detail::try_convert_value_impl(rank<1>{}, x);
+    return detail::try_convert_value_impl<To>(rank<1>{}, x);
 }
 
 struct value
@@ -216,6 +216,8 @@ struct value
 
     void push_front(const value& v) { insert(begin(), v); }
 
+    value without_key() const;
+
     template <class Visitor>
     void visit(Visitor v) const
     {
@@ -246,7 +248,7 @@ struct value
     To to() const
     {
         To result;
-        this->visit([&](auto y) { result = try_convert_value(y); });
+        this->visit([&](auto y) { result = try_convert_value<To>(y); });
         return result;
     }
 
@@ -270,6 +272,8 @@ struct value
     friend bool operator>=(const value& x, const value& y);
 
     friend std::ostream& operator<<(std::ostream& os, const value& d);
+
+    void debug_print() const;
 
     private:
     type_t get_type() const;

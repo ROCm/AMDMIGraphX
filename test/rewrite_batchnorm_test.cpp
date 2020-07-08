@@ -213,18 +213,48 @@ TEST_CASE(literal_reshape)
 
     auto create_program = [&]() {
         migraphx::program p;
-        auto reshape = [&](auto ins) {
-            return p.add_instruction(migraphx::op::reshape{{1, 4, 1, 1}}, ins);
-        };
-
         auto x        = p.add_literal(migraphx::generate_literal(xs, 1));
         auto w        = p.add_literal(migraphx::generate_literal(ws, 1));
         auto conv     = p.add_instruction(migraphx::op::convolution{}, x, w);
-        auto scale    = reshape(p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1))));
-        auto bias     = reshape(p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2))));
-        auto mean     = reshape(p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3))));
-        auto variance = reshape(p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4))));
+        auto scale    = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
+        auto bias     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
+        auto mean     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
+        auto variance = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
         p.add_instruction(migraphx::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
+        return p;
+    };
+
+    migraphx::program p1 = create_program();
+    migraphx::program p2 = create_program();
+    migraphx::rewrite_batchnorm opt;
+    opt.apply(p2);
+    EXPECT(any_of(p1, &is_batch_norm));
+    EXPECT(none_of(p2, &is_batch_norm));
+
+    p1.compile(migraphx::cpu::target{});
+    p2.compile(migraphx::cpu::target{});
+
+    auto result1 = p1.eval({}).back();
+    auto result2 = p2.eval({}).back();
+    visit_all(result1, result2)([&](auto r1, auto r2) { EXPECT(migraphx::verify_range(r1, r2)); });
+}
+
+TEST_CASE(literal_reshape_per_actv)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {1, 3, 8, 7, 4}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 3, 1, 1, 1}};
+    migraphx::shape vars{migraphx::shape::float_type, {4, 8, 7, 4}};
+
+    auto create_program = [&]() {
+        migraphx::program p;
+        auto x        = p.add_literal(migraphx::generate_literal(xs, 1));
+        auto w        = p.add_literal(migraphx::generate_literal(ws, 1));
+        auto conv     = p.add_instruction(migraphx::op::convolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}}, x, w);
+        auto scale    = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
+        auto bias     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
+        auto mean     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
+        auto variance = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
+        p.add_instruction(migraphx::op::batch_norm_inference{1.0e-5, 0.88, migraphx::op::batch_norm_inference::per_activation}, conv, scale, bias, mean, variance);
         return p;
     };
 

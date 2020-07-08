@@ -18,7 +18,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/array.hpp>
 #include <migraphx/op/clip.hpp>
-#include <migraphx/op/batch_norm.hpp>
 #include <cmath>
 
 namespace migraphx {
@@ -263,9 +262,6 @@ struct hip_layernorm : unary_device<hip_layernorm, &device::layernorm>
 {
 };
 
-// struct hip_layernorm : ternary_device<hip_layernorm, &device::layernorm>
-// {
-// };
 struct hip_gelu : unary_device<hip_gelu, &device::gelu>
 {
 };
@@ -315,69 +311,6 @@ struct hip_mul_add_relu
             ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
         return args.at(3);
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
-};
-
-struct miopen_batch_norm
-{
-    float epsilon = 1e-12;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.epsilon, "epsilon"));
-    }
-
-    std::string name() const { return "gpu::batch_norm"; }
-
-    shape compute_shape(const std::vector<shape>& inputs) const { return inputs.front(); }
-
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
-    {
-        auto x_shape     = args[0].get_shape();
-        auto x_lens      = x_shape.lens();
-        auto new_x_shape = shape{x_shape.type(), {x_lens[0] * x_lens[1], x_lens[2], 1, 1}};
-
-        auto x_desc = make_tensor(new_x_shape);
-        auto y_desc = make_tensor(new_x_shape);
-
-        auto bn_shape     = args[1].get_shape();
-        auto bn_lens      = bn_shape.lens();
-        auto new_bn_shape = shape{bn_shape.type(), {1, bn_lens[2], 1, 1}};
-
-        auto bn_desc = make_tensor(new_bn_shape);
-
-        float alpha = 1.0;
-        float beta  = 0.0f;
-
-        double exp_factor = 1;
-
-        miopenBatchNormalizationForwardTraining(
-            ctx.get_stream().get_miopen(),
-            miopenBatchNormMode_t(op::batch_norm_inference::spatial),
-            &alpha,
-            &beta,
-            x_desc.get(),
-            args[0].implicit(),
-            y_desc.get(),
-            args[3].implicit(),
-            bn_desc.get(),
-            args[1].implicit(),
-            args[2].implicit(),
-            exp_factor,
-            nullptr,
-            nullptr,
-            epsilon,
-            nullptr,
-            nullptr);
-
-        return args[3];
-    }
-
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;

@@ -358,9 +358,9 @@ bool operator==(const value& x, const value& y)
 }
 bool operator!=(const value& x, const value& y) { return !(x == y); }
 bool operator<(const value& x, const value& y) { return compare(x, y, std::less<>{}); }
-bool operator<=(const value& x, const value& y) { return x == y and x < y; }
+bool operator<=(const value& x, const value& y) { return x == y or x < y; }
 bool operator>(const value& x, const value& y) { return y < x; }
-bool operator>=(const value& x, const value& y) { return x == y and x > y; }
+bool operator>=(const value& x, const value& y) { return x == y or x > y; }
 
 template <class T>
 void print_value(std::ostream& os, const T& x)

@@ -1,8 +1,6 @@
 #include <migraphx/gpu/device/layernorm.hpp>
 #include <migraphx/gpu/device/reduce.hpp>
 #include <migraphx/gpu/device/pow.hpp>
-#include <iostream>
-#include <stdio.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

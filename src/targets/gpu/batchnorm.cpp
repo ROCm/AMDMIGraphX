@@ -19,7 +19,8 @@ inline void reshape_1d_to_2d(shape& input)
         return;
 
     std::vector<size_t> new_dims(dims.begin(), dims.end());
-    new_dims.push_back(1);
+    std::size_t num = 4 - dims.size();
+    new_dims.insert(new_dims.end(), num, 1);
     input = shape{input.type(), new_dims};
 }
 

@@ -21,7 +21,7 @@ struct value_base_impl;
 template <class To>
 struct value_converter
 {
-    template<class T=To>
+    template <class T = To>
     static auto apply(const std::string& x) -> decltype((std::stringstream{} >> T{}), To{})
     {
         To result;
@@ -33,22 +33,19 @@ struct value_converter
         return result;
     }
 
-    template<class From, MIGRAPHX_REQUIRES(std::is_convertible<From, To>{})>
+    template <class From, MIGRAPHX_REQUIRES(std::is_convertible<From, To>{})>
     static To apply(const From& x)
     {
         return To(x);
     }
 };
 
-template<>
+template <>
 struct value_converter<std::string>
 {
-    static const std::string& apply(const std::string& x)
-    {
-        return x;
-    }
+    static const std::string& apply(const std::string& x) { return x; }
 
-    template<class From>
+    template <class From>
     static auto apply(const From& x) -> decltype(std::stringstream{} << x, std::string())
     {
         std::stringstream ss;
@@ -59,31 +56,32 @@ struct value_converter<std::string>
     }
 };
 
-template<class T, class U>
+template <class T, class U>
 struct value_converter<std::pair<T, U>>
 {
-    template<class Key, class From>
-    static auto apply(const std::pair<Key, From>& x) -> decltype(std::pair<T, U>(x.first, value_converter<U>::apply(x.second)))
+    template <class Key, class From>
+    static auto apply(const std::pair<Key, From>& x)
+        -> decltype(std::pair<T, U>(x.first, value_converter<U>::apply(x.second)))
     {
         return std::pair<T, U>(x.first, value_converter<U>::apply(x.second));
     }
 };
 
 namespace detail {
-    template<class To, class From>
-    auto try_convert_value_impl(rank<1>, const From& x) -> decltype(value_converter<To>::apply(x))
-    {
-        return value_converter<To>::apply(x);
-    }
-
-    template<class To, class From>
-    To try_convert_value_impl(rank<0>, const From& x)
-    {
-        MIGRAPHX_THROW("Incompatible values: " + get_type_name(x) + " -> " + get_type_name<To>());
-    }
+template <class To, class From>
+auto try_convert_value_impl(rank<1>, const From& x) -> decltype(value_converter<To>::apply(x))
+{
+    return value_converter<To>::apply(x);
 }
 
-template<class To, class From>
+template <class To, class From>
+To try_convert_value_impl(rank<0>, const From& x)
+{
+    MIGRAPHX_THROW("Incompatible values: " + get_type_name(x) + " -> " + get_type_name<To>());
+}
+} // namespace detail
+
+template <class To, class From>
 To try_convert_value(const From& x)
 {
     return detail::try_convert_value_impl(rank<1>{}, x);
@@ -134,27 +132,31 @@ struct value
     const cpp_type* if_##vt() const;
     MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_DECL_METHODS)
 
-    template<class T>
-    using pick = std::conditional_t<std::is_floating_point<T>{}, double, 
-        std::conditional_t<std::is_signed<T>{}, std::int64_t, 
-            std::conditional_t<std::is_unsigned<T>{}, std::uint64_t, 
-            T>
-        >
-    >;
+    template <class T>
+    using pick = std::conditional_t<
+        std::is_floating_point<T>{},
+        double,
+        std::conditional_t<std::is_signed<T>{},
+                           std::int64_t,
+                           std::conditional_t<std::is_unsigned<T>{}, std::uint64_t, T>>>;
 
-    template<class T>
-    using is_pickable = std::integral_constant<bool, (std::is_arithmetic<T>{} and not std::is_pointer<T>{})>;
+    template <class T>
+    using is_pickable =
+        std::integral_constant<bool, (std::is_arithmetic<T>{} and not std::is_pointer<T>{})>;
 
-    template<class T, MIGRAPHX_REQUIRES(is_pickable<T>{})>
+    template <class T, MIGRAPHX_REQUIRES(is_pickable<T>{})>
     value(T i) : value(pick<T>{i})
-    {}
-    template<class T, MIGRAPHX_REQUIRES(is_pickable<T>{})>
+    {
+    }
+    template <class T, MIGRAPHX_REQUIRES(is_pickable<T>{})>
     value(const std::string& pkey, T i) : value(pkey, pick<T>{i})
-    {}
-    template<class T, class U, class=decltype(value(T{}, U{}))>
+    {
+    }
+    template <class T, class U, class = decltype(value(T{}, U{}))>
     value(const std::pair<T, U>& p) : value(p.first, p.second)
-    {}
-    template<class T, MIGRAPHX_REQUIRES(is_pickable<T>{})>
+    {
+    }
+    template <class T, MIGRAPHX_REQUIRES(is_pickable<T>{})>
     value& operator=(T rhs)
     {
         return *this = pick<T>{rhs};
@@ -219,38 +221,36 @@ struct value
     {
         switch(this->get_type())
         {
-            case null_type:
-            {
-                v(std::nullptr_t{});
-                return;
-            }
-#define MIGRAPHX_VALUE_CASE(vt, cpp_type)                 \
-    case vt##_type:                                       \
-    {                                                     \
-        if(this->key.empty())                                 \
-            v(this->get_##vt());                              \
-        else                                              \
+        case null_type:
+        {
+            v(std::nullptr_t{});
+            return;
+        }
+#define MIGRAPHX_VALUE_CASE(vt, cpp_type)                                   \
+    case vt##_type:                                                         \
+    {                                                                       \
+        if(this->key.empty())                                               \
+            v(this->get_##vt());                                            \
+        else                                                                \
             v(std::make_pair(this->get_key(), std::ref(this->get_##vt()))); \
-        return;                                            \
+        return;                                                             \
     }
-        MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_CASE)
-        MIGRAPHX_VALUE_CASE(array,)
-        MIGRAPHX_VALUE_CASE(object,)
+            MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_CASE)
+            MIGRAPHX_VALUE_CASE(array, )
+            MIGRAPHX_VALUE_CASE(object, )
         }
         MIGRAPHX_THROW("Unknown type");
     }
 
-    template<class To>
+    template <class To>
     To to() const
     {
         To result;
-        this->visit([&](auto y) {
-            result = try_convert_value(y);
-        });
+        this->visit([&](auto y) { result = try_convert_value(y); });
         return result;
     }
 
-    template<class To>
+    template <class To>
     std::vector<To> to_vector() const
     {
         std::vector<To> result;
@@ -276,7 +276,6 @@ struct value
     std::shared_ptr<value_base_impl> x;
     std::string key;
 };
-
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -786,7 +786,6 @@ struct onnx_parser
         if(left > right)
         {
             right   = left;
-            s_start = 0;
         }
         else if(left < right)
         {

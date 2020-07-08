@@ -71,7 +71,7 @@ value to_value_impl(rank<5>, const T& x)
     return {double{x}};
 }
 
-value to_value_impl(rank<6>, const std::string& x) { return {x}; }
+inline value to_value_impl(rank<6>, const std::string& x) { return {x}; }
 
 template <class T>
 auto to_value_impl(rank<7>, const T& x) -> decltype(migraphx_to_value(x))

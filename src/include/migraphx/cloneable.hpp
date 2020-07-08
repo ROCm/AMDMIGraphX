@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_CLONABLE_HPP
 
 #include <migraphx/config.hpp>
+#include <memory>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

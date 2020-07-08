@@ -112,10 +112,7 @@ void from_value_impl(rank<3>, const value& v, T& x)
     x = v.to<T>();
 }
 
-inline void from_value_impl(rank<4>, const value& v, std::string& x)
-{
-    x = v.to<std::string>();
-}
+inline void from_value_impl(rank<4>, const value& v, std::string& x) { x = v.to<std::string>(); }
 
 template <class T>
 auto from_value_impl(rank<5>, const value& v, T& x) -> decltype(migraphx_from_value(v, x), void())

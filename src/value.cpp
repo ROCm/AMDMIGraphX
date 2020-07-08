@@ -307,7 +307,7 @@ value* value::insert(const value* pos, const value& v)
 value value::without_key() const
 {
     value result = *this;
-    result.key = "";
+    result.key   = "";
     return result;
 }
 
@@ -390,10 +390,7 @@ std::ostream& operator<<(std::ostream& os, const value& d)
     return os;
 }
 
-void value::debug_print() const
-{
-    std::cout << *this << std::endl;
-}
+void value::debug_print() const { std::cout << *this << std::endl; }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

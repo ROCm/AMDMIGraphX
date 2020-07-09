@@ -56,12 +56,16 @@ struct tensor_view
     template <class Iterator, MIGRAPHX_REQUIRES(not std::is_integral<Iterator>{})>
     const T& operator()(Iterator start, Iterator last) const
     {
+        assert(std::distance(start, last) > 0);
+        assert(std::all_of(start, last, [](auto x) { return x >= 0; }));
         return m_data[m_shape.index(start, last)];
     }
 
     template <class Iterator, MIGRAPHX_REQUIRES(not std::is_integral<Iterator>{})>
     T& operator()(Iterator start, Iterator last)
     {
+        assert(std::distance(start, last) > 0);
+        assert(std::all_of(start, last, [](auto x) { return x >= 0; }));
         return m_data[m_shape.index(start, last)];
     }
 

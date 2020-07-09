@@ -93,7 +93,7 @@ struct shape
     {
         assert(std::distance(start, last) <= this->lens().size());
         assert(this->lens().size() == this->strides().size());
-        return std::inner_product(start, last, this->strides().begin(), std::size_t{0});
+        return std::inner_product(start, last, this->strides().begin(), std::size_t{0}); // NOLINT
     }
 
     /// Map element index to space index

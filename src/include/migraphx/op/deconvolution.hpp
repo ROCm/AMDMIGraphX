@@ -37,18 +37,27 @@ struct deconvolution
     }
 
     std::string name() const { return "deconvolution"; }
-    shape compute_shape(std::vector<shape> inputs) const
+
+    void check_attribute_size() const
     {
-        check_shapes{inputs, *this}.has(2).same_type().same_ndims().min_ndims(3);
         if(not(padding.size() == stride.size() and padding.size() == dilation.size()))
         {
             MIGRAPHX_THROW("deconvolution: inconsistent attribute sizes");
         }
+    }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(2).same_type().same_ndims().min_ndims(3);
 
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
         auto t               = input.type();
         size_t kdims         = input.lens().size() - 2;
+        if(kdims != this->kdims())
+        {
+            MIGRAPHX_THROW("deconvolution: input k-dims does not match attribute size");
+        }
 
         std::vector<size_t> output_lens{input.lens()[0], weights.lens()[1]};
 
@@ -60,6 +69,12 @@ struct deconvolution
                     ((weights.lens()[i + 2] - 1) * dilation[i] + 1) - 2 * padding[i])));
         }
         return {t, output_lens};
+    }
+
+    size_t kdims() const
+    {
+        check_attribute_size();
+        return padding.size();
     }
 };
 

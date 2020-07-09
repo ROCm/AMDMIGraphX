@@ -61,7 +61,7 @@ TEST_CASE(value_reassign)
 {
     migraphx::value v1(1);
     migraphx::value v2 = v1;
-    v1 = 2;
+    v1                 = 2;
     EXPECT(v1 != v2);
 }
 
@@ -141,8 +141,8 @@ TEST_CASE(value_construct_object)
 TEST_CASE(value_bracket_object)
 {
     migraphx::value v;
-    v["one"] = 1;
-    v["two"] = 2;
+    v["one"]   = 1;
+    v["two"]   = 2;
     v["three"] = 3;
 
     EXPECT(v.is_object());

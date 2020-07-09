@@ -44,10 +44,6 @@ struct pooling
         {
             MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");
         }
-        if(padding.size() + 2 != inputs[0].lens().size())
-        {
-            MIGRAPHX_THROW("POOLING: input and attribute dim size mismatch!");
-        }
     }
 
     shape compute_shape(std::vector<shape> inputs) const

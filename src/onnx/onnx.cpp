@@ -555,11 +555,11 @@ struct onnx_parser
 
     template <class Op>
     static void cal_auto_padding_size(node_info info,
-                               Op& op,
-                               const std::vector<std::size_t>& k_lens,
-                               const std::vector<std::size_t>& dilation,
-                               const std::vector<std::size_t>& in_lens,
-                               std::vector<int64_t>& paddings)
+                                      Op& op,
+                                      const std::vector<std::size_t>& k_lens,
+                                      const std::vector<std::size_t>& dilation,
+                                      const std::vector<std::size_t>& in_lens,
+                                      std::vector<int64_t>& paddings)
     {
         size_t kdims = in_lens.size() - 2;
         assert(k_lens.size() == kdims and dilation.size() == kdims);
@@ -797,9 +797,9 @@ struct onnx_parser
     }
 
     static void tune_padding_size(op::pooling& op,
-                           std::vector<int64_t>& padding,
-                           int count_include_pad,
-                           std::vector<int64_t>& s_start)
+                                  std::vector<int64_t>& padding,
+                                  int count_include_pad,
+                                  std::vector<int64_t>& s_start)
     {
         // maxpooling or count_include_pad is 1, no change is required.
         if(op.mode == "max" or count_include_pad == 1)

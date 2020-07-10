@@ -237,22 +237,23 @@ shape::type_t shape::parse_type(const std::string& s)
 {
     static std::unordered_map<std::string, shape::type_t> m = {
 #define MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP(x, t) {#x, x}, {#t, x},
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP)
-    };
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP)};
     return m.at(s);
 }
 
 void migraphx_to_value(value& v, const shape& s)
 {
     value result;
-    result["type"] = migraphx::to_value(s.type_string());
-    result["lens"] = migraphx::to_value(s.lens());
+    result["type"]    = migraphx::to_value(s.type_string());
+    result["lens"]    = migraphx::to_value(s.lens());
     result["strides"] = migraphx::to_value(s.strides());
-    v = result;
+    v                 = result;
 }
 void migraphx_from_value(const value& v, shape& s)
 {
-    s = shape{shape::parse_type(v.at("type").get_string()), v.at("lens").to_vector<std::size_t>(), v.at("strides").to_vector<std::size_t>()};
+    s = shape{shape::parse_type(v.at("type").get_string()),
+              v.at("lens").to_vector<std::size_t>(),
+              v.at("strides").to_vector<std::size_t>()};
 }
 
 } // namespace MIGRAPHX_INLINE_NS

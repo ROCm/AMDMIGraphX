@@ -81,7 +81,8 @@ auto to_value_impl(rank<7>, const T& x) -> decltype(migraphx_to_value(x))
 }
 
 template <class T>
-auto to_value_impl(rank<7>, const T& x) -> decltype(migraphx_to_value(std::declval<value&>(), x), value{})
+auto to_value_impl(rank<7>, const T& x)
+    -> decltype(migraphx_to_value(std::declval<value&>(), x), value{})
 {
     value v;
     migraphx_to_value(v, x);

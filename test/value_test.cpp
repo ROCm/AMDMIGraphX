@@ -322,9 +322,11 @@ TEST_CASE(value_to_from_float)
 TEST_CASE(value_to_from_pair)
 {
     migraphx::value v = {"one", 1};
-    EXPECT(bool{v.to<std::pair<std::string, std::string>>() == std::pair<std::string, std::string>("one", "1")});
+    EXPECT(bool{v.to<std::pair<std::string, std::string>>() ==
+                std::pair<std::string, std::string>("one", "1")});
     EXPECT(bool{v.to<std::pair<std::string, int>>() == std::pair<std::string, int>("one", 1)});
-    EXPECT(bool{v.to<std::pair<std::string, float>>() == std::pair<std::string, float>("one", 1.0)});
+    EXPECT(
+        bool{v.to<std::pair<std::string, float>>() == std::pair<std::string, float>("one", 1.0)});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -22,7 +22,8 @@ template <class To>
 struct value_converter
 {
     template <class T = To>
-    static auto apply(const std::string& x) -> decltype((std::stringstream{} >> std::declval<T&>()), To{})
+    static auto apply(const std::string& x)
+        -> decltype((std::stringstream{} >> std::declval<T&>()), To{})
     {
         To result;
         std::stringstream ss;

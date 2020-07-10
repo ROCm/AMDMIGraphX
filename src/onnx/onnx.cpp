@@ -796,7 +796,7 @@ struct onnx_parser
         }
     }
 
-    static void tune_padding_size(op::pooling& op,
+    static void tune_padding_size(const op::pooling& op,
                                   std::vector<int64_t>& padding,
                                   int count_include_pad,
                                   std::vector<int64_t>& s_start)

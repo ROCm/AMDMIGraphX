@@ -29,7 +29,7 @@ struct reflectable_type
     }
 };
 
-TEST_CASE(serialize1)
+TEST_CASE(serialize_reflectable_type)
 {
     reflectable_type t1{{1, 2}, "hello", 1.0, {{1}, {2}}};
     migraphx::value v1  = migraphx::to_value(t1);

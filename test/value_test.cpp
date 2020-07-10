@@ -33,6 +33,22 @@ TEST_CASE(value_construct_string)
     EXPECT(v.get_key().empty());
 }
 
+TEST_CASE(value_construct_float)
+{
+    migraphx::value v = 1.0;
+    EXPECT(v.is_float());
+    EXPECT(v.get_float() == 1.0);
+    EXPECT(v.get_key().empty());
+}
+
+TEST_CASE(value_construct_bool)
+{
+    migraphx::value v = true;
+    EXPECT(v.is_bool());
+    EXPECT(v.get_bool() == true);
+    EXPECT(v.get_key().empty());
+}
+
 TEST_CASE(value_assign_int)
 {
     migraphx::value v;
@@ -265,6 +281,50 @@ TEST_CASE(value_emplace_object)
     EXPECT(v["three"].is_int64());
     EXPECT(v["three"].get_int64() == 3);
     EXPECT(v["three"].get_key() == "three");
+}
+
+TEST_CASE(value_compare)
+{
+    EXPECT(migraphx::value(1) == migraphx::value(1));
+    EXPECT(migraphx::value(1) != migraphx::value(2));
+    EXPECT(migraphx::value(1) < migraphx::value(2));
+    EXPECT(migraphx::value(1) <= migraphx::value(2));
+    EXPECT(migraphx::value(1) <= migraphx::value(1));
+    EXPECT(migraphx::value(2) > migraphx::value(1));
+    EXPECT(migraphx::value(2) >= migraphx::value(1));
+    EXPECT(migraphx::value(1) >= migraphx::value(1));
+}
+
+TEST_CASE(value_to_from_string)
+{
+    migraphx::value v = "1";
+    EXPECT(v.to<std::string>() == "1");
+    EXPECT(v.to<int>() == 1);
+    EXPECT(v.to<float>() == 1.0);
+}
+
+TEST_CASE(value_to_from_int)
+{
+    migraphx::value v = 1;
+    EXPECT(v.to<std::string>() == "1");
+    EXPECT(v.to<int>() == 1);
+    EXPECT(v.to<float>() == 1.0);
+}
+
+TEST_CASE(value_to_from_float)
+{
+    migraphx::value v = 1.5;
+    EXPECT(v.to<std::string>() == "1.5");
+    EXPECT(v.to<int>() == 1);
+    EXPECT(v.to<float>() == 1.5);
+}
+
+TEST_CASE(value_to_from_pair)
+{
+    migraphx::value v = {"one", 1};
+    EXPECT(bool{v.to<std::pair<std::string, std::string>>() == std::pair<std::string, std::string>("one", "1")});
+    EXPECT(bool{v.to<std::pair<std::string, int>>() == std::pair<std::string, int>("one", 1)});
+    EXPECT(bool{v.to<std::pair<std::string, float>>() == std::pair<std::string, float>("one", 1.0)});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

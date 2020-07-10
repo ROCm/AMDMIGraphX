@@ -87,6 +87,8 @@ TEST_CASE(convolution_shape)
                  migraphx::op::convolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}},
                  input_3d,
                  weights_3d);
+
+    throws_shape(migraphx::op::convolution{}, input_3d, weights_3d);
 }
 
 TEST_CASE(deconvolution_shape)

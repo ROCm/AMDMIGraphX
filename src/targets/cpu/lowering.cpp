@@ -314,7 +314,7 @@ struct cpu_deconvolution
 
                     std::vector<std::ptrdiff_t> idx_wei(idx.size());
                     idx_wei[0] = w;
-                    
+
                     std::copy(idx_win.begin(), idx_win.end(), idx_wei.begin() + 1);
                     if(std::all_of(
                            idx_out.begin() + 2, idx_out.end(), [&](auto ii) { return ii >= 0; }) and

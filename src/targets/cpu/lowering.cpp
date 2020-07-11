@@ -26,6 +26,7 @@
 #include <migraphx/cpu/gemm.hpp>
 #include <unordered_map>
 #include <utility>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -313,18 +314,18 @@ struct cpu_deconvolution
 
                     std::vector<std::ptrdiff_t> idx_wei(idx.size());
                     idx_wei[0] = w;
+                    
                     std::copy(idx_win.begin(), idx_win.end(), idx_wei.begin() + 1);
                     if(std::all_of(
                            idx_out.begin() + 2, idx_out.end(), [&](auto ii) { return ii >= 0; }) and
-
                        std::equal(idx.begin() + 2,
                                   idx.end(),
                                   in_lens.begin() + 2,
                                   in_lens.end(),
                                   std::less<std::ptrdiff_t>{}) and
-                       std::equal(idx_out.begin() + 2,
+                       std::equal(idx_out.begin() + 1,
                                   idx_out.end(),
-                                  out_lens.begin() + 2,
+                                  out_lens.begin() + 1,
                                   out_lens.end(),
                                   std::less<std::ptrdiff_t>{}))
                     {
@@ -518,7 +519,7 @@ struct cpu_pad
         return migraphx::reflect(self.op, f);
     }
 
-    std::string name() const { return "cpu::contiguous"; }
+    std::string name() const { return "cpu::pad"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {

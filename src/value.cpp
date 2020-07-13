@@ -7,7 +7,6 @@
 #include <unordered_map>
 #include <utility>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -26,7 +25,7 @@ struct value_base_impl : cloneable<value_base_impl>
     virtual ~value_base_impl() {}
 };
 
-#define MIGRAPHX_VALUE_GENERATE_BASE_TYPE(vt, cpp_type)                        \
+#define MIGRAPHX_VALUE_GENERATE_BASE_TYPE(vt, cpp_type)               \
     struct vt##_value_holder : value_base_impl::share                 \
     {                                                                 \
         vt##_value_holder(cpp_type d) : data(d) {}                    \
@@ -96,7 +95,7 @@ void set_vector(std::shared_ptr<value_base_impl>& x,
     }
 }
 
-value::value(const std::initializer_list<value>& i) : x(nullptr) 
+value::value(const std::initializer_list<value>& i) : x(nullptr)
 {
     if(i.size() == 2 and i.begin()->is_string())
     {
@@ -108,7 +107,7 @@ value::value(const std::initializer_list<value>& i) : x(nullptr)
     set_vector(x, std::vector<value>(i.begin(), i.end()));
 }
 
-value::value(const std::vector<value>& v, bool array_on_empty) : x(nullptr) 
+value::value(const std::vector<value>& v, bool array_on_empty) : x(nullptr)
 {
     set_vector(x, v, array_on_empty);
 }
@@ -138,7 +137,7 @@ value::value(const std::string& pkey, const value& rhs)
 
 value::value(const char* i) : value(std::string(i)) {}
 
-#define MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS(vt, cpp_type)                                \
+#define MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS(vt, cpp_type)                       \
     value::value(cpp_type i) : x(std::make_shared<vt##_value_holder>(i)), key() {} \
     value::value(const std::string& pkey, cpp_type i)                              \
         : x(std::make_shared<vt##_value_holder>(i)), key(pkey)                     \

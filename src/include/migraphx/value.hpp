@@ -130,11 +130,11 @@ struct value
     value(const char* i);
 
 #define MIGRAPHX_VALUE_GENERATE_DECL_METHODS(vt, cpp_type) \
-    value(cpp_type i);                            \
-    value(const std::string& pkey, cpp_type i);   \
-    value& operator=(cpp_type rhs);               \
-    bool is_##vt() const;                         \
-    const cpp_type& get_##vt() const;             \
+    value(cpp_type i);                                     \
+    value(const std::string& pkey, cpp_type i);            \
+    value& operator=(cpp_type rhs);                        \
+    bool is_##vt() const;                                  \
+    const cpp_type& get_##vt() const;                      \
     const cpp_type* if_##vt() const;
     MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DECL_METHODS)
 
@@ -234,7 +234,7 @@ struct value
             v(std::nullptr_t{});
             return;
         }
-#define MIGRAPHX_VALUE_GENERATE_CASE(vt, cpp_type)                                   \
+#define MIGRAPHX_VALUE_GENERATE_CASE(vt, cpp_type)                          \
     case vt##_type:                                                         \
     {                                                                       \
         if(this->key.empty())                                               \

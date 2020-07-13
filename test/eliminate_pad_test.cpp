@@ -52,7 +52,7 @@ TEST_CASE(rewrite_test)
 
     auto l0 = create_im2col(padded_img, channels, p);
     auto l1 = create_conv(padded_img, channels, p);
-    auto l2 = p.add_instruction(migraphx::op::pooling{}, padded_img);
+    auto l2 = p.add_instruction(migraphx::op::pooling{"max"}, padded_img);
     p.add_instruction(migraphx::op::identity{}, l0, l1, l2);
 
     run_pass(p);

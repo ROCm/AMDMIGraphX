@@ -98,9 +98,9 @@ auto to_value_impl(rank<9>, const T& x)
 template <class T, MIGRAPHX_REQUIRES(std::is_empty<T>{})>
 void from_value_impl(rank<0>, const value& v, T& x)
 {
-    if (not v.is_object())
+    if(not v.is_object())
         MIGRAPHX_THROW("Expected an object");
-    if (not v.get_object().empty())
+    if(not v.get_object().empty())
         MIGRAPHX_THROW("Expected an empty object");
     x = T{};
 }

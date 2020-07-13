@@ -2,7 +2,9 @@
 #include <migraphx/functional.hpp>
 #include <test.hpp>
 
-struct empty_type {};
+struct empty_type
+{
+};
 struct reflectable_type
 {
     std::vector<std::size_t> ints = {};

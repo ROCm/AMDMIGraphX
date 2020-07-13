@@ -111,8 +111,8 @@ struct value
     using const_reference = const value_type&;
     using pointer         = value_type*;
     using const_pointer   = const value_type*;
-    using array = std::vector<value>;
-    using object = std::unordered_map<std::string, value>;
+    using array           = std::vector<value>;
+    using object          = std::unordered_map<std::string, value>;
 
     value() = default;
 

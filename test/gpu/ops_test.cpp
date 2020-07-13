@@ -1887,6 +1887,142 @@ struct test_batchnorm_inference : verify_program<test_batchnorm_inference>
     }
 };
 
+struct test_batchnorm_1d : verify_program<test_batchnorm_1d>
+{
+    const size_t size     = 3;
+    const size_t channels = 3;
+    const size_t batches  = 4;
+
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+
+        migraphx::shape s{migraphx::shape::float_type, {batches, channels, size}};
+        migraphx::shape vars{migraphx::shape::float_type, {channels}};
+        auto x        = p.add_parameter("x", s);
+        auto scale    = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
+        auto bias     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
+        auto mean     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
+        auto variance = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
+        p.add_instruction(migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
+        return p;
+    }
+};
+
+struct test_batchnorm_3d : verify_program<test_batchnorm_3d>
+{
+    const size_t d1       = 2;
+    const size_t d2       = 2;
+    const size_t d3       = 2;
+    const size_t channels = 2;
+    const size_t batches  = 2;
+
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+
+        migraphx::shape s{migraphx::shape::float_type, {batches, channels, d1, d2, d3}};
+        migraphx::shape vars{migraphx::shape::float_type, {channels}};
+        auto x        = p.add_parameter("x", s);
+        auto scale    = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
+        auto bias     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
+        auto mean     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
+        auto variance = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
+        p.add_instruction(migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
+        return p;
+    }
+};
+
+struct test_batchnorm_1d_per_actv : verify_program<test_batchnorm_1d_per_actv>
+{
+    const size_t d1       = 5;
+    const size_t channels = 2;
+    const size_t batches  = 3;
+
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+
+        migraphx::shape s{migraphx::shape::float_type, {batches, channels, d1}};
+        migraphx::shape vars{migraphx::shape::float_type, {channels, d1}};
+        auto x        = p.add_parameter("x", s);
+        auto scale    = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
+        auto bias     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
+        auto mean     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
+        auto variance = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
+        p.add_instruction(
+            migraphx::op::batch_norm_inference{
+                1.0e-5, 0.96f, migraphx::op::batch_norm_inference::per_activation},
+            x,
+            scale,
+            bias,
+            mean,
+            variance);
+        return p;
+    }
+};
+
+struct test_batchnorm_2d_per_actv : verify_program<test_batchnorm_2d_per_actv>
+{
+    const size_t d1       = 2;
+    const size_t d2       = 4;
+    const size_t channels = 2;
+    const size_t batches  = 3;
+
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+
+        migraphx::shape s{migraphx::shape::float_type, {batches, channels, d1, d2}};
+        migraphx::shape vars{migraphx::shape::float_type, {channels, d1, d2}};
+        auto x        = p.add_parameter("x", s);
+        auto scale    = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
+        auto bias     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
+        auto mean     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
+        auto variance = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
+        p.add_instruction(
+            migraphx::op::batch_norm_inference{
+                1.0e-6, 0.9f, migraphx::op::batch_norm_inference::per_activation},
+            x,
+            scale,
+            bias,
+            mean,
+            variance);
+        return p;
+    }
+};
+
+struct test_batchnorm_3d_per_actv : verify_program<test_batchnorm_3d_per_actv>
+{
+    const size_t d1       = 2;
+    const size_t d2       = 4;
+    const size_t d3       = 5;
+    const size_t channels = 2;
+    const size_t batches  = 3;
+
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+
+        migraphx::shape s{migraphx::shape::float_type, {batches, channels, d1, d2, d3}};
+        migraphx::shape vars{migraphx::shape::float_type, {channels, d1, d2, d3}};
+        auto x        = p.add_parameter("x", s);
+        auto scale    = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
+        auto bias     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
+        auto mean     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
+        auto variance = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
+        p.add_instruction(
+            migraphx::op::batch_norm_inference{
+                1.0e-6, 0.8f, migraphx::op::batch_norm_inference::per_activation},
+            x,
+            scale,
+            bias,
+            mean,
+            variance);
+        return p;
+    }
+};
+
 struct test_clip : verify_program<test_clip>
 {
     migraphx::program create_program() const

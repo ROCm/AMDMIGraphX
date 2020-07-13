@@ -32,30 +32,24 @@ void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
             const auto out_idx  = i / block_size;
             const auto base_idx = out_idx * relements;
             value_type x_data[4];
-            auto x = [&](auto j) -> value_type& {
-                return x_data[j - idx.local];
-            };
-
-            idx.local_stride(relements, [&](auto j) __device__ {
-                x(j) = input.data()[base_idx + j];
-            });
-
-            auto m =
-                block_reduce<max_block_size>(
-                    idx, sum{}, 0, relements, [&](auto j) __device__ { return x(j); }) /
-                relements;
+            auto x = [&](auto j) -> value_type& { return x_data[j - idx.local]; };
 
             idx.local_stride(relements,
-                             [&](auto j) __device__ { x(j) = x(j) - m; });
+                             [&](auto j) __device__ { x(j) = input.data()[base_idx + j]; });
 
-            auto r =
-                block_reduce<max_block_size>(
-                    idx,
-                    sum{},
-                    0,
-                    relements,
-                    [&](auto j) __device__ { return ::pow(to_hip_type(x(j)), 2); }) /
-                relements;
+            auto m = block_reduce<max_block_size>(
+                         idx, sum{}, 0, relements, [&](auto j) __device__ { return x(j); }) /
+                     relements;
+
+            idx.local_stride(relements, [&](auto j) __device__ { x(j) = x(j) - m; });
+
+            auto r = block_reduce<max_block_size>(
+                         idx,
+                         sum{},
+                         0,
+                         relements,
+                         [&](auto j) __device__ { return ::pow(to_hip_type(x(j)), 2); }) /
+                     relements;
 
             idx.local_stride(relements, [&](auto j) __device__ {
                 output.data()[base_idx + j] = x(j) * ::rsqrt(r + 1e-12);

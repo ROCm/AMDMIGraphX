@@ -366,15 +366,14 @@ struct find_layernorm
 
     auto matcher() const
     {
-        return 
-        match::name("gpu::add", "gpu::div")(match::any_of(layernorm_onnx(), layernorm_tf()));
+        return match::name("gpu::add", "gpu::div")(match::any_of(layernorm_onnx(), layernorm_tf()));
     }
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto ins = r.result;
+        auto ins   = r.result;
         auto x_ins = r.instructions["x"];
-        auto args = ins->inputs();
+        auto args  = ins->inputs();
 
         p.replace_instruction(ins, hip_layernorm{}, x_ins, args.back());
     }

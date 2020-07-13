@@ -11,6 +11,7 @@
 #include <sstream>
 #include <type_traits>
 #include <tuple>
+#include <unordered_map>
 #include <vector>
 
 namespace migraphx {
@@ -110,6 +111,8 @@ struct value
     using const_reference = const value_type&;
     using pointer         = value_type*;
     using const_pointer   = const value_type*;
+    using array = std::vector<value>;
+    using object = std::unordered_map<std::string, value>;
 
     value() = default;
 
@@ -118,8 +121,10 @@ struct value
     value(const std::string& pkey, const value& rhs);
 
     value(const std::initializer_list<value>& i);
-    value(const std::vector<value>& v);
-    value(const std::string& pkey, const std::vector<value>& v);
+    value(const std::vector<value>& v, bool array_on_empty = true);
+    value(const std::unordered_map<std::string, value>& m);
+    value(const std::string& pkey, const std::vector<value>& v, bool array_on_empty = true);
+    value(const std::string& pkey, const std::unordered_map<std::string, value>& m);
     value(const std::string& pkey, std::nullptr_t);
 
     value(const char* i);

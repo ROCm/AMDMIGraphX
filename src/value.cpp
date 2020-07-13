@@ -65,11 +65,14 @@ value& value::operator=(value rhs)
     return *this;
 }
 
-void set_vector(std::shared_ptr<value_base_impl>& x, const std::vector<value>& v)
+void set_vector(std::shared_ptr<value_base_impl>& x, const std::vector<value>& v, bool array_on_empty = true)
 {
     if(v.empty())
     {
-        x = nullptr;
+        if (array_on_empty)
+            x = std::make_shared<array_value_holder>();
+        else
+            x = std::make_shared<object_value_holder>();
         return;
     }
     if(v.front().get_key().empty())
@@ -101,12 +104,18 @@ value::value(const std::initializer_list<value>& i) : x(nullptr), key()
     set_vector(x, std::vector<value>(i.begin(), i.end()));
 }
 
-value::value(const std::vector<value>& v) : x(nullptr), key() { set_vector(x, v); }
+value::value(const std::vector<value>& v, bool array_on_empty) : x(nullptr), key() { set_vector(x, v, array_on_empty); }
 
-value::value(const std::string& pkey, const std::vector<value>& v) : x(nullptr), key(pkey)
+value::value(const std::unordered_map<std::string, value>& m) : value(std::vector<value>(m.begin(), m.end()), false) 
+{}
+
+value::value(const std::string& pkey, const std::vector<value>& v, bool array_on_empty) : x(nullptr), key(pkey)
 {
-    set_vector(x, v);
+    set_vector(x, v, array_on_empty);
 }
+
+value::value(const std::string& pkey, const std::unordered_map<std::string, value>& m) : value(pkey, std::vector<value>(m.begin(), m.end()), false)
+{}
 
 value::value(const std::string& pkey, std::nullptr_t) : x(nullptr), key(pkey) {}
 

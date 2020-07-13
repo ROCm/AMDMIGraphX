@@ -96,11 +96,11 @@ struct value
         m(bool, bool)
     enum type_t
     {
-#define MIGRAPHX_VALUE_ENUM_TYPE(vt, cpp_type) vt##_type,
-        MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_ENUM_TYPE) object_type,
+#define MIGRAPHX_VALUE_GENERATE_ENUM_TYPE(vt, cpp_type) vt##_type,
+        MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_ENUM_TYPE) object_type,
         array_type,
         null_type
-#undef MIGRAPHX_VALUE_ENUM_TYPE
+#undef MIGRAPHX_VALUE_GENERATE_ENUM_TYPE
     };
     using iterator        = value*;
     using const_iterator  = const value*;
@@ -129,14 +129,14 @@ struct value
 
     value(const char* i);
 
-#define MIGRAPHX_VALUE_DECL_METHODS(vt, cpp_type) \
+#define MIGRAPHX_VALUE_GENERATE_DECL_METHODS(vt, cpp_type) \
     value(cpp_type i);                            \
     value(const std::string& pkey, cpp_type i);   \
     value& operator=(cpp_type rhs);               \
     bool is_##vt() const;                         \
     const cpp_type& get_##vt() const;             \
     const cpp_type* if_##vt() const;
-    MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_DECL_METHODS)
+    MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DECL_METHODS)
 
     template <class T>
     using pick = std::conditional_t<
@@ -234,7 +234,7 @@ struct value
             v(std::nullptr_t{});
             return;
         }
-#define MIGRAPHX_VALUE_CASE(vt, cpp_type)                                   \
+#define MIGRAPHX_VALUE_GENERATE_CASE(vt, cpp_type)                                   \
     case vt##_type:                                                         \
     {                                                                       \
         if(this->key.empty())                                               \
@@ -243,9 +243,9 @@ struct value
             v(std::make_pair(this->get_key(), std::ref(this->get_##vt()))); \
         return;                                                             \
     }
-            MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_CASE)
-            MIGRAPHX_VALUE_CASE(array, )
-            MIGRAPHX_VALUE_CASE(object, )
+            MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_CASE)
+            MIGRAPHX_VALUE_GENERATE_CASE(array, )
+            MIGRAPHX_VALUE_GENERATE_CASE(object, )
         }
         MIGRAPHX_THROW("Unknown type");
     }

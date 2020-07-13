@@ -125,7 +125,7 @@ auto from_value_impl(rank<2>, const value& v, T& x) -> decltype(x.insert(*x.begi
 template <class T, MIGRAPHX_REQUIRES(is_reflectable<T>{})>
 void from_value_impl(rank<3>, const value& v, T& x)
 {
-    reflect_each(x, [&](auto&& y, std::string name) {
+    reflect_each(x, [&](auto&& y, const std::string& name) {
         using type = std::decay_t<decltype(y)>;
         y          = from_value<type>(v.at(name).without_key());
     });

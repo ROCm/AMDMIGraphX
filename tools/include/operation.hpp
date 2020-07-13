@@ -219,13 +219,13 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
     return {};
 }
 
-template<class T>
+template <class T>
 value to_value_op(const T& x)
 {
     return migraphx::to_value(x);
 }
 
-template<class T>
+template <class T>
 void from_value_op(T& x, const value& v)
 {
     return migraphx::from_value(v, x);
@@ -264,8 +264,8 @@ void from_value_op(T& x, const value& v)
              input   = 'const std::vector<argument>&',
              const   = True,
              default = 'detail::compute_op'),
-     virtual('to_value', returns = 'value', const = True, default='detail::to_value_op'),
-     virtual('from_value', v = 'const value', default='detail::from_value_op'),
+     virtual('to_value', returns = 'value', const = True, default = 'detail::to_value_op'),
+     virtual('from_value', v = 'const value', default = 'detail::from_value_op'),
      friend('operator<<',
             returns = 'std::ostream &',
             os      = 'std::ostream &',
@@ -298,14 +298,8 @@ bool has_finalize(const T& x)
     return detail::has_finalize_op(x);
 }
 
-inline void migraphx_to_value(value& v, const operation& op)
-{
-    v = op.to_value();
-}
-inline void migraphx_from_value(const value& v, operation& op)
-{
-    op.from_value(v);
-}
+inline void migraphx_to_value(value& v, const operation& op) { v = op.to_value(); }
+inline void migraphx_from_value(const value& v, operation& op) { op.from_value(v); }
 
 #endif
 

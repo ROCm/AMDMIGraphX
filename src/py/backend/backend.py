@@ -9,7 +9,7 @@ from onnx import ModelProto
 from onnx.checker import check_model
 from onnx.backend.base import Backend
 import migraphx
-from backend.backend_rep import MIGraphXBackendRep
+from onnx_migraphx.backend_rep import MIGraphXBackendRep
 
 def get_device():
    return ("CPU", "GPU")

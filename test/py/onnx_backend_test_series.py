@@ -11,7 +11,7 @@ import onnx
 import onnx.backend.test
 
 import numpy as np
-from backend.backend import MIGraphXBackend as c2
+from onnx_migraphx.backend import MIGraphXBackend as c2
 
 pytest_plugins = 'onnx.backend.test.report',
 

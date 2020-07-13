@@ -111,11 +111,6 @@ if(MIGRAPHX_ENABLE_GPU)
     endforeach()
 endif()
 
-set(DEST_DIR ${CMAKE_BINARY_DIR})
-file (COPY ${CMAKE_SOURCE_DIR}/src/py/backend DESTINATION ${DEST_DIR}/.)
-file (COPY ${CMAKE_SOURCE_DIR}/test/py/onnx_backend_test_series.py DESTINATION ${DEST_DIR}/.)
-file (COPY ${CMAKE_SOURCE_DIR}/test/py/testdata DESTINATION ${DEST_DIR}/.)
-
 # Onnx test
 set(TEST_ONNX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/onnx)
 file (GLOB ONNX_TESTS ${TEST_ONNX_DIR}/*.cpp)

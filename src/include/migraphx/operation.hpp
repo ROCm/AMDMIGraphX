@@ -10,6 +10,7 @@
 #include <migraphx/reflect.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/serialize.hpp>
 #include <migraphx/auto_any_cast.hpp>
 #include <migraphx/config.hpp>
 
@@ -218,6 +219,18 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
     return {};
 }
 
+template <class T>
+value to_value_op(const T& x)
+{
+    return migraphx::to_value(x);
+}
+
+template <class T>
+void from_value_op(T& x, const value& v)
+{
+    return migraphx::from_value(v, x);
+}
+
 } // namespace detail
 
 /*
@@ -233,6 +246,8 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
  *      shape compute_shape(const std::vector<shape>& input) const;
  *      argument compute(context& ctx,const shape& output,const std::vector<argument>& input) const;
  *      argument compute(const shape& output,const std::vector<argument>& input) const;
+ *      value to_value() const;
+ *      void from_value(const value v) ;
  *     friend std::ostream & operator<<(std::ostream & os,const operation & op) ;
  *     friend bool operator==(const operation & x,const operation & y) ;
  * };
@@ -350,6 +365,18 @@ struct operation
         return (*this).private_detail_te_get_handle().compute(output, input);
     }
 
+    value to_value() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().to_value();
+    }
+
+    void from_value(const value v)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().from_value(std::move(v));
+    }
+
     friend std::ostream& operator<<(std::ostream& os, const operation& op)
     {
         assert(op.private_detail_te_handle_mem_var);
@@ -385,6 +412,8 @@ struct operation
         virtual argument
         compute(context& ctx, const shape& output, const std::vector<argument>& input) const    = 0;
         virtual argument compute(const shape& output, const std::vector<argument>& input) const = 0;
+        virtual value to_value() const                                                          = 0;
+        virtual void from_value(const value v)                                                  = 0;
         virtual std::ostream& operator_shift_left(std::ostream& os) const                       = 0;
         virtual bool operator==(const operation& y) const                                       = 0;
     };
@@ -493,6 +522,34 @@ struct operation
         return detail::compute_op(private_detail_te_self, output, input);
     }
 
+    template <class T>
+    static auto private_detail_te_default_to_value(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.to_value())
+    {
+        return private_detail_te_self.to_value();
+    }
+
+    template <class T>
+    static value private_detail_te_default_to_value(float, T&& private_detail_te_self)
+    {
+        return detail::to_value_op(private_detail_te_self);
+    }
+
+    template <class T>
+    static auto
+    private_detail_te_default_from_value(char, T&& private_detail_te_self, const value v)
+        -> decltype(private_detail_te_self.from_value(std::move(v)))
+    {
+        private_detail_te_self.from_value(std::move(v));
+    }
+
+    template <class T>
+    static void
+    private_detail_te_default_from_value(float, T&& private_detail_te_self, const value v)
+    {
+        detail::from_value_op(private_detail_te_self, std::move(v));
+    }
+
     template <typename PrivateDetailTypeErasedT>
     struct private_detail_te_handle_type : private_detail_te_handle_base_type
     {
@@ -568,6 +625,18 @@ struct operation
 
             return private_detail_te_default_compute(
                 char(0), private_detail_te_value, output, input);
+        }
+
+        value to_value() const override
+        {
+
+            return private_detail_te_default_to_value(char(0), private_detail_te_value);
+        }
+
+        void from_value(const value v) override
+        {
+
+            private_detail_te_default_from_value(char(0), private_detail_te_value, std::move(v));
         }
 
         std::ostream& operator_shift_left(std::ostream& os) const override
@@ -664,6 +733,9 @@ bool has_finalize(const T& x)
 {
     return detail::has_finalize_op(x);
 }
+
+inline void migraphx_to_value(value& v, const operation& op) { v = op.to_value(); }
+inline void migraphx_from_value(const value& v, operation& op) { op.from_value(v); }
 
 #endif
 

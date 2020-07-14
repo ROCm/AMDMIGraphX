@@ -98,7 +98,7 @@ struct value
     m(float, double) \
     m(string, std::string) \
     m(bool, bool)
-// clang-format on
+    // clang-format on
     enum type_t
     {
 #define MIGRAPHX_VALUE_GENERATE_ENUM_TYPE(vt, cpp_type) vt##_type,

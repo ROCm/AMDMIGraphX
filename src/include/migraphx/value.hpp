@@ -165,7 +165,7 @@ struct value
     template <class T, MIGRAPHX_REQUIRES(is_pickable<T>{})>
     value& operator=(T rhs)
     {
-        return *this = pick<T>{rhs};
+        return *this = pick<T>{rhs}; // NOLINT
     }
 
     bool is_array() const;

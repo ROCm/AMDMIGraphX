@@ -27,15 +27,21 @@ T from_value(const value& v)
 
 namespace detail {
 
+template <class T, MIGRAPHX_REQUIRES(std::is_empty<T>{})>
+value to_value_impl(rank<0>, const T&)
+{
+    return value::object{};
+}
+
 template <class T, class U>
-value to_value_impl(rank<0>, const std::pair<T, U>& x)
+value to_value_impl(rank<1>, const std::pair<T, U>& x)
 {
 
     return {x.first, x.second};
 }
 
 template <class T>
-auto to_value_impl(rank<1>, const T& x) -> decltype(x.begin(), x.end(), value{})
+auto to_value_impl(rank<2>, const T& x) -> decltype(x.begin(), x.end(), value{})
 {
     value result;
     for(auto&& y : x)
@@ -47,7 +53,7 @@ auto to_value_impl(rank<1>, const T& x) -> decltype(x.begin(), x.end(), value{})
 }
 
 template <class T, MIGRAPHX_REQUIRES(is_reflectable<T>{})>
-value to_value_impl(rank<2>, const T& x)
+value to_value_impl(rank<3>, const T& x)
 {
     value result;
     reflect_each(x, [&](auto&& y, std::string name) { result.emplace(name, to_value(y)); });
@@ -55,33 +61,33 @@ value to_value_impl(rank<2>, const T& x)
 }
 
 template <class T, MIGRAPHX_REQUIRES(std::is_signed<T>{})>
-value to_value_impl(rank<3>, const T& x)
+value to_value_impl(rank<4>, const T& x)
 {
     return std::int64_t{x};
 }
 
 template <class T, MIGRAPHX_REQUIRES(std::is_unsigned<T>{})>
-value to_value_impl(rank<4>, const T& x)
+value to_value_impl(rank<5>, const T& x)
 {
     return std::uint64_t{x};
 }
 
 template <class T, MIGRAPHX_REQUIRES(std::is_floating_point<T>{})>
-value to_value_impl(rank<5>, const T& x)
+value to_value_impl(rank<6>, const T& x)
 {
     return double{x};
 }
 
-inline value to_value_impl(rank<6>, const std::string& x) { return x; }
+inline value to_value_impl(rank<7>, const std::string& x) { return x; }
 
 template <class T>
-auto to_value_impl(rank<7>, const T& x) -> decltype(migraphx_to_value(x))
+auto to_value_impl(rank<8>, const T& x) -> decltype(migraphx_to_value(x))
 {
     return migraphx_to_value(x);
 }
 
 template <class T>
-auto to_value_impl(rank<7>, const T& x)
+auto to_value_impl(rank<9>, const T& x)
     -> decltype(migraphx_to_value(std::declval<value&>(), x), value{})
 {
     value v;
@@ -89,8 +95,18 @@ auto to_value_impl(rank<7>, const T& x)
     return v;
 }
 
+template <class T, MIGRAPHX_REQUIRES(std::is_empty<T>{})>
+void from_value_impl(rank<0>, const value& v, T& x)
+{
+    if(not v.is_object())
+        MIGRAPHX_THROW("Expected an object");
+    if(not v.get_object().empty())
+        MIGRAPHX_THROW("Expected an empty object");
+    x = T{};
+}
+
 template <class T>
-auto from_value_impl(rank<0>, const value& v, T& x)
+auto from_value_impl(rank<1>, const value& v, T& x)
     -> decltype(x.insert(x.end(), *x.begin()), void())
 {
     x.clear();
@@ -99,7 +115,7 @@ auto from_value_impl(rank<0>, const value& v, T& x)
 }
 
 template <class T>
-auto from_value_impl(rank<1>, const value& v, T& x) -> decltype(x.insert(*x.begin()), void())
+auto from_value_impl(rank<2>, const value& v, T& x) -> decltype(x.insert(*x.begin()), void())
 {
     x.clear();
     for(auto&& e : v)
@@ -107,24 +123,24 @@ auto from_value_impl(rank<1>, const value& v, T& x) -> decltype(x.insert(*x.begi
 }
 
 template <class T, MIGRAPHX_REQUIRES(is_reflectable<T>{})>
-void from_value_impl(rank<2>, const value& v, T& x)
+void from_value_impl(rank<3>, const value& v, T& x)
 {
-    reflect_each(x, [&](auto&& y, std::string name) {
+    reflect_each(x, [&](auto&& y, const std::string& name) {
         using type = std::decay_t<decltype(y)>;
         y          = from_value<type>(v.at(name).without_key());
     });
 }
 
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
-void from_value_impl(rank<3>, const value& v, T& x)
+void from_value_impl(rank<4>, const value& v, T& x)
 {
     x = v.to<T>();
 }
 
-inline void from_value_impl(rank<4>, const value& v, std::string& x) { x = v.to<std::string>(); }
+inline void from_value_impl(rank<5>, const value& v, std::string& x) { x = v.to<std::string>(); }
 
 template <class T>
-auto from_value_impl(rank<5>, const value& v, T& x) -> decltype(migraphx_from_value(v, x), void())
+auto from_value_impl(rank<6>, const value& v, T& x) -> decltype(migraphx_from_value(v, x), void())
 {
     migraphx_from_value(v, x);
 }
@@ -134,13 +150,13 @@ auto from_value_impl(rank<5>, const value& v, T& x) -> decltype(migraphx_from_va
 template <class T>
 value to_value(const T& x)
 {
-    return detail::to_value_impl(rank<8>{}, x);
+    return detail::to_value_impl(rank<9>{}, x);
 }
 
 template <class T>
 void from_value(const value& v, T& x)
 {
-    detail::from_value_impl(rank<5>{}, v, x);
+    detail::from_value_impl(rank<6>{}, v, x);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

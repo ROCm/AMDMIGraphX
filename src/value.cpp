@@ -1,10 +1,11 @@
-#include <migraphx/value.hpp>
+#include <cassert>
+#include <iostream>
 #include <migraphx/cloneable.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/value.hpp>
 #include <unordered_map>
-#include <iostream>
-#include <cassert>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -12,9 +13,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct value_base_impl : cloneable<value_base_impl>
 {
     virtual value::type_t get_type() { return value::null_type; }
-#define MIGRAPHX_VALUE_BASE_FUNCTIONS(vt, cpp_type) \
+#define MIGRAPHX_VALUE_GENERATE_BASE_FUNCTIONS(vt, cpp_type) \
     virtual const cpp_type* if_##vt() const { return nullptr; }
-    MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_BASE_FUNCTIONS)
+    MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_BASE_FUNCTIONS)
     virtual std::vector<value>* if_array() { return nullptr; }
     virtual std::unordered_map<std::string, std::size_t>* if_object() { return nullptr; }
     virtual value_base_impl* if_value() const { return nullptr; }
@@ -24,20 +25,20 @@ struct value_base_impl : cloneable<value_base_impl>
     virtual ~value_base_impl() {}
 };
 
-#define MIGRAPHX_VALUE_BASE_TYPE(vt, cpp_type)                        \
+#define MIGRAPHX_VALUE_GENERATE_BASE_TYPE(vt, cpp_type)               \
     struct vt##_value_holder : value_base_impl::share                 \
     {                                                                 \
-        vt##_value_holder(cpp_type d) : data(d) {}                    \
+        vt##_value_holder(cpp_type d) : data(std::move(d)) {}         \
         virtual value::type_t get_type() { return value::vt##_type; } \
         virtual const cpp_type* if_##vt() const { return &data; }     \
         cpp_type data;                                                \
     };
-MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_BASE_TYPE)
+MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_BASE_TYPE)
 
 struct array_value_holder : value_base_impl::derive<array_value_holder>
 {
     array_value_holder() {}
-    array_value_holder(std::vector<value> d) : data(d) {}
+    array_value_holder(std::vector<value> d) : data(std::move(d)) {}
     virtual value::type_t get_type() { return value::array_type; }
     virtual std::vector<value>* if_array() { return &data; }
     std::vector<value> data;
@@ -47,7 +48,7 @@ struct object_value_holder : value_base_impl::derive<object_value_holder>
 {
     object_value_holder() {}
     object_value_holder(std::vector<value> d, std::unordered_map<std::string, std::size_t> l)
-        : data(d), lookup(l)
+        : data(std::move(d)), lookup(std::move(l))
     {
     }
     virtual value::type_t get_type() { return value::object_type; }
@@ -65,11 +66,16 @@ value& value::operator=(value rhs)
     return *this;
 }
 
-void set_vector(std::shared_ptr<value_base_impl>& x, const std::vector<value>& v)
+void set_vector(std::shared_ptr<value_base_impl>& x,
+                const std::vector<value>& v,
+                bool array_on_empty = true)
 {
     if(v.empty())
     {
-        x = nullptr;
+        if(array_on_empty)
+            x = std::make_shared<array_value_holder>();
+        else
+            x = std::make_shared<object_value_holder>();
         return;
     }
     if(v.front().get_key().empty())
@@ -89,7 +95,7 @@ void set_vector(std::shared_ptr<value_base_impl>& x, const std::vector<value>& v
     }
 }
 
-value::value(const std::initializer_list<value>& i) : x(nullptr), key()
+value::value(const std::initializer_list<value>& i) : x(nullptr)
 {
     if(i.size() == 2 and i.begin()->is_string())
     {
@@ -101,11 +107,25 @@ value::value(const std::initializer_list<value>& i) : x(nullptr), key()
     set_vector(x, std::vector<value>(i.begin(), i.end()));
 }
 
-value::value(const std::vector<value>& v) : x(nullptr), key() { set_vector(x, v); }
-
-value::value(const std::string& pkey, const std::vector<value>& v) : x(nullptr), key(pkey)
+value::value(const std::vector<value>& v, bool array_on_empty) : x(nullptr)
 {
-    set_vector(x, v);
+    set_vector(x, v, array_on_empty);
+}
+
+value::value(const std::unordered_map<std::string, value>& m)
+    : value(std::vector<value>(m.begin(), m.end()), false)
+{
+}
+
+value::value(const std::string& pkey, const std::vector<value>& v, bool array_on_empty)
+    : x(nullptr), key(pkey)
+{
+    set_vector(x, v, array_on_empty);
+}
+
+value::value(const std::string& pkey, const std::unordered_map<std::string, value>& m)
+    : value(pkey, std::vector<value>(m.begin(), m.end()), false)
+{
 }
 
 value::value(const std::string& pkey, std::nullptr_t) : x(nullptr), key(pkey) {}
@@ -117,26 +137,26 @@ value::value(const std::string& pkey, const value& rhs)
 
 value::value(const char* i) : value(std::string(i)) {}
 
-#define MIGRAPHX_VALUE_DEFINE_METHODS(vt, cpp_type)                                \
-    value::value(cpp_type i) : x(std::make_shared<vt##_value_holder>(i)), key() {} \
-    value::value(const std::string& pkey, cpp_type i)                              \
-        : x(std::make_shared<vt##_value_holder>(i)), key(pkey)                     \
-    {                                                                              \
-    }                                                                              \
-    value& value::operator=(cpp_type rhs)                                          \
-    {                                                                              \
-        x = std::make_shared<vt##_value_holder>(rhs);                              \
-        return *this;                                                              \
-    }                                                                              \
-    bool value::is_##vt() const { return x ? x->get_type() == vt##_type : false; } \
-    const cpp_type& value::get_##vt() const                                        \
-    {                                                                              \
-        auto* r = this->if_##vt();                                                 \
-        assert(r);                                                                 \
-        return *r;                                                                 \
-    }                                                                              \
+#define MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS(vt, cpp_type)                           \
+    value::value(cpp_type i) : x(std::make_shared<vt##_value_holder>(std::move(i))) {} \
+    value::value(const std::string& pkey, cpp_type i)                                  \
+        : x(std::make_shared<vt##_value_holder>(std::move(i))), key(pkey)              \
+    {                                                                                  \
+    }                                                                                  \
+    value& value::operator=(cpp_type rhs)                                              \
+    {                                                                                  \
+        x = std::make_shared<vt##_value_holder>(std::move(rhs));                       \
+        return *this;                                                                  \
+    }                                                                                  \
+    bool value::is_##vt() const { return x ? x->get_type() == vt##_type : false; }     \
+    const cpp_type& value::get_##vt() const                                            \
+    {                                                                                  \
+        auto* r = this->if_##vt();                                                     \
+        assert(r);                                                                     \
+        return *r;                                                                     \
+    }                                                                                  \
     const cpp_type* value::if_##vt() const { return x ? x->if_##vt() : nullptr; }
-MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_DEFINE_METHODS)
+MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS)
 
 bool value::is_array() const { return x ? x->get_type() == array_type : false; }
 const std::vector<value>& value::value::get_array() const
@@ -177,10 +197,10 @@ std::vector<value>& get_array_impl(const std::shared_ptr<value_base_impl>& x)
 value* find_impl(const std::shared_ptr<value_base_impl>& x, const std::string& key)
 {
     auto* a = if_array_impl(x);
-    if(!a)
+    if(a == nullptr)
         return nullptr;
     auto* lookup = x->if_object();
-    if(!lookup)
+    if(lookup == nullptr)
         return nullptr;
     auto it = lookup->find(key);
     if(it == lookup->end())
@@ -194,7 +214,7 @@ const value* value::find(const std::string& pkey) const { return find_impl(x, pk
 bool value::contains(const std::string& pkey) const
 {
     auto it = find(pkey);
-    if(!it)
+    if(it == nullptr)
         return false;
     if(it == end())
         return false;
@@ -203,7 +223,7 @@ bool value::contains(const std::string& pkey) const
 std::size_t value::size() const
 {
     auto* a = if_array_impl(x);
-    if(!a)
+    if(a == nullptr)
         return 0;
     return a->size();
 }
@@ -211,19 +231,20 @@ bool value::empty() const { return size() == 0; }
 const value* value::data() const
 {
     auto* a = if_array_impl(x);
-    if(!a)
+    if(a == nullptr)
         return nullptr;
     return a->data();
 }
 value* value::data()
 {
     auto* a = if_array_impl(x);
-    if(!a)
+    if(a == nullptr)
         return nullptr;
     return a->data();
 }
 value* value::begin()
 {
+    // cppcheck-suppress assertWithSideEffect
     assert(data());
     return data();
 }
@@ -242,21 +263,21 @@ const value& value::back() const { return *std::prev(end()); }
 value& value::at(std::size_t i)
 {
     auto* a = if_array_impl(x);
-    if(!a)
+    if(a == nullptr)
         MIGRAPHX_THROW("Not an array");
     return a->at(i);
 }
 const value& value::at(std::size_t i) const
 {
     auto* a = if_array_impl(x);
-    if(!a)
+    if(a == nullptr)
         MIGRAPHX_THROW("Not an array");
     return a->at(i);
 }
 value& value::at(const std::string& pkey)
 {
     auto* r = find(pkey);
-    if(!r)
+    if(r == nullptr)
         MIGRAPHX_THROW("Not an object");
     if(r == end())
         MIGRAPHX_THROW("Key not found");
@@ -265,7 +286,7 @@ value& value::at(const std::string& pkey)
 const value& value::at(const std::string& pkey) const
 {
     auto* r = find(pkey);
-    if(!r)
+    if(r == nullptr)
         MIGRAPHX_THROW("Not an object");
     if(r == end())
         MIGRAPHX_THROW("Key not found");

@@ -49,6 +49,22 @@ TEST_CASE(value_construct_bool)
     EXPECT(v.get_key().empty());
 }
 
+TEST_CASE(value_construct_empty_object)
+{
+    migraphx::value v = migraphx::value::object{};
+    EXPECT(v.is_object());
+    EXPECT(v.get_object().empty());
+    EXPECT(v.get_key().empty());
+}
+
+TEST_CASE(value_construct_empty_array)
+{
+    migraphx::value v = migraphx::value::array{};
+    EXPECT(v.is_array());
+    EXPECT(v.get_array().empty());
+    EXPECT(v.get_key().empty());
+}
+
 TEST_CASE(value_assign_int)
 {
     migraphx::value v;

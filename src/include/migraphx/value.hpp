@@ -11,6 +11,7 @@
 #include <sstream>
 #include <type_traits>
 #include <tuple>
+#include <unordered_map>
 #include <vector>
 
 namespace migraphx {
@@ -90,16 +91,21 @@ To try_convert_value(const From& x)
 
 struct value
 {
-#define MIGRAPHX_VISIT_VALUE_TYPES(m)                                                       \
-    m(int64, std::int64_t) m(uint64, std::uint64_t) m(float, double) m(string, std::string) \
-        m(bool, bool)
+// clang-format off
+#define MIGRAPHX_VISIT_VALUE_TYPES(m) \
+    m(int64, std::int64_t) \
+    m(uint64, std::uint64_t) \
+    m(float, double) \
+    m(string, std::string) \
+    m(bool, bool)
+    // clang-format on
     enum type_t
     {
-#define MIGRAPHX_VALUE_ENUM_TYPE(vt, cpp_type) vt##_type,
-        MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_ENUM_TYPE) object_type,
+#define MIGRAPHX_VALUE_GENERATE_ENUM_TYPE(vt, cpp_type) vt##_type,
+        MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_ENUM_TYPE) object_type,
         array_type,
         null_type
-#undef MIGRAPHX_VALUE_ENUM_TYPE
+#undef MIGRAPHX_VALUE_GENERATE_ENUM_TYPE
     };
     using iterator        = value*;
     using const_iterator  = const value*;
@@ -110,6 +116,8 @@ struct value
     using const_reference = const value_type&;
     using pointer         = value_type*;
     using const_pointer   = const value_type*;
+    using array           = std::vector<value>;
+    using object          = std::unordered_map<std::string, value>;
 
     value() = default;
 
@@ -118,20 +126,22 @@ struct value
     value(const std::string& pkey, const value& rhs);
 
     value(const std::initializer_list<value>& i);
-    value(const std::vector<value>& v);
-    value(const std::string& pkey, const std::vector<value>& v);
+    value(const std::vector<value>& v, bool array_on_empty = true);
+    value(const std::unordered_map<std::string, value>& m);
+    value(const std::string& pkey, const std::vector<value>& v, bool array_on_empty = true);
+    value(const std::string& pkey, const std::unordered_map<std::string, value>& m);
     value(const std::string& pkey, std::nullptr_t);
 
     value(const char* i);
 
-#define MIGRAPHX_VALUE_DECL_METHODS(vt, cpp_type) \
-    value(cpp_type i);                            \
-    value(const std::string& pkey, cpp_type i);   \
-    value& operator=(cpp_type rhs);               \
-    bool is_##vt() const;                         \
-    const cpp_type& get_##vt() const;             \
+#define MIGRAPHX_VALUE_GENERATE_DECL_METHODS(vt, cpp_type) \
+    value(cpp_type i);                                     \
+    value(const std::string& pkey, cpp_type i);            \
+    value& operator=(cpp_type rhs);                        \
+    bool is_##vt() const;                                  \
+    const cpp_type& get_##vt() const;                      \
     const cpp_type* if_##vt() const;
-    MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_DECL_METHODS)
+    MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DECL_METHODS)
 
     template <class T>
     using pick = std::conditional_t<
@@ -160,7 +170,7 @@ struct value
     template <class T, MIGRAPHX_REQUIRES(is_pickable<T>{})>
     value& operator=(T rhs)
     {
-        return *this = pick<T>{rhs};
+        return *this = pick<T>{rhs}; // NOLINT
     }
 
     bool is_array() const;
@@ -229,7 +239,7 @@ struct value
             v(std::nullptr_t{});
             return;
         }
-#define MIGRAPHX_VALUE_CASE(vt, cpp_type)                                   \
+#define MIGRAPHX_VALUE_GENERATE_CASE(vt, cpp_type)                          \
     case vt##_type:                                                         \
     {                                                                       \
         if(this->key.empty())                                               \
@@ -238,9 +248,9 @@ struct value
             v(std::make_pair(this->get_key(), std::ref(this->get_##vt()))); \
         return;                                                             \
     }
-            MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_CASE)
-            MIGRAPHX_VALUE_CASE(array, )
-            MIGRAPHX_VALUE_CASE(object, )
+            MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_CASE)
+            MIGRAPHX_VALUE_GENERATE_CASE(array, )
+            MIGRAPHX_VALUE_GENERATE_CASE(object, )
         }
         MIGRAPHX_THROW("Unknown type");
     }

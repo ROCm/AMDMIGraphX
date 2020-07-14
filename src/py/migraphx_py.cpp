@@ -166,6 +166,7 @@ PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::program>(m, "program")
         .def("clone", [](migraphx::program& p) { return *(new migraphx::program(p)); })
+        .def("get_parameter_names", &migraphx::program::get_parameter_names)
         .def("get_parameter_shapes", &migraphx::program::get_parameter_shapes)
         .def("get_output_shapes", &migraphx::program::get_output_shapes)
         .def("compile",

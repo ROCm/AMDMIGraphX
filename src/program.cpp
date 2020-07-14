@@ -21,6 +21,7 @@ struct program_impl
 {
     // A list is used to keep references to an instruction stable
     std::list<instruction> instructions;
+    std::vector<std::string> input_names;
     context ctx;
 };
 
@@ -284,6 +285,10 @@ instruction_ref program::add_outline(const shape& s)
 instruction_ref program::add_parameter(std::string name, shape s)
 {
     assert(get_parameter_shape(name) == shape{});
+    if (name != "scratch")
+    {
+        impl->input_names.push_back(name);
+    }
     impl->instructions.push_front({builtin::param{std::move(name)}, std::move(s), {}});
     return impl->instructions.begin();
 }
@@ -317,6 +322,11 @@ shape program::get_parameter_shape(std::string name) const
         return ins->get_shape();
     else
         return {};
+}
+
+std::vector<std::string> program::get_parameter_names() const
+{
+    return impl->input_names;
 }
 
 instruction_ref program::get_parameter(std::string name) const

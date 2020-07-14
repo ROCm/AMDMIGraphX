@@ -23,6 +23,7 @@ class MIGraphXBackendRep(BackendRep):
         """
         self._program = prog
 
+
     def run(self, inputs, **kwargs):  # type: (Any, **Any) -> Tuple[Any, ...]
         """
         Computes the prediction.
@@ -31,7 +32,8 @@ class MIGraphXBackendRep(BackendRep):
 
         if isinstance(inputs, list):
             inps = {}
-            for i, name in enumerate(self._program.get_parameter_shapes().keys()):
+            input_names = self._program.get_parameter_names()
+            for i, name in enumerate(self._program.get_parameter_names()):
                 inps[name] = migraphx.argument(inputs[i])
             mgx_outputs = self._program.run(inps)
             outs = []

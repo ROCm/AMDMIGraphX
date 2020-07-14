@@ -24,7 +24,7 @@ struct reflectable_type
     float fvalue                  = 0.0;
     empty_type et{};
     simple_enum se = simple1;
-    class_enum ce = class_enum::class1;
+    class_enum ce  = class_enum::class1;
 
     struct nested_type
     {
@@ -52,7 +52,13 @@ struct reflectable_type
 
 TEST_CASE(serialize_reflectable_type)
 {
-    reflectable_type t1{{1, 2}, "hello", 1.0, {}, reflectable_type::simple1, reflectable_type::class_enum::class2, {{1}, {2}}};
+    reflectable_type t1{{1, 2},
+                        "hello",
+                        1.0,
+                        {},
+                        reflectable_type::simple1,
+                        reflectable_type::class_enum::class2,
+                        {{1}, {2}}};
     migraphx::value v1  = migraphx::to_value(t1);
     reflectable_type t2 = migraphx::from_value<reflectable_type>(v1);
     migraphx::value v2  = migraphx::to_value(t2);

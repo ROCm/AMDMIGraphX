@@ -91,9 +91,14 @@ To try_convert_value(const From& x)
 
 struct value
 {
-#define MIGRAPHX_VISIT_VALUE_TYPES(m)                                                       \
-    m(int64, std::int64_t) m(uint64, std::uint64_t) m(float, double) m(string, std::string) \
-        m(bool, bool)
+// clang-format off
+#define MIGRAPHX_VISIT_VALUE_TYPES(m) \
+    m(int64, std::int64_t) \
+    m(uint64, std::uint64_t) \
+    m(float, double) \
+    m(string, std::string) \
+    m(bool, bool)
+// clang-format on
     enum type_t
     {
 #define MIGRAPHX_VALUE_GENERATE_ENUM_TYPE(vt, cpp_type) vt##_type,

@@ -1,4 +1,5 @@
 #include <migraphx/value.hpp>
+#include <migraphx/float_equal.hpp>
 #include <test.hpp>
 
 TEST_CASE(value_default_construct)
@@ -37,7 +38,7 @@ TEST_CASE(value_construct_float)
 {
     migraphx::value v = 1.0;
     EXPECT(v.is_float());
-    EXPECT(v.get_float() == 1.0);
+    EXPECT(migraphx::float_equal(v.get_float(), 1.0));
     EXPECT(v.get_key().empty());
 }
 
@@ -316,7 +317,7 @@ TEST_CASE(value_to_from_string)
     migraphx::value v = "1";
     EXPECT(v.to<std::string>() == "1");
     EXPECT(v.to<int>() == 1);
-    EXPECT(v.to<float>() == 1.0);
+    EXPECT(migraphx::float_equal(v.to<float>(), 1.0));
 }
 
 TEST_CASE(value_to_from_int)
@@ -324,7 +325,7 @@ TEST_CASE(value_to_from_int)
     migraphx::value v = 1;
     EXPECT(v.to<std::string>() == "1");
     EXPECT(v.to<int>() == 1);
-    EXPECT(v.to<float>() == 1.0);
+    EXPECT(migraphx::float_equal(v.to<float>(), 1.0));
 }
 
 TEST_CASE(value_to_from_float)
@@ -332,7 +333,7 @@ TEST_CASE(value_to_from_float)
     migraphx::value v = 1.5;
     EXPECT(v.to<std::string>() == "1.5");
     EXPECT(v.to<int>() == 1);
-    EXPECT(v.to<float>() == 1.5);
+    EXPECT(migraphx::float_equal(v.to<float>(), 1.5));
 }
 
 TEST_CASE(value_to_from_pair)

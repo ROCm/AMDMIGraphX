@@ -28,7 +28,7 @@ struct value_base_impl : cloneable<value_base_impl>
 #define MIGRAPHX_VALUE_GENERATE_BASE_TYPE(vt, cpp_type)               \
     struct vt##_value_holder : value_base_impl::share                 \
     {                                                                 \
-        vt##_value_holder(cpp_type d) : data(std::move(d)) {}                    \
+        vt##_value_holder(cpp_type d) : data(std::move(d)) {}         \
         virtual value::type_t get_type() { return value::vt##_type; } \
         virtual const cpp_type* if_##vt() const { return &data; }     \
         cpp_type data;                                                \
@@ -137,24 +137,24 @@ value::value(const std::string& pkey, const value& rhs)
 
 value::value(const char* i) : value(std::string(i)) {}
 
-#define MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS(vt, cpp_type)                       \
+#define MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS(vt, cpp_type)                           \
     value::value(cpp_type i) : x(std::make_shared<vt##_value_holder>(std::move(i))) {} \
-    value::value(const std::string& pkey, cpp_type i)                              \
-        : x(std::make_shared<vt##_value_holder>(std::move(i))), key(pkey)                     \
-    {                                                                              \
-    }                                                                              \
-    value& value::operator=(cpp_type rhs)                                          \
-    {                                                                              \
-        x = std::make_shared<vt##_value_holder>(std::move(rhs));                              \
-        return *this;                                                              \
-    }                                                                              \
-    bool value::is_##vt() const { return x ? x->get_type() == vt##_type : false; } \
-    const cpp_type& value::get_##vt() const                                        \
-    {                                                                              \
-        auto* r = this->if_##vt();                                                 \
-        assert(r);                                                                 \
-        return *r;                                                                 \
-    }                                                                              \
+    value::value(const std::string& pkey, cpp_type i)                                  \
+        : x(std::make_shared<vt##_value_holder>(std::move(i))), key(pkey)              \
+    {                                                                                  \
+    }                                                                                  \
+    value& value::operator=(cpp_type rhs)                                              \
+    {                                                                                  \
+        x = std::make_shared<vt##_value_holder>(std::move(rhs));                       \
+        return *this;                                                                  \
+    }                                                                                  \
+    bool value::is_##vt() const { return x ? x->get_type() == vt##_type : false; }     \
+    const cpp_type& value::get_##vt() const                                            \
+    {                                                                                  \
+        auto* r = this->if_##vt();                                                     \
+        assert(r);                                                                     \
+        return *r;                                                                     \
+    }                                                                                  \
     const cpp_type* value::if_##vt() const { return x ? x->if_##vt() : nullptr; }
 MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS)
 

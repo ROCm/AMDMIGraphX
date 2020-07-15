@@ -42,7 +42,7 @@ std::vector<argument> run_gpu(program p, const compile_options& options)
     program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
-        auto arg   = generate_argument(x.second, get_hash(x.first));
+        auto arg = generate_argument(x.second, get_hash(x.first));
         m[x.first] = options.offload_copy ? arg : gpu::to_gpu(arg);
     }
     auto gpu_out = p.eval(m);
@@ -55,14 +55,12 @@ std::vector<argument> run_gpu(program p, const compile_options& options)
 
 #else
     (void)p;
+    (void)options;
     MIGRAPHX_THROW("Gpu unsupported!");
 #endif
 }
 
-void verify_program(const std::string& name,
-                    const program& p,
-                    compile_options options,
-                    double tolerance)
+void verify_program(const std::string& name, const program& p, compile_options options, double tolerance)
 {
     auto x = run_cpu(p);
     auto y = run_gpu(p, options);

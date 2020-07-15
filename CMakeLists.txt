@@ -200,6 +200,5 @@ set(DEST_DIR ${CMAKE_BINARY_DIR})
 file (COPY ${CMAKE_SOURCE_DIR}/src/py/backend/backend.py DESTINATION ${DEST_DIR}/lib/onnx_migraphx/.)
 file (COPY ${CMAKE_SOURCE_DIR}/src/py/backend/backend_rep.py DESTINATION ${DEST_DIR}/lib/onnx_migraphx/.)
 file (COPY ${CMAKE_SOURCE_DIR}/src/py/backend/__init__.py DESTINATION ${DEST_DIR}/lib/onnx_migraphx/.)
-file (COPY ${CMAKE_SOURCE_DIR}/test/py/onnx_backend_test_series.py DESTINATION ${DEST_DIR}/.)
-file (COPY ${CMAKE_SOURCE_DIR}/test/py/testdata DESTINATION ${DEST_DIR}/.)
+file (COPY ${CMAKE_SOURCE_DIR}/test/py/onnx_backend_test.py DESTINATION ${DEST_DIR}/.)
 

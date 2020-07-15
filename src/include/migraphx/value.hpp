@@ -50,7 +50,8 @@ struct value_converter<std::string>
     static std::string apply(const std::nullptr_t&) { return "null"; }
 
     template <class From>
-    static auto apply(const From& x) -> decltype(std::declval<std::stringstream&>() << x, std::string())
+    static auto apply(const From& x)
+        -> decltype(std::declval<std::stringstream&>() << x, std::string())
     {
         std::stringstream ss;
         ss << x;

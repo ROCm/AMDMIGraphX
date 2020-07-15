@@ -78,7 +78,7 @@ TEST_CASE(value_assign_int)
 TEST_CASE(value_copy_construct)
 {
     migraphx::value v1(1);
-    migraphx::value v2 = v1;
+    migraphx::value v2 = v1; // NOLINT
     EXPECT(v1 == v2);
 }
 

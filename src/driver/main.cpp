@@ -226,7 +226,7 @@ struct verify : command<verify>
     double tolerance     = 80;
     bool per_instruction = false;
     bool reduce          = false;
-    bool offload_copy = false;
+    bool offload_copy    = false;
     void parse(argument_parser& ap)
     {
         l.parse(ap);

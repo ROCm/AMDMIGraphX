@@ -170,11 +170,11 @@ TEST_CASE(negative_axis2)
     };
     auto create_control_program = [] {
         migraphx::program p;
-        auto a1          = p.add_instruction(allocate{create_shape(4, 2)});
+        auto a1 = p.add_instruction(allocate{create_shape(4, 2)});
         auto l1 = p.add_instruction(load{create_shape(2, 2), 0}, a1);
-        auto p1          = p.add_instruction(simple_op{}, l1);
+        auto p1 = p.add_instruction(simple_op{}, l1);
         auto l2 = p.add_instruction(load{create_shape(2, 2), 16}, a1);
-        auto p2          = p.add_instruction(simple_op{}, l2);
+        auto p2 = p.add_instruction(simple_op{}, l2);
         p.add_instruction(identity{}, a1, p1, p2);
         return p;
     };
@@ -201,11 +201,11 @@ TEST_CASE(negative_axis3)
     };
     auto create_control_program = [] {
         migraphx::program p;
-        auto a1          = p.add_instruction(allocate{create_shape(1, 4, 2)});
+        auto a1 = p.add_instruction(allocate{create_shape(1, 4, 2)});
         auto l1 = p.add_instruction(load{create_shape(1, 2, 2), 0}, a1);
-        auto p1          = p.add_instruction(simple_op{}, l1);
+        auto p1 = p.add_instruction(simple_op{}, l1);
         auto l2 = p.add_instruction(load{create_shape(1, 2, 2), 16}, a1);
-        auto p2          = p.add_instruction(simple_op{}, l2);
+        auto p2 = p.add_instruction(simple_op{}, l2);
         p.add_instruction(identity{}, a1, p1, p2);
         return p;
     };

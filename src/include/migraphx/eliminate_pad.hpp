@@ -22,6 +22,8 @@ struct eliminate_pad
     void apply(program& p) const;
     template <class T>
     void update_op(T, const instruction_ref& input, const instruction_ref& ins, program& p) const;
+
+    void update_pooling(const instruction_ref& input, const instruction_ref& ins, program& p) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

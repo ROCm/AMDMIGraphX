@@ -341,7 +341,8 @@ struct find_gelu
             match::used_once(),
             match::arg(0)(match::used_once(),
                           match::name("gpu::mul")(match::either_arg(0, 1)(
-                              match::none_of(match::has_value(M_SQRT1_2)).bind("x"), match::has_value(M_SQRT1_2)))));
+                              match::none_of(match::has_value(M_SQRT1_2)).bind("x"),
+                              match::has_value(M_SQRT1_2)))));
     }
 
     auto matcher() const

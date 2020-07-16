@@ -357,9 +357,9 @@ struct find_layernorm
         return match::either_arg(0, 1)(
             match::name("gpu::mul")(match::arg(0)(match::name("gpu::add").bind("x"))),
             match::name("gpu::sub")(match::either_arg(0, 1)(
-                multibroadcast_op().bind("bias"),
+                multibroadcast_op(),
                 match::name("gpu::mul")(match::arg(1)(
-                    match::name("gpu::mul")(match::arg(1)(multibroadcast_op().bind("scale")))
+                    match::name("gpu::mul")(match::arg(1)(multibroadcast_op()))
 
                         )))));
     }

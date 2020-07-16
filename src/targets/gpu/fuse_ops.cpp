@@ -358,10 +358,10 @@ struct find_layernorm
             match::name("gpu::mul")(match::arg(0)(match::name("gpu::add").bind("x"))),
             match::name("gpu::sub")(match::either_arg(0, 1)(
                 multibroadcast_op(),
-                match::name("gpu::mul")(match::arg(1)(
-                    match::name("gpu::mul")(match::arg(1)(multibroadcast_op()))
+                match::name("gpu::mul")(
+                    match::arg(1)(match::name("gpu::mul")(match::arg(1)(multibroadcast_op()))
 
-                        )))));
+                                      )))));
     }
 
     auto matcher() const

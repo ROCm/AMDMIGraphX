@@ -556,31 +556,13 @@ template <class T>
 inline auto has_value(T x, float tolerance = 1e-6)
 {
     return make_basic_pred_matcher([=](instruction_ref ins) {
-        if(ins->get_shape().elements() != 1)
-            return false;
         auto l = ins->get_literal();
         if(l.empty())
             return false;
         bool b = false;
-        l.visit([&](auto v) { b = v.front() - x < tolerance; });
-        return b;
-    });
-}
-
-template <class T>
-inline auto has_value_multi(T x, float tolerance = 1e-6)
-{
-    return make_basic_pred_matcher([=](instruction_ref ins) {
-        auto l = ins->get_literal();
-        if(l.empty())
-            return false;
-        bool b = true;
         l.visit([&](auto v) {
-            for(auto val : v)
-                if(val - x > tolerance)
-                {
-                    b = false;
-                }
+            if(std::all_of(v.begin(), v.end(), [&](auto val) { return val - x < tolerance; }))
+                b = true;
         });
         return b;
     });

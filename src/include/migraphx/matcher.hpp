@@ -575,7 +575,13 @@ inline auto has_value_multi(T x, float tolerance = 1e-6)
         if(l.empty())
             return false;
         bool b = true;
-        l.visit([&](auto v) { for(auto val : v) if (val - x > tolerance) { b = false; } });
+        l.visit([&](auto v) {
+            for(auto val : v)
+                if(val - x > tolerance)
+                {
+                    b = false;
+                }
+        });
         return b;
     });
 }

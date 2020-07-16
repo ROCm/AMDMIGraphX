@@ -59,7 +59,7 @@ ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
 # Install cget
-RUN pip3 install cget && pip3 install numpy && pip3 install onnx
+RUN pip3 install cget && pip3 install numpy==1.18.5 && pip3 install onnx
 
 # Install rclone
 RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz

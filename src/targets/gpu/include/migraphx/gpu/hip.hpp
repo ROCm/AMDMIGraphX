@@ -23,6 +23,7 @@ argument from_gpu(const argument& arg);
 void set_device(std::size_t id);
 
 void gpu_sync();
+void stream_sync(context& ctx);
 
 void gpu_copy(context& ctx, const argument& src, const argument& dst);
 void copy_to_gpu(context& ctx, const argument& src, const argument& dst);
@@ -122,9 +123,16 @@ struct hip_copy_from_gpu
         {
             argument result = allocate_gpu(output_shape, true);
             gpu_copy(ctx, args[0], result);
+
+            // ensure data copy are completed
+            stream_sync(ctx);
             return result;
         }
         copy_from_gpu(ctx, args[0], args[1]);
+
+        // ensure data copy are completed
+        stream_sync(ctx);
+
         return args[1];
     }
     std::ptrdiff_t output_alias(const std::vector<shape>& args) const

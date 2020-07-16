@@ -335,14 +335,19 @@ void move_standard_front(std::vector<instruction_ref>& args)
 struct find_gelu
 {
 
+    static auto sqrt_1_2_val()
+    {
+        return match::any_of(match::has_value(M_SQRT1_2), match::has_value_multi(M_SQRT1_2));
+    }
+
     static auto erf_fn()
     {
         return match::name("gpu::erf")(
             match::used_once(),
             match::arg(0)(match::used_once(),
                           match::name("gpu::mul")(match::either_arg(0, 1)(
-                              match::none_of(match::has_value(M_SQRT1_2)).bind("x"),
-                              match::has_value(M_SQRT1_2)))));
+                              match::none_of(sqrt_1_2_val()).bind("x"),
+                              sqrt_1_2_val()))));
     }
 
     auto matcher() const

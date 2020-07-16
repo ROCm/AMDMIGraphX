@@ -567,6 +567,19 @@ inline auto has_value(T x, float tolerance = 1e-6)
     });
 }
 
+template <class T>
+inline auto has_value_multi(T x, float tolerance = 1e-6)
+{
+    return make_basic_pred_matcher([=](instruction_ref ins) {
+        auto l = ins->get_literal();
+        if(l.empty())
+            return false;
+        bool b = true;
+        l.visit([&](auto v) { for(auto val : v) if (val - x > tolerance) { b = false; } });
+        return b;
+    });
+}
+
 } // namespace match
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -188,8 +188,6 @@ def create_backend_test(testname=None, target_device = None):
         backend_test.exclude(r'test_softmax_axis_0_cpu')
         backend_test.exclude(r'test_softmax_axis_1_cpu')
         backend_test.exclude(r'test_softmax_default_axis_cpu')
-        backend_test.exclude(r'test_AvgPool1d_cpu')
-        backend_test.exclude(r'test_AvgPool1d_stride_cpu')
 
         # error cases
         backend_test.exclude(r'test_averagepool_2d_ceil_cpu')

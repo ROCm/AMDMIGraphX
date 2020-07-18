@@ -36,7 +36,7 @@ void rewrite_pooling::apply(program& prog) const
         instruction_ref pooling{};
 
         // average pooling
-        if (op.mode == "average")
+        if(op.mode == "average")
         {
             pooling = prog.insert_instruction(ins, op::reduce_mean{{1}}, reshape);
         }

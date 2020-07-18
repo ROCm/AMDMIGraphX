@@ -27,8 +27,8 @@ TEST_CASE(rewrite_pooling_test)
     auto pooling_program = [&](const std::string& mode) {
         migraphx::program p;
         auto input = p.add_parameter("x", s);
-        auto ret   = p.add_instruction(
-            migraphx::op::pooling{mode, {0, 0, 0}, {1, 1, 1}, {3, 4, 5}}, input);
+        auto ret =
+            p.add_instruction(migraphx::op::pooling{mode, {0, 0, 0}, {1, 1, 1}, {3, 4, 5}}, input);
         p.add_return({ret});
         return p;
     };
@@ -43,8 +43,7 @@ TEST_CASE(rewrite_pooling_test)
         return p;
     };
 
-    auto test_rewrite = [&](const std::string& mode, const migraphx::operation& op)
-    {
+    auto test_rewrite = [&](const std::string& mode, const migraphx::operation& op) {
         migraphx::program p1 = pooling_program(mode);
         migraphx::program p2 = opt_program(op);
         opt_pooling(p1);
@@ -97,8 +96,8 @@ TEST_CASE(rewrite_avepooling_na3_test)
     auto pooling_program = [&]() {
         migraphx::program p;
         auto input = p.add_parameter("x", s);
-        auto ret   = p.add_instruction(
-            migraphx::op::pooling{"max", {0, 0, 0}, {1, 1, 1}, {3, 3, 5}}, input);
+        auto ret =
+            p.add_instruction(migraphx::op::pooling{"max", {0, 0, 0}, {1, 1, 1}, {3, 3, 5}}, input);
         p.add_return({ret});
         return p;
     };
@@ -118,14 +117,13 @@ TEST_CASE(literal_rewrite_pooling_test)
     auto pooling_program = [&](const std::string& mode) {
         migraphx::program p;
         auto input = p.add_literal(migraphx::literal(s, data));
-        auto ret   = p.add_instruction(
-            migraphx::op::pooling{mode, {0, 0, 0}, {1, 1, 1}, {3, 4, 5}}, input);
+        auto ret =
+            p.add_instruction(migraphx::op::pooling{mode, {0, 0, 0}, {1, 1, 1}, {3, 4, 5}}, input);
         p.add_return({ret});
         return p;
     };
 
-    auto opt_program = [&](const migraphx::operation& op)
-    {
+    auto opt_program = [&](const migraphx::operation& op) {
         migraphx::program p;
         auto input = p.add_literal(migraphx::literal(s, data));
         auto rsp   = p.add_instruction(migraphx::op::reshape{{4, -1}}, input);
@@ -136,15 +134,15 @@ TEST_CASE(literal_rewrite_pooling_test)
         return p;
     };
 
-    auto test_rewrite_pooling = [&](const std::string& mode, const migraphx::operation& op)
-    {
+    auto test_rewrite_pooling = [&](const std::string& mode, const migraphx::operation& op) {
         migraphx::program p1 = pooling_program(mode);
         migraphx::program p2 = opt_program(op);
         p1.compile(migraphx::cpu::target{});
         p2.compile(migraphx::cpu::target{});
         auto result1 = p1.eval({}).back();
         auto result2 = p2.eval({}).back();
-        visit_all(result1, result2)([&](auto r1, auto r2) { EXPECT(migraphx::verify_range(r1, r2)); });
+        visit_all(result1,
+                  result2)([&](auto r1, auto r2) { EXPECT(migraphx::verify_range(r1, r2)); });
     };
 
     test_rewrite_pooling("max", migraphx::op::reduce_max{{1}});

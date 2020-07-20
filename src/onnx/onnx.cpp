@@ -2321,7 +2321,7 @@ struct onnx_parser
     }
 
     std::vector<instruction_ref>
-    parse_dropout(const std::string&, const node_info& info, std::vector<instruction_ref> args)
+    parse_dropout(const std::string&, const node_info&, std::vector<instruction_ref> args)
     {
         auto out = prog.add_instruction(op::identity{}, args[0]);
         auto s   = args[0]->get_shape();

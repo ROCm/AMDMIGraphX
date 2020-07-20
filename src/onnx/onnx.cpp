@@ -2324,7 +2324,7 @@ struct onnx_parser
     parse_dropout(const std::string&, const node_info& info, std::vector<instruction_ref> args)
     {
         auto out = p.add_instruction(op::identity{}, args[0]);
-        auto s = args[0]->get_shape();
+        auto s   = args[0]->get_shape();
         std::vector<int8_t> vec(s.elements(), 1);
         shape mask_s{shape::int8_type, s.lens()};
         auto mask = p.add_literal(literal(mask_s, vec));

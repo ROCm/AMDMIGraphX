@@ -556,6 +556,8 @@ template <class T>
 inline auto has_value(T x, float tolerance = 1e-6)
 {
     return make_basic_pred_matcher([=](instruction_ref ins) {
+        if(ins->name() != "@literal")
+            return false;
         auto l = ins->get_literal();
         if(l.empty())
             return false;

@@ -731,10 +731,13 @@ TEST_CASE(dropout_test)
 {
     migraphx::program p;
     auto input = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 2}});
-    p.add_instruction(migraphx::op::identity{}, input);
+    auto out = p.add_instruction(migraphx::op::identity{}, input);
+    migraphx::shape s{migraphx::shape::int8_type, {1, 3, 2, 2}};
+    std::vector<int8_t> vec(s.elements(), 1);
+    p.add_literal(migraphx::literal(s, vec));
+    p.add_return({out});
 
-    auto prog = optimize_onnx("dropout_test.onnx");
-
+    auto prog = migraphx::parse_onnx("dropout_test.onnx");
     EXPECT(p == prog);
 }
 

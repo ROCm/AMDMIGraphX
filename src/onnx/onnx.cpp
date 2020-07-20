@@ -100,7 +100,7 @@ struct onnx_parser
         add_mem_op("Conv", &onnx_parser::parse_conv<op::convolution>);
         add_mem_op("ConvInteger", &onnx_parser::parse_conv<op::quant_convolution>);
         add_mem_op("ConvTranspose", &onnx_parser::parse_conv_transpose);
-        add_mem_op("Dropout", &onnx_parse::parse_dropout);
+        add_mem_op("Dropout", &onnx_parser::parse_dropout);
         add_mem_op("Elu", &onnx_parser::parse_elu);
         add_mem_op("Expand", &onnx_parser::parse_expand);
         add_mem_op("Flatten", &onnx_parser::parse_flatten);
@@ -2323,11 +2323,11 @@ struct onnx_parser
     std::vector<instruction_ref>
     parse_dropout(const std::string&, const node_info& info, std::vector<instruction_ref> args)
     {
-        auto out = p.add_instruction(op::identity{}, args[0]);
+        auto out = prog.add_instruction(op::identity{}, args[0]);
         auto s   = args[0]->get_shape();
         std::vector<int8_t> vec(s.elements(), 1);
         shape mask_s{shape::int8_type, s.lens()};
-        auto mask = p.add_literal(literal(mask_s, vec));
+        auto mask = prog.add_literal(literal(mask_s, vec));
 
         return {out, mask};
     }

@@ -86,7 +86,7 @@ struct program
 
     instruction_ref add_outline(const shape& s);
 
-    instruction_ref add_parameter(std::string name, shape s);
+    instruction_ref add_parameter(std::string name, shape s, bool is_input = true);
 
     instruction_ref add_return(std::vector<instruction_ref> args);
 

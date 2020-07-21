@@ -182,7 +182,7 @@ void memory_coloring_impl::rewrite()
     std::vector<std::size_t> dims;
     dims.push_back((required_bytes + sizeof(float) - 1) / sizeof(float));
     shape s                       = {shape::float_type, dims};
-    instruction_ref scratch_param = p_program->add_parameter("scratch", s);
+    instruction_ref scratch_param = p_program->add_parameter("scratch", s, false);
     for(auto ins : iterator_for(*p_program))
     {
         const instruction* p_iter = &(*ins);

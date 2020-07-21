@@ -132,7 +132,7 @@ struct compiler
         ap(offload_copy,
            {"--enable-offload-copy"},
            ap.help("Enable implicit offload copying"),
-           ap.set_value(false));
+           ap.set_value(true));
         ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(q_fp16));
         ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(q_int8));
         ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append());
@@ -226,9 +226,14 @@ struct verify : command<verify>
     double tolerance     = 80;
     bool per_instruction = false;
     bool reduce          = false;
+    bool offload_copy    = false;
     void parse(argument_parser& ap)
     {
         l.parse(ap);
+        ap(offload_copy,
+           {"--enable-offload-copy"},
+           ap.help("Enable implicit offload copying"),
+           ap.set_value(true));
         ap(tolerance, {"--tolerance"}, ap.help("Tolerance for errors"));
         ap(per_instruction,
            {"-i", "--per-instruction"},
@@ -242,17 +247,20 @@ struct verify : command<verify>
         auto p = l.load();
         std::cout << p << std::endl;
 
+        compile_options options;
+        options.offload_copy = offload_copy;
+
         if(per_instruction)
         {
-            verify_instructions(p, tolerance);
+            verify_instructions(p, options, tolerance);
         }
         else if(reduce)
         {
-            verify_reduced_program(p, tolerance);
+            verify_reduced_program(p, options, tolerance);
         }
         else
         {
-            verify_program(l.file, p, tolerance);
+            verify_program(l.file, p, options, tolerance);
         }
     }
 };

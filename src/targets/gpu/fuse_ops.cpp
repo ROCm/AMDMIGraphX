@@ -170,13 +170,16 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 }
 
 struct hip_triadd : ternary_device<hip_triadd, &device::add>
-{};
+{
+};
 
 struct hip_triadd_clip : quinary_device<hip_triadd_clip, &device::add_clip>
-{};
+{
+};
 
 struct hip_add_clip : quaternary_device<hip_add_clip, &device::add_clip>
-{};
+{
+};
 
 struct hip_triadd_relu : ternary_device<hip_triadd_relu, &device::add_relu>
 {
@@ -219,10 +222,12 @@ struct hip_add_gelu_new : binary_device<hip_add_gelu_new, &device::add_gelu_new>
 };
 
 struct hip_mul_add : ternary_device<hip_mul_add, &device::mul_add>
-{};
+{
+};
 
 struct hip_mul_add_relu : ternary_device<hip_mul_add_relu, &device::mul_add_relu>
-{};
+{
+};
 
 void move_broadcasted_back(std::vector<instruction_ref>& args)
 {

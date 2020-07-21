@@ -304,7 +304,7 @@ instruction_ref program::add_return(std::vector<instruction_ref> args)
     {
         if(ins.name() == "@param")
         {
-            auto&& name  = any_cast<builtin::param>(ins.get_operator()).parameter;
+            auto&& name = any_cast<builtin::param>(ins.get_operator()).parameter;
             impl->input_names.insert(impl->input_names.begin(), name);
         }
     }
@@ -331,10 +331,7 @@ shape program::get_parameter_shape(std::string name) const
         return {};
 }
 
-std::vector<std::string> program::get_parameter_names() const
-{
-    return impl->input_names;
-}
+std::vector<std::string> program::get_parameter_names() const { return impl->input_names; }
 
 instruction_ref program::get_parameter(std::string name) const
 {

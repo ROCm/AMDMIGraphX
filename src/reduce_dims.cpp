@@ -8,8 +8,7 @@ bool reduce_dim(std::vector<shape>& shapes, std::size_t n)
     std::vector<std::size_t> new_lens;
     for(const auto& s : shapes)
     {
-        if(n >= s.lens().size())
-            return false;
+        assert(n < s.lens().size());
         if((n + 1) >= s.lens().size())
             return false;
         auto astride = s.strides()[n];

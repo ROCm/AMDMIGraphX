@@ -283,6 +283,7 @@ struct miopen_apply
 
             auto conv = miopen_convolution{op, make_conv(op)};
             auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
+            conv.get_solution(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
             auto workspace = insert_allocation(ins, ws, "workspace");
             auto output    = insert_allocation(ins, ins->get_shape());

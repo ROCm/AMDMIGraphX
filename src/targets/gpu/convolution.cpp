@@ -1,6 +1,7 @@
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/generate.hpp>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,21 +37,36 @@ argument miopen_convolution::compute(context& ctx,
     auto w_desc = make_tensor(reshape_if_1d(args[1].get_shape()));
     auto y_desc = make_tensor(reshape_if_1d(output_shape));
 
-    float alpha = 1;
-    float beta  = 0;
-    auto status = miopenConvolutionForward(ctx.get_stream().get_miopen(),
-                                           &alpha,
-                                           x_desc.get(),
-                                           args[0].implicit(),
-                                           w_desc.get(),
-                                           args[1].implicit(),
-                                           cd.get(),
-                                           algo,
-                                           &beta,
-                                           y_desc.get(),
-                                           args[3].implicit(),
-                                           args[2].implicit(),
-                                           args[2].get_shape().bytes());
+    // float alpha = 1;
+    // float beta  = 0;
+    
+
+    // auto status = miopenConvolutionForward(ctx.get_stream().get_miopen(),
+    //                                        &alpha,
+    //                                        x_desc.get(),
+    //                                        args[0].implicit(),
+    //                                        w_desc.get(),
+    //                                        args[1].implicit(),
+    //                                        cd.get(),
+    //                                        algo,
+    //                                        &beta,
+    //                                        y_desc.get(),
+    //                                        args[3].implicit(),
+    //                                        args[2].implicit(),
+    //                                        args[2].get_shape().bytes());
+
+    auto status = miopenConvolutionForwardImmediate(ctx.get_stream().get_miopen(),
+                                  w_desc.get(),
+                                  args[1].implicit(),
+                                  x_desc.get(),
+                                  args[0].implicit(),
+                                  cd.get(),
+                                  y_desc.get(),
+                                  args[3].implicit(),
+                                  args[2].implicit(),
+                                  args[2].get_shape().bytes(),
+                                  solution_id);
+    
     if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("Running convolution failed");
     return args[3];
@@ -101,6 +117,44 @@ shape miopen_convolution::compile(context& ctx,
     handle = ctx.get_stream().get_miopen();
     algo   = perf.fwd_algo;
     return shape{shape::int8_type, {perf.memory}};
+}
+
+void miopen_convolution::get_solution(context& ctx,
+                                  const shape& output_shape,
+                                  std::vector<shape> inputs)
+{
+    auto x_desc = make_tensor(reshape_if_1d(inputs[0]));
+    auto w_desc = make_tensor(reshape_if_1d(inputs[1]));
+    auto y_desc = make_tensor(reshape_if_1d(output_shape));
+
+    size_t solution_count;
+
+    handle = ctx.get_stream().get_miopen();
+    auto status = miopenConvolutionForwardGetSolutionCount(handle,
+                                                           w_desc.get(),
+                                                           x_desc.get(),
+                                                           cd.get(),
+                                                           y_desc.get(),
+                                                           &solution_count);
+    if(status != miopenStatusSuccess)
+        MIGRAPHX_THROW("Get solution count failed");
+
+    // std::cout << "num solutions: " << solution_count << std::endl;
+    std::vector<miopenConvSolution_t> solutions(solution_count);
+
+    status = miopenConvolutionForwardGetSolution(handle,
+                                                           w_desc.get(),
+                                                           x_desc.get(),
+                                                           cd.get(),
+                                                           y_desc.get(),
+                                                           solution_count,
+                                                           &solution_count,
+                                                           solutions.data());
+    if(status != miopenStatusSuccess)
+        MIGRAPHX_THROW("Get solution failed");
+
+    solution_id = solutions.front().solution_id;
+    // std::cout << "solution id:" << solution_id << std::endl;
 }
 
 void miopen_convolution::finalize(context& ctx,

@@ -180,6 +180,14 @@ TEST_CASE(value_construct_key_int2)
     EXPECT(v.get_key() == "one");
 }
 
+TEST_CASE(value_construct_key_pair)
+{
+    migraphx::value v = std::make_pair("one", 1);
+    EXPECT(v.is_int64());
+    EXPECT(v.get_int64() == 1);
+    EXPECT(v.get_key() == "one");
+}
+
 TEST_CASE(value_construct_object)
 {
     migraphx::value v = {{"one", 1}, {"two", 2}, {"three", 3}};
@@ -444,6 +452,46 @@ TEST_CASE(value_to_from_pair)
     EXPECT(bool{v.to<std::pair<std::string, int>>() == std::pair<std::string, int>("one", 1)});
     EXPECT(
         bool{v.to<std::pair<std::string, float>>() == std::pair<std::string, float>("one", 1.0)});
+}
+
+TEST_CASE(value_to_struct)
+{
+    migraphx::value v = 1;
+    struct local
+    {
+        int i = 0;
+        local() = default;
+        local(int ii) : i(ii)
+        {}
+    };
+    EXPECT(v.to<local>().i == 1);
+}
+
+TEST_CASE(value_to_error1)
+{
+    migraphx::value v = {1, 2, 3};
+    EXPECT(test::throws([&]{ v.to<int>(); }));
+}
+
+TEST_CASE(value_to_error2)
+{
+    migraphx::value v = 1;
+    struct local
+    {};
+    EXPECT(test::throws([&]{ v.to<local>(); }));
+}
+
+TEST_CASE(value_to_error_parse)
+{
+    migraphx::value v = "abc";
+    EXPECT(test::throws([&]{ v.to<int>(); }));
+}
+
+TEST_CASE(value_to_vector)
+{
+    migraphx::value v = {1, 2, 3};
+    std::vector<int> a = {1, 2, 3};
+    EXPECT(v.to_vector<int>() == a);
 }
 
 TEST_CASE(not_array)

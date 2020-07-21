@@ -4,8 +4,10 @@ import sys
 import os
 import platform
 import unittest
-import onnx
-import onnx.backend.test
+
+if sys.version_info >= (3, 0):
+    import onnx
+    import onnx.backend.test
 
 import numpy as np
 from onnx_migraphx.backend import MIGraphXBackend as c2

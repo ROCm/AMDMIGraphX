@@ -25,12 +25,15 @@ class MIGraphXBackendTest(onnx.backend.test.BackendTest):
             if ref_outputs[i].dtype == np.object:
                 np.testing.assert_array_equal(ref_outputs[i], outputs[i])
             else:
-                np.testing.assert_allclose(ref_outputs[i], outputs[i], rtol=1e-3, atol=1e-5)
+                np.testing.assert_allclose(ref_outputs[i],
+                                           outputs[i],
+                                           rtol=1e-3,
+                                           atol=1e-5)
 
 
-def create_backend_test(testname=None, target_device = None):
+def create_backend_test(testname=None, target_device=None):
     if target_device is not None:
-    	c2.set_device(target_device)
+        c2.set_device(target_device)
     backend_test = MIGraphXBackendTest(c2, __name__)
 
     if testname:
@@ -169,12 +172,20 @@ def create_backend_test(testname=None, target_device = None):
         # numpy compares the difference between actual and desired to atol + rtol * abs(desired)
 
         # failed test cases
-        backend_test.exclude(r'test_argmax_keepdims_example_select_last_index_cpu')
-        backend_test.exclude(r'test_argmax_negative_axis_keepdims_example_select_last_index_cpu')
-        backend_test.exclude(r'test_argmax_no_keepdims_example_select_last_index_cpu')
-        backend_test.exclude(r'test_argmin_keepdims_example_select_last_index_cpu')
-        backend_test.exclude(r'test_argmin_negative_axis_keepdims_example_select_last_index_cpu')
-        backend_test.exclude(r'test_argmin_no_keepdims_example_select_last_index_cpu')
+        backend_test.exclude(
+            r'test_argmax_keepdims_example_select_last_index_cpu')
+        backend_test.exclude(
+            r'test_argmax_negative_axis_keepdims_example_select_last_index_cpu'
+        )
+        backend_test.exclude(
+            r'test_argmax_no_keepdims_example_select_last_index_cpu')
+        backend_test.exclude(
+            r'test_argmin_keepdims_example_select_last_index_cpu')
+        backend_test.exclude(
+            r'test_argmin_negative_axis_keepdims_example_select_last_index_cpu'
+        )
+        backend_test.exclude(
+            r'test_argmin_no_keepdims_example_select_last_index_cpu')
         backend_test.exclude(r'test_dropout_default_mask_cpu')
         backend_test.exclude(r'test_dropout_default_mask_ratio_cpu')
         backend_test.exclude(r'test_logsoftmax_axis_0_cpu')
@@ -183,8 +194,10 @@ def create_backend_test(testname=None, target_device = None):
         backend_test.exclude(r'test_lrn_cpu')
         backend_test.exclude(r'test_lrn_default_cpu')
         backend_test.exclude(r'test_maxpool_2d_dilations_cpu')
-        backend_test.exclude(r'test_maxpool_with_argmax_2d_precomputed_pads_cpu')
-        backend_test.exclude(r'test_maxpool_with_argmax_2d_precomputed_strides_cpu')
+        backend_test.exclude(
+            r'test_maxpool_with_argmax_2d_precomputed_pads_cpu')
+        backend_test.exclude(
+            r'test_maxpool_with_argmax_2d_precomputed_strides_cpu')
         backend_test.exclude(r'test_softmax_axis_0_cpu')
         backend_test.exclude(r'test_softmax_axis_1_cpu')
         backend_test.exclude(r'test_softmax_default_axis_cpu')
@@ -278,8 +291,9 @@ def create_backend_test(testname=None, target_device = None):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(os.path.basename(__file__),
-                                     description='Run the ONNX backend tests using MIGraphX.')
+    parser = argparse.ArgumentParser(
+        os.path.basename(__file__),
+        description='Run the ONNX backend tests using MIGraphX.')
 
     # Add an argument to match a single test name, by adding the name to the 'include' filter.
     # Using -k with python unittest (https://docs.python.org/3/library/unittest.html#command-line-options)
@@ -290,13 +304,14 @@ def parse_args():
         '--test-name',
         dest='testname',
         type=str,
-        help="Only run tests that match this value. Matching is regex based, and '.*' is automatically appended")
-    parser.add_argument(
-        '-d',
-        '--device',
-        dest='device',
-        type=str,
-        help="Specify the device to run test on")
+        help=
+        "Only run tests that match this value. Matching is regex based, and '.*' is automatically appended"
+    )
+    parser.add_argument('-d',
+                        '--device',
+                        dest='device',
+                        type=str,
+                        help="Specify the device to run test on")
 
     # parse just our args. python unittest has its own args and arg parsing, and that runs inside unittest.main()
     args, left = parser.parse_known_args()

@@ -352,14 +352,10 @@ struct find_layernorm
         return match::name("gpu::div")(
             match::arg(0)(match::name("gpu::sub")(
                 match::arg(0)(match::any().bind("x")),
-                match::arg(1)(multibroadcast_op(match::name("gpu::reduce_mean")))))
-                ,
-            
-            match::arg(1)(multibroadcast_op(match::name("gpu::sqrt")(
-                match::arg(0)(match::name("gpu::add")(match::any_arg(0, 1)(multibroadcast_op(match::has_value(1e-12f)))))
-            ))
-            )
-        );
+                match::arg(1)(multibroadcast_op(match::name("gpu::reduce_mean"))))),
+
+            match::arg(1)(multibroadcast_op(match::name("gpu::sqrt")(match::arg(0)(match::name(
+                "gpu::add")(match::any_arg(0, 1)(multibroadcast_op(match::has_value(1e-12f)))))))));
     }
 
     // static auto layernorm_tf()
@@ -374,10 +370,7 @@ struct find_layernorm
     //                                   )))));
     // }
 
-    auto matcher() const
-    {
-        return match::any_of(layernorm_onnx());
-    }
+    auto matcher() const { return match::any_of(layernorm_onnx()); }
 
     void apply(program& p, match::matcher_result r) const
     {
@@ -389,9 +382,13 @@ struct find_layernorm
         if(r.instructions.find("scale") != r.instructions.end())
         {
             auto scale_ins = r.instructions["scale"];
-            auto bias_ins = r.instructions["bias"];
-            auto scaled = p.insert_instruction(layernorm_ins, gpu::hip_mul{}, {layernorm_ins, scale_ins, layernorm_ins->inputs().back()});
-            p.insert_instruction(scaled, gpu::hip_add{}, {scaled, bias_ins, layernorm_ins->inputs().back()});
+            auto bias_ins  = r.instructions["bias"];
+            auto scaled =
+                p.insert_instruction(layernorm_ins,
+                                     gpu::hip_mul{},
+                                     {layernorm_ins, scale_ins, layernorm_ins->inputs().back()});
+            p.insert_instruction(
+                scaled, gpu::hip_add{}, {scaled, bias_ins, layernorm_ins->inputs().back()});
         }
     }
 };

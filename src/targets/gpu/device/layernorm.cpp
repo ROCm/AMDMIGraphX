@@ -42,11 +42,7 @@ void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
             idx.local_stride(relements, [&](auto j) __device__ { x(j) = x(j) - m; });
 
             auto r = block_reduce<max_block_size>(
-                         idx,
-                         sum{},
-                         0,
-                         relements,
-                         [&](auto j) __device__ { return x(j) * x(j); }) /
+                         idx, sum{}, 0, relements, [&](auto j) __device__ { return x(j) * x(j); }) /
                      relements;
 
             idx.local_stride(relements, [&](auto j) __device__ {

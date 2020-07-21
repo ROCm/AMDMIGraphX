@@ -459,10 +459,9 @@ TEST_CASE(value_to_struct)
     migraphx::value v = 1;
     struct local
     {
-        int i = 0;
+        int i   = 0;
         local() = default;
-        local(int ii) : i(ii)
-        {}
+        local(int ii) : i(ii) {}
     };
     EXPECT(v.to<local>().i == 1);
 }
@@ -470,26 +469,27 @@ TEST_CASE(value_to_struct)
 TEST_CASE(value_to_error1)
 {
     migraphx::value v = {1, 2, 3};
-    EXPECT(test::throws([&]{ v.to<int>(); }));
+    EXPECT(test::throws([&] { v.to<int>(); }));
 }
 
 TEST_CASE(value_to_error2)
 {
     migraphx::value v = 1;
     struct local
-    {};
-    EXPECT(test::throws([&]{ v.to<local>(); }));
+    {
+    };
+    EXPECT(test::throws([&] { v.to<local>(); }));
 }
 
 TEST_CASE(value_to_error_parse)
 {
     migraphx::value v = "abc";
-    EXPECT(test::throws([&]{ v.to<int>(); }));
+    EXPECT(test::throws([&] { v.to<int>(); }));
 }
 
 TEST_CASE(value_to_vector)
 {
-    migraphx::value v = {1, 2, 3};
+    migraphx::value v  = {1, 2, 3};
     std::vector<int> a = {1, 2, 3};
     EXPECT(v.to_vector<int>() == a);
 }

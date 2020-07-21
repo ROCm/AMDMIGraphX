@@ -4,12 +4,12 @@
 
 migraphx::shape make_shape(std::vector<std::size_t> lens)
 {
-    return {migraphx::shape::float_type, lens};
+    return {migraphx::shape::float_type, std::move(lens)};
 }
 
 migraphx::shape make_shape(std::vector<std::size_t> lens, std::vector<std::size_t> strides)
 {
-    return {migraphx::shape::float_type, lens, strides};
+    return {migraphx::shape::float_type, std::move(lens), std::move(strides)};
 }
 
 TEST_CASE(same_standard)

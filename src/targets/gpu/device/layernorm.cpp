@@ -19,8 +19,6 @@ void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
     reduce_output_lens.back() = 1;
 
     std::vector<index_int> reduce_lens = get_reduce_lens(input_shape.lens(), reduce_output_lens);
-    shape reduce_slice{output_shape.type(), reduce_lens};
-    shape reduce_output_shape{output_shape.type(), reduce_output_lens};
 
     hip_visit_all(result, arg1)([&](auto output, auto input) {
         using value_type = typename decltype(input)::value_type;
@@ -32,7 +30,7 @@ void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
             const auto out_idx  = i / block_size;
             const auto base_idx = out_idx * relements;
             value_type x_data[4];
-            auto x = [&](auto j) -> value_type& { return x_data[j - idx.local]; };
+            auto x = [&](auto j) -> value_type& { return x_data[(j - idx.local) / block_size]; };
 
             idx.local_stride(relements,
                              [&](auto j) __device__ { x(j) = input.data()[base_idx + j]; });
@@ -48,7 +46,7 @@ void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
                          sum{},
                          0,
                          relements,
-                         [&](auto j) __device__ { return ::pow(to_hip_type(x(j)), 2); }) /
+                         [&](auto j) __device__ { return x(j) * x(j); }) /
                      relements;
 
             idx.local_stride(relements, [&](auto j) __device__ {

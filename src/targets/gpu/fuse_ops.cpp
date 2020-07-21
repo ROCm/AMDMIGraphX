@@ -6,6 +6,8 @@
 #include <migraphx/gpu/clip.hpp>
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/oper.hpp>
+#include <migraphx/gpu/add.hpp>
+#include <migraphx/gpu/mul.hpp>
 #include <migraphx/gpu/device/layernorm.hpp>
 #include <migraphx/gpu/device/gelu.hpp>
 #include <migraphx/gpu/device/mul_add.hpp>
@@ -347,26 +349,34 @@ struct find_layernorm
 
     static auto layernorm_onnx()
     {
-        return match::arg(0)(match::name("gpu::sub")(
-            match::arg(0)(match::any().bind("x")),
-            match::arg(1)(multibroadcast_op(match::name("gpu::reduce_mean")))));
+        return match::name("gpu::div")(
+            match::arg(0)(match::name("gpu::sub")(
+                match::arg(0)(match::any().bind("x")),
+                match::arg(1)(multibroadcast_op(match::name("gpu::reduce_mean")))))
+                ,
+            
+            match::arg(1)(multibroadcast_op(match::name("gpu::sqrt")(
+                match::arg(0)(match::name("gpu::add")(match::any_arg(0, 1)(multibroadcast_op(match::has_value(1e-12f)))))
+            ))
+            )
+        );
     }
 
-    static auto layernorm_tf()
-    {
-        return match::either_arg(0, 1)(
-            match::name("gpu::mul")(match::arg(0)(match::name("gpu::add").bind("x"))),
-            match::name("gpu::sub")(match::either_arg(0, 1)(
-                multibroadcast_op(),
-                match::name("gpu::mul")(
-                    match::arg(1)(match::name("gpu::mul")(match::arg(1)(multibroadcast_op()))
+    // static auto layernorm_tf()
+    // {
+    //     return match::either_arg(0, 1)(
+    //         match::name("gpu::mul")(match::arg(0)(match::name("gpu::add").bind("x"))),
+    //         match::name("gpu::sub")(match::either_arg(0, 1)(
+    //             multibroadcast_op().bind("bias"),
+    //             match::name("gpu::mul")(
+    //                 match::arg(1)(match::name("gpu::mul")(match::arg(1)(multibroadcast_op().bind("scale")))
 
-                                      )))));
-    }
+    //                                   )))));
+    // }
 
     auto matcher() const
     {
-        return match::name("gpu::add", "gpu::div")(match::any_of(layernorm_onnx(), layernorm_tf()));
+        return match::any_of(layernorm_onnx());
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -375,7 +385,14 @@ struct find_layernorm
         auto x_ins = r.instructions["x"];
         auto args  = ins->inputs();
 
-        p.replace_instruction(ins, hip_layernorm{}, x_ins, args.back());
+        auto layernorm_ins = p.replace_instruction(ins, hip_layernorm{}, x_ins, args.back());
+        if(r.instructions.find("scale") != r.instructions.end())
+        {
+            auto scale_ins = r.instructions["scale"];
+            auto bias_ins = r.instructions["bias"];
+            auto scaled = p.insert_instruction(layernorm_ins, gpu::hip_mul{}, {layernorm_ins, scale_ins, layernorm_ins->inputs().back()});
+            p.insert_instruction(scaled, gpu::hip_add{}, {scaled, bias_ins, layernorm_ins->inputs().back()});
+        }
     }
 };
 

@@ -26,6 +26,7 @@
 #include <migraphx/cpu/gemm.hpp>
 #include <unordered_map>
 #include <utility>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -166,6 +167,21 @@ struct cpu_lrn
     }
 };
 
+template <class V, class T, class... Ts>
+void visit_quantize_impl(V&& v, T&& x, Ts&&... xs)
+{
+    x.visit([&](auto y) { visit_all(xs...)([&](auto... ys) { v(y, ys...); }); });
+}
+
+template <class T, class... Ts>
+auto visit_quantize(T&& x, Ts&&... xs)
+{
+    return [&](auto v) {
+        // Workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70100
+        visit_quantize_impl(v, x, xs...);
+    };
+}
+
 template <class Op>
 struct cpu_convolution
 {
@@ -182,38 +198,57 @@ struct cpu_convolution
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        result.visit([&](auto output) {
-            using type = typename decltype(output)::value_type;
-            visit_all(args[0], args[1])([&](auto input, auto weights) {
-                auto in   = input.get_shape().lens();
-                auto in_h = in[2];
-                auto in_w = in[3];
+        visit_quantize(result, args[0], args[1])([&](auto output, auto input, auto weights) {
+            auto in_lens = input.get_shape().lens();
 
-                auto wei   = weights.get_shape().lens();
-                auto wei_n = wei[0];
-                auto wei_c = wei[1];
-                auto wei_h = wei[2];
-                auto wei_w = wei[3];
+            auto wei_lens = weights.get_shape().lens();
+            auto wei_n    = wei_lens[0];
+            auto wei_c    = wei_lens[1];
+            std::vector<std::size_t> win_size(wei_lens.begin() + 1, wei_lens.end());
 
-                par_dfor(output_shape.lens()[0],
-                         output_shape.lens()[1],
-                         output_shape.lens()[2],
-                         output_shape.lens()[3])(
-                    [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
-                        const auto start_x  = i * op.stride[0] - op.padding[0];
-                        const auto start_y  = j * op.stride[1] - op.padding[1];
-                        const auto group_id = w / (wei_n / op.group);
+            par_for(output_shape.elements(), [&](auto i) {
+                auto idx_o = output_shape.multi(i);
+                auto w     = idx_o[1];
+                auto n_dim = idx_o.size();
 
-                        type acc = type{0};
-                        dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t y) {
-                            const auto in_x  = start_x + x;
-                            const auto in_y  = start_y + y;
-                            const auto in_ch = group_id * wei_c + k;
-                            if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
-                                acc += input(o, in_ch, in_x, in_y) * weights(w, k, x, y);
-                        });
-                        output(o, w, i, j) = acc;
-                    });
+                std::vector<std::ptrdiff_t> win_start;
+                for(std::size_t dim = 2; dim < n_dim; ++dim)
+                {
+                    auto d_2 = dim - 2;
+                    win_start.push_back(std::ptrdiff_t(idx_o[dim] * op.stride[d_2]) -
+                                        std::ptrdiff_t(op.padding[d_2]));
+                }
+                const auto group_id = w / (wei_n / op.group);
+
+                shape win_shape{output_shape.type(), win_size};
+
+                double acc = 0.0;
+                shape_for_each(win_shape, [&](auto idx_win) {
+                    auto k           = idx_win[0];
+                    const auto in_ch = group_id * wei_c + k;
+                    std::vector<std::ptrdiff_t> idx(idx_o.begin(), idx_o.end());
+                    idx[1] = in_ch;
+                    std::transform(idx_win.begin() + 1,
+                                   idx_win.end(),
+                                   win_start.begin(),
+                                   idx.begin() + 2,
+                                   [](std::ptrdiff_t ii, std::ptrdiff_t jj) { return ii + jj; });
+                    std::vector<std::ptrdiff_t> idx_wei(idx_o.size());
+                    idx_wei[0] = w;
+                    std::copy(idx_win.begin(), idx_win.end(), idx_wei.begin() + 1);
+                    if(std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
+                       std::equal(idx.begin(),
+                                  idx.end(),
+                                  in_lens.begin(),
+                                  in_lens.end(),
+                                  std::less<std::ptrdiff_t>{}))
+                    {
+                        acc +=
+                            input(idx.begin(), idx.end()) * weights(idx_wei.begin(), idx_wei.end());
+                    }
+                });
+
+                output[i] = acc;
             });
         });
         return result;
@@ -241,41 +276,69 @@ struct cpu_deconvolution
 
             std::fill(output.begin(), output.end(), type{0});
 
-            auto out_lens = output_shape.lens();
-            auto out_h    = out_lens[2];
-            auto out_w    = out_lens[3];
-
-            auto in   = input.get_shape().lens();
-            auto in_n = in[0];
-            auto in_c = in[1];
-            auto in_h = in[2];
-            auto in_w = in[3];
+            auto in_lens = input.get_shape().lens();
+            auto in_n    = in_lens[0];
+            auto in_c    = in_lens[1];
 
             auto wei   = weights.get_shape().lens();
             auto wei_n = wei[0];
             auto wei_c = wei[1];
-            auto wei_h = wei[2];
-            auto wei_w = wei[3];
 
-            par_dfor(in_n, wei_c)([&](std::size_t o, std::size_t k) {
+            auto out_lens = output_shape.lens();
+            auto kdims    = op.kdims();
 
-                dfor(in_c, in_h, in_w, wei_h, wei_w)(
-                    [&](std::size_t w, std::size_t i, std::size_t j, std::size_t x, std::size_t y) {
-                        const int start_x = i * op.stride[0] - op.padding[0];
-                        const int start_y = j * op.stride[1] - op.padding[1];
-                        const int out_x   = start_x + x * op.dilation[0];
-                        const int out_y   = start_y + y * op.dilation[1];
+            std::vector<std::size_t> win_size{in_c};
+            std::copy(in_lens.begin() + 2, in_lens.end(), std::back_inserter(win_size));
+            std::copy(wei.begin() + 2, wei.end(), std::back_inserter(win_size));
+            shape win_shape{output_shape.type(), win_size};
 
-                        const auto group_id = w / (wei_n / op.group);
-                        const auto in_ch    = group_id * wei_c + k;
+            par_dfor(in_n, wei_c)([&](int o, int k) {
 
-                        if(out_x >= 0 && out_x < out_h && out_y >= 0 && out_y < out_w)
-                        {
-                            output(o, in_ch, out_x, out_y) +=
-                                input(o, w, i, j) * weights(w, k, x, y);
-                        }
-                    });
+                shape_for_each(win_shape, [&](auto idx_win) {
+                    const int w = idx_win[0];
+
+                    auto input_dims_start = idx_win.begin() + 1;
+                    auto wei_dims_start   = idx_win.begin() + kdims + 1;
+
+                    std::vector<std::ptrdiff_t> win_start;
+                    for(std::size_t n = 0; n < kdims; ++n)
+                    {
+                        win_start.push_back(std::ptrdiff_t(*(input_dims_start + n) * op.stride[n]) -
+                                            std::ptrdiff_t(op.padding[n]));
+                    }
+
+                    const int group_id = w / (wei_n / op.group);
+                    const int in_ch    = group_id * wei_c + k;
+
+                    std::vector<std::ptrdiff_t> idx_out{o, in_ch};
+
+                    for(size_t n = 0; n < kdims; n++)
+                    {
+                        idx_out.push_back(win_start[n] + *(wei_dims_start + n) * op.dilation[n]);
+                    }
+
+                    std::vector<std::ptrdiff_t> idx_wei{w, k};
+                    std::copy(wei_dims_start, idx_win.end(), std::back_inserter(idx_wei));
+
+                    std::vector<std::ptrdiff_t> idx_in{o, w};
+                    std::copy(input_dims_start, wei_dims_start, std::back_inserter(idx_in));
+
+                    if(std::all_of(
+                           idx_out.begin() + 2, idx_out.end(), [&](auto ii) { return ii >= 0; }) and
+                       std::equal(idx_out.begin() + 2,
+                                  idx_out.end(),
+                                  out_lens.begin() + 2,
+                                  out_lens.end(),
+                                  std::less<std::ptrdiff_t>{}))
+                    {
+                        output(idx_out.begin(), idx_out.end()) +=
+                            input(idx_in.begin(), idx_in.end()) *
+                            weights(idx_wei.begin(), idx_wei.end());
+                    }
+                });
+
             });
+
         });
         return result;
     }
@@ -459,7 +522,7 @@ struct cpu_pad
         return migraphx::reflect(self.op, f);
     }
 
-    std::string name() const { return "cpu::contiguous"; }
+    std::string name() const { return "cpu::pad"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {

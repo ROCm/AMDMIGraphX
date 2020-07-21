@@ -39,7 +39,6 @@ argument miopen_convolution::compute(context& ctx,
 
     // float alpha = 1;
     // float beta  = 0;
-    
 
     // auto status = miopenConvolutionForward(ctx.get_stream().get_miopen(),
     //                                        &alpha,
@@ -56,17 +55,17 @@ argument miopen_convolution::compute(context& ctx,
     //                                        args[2].get_shape().bytes());
 
     auto status = miopenConvolutionForwardImmediate(ctx.get_stream().get_miopen(),
-                                  w_desc.get(),
-                                  args[1].implicit(),
-                                  x_desc.get(),
-                                  args[0].implicit(),
-                                  cd.get(),
-                                  y_desc.get(),
-                                  args[3].implicit(),
-                                  args[2].implicit(),
-                                  args[2].get_shape().bytes(),
-                                  solution_id);
-    
+                                                    w_desc.get(),
+                                                    args[1].implicit(),
+                                                    x_desc.get(),
+                                                    args[0].implicit(),
+                                                    cd.get(),
+                                                    y_desc.get(),
+                                                    args[3].implicit(),
+                                                    args[2].implicit(),
+                                                    args[2].get_shape().bytes(),
+                                                    solution_id);
+
     if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("Running convolution failed");
     return args[3];
@@ -120,8 +119,8 @@ shape miopen_convolution::compile(context& ctx,
 }
 
 void miopen_convolution::get_solution(context& ctx,
-                                  const shape& output_shape,
-                                  std::vector<shape> inputs)
+                                      const shape& output_shape,
+                                      std::vector<shape> inputs)
 {
     auto x_desc = make_tensor(reshape_if_1d(inputs[0]));
     auto w_desc = make_tensor(reshape_if_1d(inputs[1]));
@@ -129,13 +128,9 @@ void miopen_convolution::get_solution(context& ctx,
 
     size_t solution_count;
 
-    handle = ctx.get_stream().get_miopen();
-    auto status = miopenConvolutionForwardGetSolutionCount(handle,
-                                                           w_desc.get(),
-                                                           x_desc.get(),
-                                                           cd.get(),
-                                                           y_desc.get(),
-                                                           &solution_count);
+    handle      = ctx.get_stream().get_miopen();
+    auto status = miopenConvolutionForwardGetSolutionCount(
+        handle, w_desc.get(), x_desc.get(), cd.get(), y_desc.get(), &solution_count);
     if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("Get solution count failed");
 
@@ -143,13 +138,13 @@ void miopen_convolution::get_solution(context& ctx,
     std::vector<miopenConvSolution_t> solutions(solution_count);
 
     status = miopenConvolutionForwardGetSolution(handle,
-                                                           w_desc.get(),
-                                                           x_desc.get(),
-                                                           cd.get(),
-                                                           y_desc.get(),
-                                                           solution_count,
-                                                           &solution_count,
-                                                           solutions.data());
+                                                 w_desc.get(),
+                                                 x_desc.get(),
+                                                 cd.get(),
+                                                 y_desc.get(),
+                                                 solution_count,
+                                                 &solution_count,
+                                                 solutions.data());
     if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("Get solution failed");
 

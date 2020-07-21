@@ -17,7 +17,7 @@ struct miopen_convolution
     shared<convolution_descriptor> cd;
     miopenConvFwdAlgorithm_t algo{};
     miopenHandle_t handle = nullptr;
-    uint64_t solution_id = 0;
+    uint64_t solution_id  = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

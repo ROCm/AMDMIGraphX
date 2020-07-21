@@ -225,7 +225,8 @@ TEST_CASE(value_construct_object)
 
 TEST_CASE(value_key_object)
 {
-    std::unordered_map<std::string, migraphx::value> values = {{"one", 1}, {"two", 2}, {"three", 3}};
+    std::unordered_map<std::string, migraphx::value> values = {
+        {"one", 1}, {"two", 2}, {"three", 3}};
     migraphx::value v("key", values);
     EXPECT(v.get_key() == "key");
     EXPECT(v.is_object());

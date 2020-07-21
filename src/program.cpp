@@ -286,7 +286,7 @@ instruction_ref program::add_parameter(std::string name, shape s, bool is_input)
 {
     assert(get_parameter_shape(name) == shape{});
     // if current parameter is a program input
-    if (is_input)
+    if(is_input)
     {
         impl->input_names.push_back(name);
     }

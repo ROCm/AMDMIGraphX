@@ -285,10 +285,6 @@ instruction_ref program::add_outline(const shape& s)
 instruction_ref program::add_parameter(std::string name, shape s)
 {
     assert(get_parameter_shape(name) == shape{});
-    if (name != "scratch")
-    {
-        impl->input_names.push_back(name);
-    }
     impl->instructions.push_front({builtin::param{std::move(name)}, std::move(s), {}});
     return impl->instructions.begin();
 }
@@ -302,6 +298,17 @@ instruction_ref program::add_return(std::vector<instruction_ref> args)
     auto result = std::prev(impl->instructions.end());
     instruction::backreference(result);
     assert(result->valid(begin()));
+
+    // retrieve the input parameter names and store them
+    for(auto&& ins : impl->instructions)
+    {
+        if(ins.name() == "@param")
+        {
+            auto&& name  = any_cast<builtin::param>(ins.get_operator()).parameter;
+            impl->input_names.insert(impl->input_names.begin(), name);
+        }
+    }
+
     return result;
 }
 

@@ -35,11 +35,11 @@ argument miopen_convolution::compute(context& ctx,
 {
     auto x_desc = make_tensor(reshape_if_1d(args[0].get_shape()));
     auto w_desc = make_tensor(reshape_if_1d(args[1].get_shape()));
-    auto y_desc = make_tensor(reshape_if_1d(output_shape));        
+    auto y_desc = make_tensor(reshape_if_1d(output_shape));
 
     if(solution_id == 0)
         MIGRAPHX_THROW("MIOpen Convolution: invalid solution ID");
-    
+
     auto status = miopenConvolutionForwardImmediate(ctx.get_stream().get_miopen(),
                                                     w_desc.get(),
                                                     args[1].implicit(),

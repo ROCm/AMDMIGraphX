@@ -132,10 +132,7 @@ void set_device(std::size_t id)
 
 void gpu_sync() { hipDeviceSynchronize(); }
 
-void stream_sync(context& ctx)
-{
-    hipStreamSynchronize(ctx.get_stream().get());
-}
+void stream_sync(context& ctx) { hipStreamSynchronize(ctx.get_stream().get()); }
 
 void hip_async_copy(context& ctx, const argument& src, const argument& dst, hipMemcpyKind kind)
 {

@@ -8,8 +8,8 @@ import unittest
 if sys.version_info >= (3, 0):
     import onnx
     import onnx.backend.test
+    import numpy as np
 
-import numpy as np
 from onnx_migraphx.backend import MIGraphXBackend as c2
 
 pytest_plugins = 'onnx.backend.test.report',

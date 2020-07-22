@@ -245,12 +245,12 @@ value* value::data()
 value* value::begin()
 {
     // cppcheck-suppress assertWithSideEffect
-    assert(data());
+    assert(data() or empty());
     return data();
 }
 const value* value::begin() const
 {
-    assert(data());
+    assert(data() or empty());
     return data();
 }
 value* value::end() { return begin() + size(); }

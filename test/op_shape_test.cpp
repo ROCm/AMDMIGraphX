@@ -69,11 +69,50 @@ TEST_CASE(convolution_shape)
     migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
     expect_shape(output, migraphx::op::convolution{}, input, weights);
     throws_shape(migraphx::op::convolution{}, input);
+    throws_shape(migraphx::op::convolution{{0}, {1}, {1}}, input);
 
     migraphx::shape input2{migraphx::shape::float_type, {3, 3}};
     migraphx::shape weights2{migraphx::shape::float_type, {3, 3}};
     throws_shape(migraphx::op::convolution{}, input2, weights2);
     throws_shape(migraphx::op::convolution{}, input2, weights);
+
+    migraphx::shape output_1d{migraphx::shape::float_type, {4, 4, 1}};
+    migraphx::shape input_1d{migraphx::shape::float_type, {4, 3, 3}};
+    migraphx::shape weights_1d{migraphx::shape::float_type, {4, 3, 3}};
+    expect_shape(output_1d, migraphx::op::convolution{{0}, {1}, {1}}, input_1d, weights_1d);
+
+    migraphx::shape output_3d{migraphx::shape::float_type, {4, 4, 1, 1, 1}};
+    migraphx::shape input_3d{migraphx::shape::float_type, {4, 3, 3, 3, 3}};
+    migraphx::shape weights_3d{migraphx::shape::float_type, {4, 3, 3, 3, 3}};
+    expect_shape(output_3d,
+                 migraphx::op::convolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}},
+                 input_3d,
+                 weights_3d);
+
+    throws_shape(migraphx::op::convolution{}, input_3d, weights_3d);
+}
+
+TEST_CASE(deconvolution_shape)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 4, 1, 1}};
+    migraphx::shape output{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
+    expect_shape(output, migraphx::op::deconvolution{}, input, weights);
+    throws_shape(migraphx::op::deconvolution{}, input);
+    throws_shape(migraphx::op::deconvolution{{0}, {1}, {1}}, input);
+
+    migraphx::shape input_1d{migraphx::shape::float_type, {4, 4, 1}};
+    migraphx::shape output_1d{migraphx::shape::float_type, {4, 3, 3}};
+    migraphx::shape weights_1d{migraphx::shape::float_type, {4, 3, 3}};
+    expect_shape(output_1d, migraphx::op::deconvolution{{0}, {1}, {1}}, input_1d, weights_1d);
+
+    migraphx::shape input_3d{migraphx::shape::float_type, {4, 4, 1, 1, 1}};
+    migraphx::shape output_3d{migraphx::shape::float_type, {4, 3, 3, 3, 3}};
+    migraphx::shape weights_3d{migraphx::shape::float_type, {4, 3, 3, 3, 3}};
+    expect_shape(output_3d,
+                 migraphx::op::deconvolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}},
+                 input_3d,
+                 weights_3d);
 }
 
 TEST_CASE(quant_convolution_shape)
@@ -83,6 +122,8 @@ TEST_CASE(quant_convolution_shape)
     migraphx::shape weights{migraphx::shape::int8_type, {4, 3, 3, 3}};
     expect_shape(output, migraphx::op::quant_convolution{}, input, weights);
     throws_shape(migraphx::op::quant_convolution{}, input);
+    throws_shape(migraphx::op::quant_convolution{{0}, {1, 1}, {1, 1}}, input, weights);
+    throws_shape(migraphx::op::quant_convolution{{0}, {1}, {1}}, input, weights);
 
     migraphx::shape input2{migraphx::shape::int32_type, {3, 3}};
     migraphx::shape weights2{migraphx::shape::float_type, {3, 3}};
@@ -94,6 +135,23 @@ TEST_CASE(quant_convolution_shape)
     throws_shape(migraphx::op::quant_convolution{}, input3, weights);
     throws_shape(migraphx::op::quant_convolution{}, input, weight3);
     throws_shape(migraphx::op::quant_convolution{}, input3, weight3);
+}
+
+TEST_CASE(pooling_shape)
+{
+    migraphx::shape output{migraphx::shape::float_type, {4, 3, 1, 1}};
+    migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};
+    throws_shape(migraphx::op::pooling{"max", {1}, {0}, {1}}, input);
+    expect_shape(output, migraphx::op::pooling{"max", {0, 0}, {1, 1}, {3, 3}}, input);
+}
+
+TEST_CASE(inconsistent_attr_shape)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};
+    migraphx::shape weights{migraphx::shape::float_type, {4, 3, 3, 3}};
+    throws_shape(migraphx::op::convolution{{1, 1}, {2}, {3, 3, 3}}, input, weights);
+    throws_shape(migraphx::op::deconvolution{{1, 1}, {2}, {3, 3, 3}}, input, weights);
+    throws_shape(migraphx::op::pooling{"max", {1}, {0}, {1, 1}}, input);
 }
 
 TEST_CASE(transpose_shape)

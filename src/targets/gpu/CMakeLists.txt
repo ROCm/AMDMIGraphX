@@ -36,6 +36,7 @@ add_library(migraphx_device
     device/exp.cpp
     device/floor.cpp
     device/gather.cpp
+    device/gelu.cpp
     device/int8_gemm_pack.cpp
     device/log.cpp
     device/logsoftmax.cpp
@@ -66,11 +67,12 @@ add_library(migraphx_device
     device/sub.cpp
     device/tan.cpp
     device/tanh.cpp
+    device/rnn_variable_seq_lens.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_device)
-target_compile_options(migraphx_device PRIVATE -std=c++17 -fno-gpu-rdc -Wno-unused-command-line-argument)
+target_compile_options(migraphx_device PRIVATE -std=c++17 -fno-gpu-rdc -Wno-unused-command-line-argument -Xclang -fallow-half-arguments-and-returns)
 target_link_libraries(migraphx_device migraphx hip::device -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument)
 if(CMAKE_CXX_COMPILER MATCHES ".*hcc")
     set(AMDGPU_TARGETS "gfx803;gfx900;gfx906" CACHE STRING "")
@@ -78,6 +80,13 @@ if(CMAKE_CXX_COMPILER MATCHES ".*hcc")
         target_compile_options(migraphx_device PRIVATE -amdgpu-target=${AMDGPU_TARGET})
         target_link_libraries(migraphx_device -amdgpu-target=${AMDGPU_TARGET})
     endforeach()
+else()
+    target_compile_options(migraphx_device PRIVATE -Wno-cuda-compat)
+endif()
+check_cxx_compiler_flag("--cuda-host-only -fhip-lambda-host-device -x hip" HAS_HIP_LAMBDA_HOST_DEVICE)
+if(HAS_HIP_LAMBDA_HOST_DEVICE)
+  message(STATUS "Enable -fhip-lambda-host-device")
+  target_compile_options(migraphx_device PRIVATE -fhip-lambda-host-device)
 endif()
 target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
@@ -116,6 +125,7 @@ add_library(migraphx_gpu
     int8_conv_pack.cpp
     gemm_impl.cpp
     preallocate_param.cpp
+    rnn_variable_seq_lens.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})

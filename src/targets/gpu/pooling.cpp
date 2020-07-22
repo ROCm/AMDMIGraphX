@@ -8,14 +8,35 @@ namespace gpu {
 shape miopen_pooling::compute_shape(const std::vector<shape>& inputs) const
 {
     check_shapes{inputs, *this}.has(2).standard();
-    return op.compute_shape({inputs.at(0)});
+    std::vector<shape> pooling_input = {inputs.at(0)};
+    check_shapes{pooling_input, *this}.max_ndims(5);
+    return op.compute_shape(pooling_input);
 }
+
+inline void reshape_if_1d(shape& input)
+{
+    auto dims = input.lens();
+
+    if(dims.size() == 3)
+    {
+        std::vector<size_t> new_dims = dims;
+        new_dims.insert(new_dims.begin() + 2, 1);
+        input = shape{input.type(), new_dims};
+    }
+}
+
 argument miopen_pooling::compute(context& ctx,
                                  const shape& output_shape,
                                  const std::vector<argument>& args) const
 {
-    auto x_desc = make_tensor(args[0].get_shape());
-    auto y_desc = make_tensor(output_shape);
+    shape x_shape = args[0].get_shape();
+    shape y_shape = output_shape;
+
+    reshape_if_1d(x_shape);
+    reshape_if_1d(y_shape);
+
+    auto x_desc = make_tensor(x_shape);
+    auto y_desc = make_tensor(y_shape);
 
     float alpha = 1;
     float beta  = 0;

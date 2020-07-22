@@ -69,7 +69,7 @@ struct min
 struct lowest
 {
     template <class T>
-    operator T() const
+    __device__ __host__ operator T() const
     {
         return device_cast(std::numeric_limits<host_type<T>>::lowest());
     }
@@ -78,20 +78,25 @@ struct lowest
 struct highest
 {
     template <class T>
-    operator T() const
+    __device__ __host__ operator T() const
     {
         return device_cast(std::numeric_limits<host_type<T>>::max());
     }
 };
 
 #ifdef MIGRAPHX_NO_DPP
-template <index_int N, class Op, class T, class F>
-__device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
+template <index_int N,
+          class Op,
+          class T,
+          class ForStride,
+          class F,
+          MIGRAPHX_REQUIRES(not std::is_integral<ForStride>{})>
+__device__ auto block_reduce(index idx, Op op, T init, ForStride fs, F f)
 {
-    using type = decltype(f(idx.local));
+    using type = decltype(f(deduce_for_stride(fs)));
     MIGRAPHX_DEVICE_SHARED type buffer[N];
     type x = init;
-    idx.local_stride(n, [&](auto i) { x = op(x, f(i)); });
+    fs([&](auto i) { x = op(x, f(i)); });
     buffer[idx.local] = x;
     __syncthreads();
 
@@ -140,7 +145,11 @@ __device__ T dpp_mov(T& x)
     input.data = x;
     for(index_int i = 0; i < n; i++)
     {
+#if defined(__HCC__)
         output.reg[i] = __llvm_amdgcn_move_dpp(input.reg[i], DppCtrl, RowMask, BankMask, BoundCtrl);
+#else
+        output.reg[i] = __hip_move_dpp(input.reg[i], DppCtrl, RowMask, BankMask, BoundCtrl);
+#endif
     }
     return output.data;
 }
@@ -214,7 +223,7 @@ __device__ auto block_reduce(index idx, Op op, T init, ForStride fs, F f)
     }
     return y;
 }
-
+#endif
 template <index_int N, class Op, class T, class F>
 __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
 {
@@ -225,8 +234,6 @@ __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
     return block_reduce<N>(
         idx, op, init, midx.for_stride(fs), [&](auto mi) __device__ { return f(mi[0]); });
 }
-
-#endif
 constexpr index_int compute_block_size(index_int n, index_int max_block_size)
 {
     size_t block_size = 64;

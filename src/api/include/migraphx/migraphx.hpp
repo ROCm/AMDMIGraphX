@@ -211,14 +211,26 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
 
     shape(migraphx_shape* p, borrow) { this->set_handle(p, borrow{}); }
 
+    shape(migraphx_shape_datatype_t type)
+    {
+        this->make_handle(&migraphx_shape_create_scalar, type);
+    }
+
     shape(migraphx_shape_datatype_t type, std::vector<size_t> plengths)
     {
         this->make_handle(&migraphx_shape_create, type, plengths.data(), plengths.size());
     }
 
-    shape(migraphx_shape_datatype_t type)
+    shape(migraphx_shape_datatype_t type,
+          std::vector<size_t> plengths,
+          std::vector<size_t> pstrides)
     {
-        this->make_handle(&migraphx_shape_create_scalar, type);
+        this->make_handle(&migraphx_shape_create_with_strides,
+                          type,
+                          plengths.data(),
+                          plengths.size(),
+                          pstrides.data(),
+                          pstrides.size());
     }
 
     std::vector<size_t> lengths() const
@@ -362,6 +374,8 @@ struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
     program_parameters(migraphx_program_parameters* p, own) { this->set_handle(p, own{}); }
 
     program_parameters(migraphx_program_parameters* p, borrow) { this->set_handle(p, borrow{}); }
+
+    program_parameters(migraphx_program_parameters* p) { this->set_handle(p, borrow{}); }
 
     program_parameters() { this->make_handle(&migraphx_program_parameters_create); }
 
@@ -555,6 +569,62 @@ inline program parse_onnx_buffer(const std::string& buffer)
         make<migraphx_program>(
             &migraphx_parse_onnx_buffer, buffer.data(), buffer.size(), options.get_handle_ptr()),
         own{});
+}
+
+struct quantize_op_names : MIGRAPHX_HANDLE_BASE(quantize_op_names)
+{
+    quantize_op_names() { this->make_handle(&migraphx_quantize_op_names_create); }
+
+    quantize_op_names(migraphx_quantize_op_names* p, own) { this->set_handle(p, own{}); }
+
+    void add(const std::string& name)
+    {
+        call(&migraphx_quantize_op_names_add, this->get_handle_ptr(), name.c_str());
+    }
+};
+
+// fp16 quantization apis
+inline void quantize_fp16(const program& prog, const quantize_op_names& names)
+{
+    call(&migraphx_quantize_fp16_with_op_names, prog.get_handle_ptr(), names.get_handle_ptr());
+}
+
+inline void quantize_fp16(const program& prog)
+{
+    call(&migraphx_quantize_fp16, prog.get_handle_ptr());
+}
+
+struct quantize_int8_options : MIGRAPHX_HANDLE_BASE(quantize_int8_options)
+{
+    quantize_int8_options() { this->make_handle(&migraphx_quantize_int8_options_create); }
+
+    quantize_int8_options(migraphx_quantize_int8_options* p, own) { this->set_handle(p, own{}); }
+
+    quantize_int8_options(migraphx_quantize_int8_options* p, borrow)
+    {
+        this->set_handle(p, borrow{});
+    }
+
+    void add_op_name(const std::string& name)
+    {
+        call(&migraphx_quantize_int8_options_add_op_name, this->get_handle_ptr(), name.c_str());
+    }
+
+    void add_calibration_data(const program_parameters& pp)
+    {
+        call(&migraphx_quantize_int8_options_add_calibration_data,
+             this->get_handle_ptr(),
+             pp.get_handle_ptr());
+    }
+};
+
+inline void
+quantize_int8(const program& prog, const target& ptarget, const quantize_int8_options& options)
+{
+    call(&migraphx_quantize_int8,
+         prog.get_handle_ptr(),
+         ptarget.get_handle_ptr(),
+         options.get_handle_ptr());
 }
 
 } // namespace api

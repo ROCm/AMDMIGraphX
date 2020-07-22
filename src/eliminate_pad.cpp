@@ -26,7 +26,7 @@ void eliminate_pad::apply(program& p) const
         else if(op_name == "im2col")
             update_op(op::im2col{}, input, ins, p);
         else if(op_name == "pooling")
-            update_op(op::pooling{}, input, ins, p);
+            update_pooling(input, ins, p);
     }
 }
 
@@ -40,10 +40,39 @@ void eliminate_pad::update_op(T,
     if(!pad_op.symmetric())
         return;
 
-    std::vector<int64_t> pads = pad_op.pads;
-    std::array<size_t, 2> new_pads{static_cast<size_t>(pads[2]), static_cast<size_t>(pads[3])};
+    auto kdims    = input->get_shape().lens().size() - 2;
+    auto kdims_it = pad_op.pads.begin() + 2;
+
+    std::vector<size_t> new_pads(kdims_it, kdims_it + kdims);
 
     T op       = any_cast<T>(ins->get_operator());
+    op.padding = new_pads;
+
+    std::vector<instruction_ref> new_inputs{ins->inputs()};
+    new_inputs.front() = input->inputs().front();
+
+    p.replace_instruction(ins, op, new_inputs);
+}
+
+void eliminate_pad::update_pooling(const instruction_ref& input,
+                                   const instruction_ref& ins,
+                                   program& p) const
+{
+    auto pad_op = any_cast<op::pad>(input->get_operator());
+    if(!pad_op.symmetric())
+        return;
+
+    auto kdims    = input->get_shape().lens().size() - 2;
+    auto kdims_it = pad_op.pads.begin() + 2;
+
+    std::vector<size_t> new_pads(kdims_it, kdims_it + kdims);
+
+    auto op = any_cast<op::pooling>(ins->get_operator());
+    if(op.mode == "average")
+    {
+        return;
+    }
+
     op.padding = new_pads;
 
     std::vector<instruction_ref> new_inputs{ins->inputs()};

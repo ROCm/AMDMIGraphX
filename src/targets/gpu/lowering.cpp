@@ -72,6 +72,7 @@
 #include <migraphx/gpu/int8_conv_pack.hpp>
 #include <migraphx/gpu/prelu.hpp>
 #include <migraphx/gpu/recip.hpp>
+#include <migraphx/gpu/rnn_variable_seq_lens.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -184,15 +185,21 @@ struct miopen_apply
         add_extend_op<hip_reduce_min, op::reduce_min>("reduce_min");
         add_extend_op<hip_reduce_prod, op::reduce_prod>("reduce_prod");
         add_extend_op<hip_reduce_sum, op::reduce_sum>("reduce_sum");
+        add_extend_op<hip_rnn_var_sl_shift_output, op::rnn_var_sl_shift_output>(
+            "rnn_var_sl_shift_output");
+        add_extend_op<hip_rnn_var_sl_shift_sequence, op::rnn_var_sl_shift_sequence>(
+            "rnn_var_sl_shift_sequence");
+        add_extend_op<hip_rnn_var_sl_last_output, op::rnn_var_sl_last_output>(
+            "rnn_var_sl_last_output");
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
-
         add_lrn_op();
         add_convolution_op();
         add_deconvolution_op();
         add_quant_convolution_op();
         add_pooling_op();
         add_batch_norm_inference_op();
+        add_neg_op();
     }
 
     void copy_params()
@@ -425,21 +432,47 @@ struct miopen_apply
             auto&& op       = any_cast<op::batch_norm_inference>(ins->get_operator());
             auto output     = insert_allocation(ins, ins->get_shape());
             shape old_shape = ins->inputs().at(1)->get_shape();
-            std::vector<int64_t> new_shape{1, static_cast<int64_t>(old_shape.elements()), 1, 1};
-            auto reshape_op = op::reshape{new_shape};
+            auto input      = ins->inputs()[0];
+            auto input_lens = input->get_shape().lens();
+            std::vector<int64_t> rsp_lens(input_lens.size(), 1);
+            // for per_activation case, also need to reshape input
+            if(op.bn_mode == op::batch_norm_inference::per_activation)
+            {
+                std::copy(input_lens.begin() + 1, input_lens.end(), rsp_lens.begin() + 1);
+            }
+            else
+            {
+                rsp_lens[1] = static_cast<int64_t>(old_shape.elements());
+            }
+
+            auto reshape_op = op::reshape{rsp_lens};
             std::vector<instruction_ref> reshapes;
             std::transform(ins->inputs().begin() + 1,
                            ins->inputs().end(),
                            std::back_inserter(reshapes),
                            [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
+
             return prog->replace_instruction(ins,
                                              miopen_batch_norm_inference{op},
-                                             ins->inputs().at(0),
+                                             input,
                                              reshapes[0],
                                              reshapes[1],
                                              reshapes[2],
                                              reshapes[3],
                                              output);
+
+        });
+    }
+
+    // use 0 - input to represent neg
+    void add_neg_op()
+    {
+        apply_map.emplace("neg", [=](instruction_ref ins) {
+            auto s = ins->get_shape();
+            std::vector<float> zeros(s.elements(), 0.0f);
+            auto l0     = prog->add_literal(literal(s, zeros));
+            auto output = insert_allocation(ins, s);
+            return prog->replace_instruction(ins, hip_sub{}, l0, ins->inputs().front(), output);
         });
     }
 };

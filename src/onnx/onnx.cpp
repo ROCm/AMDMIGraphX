@@ -61,9 +61,10 @@ struct onnx_parser
         add_generic_op("Erf", op::erf{});
         add_generic_op("Exp", op::exp{});
         add_generic_op("Dropout", op::identity{});
-        add_generic_op("Log", op::log{});
         add_generic_op("Floor", op::floor{});
         add_generic_op("Identity", op::identity{});
+        add_generic_op("Log", op::log{});
+        add_generic_op("Neg", op::neg{});
         add_generic_op("Reciprocal", op::recip{});
         add_generic_op("Relu", op::relu{});
         add_generic_op("Round", op::round{});
@@ -86,6 +87,7 @@ struct onnx_parser
         add_variadic_op("Max", op::max{});
         add_variadic_op("Min", op::min{});
 
+        add_mem_op("ATen", &onnx_parser::parse_aten);
         add_mem_op("AveragePool", &onnx_parser::parse_pooling);
         add_mem_op("ArgMax", &onnx_parser::parse_arg_op<op::argmax>);
         add_mem_op("ArgMin", &onnx_parser::parse_arg_op<op::argmin>);
@@ -103,6 +105,7 @@ struct onnx_parser
         add_mem_op("Expand", &onnx_parser::parse_expand);
         add_mem_op("Flatten", &onnx_parser::parse_flatten);
         add_mem_op("Gather", &onnx_parser::parse_gather);
+        add_mem_op("GatherElements", &onnx_parser::parse_gather_elements);
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
         add_mem_op("GlobalAveragePool", &onnx_parser::parse_pooling);
         add_mem_op("GlobalMaxPool", &onnx_parser::parse_pooling);
@@ -112,10 +115,13 @@ struct onnx_parser
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
         add_mem_op("LogSoftmax", &onnx_parser::parse_softmax<op::logsoftmax>);
         add_mem_op("LRN", &onnx_parser::parse_lrn);
+        add_mem_op("LSTM", &onnx_parser::parse_lstm);
         add_mem_op("MatMul", &onnx_parser::parse_matmul<op::dot>);
         add_mem_op("MatMulInteger", &onnx_parser::parse_matmul<op::quant_dot>);
         add_mem_op("MaxPool", &onnx_parser::parse_pooling);
         add_mem_op("OneHot", &onnx_parser::parse_onehot);
+        add_mem_op("Pad", &onnx_parser::parse_pad);
+        add_mem_op("Range", &onnx_parser::parse_range);
         add_mem_op("ReduceL1", &onnx_parser::parse_reduce_l1);
         add_mem_op("ReduceL2", &onnx_parser::parse_reduce_l2);
         add_mem_op("ReduceLogSum", &onnx_parser::parse_reduce_log_sum);
@@ -128,7 +134,6 @@ struct onnx_parser
         add_mem_op("ReduceSumSquare", &onnx_parser::parse_reduce_sum_square);
         add_mem_op("Reshape", &onnx_parser::parse_reshape);
         add_mem_op("RNN", &onnx_parser::parse_rnn);
-        add_mem_op("Pad", &onnx_parser::parse_pad);
         add_mem_op("Shape", &onnx_parser::parse_shape);
         add_mem_op("Slice", &onnx_parser::parse_slice);
         add_mem_op("Softmax", &onnx_parser::parse_softmax<op::softmax>);
@@ -137,7 +142,6 @@ struct onnx_parser
         add_mem_op("Tile", &onnx_parser::parse_tile);
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
         add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
-        add_mem_op("LSTM", &onnx_parser::parse_lstm);
 
         // init the activation function map
         init_actv_func();
@@ -316,22 +320,44 @@ struct onnx_parser
         return curr_ins;
     }
 
+    static bool is_asym_padding(const std::vector<int64_t>& padding)
+    {
+        assert(padding.size() % 2 == 0);
+        size_t pad_ndims = padding.size() / 2;
+
+        for(size_t i = 0; i < pad_ndims; i++)
+        {
+            if(padding[i] != padding[i + pad_ndims])
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     template <class Op>
     void check_asym_padding(instruction_ref& ins,
                             const std::vector<int64_t>& padding,
                             Op& op,
-                            float pad_val = 0)
+                            int count_include_pad = 0,
+                            float pad_val         = 0)
     {
-        if(padding[0] != padding[2] || padding[1] != padding[3])
+        size_t pad_ndims  = padding.size() / 2;
+        auto left_pad_it  = padding.begin();
+        auto right_pad_it = left_pad_it + pad_ndims;
+
+        if(is_asym_padding(padding) or count_include_pad == 1)
         {
-            ins = prog.add_instruction(
-                op::pad{{0, 0, padding[0], padding[1], 0, 0, padding[2], padding[3]}, pad_val},
-                ins);
+            std::vector<int64_t> asym_pads{0, 0, 0, 0}; // don't pad N and C
+            // add left pads
+            asym_pads.insert(asym_pads.begin() + 2, left_pad_it, right_pad_it);
+            // add right pads
+            asym_pads.insert(asym_pads.begin() + pad_ndims + 4, right_pad_it, padding.end());
+            ins = prog.add_instruction(op::pad{asym_pads, pad_val}, ins);
         }
         else
         {
-            op.padding[0] = padding[0];
-            op.padding[1] = padding[1];
+            op.padding = std::vector<size_t>(left_pad_it, right_pad_it);
         }
     }
 
@@ -422,34 +448,159 @@ struct onnx_parser
         }
     }
 
-    template <class Op>
-    instruction_ref process_auto_pad_attribute(instruction_ref ins,
-                                               node_info info,
-                                               Op& op,
-                                               std::array<std::size_t, 2> k_lens,
-                                               std::array<std::size_t, 2> dilation,
-                                               const std::vector<std::size_t>& in_lens,
-                                               float value = 0.0f)
+    void calc_reflect_indices(std::vector<int>& indices, const int64_t num_dims)
     {
+        int k         = 0;
+        bool reversed = false;
+        // in reflect padding, if the num_pads > num_dims,
+        // compute the extra pad indices periodically, ex. ( 1, 2, 3, 2, 1, 0)
+        for(int& idx : indices)
+        {
+            if(k == num_dims - 1)
+                reversed = true;
+            if(k == 0)
+                reversed = false;
+            if(reversed)
+                k--;
+            else
+                k++;
+            idx = k;
+        }
+    }
+
+    instruction_ref reflect_pad(const std::vector<int64_t>& pads, instruction_ref input)
+    {
+        size_t num_dims = pads.size() / 2;
+        std::vector<int> ldims(pads.begin(), pads.begin() + num_dims);
+        std::vector<int> rdims(pads.begin() + num_dims, pads.end());
+        assert(ldims.size() == rdims.size());
+
+        std::vector<int64_t> axes(num_dims);
+        std::iota(axes.begin(), axes.end(), int64_t{0});
+
+        // iterate over dimensions, starting from lowest dimension
+        for(int64_t i = num_dims - 1; i >= 0; i--)
+        {
+            auto axis   = i;
+            auto lcount = ldims.at(i);
+            auto rcount = rdims.at(i);
+            if(lcount == 0 and rcount == 0) // no padding for current dim
+                continue;
+
+            // calculate starts and ends for each iteration since shape may change
+            std::vector<size_t> dims = input->get_shape().lens();
+            std::vector<int64_t> starts(axes.size(), 0);
+            std::vector<int64_t> ends(dims.begin(), dims.end());
+            std::vector<instruction_ref> slices;
+
+            auto starts_it = starts.begin() + i;
+            auto ends_it   = ends.begin() + i;
+            auto dims_it   = dims.begin() + i;
+
+            std::vector<int> l_indices(lcount);
+            std::vector<int> r_indices(rcount);
+
+            // compute slice indices in a periodic fashion
+            calc_reflect_indices(l_indices, *dims_it);
+            calc_reflect_indices(r_indices, *dims_it);
+
+            for(int idx : l_indices)
+            {
+                *starts_it = idx;
+                *ends_it   = *starts_it + 1;
+                slices.push_back(prog.add_instruction(op::slice{axes, starts, ends}, input));
+            }
+            // when padding on the left side, the outermost pad should be at the beginning
+            std::reverse(slices.begin(), slices.end());
+            slices.push_back(input);
+            for(int idx : r_indices)
+            {
+                *starts_it = *dims_it - idx - 1;
+                *ends_it   = *starts_it + 1;
+                slices.push_back(prog.add_instruction(op::slice{axes, starts, ends}, input));
+            }
+            input = prog.add_instruction(op::concat{axis}, slices);
+        }
+        return input;
+    }
+
+    void check_attr_sizes(size_t kdims, size_t attr_size, const std::string& error_msg)
+    {
+        if(kdims != attr_size)
+        {
+            MIGRAPHX_THROW(error_msg + " k-dims: " + to_string(kdims) +
+                           " attribute size: " + to_string(attr_size));
+        }
+    }
+
+    template <class Op>
+    void recalc_conv_attributes(Op& op, size_t kdims)
+    {
+        if(op.padding.size() != kdims)
+        {
+            op.padding.resize(kdims);
+            std::fill_n(op.padding.begin(), kdims, 0);
+        }
+        if(op.stride.size() != kdims)
+        {
+            op.stride.resize(kdims);
+            std::fill_n(op.stride.begin(), kdims, 1);
+        }
+        if(op.dilation.size() != kdims)
+        {
+            op.dilation.resize(kdims);
+            std::fill_n(op.dilation.begin(), kdims, 1);
+        }
+    }
+
+    template <class Op>
+    static void cal_auto_padding_size(node_info info,
+                                      Op& op,
+                                      const std::vector<std::size_t>& k_lens,
+                                      const std::vector<std::size_t>& dilation,
+                                      const std::vector<std::size_t>& in_lens,
+                                      std::vector<int64_t>& paddings)
+    {
+        size_t kdims = in_lens.size() - 2;
+        assert(k_lens.size() == kdims and dilation.size() == kdims);
+
         if(!contains(info.attributes, "auto_pad"))
         {
-            return ins;
+            return;
         }
 
         auto auto_pad = info.attributes["auto_pad"].s();
         if(auto_pad.find("SAME") != std::string::npos)
         {
+            op.padding_mode    = op::padding_mode_t::same;
             bool is_same_upper = (auto_pad.find("SAME_UPPER") != std::string::npos);
-            std::vector<int64_t> padding(in_lens.size());
-            calculate_padding(
-                0, padding, in_lens[2], op.stride[0], dilation[0], k_lens[0], is_same_upper);
-            calculate_padding(
-                1, padding, in_lens[3], op.stride[1], dilation[1], k_lens[1], is_same_upper);
+            paddings.resize(2 * kdims);
 
-            check_asym_padding(ins, padding, op, value);
+            for(size_t i = 0; i < paddings.size() / 2; i++)
+            {
+                calculate_padding(i,
+                                  paddings,
+                                  in_lens[i + 2],
+                                  op.stride[i],
+                                  dilation[i],
+                                  k_lens[i],
+                                  is_same_upper);
+            }
         }
+    }
 
-        return ins;
+    static void check_padding_mode(node_info info, const std::string& op_name)
+    {
+        // ensure pads availabe only when auto_pad is "NOT_SET"
+        if(contains(info.attributes, "pads") and contains(info.attributes, "auto_pad"))
+        {
+            auto s = info.attributes["auto_pad"].s();
+            if(to_upper(s) != "NOTSET")
+            {
+                MIGRAPHX_THROW("PARSE_" + op_name +
+                               ": auto_pad and padding cannot be specified simultaneously");
+            }
+        }
     }
 
     template <class Op>
@@ -459,62 +610,49 @@ struct onnx_parser
         Op op;
         auto l0      = args[0];
         auto weights = args[1];
-        std::vector<int64_t> padding;
-        if(contains(info.attributes, "pads"))
-        {
-            if(contains(info.attributes, "auto_pad"))
-            {
-                auto s = info.attributes["auto_pad"].s();
-                if(contains(info.attributes, "pads") and to_upper(s) != "NOTSET")
-                {
-                    MIGRAPHX_THROW(
-                        "PARSE_CONV: auto_pad and padding cannot be specified simultaneously");
-                }
-            }
-            copy(info.attributes["pads"].ints(), std::back_inserter(padding));
-            if(padding.size() != 4)
-            {
-                MIGRAPHX_THROW("PARSE_CONV: padding should have 4 values");
-            }
-            check_asym_padding(l0, padding, op);
-        }
+        auto in_lens = l0->get_shape().lens();
+        assert(in_lens.size() > 2);
+        auto kdims = in_lens.size() - 2;
+
+        // ensure pads availabe only when auto_pad is "NOT_SET"
+        check_padding_mode(info, "CONV");
+
         if(contains(info.attributes, "strides"))
         {
-            copy(info.attributes["strides"].ints(), op.stride.begin());
+            op.stride.clear();
+            copy(info.attributes["strides"].ints(), std::back_inserter(op.stride));
+            check_attr_sizes(kdims, op.stride.size(), "PARSE_CONV: inconsistent strides");
         }
         if(contains(info.attributes, "dilations"))
         {
-            copy(info.attributes["dilations"].ints(), op.dilation.begin());
+            op.dilation.clear();
+            copy(info.attributes["dilations"].ints(), std::back_inserter(op.dilation));
+            check_attr_sizes(kdims, op.dilation.size(), "PARSE_CONV: inconsistent dilations");
         }
+
+        std::vector<int64_t> padding;
+        if(contains(info.attributes, "pads"))
+        {
+            op.padding.clear();
+            copy(info.attributes["pads"].ints(), std::back_inserter(padding));
+            check_attr_sizes(kdims, padding.size() / 2, "PARSE_CONV: inconsistent paddings");
+        }
+
         if(contains(info.attributes, "auto_pad"))
         {
-            auto s = info.attributes["auto_pad"].s();
-            if(s.find("SAME") != std::string::npos)
-            {
-                op.padding_mode                 = op::padding_mode_t::same;
-                std::vector<size_t> weight_dims = weights->get_shape().lens();
-                size_t weight_h                 = weight_dims[2];
-                size_t weight_w                 = weight_dims[3];
+            auto weight_lens = weights->get_shape().lens();
 
-                auto input_dims = l0->get_shape().lens();
-                padding.resize(input_dims.size());
-                calculate_padding(
-                    0, padding, input_dims[2], op.stride[0], op.dilation[0], weight_h);
-                calculate_padding(
-                    1, padding, input_dims[3], op.stride[1], op.dilation[1], weight_w);
-
-                check_asym_padding(l0, padding, op);
-            }
-
-            auto in_lens                      = args[0]->get_shape().lens();
-            auto weight_lens                  = args[1]->get_shape().lens();
-            std::array<std::size_t, 2> k_lens = {weight_lens[2], weight_lens[3]};
-            l0 = process_auto_pad_attribute(l0, info, op, k_lens, op.dilation, in_lens);
+            std::vector<std::size_t> k_lens(weight_lens.begin() + 2, weight_lens.end());
+            cal_auto_padding_size(info, op, k_lens, op.dilation, in_lens, padding);
         }
+        check_asym_padding(l0, padding, op);
+
         if(contains(info.attributes, "group"))
         {
             op.group = parse_value(info.attributes.at("group")).at<int>();
         }
+
+        recalc_conv_attributes(op, kdims);
 
         auto l1 = prog.add_instruction(op, l0, args[1]);
         return add_bias(args, l1, 1);
@@ -526,46 +664,51 @@ struct onnx_parser
         op::deconvolution op;
         auto l0 = args[0];
         std::vector<std::int64_t> padding;
-        bool asymm_padding = false;
+        bool asym_padding = false;
+        auto in_lens      = l0->get_shape().lens();
+        assert(in_lens.size() > 2);
+        auto kdims = in_lens.size() - 2;
+
+        // ensure pads availabe only when auto_pad is "NOT_SET"
+        check_padding_mode(info, "CONV_TRANSPOSE");
+
         if(contains(info.attributes, "pads"))
         {
-            if(contains(info.attributes, "auto_pad"))
-            {
-                auto s = info.attributes["auto_pad"].s();
-                if(contains(info.attributes, "pads") and to_upper(s) != "NOTSET")
-                {
-                    MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
-                }
-            }
             copy(info.attributes["pads"].ints(), std::back_inserter(padding));
-            if(padding.size() != 4)
+
+            asym_padding = is_asym_padding(padding);
+
+            if(not asym_padding)
             {
-                MIGRAPHX_THROW("padding should have 4 values");
-            }
-            if(padding[0] != padding[2] || padding[1] != padding[3])
-            {
-                asymm_padding = true;
-            }
-            else
-            {
-                op.padding[0] = padding[0];
-                op.padding[1] = padding[1];
+                size_t pad_ndims = padding.size() / 2;
+                check_attr_sizes(kdims, pad_ndims, "PARSE_CONV_TRANSPOSE: inconsistent paddings");
+                op.padding.clear();
+                std::transform(padding.begin(),
+                               padding.begin() + pad_ndims,
+                               std::back_inserter(op.padding),
+                               [](auto pad_val) { return pad_val; });
             }
         }
         if(contains(info.attributes, "strides"))
         {
-            copy(info.attributes["strides"].ints(), op.stride.begin());
+            op.stride.clear();
+            copy(info.attributes["strides"].ints(), std::back_inserter(op.stride));
+            check_attr_sizes(kdims, op.stride.size(), "PARSE_CONV_TRANSPOSE: inconsistent strides");
         }
         if(contains(info.attributes, "dilations"))
         {
-            copy(info.attributes["dilations"].ints(), op.dilation.begin());
+            op.dilation.clear();
+            copy(info.attributes["dilations"].ints(), std::back_inserter(op.dilation));
+            check_attr_sizes(
+                kdims, op.dilation.size(), "PARSE_CONV_TRANSPOSE: inconsistent dilations");
         }
         if(contains(info.attributes, "auto_pad"))
         {
             auto s = info.attributes["auto_pad"].s();
             if(contains(info.attributes, "pads") and to_upper(s) != "NOTSET")
             {
-                MIGRAPHX_THROW("auto_pad and padding cannot be specified simultaneously");
+                MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: auto_pad and padding cannot be specified "
+                               "simultaneously");
             }
 
             if(s.find("SAME") != std::string::npos)
@@ -579,44 +722,56 @@ struct onnx_parser
             op.group = parse_value(info.attributes.at("group")).at<int>();
         }
 
+        recalc_conv_attributes(op, kdims);
+
         auto l1                   = prog.add_instruction(op, l0, args[1]);
         std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
-        std::vector<int64_t> curr_shape{dims[2], dims[3]};
-        if(asymm_padding)
+        std::vector<int64_t> curr_shape(dims.begin() + 2, dims.end());
+        if(asym_padding)
         {
-            op::slice slice_op;
-            slice_op.axes   = {0, 1, 2, 3};
-            slice_op.starts = {0, 0, 0 + padding[0], 0 + padding[1]};
-            slice_op.ends   = {
-                dims[0], dims[1], curr_shape[0] - padding[2], curr_shape[1] - padding[3]};
+            std::vector<int64_t> axes(kdims);
+            std::iota(axes.begin(), axes.end(), 2); // ignore first 2 dims
 
-            l1 = prog.add_instruction(slice_op, l1);
+            auto pad_kdim_start = padding.begin() + kdims;
+            std::vector<int64_t> starts(padding.begin(), pad_kdim_start);
+
+            std::vector<int64_t> ends{};
+            std::transform(curr_shape.begin(),
+                           curr_shape.end(),
+                           pad_kdim_start,
+                           std::back_inserter(ends),
+                           [](auto curr_dim, auto pad_dim) { return curr_dim - pad_dim; });
+
+            l1 = prog.add_instruction(op::slice{axes, starts, ends}, l1);
         }
 
         if(contains(info.attributes, "output_padding"))
         {
-            std::vector<int64_t> output_padding;
+            size_t non_kdims = dims.size() * 2 - kdims;
+            std::vector<int64_t> output_padding(non_kdims, 0);
             copy(info.attributes["output_padding"].ints(), std::back_inserter(output_padding));
-            output_padding = {0, 0, 0, 0, 0, 0, output_padding[0], output_padding[1]};
-            l1             = prog.add_instruction(op::pad{output_padding}, l1);
+            check_attr_sizes(kdims,
+                             output_padding.size() - non_kdims,
+                             "PARSE_CONV_TRANSPOSE: inconsistent output padding");
+            l1 = prog.add_instruction(op::pad{output_padding}, l1);
         }
 
         if(contains(info.attributes, "output_shape"))
         {
             std::vector<int64_t> output_shape;
             copy(info.attributes["output_shape"].ints(), std::back_inserter(output_shape));
-            dims       = to_int64_vector(l1->get_shape().lens());
-            curr_shape = {dims[2], dims[3]};
+            check_attr_sizes(
+                kdims, output_shape.size(), "PARSE_CONV_TRANSPOSE: inconsistent output shape");
+            dims = to_int64_vector(l1->get_shape().lens());
+            copy(dims.begin() + 2, dims.end(), curr_shape.begin());
             if(curr_shape != output_shape)
             {
-                std::vector<int64_t> target_padding = {0,
-                                                       0,
-                                                       0,
-                                                       0,
-                                                       0,
-                                                       0,
-                                                       output_shape[0] - curr_shape[0],
-                                                       output_shape[1] - curr_shape[1]};
+                std::vector<int64_t> target_padding(dims.size() * 2 - kdims, 0);
+                std::transform(output_shape.begin(),
+                               output_shape.end(),
+                               curr_shape.begin(),
+                               std::back_inserter(target_padding),
+                               [](auto out_dim, auto curr_dim) { return out_dim - curr_dim; });
                 l1 = prog.add_instruction(op::pad{target_padding}, l1);
             }
         }
@@ -624,70 +779,174 @@ struct onnx_parser
         return add_bias(args, l1, 1);
     }
 
+    static void
+    tune_padding_to_symmetric(int64_t& left, int64_t& right, const int stride, int64_t& s_start)
+    {
+        s_start = 0;
+        if(left > right)
+        {
+            right = left;
+        }
+        else if(left < right)
+        {
+            auto diff = right - left;
+            s_start   = (diff + stride - 1) / stride;
+            left      = left + s_start * stride;
+            right     = left;
+        }
+    }
+
+    static void tune_padding_size(const op::pooling& op,
+                                  std::vector<int64_t>& padding,
+                                  int count_include_pad,
+                                  std::vector<int64_t>& s_start)
+    {
+        // maxpooling or count_include_pad is 1, no change is required.
+        if(op.mode == "max" or count_include_pad == 1)
+        {
+            return;
+        }
+
+        // if padding is symmetric, return directly
+        if(!is_asym_padding(padding))
+        {
+            return;
+        }
+
+        // asymmetric padding, make it symmetric
+        std::size_t n_dims = padding.size() / 2;
+        s_start.resize(n_dims);
+        for(std::size_t i = 0; i < n_dims; ++i)
+        {
+            tune_padding_to_symmetric(padding[i], padding[i + n_dims], op.stride[i], s_start[i]);
+        }
+    }
+
     instruction_ref
     parse_pooling(const std::string& name, node_info info, std::vector<instruction_ref> args)
     {
         op::pooling op{ends_with(name, "MaxPool") ? "max" : "average"};
-        auto l0 = args[0];
+        auto l0      = args[0];
+        auto in_lens = l0->get_shape().lens();
+        assert(in_lens.size() > 2);
+        auto kdims = in_lens.size() - 2;
+
         if(starts_with(name, "Global"))
         {
-            auto lens  = args.front()->get_shape().lens();
-            op.lengths = {lens[2], lens[3]};
+            op.lengths = std::vector<size_t>(in_lens.begin() + 2, in_lens.end());
         }
 
-        if(contains(info.attributes, "pads"))
+        // does not support ceil_mode
+        if(contains(info.attributes, "ceil_mode"))
         {
-            if(contains(info.attributes, "auto_pad"))
+            if(info.attributes.at("ceil_mode").i() == 1)
             {
-                auto s = info.attributes["auto_pad"].s();
-                if(to_upper(s) != "NOTSET")
-                {
-                    MIGRAPHX_THROW(
-                        "PARSE_POOLING: auto_pad and padding cannot be specified simultaneously");
-                }
+                MIGRAPHX_THROW("PARSE_POOLING: pool does not support ceil_mode");
             }
+        }
 
-            std::vector<std::int64_t> padding;
-            copy(info.attributes["pads"].ints(), std::back_inserter(padding));
-            if(padding.size() != 4)
-            {
-                MIGRAPHX_THROW("PARSE_POOLING: padding should have 4 values");
-            }
-            float pad_val = 0;
-            if(op.mode == "max")
-                pad_val = std::numeric_limits<float>::lowest();
-            check_asym_padding(l0, padding, op, pad_val);
+        // count include padding, if count include pad is 1, we always use
+        // explicit pad
+        int count_include_pad = 0;
+        if(contains(info.attributes, "count_include_pad"))
+        {
+            count_include_pad = info.attributes.at("count_include_pad").i();
         }
 
         if(contains(info.attributes, "strides"))
         {
-            copy(info.attributes["strides"].ints(), op.stride.begin());
+            op.stride.clear();
+            copy(info.attributes["strides"].ints(), std::back_inserter(op.stride));
+            check_attr_sizes(kdims, op.stride.size(), "PARSE_POOLING: inconsistent strides");
         }
         if(contains(info.attributes, "kernel_shape"))
         {
-            copy(info.attributes["kernel_shape"].ints(), op.lengths.begin());
+            op.lengths.clear();
+            copy(info.attributes["kernel_shape"].ints(), std::back_inserter(op.lengths));
+            check_attr_sizes(kdims, op.lengths.size(), "PARSE_POOLING: inconsistent lengths");
+        }
+
+        // ensure pads availabe only when auto_pad is "NOT_SET"
+        check_padding_mode(info, "POOLING");
+
+        std::vector<int64_t> paddings;
+        float pad_val = ((op.mode == "max") ? std::numeric_limits<float>::lowest() : 0.0f);
+        if(contains(info.attributes, "pads"))
+        {
+            op.padding.clear();
+            copy(info.attributes["pads"].ints(), std::back_inserter(paddings));
+            check_attr_sizes(
+                kdims, paddings.size() / 2, "PARSE_POOLING: inconsistent explicit paddings");
         }
 
         if(contains(info.attributes, "auto_pad"))
         {
-            auto s = info.attributes["auto_pad"].s();
-            if(s.find("SAME") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::same;
-            }
-
-            auto in_lens = args[0]->get_shape().lens();
-            float val    = 0.0f;
-            // MaxPool
-            if(op.mode == "max")
-            {
-                val = std::numeric_limits<float>::lowest();
-            }
-
-            l0 = process_auto_pad_attribute(l0, info, op, op.lengths, {1, 1}, in_lens, val);
+            op.padding.clear();
+            // return paddings could be empty, then setting to 0 for no padding
+            cal_auto_padding_size(info, op, op.lengths, {1, 1}, in_lens, paddings);
         }
 
-        return prog.add_instruction(op, l0);
+        if(paddings.size() != 2 * kdims)
+        {
+            paddings.resize(kdims * 2);
+            std::fill_n(paddings.begin(), 2 * kdims, 0);
+        }
+
+        if(op.padding.size() != kdims)
+        {
+            op.padding.resize(kdims);
+            std::fill_n(op.padding.begin(), kdims, 0);
+        }
+
+        if(op.stride.size() != kdims)
+        {
+            op.stride.resize(kdims);
+            std::fill_n(op.stride.begin(), kdims, 1);
+        }
+        // used to calculate the supposed output shape
+        std::vector<int64_t> orig_padding(paddings.begin(), paddings.end());
+
+        std::vector<int64_t> slice_start;
+        std::vector<int64_t> slice_end;
+        tune_padding_size(op, paddings, count_include_pad, slice_start);
+
+        if(!slice_start.empty())
+        {
+            // calculate expected output shape
+            orig_padding.insert(orig_padding.begin() + kdims, 2, 0);
+            orig_padding.insert(orig_padding.begin(), 2, 0);
+            op::pad pad{orig_padding, 0.0f};
+            shape padded_shape = pad.compute_shape({l0->get_shape()});
+            auto out_lens      = op.compute_shape({padded_shape}).lens();
+
+            // compute slice_end information
+            slice_end.resize(slice_start.size());
+            std::transform(out_lens.begin() + 2,
+                           out_lens.end(),
+                           slice_start.begin(),
+                           slice_end.begin(),
+                           [](auto i, auto j) { return i + j; });
+        }
+
+        check_asym_padding(l0, paddings, op, count_include_pad, pad_val);
+        in_lens = l0->get_shape().lens();
+        for(size_t i = 0; i < kdims; i++)
+        {
+            if(op.lengths[i] > in_lens[i + 2] + 2 * op.padding[i])
+            {
+                MIGRAPHX_THROW("PARSE_POOLING: kernel shape is too large");
+            }
+        }
+
+        auto l1 = prog.add_instruction(op, l0);
+        if(!slice_start.empty())
+        {
+            std::vector<int64_t> axes(kdims);
+            std::iota(axes.begin(), axes.end(), 2);
+            l1 = prog.add_instruction(op::slice{axes, slice_start, slice_end}, l1);
+        }
+
+        return l1;
     }
 
     instruction_ref
@@ -763,6 +1022,64 @@ struct onnx_parser
 
         op::gather op{axis};
         return prog.add_instruction(op, make_contiguous(args[0]), make_contiguous(args[1]));
+    }
+
+    instruction_ref
+    parse_gather_elements(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        int axis = 0;
+        if(contains(info.attributes, "axis"))
+        {
+            axis = parse_value(info.attributes.at("axis")).at<int>();
+        }
+
+        // standardize input data and index
+        auto arg_data = make_contiguous(args[0]);
+        auto arg_ind  = make_contiguous(args[1]);
+
+        auto data_s = arg_data->get_shape();
+        auto ind_s  = arg_ind->get_shape();
+
+        if(data_s.lens().size() != ind_s.lens().size())
+        {
+            MIGRAPHX_THROW("PARSE_GATHER_ELEMENTS: input data and index must have the same rank!");
+        }
+
+        int n_rank     = static_cast<int>(data_s.lens().size());
+        int tuned_axis = (axis < 0) ? (axis + n_rank) : axis;
+
+        auto axis_stride      = data_s.strides()[tuned_axis];
+        int64_t data_elem_num = static_cast<int64_t>(data_s.elements());
+        // reshape the input data as one dimension and used as input data
+        // to the gather operator
+        arg_data = prog.add_instruction(op::reshape{{data_elem_num}}, arg_data);
+
+        std::size_t elem_num = ind_s.elements();
+        std::vector<int> ind_index(elem_num);
+        std::iota(ind_index.begin(), ind_index.end(), 0);
+
+        // convert index in input indices to that in input data
+        std::vector<int> data_indices(elem_num);
+        std::transform(ind_index.begin(), ind_index.end(), data_indices.begin(), [&](auto i) {
+            return data_s.index(ind_s.multi(i));
+        });
+
+        std::vector<int> vec_axis_ind(elem_num);
+        std::transform(ind_index.begin(), ind_index.end(), vec_axis_ind.begin(), [&](auto i) {
+            return ind_s.multi(i)[tuned_axis];
+        });
+
+        auto l_shape_idx =
+            prog.add_literal(literal(ind_s, data_indices.begin(), data_indices.end()));
+        auto l_dim_idx = prog.add_literal(literal(ind_s, vec_axis_ind.begin(), vec_axis_ind.end()));
+        auto l_stride  = prog.add_literal(literal{{ind_s.type(), {1}}, {axis_stride}});
+        l_stride       = prog.add_instruction(op::multibroadcast{ind_s.lens()}, l_stride);
+        auto dim_diff  = prog.add_instruction(op::sub{}, arg_ind, l_dim_idx);
+        auto delta     = prog.add_instruction(op::mul{}, dim_diff, l_stride);
+        auto ind       = prog.add_instruction(op::add{}, l_shape_idx, delta);
+
+        op::gather op{0};
+        return prog.add_instruction(op, arg_data, ind);
     }
 
     instruction_ref
@@ -1130,6 +1447,18 @@ struct onnx_parser
             return prog.add_instruction(migraphx::op::identity{}, args.front());
         }
 
+        if(contains(info.attributes, "mode"))
+        {
+            auto mode = info.attributes.at("mode").s();
+            if(mode == "reflect")
+                return reflect_pad(pads, args.front());
+            if(mode != "constant")
+            {
+                MIGRAPHX_THROW(
+                    "PARSE_PAD: migraphx currently only supports constant and reflect padding");
+            }
+        }
+
         float value = 0.0f;
         // third input is the value
         if(args.size() == 3)
@@ -1151,14 +1480,6 @@ struct onnx_parser
             value = parse_value(info.attributes.at("value")).at<float>();
         }
 
-        if(contains(info.attributes, "mode"))
-        {
-            auto mode = info.attributes.at("mode").s();
-            if(mode != "constant")
-            {
-                MIGRAPHX_THROW("PARSE_PAD: migraphx currently only supports constant padding");
-            }
-        }
         return prog.add_instruction(migraphx::op::pad{pads, value}, args.front());
     }
     // Use a literal instruction to replace the shape since, output of
@@ -1405,7 +1726,7 @@ struct onnx_parser
                                                   std::move(args));
 
         // second output for the last hidden state
-        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
+        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
 
         return {hidden_states, last_output};
     }
@@ -1527,9 +1848,94 @@ struct onnx_parser
             std::move(args));
 
         // second output for last gru output
-        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
+        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
 
         return {hidden_states, last_output};
+    }
+
+    void lstm_actv_functions(op::rnn_direction dirct, std::vector<std::string>& actv_func_names)
+    {
+        // need 6 activation functions for bidirectional directions
+        if(dirct == op::rnn_direction::bidirectional)
+        {
+            // 6 activation functions are used in the bidirectional
+            // scenario. No spec is provided in onnx::operator. we
+            // use the algorithm that: if 1 actv function is provided,
+            // repeat 1st six times. If 2 actv functins are provided,
+            // repeat 2nd once, then repeat all three once
+            // if 3 actv funcs are provide, repeat all three once.
+            // the same algorithm is used for 4, 5, and 6 actv funcions
+            // provided. This may need change later
+            switch(actv_func_names.size())
+            {
+            case 1:
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0)};
+                break;
+
+            case 2:
+                // repeat the 2nd actv func once, then repeat all three another time
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(1)};
+                break;
+
+            case 3:
+                // repeat all three actv funcs once
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2)};
+                break;
+
+            case 4:
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2),
+                                   actv_func_names.at(3),
+                                   actv_func_names.at(3),
+                                   actv_func_names.at(3)};
+                break;
+
+            case 5:
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2),
+                                   actv_func_names.at(3),
+                                   actv_func_names.at(4),
+                                   actv_func_names.at(4)};
+                break;
+
+            default: break;
+            }
+        }
+        else
+        {
+            switch(actv_func_names.size())
+            {
+            case 1:
+                actv_func_names = {
+                    actv_func_names.at(0), actv_func_names.at(0), actv_func_names.at(0)};
+                break;
+
+            case 2:
+                // repeat the 2nd actv func once, so we have 3 actv funcs
+                actv_func_names = {
+                    actv_func_names.at(0), actv_func_names.at(1), actv_func_names.at(1)};
+                break;
+
+            default: break;
+            }
+        }
     }
 
     std::vector<instruction_ref>
@@ -1583,83 +1989,7 @@ struct onnx_parser
             });
         }
 
-        // need 6 activation functions for bidirectional directions
-        if(dirct == op::rnn_direction::bidirectional)
-        {
-            // 6 activation functions are used in the bidirectional
-            // scenario. No spec is provided in onnx::operator. we
-            // use the algorithm that: if 1 actv function is provided,
-            // repeat 1st six times. If 2 actv functins are provided,
-            // repeat 2nd once, then repeat all three once
-            // if 3 actv funcs are provide, repeat all three once.
-            // the same algorithm is used for 4, 5, and 6 actv funcions
-            // provided. This may need change later
-            switch(vec_names.size())
-            {
-            case 1:
-                vec_names = {vec_names.at(0),
-                             vec_names.at(0),
-                             vec_names.at(0),
-                             vec_names.at(0),
-                             vec_names.at(0),
-                             vec_names.at(0)};
-                break;
-
-            case 2:
-                // repeat the 2nd actv func once, then repeat all three another time
-                vec_names = {vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(1),
-                             vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(1)};
-                break;
-
-            case 3:
-                // repeat all three actv funcs once
-                vec_names = {vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(2),
-                             vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(2)};
-                break;
-
-            case 4:
-                vec_names = {vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(2),
-                             vec_names.at(3),
-                             vec_names.at(3),
-                             vec_names.at(3)};
-                break;
-
-            case 5:
-                vec_names = {vec_names.at(0),
-                             vec_names.at(1),
-                             vec_names.at(2),
-                             vec_names.at(3),
-                             vec_names.at(4),
-                             vec_names.at(4)};
-                break;
-
-            default: break;
-            }
-        }
-        else
-        {
-            switch(vec_names.size())
-            {
-            case 1: vec_names = {vec_names.at(0), vec_names.at(0), vec_names.at(0)}; break;
-
-            case 2:
-                // repeat the 2nd actv func once, so we have 3 actv funcs
-                vec_names = {vec_names.at(0), vec_names.at(1), vec_names.at(1)};
-                break;
-
-            default: break;
-            }
-        }
+        lstm_actv_functions(dirct, vec_names);
 
         auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
             return (map_actv_funcs.count(name) == 0);
@@ -1698,11 +2028,10 @@ struct onnx_parser
         auto hidden_states = prog.add_instruction(
             op::lstm{hidden_size, vec_actv_funcs, dirct, clip, input_forget}, std::move(args));
 
-        // second output for last lstm output
-        auto last_output = prog.add_instruction(op::rnn_last_output{}, hidden_states);
+        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
 
         // third output for last cell output
-        auto last_cell_output = prog.add_instruction(op::lstm_last_cell_output{}, hidden_states);
+        auto last_cell_output = prog.add_instruction(op::rnn_last_cell_output{}, hidden_states);
 
         return {hidden_states, last_output, last_cell_output};
     }
@@ -1907,6 +2236,88 @@ struct onnx_parser
             }
         }
         return l0;
+    }
+
+    instruction_ref
+    parse_range(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+
+        auto start_arg = args[0]->eval();
+        check_arg_empty(start_arg, "PARSE_RANGE: start arg dynamic shape is not supported");
+        auto limit_arg = args[1]->eval();
+        check_arg_empty(limit_arg, "PARSE_RANGE: limit arg dynamic shape is not supported");
+        auto delta_arg = args[2]->eval();
+        check_arg_empty(delta_arg, "PARSE_RANGE: delta arg dynamic shape is not supported");
+
+        assert(args[0]->get_shape().elements() == 1 and args[1]->get_shape().elements() == 1 and
+               args[2]->get_shape().elements() == 1);
+
+        instruction_ref l0;
+
+        visit_all(start_arg, limit_arg, delta_arg)([&](auto start, auto limit, auto delta) {
+            auto start_val = start.front();
+            auto limit_val = limit.front();
+            auto delta_val = delta.front();
+
+            size_t num_elements = static_cast<size_t>(
+                ceil(static_cast<double>(limit_val - start_val) / static_cast<double>(delta_val)));
+
+            assert(num_elements > 0);
+
+            using type = decltype(start_val);
+
+            std::vector<type> range_vals(num_elements);
+
+            std::generate(range_vals.begin(), range_vals.end(), [&]() {
+                auto result = start_val;
+                start_val += delta_val;
+                return result;
+            });
+
+            l0 = prog.add_literal({shape{args[0]->get_shape().type(), {num_elements}}, range_vals});
+        });
+        return l0;
+    }
+
+    enum class reduce_mode_t
+    {
+        sum  = 0,
+        mean = 1,
+        max  = 2
+    };
+
+    instruction_ref parse_embedding_bag(const node_info& info, std::vector<instruction_ref> args)
+    {
+        if(args[2]->get_shape().elements() != 1)
+            MIGRAPHX_THROW("PARSE_EMBEDDING_BAG: MIGraphX only supports offsets of size 1");
+        reduce_mode_t reduce_mode = reduce_mode_t::sum;
+        if(contains(info.attributes, "mode"))
+        {
+            reduce_mode = static_cast<reduce_mode_t>(info.attributes.at("mode").i());
+        }
+
+        auto l0 = prog.add_instruction(op::gather{}, args[0], args[1]);
+        switch(reduce_mode)
+        {
+        case reduce_mode_t::sum: l0 = prog.add_instruction(op::reduce_sum{{0}}, l0); break;
+        case reduce_mode_t::mean: l0 = prog.add_instruction(op::reduce_mean{{0}}, l0); break;
+        case reduce_mode_t::max: l0 = prog.add_instruction(op::reduce_max{{0}}, l0); break;
+        }
+        return l0;
+    }
+
+    instruction_ref
+    parse_aten(const std::string&, const node_info& info, std::vector<instruction_ref> args)
+    {
+        if(contains(info.attributes, "operator"))
+        {
+            auto op_name = info.attributes.at("operator").s();
+            if(op_name.find("embedding_bag") != std::string::npos)
+            {
+                return parse_embedding_bag(info, std::move(args));
+            }
+        }
+        MIGRAPHX_THROW("PARSE_ATEN: unsupported custom operator");
     }
 
     void parse_from(std::istream& is)

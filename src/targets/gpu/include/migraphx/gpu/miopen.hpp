@@ -82,14 +82,18 @@ inline convolution_descriptor make_conv(const T& op)
     miopenConvolutionMode_t c_mode = miopenConvolution;
     if(op.group > 1)
         c_mode = miopenGroupConv;
-    miopenInitConvolutionDescriptor(c.get(),
-                                    c_mode,
-                                    op.padding[0],
-                                    op.padding[1],
-                                    op.stride[0],
-                                    op.stride[1],
-                                    op.dilation[0],
-                                    op.dilation[1]);
+
+    int kdims = op.kdims();
+    std::vector<int> padding(std::max(2, kdims), 0);
+    std::vector<int> stride(std::max(2, kdims), 1);
+    std::vector<int> dilation(std::max(2, kdims), 1);
+
+    std::copy_backward(op.padding.begin(), op.padding.end(), padding.end());
+    std::copy_backward(op.stride.begin(), op.stride.end(), stride.end());
+    std::copy_backward(op.dilation.begin(), op.dilation.end(), dilation.end());
+
+    miopenInitConvolutionNdDescriptor(
+        c.get(), padding.size(), padding.data(), stride.data(), dilation.data(), c_mode);
     if(op.group > 1)
         miopenSetConvolutionGroupCount(c.get(), op.group);
     return c;
@@ -100,14 +104,17 @@ inline convolution_descriptor make_deconv(const T& op)
 {
     auto c = make_obj<convolution_descriptor>(&miopenCreateConvolutionDescriptor);
     miopenConvolutionMode_t c_mode = miopenTranspose;
-    miopenInitConvolutionDescriptor(c.get(),
-                                    c_mode,
-                                    op.padding[0],
-                                    op.padding[1],
-                                    op.stride[0],
-                                    op.stride[1],
-                                    op.dilation[0],
-                                    op.dilation[1]);
+    int kdims                      = op.kdims();
+    std::vector<int> padding(std::max(2, kdims), 0);
+    std::vector<int> stride(std::max(2, kdims), 1);
+    std::vector<int> dilation(std::max(2, kdims), 1);
+
+    std::copy_backward(op.padding.begin(), op.padding.end(), padding.end());
+    std::copy_backward(op.stride.begin(), op.stride.end(), stride.end());
+    std::copy_backward(op.dilation.begin(), op.dilation.end(), dilation.end());
+
+    miopenInitConvolutionNdDescriptor(
+        c.get(), padding.size(), padding.data(), stride.data(), dilation.data(), c_mode);
     if(op.group > 1)
         miopenSetConvolutionGroupCount(c.get(), op.group);
     return c;
@@ -123,14 +130,18 @@ inline pooling_descriptor make_pooling(const migraphx::op::pooling& op)
     else
         MIGRAPHX_THROW("Unknown mode for pooling: " + op.mode);
     auto p = make_obj<pooling_descriptor>(&miopenCreatePoolingDescriptor);
-    miopenSet2dPoolingDescriptor(p.get(),
-                                 mode,
-                                 op.lengths[0],
-                                 op.lengths[1],
-                                 op.padding[0],
-                                 op.padding[1],
-                                 op.stride[0],
-                                 op.stride[1]);
+
+    int kdims = op.kdims();
+    std::vector<int> padding(std::max(2, kdims), 0);
+    std::vector<int> stride(std::max(2, kdims), 1);
+    std::vector<int> lengths(std::max(2, kdims), 1);
+
+    std::copy_backward(op.padding.begin(), op.padding.end(), padding.end());
+    std::copy_backward(op.stride.begin(), op.stride.end(), stride.end());
+    std::copy_backward(op.lengths.begin(), op.lengths.end(), lengths.end());
+
+    miopenSetNdPoolingDescriptor(
+        p.get(), mode, padding.size(), lengths.data(), padding.data(), stride.data());
     return p;
 }
 

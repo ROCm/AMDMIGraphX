@@ -6,6 +6,7 @@
 #include <migraphx/target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/cpu/target.hpp>
+#include <migraphx/quantization.hpp>
 
 #ifdef HAVE_GPU
 #include <migraphx/gpu/target.hpp>
@@ -94,10 +95,9 @@ void set_default_dim_value(onnx_options& options, size_t value)
 
 void set_input_parameter_shape(onnx_options& options,
                                const char* name,
-                               const size_t* dims,
-                               const size_t dim_num)
+                               std::vector<std::size_t> dims)
 {
-    options.map_input_dims[std::string(name)] = std::vector<std::size_t>(dims, dims + dim_num);
+    options.map_input_dims[std::string(name)] = std::move(dims);
 }
 
 template <class Value>
@@ -107,6 +107,42 @@ std::vector<const char*> get_names(const std::unordered_map<std::string, Value>&
     std::transform(
         m.begin(), m.end(), std::back_inserter(result), [](auto&& p) { return p.first.c_str(); });
     return result;
+}
+
+void quantize_fp16_with_op_names(program& prog, std::vector<std::string>& names)
+{
+    if(names.empty())
+    {
+        names = {"all"};
+    }
+
+    migraphx::quantize_fp16(prog, names);
+}
+
+struct quantize_int8_options
+{
+    std::vector<program::parameter_map> calibration = {};
+    std::vector<std::string> op_names               = {};
+};
+
+void add_op_name(quantize_int8_options& options, const char* name)
+{
+    options.op_names.push_back(name);
+}
+
+void add_calibration_data(quantize_int8_options& options, program::parameter_map& data)
+{
+    options.calibration.push_back(data);
+}
+
+void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& options)
+{
+    if(options.op_names.empty())
+    {
+        options.op_names = {"dot", "convolution"};
+    }
+
+    migraphx::quantize_int8(prog, t, options.calibration, options.op_names);
 }
 
 template <class T>

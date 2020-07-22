@@ -6,6 +6,7 @@
 #include <migraphx/target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/cpu/target.hpp>
+#include <migraphx/quantization.hpp>
 
 #ifdef HAVE_GPU
 #include <migraphx/gpu/target.hpp>
@@ -94,10 +95,9 @@ void set_default_dim_value(onnx_options& options, size_t value)
 
 void set_input_parameter_shape(onnx_options& options,
                                const char* name,
-                               const size_t* dims,
-                               const size_t dim_num)
+                               std::vector<std::size_t> dims)
 {
-    options.map_input_dims[std::string(name)] = std::vector<std::size_t>(dims, dims + dim_num);
+    options.map_input_dims[std::string(name)] = std::move(dims);
 }
 
 template <class Value>
@@ -107,6 +107,42 @@ std::vector<const char*> get_names(const std::unordered_map<std::string, Value>&
     std::transform(
         m.begin(), m.end(), std::back_inserter(result), [](auto&& p) { return p.first.c_str(); });
     return result;
+}
+
+void quantize_fp16_with_op_names(program& prog, std::vector<std::string>& names)
+{
+    if(names.empty())
+    {
+        names = {"all"};
+    }
+
+    migraphx::quantize_fp16(prog, names);
+}
+
+struct quantize_int8_options
+{
+    std::vector<program::parameter_map> calibration = {};
+    std::vector<std::string> op_names               = {};
+};
+
+void add_op_name(quantize_int8_options& options, const char* name)
+{
+    options.op_names.push_back(name);
+}
+
+void add_calibration_data(quantize_int8_options& options, program::parameter_map& data)
+{
+    options.calibration.push_back(data);
+}
+
+void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& options)
+{
+    if(options.op_names.empty())
+    {
+        options.op_names = {"dot", "convolution"};
+    }
+
+    migraphx::quantize_int8(prog, t, options.calibration, options.op_names);
 }
 
 template <class T>
@@ -239,6 +275,26 @@ struct migraphx_onnx_options
     migraphx::onnx_options object;
 };
 
+extern "C" struct migraphx_quantize_op_names;
+struct migraphx_quantize_op_names
+{
+    template <class... Ts>
+    migraphx_quantize_op_names(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    {
+    }
+    std::vector<std::string> object;
+};
+
+extern "C" struct migraphx_quantize_int8_options;
+struct migraphx_quantize_int8_options
+{
+    template <class... Ts>
+    migraphx_quantize_int8_options(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    {
+    }
+    migraphx::quantize_int8_options object;
+};
+
 extern "C" migraphx_status migraphx_shape_destroy(migraphx_shape_t shape)
 {
     return migraphx::try_([&] { destroy((shape)); });
@@ -250,11 +306,30 @@ extern "C" migraphx_status migraphx_shape_create(migraphx_shape_t* shape,
                                                  size_t lengths_size)
 {
     return migraphx::try_([&] {
-        if(lengths == nullptr)
+        if(lengths == nullptr and lengths_size != 0)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter lengths: Null pointer");
         *shape = object_cast<migraphx_shape_t>(
             allocate<migraphx::shape>((migraphx::to_shape_type(type)),
                                       (std::vector<size_t>(lengths, lengths + lengths_size))));
+    });
+}
+
+extern "C" migraphx_status migraphx_shape_create_with_strides(migraphx_shape_t* shape,
+                                                              migraphx_shape_datatype_t type,
+                                                              size_t* lengths,
+                                                              size_t lengths_size,
+                                                              size_t* strides,
+                                                              size_t strides_size)
+{
+    return migraphx::try_([&] {
+        if(lengths == nullptr and lengths_size != 0)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter lengths: Null pointer");
+        if(strides == nullptr and strides_size != 0)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter strides: Null pointer");
+        *shape = object_cast<migraphx_shape_t>(
+            allocate<migraphx::shape>((migraphx::to_shape_type(type)),
+                                      (std::vector<size_t>(lengths, lengths + lengths_size)),
+                                      (std::vector<size_t>(strides, strides + strides_size))));
     });
 }
 
@@ -611,16 +686,16 @@ extern "C" migraphx_status migraphx_onnx_options_create(migraphx_onnx_options_t*
     });
 }
 
-extern "C" migraphx_status
-migraphx_onnx_options_set_input_parameter_shape(migraphx_onnx_options_t onnx_options,
-                                                const char* name,
-                                                const size_t* dims,
-                                                const size_t dim_num)
+extern "C" migraphx_status migraphx_onnx_options_set_input_parameter_shape(
+    migraphx_onnx_options_t onnx_options, const char* name, size_t* dims, size_t dims_size)
 {
     return migraphx::try_([&] {
         if(onnx_options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
-        migraphx::set_input_parameter_shape((onnx_options->object), (name), (dims), (dim_num));
+        if(dims == nullptr and dims_size != 0)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dims: Null pointer");
+        migraphx::set_input_parameter_shape(
+            (onnx_options->object), (name), (std::vector<size_t>(dims, dims + dims_size)));
     });
 }
 
@@ -654,5 +729,107 @@ extern "C" migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
         *out = allocate<migraphx_program_t>(
             migraphx::parse_onnx_buffer((data), (size), (options->object)));
+    });
+}
+
+extern "C" migraphx_status
+migraphx_quantize_op_names_destroy(migraphx_quantize_op_names_t quantize_op_names)
+{
+    return migraphx::try_([&] { destroy((quantize_op_names)); });
+}
+
+extern "C" migraphx_status
+migraphx_quantize_op_names_create(migraphx_quantize_op_names_t* quantize_op_names)
+{
+    return migraphx::try_([&] {
+        *quantize_op_names =
+            object_cast<migraphx_quantize_op_names_t>(allocate<std::vector<std::string>>());
+    });
+}
+
+extern "C" migraphx_status
+migraphx_quantize_op_names_add(migraphx_quantize_op_names_t quantize_op_names, const char* name)
+{
+    return migraphx::try_([&] {
+        if(quantize_op_names == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter quantize_op_names: Null pointer");
+        (quantize_op_names->object).push_back((name));
+    });
+}
+
+extern "C" migraphx_status migraphx_quantize_fp16_with_op_names(migraphx_program_t prog,
+                                                                migraphx_quantize_op_names_t name)
+{
+    return migraphx::try_([&] {
+        if(prog == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter prog: Null pointer");
+        if(name == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter name: Null pointer");
+        migraphx::quantize_fp16_with_op_names((prog->object), (name->object));
+    });
+}
+
+extern "C" migraphx_status migraphx_quantize_fp16(migraphx_program_t prog)
+{
+    return migraphx::try_([&] {
+        if(prog == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter prog: Null pointer");
+        migraphx::quantize_fp16((prog->object));
+    });
+}
+
+extern "C" migraphx_status
+migraphx_quantize_int8_options_destroy(migraphx_quantize_int8_options_t quantize_int8_options)
+{
+    return migraphx::try_([&] { destroy((quantize_int8_options)); });
+}
+
+extern "C" migraphx_status
+migraphx_quantize_int8_options_create(migraphx_quantize_int8_options_t* quantize_int8_options)
+{
+    return migraphx::try_([&] {
+        *quantize_int8_options = object_cast<migraphx_quantize_int8_options_t>(
+            allocate<migraphx::quantize_int8_options>());
+    });
+}
+
+extern "C" migraphx_status
+migraphx_quantize_int8_options_add_op_name(migraphx_quantize_int8_options_t quantize_int8_options,
+                                           const char* name)
+{
+    return migraphx::try_([&] {
+        if(quantize_int8_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter quantize_int8_options: Null pointer");
+        migraphx::add_op_name((quantize_int8_options->object), (name));
+    });
+}
+
+extern "C" migraphx_status migraphx_quantize_int8_options_add_calibration_data(
+    migraphx_quantize_int8_options_t quantize_int8_options, migraphx_program_parameters_t data)
+{
+    return migraphx::try_([&] {
+        if(quantize_int8_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter quantize_int8_options: Null pointer");
+        if(data == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter data: Null pointer");
+        migraphx::add_calibration_data((quantize_int8_options->object), (data->object));
+    });
+}
+
+extern "C" migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
+                                                  migraphx_target_t target,
+                                                  migraphx_quantize_int8_options_t options)
+{
+    return migraphx::try_([&] {
+        if(prog == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter prog: Null pointer");
+        if(target == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter target: Null pointer");
+        if(options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
+        migraphx::quantize_int8_wrap((prog->object), (target->object), (options->object));
     });
 }

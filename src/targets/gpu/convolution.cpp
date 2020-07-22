@@ -1,7 +1,6 @@
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/generate.hpp>
-#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

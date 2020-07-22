@@ -35,8 +35,11 @@ argument miopen_convolution::compute(context& ctx,
 {
     auto x_desc = make_tensor(reshape_if_1d(args[0].get_shape()));
     auto w_desc = make_tensor(reshape_if_1d(args[1].get_shape()));
-    auto y_desc = make_tensor(reshape_if_1d(output_shape));
+    auto y_desc = make_tensor(reshape_if_1d(output_shape));        
 
+    if(solution_id == 0)
+        MIGRAPHX_THROW("MIOpen Convolution: invalid solution ID");
+    
     auto status = miopenConvolutionForwardImmediate(ctx.get_stream().get_miopen(),
                                                     w_desc.get(),
                                                     args[1].implicit(),
@@ -50,7 +53,7 @@ argument miopen_convolution::compute(context& ctx,
                                                     solution_id);
 
     if(status != miopenStatusSuccess)
-        MIGRAPHX_THROW("Running convolution failed");
+        MIGRAPHX_THROW("MIOpen Convolution: running convolution failed");
     return args[3];
 }
 
@@ -95,7 +98,7 @@ shape miopen_convolution::compile(context& ctx,
                                                         workspace_size,
                                                         false);
     if(status != miopenStatusSuccess)
-        MIGRAPHX_THROW("Find convolution failed");
+        MIGRAPHX_THROW("MIOpen Convolution: find convolution failed");
     handle = ctx.get_stream().get_miopen();
     algo   = perf.fwd_algo;
     return shape{shape::int8_type, {perf.memory}};
@@ -115,7 +118,7 @@ void miopen_convolution::get_solution(context& ctx,
     auto status = miopenConvolutionForwardGetSolutionCount(
         handle, w_desc.get(), x_desc.get(), cd.get(), y_desc.get(), &solution_count);
     if(status != miopenStatusSuccess)
-        MIGRAPHX_THROW("Get solution count failed");
+        MIGRAPHX_THROW("MIOpen Convolution: get solution count failed");
 
     std::vector<miopenConvSolution_t> solutions(solution_count);
 
@@ -128,7 +131,7 @@ void miopen_convolution::get_solution(context& ctx,
                                                  &solution_count,
                                                  solutions.data());
     if(status != miopenStatusSuccess)
-        MIGRAPHX_THROW("Get solution failed");
+        MIGRAPHX_THROW("MIOpen Convolution: get solution failed");
 
     solution_id = solutions.front().solution_id;
 }
@@ -143,7 +146,7 @@ void miopen_convolution::finalize(context& ctx,
     auto size = inputs.at(2).bytes();
     auto ws   = compile(ctx, output_shape, std::move(inputs));
     if(ws.bytes() > size)
-        MIGRAPHX_THROW("Workspace has changed during finalization.");
+        MIGRAPHX_THROW("MIOpen Convolution: workspace has changed during finalization.");
 }
 
 } // namespace gpu

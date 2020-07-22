@@ -22,8 +22,12 @@ struct miopen_convolution
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        // TODO: Add algo
-        return op::convolution::reflect(self.op, f);
+        return pack(f(self.op.padding, "padding"),
+                    f(self.op.stride, "stride"),
+                    f(self.op.dilation, "dilation"),
+                    f(self.op.group, "group"),
+                    f(self.op.padding_mode, "padding_mode"),
+                    f(self.solution_id, "solution_id"));
     }
 
     std::string name() const { return "gpu::convolution"; }

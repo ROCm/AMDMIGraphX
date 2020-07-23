@@ -1,6 +1,7 @@
 #include <migraphx/gpu/device/layernorm.hpp>
 #include <migraphx/gpu/device/reduce.hpp>
 #include <migraphx/gpu/device/pow.hpp>
+#include <migraphx/gpu/device/fast_div.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -25,12 +26,13 @@ void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
 
         const std::size_t max_block_size = 256;
         const std::size_t block_size     = compute_block_size(relements, max_block_size);
+        const std::size_t block_size_div = encode_divisor(block_size);
 
         gs_launch(stream, nelements * block_size, block_size)([=](auto i, auto idx) __device__ {
             const auto out_idx  = i / block_size;
             const auto base_idx = out_idx * relements;
             value_type x_data[4];
-            auto x = [&](auto j) -> value_type& { return x_data[(j - idx.local) / block_size]; };
+            auto x = [&](auto j) -> value_type& { return x_data[fast_div(j-idx.local, block_size_div)]; };
 
             idx.local_stride(relements,
                              [&](auto j) __device__ { x(j) = input.data()[base_idx + j]; });

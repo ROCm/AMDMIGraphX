@@ -32,7 +32,9 @@ void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
             const auto out_idx  = i / block_size;
             const auto base_idx = out_idx * relements;
             value_type x_data[4];
-            auto x = [&](auto j) -> value_type& { return x_data[fast_div(j-idx.local, block_size_div)]; };
+            auto x = [&](auto j) -> value_type& {
+                return x_data[fast_div(j - idx.local, block_size_div)];
+            };
 
             idx.local_stride(relements,
                              [&](auto j) __device__ { x(j) = input.data()[base_idx + j]; });

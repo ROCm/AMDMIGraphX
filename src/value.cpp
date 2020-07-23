@@ -6,6 +6,9 @@
 #include <migraphx/value.hpp>
 #include <unordered_map>
 #include <utility>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -408,10 +411,64 @@ void print_value(std::ostream& os, const std::vector<value>& x)
 std::ostream& operator<<(std::ostream& os, const value& d)
 {
     d.visit([&](auto&& y) { print_value(os, y); });
-    return os;
+    return os;    
 }
 
 void value::debug_print() const { std::cout << *this << std::endl; }
+
+void value_to_json(const value& val, json& j);
+
+template <class T>
+void value_to_json(const T& x, json& j)
+{
+    j = x;
+}
+
+void value_to_json(const std::vector<value>& x, json& j)
+{ 
+    for (auto &v : x)
+    {
+        json jj;
+        value_to_json(v, jj);
+        j.push_back(jj);
+    }
+}
+
+template<class T, class U>
+void value_to_json(const std::pair<T, U>& x, json& j)
+{
+    json jj;
+    value_to_json(x.second, jj);
+    j[x.first] = jj;
+}
+
+void value_to_json(std::nullptr_t&, json& j)
+{
+    j = {};
+}
+
+void value_to_json(const value& val, json& j)
+{
+    val.visit([&](auto v) {
+        value_to_json(v, j);
+    });
+}
+
+void value_to_json_string(const value& val, std::string& str)
+{
+    json j;
+    value_to_json(val, j);
+    std::stringstream ss;
+    ss << j.dump();
+    ss.str(str);
+}
+
+
+// void value_from_json_string(const json& j, value& val)
+// {
+//     (void)j;
+//     (void)val;
+// }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

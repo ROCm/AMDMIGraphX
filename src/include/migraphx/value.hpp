@@ -295,6 +295,9 @@ struct value
     std::string key;
 };
 
+void value_to_json_string(const value& val, std::string& str);
+void value_from_json_string(const std::string& str, value& val);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

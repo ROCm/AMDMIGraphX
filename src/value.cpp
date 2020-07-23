@@ -411,7 +411,7 @@ void print_value(std::ostream& os, const std::vector<value>& x)
 std::ostream& operator<<(std::ostream& os, const value& d)
 {
     d.visit([&](auto&& y) { print_value(os, y); });
-    return os;    
+    return os;
 }
 
 void value::debug_print() const { std::cout << *this << std::endl; }
@@ -425,8 +425,8 @@ void value_to_json(const T& x, json& j)
 }
 
 void value_to_json(const std::vector<value>& x, json& j)
-{ 
-    for (auto &v : x)
+{
+    for(auto& v : x)
     {
         json jj;
         value_to_json(v, jj);
@@ -434,7 +434,7 @@ void value_to_json(const std::vector<value>& x, json& j)
     }
 }
 
-template<class T, class U>
+template <class T, class U>
 void value_to_json(const std::pair<T, U>& x, json& j)
 {
     json jj;
@@ -442,16 +442,11 @@ void value_to_json(const std::pair<T, U>& x, json& j)
     j[x.first] = jj;
 }
 
-void value_to_json(std::nullptr_t&, json& j)
-{
-    j = {};
-}
+void value_to_json(std::nullptr_t&, json& j) { j = {}; }
 
 void value_to_json(const value& val, json& j)
 {
-    val.visit([&](auto v) {
-        value_to_json(v, j);
-    });
+    val.visit([&](auto v) { value_to_json(v, j); });
 }
 
 void value_to_json_string(const value& val, std::string& str)
@@ -462,7 +457,6 @@ void value_to_json_string(const value& val, std::string& str)
     ss << j.dump();
     ss.str(str);
 }
-
 
 // void value_from_json_string(const json& j, value& val)
 // {

@@ -5,9 +5,13 @@
 """
 Implements ONNX's backend API.
 """
-from onnx import ModelProto
-from onnx.checker import check_model
-from onnx.backend.base import Backend
+import sys
+
+if sys.version_info >= (3, 0):
+    from onnx import ModelProto
+    from onnx.checker import check_model
+    from onnx.backend.base import Backend
+
 import migraphx
 from onnx_migraphx.backend_rep import MIGraphXBackendRep
 

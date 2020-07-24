@@ -54,7 +54,7 @@ struct hip_allocate
     }
 };
 
-struct hip_sync
+struct hip_sync_device
 {
     std::string tag{};
 
@@ -64,7 +64,7 @@ struct hip_sync
         return pack(f(self.tag, "tag"));
     }
 
-    std::string name() const { return "hip::sync"; }
+    std::string name() const { return "hip::sync_device"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         if(inputs.empty())
@@ -75,6 +75,34 @@ struct hip_sync
     argument compute(context&, const shape&, const std::vector<argument>& args) const
     {
         gpu_sync();
+        if(args.empty())
+            return {};
+        else
+            return args.front();
+    }
+};
+
+struct hip_sync_stream
+{
+    std::string tag{};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.tag, "tag"));
+    }
+
+    std::string name() const { return "hip::sync_stream"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        if(inputs.empty())
+            return {};
+        else
+            return inputs.front();
+    }
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
+        stream_sync(ctx);
         if(args.empty())
             return {};
         else
@@ -123,15 +151,9 @@ struct hip_copy_from_gpu
         {
             argument result = allocate_gpu(output_shape, true);
             gpu_copy(ctx, args[0], result);
-
-            // ensure data copy are completed
-            stream_sync(ctx);
             return result;
         }
         copy_from_gpu(ctx, args[0], args[1]);
-
-        // ensure data copy are completed
-        stream_sync(ctx);
 
         return args[1];
     }

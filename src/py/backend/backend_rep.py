@@ -6,11 +6,11 @@
 Implements ONNX's backend API.
 """
 import migraphx
-from typing import Any, Tuple
 import sys
 if sys.version_info >= (3, 0):
     from onnx.backend.base import BackendRep
     import numpy as np
+    from typing import Any, Tuple
 
 
 class MIGraphXBackendRep(BackendRep):

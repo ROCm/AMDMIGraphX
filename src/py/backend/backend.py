@@ -15,11 +15,14 @@ if sys.version_info >= (3, 0):
 import migraphx
 from onnx_migraphx.backend_rep import MIGraphXBackendRep
 
+
 def get_device():
-   return ("CPU", "GPU")
+    return ("CPU", "GPU")
+
 
 class MIGraphXBackend(Backend):
     _device = "GPU"
+
     @classmethod
     def set_device(cls, device):
         cls._device = device
@@ -77,7 +80,9 @@ class MIGraphXBackend(Backend):
                 if hasattr(options, k):
                     setattr(options, k, v)
             if device is not None and not cls.supports_device(device):
-                raise RuntimeError("Incompatible device expected '{0}', got '{1}'".format(device, get_device()))
+                raise RuntimeError(
+                    "Incompatible device expected '{0}', got '{1}'".format(
+                        device, get_device()))
             inf = migraphx.parse_onnx_buffer(model)
             device = cls._device
             inf.compile(migraphx.get_target(device.lower()))
@@ -111,7 +116,9 @@ class MIGraphXBackend(Backend):
         This method is not implemented as it is much more efficient
         to run a whole model than every node independently.
         '''
-        raise NotImplementedError("It is much more efficient to run a whole model than every node independently.")
+        raise NotImplementedError(
+            "It is much more efficient to run a whole model than every node independently."
+        )
 
 
 is_compatible = MIGraphXBackend.is_compatible

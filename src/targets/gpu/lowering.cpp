@@ -233,7 +233,7 @@ struct miopen_apply
                 // completion
                 if(in == inputs.back())
                 {
-                    p_output = prog->insert_instruction(ret, hip_sync_stream{}, p_output);
+                    p_output = prog->insert_instruction(ret, hip_sync_device{}, p_output);
                 }
 
                 instruction::replace_argument(ret, in, p_output);

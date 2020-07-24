@@ -82,34 +82,6 @@ struct hip_sync_device
     }
 };
 
-struct hip_sync_stream
-{
-    std::string tag{};
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.tag, "tag"));
-    }
-
-    std::string name() const { return "hip::sync_stream"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        if(inputs.empty())
-            return {};
-        else
-            return inputs.front();
-    }
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
-    {
-        stream_sync(ctx);
-        if(args.empty())
-            return {};
-        else
-            return args.front();
-    }
-};
-
 struct hip_copy_to_gpu
 {
     std::string name() const { return "hip::copy_to_gpu"; }

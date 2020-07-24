@@ -3,6 +3,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/op/identity.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -608,6 +609,25 @@ TEST_CASE(literal_test)
     run_pass(p);
     auto result = p.eval({}).back();
     CHECK(lit == result);
+}
+
+TEST_CASE(dead_conflict)
+{
+    migraphx::program p;
+    auto a1 = add_alloc(p, {migraphx::shape::float_type, {40}});
+    auto p1 = p.add_instruction(pass_op{}, a1);
+    auto a2 = add_alloc(p, {migraphx::shape::float_type, {40}});
+    auto p2 = p.add_instruction(pass_op{}, a2);
+    p.add_instruction(migraphx::op::identity{}, p2, p1);
+    auto a3 = add_alloc(p, {migraphx::shape::float_type, {40}});
+    auto p3 = p.add_instruction(pass_op{}, p2, a3);
+    auto a4 = add_alloc(p, {migraphx::shape::float_type, {40}});
+    auto p4 = p.add_instruction(pass_op{}, p1, a4);
+    auto a5 = add_alloc(p, {migraphx::shape::float_type, {40}});
+    p.add_instruction(pass_op{}, p3, p4, a5);
+    run_pass(p);
+    CHECK(p.get_parameter_shape("scratch").bytes() == 640);
+    CHECK(no_allocate(p));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -6,12 +6,12 @@
 Implements ONNX's backend API.
 """
 import sys
+if sys.version_info < (3, 0):
+    sys.exit()
 
-if sys.version_info >= (3, 0):
-    from onnx import ModelProto
-    from onnx.checker import check_model
-    from onnx.backend.base import Backend
-
+from onnx import ModelProto
+from onnx.checker import check_model
+from onnx.backend.base import Backend
 import migraphx
 from onnx_migraphx.backend_rep import MIGraphXBackendRep
 

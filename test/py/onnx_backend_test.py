@@ -1,15 +1,15 @@
+import sys
+if sys.version_info < (3, 0):
+    sys.exit()
+
 import argparse
 import json
-import sys
 import os
 import platform
 import unittest
-
-if sys.version_info >= (3, 0):
-    import onnx
-    import onnx.backend.test
-    import numpy as np
-
+import onnx
+import onnx.backend.test
+import numpy as np
 from onnx_migraphx.backend import MIGraphXBackend as c2
 
 pytest_plugins = 'onnx.backend.test.report',
@@ -328,9 +328,9 @@ def parse_args():
 
 
 if __name__ == '__main__':
+    if sys.version_info < (3, 0):
+        sys.exit()
+
     args = parse_args()
-
     backend_test = create_backend_test(args.testname, args.device)
-
-    if sys.version_info >= (3, 0):
-        unittest.main()
+    unittest.main()

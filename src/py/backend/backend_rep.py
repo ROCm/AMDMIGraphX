@@ -14,6 +14,7 @@ from onnx.backend.base import BackendRep
 import numpy as np
 from typing import Any, Tuple
 
+
 class MIGraphXBackendRep(BackendRep):
     """
     Computes the prediction for a pipeline converted into
@@ -25,8 +26,7 @@ class MIGraphXBackendRep(BackendRep):
         """
         self._program = prog
 
-    def run(self, inputs,
-            **kwargs):  # type: (Any, **Any) -> Tuple[Any, ...]
+    def run(self, inputs, **kwargs):  # type: (Any, **Any) -> Tuple[Any, ...]
         """
         Computes the prediction.
         See :meth:`migraphx.program.run`.
@@ -45,8 +45,7 @@ class MIGraphXBackendRep(BackendRep):
         else:
             inp = self._program.get_parameter_shapes().keys()
             if len(inp) != 1:
-                raise RuntimeError("Model expect {0} inputs".format(
-                    len(inp)))
+                raise RuntimeError("Model expect {0} inputs".format(len(inp)))
             inps = {inp[0]: migraphx.argument(inputs)}
             mgx_outputs = self._program.run(inps)
             outs = []

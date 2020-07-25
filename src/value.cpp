@@ -62,7 +62,8 @@ value::value(const value& rhs) : x(rhs.x ? rhs.x->clone() : nullptr), key(rhs.ke
 value& value::operator=(value rhs)
 {
     std::swap(rhs.x, x);
-    std::swap(rhs.key, key);
+    if (not rhs.key.empty())
+        std::swap(rhs.key, key);
     return *this;
 }
 
@@ -174,7 +175,14 @@ const std::vector<value>& value::get_object() const
     assert(r);
     return *r;
 }
-const std::vector<value>* value::if_object() const { return x ? x->if_array() : nullptr; }
+const std::vector<value>* value::if_object() const 
+{
+    auto* r =  x ? x->if_array() : nullptr;
+    assert(r == nullptr or std::none_of(r->begin(), r->end(), [](auto&& v) {
+        return v.get_key().empty();
+    }));
+    return r;
+}
 
 bool value::is_null() const { return x == nullptr; }
 
@@ -303,6 +311,7 @@ std::pair<value*, bool> value::insert(const value& v)
         if(!x)
             x = std::make_shared<array_value_holder>();
         get_array_impl(x).push_back(v);
+        assert(this->if_array());
         return std::make_pair(&back(), true);
     }
     else
@@ -312,6 +321,7 @@ std::pair<value*, bool> value::insert(const value& v)
         auto p = x->if_object()->emplace(v.key, get_array_impl(x).size());
         if(p.second)
             get_array_impl(x).push_back(v);
+        assert(this->if_object());
         return std::make_pair(&get_array_impl(x)[p.first->second], p.second);
     }
 }
@@ -329,6 +339,13 @@ value value::without_key() const
 {
     value result = *this;
     result.key   = "";
+    return result;
+}
+
+value value::with_key(const std::string& pkey) const
+{
+    value result = *this;
+    result.key   = pkey;
     return result;
 }
 

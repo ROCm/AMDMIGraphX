@@ -230,6 +230,7 @@ struct value
 
     void push_front(const value& v) { insert(begin(), v); }
 
+    value with_key(const std::string& pkey) const;
     value without_key() const;
 
     template <class Visitor>

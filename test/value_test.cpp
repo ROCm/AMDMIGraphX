@@ -98,10 +98,30 @@ TEST_CASE(value_reassign)
     EXPECT(v1 != v2);
 }
 
+TEST_CASE(value_copy_assign_key)
+{
+    migraphx::value v1("key", 1);
+    migraphx::value v2;
+    v2 = v1;
+    EXPECT(v2.get_key() == "key");
+    EXPECT(v1 == v2);
+}
+
+TEST_CASE(value_copy_assign_keyless)
+{
+    migraphx::value v1(1);
+    migraphx::value v2("key", nullptr);
+    v2 = v1;
+    EXPECT(v2.get_key() == "key");
+    EXPECT(v1 != v2);
+    EXPECT(v1.without_key() == v2.without_key());
+}
+
 TEST_CASE(value_construct_array)
 {
     migraphx::value v = {1, 2, 3};
     EXPECT(v.is_array());
+    EXPECT(v.get_array().size() == 3);
     EXPECT(v.size() == 3);
     EXPECT(not v.empty());
     EXPECT(v.data() != nullptr);
@@ -128,6 +148,7 @@ TEST_CASE(value_insert_array)
     v.insert(v.end(), 2);
     v.insert(v.end(), 3);
     EXPECT(v.is_array());
+    EXPECT(v.get_array().size() == 3);
     EXPECT(v.size() == 3);
     EXPECT(not v.empty());
     EXPECT(v.data() != nullptr);
@@ -144,6 +165,7 @@ TEST_CASE(value_key_array)
     migraphx::value v("key", values);
     EXPECT(v.is_array());
     EXPECT(v.get_key() == "key");
+    EXPECT(v.get_array().size() == 3);
     EXPECT(v.size() == 3);
     EXPECT(not v.empty());
     EXPECT(v.data() != nullptr);
@@ -160,6 +182,7 @@ TEST_CASE(value_key_array_empty)
     migraphx::value v("key", values);
     EXPECT(v.is_array());
     EXPECT(v.get_key() == "key");
+    EXPECT(v.get_array().size() == 0);
     EXPECT(v.size() == 0);
     EXPECT(v.empty());
 }
@@ -190,8 +213,9 @@ TEST_CASE(value_construct_key_pair)
 
 TEST_CASE(value_construct_object)
 {
-    migraphx::value v = {{"one", 1}, {"two", 2}, {"three", 3}};
+    migraphx::value v = {{"one", 1}, {"two", migraphx::value(2)}, {"three", 3}};
     EXPECT(v.is_object());
+    EXPECT(v.get_object().size() == 3);
     EXPECT(v.size() == 3);
     EXPECT(not v.empty());
     EXPECT(v.data() != nullptr);
@@ -234,10 +258,11 @@ TEST_CASE(value_construct_object)
 TEST_CASE(value_key_object)
 {
     std::unordered_map<std::string, migraphx::value> values = {
-        {"one", 1}, {"two", 2}, {"three", 3}};
+        {"one", 1}, {"two", migraphx::value(2)}, {"three", 3}};
     migraphx::value v("key", values);
     EXPECT(v.get_key() == "key");
     EXPECT(v.is_object());
+    EXPECT(v.get_object().size() == 3);
     EXPECT(v.size() == 3);
     EXPECT(not v.empty());
     EXPECT(v.data() != nullptr);
@@ -274,6 +299,7 @@ TEST_CASE(value_key_object_empty)
     migraphx::value v("key", values);
     EXPECT(v.get_key() == "key");
     EXPECT(v.is_object());
+    EXPECT(v.get_object().size() == 0);
     EXPECT(v.size() == 0);
     EXPECT(v.empty());
     EXPECT(not v.contains("one"));
@@ -283,10 +309,11 @@ TEST_CASE(value_bracket_object)
 {
     migraphx::value v;
     v["one"]   = 1;
-    v["two"]   = 2;
+    v["two"]   = migraphx::value(2);
     v["three"] = 3;
 
     EXPECT(v.is_object());
+    EXPECT(v.get_object().size() == 3);
     EXPECT(v.size() == 3);
     EXPECT(not v.empty());
     EXPECT(v.data() != nullptr);
@@ -320,9 +347,10 @@ TEST_CASE(value_insert_object)
 {
     migraphx::value v;
     v.insert({"one", 1});
-    v.insert({"two", 2});
+    v.insert({"two", migraphx::value(2)});
     v.insert({"three", 3});
     EXPECT(v.is_object());
+    EXPECT(v.get_object().size() == 3);
     EXPECT(v.size() == 3);
     EXPECT(not v.empty());
     EXPECT(v.data() != nullptr);
@@ -366,7 +394,7 @@ TEST_CASE(value_emplace_object)
 {
     migraphx::value v;
     v.emplace("one", 1);
-    v.emplace("two", 2);
+    v.emplace("two", migraphx::value(2));
     v.emplace("three", 3);
     EXPECT(v.is_object());
     EXPECT(v.size() == 3);
@@ -411,7 +439,10 @@ TEST_CASE(value_emplace_object)
 TEST_CASE(value_compare)
 {
     EXPECT(migraphx::value(1) == migraphx::value(1));
+    EXPECT(migraphx::value("key", 1) == migraphx::value("key", 1));
     EXPECT(migraphx::value(1) != migraphx::value(2));
+    EXPECT(migraphx::value("key", 1) != migraphx::value("key", 2));
+    EXPECT(migraphx::value("key1", 1) != migraphx::value("key2", 1));
     EXPECT(migraphx::value(1) < migraphx::value(2));
     EXPECT(migraphx::value(1) <= migraphx::value(2));
     EXPECT(migraphx::value(1) <= migraphx::value(1));
@@ -459,9 +490,10 @@ TEST_CASE(value_to_struct)
     migraphx::value v = 1;
     struct local
     {
-        int i   = 0;
+        int i = 0;
         local() = default;
-        local(int ii) : i(ii) {}
+        local(int ii) : i(ii)
+        {}
     };
     EXPECT(v.to<local>().i == 1);
 }
@@ -469,27 +501,26 @@ TEST_CASE(value_to_struct)
 TEST_CASE(value_to_error1)
 {
     migraphx::value v = {1, 2, 3};
-    EXPECT(test::throws([&] { v.to<int>(); }));
+    EXPECT(test::throws([&]{ v.to<int>(); }));
 }
 
 TEST_CASE(value_to_error2)
 {
     migraphx::value v = 1;
     struct local
-    {
-    };
-    EXPECT(test::throws([&] { v.to<local>(); }));
+    {};
+    EXPECT(test::throws([&]{ v.to<local>(); }));
 }
 
 TEST_CASE(value_to_error_parse)
 {
     migraphx::value v = "abc";
-    EXPECT(test::throws([&] { v.to<int>(); }));
+    EXPECT(test::throws([&]{ v.to<int>(); }));
 }
 
 TEST_CASE(value_to_vector)
 {
-    migraphx::value v  = {1, 2, 3};
+    migraphx::value v = {1, 2, 3};
     std::vector<int> a = {1, 2, 3};
     EXPECT(v.to_vector<int>() == a);
 }

@@ -62,7 +62,7 @@ value::value(const value& rhs) : x(rhs.x ? rhs.x->clone() : nullptr), key(rhs.ke
 value& value::operator=(value rhs)
 {
     std::swap(rhs.x, x);
-    if (not rhs.key.empty())
+    if(not rhs.key.empty())
         std::swap(rhs.key, key);
     return *this;
 }
@@ -175,12 +175,11 @@ const std::vector<value>& value::get_object() const
     assert(r);
     return *r;
 }
-const std::vector<value>* value::if_object() const 
+const std::vector<value>* value::if_object() const
 {
-    auto* r =  x ? x->if_array() : nullptr;
-    assert(r == nullptr or std::none_of(r->begin(), r->end(), [](auto&& v) {
-        return v.get_key().empty();
-    }));
+    auto* r = x ? x->if_array() : nullptr;
+    assert(r == nullptr or
+           std::none_of(r->begin(), r->end(), [](auto&& v) { return v.get_key().empty(); }));
     return r;
 }
 

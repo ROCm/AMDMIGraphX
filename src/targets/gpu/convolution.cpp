@@ -56,9 +56,7 @@ argument miopen_convolution::compute(context& ctx,
     return args[3];
 }
 
-shape miopen_convolution::find(context& ctx,
-                                  const shape& output_shape,
-                                  std::vector<shape> inputs)
+shape miopen_convolution::find(context& ctx, const shape& output_shape, std::vector<shape> inputs)
 {
     shape workspace_shape{};
 
@@ -100,9 +98,8 @@ shape miopen_convolution::find(context& ctx,
         MIGRAPHX_THROW("MIOpen Convolution: find convolution failed");
     handle = ctx.get_stream().get_miopen();
     algo   = perf.fwd_algo;
-    
-    size_t solution_count;
 
+    size_t solution_count;
 
     status = miopenConvolutionForwardGetSolutionCount(
         handle, w_desc.get(), x_desc.get(), cd.get(), y_desc.get(), &solution_count);
@@ -134,7 +131,6 @@ void miopen_convolution::finalize(context& ctx,
     if(handle == ctx.get_stream().get_miopen())
         return;
 
-
     if(solution_id == 0)
     {
         // Check that workspace hasn't changed
@@ -148,12 +144,8 @@ void miopen_convolution::finalize(context& ctx,
     auto w_desc = make_tensor(reshape_if_1d(inputs[1]));
     auto y_desc = make_tensor(reshape_if_1d(output_shape));
 
-    auto status = miopenConvolutionForwardCompileSolution(handle,
-                                        w_desc.get(),
-                                        x_desc.get(),
-                                        cd.get(),
-                                        y_desc.get(),
-                                        solution_id);
+    auto status = miopenConvolutionForwardCompileSolution(
+        handle, w_desc.get(), x_desc.get(), cd.get(), y_desc.get(), solution_id);
     if(status != miopenStatusSuccess)
         MIGRAPHX_THROW("MIOpen Convolution: compile solution failed");
 }

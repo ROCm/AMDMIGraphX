@@ -135,7 +135,7 @@ void miopen_convolution::finalize(context& ctx,
     {
         // Check that workspace hasn't changed
         auto size = inputs.at(2).bytes();
-        auto ws   = find(ctx, output_shape, std::move(inputs));
+        auto ws   = find(ctx, output_shape, inputs);
         if(ws.bytes() > size)
             MIGRAPHX_THROW("MIOpen Convolution: workspace has changed during finalization.");
     }

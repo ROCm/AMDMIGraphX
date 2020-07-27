@@ -35,7 +35,6 @@ struct miopen_convolution
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
     shape find(context& ctx, const shape& output_shape, std::vector<shape> inputs);
-    void get_solution(context& ctx, const shape& output_shape, std::vector<shape> inputs);
     void finalize(context& ctx, const shape& output_shape, std::vector<shape> inputs);
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {

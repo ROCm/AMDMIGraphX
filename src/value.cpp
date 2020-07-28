@@ -472,7 +472,6 @@ void value_to_json_string(const value& val, std::string& str)
     str = j.dump(2);
 }
 
-
 bool get_value(const json& j, const std::string& key, migraphx::value& val)
 {
     bool converted = true;
@@ -555,7 +554,7 @@ void value_from_json(const json& j, migraphx::value& val)
         {
             auto key = item.key();
             json v   = item.value();
-            if (!get_value(v, key, val))
+            if(!get_value(v, key, val))
             {
                 migraphx::value mv;
                 value_from_json(v, mv);
@@ -567,7 +566,7 @@ void value_from_json(const json& j, migraphx::value& val)
     case json::value_t::array:
         for(auto& v : j)
         {
-            if (!get_value(v, val))
+            if(!get_value(v, val))
             {
                 migraphx::value mv;
                 value_from_json(v, mv);
@@ -587,8 +586,7 @@ void value_from_json(const json& j, migraphx::value& val)
     case json::value_t::number_float: val = j.get<double>(); break;
 
     case json::value_t::binary:
-    case json::value_t::discarded:
-         MIGRAPHX_THROW("Convert JSON to Value: type not supported!");
+    case json::value_t::discarded: MIGRAPHX_THROW("Convert JSON to Value: type not supported!");
     }
 }
 

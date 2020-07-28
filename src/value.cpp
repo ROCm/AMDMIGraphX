@@ -567,15 +567,15 @@ void value_from_json(const json& j, migraphx::value& val)
         }
         break;
 
-    case json::value_t::string: val = j.get<std::string>(); break;
+#define CASE_TYPE(vt, cpp_type) \
+    case json::value_t::vt: val = j.get<cpp_type>(); break;
 
-    case json::value_t::boolean: val = j.get<bool>(); break;
-
-    case json::value_t::number_integer: val = j.get<int64_t>(); break;
-
-    case json::value_t::number_unsigned: val = j.get<uint64_t>(); break;
-
-    case json::value_t::number_float: val = j.get<double>(); break;
+        CASE_TYPE(boolean, bool)
+        CASE_TYPE(number_float, double)
+        CASE_TYPE(number_integer, int64_t)
+        CASE_TYPE(number_unsigned, uint64_t)
+        CASE_TYPE(string, std::string)
+#undef CASE_TYPE
 
     case json::value_t::binary:
     case json::value_t::discarded: MIGRAPHX_THROW("Convert JSON to Value: type not supported!");

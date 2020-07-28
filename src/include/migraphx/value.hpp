@@ -13,6 +13,7 @@
 #include <tuple>
 #include <unordered_map>
 #include <vector>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -236,7 +237,8 @@ struct value
     template <class Visitor>
     void visit(Visitor v) const
     {
-        switch(this->get_type())
+        auto type = this->get_type();
+        switch(type)
         {
         case null_type:
         {

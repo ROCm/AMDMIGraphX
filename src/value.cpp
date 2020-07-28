@@ -442,9 +442,9 @@ void value_to_json(const T& x, json& j)
 
 void value_to_json(const std::vector<value>& x, json& j)
 {
-    for (auto& v : x)
+    for(auto& v : x)
     {
-        if (v.get_key().empty())
+        if(v.get_key().empty())
         {
             json jj;
             value_to_json(v, jj);
@@ -487,27 +487,22 @@ bool to_value(const json& j, const std::string& key, migraphx::value& val)
     switch(type)
     {
 
-    case json::value_t::null:
-        val[key] = migraphx::value(nullptr);
-        break;
+    case json::value_t::null: val[key] = migraphx::value(nullptr); break;
 
 #define CASE_TYPE(vt, cpp_type) \
-    case json::value_t::vt: \
-        val[key] = j.get<cpp_type>(); \
-        break;
+    case json::value_t::vt: val[key] = j.get<cpp_type>(); break;
 
-    CASE_TYPE(boolean, bool)
-    CASE_TYPE(number_float, double)
-    CASE_TYPE(number_integer, int64_t)
-    CASE_TYPE(number_unsigned, uint64_t)
-    CASE_TYPE(string, std::string)
+        CASE_TYPE(boolean, bool)
+        CASE_TYPE(number_float, double)
+        CASE_TYPE(number_integer, int64_t)
+        CASE_TYPE(number_unsigned, uint64_t)
+        CASE_TYPE(string, std::string)
 #undef CASE_TYPE
 
     case json::value_t::array:
     case json::value_t::object:
     case json::value_t::binary:
-    case json::value_t::discarded:
-        return false;
+    case json::value_t::discarded: return false;
     }
 
     return true;
@@ -518,27 +513,22 @@ bool to_value(const json& j, migraphx::value& val)
     auto type = j.type();
     switch(type)
     {
-    case json::value_t::null:
-        val.push_back(migraphx::value(nullptr));
-        break;
+    case json::value_t::null: val.push_back(migraphx::value(nullptr)); break;
 
 #define CASE_TYPE(vt, cpp_type) \
-    case json::value_t::vt: \
-        val.push_back(j.get<cpp_type>()); \
-        break;
+    case json::value_t::vt: val.push_back(j.get<cpp_type>()); break;
 
-    CASE_TYPE(boolean, bool)
-    CASE_TYPE(number_float, double)
-    CASE_TYPE(number_integer, int64_t)
-    CASE_TYPE(number_unsigned, uint64_t)
-    CASE_TYPE(string, std::string)
+        CASE_TYPE(boolean, bool)
+        CASE_TYPE(number_float, double)
+        CASE_TYPE(number_integer, int64_t)
+        CASE_TYPE(number_unsigned, uint64_t)
+        CASE_TYPE(string, std::string)
 #undef CASE_TYPE
 
     case json::value_t::array:
     case json::value_t::object:
     case json::value_t::binary:
-    case json::value_t::discarded:
-        return false;
+    case json::value_t::discarded: return false;
     }
 
     return true;

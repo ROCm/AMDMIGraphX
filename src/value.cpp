@@ -472,6 +472,77 @@ void value_to_json_string(const value& val, std::string& str)
     str = j.dump(2);
 }
 
+
+bool get_value(const json& j, const std::string& key, migraphx::value& val)
+{
+    bool converted = true;
+    if(j.type() == json::value_t::null)
+    {
+        val[key] = migraphx::value(nullptr);
+    }
+    else if(j.type() == json::value_t::boolean)
+    {
+        val[key] = j.get<bool>();
+    }
+    else if(j.type() == json::value_t::number_float)
+    {
+        val[key] = j.get<double>();
+    }
+    else if(j.type() == json::value_t::number_integer)
+    {
+        val[key] = j.get<int64_t>();
+    }
+    else if(j.type() == json::value_t::number_unsigned)
+    {
+        val[key] = j.get<uint64_t>();
+    }
+    else if(j.type() == json::value_t::string)
+    {
+        val[key] = j.get<std::string>();
+    }
+    else
+    {
+        converted = false;
+    }
+
+    return converted;
+}
+
+bool get_value(const json& j, migraphx::value& val)
+{
+    bool converted = true;
+    if(j.type() == json::value_t::null)
+    {
+        val.push_back(migraphx::value(nullptr));
+    }
+    else if(j.type() == json::value_t::boolean)
+    {
+        val.push_back(j.get<bool>());
+    }
+    else if(j.type() == json::value_t::number_float)
+    {
+        val.push_back(j.get<double>());
+    }
+    else if(j.type() == json::value_t::number_integer)
+    {
+        val.push_back(j.get<int64_t>());
+    }
+    else if(j.type() == json::value_t::number_unsigned)
+    {
+        val.push_back(j.get<uint64_t>());
+    }
+    else if(j.type() == json::value_t::string)
+    {
+        val.push_back(j.get<std::string>());
+    }
+    else
+    {
+        converted = false;
+    }
+
+    return converted;
+}
+
 void value_from_json(const json& j, migraphx::value& val)
 {
     json::value_t type = j.type();
@@ -484,26 +555,7 @@ void value_from_json(const json& j, migraphx::value& val)
         {
             auto key = item.key();
             json v   = item.value();
-            if(v.type() == json::value_t::null)
-            {
-                val[key] = migraphx::value(nullptr);
-            }
-            else if(v.type() == json::value_t::boolean)
-            {
-                bool b_val = v.get<bool>();
-                val[key]   = b_val;
-            }
-            else if(v.type() == json::value_t::number_float)
-            {
-                double d_val = v.get<double>();
-                val[key]     = d_val;
-            }
-            else if(v.type() == json::value_t::number_integer)
-            {
-                int64_t i_val = v.get<int64_t>();
-                val[key]      = i_val;
-            }
-            else
+            if (!get_value(v, key, val))
             {
                 migraphx::value mv;
                 value_from_json(v, mv);
@@ -515,36 +567,7 @@ void value_from_json(const json& j, migraphx::value& val)
     case json::value_t::array:
         for(auto& v : j)
         {
-            if(v.type() == json::value_t::null)
-            {
-                val.push_back({});
-            }
-            else if(v.type() == json::value_t::boolean)
-            {
-                bool b_val = v.get<bool>();
-                val.push_back(b_val);
-            }
-            else if(v.type() == json::value_t::number_float)
-            {
-                double d_val = v.get<double>();
-                val.push_back(d_val);
-            }
-            else if(v.type() == json::value_t::number_integer)
-            {
-                int64_t i_val = v.get<int64_t>();
-                val.push_back(i_val);
-            }
-            else if(v.type() == json::value_t::number_unsigned)
-            {
-                uint64_t i_val = v.get<uint64_t>();
-                val.push_back(i_val);
-            }
-            else if(v.type() == json::value_t::string)
-            {
-                std::string s_val = v.get<std::string>();
-                val.push_back(s_val);
-            }
-            else
+            if (!get_value(v, val))
             {
                 migraphx::value mv;
                 value_from_json(v, mv);
@@ -565,7 +588,7 @@ void value_from_json(const json& j, migraphx::value& val)
 
     case json::value_t::binary:
     case json::value_t::discarded:
-    default: MIGRAPHX_THROW("Convert JSON to Value: type not supported!");
+         MIGRAPHX_THROW("Convert JSON to Value: type not supported!");
     }
 }
 

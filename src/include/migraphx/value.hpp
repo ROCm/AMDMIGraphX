@@ -13,7 +13,6 @@
 #include <tuple>
 #include <unordered_map>
 #include <vector>
-#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -297,9 +296,6 @@ struct value
     std::shared_ptr<value_base_impl> x;
     std::string key;
 };
-
-void value_to_json_string(const value& val, std::string& str);
-void value_from_json_string(const std::string& str, value& val);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

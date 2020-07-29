@@ -206,7 +206,7 @@ void run_verify_program()
         std::cout << "gpu:\n" << gpu_prog << std::endl;
         std::cout << std::endl;
     }
-    else if (migraphx::enabled(MIGRAPHX_SHOW_PROGRAM{}))
+    else if(migraphx::enabled(MIGRAPHX_SHOW_PROGRAM{}))
     {
         V v;
         auto p = v.create_program();

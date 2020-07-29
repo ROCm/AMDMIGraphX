@@ -79,7 +79,7 @@ void value_to_json_string(const value& val, std::string& str)
 {
     json j;
     value_to_json(val, j);
-    str = j.dump(2);
+    str = j.dump();
 }
 
 bool to_value(const json& j, const std::string& key, migraphx::value& val)

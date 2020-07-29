@@ -30,6 +30,7 @@
 #endif
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_GPU_COMPILE)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SHOW_PROGRAM)
 
 static std::array<std::function<void()>, 2>& handlers()
 {
@@ -197,6 +198,15 @@ void run_verify_program()
     }
 
     if(not passed)
+    {
+        V v;
+        auto p = v.create_program();
+        std::cout << p << std::endl;
+        std::cout << "cpu:\n" << cpu_prog << std::endl;
+        std::cout << "gpu:\n" << gpu_prog << std::endl;
+        std::cout << std::endl;
+    }
+    else if (migraphx::enabled(MIGRAPHX_SHOW_PROGRAM{}))
     {
         V v;
         auto p = v.create_program();

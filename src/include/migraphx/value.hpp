@@ -236,8 +236,7 @@ struct value
     template <class Visitor>
     void visit(Visitor v) const
     {
-        auto type = this->get_type();
-        switch(type)
+        switch(this->get_type())
         {
         case null_type:
         {

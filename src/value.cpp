@@ -178,8 +178,8 @@ const std::vector<value>& value::get_object() const
 const std::vector<value>* value::if_object() const
 {
     auto* r = x ? x->if_array() : nullptr;
-    // assert(r == nullptr or
-    //        std::none_of(r->begin(), r->end(), [](auto&& v) { return v.get_key().empty(); }));
+    assert(r == nullptr or
+           std::none_of(r->begin(), r->end(), [](auto&& v) { return v.get_key().empty(); }));
     return r;
 }
 

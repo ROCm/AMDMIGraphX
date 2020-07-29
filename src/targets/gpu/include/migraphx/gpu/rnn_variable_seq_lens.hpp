@@ -15,6 +15,12 @@ struct hip_rnn_var_sl_shift_sequence
 {
     op::rnn_var_sl_shift_sequence op;
 
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
     std::string name() const { return "gpu::rnn_var_sl_shift_sequence"; }
     shape compute_shape(std::vector<shape> inputs) const;
     argument

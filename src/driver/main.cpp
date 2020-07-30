@@ -123,6 +123,7 @@ struct compiler
     bool offload_copy = false;
     int quantize      = 0;
 
+    std::vector<std::string> fill0;
     std::vector<std::string> fill1;
     void parse(argument_parser& ap)
     {
@@ -135,6 +136,7 @@ struct compiler
            ap.set_value(true));
         ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(q_fp16));
         ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(q_int8));
+        ap(fill0, {"--fill0"}, ap.help("Fill parameter with 0s"), ap.append());
         ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append());
     }
 
@@ -142,6 +144,8 @@ struct compiler
     {
         bool gpu_flag = use_gpu && gpu && !offload_copy;
         program::parameter_map m;
+        for(auto&& s : fill0)
+            m[s] = fill_argument(p.get_parameter_shape(s), 0);
         for(auto&& s : fill1)
             m[s] = fill_argument(p.get_parameter_shape(s), 1);
         fill_param_map(m, p, gpu_flag);

@@ -3,30 +3,27 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/functional.hpp>
-#include <nlohmann/json.hpp>
+#include <migraphx/json.hpp>
 #include <test.hpp>
 
 TEST_CASE(empty_value_to_json)
 {
     migraphx::value v;
-    std::string json_str;
-    migraphx::value_to_json_string(v, json_str);
+    auto json_str = migraphx::to_json_string(v);
     EXPECT(json_str == "null");
 }
 
 TEST_CASE(int_value)
 {
     migraphx::value v = -1;
-    std::string json_str;
-    migraphx::value_to_json_string(v, json_str);
+    std::string json_str = migraphx::to_json_string(v);
     EXPECT(json_str == "-1");
 }
 
 TEST_CASE(int_value_rev)
 {
     std::string json_str = "-1";
-    migraphx::value v;
-    migraphx::value_from_json_string(json_str, v);
+    migraphx::value v = migraphx::from_json_string(json_str);
     migraphx::value ev = -1;
     EXPECT(v == ev);
 }
@@ -34,16 +31,14 @@ TEST_CASE(int_value_rev)
 TEST_CASE(unsigned_value)
 {
     migraphx::value v = 1;
-    std::string json_str;
-    migraphx::value_to_json_string(v, json_str);
+    std::string json_str = migraphx::to_json_string(v);
     EXPECT(json_str == "1");
 }
 
 TEST_CASE(unsigned_value_rev)
 {
     std::string json_str = "1";
-    migraphx::value v;
-    migraphx::value_from_json_string(json_str, v);
+    migraphx::value v = migraphx::from_json_string(json_str);
     EXPECT(v.is_uint64());
     EXPECT(v.get_uint64() == 1);
 }
@@ -51,16 +46,14 @@ TEST_CASE(unsigned_value_rev)
 TEST_CASE(float_value)
 {
     migraphx::value v = 1.5;
-    std::string json_str;
-    migraphx::value_to_json_string(v, json_str);
+    std::string json_str = migraphx::to_json_string(v);
     EXPECT(json_str == "1.5");
 }
 
 TEST_CASE(float_value_rev)
 {
     std::string json_str = "1.5";
-    migraphx::value v;
-    migraphx::value_from_json_string(json_str, v);
+    migraphx::value v = migraphx::from_json_string(json_str);
     migraphx::value ev = 1.5;
     EXPECT(v == ev);
 }
@@ -68,16 +61,14 @@ TEST_CASE(float_value_rev)
 TEST_CASE(array_value)
 {
     migraphx::value v = {1, 2};
-    std::string json_str;
-    migraphx::value_to_json_string(v, json_str);
+    std::string json_str = migraphx::to_json_string(v);
     EXPECT(json_str == "[1,2]");
 }
 
 TEST_CASE(array_value_rev)
 {
     std::string json_str = "[1,2]";
-    migraphx::value v;
-    migraphx::value_from_json_string(json_str, v);
+    migraphx::value v = migraphx::from_json_string(json_str);
     EXPECT(v.is_array());
     EXPECT(v.size() == 2);
     EXPECT(v[0].get_uint64() == 1);
@@ -87,16 +78,14 @@ TEST_CASE(array_value_rev)
 TEST_CASE(object_value)
 {
     migraphx::value v = {{"a", 1.2}, {"b", true}};
-    std::string json_str;
-    migraphx::value_to_json_string(v, json_str);
+    std::string json_str = migraphx::to_json_string(v);
     EXPECT(json_str == "{\"a\":1.2,\"b\":true}");
 }
 
 TEST_CASE(object_value_rev)
 {
     std::string json_str = "{\"a\":1.2,\"b\":true}";
-    migraphx::value v;
-    migraphx::value_from_json_string(json_str, v);
+    migraphx::value v = migraphx::from_json_string(json_str);
     migraphx::value ev = {{"a", 1.2}, {"b", true}};
     EXPECT(v == ev);
 }
@@ -104,17 +93,14 @@ TEST_CASE(object_value_rev)
 TEST_CASE(string_value)
 {
     migraphx::value v = "string_test";
-    std::string json_str;
-    migraphx::value_to_json_string(v, json_str);
-    std::cout << "str = " << json_str << std::endl;
+    std::string json_str = migraphx::to_json_string(v);
     EXPECT(json_str == "\"string_test\"");
 }
 
 TEST_CASE(string_value_rev)
 {
     std::string json_str = "\"string_test\"";
-    migraphx::value v;
-    migraphx::value_from_json_string(json_str, v);
+    migraphx::value v = migraphx::from_json_string(json_str);
     migraphx::value ev = "string_test";
     EXPECT(v == ev);
 }
@@ -123,10 +109,8 @@ TEST_CASE(shape_value)
 {
     migraphx::shape s{migraphx::shape::int32_type, {2, 3, 4, 5}};
     migraphx::value val = migraphx::to_value(s);
-    std::string json_str;
-    migraphx::value_to_json_string(val, json_str);
-    migraphx::value val_rev;
-    migraphx::value_from_json_string(json_str, val_rev);
+    std::string json_str = migraphx::to_json_string(val);
+    migraphx::value val_rev = migraphx::from_json_string(json_str);
     migraphx::shape s_rev;
     migraphx::from_value(val_rev, s_rev);
 
@@ -141,10 +125,8 @@ TEST_CASE(argument_value)
     migraphx::argument argu = migraphx::argument(s, data.data());
 
     migraphx::value val = migraphx::to_value(argu);
-    std::string json_str;
-    migraphx::value_to_json_string(val, json_str);
-    migraphx::value val_rev;
-    migraphx::value_from_json_string(json_str, val_rev);
+    std::string json_str = migraphx::to_json_string(val);
+    migraphx::value val_rev = migraphx::from_json_string(json_str);
     migraphx::argument argu_rev;
     migraphx::from_value(val_rev, argu_rev);
 
@@ -159,10 +141,8 @@ TEST_CASE(literal_value)
     migraphx::literal l = migraphx::literal(s, data);
 
     migraphx::value val = migraphx::to_value(l);
-    std::string json_str;
-    migraphx::value_to_json_string(val, json_str);
-    migraphx::value val_rev;
-    migraphx::value_from_json_string(json_str, val_rev);
+    std::string json_str = migraphx::to_json_string(val);
+    migraphx::value val_rev = migraphx::from_json_string(json_str);
     migraphx::literal l_rev;
     migraphx::from_value(val_rev, l_rev);
 

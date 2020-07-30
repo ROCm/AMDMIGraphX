@@ -2359,7 +2359,7 @@ struct onnx_parser
             using val_type = std::remove_cv_t<typename decltype(val)::value_type>;
             std::vector<val_type> vec_data;
             vec_data.assign(val.begin(), val.end());
-            indices = nonzero_indices(vec_data);
+            indices = this->nonzero_indices(vec_data);
         });
 
         shape in_s = args[0]->get_shape();

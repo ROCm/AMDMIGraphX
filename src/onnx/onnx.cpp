@@ -2352,7 +2352,7 @@ struct onnx_parser
     parse_nonzero(const std::string&, const node_info&, std::vector<instruction_ref> args)
     {
         migraphx::argument data_arg = args.back()->eval();
-        check_arg_empty(data_arg, "PARSE_NONZERO: cannot non-constant input!");
+        check_arg_empty(data_arg, "PARSE_NONZERO: cannot support non-constant input!");
 
         std::vector<std::size_t> indices;
         data_arg.visit([&](auto val) {

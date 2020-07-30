@@ -2326,9 +2326,10 @@ struct onnx_parser
     std::vector<std::size_t> nonzero_indices(std::vector<T>& data)
     {
         std::vector<std::size_t> indices;
-        for (std::size_t i = 0; i < data.size(); ++i)
+        for(std::size_t i = 0; i < data.size(); ++i)
         {
-            if (data[i] != 0.0) indices.push_back(i);
+            if(data[i] != 0.0)
+                indices.push_back(i);
         }
 
         return indices;
@@ -2338,9 +2339,10 @@ struct onnx_parser
     std::vector<std::size_t> nonzero_indices(std::vector<T>& data)
     {
         std::vector<std::size_t> indices;
-        for (std::size_t i = 0; i < data.size(); ++i)
+        for(std::size_t i = 0; i < data.size(); ++i)
         {
-            if (data[i] != 0) indices.push_back(i);
+            if(data[i] != 0)
+                indices.push_back(i);
         }
 
         return indices;
@@ -2364,10 +2366,10 @@ struct onnx_parser
         shape out_s{shape::int64_type, {in_s.lens().size(), indices.size()}};
 
         std::vector<int64_t> out_data(out_s.elements());
-        for (std::size_t i = 0; i < indices.size(); ++i)
+        for(std::size_t i = 0; i < indices.size(); ++i)
         {
             auto idx = in_s.multi(indices[i]);
-            for (std::size_t j = 0; j < in_s.lens().size(); ++j)
+            for(std::size_t j = 0; j < in_s.lens().size(); ++j)
             {
                 out_data[out_s.index({j, i})] = idx[j];
             }

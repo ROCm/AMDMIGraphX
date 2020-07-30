@@ -1721,13 +1721,14 @@ def no_pad_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def nonzero_test():
     data1 = np.array([[1., 0.], [1., 1.]])
     data = helper.make_tensor(name='data',
-                                  data_type=TensorProto.FLOAT,
-                                  dims=data1.shape,
-                                  vals=data1.flatten().astype(np.float))
+                              data_type=TensorProto.FLOAT,
+                              dims=data1.shape,
+                              vals=data1.flatten().astype(np.float))
     y = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 3])
 
     node = onnx.helper.make_node('NonZero',
@@ -1735,6 +1736,7 @@ def nonzero_test():
                                  outputs=['indices'])
 
     return ([node], [], [y], [data])
+
 
 @onnx_test
 def onehot_test():

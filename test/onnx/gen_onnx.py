@@ -1737,6 +1737,7 @@ def nonzero_test():
 
     return ([node], [], [y], [data])
 
+
 @onnx_test
 def nonzero_int_test():
     data1 = np.array([[1, 1, 0], [1, 0, 1]])

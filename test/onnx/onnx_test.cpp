@@ -1357,7 +1357,7 @@ TEST_CASE(nonzero_test)
 
     migraphx::shape si{migraphx::shape::int64_type, {2, 3}};
     std::vector<int64_t> indices = {0, 1, 1, 0, 0, 1};
-    auto r                     = p.add_literal(migraphx::literal(si, indices));
+    auto r                       = p.add_literal(migraphx::literal(si, indices));
     p.add_return({r});
 
     auto prog = migraphx::parse_onnx("nonzero_test.onnx");
@@ -1373,7 +1373,7 @@ TEST_CASE(nonzero_int_test)
 
     migraphx::shape si{migraphx::shape::int64_type, {2, 4}};
     std::vector<int64_t> indices = {0, 0, 1, 1, 0, 1, 0, 2};
-    auto r                     = p.add_literal(migraphx::literal(si, indices));
+    auto r                       = p.add_literal(migraphx::literal(si, indices));
     p.add_return({r});
 
     auto prog = migraphx::parse_onnx("nonzero_int_test.onnx");

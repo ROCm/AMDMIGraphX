@@ -2555,7 +2555,7 @@ struct onnx_parser
             case onnx::TensorProto::INT64: return create_literal(shape::int64_type, dims, s.data());
             case onnx::TensorProto::INT8:
             case onnx::TensorProto::UINT16:
-            case onnx::TensorProto::INT16:
+            case onnx::TensorProto::INT16: return create_literal(shape::int16_type, dims, s.data());
             case onnx::TensorProto::INT32:
             case onnx::TensorProto::BOOL: return create_literal(shape::int32_type, dims, s.data());
             case onnx::TensorProto::UINT8:

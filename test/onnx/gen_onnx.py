@@ -1737,6 +1737,21 @@ def nonzero_test():
 
     return ([node], [], [y], [data])
 
+@onnx_test
+def nonzero_int_test():
+    data1 = np.array([[1, 1, 0], [1, 0, 1]])
+    data = helper.make_tensor(name='data',
+                              data_type=TensorProto.INT16,
+                              dims=data1.shape,
+                              vals=data1.flatten().astype(np.int16))
+    y = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 4])
+
+    node = onnx.helper.make_node('NonZero',
+                                 inputs=['data'],
+                                 outputs=['indices'])
+
+    return ([node], [], [y], [data])
+
 
 @onnx_test
 def onehot_test():

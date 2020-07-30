@@ -17,6 +17,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/pad_calc.hpp>
+#include <migraphx/type_traits.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -119,6 +120,7 @@ struct onnx_parser
         add_mem_op("MatMul", &onnx_parser::parse_matmul<op::dot>);
         add_mem_op("MatMulInteger", &onnx_parser::parse_matmul<op::quant_dot>);
         add_mem_op("MaxPool", &onnx_parser::parse_pooling);
+        add_mem_op("NonZero", &onnx_parser::parse_nonzero);
         add_mem_op("OneHot", &onnx_parser::parse_onehot);
         add_mem_op("Pad", &onnx_parser::parse_pad);
         add_mem_op("Range", &onnx_parser::parse_range);
@@ -2318,6 +2320,60 @@ struct onnx_parser
             }
         }
         MIGRAPHX_THROW("PARSE_ATEN: unsupported custom operator");
+    }
+
+    template <class T, MIGRAPHX_REQUIRES(is_floating_point<T>{})>
+    std::vector<std::size_t> nonzero_indices(std::vector<T>& data)
+    {
+        std::vector<std::size_t> indices;
+        for (std::size_t i = 0; i < data.size(); ++i)
+        {
+            if (data[i] != 0.0) indices.push_back(i);
+        }
+
+        return indices;
+    }
+
+    template <class T, MIGRAPHX_REQUIRES(not is_floating_point<T>{})>
+    std::vector<std::size_t> nonzero_indices(std::vector<T>& data)
+    {
+        std::vector<std::size_t> indices;
+        for (std::size_t i = 0; i < data.size(); ++i)
+        {
+            if (data[i] != 0) indices.push_back(i);
+        }
+
+        return indices;
+    }
+
+    instruction_ref
+    parse_nonzero(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        migraphx::argument data_arg = args.back()->eval();
+        check_arg_empty(data_arg, "PARSE_NONZERO: cannot non-constant input!");
+
+        std::vector<std::size_t> indices;
+        data_arg.visit([&](auto val) {
+            using val_type = std::remove_cv_t<typename decltype(val)::value_type>;
+            std::vector<val_type> vec_data;
+            vec_data.assign(val.begin(), val.end());
+            indices = nonzero_indices(vec_data);
+        });
+
+        shape in_s = args[0]->get_shape();
+        shape out_s{shape::int64_type, {in_s.lens().size(), indices.size()}};
+
+        std::vector<int64_t> out_data(out_s.elements());
+        for (std::size_t i = 0; i < indices.size(); ++i)
+        {
+            auto idx = in_s.multi(indices[i]);
+            for (std::size_t j = 0; j < in_s.lens().size(); ++j)
+            {
+                out_data[out_s.index({j, i})] = idx[j];
+            }
+        }
+
+        return prog.add_literal(literal(out_s, out_data));
     }
 
     void parse_from(std::istream& is)

@@ -131,6 +131,9 @@ value::value(const std::string& pkey, const std::unordered_map<std::string, valu
 
 value::value(const std::string& pkey, std::nullptr_t) : x(nullptr), key(pkey) {}
 
+value::value(std::nullptr_t) : x(nullptr), key()
+{}
+
 value::value(const std::string& pkey, const value& rhs)
     : x(rhs.x ? rhs.x->clone() : nullptr), key(pkey)
 {
@@ -158,6 +161,12 @@ value::value(const char* i) : value(std::string(i)) {}
     }                                                                                  \
     const cpp_type* value::if_##vt() const { return x ? x->if_##vt() : nullptr; }
 MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS)
+
+value& value::operator=(std::nullptr_t)
+{
+    x = nullptr;
+    return *this;
+}
 
 bool value::is_array() const { return x ? x->get_type() == array_type : false; }
 const std::vector<value>& value::value::get_array() const
@@ -427,7 +436,24 @@ std::ostream& operator<<(std::ostream& os, const value& d)
     return os;
 }
 
-void value::debug_print() const { std::cout << *this << std::endl; }
+
+
+void value::debug_print(bool show_type) const 
+{
+    if (show_type)
+    {
+        switch(get_type())
+        {
+#define MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(vt, cpp_type) \
+        case vt##_type: std::cout << #vt << ": "; break;
+        MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE)
+        MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(null,)
+        MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(array,)
+        MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(object,)
+        }
+    } 
+    std::cout << *this << std::endl; 
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

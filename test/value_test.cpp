@@ -9,6 +9,21 @@ TEST_CASE(value_default_construct)
     EXPECT(v.get_key().empty());
 }
 
+TEST_CASE(value_construct_null)
+{
+    migraphx::value v = nullptr;
+    EXPECT(v.is_null());
+    EXPECT(v.get_key().empty());
+}
+
+TEST_CASE(value_assign_null)
+{
+    migraphx::value v;
+    v = nullptr;
+    EXPECT(v.is_null());
+    EXPECT(v.get_key().empty());
+}
+
 TEST_CASE(value_construct_int1)
 {
     EXPECT(migraphx::value(1).is_int64());

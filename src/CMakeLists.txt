@@ -19,6 +19,7 @@ add_library(migraphx
     env.cpp
     generate.cpp
     instruction.cpp
+    msgpack.cpp
     program.cpp
     quantization.cpp
     remap.cpp
@@ -43,6 +44,11 @@ rocm_install_targets(
 find_path(HALF_INCLUDE_DIR half.hpp)
 # TODO: Fix the incorrect path
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
+
+find_package(msgpack REQUIRED)
+target_link_libraries(migraphx PRIVATE msgpackc-cxx)
+# Make this available to the tests
+target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
 
 set(PACKAGE_DEPENDS)
 

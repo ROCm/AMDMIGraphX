@@ -3,120 +3,123 @@
 #include <msgpack.hpp>
 
 namespace msgpack {
-MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS) {
-namespace adaptor {
+MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
+{
+    namespace adaptor {
 
-template<>
-struct convert<migraphx::value> {
-    const msgpack::object& operator()(const msgpack::object& o, migraphx::value& v) const {
-        switch(o.type) {
+    template <>
+    struct convert<migraphx::value>
+    {
+        const msgpack::object& operator()(const msgpack::object& o, migraphx::value& v) const
+        {
+            switch(o.type)
+            {
             case msgpack::type::NIL:
             {
                 v = nullptr;
-                break;    
+                break;
             }
             case msgpack::type::BOOLEAN:
             {
                 v = o.as<bool>();
-                break;    
+                break;
             }
             case msgpack::type::POSITIVE_INTEGER:
             {
                 v = o.as<std::uint64_t>();
-                break;    
+                break;
             }
             case msgpack::type::NEGATIVE_INTEGER:
             {
                 v = o.as<std::int64_t>();
-                break;    
+                break;
             }
             case msgpack::type::FLOAT32:
             case msgpack::type::FLOAT64:
             {
                 v = o.as<double>();
-                break;    
+                break;
             }
             case msgpack::type::STR:
             {
                 v = o.as<std::string>();
-                break;    
+                break;
             }
-            case msgpack::type::BIN:
-            {
-                throw msgpack::type_error();
+            case msgpack::type::BIN: { throw msgpack::type_error();
             }
             case msgpack::type::ARRAY:
             {
                 migraphx::value r;
-                std::for_each(o.via.array.ptr, o.via.array.ptr+o.via.array.size, [&](auto&& so) {
+                std::for_each(o.via.array.ptr, o.via.array.ptr + o.via.array.size, [&](auto&& so) {
                     r.push_back(so.as<migraphx::value>());
                 });
                 v = r;
-                break;    
+                break;
             }
             case msgpack::type::MAP:
             {
                 migraphx::value r;
-                std::for_each(o.via.map.ptr, o.via.map.ptr+o.via.map.size, [&](auto&& p) {
+                std::for_each(o.via.map.ptr, o.via.map.ptr + o.via.map.size, [&](auto&& p) {
                     r[p.key.as<std::string>()] = p.val.as<migraphx::value>();
                 });
                 v = r;
-                break;    
+                break;
             }
-            case msgpack::type::EXT:
-            {
-                throw msgpack::type_error();    
+            case msgpack::type::EXT: { throw msgpack::type_error();
             }
+            }
+            return o;
         }
-        return o;
-    }
-};
+    };
 
-template<>
-struct pack<migraphx::value> {
-    template <class Stream>
-    void write(msgpack::packer<Stream>& o, const std::nullptr_t&) const {
-        o.pack_nil();
-    }
-    template <class Stream, class T>
-    void write(msgpack::packer<Stream>& o, const T& x) const {
-        o.pack(x);
-    }
-    template <class Stream>
-    void write(msgpack::packer<Stream>& o, const std::vector<migraphx::value>& v) const {
-        if (v.empty())
+    template <>
+    struct pack<migraphx::value>
+    {
+        template <class Stream>
+        void write(msgpack::packer<Stream>& o, const std::nullptr_t&) const
         {
-            o.pack_array(0);
-            return;
+            o.pack_nil();
         }
-        if (not v.front().get_key().empty())
+        template <class Stream, class T>
+        void write(msgpack::packer<Stream>& o, const T& x) const
         {
-            o.pack_map(v.size());
-            for(auto&& x:v)
+            o.pack(x);
+        }
+        template <class Stream>
+        void write(msgpack::packer<Stream>& o, const std::vector<migraphx::value>& v) const
+        {
+            if(v.empty())
             {
-                o.pack(x.get_key());
-                o.pack(x.without_key());
+                o.pack_array(0);
+                return;
+            }
+            if(not v.front().get_key().empty())
+            {
+                o.pack_map(v.size());
+                for(auto&& x : v)
+                {
+                    o.pack(x.get_key());
+                    o.pack(x.without_key());
+                }
+            }
+            else
+            {
+                o.pack_array(v.size());
+                for(auto&& x : v)
+                {
+                    o.pack(x);
+                }
             }
         }
-        else
+        template <class Stream>
+        packer<Stream>& operator()(msgpack::packer<Stream>& o, const migraphx::value& v) const
         {
-            o.pack_array(v.size());
-            for(auto&& x:v)
-            {
-                o.pack(x);
-            }
+            v.visit([&](auto&& x) { this->write(o, x); });
+            return o;
         }
-    }
-    template <class Stream>
-    packer<Stream>& operator()(msgpack::packer<Stream>& o, const migraphx::value& v) const {
-        v.visit([&](auto&& x) {
-            this->write(o, x);
-        });
-        return o;
-    }
-};
+    };
 
-} // namespace adaptor
+    } // namespace adaptor
 } // MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
 } // namespace msgpack
 
@@ -128,7 +131,7 @@ struct vector_stream
     std::vector<char> buffer{};
     vector_stream& write(const char* b, std::size_t n)
     {
-        buffer.insert(buffer.end(), b, b+n);
+        buffer.insert(buffer.end(), b, b + n);
         return *this;
     }
 };

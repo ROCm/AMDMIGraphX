@@ -291,7 +291,7 @@ struct value
 
     friend std::ostream& operator<<(std::ostream& os, const value& d);
 
-    void debug_print(bool show_type=false) const;
+    void debug_print(bool show_type = false) const;
 
     private:
     type_t get_type() const;

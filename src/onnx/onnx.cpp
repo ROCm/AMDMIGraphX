@@ -18,6 +18,7 @@
 #include <migraphx/onnx.hpp>
 #include <migraphx/pad_calc.hpp>
 #include <migraphx/type_traits.hpp>
+#include <migraphx/float_equal.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -2322,26 +2323,13 @@ struct onnx_parser
         MIGRAPHX_THROW("PARSE_ATEN: unsupported custom operator");
     }
 
-    template <class T, MIGRAPHX_REQUIRES(is_floating_point<T>{})>
+    template <class T>
     std::vector<std::size_t> nonzero_indices(std::vector<T>& data)
     {
         std::vector<std::size_t> indices;
         for(std::size_t i = 0; i < data.size(); ++i)
         {
-            if(data[i] != 0.0)
-                indices.push_back(i);
-        }
-
-        return indices;
-    }
-
-    template <class T, MIGRAPHX_REQUIRES(not is_floating_point<T>{})>
-    std::vector<std::size_t> nonzero_indices(std::vector<T>& data)
-    {
-        std::vector<std::size_t> indices;
-        for(std::size_t i = 0; i < data.size(); ++i)
-        {
-            if(data[i] != 0)
+            if(!float_equal(data[i], 0))
                 indices.push_back(i);
         }
 

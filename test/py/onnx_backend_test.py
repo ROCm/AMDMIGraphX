@@ -1,5 +1,5 @@
 import sys
-if sys.version_info < (3, 7):
+if sys.version_info < (3, 0):
     sys.exit()
 
 import argparse

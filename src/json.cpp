@@ -27,7 +27,7 @@ void value_to_json(const std::vector<value>& x, json& j)
             value_to_json(v, jj);
             j.push_back(jj);
         }
-        // corresponding to an object
+        // in the case of an object
         else
         {
             value_to_json(v, j);
@@ -58,113 +58,66 @@ std::string to_json_string(const value& val)
     return str;
 }
 
-bool to_value(const json& j, const std::string& key, migraphx::value& val)
+migraphx::value value_from_json(const json& j)
 {
-
-    auto type = j.type();
-    switch(type)
-    {
-
-    case json::value_t::null: val[key] = migraphx::value(nullptr); break;
-
-#define CASE_TYPE(vt, cpp_type) \
-    case json::value_t::vt: val[key] = j.get<cpp_type>(); break;
-
-        CASE_TYPE(boolean, bool)
-        CASE_TYPE(number_float, double)
-        CASE_TYPE(number_integer, int64_t)
-        CASE_TYPE(number_unsigned, uint64_t)
-        CASE_TYPE(string, std::string)
-#undef CASE_TYPE
-
-    case json::value_t::array:
-    case json::value_t::object:
-    case json::value_t::binary:
-    case json::value_t::discarded: return false;
-    }
-
-    return true;
-}
-
-bool to_value(const json& j, migraphx::value& val)
-{
-    auto type = j.type();
-    switch(type)
-    {
-    case json::value_t::null: val.push_back(migraphx::value(nullptr)); break;
-
-#define CASE_TYPE(vt, cpp_type) \
-    case json::value_t::vt: val.push_back(j.get<cpp_type>()); break;
-
-        CASE_TYPE(boolean, bool)
-        CASE_TYPE(number_float, double)
-        CASE_TYPE(number_integer, int64_t)
-        CASE_TYPE(number_unsigned, uint64_t)
-        CASE_TYPE(string, std::string)
-#undef CASE_TYPE
-
-    case json::value_t::array:
-    case json::value_t::object:
-    case json::value_t::binary:
-    case json::value_t::discarded: return false;
-    }
-
-    return true;
-}
-
-void value_from_json(const json& j, migraphx::value& val)
-{
+    migraphx::value val;
     json::value_t type = j.type();
     switch(type)
     {
-    case json::value_t::null: val = migraphx::value(nullptr); break;
+    case json::value_t::null: 
+        val = migraphx::value(nullptr);
+        break;
+
+    case json::value_t::boolean:
+        val = j.get<bool>();
+        break;
+
+    case json::value_t::number_float:
+        val = j.get<double>();
+        break;
+
+    case json::value_t::number_integer:
+        val = j.get<int64_t>();
+        break;
+
+    case json::value_t::number_unsigned:
+        val = j.get<uint64_t>();
+        break;
+
+    case json::value_t::string:
+        val = j.get<std::string>();
+        break;
+
+    case json::value_t::array:
+        for(auto& v : j)
+        {
+            val.push_back(value_from_json(v));
+        }
+        break;
 
     case json::value_t::object:
         for(auto item : j.items())
         {
             auto key = item.key();
             json v   = item.value();
-            if(!to_value(v, key, val))
-            {
-                migraphx::value mv;
-                value_from_json(v, mv);
-                val[key] = mv;
-            }
+            val[key] = value_from_json(v);
         }
         break;
-
-    case json::value_t::array:
-        for(auto& v : j)
-        {
-            if(!to_value(v, val))
-            {
-                migraphx::value mv;
-                value_from_json(v, mv);
-                val.push_back(mv);
-            }
-        }
-        break;
-
-#define CASE_TYPE(vt, cpp_type) \
-    case json::value_t::vt: val = j.get<cpp_type>(); break;
-
-        CASE_TYPE(boolean, bool)
-        CASE_TYPE(number_float, double)
-        CASE_TYPE(number_integer, int64_t)
-        CASE_TYPE(number_unsigned, uint64_t)
-        CASE_TYPE(string, std::string)
-#undef CASE_TYPE
 
     case json::value_t::binary:
-    case json::value_t::discarded: MIGRAPHX_THROW("Convert JSON to Value: type not supported!");
+    case json::value_t::discarded:
+        MIGRAPHX_THROW("Convert JSON to Value: type not supported!");
     }
+
+    return val;
 }
+
 
 migraphx::value from_json_string(const std::string& str)
 {
     migraphx::value val;
     json j = json::parse(str);
-    value_from_json(j, val);
+    val = value_from_json(j);
 
     return val;
 }

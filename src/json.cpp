@@ -50,12 +50,15 @@ void value_to_json(const value& val, json& j)
     val.visit([&](auto v) { value_to_json(v, j); });
 }
 
+void to_json(json& j, const value& val)
+{
+    value_to_json(val, j);
+}
+
 std::string to_json_string(const value& val)
 {
-    json j;
-    value_to_json(val, j);
-    std::string str = j.dump();
-    return str;
+    json j = val;
+    return j.dump();
 }
 
 migraphx::value value_from_json(const json& j)
@@ -77,10 +80,7 @@ migraphx::value value_from_json(const json& j)
     case json::value_t::string: val = j.get<std::string>(); break;
 
     case json::value_t::array:
-        for(auto& v : j)
-        {
-            val.push_back(value_from_json(v));
-        }
+        std::transform(j.begin(), j.end(), std::back_inserter(val), [&](auto& v) { return value_from_json(v); });
         break;
 
     case json::value_t::object:
@@ -97,6 +97,11 @@ migraphx::value value_from_json(const json& j)
     }
 
     return val;
+}
+
+void from_json(const json& j, value& val)
+{
+    val = value_from_json(j);
 }
 
 migraphx::value from_json_string(const std::string& str)

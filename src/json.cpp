@@ -88,7 +88,7 @@ migraphx::value value_from_json(const json& j)
         {
             const auto& key = item.key();
             const json& v   = item.value();
-            val[key] = value_from_json(v);
+            val[key]        = value_from_json(v);
         }
         break;
 

@@ -64,29 +64,17 @@ migraphx::value value_from_json(const json& j)
     json::value_t type = j.type();
     switch(type)
     {
-    case json::value_t::null: 
-        val = migraphx::value(nullptr);
-        break;
+    case json::value_t::null: val = migraphx::value(nullptr); break;
 
-    case json::value_t::boolean:
-        val = j.get<bool>();
-        break;
+    case json::value_t::boolean: val = j.get<bool>(); break;
 
-    case json::value_t::number_float:
-        val = j.get<double>();
-        break;
+    case json::value_t::number_float: val = j.get<double>(); break;
 
-    case json::value_t::number_integer:
-        val = j.get<int64_t>();
-        break;
+    case json::value_t::number_integer: val = j.get<int64_t>(); break;
 
-    case json::value_t::number_unsigned:
-        val = j.get<uint64_t>();
-        break;
+    case json::value_t::number_unsigned: val = j.get<uint64_t>(); break;
 
-    case json::value_t::string:
-        val = j.get<std::string>();
-        break;
+    case json::value_t::string: val = j.get<std::string>(); break;
 
     case json::value_t::array:
         for(auto& v : j)
@@ -105,19 +93,17 @@ migraphx::value value_from_json(const json& j)
         break;
 
     case json::value_t::binary:
-    case json::value_t::discarded:
-        MIGRAPHX_THROW("Convert JSON to Value: type not supported!");
+    case json::value_t::discarded: MIGRAPHX_THROW("Convert JSON to Value: type not supported!");
     }
 
     return val;
 }
 
-
 migraphx::value from_json_string(const std::string& str)
 {
     migraphx::value val;
     json j = json::parse(str);
-    val = value_from_json(j);
+    val    = value_from_json(j);
 
     return val;
 }

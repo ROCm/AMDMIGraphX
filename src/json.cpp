@@ -84,10 +84,10 @@ migraphx::value value_from_json(const json& j)
         break;
 
     case json::value_t::object:
-        for(auto item : j.items())
+        for(const auto& item : j.items())
         {
-            auto key = item.key();
-            json v   = item.value();
+            const auto& key = item.key();
+            const json& v   = item.value();
             val[key] = value_from_json(v);
         }
         break;

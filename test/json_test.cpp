@@ -84,7 +84,7 @@ TEST_CASE(object_value)
 
 TEST_CASE(object_value_rev)
 {
-    std::string json_str = "{\"a\":1.2,\"b\":true}";
+    std::string json_str = R"({"a":1.2,"b":true})";
     migraphx::value v    = migraphx::from_json_string(json_str);
     migraphx::value ev   = {{"a", 1.2}, {"b", true}};
     EXPECT(v == ev);

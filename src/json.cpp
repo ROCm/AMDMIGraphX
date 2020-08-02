@@ -78,7 +78,7 @@ migraphx::value value_from_json(const json& j)
     case json::value_t::string: val = j.get<std::string>(); break;
 
     case json::value_t::array:
-        std::transform(j.begin(), j.end(), std::back_inserter(val), [&](auto& v) {
+        std::transform(j.begin(), j.end(), std::back_inserter(val), [&](const auto& v) {
             return value_from_json(v);
         });
         break;

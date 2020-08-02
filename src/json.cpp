@@ -54,7 +54,8 @@ void to_json(json& j, const value& val) { value_to_json(val, j); }
 
 std::string to_json_string(const value& val)
 {
-    json j = val;
+    json j;
+    value_to_json(val, j);
     return j.dump();
 }
 

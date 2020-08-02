@@ -16,11 +16,10 @@ TEST_CASE(empty_value)
 TEST_CASE(empty_value_rev)
 {
     std::string json_str = "null";
-    migraphx::value v = migraphx::from_json_string(json_str);
-    migraphx::value ev = migraphx::value();
+    migraphx::value v    = migraphx::from_json_string(json_str);
+    migraphx::value ev   = migraphx::value();
     EXPECT(v == ev);
 }
-
 
 TEST_CASE(int_value)
 {

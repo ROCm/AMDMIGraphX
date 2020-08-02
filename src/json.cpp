@@ -65,7 +65,7 @@ migraphx::value value_from_json(const json& j)
     json::value_t type = j.type();
     switch(type)
     {
-    case json::value_t::null: val = migraphx::value(nullptr); break;
+    case json::value_t::null: val = migraphx::value(); break;
 
     case json::value_t::boolean: val = j.get<bool>(); break;
 

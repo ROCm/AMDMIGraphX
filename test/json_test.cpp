@@ -6,12 +6,21 @@
 #include <migraphx/json.hpp>
 #include <test.hpp>
 
-TEST_CASE(empty_value_to_json)
+TEST_CASE(empty_value)
 {
     migraphx::value v;
     auto json_str = migraphx::to_json_string(v);
     EXPECT(json_str == "null");
 }
+
+TEST_CASE(empty_value_rev)
+{
+    std::string json_str = "null";
+    migraphx::value v = migraphx::from_json_string(json_str);
+    migraphx::value ev = migraphx::value();
+    EXPECT(v == ev);
+}
+
 
 TEST_CASE(int_value)
 {

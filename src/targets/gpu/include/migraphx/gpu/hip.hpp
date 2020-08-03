@@ -23,7 +23,6 @@ argument from_gpu(const argument& arg);
 void set_device(std::size_t id);
 
 void gpu_sync();
-void stream_sync(context& ctx);
 
 void gpu_copy(context& ctx, const argument& src, const argument& dst);
 void copy_to_gpu(context& ctx, const argument& src, const argument& dst);

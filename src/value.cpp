@@ -131,7 +131,7 @@ value::value(const std::string& pkey, const std::unordered_map<std::string, valu
 
 value::value(const std::string& pkey, std::nullptr_t) : x(nullptr), key(pkey) {}
 
-value::value(std::nullptr_t) : x(nullptr), key() {}
+value::value(std::nullptr_t) : x(nullptr) {}
 
 value::value(const std::string& pkey, const value& rhs)
     : x(rhs.x ? rhs.x->clone() : nullptr), key(pkey)

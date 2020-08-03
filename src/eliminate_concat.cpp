@@ -36,7 +36,7 @@ void eliminate_concat::apply(program& p) const
         std::size_t axis_index =
             (concat_op.axis < 0) ? (concat_op.axis + lens.size()) : concat_op.axis;
         if(axis_index == 0 ||
-           std::all_of(lens.begin(), lens.begin() + concat_op.axis, [](auto x) { return x == 1; }))
+           std::all_of(lens.begin(), lens.begin() + axis_index, [](auto x) { return x == 1; }))
         {
             // Last input should be an allocation
             auto last = ins->inputs().back();

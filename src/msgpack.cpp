@@ -51,7 +51,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
             {
                 migraphx::value r;
                 std::for_each(o.via.array.ptr, o.via.array.ptr + o.via.array.size, [&](auto&& so) {
-                    r.push_back(so.as<migraphx::value>());
+                    r.push_back(so.template as<migraphx::value>());
                 });
                 v = r;
                 break;
@@ -60,7 +60,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
             {
                 migraphx::value r;
                 std::for_each(o.via.map.ptr, o.via.map.ptr + o.via.map.size, [&](auto&& p) {
-                    r[p.key.as<std::string>()] = p.val.as<migraphx::value>();
+                    r[p.key.template as<std::string>()] = p.val.template as<migraphx::value>();
                 });
                 v = r;
                 break;

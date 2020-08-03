@@ -82,6 +82,8 @@ TEST_CASE(program_copy)
 
         p1.compile(migraphx::cpu::target{});
         EXPECT(p1 == p2);
+
+        EXPECT(p1.get_parameter_names() == p2.get_parameter_names());
     }
 
     {

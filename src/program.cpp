@@ -117,6 +117,7 @@ void program::assign(const program& p)
         impl->instructions.clear();
     }
     impl->ctx = p.impl->ctx;
+    impl->input_names = p.impl->input_names;
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
     for(auto ins : iterator_for(p))

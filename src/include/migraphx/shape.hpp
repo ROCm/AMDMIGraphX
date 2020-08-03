@@ -14,6 +14,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct value;
 struct shape_impl;
 
 struct shape
@@ -184,12 +185,16 @@ struct shape
     }
 
     std::string type_string() const;
+    static type_t parse_type(const std::string& s);
 
     private:
     std::shared_ptr<const shape_impl> impl;
 
     std::size_t element_space() const;
 };
+
+void migraphx_to_value(value& v, const shape& s);
+void migraphx_from_value(const value& v, shape& s);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

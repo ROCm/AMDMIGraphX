@@ -1,5 +1,6 @@
 
 #include <migraphx/shape.hpp>
+#include <migraphx/serialize.hpp>
 #include <array>
 #include <algorithm>
 #include <numeric>
@@ -368,6 +369,21 @@ TEST_CASE(test_shape4_nonpacked)
     EXPECT(s.index({0, 1, 0, 0}) == s.index(8 * 8));
     EXPECT(s.index({1, 0, 0, 0}) == s.index(8 * 8 * 32));
     EXPECT(s.index(s.elements() - 1) == 469273);
+}
+
+TEST_CASE(test_serialize)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {100, 32, 8, 8}};
+    auto v1 = migraphx::to_value(s1);
+    migraphx::shape s2{migraphx::shape::uint64_type, {2, 2}};
+    auto v2 = migraphx::to_value(s2);
+    EXPECT(v1 != v2);
+
+    auto s3 = migraphx::from_value<migraphx::shape>(v1);
+    EXPECT(s3 == s1);
+    auto s4 = migraphx::from_value<migraphx::shape>(v2);
+    EXPECT(s4 == s2);
+    EXPECT(s3 != s4);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

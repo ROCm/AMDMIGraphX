@@ -755,6 +755,62 @@ struct test_group_conv : verify_program<test_group_conv>
     }
 };
 
+struct test_deconv : verify_program<test_deconv>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
+        auto weights =
+            p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
+        p.add_instruction(migraphx::op::deconvolution{}, input, weights);
+        return p;
+    }
+};
+
+struct test_deconv_2x3 : verify_program<test_deconv_2x3>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 6, 7}});
+        auto weights =
+            p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {3, 4, 3, 3}});
+        p.add_instruction(migraphx::op::deconvolution{{1, 1}, {2, 3}, {1, 1}}, input, weights);
+        return p;
+    }
+};
+
+struct test_deconv_1d : verify_program<test_deconv_1d>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3}});
+        auto weights =
+            p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3}});
+        p.add_instruction(migraphx::op::deconvolution{{0}, {1}, {1}}, input, weights);
+        return p;
+    }
+};
+
+struct test_deconv_3d : verify_program<test_deconv_3d>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3, 3}});
+        auto weights =
+            p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3, 3}});
+        p.add_instruction(
+            migraphx::op::deconvolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}}, input, weights);
+        return p;
+    }
+};
+
 struct test_conv_relu : verify_program<test_conv_relu>
 {
     migraphx::program create_program() const
@@ -1126,6 +1182,19 @@ struct test_avg_pooling_3d : verify_program<test_avg_pooling_3d>
         migraphx::program p;
         auto input =
             p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+        auto op = migraphx::op::pooling{"average", {0, 0, 0}, {1, 1, 1}, {3, 3, 3}};
+        p.add_instruction(op, input);
+        return p;
+    }
+};
+
+struct test_avg_pooling_3d_opt : verify_program<test_avg_pooling_3d_opt>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 2, 3, 3, 3}});
         auto op = migraphx::op::pooling{"average", {0, 0, 0}, {1, 1, 1}, {3, 3, 3}};
         p.add_instruction(op, input);
         return p;

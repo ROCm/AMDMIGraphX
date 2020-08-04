@@ -10,6 +10,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 using json = nlohmann::json;
 
 void value_to_json(const value& val, json& j);
+void to_json(json& j, const value& val);
+void from_json(const json& j, value& val);
 
 template <class T>
 void value_to_json(const T& x, json& j)
@@ -23,14 +25,12 @@ void value_to_json(const std::vector<value>& x, json& j)
     {
         if(v.get_key().empty())
         {
-            json jj;
-            value_to_json(v, jj);
-            j.push_back(jj);
+            j.push_back(v);
         }
         // in the case of an object
         else
         {
-            value_to_json(v, j);
+            j[v.get_key()] = v.without_key();
         }
     }
 }
@@ -50,12 +50,13 @@ void value_to_json(const value& val, json& j)
     val.visit([&](auto v) { value_to_json(v, j); });
 }
 
-void to_json(json& j, const value& val) { value_to_json(val, j); }
+void to_json(json& j, const value& val) { 
+    val.visit([&](auto v) { value_to_json(v, j); });    
+}
 
 std::string to_json_string(const value& val)
 {
-    json j;
-    value_to_json(val, j);
+    json j = val;
     return j.dump();
 }
 
@@ -78,8 +79,8 @@ migraphx::value value_from_json(const json& j)
     case json::value_t::string: val = j.get<std::string>(); break;
 
     case json::value_t::array:
-        std::transform(j.begin(), j.end(), std::back_inserter(val), [&](const auto& v) {
-            return value_from_json(v);
+        std::transform(j.begin(), j.end(), std::back_inserter(val), [&](const auto& jj) {
+            return value_from_json(jj);
         });
         break;
 
@@ -92,8 +93,8 @@ migraphx::value value_from_json(const json& j)
         }
         break;
 
-    case json::value_t::binary:
-    case json::value_t::discarded: MIGRAPHX_THROW("Convert JSON to Value: type not supported!");
+    case json::value_t::binary: MIGRAPHX_THROW("Convert JSON to Value: binary type not supported!");
+    case json::value_t::discarded: MIGRAPHX_THROW("Convert JSON to Value: discarded type not supported!");
     }
 
     return val;

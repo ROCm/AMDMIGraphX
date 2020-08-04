@@ -2324,7 +2324,7 @@ struct onnx_parser
     }
 
     template <class T>
-    std::vector<std::size_t> nonzero_indices(std::vector<T>& data)
+    std::vector<std::size_t> nonzero_indices(const std::vector<T>& data)
     {
         std::vector<std::size_t> indices;
         for(std::size_t i = 0; i < data.size(); ++i)

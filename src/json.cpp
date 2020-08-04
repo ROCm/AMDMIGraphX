@@ -50,8 +50,9 @@ void value_to_json(const value& val, json& j)
     val.visit([&](auto v) { value_to_json(v, j); });
 }
 
-void to_json(json& j, const value& val) { 
-    val.visit([&](auto v) { value_to_json(v, j); });    
+void to_json(json& j, const value& val)
+{
+    val.visit([&](auto v) { value_to_json(v, j); });
 }
 
 std::string to_json_string(const value& val)
@@ -94,7 +95,8 @@ migraphx::value value_from_json(const json& j)
         break;
 
     case json::value_t::binary: MIGRAPHX_THROW("Convert JSON to Value: binary type not supported!");
-    case json::value_t::discarded: MIGRAPHX_THROW("Convert JSON to Value: discarded type not supported!");
+    case json::value_t::discarded:
+        MIGRAPHX_THROW("Convert JSON to Value: discarded type not supported!");
     }
 
     return val;

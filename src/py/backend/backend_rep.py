@@ -20,11 +20,12 @@ class MIGraphXBackendRep(BackendRep):
     Computes the prediction for a pipeline converted into
     an :class:`onnxruntime.InferenceSession` node.
     """
-    def __init__(self, prog):
+    def __init__(self, prog, input_names):
         """
         :param session: :class:`migraphx.program`
         """
         self._program = prog
+        self._input_names = input_names
 
     def run(self, inputs, **kwargs):  # type: (Any, **Any) -> Tuple[Any, ...]
         """
@@ -34,8 +35,7 @@ class MIGraphXBackendRep(BackendRep):
 
         if isinstance(inputs, list):
             inps = {}
-            input_names = self._program.get_parameter_names()
-            for i, name in enumerate(self._program.get_parameter_names()):
+            for i, name in enumerate(self._input_names):
                 inps[name] = migraphx.argument(inputs[i])
             mgx_outputs = self._program.run(inps)
             outs = []

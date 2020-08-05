@@ -283,14 +283,10 @@ instruction_ref program::add_outline(const shape& s)
     return impl->instructions.begin();
 }
 
-instruction_ref program::add_parameter(std::string name, shape s, bool is_input)
+instruction_ref program::add_parameter(std::string name, shape s)
 {
     assert(get_parameter_shape(name) == shape{});
-    // if current parameter is a program input
-    if(is_input)
-    {
-        impl->input_names.push_back(name);
-    }
+    impl->input_names.push_back(name);
 
     impl->instructions.push_front({builtin::param{std::move(name)}, std::move(s), {}});
     return impl->instructions.begin();

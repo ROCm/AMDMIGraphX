@@ -22,6 +22,7 @@ def get_device():
 
 class MIGraphXBackend(Backend):
     _device = "GPU"
+    _input_names = []
 
     @classmethod
     def set_device(cls, device):
@@ -74,7 +75,7 @@ class MIGraphXBackend(Backend):
         if isinstance(model, MIGraphXBackendRep):
             return model
         elif isinstance(model, migraphx.program):
-            return MIGraphXBackendRep(model)
+            return MIGraphXBackendRep(model, cls._input_names)
         elif isinstance(model, (str, bytes)):
             for k, v in kwargs.items():
                 if hasattr(options, k):
@@ -85,6 +86,7 @@ class MIGraphXBackend(Backend):
                         device, get_device()))
             inf = migraphx.parse_onnx_buffer(model)
             device = cls._device
+            cls._input_names = inf.get_parameter_names()
             inf.compile(migraphx.get_target(device.lower()))
             return cls.prepare(inf, device, **kwargs)
         else:

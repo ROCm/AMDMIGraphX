@@ -52,6 +52,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Wokaround broken rocm packages for rocm >= 3.1 
+RUN [ -d /opt/rocm ] || ln -sd $(realpath /opt/rocm-*) /opt/rocm
+
 RUN locale-gen en_US.UTF-8
 RUN update-locale LANG=en_US.UTF-8
 

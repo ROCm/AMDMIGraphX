@@ -25,14 +25,14 @@ TEST_CASE(empty_array)
 {
     migraphx::value v;
     migraphx::value arr = {v, v};
-    auto json_str = migraphx::to_json_string(arr);
+    auto json_str       = migraphx::to_json_string(arr);
     EXPECT(json_str == "[null,null]");
 }
 
 TEST_CASE(empty_array_rev)
 {
     std::string json_str = "[null,null]";
-    migraphx::value v = migraphx::from_json_string(json_str);
+    migraphx::value v    = migraphx::from_json_string(json_str);
     migraphx::value e;
     migraphx::value ev = {e, e};
     EXPECT(ev == v);
@@ -118,7 +118,7 @@ TEST_CASE(object_value_rev)
 TEST_CASE(empty_object)
 {
     migraphx::value v;
-    migraphx::value v1 = {{"a", v}};
+    migraphx::value v1   = {{"a", v}};
     std::string json_str = migraphx::to_json_string(v1);
     EXPECT(json_str == "{\"a\":null}");
 }
@@ -126,7 +126,7 @@ TEST_CASE(empty_object)
 TEST_CASE(empty_object_rev)
 {
     std::string json_str = R"({"a":null})";
-    migraphx::value eo = migraphx::from_json_string(json_str);
+    migraphx::value eo   = migraphx::from_json_string(json_str);
     migraphx::value v;
     migraphx::value ev = {{"a", v}};
     EXPECT(eo == ev);
@@ -151,7 +151,7 @@ TEST_CASE(array_of_objects)
 {
     migraphx::value obj1 = {"key1", uint64_t{1}};
     migraphx::value obj2 = {"key2", uint64_t{2}};
-    migraphx::value arr = {obj1, obj2};
+    migraphx::value arr  = {obj1, obj2};
     std::string json_str = migraphx::to_json_string(arr);
     EXPECT(json_str == "{\"key1\":1,\"key2\":2}");
 }
@@ -159,10 +159,10 @@ TEST_CASE(array_of_objects)
 TEST_CASE(array_of_objects_rev)
 {
     std::string json_str = R"({"key1":1,"key2":2})";
-    migraphx::value v = migraphx::from_json_string(json_str);
+    migraphx::value v    = migraphx::from_json_string(json_str);
     migraphx::value obj1 = {"key1", uint64_t{1}};
     migraphx::value obj2 = {"key2", uint64_t{2}};
-    migraphx::value arr = {obj1, obj2};
+    migraphx::value arr  = {obj1, obj2};
     EXPECT(arr == v);
 }
 
@@ -171,7 +171,7 @@ TEST_CASE(object_of_array)
     migraphx::value obj1 = {"key1", 1};
     migraphx::value obj2 = {"key2", 2};
     migraphx::value obj;
-    obj["key"] = {obj1, obj2};
+    obj["key"]           = {obj1, obj2};
     std::string json_str = migraphx::to_json_string(obj);
     EXPECT(json_str == "{\"key\":{\"key1\":1,\"key2\":2}}");
 }
@@ -179,7 +179,7 @@ TEST_CASE(object_of_array)
 TEST_CASE(object_of_array_rev)
 {
     std::string json_str = R"({"key":{"key1":1,"key2":2}})";
-    migraphx::value v = migraphx::from_json_string(json_str);
+    migraphx::value v    = migraphx::from_json_string(json_str);
     migraphx::value obj1 = {"key1", uint64_t{1}};
     migraphx::value obj2 = {"key2", uint64_t{2}};
     migraphx::value obj;

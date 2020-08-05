@@ -73,6 +73,9 @@ struct argument : raw_data<argument>
     shape m_shape;
 };
 
+void migraphx_to_value(value& v, const argument& a);
+void migraphx_from_value(const value& v, argument& a);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

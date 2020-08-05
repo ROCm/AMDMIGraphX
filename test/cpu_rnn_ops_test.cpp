@@ -6,7 +6,7 @@
 #include <migraphx/op/lstm.hpp>
 #include <migraphx/op/rnn_last_hs_output.hpp>
 #include <migraphx/op/rnn_last_cell_output.hpp>
-#include <migraphx/op/abnormal_ops.hpp>
+#include <migraphx/op/undefined.hpp>
 #include <migraphx/op/concat.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/cpu/target.hpp>

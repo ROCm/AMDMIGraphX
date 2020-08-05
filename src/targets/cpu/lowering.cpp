@@ -2,7 +2,7 @@
 #include <migraphx/cpu/lowering.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/dfor.hpp>
-#include <migraphx/op/batch_norm.hpp>
+#include <migraphx/op/batch_norm_inference.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/deconvolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>

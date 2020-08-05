@@ -49,7 +49,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
             }
             case msgpack::type::ARRAY:
             {
-                migraphx::value r;
+                migraphx::value r = migraphx::value::array{};
                 std::for_each(
                     o.via.array.ptr,
                     o.via.array.ptr + o.via.array.size,
@@ -59,7 +59,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
             }
             case msgpack::type::MAP:
             {
-                migraphx::value r;
+                migraphx::value r = migraphx::value::object{};
                 std::for_each(o.via.map.ptr,
                               o.via.map.ptr + o.via.map.size,
                               [&](const msgpack::object_kv& p) {

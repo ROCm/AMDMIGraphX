@@ -40,6 +40,14 @@ TEST_CASE(test_msgpack_int_negative)
     EXPECT(migraphx::from_msgpack(buffer).to<int>() == v.to<int>());
 }
 
+TEST_CASE(test_msgpack_bool)
+{
+    migraphx::value v = true;
+    auto buffer       = migraphx::to_msgpack(v);
+    EXPECT(buffer == msgpack_buffer(true));
+    EXPECT(migraphx::from_msgpack(buffer) == v);
+}
+
 TEST_CASE(test_msgpack_float)
 {
     migraphx::value v = 3.0;
@@ -64,6 +72,14 @@ TEST_CASE(test_msgpack_array)
     EXPECT(migraphx::from_msgpack(buffer).to_vector<int>() == v.to_vector<int>());
 }
 
+TEST_CASE(test_msgpack_empty_array)
+{
+    migraphx::value v = migraphx::value::array{};
+    auto buffer       = migraphx::to_msgpack(v);
+    EXPECT(buffer == msgpack_buffer(std::vector<int>{}));
+    EXPECT(migraphx::from_msgpack(buffer) == v);
+}
+
 TEST_CASE(test_msgpack_object)
 {
     migraphx::value v = {{"one", 1.0}, {"three", 3.0}, {"two", 2.0}};
@@ -71,6 +87,18 @@ TEST_CASE(test_msgpack_object)
     EXPECT(buffer == msgpack_buffer(std::map<std::string, double>{
                          {"one", 1.0}, {"three", 3.0}, {"two", 2.0}}));
     EXPECT(migraphx::from_msgpack(buffer) == v);
+}
+
+TEST_CASE(test_msgpack_empty_object)
+{
+    migraphx::value v = migraphx::value::object{};
+    auto buffer       = migraphx::to_msgpack(v);
+    EXPECT(buffer == msgpack_buffer(std::vector<int>{}));
+    auto u = migraphx::from_msgpack(buffer);
+    // This is not equal since an empty object becomes an empty array
+    EXPECT(u != v);
+    EXPECT(u.is_array());
+    EXPECT(u.size() == 0);
 }
 
 struct foo

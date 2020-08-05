@@ -97,6 +97,15 @@ TEST_CASE(different_ranks)
     EXPECT(ishapes == rshapes);
 }
 
+TEST_CASE(transposed1)
+{
+    std::vector<migraphx::shape> ishapes = {make_shape({8, 28, 4, 56, 56}), make_shape({8, 28, 4, 56, 56}, {351232, 3136, 87808, 56, 1})};
+    std::vector<migraphx::shape> eshapes = {make_shape({8, 28, 4, 56*56}), make_shape({8, 28, 4, 56*56}, {351232, 3136, 87808, 1})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+
+    EXPECT(eshapes == rshapes);
+}
+
 TEST_CASE(empty)
 {
     auto rshapes = migraphx::reduce_dims({});

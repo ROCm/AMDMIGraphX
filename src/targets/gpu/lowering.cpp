@@ -169,8 +169,8 @@ struct miopen_apply
         add_generic_op<hip_ceil>("ceil");
         add_generic_op<hip_floor>("floor");
         add_generic_op<hip_recip>("recip");
+        add_generic_op<miopen_contiguous>("contiguous");
 
-        add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
         add_extend_op<hip_softmax, op::softmax>("softmax");
         add_extend_op<hip_logsoftmax, op::logsoftmax>("logsoftmax");

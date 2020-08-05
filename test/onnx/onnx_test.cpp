@@ -1348,6 +1348,38 @@ TEST_CASE(neg_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(nonzero_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    std::vector<float> data = {1, 0, 1, 1};
+    p.add_literal(migraphx::literal(s, data));
+
+    migraphx::shape si{migraphx::shape::int64_type, {2, 3}};
+    std::vector<int64_t> indices = {0, 1, 1, 0, 0, 1};
+    auto r                       = p.add_literal(migraphx::literal(si, indices));
+    p.add_return({r});
+
+    auto prog = migraphx::parse_onnx("nonzero_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(nonzero_int_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::int32_type, {2, 3}};
+    std::vector<int> data = {1, 1, 0, 1, 0, 1};
+    p.add_literal(migraphx::literal(s, data.begin(), data.end()));
+
+    migraphx::shape si{migraphx::shape::int64_type, {2, 4}};
+    std::vector<int64_t> indices = {0, 0, 1, 1, 0, 1, 0, 2};
+    auto r                       = p.add_literal(migraphx::literal(si, indices));
+    p.add_return({r});
+
+    auto prog = migraphx::parse_onnx("nonzero_int_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(onehot_test)
 {
     migraphx::program p;

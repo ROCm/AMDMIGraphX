@@ -321,16 +321,18 @@ struct op : command<op>
     bool show_ops = false;
     void parse(argument_parser& ap)
     {
-        ap(show_ops, {"--list", "-l"}, ap.help("List all the operators of MIGraphX"), ap.set_value(true));
+        ap(show_ops,
+           {"--list", "-l"},
+           ap.help("List all the operators of MIGraphX"),
+           ap.set_value(true));
     }
     void run()
     {
-        if (show_ops)
+        if(show_ops)
         {
-            for(auto name:get_operators())
+            for(auto name : get_operators())
                 std::cout << name << std::endl;
         }
-
     }
 };
 

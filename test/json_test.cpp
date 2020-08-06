@@ -6,6 +6,7 @@
 #include <migraphx/json.hpp>
 #include <test.hpp>
 
+
 TEST_CASE(empty_value)
 {
     migraphx::value v;
@@ -36,6 +37,20 @@ TEST_CASE(empty_array_rev)
     migraphx::value e;
     migraphx::value ev = {e, e};
     EXPECT(ev == v);
+}
+
+TEST_CASE(empty_object1)
+{
+    migraphx::value val = migraphx::from_json_string("{}");
+    EXPECT(val == migraphx::value::object{});
+    EXPECT(migraphx::to_json_string(migraphx::value::object{}) == "{}");
+}
+
+TEST_CASE(empty_array1)
+{
+    migraphx::value val = migraphx::from_json_string("[]");
+    EXPECT(val == migraphx::value::array{});
+    EXPECT(migraphx::to_json_string(migraphx::value::array{}) == "[]");
 }
 
 TEST_CASE(int_value)

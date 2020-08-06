@@ -10,8 +10,32 @@ inline namespace MIGRAPHX_INLINE_NS {
 using json = nlohmann::json;
 
 void value_to_json(const value& val, json& j);
-void to_json(json& j, const value& val);
-void from_json(const json& j, value& val);
+migraphx::value value_from_json(const json& j);
+
+}
+}
+
+namespace nlohmann
+{
+template <>
+struct adl_serializer<migraphx::value>
+{
+    static void to_json(json& j, const migraphx::value& val)
+    {
+        migraphx::value_to_json(val, j);
+    }
+
+    static void from_json(const json& j, migraphx::value& val)
+    {
+        val = migraphx::value_from_json(j);
+    }
+};
+}
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+using json = nlohmann::json;
 
 template <class T>
 void value_to_json(const T& x, json& j)
@@ -21,13 +45,12 @@ void value_to_json(const T& x, json& j)
 
 void value_to_json(const std::vector<value>& x, json& j)
 {
-    for(auto& v : x)
+    for (auto& v : x)
     {
-        if(v.get_key().empty())
+        if (v.get_key().empty())
         {
             j.push_back(v);
         }
-        // in the case of an object
         else
         {
             j[v.get_key()] = v.without_key();
@@ -47,6 +70,16 @@ void value_to_json(std::nullptr_t&, json& j) { j = {}; }
 
 void value_to_json(const value& val, json& j)
 {
+    if (val.is_array())
+    {
+        j = json::array();
+    }
+
+    if (val.is_object())
+    {
+        j = json::object();
+    }
+
     val.visit([&](auto v) { value_to_json(v, j); });
 }
 
@@ -69,12 +102,14 @@ migraphx::value value_from_json(const json& j)
     case json::value_t::string: val = j.get<std::string>(); break;
 
     case json::value_t::array:
+        val = migraphx::value::array{};
         std::transform(j.begin(), j.end(), std::back_inserter(val), [&](const json& jj) {
             return value_from_json(jj);
         });
         break;
 
     case json::value_t::object:
+        val = migraphx::value::object{};
         for(const auto& item : j.items())
         {
             const auto& key = item.key();
@@ -91,26 +126,16 @@ migraphx::value value_from_json(const json& j)
     return val;
 }
 
-void to_json(json& j, const value& val)
-{
-    val.visit([&](auto v) { value_to_json(v, j); });
-}
-
 std::string to_json_string(const value& val)
 {
-    json j;
-    value_to_json(val, j);
+    json j = val;
     return j.dump();
 }
 
-void from_json(const json& j, value& val) { val = value_from_json(j); }
-
 migraphx::value from_json_string(const std::string& str)
 {
-    migraphx::value val;
     json j = json::parse(str);
-    val    = value_from_json(j);
-    return val;
+    return j.get<value>();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

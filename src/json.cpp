@@ -109,7 +109,7 @@ migraphx::value value_from_json(const json& j)
         for(const auto& item : j.items())
         {
             const auto& key = item.key();
-            const json& jv   = item.value();
+            const json& jv  = item.value();
             val[key]        = jv.get<value>();
         }
         break;

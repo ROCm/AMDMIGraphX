@@ -12,25 +12,21 @@ using json = nlohmann::json;
 void value_to_json(const value& val, json& j);
 migraphx::value value_from_json(const json& j);
 
-}
-}
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 
-namespace nlohmann
-{
+namespace nlohmann {
 template <>
 struct adl_serializer<migraphx::value>
 {
-    static void to_json(json& j, const migraphx::value& val)
-    {
-        migraphx::value_to_json(val, j);
-    }
+    static void to_json(json& j, const migraphx::value& val) { migraphx::value_to_json(val, j); }
 
     static void from_json(const json& j, migraphx::value& val)
     {
         val = migraphx::value_from_json(j);
     }
 };
-}
+} // namespace nlohmann
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -45,9 +41,9 @@ void value_to_json(const T& x, json& j)
 
 void value_to_json(const std::vector<value>& x, json& j)
 {
-    for (auto& v : x)
+    for(auto& v : x)
     {
-        if (v.get_key().empty())
+        if(v.get_key().empty())
         {
             j.push_back(v);
         }
@@ -70,12 +66,12 @@ void value_to_json(std::nullptr_t&, json& j) { j = {}; }
 
 void value_to_json(const value& val, json& j)
 {
-    if (val.is_array())
+    if(val.is_array())
     {
         j = json::array();
     }
 
-    if (val.is_object())
+    if(val.is_object())
     {
         j = json::object();
     }

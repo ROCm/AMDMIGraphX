@@ -6,7 +6,6 @@
 #include <migraphx/json.hpp>
 #include <test.hpp>
 
-
 TEST_CASE(empty_value)
 {
     migraphx::value v;

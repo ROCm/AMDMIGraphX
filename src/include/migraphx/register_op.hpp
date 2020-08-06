@@ -49,10 +49,6 @@ int auto_register_op<T>::static_register = register_op<T>(); // NOLINT
     void MIGRAPHX_REGISTER_OP_NAME(__LINE__)(                                                  \
         migraphx::auto_register_op<__VA_ARGS__> x = migraphx::auto_register_op<__VA_ARGS__>{}) \
         __attribute__((unused));                                                               \
-    void MIGRAPHX_REGISTER_OP_NAME(__LINE__)(migraphx::auto_register_op<__VA_ARGS__> x)        \
-    {                                                                                          \
-        (void)x;                                                                               \
-    }                                                                                          \
     }
 
 } // namespace MIGRAPHX_INLINE_NS

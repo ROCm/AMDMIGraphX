@@ -100,7 +100,7 @@ migraphx::value value_from_json(const json& j)
     case json::value_t::array:
         val = migraphx::value::array{};
         std::transform(j.begin(), j.end(), std::back_inserter(val), [&](const json& jj) {
-            return value_from_json(jj);
+            return jj.get<value>();
         });
         break;
 
@@ -109,8 +109,8 @@ migraphx::value value_from_json(const json& j)
         for(const auto& item : j.items())
         {
             const auto& key = item.key();
-            const json& v   = item.value();
-            val[key]        = value_from_json(v);
+            const json& jv   = item.value();
+            val[key]        = jv.get<value>();
         }
         break;
 

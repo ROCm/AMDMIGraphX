@@ -39,7 +39,12 @@ int auto_register_op<T>::static_register = register_op<T>(); // NOLINT
 #pragma clang diagnostic pop
 #endif
 
-#define MIGRAPHX_REGISTER_OP(...) template struct migraphx::auto_register_op<__VA_ARGS__>;
+#define MIGRAPHX_REGISTER_OP_NAME_DETAIL(x) migraphx_auto_register_ ## x
+#define MIGRAPHX_REGISTER_OP_NAME(x) MIGRAPHX_REGISTER_OP_NAME_DETAIL(x)
+#define MIGRAPHX_REGISTER_OP(...) namespace { \
+void MIGRAPHX_REGISTER_OP_NAME(__LINE__)(migraphx::auto_register_op<__VA_ARGS__> x = migraphx::auto_register_op<__VA_ARGS__>{}) __attribute__ ((unused)); \
+void MIGRAPHX_REGISTER_OP_NAME(__LINE__)(migraphx::auto_register_op<__VA_ARGS__> x) { (void)x; } \
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

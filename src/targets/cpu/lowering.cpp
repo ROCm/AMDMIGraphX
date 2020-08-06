@@ -190,8 +190,7 @@ struct cpu_convolution : auto_register_op<cpu_convolution<Op>>
 {
     cpu_convolution() = default;
 
-    cpu_convolution(Op pop) : op(std::move(pop))
-    {}
+    cpu_convolution(Op pop) : op(std::move(pop)) {}
 
     Op op;
 
@@ -268,8 +267,7 @@ struct cpu_deconvolution : auto_register_op<cpu_deconvolution<Op>>
 {
     cpu_deconvolution() = default;
 
-    cpu_deconvolution(Op pop) : op(std::move(pop))
-    {}
+    cpu_deconvolution(Op pop) : op(std::move(pop)) {}
 
     Op op;
 
@@ -449,8 +447,7 @@ struct cpu_pooling : auto_register_op<cpu_pooling<Op>>
 {
     cpu_pooling() = default;
 
-    cpu_pooling(op::pooling pop) : op(std::move(pop))
-    {}
+    cpu_pooling(op::pooling pop) : op(std::move(pop)) {}
 
     op::pooling op;
 
@@ -717,9 +714,10 @@ struct cpu_unary : auto_register_op<cpu_unary<Op>>
 {
     cpu_unary() = default;
 
-    template<class T>
+    template <class T>
     cpu_unary(T pop) : op(Op{std::move(pop)})
-    {}
+    {
+    }
 
     Op op;
 
@@ -753,8 +751,7 @@ struct cpu_softmax : auto_register_op<cpu_softmax<Op>>
 {
     cpu_softmax() = default;
 
-    cpu_softmax(Op pop) : op(std::move(pop))
-    {}
+    cpu_softmax(Op pop) : op(std::move(pop)) {}
 
     Op op;
 

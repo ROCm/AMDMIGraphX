@@ -6,14 +6,14 @@
 #include <migraphx/json.hpp>
 #include <test.hpp>
 
-TEST_CASE(empty_value)
+TEST_CASE(null_value)
 {
     migraphx::value v;
     auto json_str = migraphx::to_json_string(v);
     EXPECT(json_str == "null");
 }
 
-TEST_CASE(empty_value_rev)
+TEST_CASE(null_value_rev)
 {
     std::string json_str = "null";
     migraphx::value v    = migraphx::from_json_string(json_str);
@@ -21,7 +21,7 @@ TEST_CASE(empty_value_rev)
     EXPECT(v == ev);
 }
 
-TEST_CASE(empty_array)
+TEST_CASE(null_array)
 {
     migraphx::value v;
     migraphx::value arr = {v, v};
@@ -29,7 +29,7 @@ TEST_CASE(empty_array)
     EXPECT(json_str == "[null,null]");
 }
 
-TEST_CASE(empty_array_rev)
+TEST_CASE(null_array_rev)
 {
     std::string json_str = "[null,null]";
     migraphx::value v    = migraphx::from_json_string(json_str);
@@ -129,7 +129,7 @@ TEST_CASE(object_value_rev)
     EXPECT(v == ev);
 }
 
-TEST_CASE(empty_object)
+TEST_CASE(null_object)
 {
     migraphx::value v;
     migraphx::value v1   = {{"a", v}};
@@ -137,7 +137,7 @@ TEST_CASE(empty_object)
     EXPECT(json_str == "{\"a\":null}");
 }
 
-TEST_CASE(empty_object_rev)
+TEST_CASE(null_object_rev)
 {
     std::string json_str = R"({"a":null})";
     migraphx::value eo   = migraphx::from_json_string(json_str);

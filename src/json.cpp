@@ -54,14 +54,6 @@ void value_to_json(const std::vector<value>& x, json& j)
     }
 }
 
-template <class T, class U>
-void value_to_json(const std::pair<T, U>& x, json& j)
-{
-    json jj;
-    value_to_json(x.second, jj);
-    j[x.first] = jj;
-}
-
 void value_to_json(std::nullptr_t&, json& j) { j = {}; }
 
 void value_to_json(const value& val, json& j)

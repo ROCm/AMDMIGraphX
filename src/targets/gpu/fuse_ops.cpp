@@ -788,11 +788,11 @@ struct find_conv_bias_relu
 
 void fuse_ops::apply(program& p) const
 {
-    match::find_matches(p, find_layernorm{});
     match::find_matches(p, find_gelu{}, find_gelu_new{});
     run_passes(p, {dead_code_elimination{}});
     match::find_matches(p, find_triadd{});
     match::find_matches(p,
+                        find_layernorm{},
                         find_conv_bias_relu{ctx},
                         find_conv_bias{ctx},
                         find_add_gelu{},

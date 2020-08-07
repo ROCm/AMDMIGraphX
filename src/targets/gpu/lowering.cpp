@@ -229,13 +229,6 @@ struct miopen_apply
             for(auto& in : inputs)
             {
                 auto p_output = prog->insert_instruction(ret, hip_copy_from_gpu{}, in);
-                // the last copy back instruction needs a synchronization to ensure data copy
-                // completion
-                if(in == inputs.back())
-                {
-                    p_output = prog->insert_instruction(ret, hip_sync_device{}, p_output);
-                }
-
                 instruction::replace_argument(ret, in, p_output);
             }
         }

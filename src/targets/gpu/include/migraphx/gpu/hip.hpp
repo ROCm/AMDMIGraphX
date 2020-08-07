@@ -64,10 +64,7 @@ struct hip_sync_device
     }
 
     std::string name() const { return "hip::sync_device"; }
-    shape compute_shape(const std::vector<shape>&) const
-    {
-        return {};
-    }
+    shape compute_shape(const std::vector<shape>&) const { return {}; }
 
     argument compute(context&, const shape&, const std::vector<argument>&) const
     {

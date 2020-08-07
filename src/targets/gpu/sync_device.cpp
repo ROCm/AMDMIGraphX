@@ -11,11 +11,12 @@ namespace gpu {
 void sync_device::apply(program& p) const
 {
     auto last = std::prev(p.end());
-    if (last->name() == "@return")
+    if(last->name() == "@return")
     {
         auto inputs = last->inputs();
-        if (std::any_of(inputs.begin(), inputs.end(), [](auto i) {
-            return (i->name() == "hip::copy_from_gpu"); }))
+        if(std::any_of(inputs.begin(), inputs.end(), [](auto i) {
+               return (i->name() == "hip::copy_from_gpu");
+           }))
         {
             p.insert_instruction(last, hip_sync_device{}, inputs);
         }

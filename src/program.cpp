@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <set>
 #include <utility>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -324,7 +325,23 @@ shape program::get_parameter_shape(std::string name) const
         return {};
 }
 
-std::vector<std::string> program::get_parameter_names() const { return impl->input_names; }
+std::vector<std::string> program::get_parameter_names() const 
+{
+    std::vector<std::string> result = impl->input_names;
+    std::unordered_set<std::string> params;
+    for(auto&& ins : impl->instructions)
+    {
+        if(ins.name() == "@param")
+        {
+            auto&& name = any_cast<builtin::param>(ins.get_operator()).parameter;
+            params.insert(name);
+        }
+    }
+    erase_if(result, [&](auto&& name) {
+        return params.count(name) == 0;
+    });
+    return result;
+}    
 
 instruction_ref program::get_parameter(std::string name) const
 {

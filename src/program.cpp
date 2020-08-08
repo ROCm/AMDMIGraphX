@@ -325,7 +325,7 @@ shape program::get_parameter_shape(std::string name) const
         return {};
 }
 
-std::vector<std::string> program::get_parameter_names() const 
+std::vector<std::string> program::get_parameter_names() const
 {
     std::vector<std::string> result = impl->input_names;
     std::unordered_set<std::string> params;
@@ -337,11 +337,9 @@ std::vector<std::string> program::get_parameter_names() const
             params.insert(name);
         }
     }
-    erase_if(result, [&](auto&& name) {
-        return params.count(name) == 0;
-    });
+    erase_if(result, [&](auto&& name) { return params.count(name) == 0; });
     return result;
-}    
+}
 
 instruction_ref program::get_parameter(std::string name) const
 {

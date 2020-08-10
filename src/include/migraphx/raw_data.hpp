@@ -102,7 +102,8 @@ struct raw_data : raw_data_base
         template <class T>
         using is_data_ptr =
             bool_c<(std::is_void<T>{} or std::is_same<char, std::remove_cv_t<T>>{} or
-                    std::is_same<unsigned char, std::remove_cv_t<T>>{})>;
+                    // std::is_same<unsigned char, std::remove_cv_t<T>>{} or
+                    std::is_same<bool, std::remove_cv_t<T>>{})>;
 
         template <class T>
         using get_data_type = std::conditional_t<is_data_ptr<T>{}, float, T>;

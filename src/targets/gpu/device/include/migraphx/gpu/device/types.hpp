@@ -73,7 +73,7 @@ struct device_type<half>
 template <>
 struct device_type<bool>
 {
-    using type = bool;
+    using type = int8_t;
 };
 
 template <class T>
@@ -91,7 +91,7 @@ struct host_type<gpu_half>
 template <>
 struct host_type<bool>
 {
-    using type = bool;
+    using type = int8_t;
 };
 
 } // namespace detail

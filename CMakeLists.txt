@@ -19,6 +19,7 @@ endif()
 
 project(migraphx)
 find_package(ROCM REQUIRED)
+find_package(nlohmann_json 3.8.0 REQUIRED)
 
 include(ROCMSetupVersion)
 

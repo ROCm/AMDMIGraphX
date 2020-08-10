@@ -151,6 +151,38 @@ struct hip_copy
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 1; }
 };
 
+void assign_preallocated_param(context& ctx, const std::string& id, const argument& a);
+
+struct hip_allocate_memory
+{
+    shape s;
+    std::string id{};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.s, "shape"), f(self.id, "id"));
+    }
+
+    std::string name() const { return "hip::hip_allocate_memory"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs}.has(0);
+        return s;
+    }
+
+    argument compute(context& ctx, const shape&, const std::vector<argument>&) const
+    {
+        return get_preallocation(ctx, id);
+    }
+
+    void finalize(context& ctx, const shape&, const std::vector<shape>&) const
+    {
+        argument a = allocate_gpu(s);
+        assign_preallocated_param(ctx, id, a);
+    }
+};
+
 struct hip_load_memory
 {
     shape s;

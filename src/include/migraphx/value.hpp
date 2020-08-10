@@ -134,6 +134,7 @@ struct value
     value(const std::string& pkey, const std::vector<value>& v, bool array_on_empty = true);
     value(const std::string& pkey, const std::unordered_map<std::string, value>& m);
     value(const std::string& pkey, std::nullptr_t);
+    value(std::nullptr_t);
 
     value(const char* i);
 
@@ -175,6 +176,8 @@ struct value
     {
         return *this = pick<T>{rhs}; // NOLINT
     }
+
+    value& operator=(std::nullptr_t);
 
     bool is_array() const;
     const std::vector<value>& get_array() const;

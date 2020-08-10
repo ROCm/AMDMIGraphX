@@ -131,6 +131,8 @@ value::value(const std::string& pkey, const std::unordered_map<std::string, valu
 
 value::value(const std::string& pkey, std::nullptr_t) : x(nullptr), key(pkey) {}
 
+value::value(std::nullptr_t) : x(nullptr) {}
+
 value::value(const std::string& pkey, const value& rhs)
     : x(rhs.x ? rhs.x->clone() : nullptr), key(pkey)
 {
@@ -158,6 +160,12 @@ value::value(const char* i) : value(std::string(i)) {}
     }                                                                                  \
     const cpp_type* value::if_##vt() const { return x ? x->if_##vt() : nullptr; }
 MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS)
+
+value& value::operator=(std::nullptr_t)
+{
+    x = nullptr;
+    return *this;
+}
 
 bool value::is_array() const { return x ? x->get_type() == array_type : false; }
 const std::vector<value>& value::value::get_array() const

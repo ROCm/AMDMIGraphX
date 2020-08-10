@@ -17,7 +17,7 @@ TEST_CASE(null_value_rev)
 {
     std::string json_str = "null";
     migraphx::value v    = migraphx::from_json_string(json_str);
-    migraphx::value ev   = migraphx::value();
+    migraphx::value ev;
     EXPECT(v == ev);
 }
 

@@ -37,6 +37,12 @@ constexpr T normalize(unsigned long z)
     return z % max;
 }
 
+template<>
+constexpr bool normalize(unsigned long z)
+{
+    return z & 0x1;
+}
+
 template <class T>
 struct xorshf96_generator
 {

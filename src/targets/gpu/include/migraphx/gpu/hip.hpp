@@ -3,6 +3,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <utility>
 
@@ -151,7 +152,7 @@ struct hip_copy
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 1; }
 };
 
-void assign_preallocated_param(context& ctx, const std::string& id, const argument& a);
+void store_preallocated_param(context& ctx, const std::string& id, const argument& a);
 
 struct hip_allocate_memory
 {
@@ -179,30 +180,37 @@ struct hip_allocate_memory
     void finalize(context& ctx, const shape&, const std::vector<shape>&) const
     {
         argument a = allocate_gpu(s);
-        assign_preallocated_param(ctx, id, a);
+        store_preallocated_param(ctx, id, a);
     }
 };
 
-struct hip_load_memory
+struct hip_copy_literal
 {
-    shape s;
+    literal l;
     std::string id{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.s, "shape"), f(self.id, "id"));
+        return pack(f(self.l, "literal"), f(self.id, "id"));
     }
 
-    std::string name() const { return "hip::hip_load_memory"; }
+    std::string name() const { return "hip::hip_copy_literal"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs}.has(0);
-        return s;
+        return l.get_shape();
     }
+
     argument compute(context& ctx, const shape&, const std::vector<argument>&) const
     {
         return get_preallocation(ctx, id);
+    }
+
+    void finalize(context& ctx, const shape&, const std::vector<shape>&) const
+    {
+        argument a = to_gpu(l.get_argument());
+        store_preallocated_param(ctx, id, a);
     }
 };
 

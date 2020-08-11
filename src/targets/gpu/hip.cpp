@@ -165,7 +165,7 @@ argument get_preallocation(context& ctx, const std::string& id)
     return ctx.get_current_device().preallocations.at(id);
 }
 
-void assign_preallocated_param(context& ctx, const std::string& id, const argument& a)
+void store_preallocated_param(context& ctx, const std::string& id, const argument& a)
 {
     ctx.get_current_device().preallocations[id] = a;
 }

@@ -167,9 +167,9 @@ struct tensor_view<bool>
 {
     using value_type = int8_t;
     tensor_view() : m_data(nullptr) {}
-    tensor_view(shape s, bool* d) : m_shape(std::move(s)) 
+    tensor_view(shape s, bool* d) : m_shape(std::move(s))
     {
-        for (std::size_t i = 0; i < s.elements(); ++i)
+        for(std::size_t i = 0; i < s.elements(); ++i)
         {
             m_data[i] = d[i];
         }

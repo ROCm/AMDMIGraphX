@@ -59,7 +59,7 @@ struct device_base : oper<Derived>
 template <class Derived, void (*F)(hipStream_t, const argument&, const argument&)>
 struct unary_device : device_base<Derived, 1>
 {
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         F(ctx.get_stream().get(), this->get_arg(args, 1), this->get_arg(args, 0));
         return args[1];
@@ -69,7 +69,7 @@ struct unary_device : device_base<Derived, 1>
 template <class Derived, void (*F)(hipStream_t, const argument&, const argument&, const argument&)>
 struct binary_device : device_base<Derived, 2>
 {
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         F(ctx.get_stream().get(),
           this->get_arg(args, 2),
@@ -84,7 +84,7 @@ template <class Derived,
               hipStream_t, const argument&, const argument&, const argument&, const argument&)>
 struct ternary_device : device_base<Derived, 3>
 {
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         F(ctx.get_stream().get(),
           this->get_arg(args, 3),
@@ -104,7 +104,7 @@ template <class Derived,
                     const argument&)>
 struct quaternary_device : device_base<Derived, 4>
 {
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         F(ctx.get_stream().get(),
           this->get_arg(args, 4),
@@ -112,7 +112,7 @@ struct quaternary_device : device_base<Derived, 4>
           this->get_arg(args, 1),
           this->get_arg(args, 2),
           this->get_arg(args, 3));
-        return args[3];
+        return args[4];
     }
 };
 
@@ -126,7 +126,7 @@ template <class Derived,
                     const argument&)>
 struct quinary_device : device_base<Derived, 5>
 {
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         F(ctx.get_stream().get(),
           this->get_arg(args, 5),
@@ -135,7 +135,7 @@ struct quinary_device : device_base<Derived, 5>
           this->get_arg(args, 2),
           this->get_arg(args, 3),
           this->get_arg(args, 4));
-        return args[3];
+        return args[5];
     }
 };
 

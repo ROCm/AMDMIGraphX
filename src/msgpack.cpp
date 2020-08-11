@@ -45,7 +45,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                 v = o.as<std::string>();
                 break;
             }
-            case msgpack::type::BIN: { throw msgpack::type_error();
+            case msgpack::type::BIN: { MIGRAPHX_THROW("msgpack BIN type not supported.");
             }
             case msgpack::type::ARRAY:
             {
@@ -68,7 +68,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                 v = r;
                 break;
             }
-            case msgpack::type::EXT: { throw msgpack::type_error();
+            case msgpack::type::EXT: { MIGRAPHX_THROW("msgpack BIN type not supported.");
             }
             }
             return o;

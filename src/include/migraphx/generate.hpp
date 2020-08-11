@@ -37,7 +37,7 @@ constexpr T normalize(unsigned long z)
     return z % max;
 }
 
-template<>
+template <>
 constexpr bool normalize(unsigned long z)
 {
     return z & 0x1;

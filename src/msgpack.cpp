@@ -68,7 +68,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                 v = r;
                 break;
             }
-            case msgpack::type::EXT: { MIGRAPHX_THROW("msgpack BIN type not supported.");
+            case msgpack::type::EXT: { MIGRAPHX_THROW("msgpack EXT type not supported.");
             }
             }
             return o;

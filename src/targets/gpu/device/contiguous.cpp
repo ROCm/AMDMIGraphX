@@ -7,9 +7,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void contiguous(hipStream_t stream, argument result, argument arg)
+void contiguous(hipStream_t stream, const argument& result, const argument& arg)
 {
-    nary(stream, std::move(result), std::move(arg))([](auto x) __device__ { return x; });
+    nary(stream, result, arg)([](auto x) __device__ { return x; });
 }
 
 } // namespace device

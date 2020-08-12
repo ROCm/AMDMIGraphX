@@ -73,6 +73,7 @@
 #include <migraphx/gpu/prelu.hpp>
 #include <migraphx/gpu/recip.hpp>
 #include <migraphx/gpu/rnn_variable_seq_lens.hpp>
+#include <migraphx/gpu/equal.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -138,6 +139,7 @@ struct miopen_apply
 
         add_generic_op<hip_add>("add");
         add_generic_op<hip_sub>("sub");
+        add_generic_op<hip_equal>("equal");
         add_generic_op<hip_exp>("exp");
         add_generic_op<hip_erf>("erf");
         add_generic_op<hip_log>("log");

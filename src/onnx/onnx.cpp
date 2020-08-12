@@ -62,6 +62,7 @@ struct onnx_parser
         add_generic_op("Cosh", op::cosh{});
         add_generic_op("Erf", op::erf{});
         add_generic_op("Exp", op::exp{});
+        add_generic_op("Equal", op::equal{});
         add_generic_op("Dropout", op::identity{});
         add_generic_op("Floor", op::floor{});
         add_generic_op("Identity", op::identity{});

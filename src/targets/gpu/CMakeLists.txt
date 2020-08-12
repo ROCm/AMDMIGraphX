@@ -105,7 +105,6 @@ add_library(migraphx_gpu
     quant_convolution.cpp
     softmax.cpp
     logsoftmax.cpp
-    contiguous.cpp
     concat.cpp
     leaky_relu.cpp
     batchnorm.cpp

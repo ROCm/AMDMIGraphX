@@ -22,6 +22,7 @@ add_library(migraphx
     instruction.cpp
     program.cpp
     quantization.cpp
+    reduce_dims.cpp
     remap.cpp
     shape.cpp
     schedule.cpp
@@ -31,6 +32,7 @@ add_library(migraphx
     simplify_algebra.cpp
     simplify_reshapes.cpp
     value.cpp
+    json.cpp
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp
 )

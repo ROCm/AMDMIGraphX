@@ -22,6 +22,7 @@ add_library(migraphx
     msgpack.cpp
     program.cpp
     quantization.cpp
+    reduce_dims.cpp
     remap.cpp
     shape.cpp
     schedule.cpp

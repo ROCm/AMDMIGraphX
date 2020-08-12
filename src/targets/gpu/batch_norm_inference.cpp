@@ -1,4 +1,4 @@
-#include <migraphx/gpu/batchnorm.hpp>
+#include <migraphx/gpu/batch_norm_inference.hpp>
 #include <migraphx/gpu/context.hpp>
 
 namespace migraphx {

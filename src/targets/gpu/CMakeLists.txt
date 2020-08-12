@@ -107,7 +107,7 @@ add_library(migraphx_gpu
     logsoftmax.cpp
     concat.cpp
     leaky_relu.cpp
-    batchnorm.cpp
+    batch_norm_inference.cpp
     write_literals.cpp
     rocblas.cpp
     abs.cpp
@@ -127,6 +127,79 @@ add_library(migraphx_gpu
     rnn_variable_seq_lens.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
+function(register_migraphx_gpu_ops PREFIX)
+    foreach(OP ${ARGN})
+        register_op(migraphx_gpu HEADER migraphx/gpu/${OP}.hpp OPERATORS gpu::${PREFIX}${OP} INCLUDES migraphx/gpu/context.hpp)
+    endforeach()
+endfunction()
+register_migraphx_gpu_ops(hip_
+    acosh
+    acos
+    add
+    argmax
+    argmin
+    asinh
+    asin
+    atanh
+    atan
+    ceil
+    clip
+    concat
+    convert
+    cosh
+    cos
+    div
+    erf
+    exp
+    floor
+    gather
+    gemm
+    # int8_gemm_pack
+    log
+    logsoftmax
+    lowering
+    max
+    min
+    mul
+    pad
+    pow
+    prelu
+    recip
+    reduce_max
+    reduce_mean
+    reduce_min
+    reduce_op
+    reduce_prod
+    reduce_sum
+    relu
+    rnn_variable_seq_lens
+    round
+    rsqrt
+    sigmoid
+    sign
+    sinh
+    sin
+    softmax
+    sqdiff
+    sqrt
+    sub
+    tanh
+    tan
+)
+register_migraphx_gpu_ops(miopen_
+    abs
+    batch_norm_inference
+    contiguous
+    convolution
+    deconvolution
+    elu
+    int8_conv_pack
+    leaky_relu
+    lrn
+    pooling
+    quant_convolution
+)
+# register_migraphx_gpu_ops(rocblas_ gemm)
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 # Workaround broken rocblas headers

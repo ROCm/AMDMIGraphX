@@ -247,7 +247,7 @@ void from_value_op(T& x, const value& v)
  *      argument compute(context& ctx,const shape& output,const std::vector<argument>& input) const;
  *      argument compute(const shape& output,const std::vector<argument>& input) const;
  *      value to_value() const;
- *      void from_value(const value v) ;
+ *      void from_value(const value& v) ;
  *     friend std::ostream & operator<<(std::ostream & os,const operation & op) ;
  *     friend bool operator==(const operation & x,const operation & y) ;
  * };
@@ -371,10 +371,10 @@ struct operation
         return (*this).private_detail_te_get_handle().to_value();
     }
 
-    void from_value(const value v)
+    void from_value(const value& v)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().from_value(std::move(v));
+        (*this).private_detail_te_get_handle().from_value(v);
     }
 
     friend std::ostream& operator<<(std::ostream& os, const operation& op)
@@ -413,7 +413,7 @@ struct operation
         compute(context& ctx, const shape& output, const std::vector<argument>& input) const    = 0;
         virtual argument compute(const shape& output, const std::vector<argument>& input) const = 0;
         virtual value to_value() const                                                          = 0;
-        virtual void from_value(const value v)                                                  = 0;
+        virtual void from_value(const value& v)                                                 = 0;
         virtual std::ostream& operator_shift_left(std::ostream& os) const                       = 0;
         virtual bool operator==(const operation& y) const                                       = 0;
     };
@@ -537,17 +537,17 @@ struct operation
 
     template <class T>
     static auto
-    private_detail_te_default_from_value(char, T&& private_detail_te_self, const value v)
-        -> decltype(private_detail_te_self.from_value(std::move(v)))
+    private_detail_te_default_from_value(char, T&& private_detail_te_self, const value& v)
+        -> decltype(private_detail_te_self.from_value(v))
     {
-        private_detail_te_self.from_value(std::move(v));
+        private_detail_te_self.from_value(v);
     }
 
     template <class T>
     static void
-    private_detail_te_default_from_value(float, T&& private_detail_te_self, const value v)
+    private_detail_te_default_from_value(float, T&& private_detail_te_self, const value& v)
     {
-        detail::from_value_op(private_detail_te_self, std::move(v));
+        detail::from_value_op(private_detail_te_self, v);
     }
 
     template <typename PrivateDetailTypeErasedT>
@@ -633,10 +633,10 @@ struct operation
             return private_detail_te_default_to_value(char(0), private_detail_te_value);
         }
 
-        void from_value(const value v) override
+        void from_value(const value& v) override
         {
 
-            private_detail_te_default_from_value(char(0), private_detail_te_value, std::move(v));
+            private_detail_te_default_from_value(char(0), private_detail_te_value, v);
         }
 
         std::ostream& operator_shift_left(std::ostream& os) const override

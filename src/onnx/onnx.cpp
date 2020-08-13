@@ -62,7 +62,6 @@ struct onnx_parser
         add_generic_op("Cosh", op::cosh{});
         add_generic_op("Erf", op::erf{});
         add_generic_op("Exp", op::exp{});
-        add_generic_op("Equal", op::equal{});
         add_generic_op("Dropout", op::identity{});
         add_generic_op("Floor", op::floor{});
         add_generic_op("Identity", op::identity{});
@@ -82,6 +81,7 @@ struct onnx_parser
         add_binary_op("Add", op::add{});
         add_binary_op("Div", op::div{});
         add_binary_op("Mul", op::mul{});
+        add_binary_op("Equal", op::equal{});
         add_binary_op("Pow", op::pow{});
         add_binary_op("PRelu", op::prelu{});
         add_binary_op("Sub", op::sub{});

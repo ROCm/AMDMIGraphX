@@ -49,10 +49,12 @@ struct binary : op_name<Derived>
         }
         else
         {
-            visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {
-                shape_for_each(output.get_shape(), [&](const auto& idx) {
-                    output(idx.begin(), idx.end()) = static_cast<const Derived&>(*this).apply()(
-                        input1(idx.begin(), idx.end()), input2(idx.begin(), idx.end()));
+            result.visit([&](auto output) {
+                visit_all(args[0], args[1])([&](auto input1, auto input2) {
+                    shape_for_each(output.get_shape(), [&](const auto& idx) {
+                        output(idx.begin(), idx.end()) = static_cast<const Derived&>(*this).apply()(
+                            input1(idx.begin(), idx.end()), input2(idx.begin(), idx.end()));
+                    });
                 });
             });
         }

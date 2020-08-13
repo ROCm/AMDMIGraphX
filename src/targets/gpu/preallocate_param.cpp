@@ -19,9 +19,7 @@ void preallocate_param::apply(program& p) const
         std::string id = any_cast<builtin::param>(ins->get_operator()).parameter;
         if(id != param)
             continue;
-        argument a                                   = allocate_gpu(ins->get_shape());
-        ctx->get_current_device().preallocations[id] = a;
-        auto r = p.insert_instruction(ins, hip_load_memory{a.get_shape(), id});
+        auto r = p.insert_instruction(ins, hip_allocate_memory{ins->get_shape(), id});
         p.replace_instruction(ins, r);
     }
 }

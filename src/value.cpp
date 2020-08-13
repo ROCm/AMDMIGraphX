@@ -435,7 +435,22 @@ std::ostream& operator<<(std::ostream& os, const value& d)
     return os;
 }
 
-void value::debug_print() const { std::cout << *this << std::endl; }
+void value::debug_print(bool show_type) const
+{
+    if(show_type)
+    {
+        switch(get_type())
+        {
+#define MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(vt, cpp_type) \
+    case vt##_type: std::cout << #vt << ": "; break;
+            MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE)
+            MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(null, )
+            MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(array, )
+            MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(object, )
+        }
+    }
+    std::cout << *this << std::endl;
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

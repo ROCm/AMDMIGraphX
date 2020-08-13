@@ -9,15 +9,32 @@ namespace gpu {
 shape miopen_deconvolution::compute_shape(const std::vector<shape>& inputs) const
 {
     check_shapes{inputs, *this}.has(4).standard();
-    return op.compute_shape({inputs.at(0), inputs.at(1)});
+    std::vector<shape> conv_inputs(inputs.begin(), inputs.begin() + 2);
+    check_shapes{conv_inputs, *this}.max_ndims(5);
+    return op.compute_shape(conv_inputs);
 }
+
+inline shape reshape_if_1d(const shape& input)
+{
+    shape new_shape{input};
+    auto dims = new_shape.lens();
+
+    if(dims.size() == 3)
+    {
+        std::vector<size_t> new_dims = dims;
+        new_dims.insert(new_dims.begin() + 2, 1);
+        new_shape = shape{input.type(), new_dims};
+    }
+    return new_shape;
+}
+
 argument miopen_deconvolution::compute(context& ctx,
                                        const shape& output_shape,
                                        const std::vector<argument>& args) const
 {
-    auto x_desc = make_tensor(args[0].get_shape());
-    auto w_desc = make_tensor(args[1].get_shape());
-    auto y_desc = make_tensor(output_shape);
+    auto x_desc = make_tensor(reshape_if_1d(args[0].get_shape()));
+    auto w_desc = make_tensor(reshape_if_1d(args[1].get_shape()));
+    auto y_desc = make_tensor(reshape_if_1d(output_shape));
 
     float alpha = 1;
     float beta  = 0;
@@ -44,9 +61,9 @@ shape miopen_deconvolution::compile(context& ctx,
                                     std::vector<shape> inputs)
 {
     shape workspace_shape{};
-    auto x_desc = make_tensor(inputs[0]);
-    auto w_desc = make_tensor(inputs[1]);
-    auto y_desc = make_tensor(output_shape);
+    auto x_desc = make_tensor(reshape_if_1d(inputs[0]));
+    auto w_desc = make_tensor(reshape_if_1d(inputs[1]));
+    auto y_desc = make_tensor(reshape_if_1d(output_shape));
 
     std::size_t workspace_size = 0;
     miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),

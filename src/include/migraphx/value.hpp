@@ -24,7 +24,7 @@ struct value_converter
 {
     template <class T = To>
     static auto apply(const std::string& x)
-        -> decltype((std::stringstream{} >> std::declval<T&>()), To{})
+        -> decltype((std::declval<std::stringstream&>() >> std::declval<T&>()), To{})
     {
         To result;
         std::stringstream ss;
@@ -47,8 +47,11 @@ struct value_converter<std::string>
 {
     static const std::string& apply(const std::string& x) { return x; }
 
+    static std::string apply(const std::nullptr_t&) { return "null"; }
+
     template <class From>
-    static auto apply(const From& x) -> decltype(std::stringstream{} << x, std::string())
+    static auto apply(const From& x)
+        -> decltype(std::declval<std::stringstream&>() << x, std::string())
     {
         std::stringstream ss;
         ss << x;
@@ -131,6 +134,7 @@ struct value
     value(const std::string& pkey, const std::vector<value>& v, bool array_on_empty = true);
     value(const std::string& pkey, const std::unordered_map<std::string, value>& m);
     value(const std::string& pkey, std::nullptr_t);
+    value(std::nullptr_t);
 
     value(const char* i);
 
@@ -172,6 +176,8 @@ struct value
     {
         return *this = pick<T>{rhs}; // NOLINT
     }
+
+    value& operator=(std::nullptr_t);
 
     bool is_array() const;
     const std::vector<value>& get_array() const;
@@ -227,6 +233,7 @@ struct value
 
     void push_front(const value& v) { insert(begin(), v); }
 
+    value with_key(const std::string& pkey) const;
     value without_key() const;
 
     template <class Visitor>
@@ -284,7 +291,7 @@ struct value
 
     friend std::ostream& operator<<(std::ostream& os, const value& d);
 
-    void debug_print() const;
+    void debug_print(bool show_type = false) const;
 
     private:
     type_t get_type() const;

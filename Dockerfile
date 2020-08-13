@@ -52,6 +52,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Wokaround broken rocm packages for rocm >= 3.1 
+RUN [ -d /opt/rocm ] || ln -sd $(realpath /opt/rocm-*) /opt/rocm
+
 RUN locale-gen en_US.UTF-8
 RUN update-locale LANG=en_US.UTF-8
 
@@ -59,7 +62,7 @@ ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
 # Install cget
-RUN pip3 install cget && pip3 install numpy
+RUN pip3 install cget && pip3 install numpy==1.18.5
 
 # Install rclone
 RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
@@ -92,7 +95,7 @@ RUN cget -p /opt/cmake install kitware/cmake@v3.13.0
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=master
-ARG ONNXRUNTIME_COMMIT=7759136610cd8415264892ad83acdf9d8ed7e87a
+ARG ONNXRUNTIME_COMMIT=bfc888613f4e831d29c8b0bc17182ae061712553
 RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXRUNTIME_REPO} onnxruntime && \
     cd onnxruntime && \
     git checkout ${ONNXRUNTIME_COMMIT} && \

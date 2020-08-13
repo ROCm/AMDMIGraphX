@@ -55,6 +55,10 @@ struct quant_convolution
         const shape& weights = inputs.at(1);
         auto t               = input.type();
         size_t kdims         = input.lens().size() - 2;
+        if(kdims != this->kdims())
+        {
+            MIGRAPHX_THROW("quant_convolution: input k-dims does not match attribute size");
+        }
 
         // all input type must be int8_type and output is float_type
         if(t != shape::int8_type)

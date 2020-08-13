@@ -63,6 +63,90 @@ struct find_mul_conv
     }
 };
 
+struct find_mul_slice_conv
+{
+    static auto conv()
+    {
+        return match::name("convolution")(
+            match::all_of[match::outputs()](match::name("slice")),
+            match::args(match::any(), match::is_constant().bind("w")));
+    }
+    auto matcher() const
+    {
+        return match::name("mul")(match::either_arg(0, 1)(
+            match::name("slice")(match::used_once(), match::arg(0)(conv().bind("conv")))
+                .bind("slice"),
+            match::name("broadcast")(match::is_constant()).bind("a")));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins       = r.result;
+        auto slice_ins = r.instructions["slice"];
+        auto conv_ins  = r.instructions["conv"];
+        auto a_ins     = r.instructions["a"];
+        auto w_ins     = r.instructions["w"];
+
+        auto broadcast_op = any_cast<op::broadcast>(a_ins->get_operator());
+        if(broadcast_op.axis != 1)
+            return;
+
+        auto slice_op = any_cast<op::slice>(slice_ins->get_operator());
+        if(slice_op.axes.size() != 1)
+            return;
+        if(slice_op.axes.front() != 1)
+            return;
+
+        auto slice_idx = std::distance(conv_ins, slice_ins);
+        if(std::any_of(conv_ins->outputs().begin(), conv_ins->outputs().end(), [&](auto i) {
+               if(i == slice_ins)
+                   return false;
+               if(std::distance(conv_ins, i) < slice_idx)
+                   return true;
+               auto sop = any_cast<op::slice>(i->get_operator());
+               if(sop.axes != slice_op.axes)
+                   return true;
+               if(std::max(sop.starts.front(), slice_op.starts.front()) <
+                  std::min(sop.ends.front(), slice_op.ends.front()))
+                   return true;
+               return false;
+           }))
+            return;
+
+        auto w_slice_op  = slice_op;
+        w_slice_op.axes  = {0};
+        auto slice_w_ins = p.insert_instruction(ins, w_slice_op, w_ins);
+
+        auto new_a = p.insert_instruction(
+            ins, op::broadcast{0, slice_w_ins->get_shape().lens()}, a_ins->inputs().front());
+        auto new_mul = p.insert_instruction(ins, op::mul{}, new_a, slice_w_ins);
+
+        std::vector<instruction_ref> sliced_weights;
+        if(slice_op.starts.front() != 0)
+            sliced_weights.push_back(
+                p.insert_instruction(ins, op::slice{{0}, {0}, slice_op.starts}, w_ins));
+        sliced_weights.push_back(new_mul);
+        int64_t end_axis = w_ins->get_shape().lens().at(0);
+        if(slice_op.ends.front() != end_axis)
+            sliced_weights.push_back(
+                p.insert_instruction(ins, op::slice{{0}, {slice_op.ends}, {end_axis}}, w_ins));
+
+        auto new_weights = p.insert_instruction(ins, op::concat{0}, sliced_weights);
+
+        auto new_conv = p.insert_instruction(
+            ins, conv_ins->get_operator(), conv_ins->inputs().front(), new_weights);
+        assert(conv_ins->get_shape() == new_conv->get_shape());
+
+        auto slice1 = p.insert_instruction(ins, slice_op, new_conv);
+        assert(ins->get_shape().lens() == slice1->get_shape().lens());
+        p.replace_instruction(ins, slice1);
+        // TODO: Check each slice doesn't overlap and that it occurs after slice_ins
+        for(auto output : conv_ins->outputs())
+            if(output != slice_ins)
+                instruction::replace_argument(output, conv_ins, new_conv);
+    }
+};
+
 // a * (x + b) => a * x + a * b
 struct find_mul_add
 {
@@ -180,7 +264,7 @@ struct find_concat_op
     auto matcher() const
     {
         return match::name("concat")(match::any_of[match::inputs()](
-            match::name("add", "multiply", "relu", "broadcast"), match::used_once()));
+            match::name("add", "mul", "relu", "broadcast"), match::used_once()));
     }
 
     template <class Iterator>
@@ -209,7 +293,7 @@ struct find_concat_op
             if(x->inputs().size() > 2 or x->inputs().empty() or x->outputs().size() > 1)
                 return {start, last};
             auto&& name = x->name();
-            if(not contains({"add", "multiply", "relu", "broadcast"}, name))
+            if(not contains({"add", "mul", "relu", "broadcast"}, name))
                 return {start, last};
             auto op    = x->get_operator();
             auto iaxis = axis;
@@ -760,29 +844,42 @@ struct find_split_reshape
         }
 
         // ensure reshape happens after the axis dimension
-        auto axis    = any_cast<op::slice>(slc->get_operator()).axes[0];
-        auto in_lens = input->get_shape().lens();
-        if(!std::equal(in_lens.begin(), in_lens.begin() + axis, dims.begin(), dims.begin() + axis))
+        auto axis         = any_cast<op::slice>(slc->get_operator()).axes[0];
+        auto slc_lens     = slc->get_shape().lens();
+        auto slc_dim_size = std::accumulate(
+            slc_lens.begin() + axis, slc_lens.end(), 1, std::multiplies<std::size_t>());
+
+        // search the reshape output (standard shape) to decide which axis are
+        // in its output corresponding to the slc_dim_size
+        auto rsp_lens    = rsp->get_shape().lens();
+        auto rsp_strides = rsp->get_shape().strides();
+        rsp_strides.insert(rsp_strides.begin(), rsp_strides[0] * rsp_lens[0]);
+        auto ait = std::find(rsp_strides.begin(), rsp_strides.end(), slc_dim_size);
+        if(ait == rsp_strides.end())
         {
             return;
         }
+        int rsp_axis = std::distance(rsp_strides.begin(), ait);
 
         // calculate reshape output shape
-        auto tmp_lens = vec_rsp.front()->get_shape().lens();
-        std::vector<int64_t> rsp_lens(tmp_lens.begin(), tmp_lens.end());
-        int64_t dim_size = rsp_lens[axis];
-        rsp_lens[axis] *= vec_rsp.size();
+        std::vector<int64_t> vec_dims(vec_rsp.size());
+        std::transform(vec_rsp.begin(), vec_rsp.end(), vec_dims.begin(), [&](auto is) {
+            return is->get_shape().lens()[rsp_axis];
+        });
+
+        std::vector<int64_t> rsp_out_lens(rsp_lens.begin(), rsp_lens.end());
+        rsp_out_lens[rsp_axis] = std::accumulate(vec_dims.begin(), vec_dims.end(), std::int64_t{0});
 
         // insert the reshape instruction
-        auto rsp_ins = p.insert_instruction(std::next(input), op::reshape{rsp_lens}, input);
+        auto rsp_ins = p.insert_instruction(std::next(input), op::reshape{rsp_out_lens}, input);
 
         // replace the original reshape with slice
-        int64_t i = 0;
-        for(auto in : vec_rsp)
+        int64_t start = 0;
+        for(std::size_t i = 0; i < vec_rsp.size(); ++i)
         {
             p.replace_instruction(
-                in, op::slice{{axis}, {i * dim_size}, {(i + 1) * dim_size}}, rsp_ins);
-            ++i;
+                vec_rsp[i], op::slice{{rsp_axis}, {start}, {start + vec_dims[i]}}, rsp_ins);
+            start += vec_dims[i];
         }
     }
 };
@@ -852,6 +949,7 @@ void simplify_algebra::apply(program& p) const
                             find_add_convs{},
                             find_conv_dot_horiz_fusion{},
                             find_mul_conv{},
+                            find_mul_slice_conv{},
                             find_mul_add{},
                             find_div_const{},
                             find_sub_const{},

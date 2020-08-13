@@ -180,12 +180,24 @@ TEST_CASE(averagepool_notset_test)
 {
     migraphx::program p;
     auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
+    auto ins   = p.add_instruction(migraphx::op::pooling{"average", {2, 2}, {2, 2}, {6, 6}}, input);
+    auto ret   = p.add_instruction(migraphx::op::slice{{2, 3}, {1, 1}, {2, 2}}, ins);
+    p.add_return({ret});
+    auto prog = migraphx::parse_onnx("averagepool_notset_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(averagepool_nt_cip_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
     std::vector<int64_t> pads = {0, 0, 0, 0, 0, 0, 1, 1};
     auto ins_pad              = p.add_instruction(migraphx::op::pad{pads}, input);
-    p.add_instruction(migraphx::op::pooling{"average", {0, 0}, {2, 2}, {6, 6}}, ins_pad);
+    auto ret = p.add_instruction(migraphx::op::pooling{"average", {0, 0}, {2, 2}, {6, 6}}, ins_pad);
+    p.add_return({ret});
 
-    auto prog = optimize_onnx("averagepool_notset_test.onnx");
-
+    auto prog = migraphx::parse_onnx("averagepool_nt_cip_test.onnx");
     EXPECT(p == prog);
 }
 
@@ -193,14 +205,29 @@ TEST_CASE(averagepool_same_lower_test)
 {
     migraphx::program p;
     auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
+    auto ins   = p.add_instruction(
+        migraphx::op::pooling{
+            "average", {1, 1}, {1, 1}, {2, 2}, migraphx::op::padding_mode_t::same},
+        input);
+    auto ret = p.add_instruction(migraphx::op::slice{{2, 3}, {0, 0}, {5, 5}}, ins);
+    p.add_return({ret});
+    auto prog = migraphx::parse_onnx("averagepool_same_lower_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(averagepool_sl_cip_test)
+{
+    migraphx::program p;
+    auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
     std::vector<int64_t> pads = {0, 0, 1, 1, 0, 0, 0, 0};
     auto ins_pad              = p.add_instruction(migraphx::op::pad{pads}, input);
-    p.add_instruction(
+    auto ret                  = p.add_instruction(
         migraphx::op::pooling{
             "average", {0, 0}, {1, 1}, {2, 2}, migraphx::op::padding_mode_t::same},
         ins_pad);
-
-    auto prog = optimize_onnx("averagepool_same_lower_test.onnx");
+    p.add_return({ret});
+    auto prog = migraphx::parse_onnx("averagepool_sl_cip_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -209,14 +236,13 @@ TEST_CASE(averagepool_same_upper_test)
 {
     migraphx::program p;
     auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
-    std::vector<int64_t> pads = {0, 0, 0, 0, 0, 0, 1, 1};
-    auto ins_pad              = p.add_instruction(migraphx::op::pad{pads}, input);
-    p.add_instruction(
+    auto ins   = p.add_instruction(
         migraphx::op::pooling{
-            "average", {0, 0}, {1, 1}, {2, 2}, migraphx::op::padding_mode_t::same},
-        ins_pad);
-
-    auto prog = optimize_onnx("averagepool_same_upper_test.onnx");
+            "average", {1, 1}, {1, 1}, {2, 2}, migraphx::op::padding_mode_t::same},
+        input);
+    auto ret = p.add_instruction(migraphx::op::slice{{2, 3}, {1, 1}, {6, 6}}, ins);
+    p.add_return({ret});
+    auto prog = migraphx::parse_onnx("averagepool_same_upper_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -1319,6 +1345,38 @@ TEST_CASE(neg_test)
 
     auto prog = migraphx::parse_onnx("neg_test.onnx");
 
+    EXPECT(p == prog);
+}
+
+TEST_CASE(nonzero_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    std::vector<float> data = {1, 0, 1, 1};
+    p.add_literal(migraphx::literal(s, data));
+
+    migraphx::shape si{migraphx::shape::int64_type, {2, 3}};
+    std::vector<int64_t> indices = {0, 1, 1, 0, 0, 1};
+    auto r                       = p.add_literal(migraphx::literal(si, indices));
+    p.add_return({r});
+
+    auto prog = migraphx::parse_onnx("nonzero_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(nonzero_int_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::int32_type, {2, 3}};
+    std::vector<int> data = {1, 1, 0, 1, 0, 1};
+    p.add_literal(migraphx::literal(s, data.begin(), data.end()));
+
+    migraphx::shape si{migraphx::shape::int64_type, {2, 4}};
+    std::vector<int64_t> indices = {0, 0, 1, 1, 0, 1, 0, 2};
+    auto r                       = p.add_literal(migraphx::literal(si, indices));
+    p.add_return({r});
+
+    auto prog = migraphx::parse_onnx("nonzero_int_test.onnx");
     EXPECT(p == prog);
 }
 

@@ -229,6 +229,23 @@ def averagepool_notset_test():
 
 
 @onnx_test
+def averagepool_nt_cip_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 1, 1])
+
+    node = onnx.helper.make_node('AveragePool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[6, 6],
+                                 strides=[2, 2],
+                                 pads=[0, 0, 1, 1],
+                                 auto_pad='NOTSET',
+                                 count_include_pad=1)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def averagepool_same_lower_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 5, 5])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 5, 5])
@@ -238,6 +255,21 @@ def averagepool_same_lower_test():
                                  outputs=['y'],
                                  kernel_shape=[2, 2],
                                  auto_pad='SAME_LOWER')
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def averagepool_sl_cip_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 5, 5])
+
+    node = onnx.helper.make_node('AveragePool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[2, 2],
+                                 auto_pad='SAME_LOWER',
+                                 count_include_pad=1)
 
     return ([node], [x], [y])
 
@@ -1688,6 +1720,38 @@ def no_pad_test():
                                  outputs=['1'])
 
     return ([node], [x], [y])
+
+
+@onnx_test
+def nonzero_test():
+    data1 = np.array([[1., 0.], [1., 1.]])
+    data = helper.make_tensor(name='data',
+                              data_type=TensorProto.FLOAT,
+                              dims=data1.shape,
+                              vals=data1.flatten().astype(np.float))
+    y = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 3])
+
+    node = onnx.helper.make_node('NonZero',
+                                 inputs=['data'],
+                                 outputs=['indices'])
+
+    return ([node], [], [y], [data])
+
+
+@onnx_test
+def nonzero_int_test():
+    data1 = np.array([[1, 1, 0], [1, 0, 1]])
+    data = helper.make_tensor(name='data',
+                              data_type=TensorProto.INT16,
+                              dims=data1.shape,
+                              vals=data1.flatten().astype(np.int16))
+    y = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 4])
+
+    node = onnx.helper.make_node('NonZero',
+                                 inputs=['data'],
+                                 outputs=['indices'])
+
+    return ([node], [], [y], [data])
 
 
 @onnx_test

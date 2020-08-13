@@ -47,7 +47,7 @@ hip_ptr allocate_gpu(std::size_t sz, bool host = false)
         if(host)
             MIGRAPHX_THROW("Gpu allocation failed: " + hip_error(status));
         else
-            allocate_gpu(sz, true);
+            return allocate_gpu(sz, true);
     }
     return hip_ptr{result};
 }

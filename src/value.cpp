@@ -62,7 +62,8 @@ value::value(const value& rhs) : x(rhs.x ? rhs.x->clone() : nullptr), key(rhs.ke
 value& value::operator=(value rhs)
 {
     std::swap(rhs.x, x);
-    std::swap(rhs.key, key);
+    if(not rhs.key.empty())
+        std::swap(rhs.key, key);
     return *this;
 }
 
@@ -130,6 +131,8 @@ value::value(const std::string& pkey, const std::unordered_map<std::string, valu
 
 value::value(const std::string& pkey, std::nullptr_t) : x(nullptr), key(pkey) {}
 
+value::value(std::nullptr_t) : x(nullptr) {}
+
 value::value(const std::string& pkey, const value& rhs)
     : x(rhs.x ? rhs.x->clone() : nullptr), key(pkey)
 {
@@ -158,6 +161,12 @@ value::value(const char* i) : value(std::string(i)) {}
     const cpp_type* value::if_##vt() const { return x ? x->if_##vt() : nullptr; }
 MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS)
 
+value& value::operator=(std::nullptr_t)
+{
+    x = nullptr;
+    return *this;
+}
+
 bool value::is_array() const { return x ? x->get_type() == array_type : false; }
 const std::vector<value>& value::value::get_array() const
 {
@@ -174,7 +183,13 @@ const std::vector<value>& value::get_object() const
     assert(r);
     return *r;
 }
-const std::vector<value>* value::if_object() const { return x ? x->if_array() : nullptr; }
+const std::vector<value>* value::if_object() const
+{
+    auto* r = x ? x->if_array() : nullptr;
+    assert(r == nullptr or
+           std::none_of(r->begin(), r->end(), [](auto&& v) { return v.get_key().empty(); }));
+    return r;
+}
 
 bool value::is_null() const { return x == nullptr; }
 
@@ -245,12 +260,12 @@ value* value::data()
 value* value::begin()
 {
     // cppcheck-suppress assertWithSideEffect
-    assert(data());
+    assert(data() or empty());
     return data();
 }
 const value* value::begin() const
 {
-    assert(data());
+    assert(data() or empty());
     return data();
 }
 value* value::end() { return begin() + size(); }
@@ -303,6 +318,7 @@ std::pair<value*, bool> value::insert(const value& v)
         if(!x)
             x = std::make_shared<array_value_holder>();
         get_array_impl(x).push_back(v);
+        assert(this->if_array());
         return std::make_pair(&back(), true);
     }
     else
@@ -312,6 +328,7 @@ std::pair<value*, bool> value::insert(const value& v)
         auto p = x->if_object()->emplace(v.key, get_array_impl(x).size());
         if(p.second)
             get_array_impl(x).push_back(v);
+        assert(this->if_object());
         return std::make_pair(&get_array_impl(x)[p.first->second], p.second);
     }
 }
@@ -329,6 +346,13 @@ value value::without_key() const
 {
     value result = *this;
     result.key   = "";
+    return result;
+}
+
+value value::with_key(const std::string& pkey) const
+{
+    value result = *this;
+    result.key   = pkey;
     return result;
 }
 
@@ -411,7 +435,22 @@ std::ostream& operator<<(std::ostream& os, const value& d)
     return os;
 }
 
-void value::debug_print() const { std::cout << *this << std::endl; }
+void value::debug_print(bool show_type) const
+{
+    if(show_type)
+    {
+        switch(get_type())
+        {
+#define MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(vt, cpp_type) \
+    case vt##_type: std::cout << #vt << ": "; break;
+            MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE)
+            MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(null, )
+            MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(array, )
+            MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(object, )
+        }
+    }
+    std::cout << *this << std::endl;
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

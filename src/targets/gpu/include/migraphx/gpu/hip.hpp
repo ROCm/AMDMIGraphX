@@ -4,6 +4,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/functional.hpp>
 #include <utility>
 
 namespace migraphx {

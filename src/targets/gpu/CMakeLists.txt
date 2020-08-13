@@ -153,11 +153,9 @@ register_migraphx_gpu_ops(hip_
     exp
     floor
     gather
-    gemm
     # int8_gemm_pack
     log
     logsoftmax
-    lowering
     max
     min
     mul
@@ -168,11 +166,11 @@ register_migraphx_gpu_ops(hip_
     reduce_max
     reduce_mean
     reduce_min
-    reduce_op
+    # reduce_op
     reduce_prod
     reduce_sum
     relu
-    rnn_variable_seq_lens
+    # rnn_variable_seq_lens
     round
     rsqrt
     sigmoid

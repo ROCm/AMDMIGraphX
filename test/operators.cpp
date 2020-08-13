@@ -6,7 +6,8 @@
 
 TEST_CASE(load_op)
 {
-    for(auto name:migraphx::get_operators()) {
+    for(auto name : migraphx::get_operators())
+    {
         auto op = migraphx::load_op(name);
         CHECK(op.name() == name);
     }
@@ -19,4 +20,3 @@ TEST_CASE(ops)
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }
-

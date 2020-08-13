@@ -189,16 +189,16 @@ struct tensor_view
 //     const int8_t& operator()(Ts... xs) const
 //     {
 //         assert(std::vector<std::size_t>{static_cast<std::size_t>(xs)...} < m_shape.lens());
-//         assert(m_shape.index({static_cast<std::size_t>(xs)...}) < m_shape.bytes() / sizeof(int8_t));
-//         return m_data[m_shape.index({static_cast<std::size_t>(xs)...})];
+//         assert(m_shape.index({static_cast<std::size_t>(xs)...}) < m_shape.bytes() /
+//         sizeof(int8_t)); return m_data[m_shape.index({static_cast<std::size_t>(xs)...})];
 //     }
 
 //     template <class... Ts>
 //     int8_t& operator()(Ts... xs)
 //     {
 //         assert(std::vector<std::size_t>{static_cast<std::size_t>(xs)...} < m_shape.lens());
-//         assert(m_shape.index({static_cast<std::size_t>(xs)...}) < m_shape.bytes() / sizeof(int8_t));
-//         return m_data[m_shape.index({static_cast<std::size_t>(xs)...})];
+//         assert(m_shape.index({static_cast<std::size_t>(xs)...}) < m_shape.bytes() /
+//         sizeof(int8_t)); return m_data[m_shape.index({static_cast<std::size_t>(xs)...})];
 //     }
 
 //     template <class Iterator, MIGRAPHX_REQUIRES(not std::is_integral<Iterator>{})>

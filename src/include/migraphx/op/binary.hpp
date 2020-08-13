@@ -40,10 +40,10 @@ struct binary : op_name<Derived>
             std_result.visit([&](auto output) {
                 visit_all(std_arg0, std_arg1)([&](auto input1, auto input2) {
                     std::transform(input1.begin(),
-                                input1.end(),
-                                input2.begin(),
-                                output.begin(),
-                                static_cast<const Derived&>(*this).apply());
+                                   input1.end(),
+                                   input2.begin(),
+                                   output.begin(),
+                                   static_cast<const Derived&>(*this).apply());
                 });
             });
         }

@@ -774,6 +774,22 @@ TEST_CASE(embedding_bag_offset_test)
     EXPECT(test::throws([&] { migraphx::parse_onnx("embedding_bag_offset_test.onnx"); }));
 }
 
+TEST_CASE(equal_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> data = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+
+    auto input1 = p.add_literal(migraphx::literal(s, data));
+    auto input2 = p.add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto ret = p.add_instruction(migraphx::op::equal{}, input1, input2);
+    p.add_return({ret});
+
+    auto prog = migraphx::parse_onnx("equal_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(erf_test)
 {
     migraphx::program p;

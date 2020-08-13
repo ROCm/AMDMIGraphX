@@ -7,6 +7,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/config.hpp>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -21,7 +22,9 @@ struct equal : binary<equal>
 
     auto apply() const
     {
-        return [](auto x, auto y) { return x == y; };
+        return [](auto x, auto y) { 
+            return (x == y);
+        };
     }
 };
 

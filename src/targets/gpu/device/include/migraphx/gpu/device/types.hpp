@@ -70,12 +70,6 @@ struct device_type<half>
     using type = gpu_half;
 };
 
-template <>
-struct device_type<bool>
-{
-    using type = int8_t;
-};
-
 template <class T>
 struct host_type
 {
@@ -86,12 +80,6 @@ template <>
 struct host_type<gpu_half>
 {
     using type = half;
-};
-
-template <>
-struct host_type<bool>
-{
-    using type = int8_t;
 };
 
 } // namespace detail
@@ -140,8 +128,6 @@ __device__ __host__ T to_hip_type(T x)
 
 // Hip doens't support __fp16
 inline __device__ __host__ float to_hip_type(gpu_half x) { return x; }
-
-inline __device__ __host__ int8_t to_hip_type(bool x) { return x; }
 
 } // namespace device
 } // namespace gpu

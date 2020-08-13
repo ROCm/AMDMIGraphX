@@ -2833,10 +2833,10 @@ struct test_equal_brcst : verify_program<test_equal_brcst>
         auto l0 =
             p.add_literal(migraphx::literal{s0, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.1, 2.0, -2.0}});
         migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
-        auto l1 = p.add_parameter("abc", s1);
+        auto l1  = p.add_parameter("abc", s1);
         auto bl1 = p.add_instruction(migraphx::op::multibroadcast{s0.lens()}, l1);
-        auto r = p.add_instruction(migraphx::op::equal{}, l0, bl1);
-        p.add_return({r});        
+        auto r   = p.add_instruction(migraphx::op::equal{}, l0, bl1);
+        p.add_return({r});
 
         return p;
     };

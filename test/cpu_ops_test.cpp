@@ -2956,10 +2956,9 @@ TEST_CASE(equal_brcst_test)
     auto l0 =
         p.add_literal(migraphx::literal{s0, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
     migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
-    auto l1 =
-        p.add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
+    auto l1  = p.add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
     auto bl1 = p.add_instruction(migraphx::op::multibroadcast{{3, 3}}, l1);
-    auto r = p.add_instruction(migraphx::op::equal{}, l0, bl1);
+    auto r   = p.add_instruction(migraphx::op::equal{}, l0, bl1);
     p.add_return({r});
 
     p.compile(migraphx::cpu::target{});

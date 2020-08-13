@@ -125,6 +125,7 @@ add_library(migraphx_gpu
     gemm_impl.cpp
     preallocate_param.cpp
     rnn_variable_seq_lens.cpp
+    sync_device.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 function(register_migraphx_gpu_ops PREFIX)

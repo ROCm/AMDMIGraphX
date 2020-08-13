@@ -18,7 +18,8 @@ MIGRAPHX_REGISTER_OP(hip_sync)
 MIGRAPHX_REGISTER_OP(hip_copy_to_gpu)
 MIGRAPHX_REGISTER_OP(hip_copy_from_gpu)
 MIGRAPHX_REGISTER_OP(hip_copy)
-MIGRAPHX_REGISTER_OP(hip_load_memory)
+MIGRAPHX_REGISTER_OP(hip_allocate_memory)
+MIGRAPHX_REGISTER_OP(hip_copy_literal)
 
 using hip_ptr      = MIGRAPHX_MANAGE_PTR(void, hipFree);
 using hip_host_ptr = MIGRAPHX_MANAGE_PTR(void, hipHostUnregister);

@@ -1,5 +1,6 @@
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/register_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/operation.hpp>
@@ -67,6 +68,10 @@ struct set_stream
     }
     void finalize(context& ctx, const shape&, const std::vector<shape>&) { ctx.set_stream(stream); }
 };
+
+MIGRAPHX_REGISTER_OP(record_event)
+MIGRAPHX_REGISTER_OP(wait_event)
+MIGRAPHX_REGISTER_OP(set_stream)
 
 std::size_t schedule_model::concurrency() const { return streams; }
 void schedule_model::sched(program& p, instruction_ref ins, std::size_t n) const

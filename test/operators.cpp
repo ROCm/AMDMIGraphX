@@ -6,7 +6,7 @@
 
 TEST_CASE(load_op)
 {
-    for(auto name : migraphx::get_operators())
+    for(const auto& name : migraphx::get_operators())
     {
         auto op = migraphx::load_op(name);
         CHECK(op.name() == name);

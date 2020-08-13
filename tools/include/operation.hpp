@@ -265,7 +265,7 @@ void from_value_op(T& x, const value& v)
              const   = True,
              default = 'detail::compute_op'),
      virtual('to_value', returns = 'value', const = True, default = 'detail::to_value_op'),
-     virtual('from_value', v = 'const value', default = 'detail::from_value_op'),
+     virtual('from_value', v = 'const value&', default = 'detail::from_value_op'),
      friend('operator<<',
             returns = 'std::ostream &',
             os      = 'std::ostream &',

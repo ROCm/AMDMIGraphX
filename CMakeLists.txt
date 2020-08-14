@@ -192,8 +192,15 @@ rocm_create_package(
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
-
 add_subdirectory(src)
 add_subdirectory(doc)
 add_subdirectory(test)
 add_subdirectory(tools)
+
+set(DEST_DIR ${CMAKE_BINARY_DIR})
+file(GLOB backend_files ${CMAKE_SOURCE_DIR}/src/py/backend/*.py)
+file(MAKE_DIRECTORY ${DEST_DIR}/lib/onnx_migraphx)
+foreach(py_file ${backend_files})
+    configure_file(${py_file} ${DEST_DIR}/lib/onnx_migraphx/. COPYONLY)
+endforeach(py_file)
+configure_file(${CMAKE_SOURCE_DIR}/test/py/onnx_backend_test.py ${DEST_DIR}/onnx_backend_test.py COPYONLY)

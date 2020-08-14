@@ -507,7 +507,7 @@ struct find_mul_add_relu
 struct miopen_conv_bias
 {
     op::convolution op;
-    fusion f = {};
+    fusion f          = {};
     fusion::op_t conv = {};
     fusion::op_t bias = {};
 
@@ -534,11 +534,12 @@ struct miopen_conv_bias
         return f.execute(ctx, fargs, args[0], args[4]);
     }
 
-    void finalize(context& ctx, const shape&, const std::vector<shape>& inputs) {
-        f = fusion(inputs[0]);
+    void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
+    {
+        f    = fusion(inputs[0]);
         conv = f.create_conv(op, inputs[1]);
         bias = f.create_bias(inputs[3]);
-        f.compile(ctx); 
+        f.compile(ctx);
     }
 
     shape get_workspace(context& ctx) { return f.get_workspace(ctx); }
@@ -551,7 +552,7 @@ struct miopen_conv_bias
 struct miopen_conv_bias_relu
 {
     op::convolution op;
-    fusion f = {};
+    fusion f          = {};
     fusion::op_t conv = {};
     fusion::op_t bias = {};
     fusion::op_t relu = {};
@@ -579,13 +580,13 @@ struct miopen_conv_bias_relu
         miopenSetOpArgsActivForward(fargs.get(), relu, &alpha, &beta, 0, 0, 0);
         return f.execute(ctx, fargs, args[0], args[4]);
     }
-    void finalize(context& ctx, const shape&, const std::vector<shape>& inputs) 
+    void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
-        f = fusion(inputs[0]);
+        f    = fusion(inputs[0]);
         conv = f.create_conv(op, inputs[1]);
         bias = f.create_bias(inputs[3]);
         relu = f.create_relu();
-        f.compile(ctx); 
+        f.compile(ctx);
     }
 
     shape get_workspace(context& ctx) { return f.get_workspace(ctx); }

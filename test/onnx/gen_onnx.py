@@ -1483,13 +1483,13 @@ def layernorm_test():
     scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [5])
     bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [5])
     axes = [2]
-    pow = np.array([[[2, 2, 2, 2, 2]]])
+    pow_2 = np.array([[[2, 2, 2, 2, 2]]])
     epsilon = np.array([1e-12])
 
     pow_tensor = helper.make_tensor(name='pow',
                                     data_type=TensorProto.FLOAT,
-                                    dims=pow.shape,
-                                    vals=pow.flatten().astype(np.float))
+                                    dims=pow_2.shape,
+                                    vals=pow_2.flatten().astype(np.float))
 
     epsilon_tensor = helper.make_tensor(name='epsilon',
                                         data_type=TensorProto.FLOAT,

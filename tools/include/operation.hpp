@@ -298,9 +298,6 @@ bool has_finalize(const T& x)
     return detail::has_finalize_op(x);
 }
 
-inline void migraphx_to_value(value& v, const operation& op) { v = op.to_value(); }
-inline void migraphx_from_value(const value& v, operation& op) { op.from_value(v); }
-
 #endif
 
 } // namespace MIGRAPHX_INLINE_NS

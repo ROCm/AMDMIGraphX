@@ -12,7 +12,7 @@ namespace device {
 // m / sqrt(mean(m ^ 2) + 1e-12)
 void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
 {
-    auto relements    = arg1.get_shape().lens().back();
+    auto relements = arg1.get_shape().lens().back();
     assert(relements <= 1024);
     auto nelements    = result.get_shape().elements() / relements;
     auto input_shape  = arg1.get_shape();

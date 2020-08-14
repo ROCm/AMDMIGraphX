@@ -176,7 +176,7 @@ TEST_CASE(check_run_finalize_throw)
 TEST_CASE(check_to_value)
 {
     migraphx::operation op = simple_operation{};
-    auto v = op.to_value();
+    auto v                 = op.to_value();
     EXPECT(v == migraphx::value{{"data", 1}});
 }
 

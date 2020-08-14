@@ -97,8 +97,7 @@ auto to_value_impl(rank<9>, const T& x) -> decltype(migraphx_to_value(x))
 }
 
 template <class T>
-auto to_value_impl(rank<10>, const T& x)
-    -> decltype(x.to_value())
+auto to_value_impl(rank<10>, const T& x) -> decltype(x.to_value())
 {
     return x.to_value();
 }

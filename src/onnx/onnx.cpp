@@ -81,7 +81,6 @@ struct onnx_parser
         add_binary_op("Add", op::add{});
         add_binary_op("Div", op::div{});
         add_binary_op("Mul", op::mul{});
-        add_binary_op("Equal", op::equal{});
         add_binary_op("Pow", op::pow{});
         add_binary_op("PRelu", op::prelu{});
         add_binary_op("Sub", op::sub{});
@@ -105,6 +104,7 @@ struct onnx_parser
         add_mem_op("ConvInteger", &onnx_parser::parse_conv<op::quant_convolution>);
         add_mem_op("ConvTranspose", &onnx_parser::parse_conv_transpose);
         add_mem_op("Elu", &onnx_parser::parse_elu);
+        add_mem_op("Equal", &onnx_parser::parse_equal);
         add_mem_op("Expand", &onnx_parser::parse_expand);
         add_mem_op("Flatten", &onnx_parser::parse_flatten);
         add_mem_op("Gather", &onnx_parser::parse_gather);
@@ -2365,6 +2365,13 @@ struct onnx_parser
         }
 
         return prog.add_literal(literal(out_s, out_data));
+    }
+
+    instruction_ref
+    parse_equal(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        auto l = prog.add_instruction(op::equal{}, args);
+        return prog.add_instruction(op::convert{shape::bool_type}, l);
     }
 
     void parse_from(std::istream& is)

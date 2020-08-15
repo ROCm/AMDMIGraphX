@@ -782,7 +782,8 @@ TEST_CASE(equal_test)
 
     auto input1 = p.add_literal(migraphx::literal(s, data));
     auto input2 = p.add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {2, 3}});
-    auto ret    = p.add_instruction(migraphx::op::equal{}, input1, input2);
+    auto eq    = p.add_instruction(migraphx::op::equal{}, input1, input2);
+    auto ret = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, eq);
     p.add_return({ret});
 
     auto prog = migraphx::parse_onnx("equal_test.onnx");

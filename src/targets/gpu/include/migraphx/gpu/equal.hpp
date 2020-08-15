@@ -12,7 +12,7 @@ struct hip_equal : binary_device<hip_equal, device::equal>
 {
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs, *this}.has(3);
+        check_shapes{inputs, *this}.has(3).standard();
         auto s0 = inputs.at(0);
         auto s1 = inputs.at(1);
         if(s0 == s1 and s0.packed())

@@ -6,6 +6,7 @@
 // Add new types here
 // clang-format off
 #define MIGRAPHX_SHAPE_VISIT_TYPES(m) \
+    m(bool_type, bool) \
     m(half_type, half) \
     m(float_type, float) \
     m(double_type, double) \
@@ -29,7 +30,6 @@ typedef enum {
     migraphx_status_bad_param      = 1,
     migraphx_status_unknown_target = 3,
     migraphx_status_unknown_error  = 4,
-
 } migraphx_status;
 
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) migraphx_shape_##x,

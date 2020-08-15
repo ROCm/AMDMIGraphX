@@ -166,6 +166,7 @@ PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::program>(m, "program")
         .def("clone", [](migraphx::program& p) { return *(new migraphx::program(p)); })
+        .def("get_parameter_names", &migraphx::program::get_parameter_names)
         .def("get_parameter_shapes", &migraphx::program::get_parameter_shapes)
         .def("get_output_shapes", &migraphx::program::get_output_shapes)
         .def("compile",
@@ -202,6 +203,26 @@ PYBIND11_MODULE(migraphx, m)
               options.skip_unknown_operators = skip_unknown_operators;
               options.print_program_on_error = print_program_on_error;
               return migraphx::parse_onnx(filename, options);
+          },
+          "Parse onnx file",
+          py::arg("filename"),
+          py::arg("default_dim_value") = 1,
+          py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
+          py::arg("skip_unknown_operators") = false,
+          py::arg("print_program_on_error") = false);
+
+    m.def("parse_onnx_buffer",
+          [](const std::string& onnx_buffer,
+             unsigned int default_dim_value,
+             std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
+             bool skip_unknown_operators,
+             bool print_program_on_error) {
+              migraphx::onnx_options options;
+              options.default_dim_value      = default_dim_value;
+              options.map_input_dims         = map_input_dims;
+              options.skip_unknown_operators = skip_unknown_operators;
+              options.print_program_on_error = print_program_on_error;
+              return migraphx::parse_onnx_buffer(onnx_buffer, options);
           },
           "Parse onnx file",
           py::arg("filename"),

@@ -732,7 +732,7 @@ TEST_CASE(dropout_test)
     migraphx::program p;
     auto input = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 2}});
     auto out   = p.add_instruction(migraphx::op::identity{}, input);
-    migraphx::shape s{migraphx::shape::int8_type, {1, 3, 2, 2}};
+    migraphx::shape s{migraphx::shape::bool_type, {1, 3, 2, 2}};
     std::vector<int8_t> vec(s.elements(), 1);
     p.add_literal(migraphx::literal(s, vec));
     p.add_return({out});
@@ -775,6 +775,23 @@ TEST_CASE(embedding_bag_test)
 TEST_CASE(embedding_bag_offset_test)
 {
     EXPECT(test::throws([&] { migraphx::parse_onnx("embedding_bag_offset_test.onnx"); }));
+}
+
+TEST_CASE(equal_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> data = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+
+    auto input1 = p.add_literal(migraphx::literal(s, data));
+    auto input2 = p.add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto eq     = p.add_instruction(migraphx::op::equal{}, input1, input2);
+    auto ret    = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, eq);
+    p.add_return({ret});
+
+    auto prog = migraphx::parse_onnx("equal_test.onnx");
+
+    EXPECT(p == prog);
 }
 
 TEST_CASE(erf_test)
@@ -1348,6 +1365,38 @@ TEST_CASE(neg_test)
 
     auto prog = migraphx::parse_onnx("neg_test.onnx");
 
+    EXPECT(p == prog);
+}
+
+TEST_CASE(nonzero_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+    std::vector<float> data = {1, 0, 1, 1};
+    p.add_literal(migraphx::literal(s, data));
+
+    migraphx::shape si{migraphx::shape::int64_type, {2, 3}};
+    std::vector<int64_t> indices = {0, 1, 1, 0, 0, 1};
+    auto r                       = p.add_literal(migraphx::literal(si, indices));
+    p.add_return({r});
+
+    auto prog = migraphx::parse_onnx("nonzero_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(nonzero_int_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::int32_type, {2, 3}};
+    std::vector<int> data = {1, 1, 0, 1, 0, 1};
+    p.add_literal(migraphx::literal(s, data.begin(), data.end()));
+
+    migraphx::shape si{migraphx::shape::int64_type, {2, 4}};
+    std::vector<int64_t> indices = {0, 0, 1, 1, 0, 1, 0, 2};
+    auto r                       = p.add_literal(migraphx::literal(si, indices));
+    p.add_return({r});
+
+    auto prog = migraphx::parse_onnx("nonzero_int_test.onnx");
     EXPECT(p == prog);
 }
 

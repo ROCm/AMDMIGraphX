@@ -17,19 +17,24 @@ struct miopen_convolution
     shared<convolution_descriptor> cd;
     miopenConvFwdAlgorithm_t algo{};
     miopenHandle_t handle = nullptr;
+    uint64_t solution_id  = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        // TODO: Add algo
-        return op::convolution::reflect(self.op, f);
+        return pack(f(self.op.padding, "padding"),
+                    f(self.op.stride, "stride"),
+                    f(self.op.dilation, "dilation"),
+                    f(self.op.group, "group"),
+                    f(self.op.padding_mode, "padding_mode"),
+                    f(self.solution_id, "solution_id"));
     }
 
     std::string name() const { return "gpu::convolution"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    shape compile(context& ctx, const shape& output_shape, std::vector<shape> inputs);
+    shape find(context& ctx, const shape& output_shape, std::vector<shape> inputs);
     void finalize(context& ctx, const shape& output_shape, std::vector<shape> inputs);
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {

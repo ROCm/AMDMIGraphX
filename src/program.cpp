@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <set>
 #include <utility>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -21,6 +22,7 @@ struct program_impl
 {
     // A list is used to keep references to an instruction stable
     std::list<instruction> instructions;
+    std::vector<std::string> input_names;
     context ctx;
 };
 
@@ -115,7 +117,8 @@ void program::assign(const program& p)
     {
         impl->instructions.clear();
     }
-    impl->ctx = p.impl->ctx;
+    impl->ctx         = p.impl->ctx;
+    impl->input_names = p.impl->input_names;
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
     for(auto ins : iterator_for(p))
@@ -284,6 +287,8 @@ instruction_ref program::add_outline(const shape& s)
 instruction_ref program::add_parameter(std::string name, shape s)
 {
     assert(get_parameter_shape(name) == shape{});
+    impl->input_names.push_back(name);
+
     impl->instructions.push_front({builtin::param{std::move(name)}, std::move(s), {}});
     return impl->instructions.begin();
 }
@@ -297,6 +302,7 @@ instruction_ref program::add_return(std::vector<instruction_ref> args)
     auto result = std::prev(impl->instructions.end());
     instruction::backreference(result);
     assert(result->valid(begin()));
+
     return result;
 }
 
@@ -317,6 +323,22 @@ shape program::get_parameter_shape(std::string name) const
         return ins->get_shape();
     else
         return {};
+}
+
+std::vector<std::string> program::get_parameter_names() const
+{
+    std::vector<std::string> result = impl->input_names;
+    std::unordered_set<std::string> params;
+    for(auto&& ins : impl->instructions)
+    {
+        if(ins.name() == "@param")
+        {
+            auto&& name = any_cast<builtin::param>(ins.get_operator()).parameter;
+            params.insert(name);
+        }
+    }
+    erase_if(result, [&](auto&& name) { return params.count(name) == 0; });
+    return result;
 }
 
 instruction_ref program::get_parameter(std::string name) const

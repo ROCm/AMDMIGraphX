@@ -6,6 +6,9 @@
 #include <migraphx/gpu/clip.hpp>
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/oper.hpp>
+#include <migraphx/gpu/add.hpp>
+#include <migraphx/gpu/mul.hpp>
+#include <migraphx/gpu/device/layernorm.hpp>
 #include <migraphx/gpu/device/gelu.hpp>
 #include <migraphx/gpu/device/mul_add.hpp>
 #include <migraphx/gpu/device/add_clip.hpp>
@@ -169,68 +172,16 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
            contains({{0, 0}, {1, 1}}, op.stride) and contains({{1, 1}}, op.dilation);
 }
 
-struct hip_triadd
+struct hip_triadd : ternary_device<hip_triadd, &device::add>
 {
-    std::string name() const { return "hip::triadd"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(4);
-        return inputs.front();
-    }
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
-    {
-        device::add(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
-        return args.at(3);
-    }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
 };
 
-struct hip_triadd_clip
+struct hip_triadd_clip : quinary_device<hip_triadd_clip, &device::add_clip>
 {
-    std::string name() const { return "hip::triadd_clip"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(6);
-        return inputs.front();
-    }
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
-    {
-        device::add_clip(ctx.get_stream().get(),
-                         args.at(5),
-                         args.at(0),
-                         args.at(1),
-                         args.at(2),
-                         args.at(3),
-                         args.at(4));
-        return args.at(5);
-    }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
 };
 
-struct hip_add_clip
+struct hip_add_clip : quaternary_device<hip_add_clip, &device::add_clip>
 {
-    std::string name() const { return "hip::add_clip"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(5);
-        return inputs.front();
-    }
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
-    {
-        device::add_clip(
-            ctx.get_stream().get(), args.at(4), args.at(0), args.at(1), args.at(2), args.at(3));
-        return args.at(4);
-    }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
 };
 
 struct hip_triadd_relu : ternary_device<hip_triadd_relu, &device::add_relu>
@@ -257,6 +208,10 @@ struct hip_add_tanh : binary_device<hip_add_tanh, &device::add_tanh>
 {
 };
 
+struct hip_layernorm : unary_device<hip_layernorm, &device::layernorm>
+{
+};
+
 struct hip_gelu : unary_device<hip_gelu, &device::gelu>
 {
 };
@@ -273,43 +228,12 @@ struct hip_add_gelu_new : binary_device<hip_add_gelu_new, &device::add_gelu_new>
 {
 };
 
-struct hip_mul_add
+struct hip_mul_add : ternary_device<hip_mul_add, &device::mul_add>
 {
-    std::string name() const { return "hip::mul_add"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(4);
-        return inputs.front();
-    }
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
-    {
-        device::mul_add(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
-        return args.at(3);
-    }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
 };
 
-struct hip_mul_add_relu
+struct hip_mul_add_relu : ternary_device<hip_mul_add_relu, &device::mul_add_relu>
 {
-    std::string name() const { return "hip::mul_add_relu"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(4);
-        return inputs.front();
-    }
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
-    {
-        device::mul_add_relu(
-            ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
-        return args.at(3);
-    }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
 };
 
 void move_broadcasted_back(std::vector<instruction_ref>& args)
@@ -331,6 +255,50 @@ void move_standard_front(std::vector<instruction_ref>& args)
     if(it != last)
         std::swap(*it, args.front());
 }
+
+struct find_layernorm
+{
+    template <class... Ts>
+    static auto multibroadcast_op(Ts... xs)
+    {
+        return match::name("multibroadcast")(match::arg(0)(xs...));
+    }
+
+    static auto x_minus_mean()
+    {
+        return match::name("gpu::sub")(
+            match::arg(0)(match::any().bind("x")),
+            match::arg(1)(multibroadcast_op(match::name("gpu::reduce_mean"))));
+    }
+
+    static auto variance()
+    {
+        return match::name("gpu::reduce_mean")(match::arg(0)(
+            match::name("gpu::pow")(match::arg(0)(x_minus_mean()),
+                                    match::arg(1)(multibroadcast_op(match::has_value(2.0f))))));
+    }
+
+    static auto layernorm_onnx()
+    {
+        return match::name("gpu::div")(
+            match::arg(0)(x_minus_mean()),
+
+            match::arg(1)(multibroadcast_op(
+                match::name("gpu::sqrt")(match::arg(0)(match::name("gpu::add")(match::either_arg(
+                    0, 1)(variance(), multibroadcast_op(match::has_value(1e-12f)))))))));
+    }
+
+    auto matcher() const { return layernorm_onnx(); }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+        auto args  = ins->inputs();
+
+        p.replace_instruction(ins, hip_layernorm{}, x_ins, args.back());
+    }
+};
 
 struct find_gelu
 {
@@ -741,6 +709,7 @@ void fuse_ops::apply(program& p) const
     run_passes(p, {dead_code_elimination{}});
     match::find_matches(p, find_triadd{});
     match::find_matches(p,
+                        find_layernorm{},
                         find_conv_bias_relu{ctx},
                         find_conv_bias{ctx},
                         find_add_gelu{},

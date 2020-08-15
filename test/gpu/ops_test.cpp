@@ -1028,6 +1028,37 @@ struct test_triadd_tanh : verify_program<test_triadd_tanh>
     }
 };
 
+struct test_layernorm : verify_program<test_layernorm>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        std::vector<size_t> dims{1, 1, 5};
+        auto x        = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
+        auto scale    = p.add_parameter("scale", migraphx::shape{migraphx::shape::float_type, {5}});
+        auto bias     = p.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {5}});
+        auto epsilon  = p.add_literal(1e-12f);
+        auto exponent = p.add_literal(migraphx::literal{
+            migraphx::shape{migraphx::shape::float_type, {1, 1, 5}}, {2, 2, 2, 2, 2}});
+
+        auto mean           = p.add_instruction(migraphx::op::reduce_mean({2}), x);
+        auto mean_mbcast    = p.add_instruction(migraphx::op::multibroadcast{{dims}}, mean);
+        auto sub            = p.add_instruction(migraphx::op::sub{}, x, mean_mbcast);
+        auto pow            = p.add_instruction(migraphx::op::pow{}, sub, exponent);
+        auto var            = p.add_instruction(migraphx::op::reduce_mean({2}), pow);
+        auto epsilon_mbcast = p.add_instruction(migraphx::op::multibroadcast{{1, 1, 1}}, epsilon);
+        auto add_epsilon    = p.add_instruction(migraphx::op::add{}, var, epsilon_mbcast);
+        auto sqrt           = p.add_instruction(migraphx::op::sqrt{}, add_epsilon);
+        auto sqrt_mbcast    = p.add_instruction(migraphx::op::multibroadcast{dims}, sqrt);
+        auto div            = p.add_instruction(migraphx::op::div{}, sub, sqrt_mbcast);
+        auto scale_mbcast   = p.add_instruction(migraphx::op::multibroadcast{dims}, scale);
+        auto mul            = p.add_instruction(migraphx::op::mul{}, scale_mbcast, div);
+        auto bias_mbcast    = p.add_instruction(migraphx::op::multibroadcast{dims}, bias);
+        p.add_instruction(migraphx::op::add{}, mul, bias_mbcast);
+        return p;
+    }
+};
+
 struct test_sigmoid : verify_program<test_sigmoid>
 {
     migraphx::program create_program() const
@@ -1182,6 +1213,19 @@ struct test_avg_pooling_3d : verify_program<test_avg_pooling_3d>
         migraphx::program p;
         auto input =
             p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+        auto op = migraphx::op::pooling{"average", {0, 0, 0}, {1, 1, 1}, {3, 3, 3}};
+        p.add_instruction(op, input);
+        return p;
+    }
+};
+
+struct test_avg_pooling_3d_opt : verify_program<test_avg_pooling_3d_opt>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 2, 3, 3, 3}});
         auto op = migraphx::op::pooling{"average", {0, 0, 0}, {1, 1, 1}, {3, 3, 3}};
         p.add_instruction(op, input);
         return p;
@@ -2792,6 +2836,38 @@ struct test_neg : verify_program<test_neg>
         migraphx::shape s{migraphx::shape::double_type, {2, 3, 4, 6}};
         auto input = p.add_parameter("x", s);
         p.add_instruction(migraphx::op::neg{}, input);
+        return p;
+    };
+};
+
+struct test_equal : verify_program<test_equal>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+
+        migraphx::shape s{migraphx::shape::double_type, {2, 3, 4, 6}};
+        auto input1 = p.add_parameter("x", s);
+        auto input2 = p.add_parameter("y", s);
+        auto r      = p.add_instruction(migraphx::op::equal{}, input1, input2);
+        p.add_return({r});
+        return p;
+    };
+};
+
+struct test_equal_brcst : verify_program<test_equal_brcst>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s0{migraphx::shape::float_type, {3, 3}};
+        auto l0 = p.add_parameter("x", s0);
+        migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
+        auto l1  = p.add_parameter("y", s1);
+        auto bl1 = p.add_instruction(migraphx::op::multibroadcast{s0.lens()}, l1);
+        auto r   = p.add_instruction(migraphx::op::equal{}, l0, bl1);
+        p.add_return({r});
+
         return p;
     };
 };

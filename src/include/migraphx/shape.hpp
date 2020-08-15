@@ -14,6 +14,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct value;
 struct shape_impl;
 
 struct shape
@@ -22,6 +23,7 @@ struct shape
 // Add new types here
 // clang-format off
 #define MIGRAPHX_SHAPE_VISIT_TYPES(m) \
+    m(bool_type, bool) \
     m(half_type, half) \
     m(float_type, float) \
     m(double_type, double) \
@@ -162,6 +164,48 @@ struct shape
         type_t type_enum() const { return get_type<T>{}; }
     };
 
+    template <>
+    struct as<bool>
+    {
+        using type = int8_t;
+
+        template <class U>
+        int8_t operator()(U u) const
+        {
+            return int8_t(u);
+        }
+
+        template <class U>
+        int8_t* operator()(U* u) const
+        {
+            return static_cast<int8_t*>(u);
+        }
+
+        template <class U>
+        const int8_t* operator()(const U* u) const
+        {
+            return static_cast<int8_t*>(u);
+        }
+
+        int8_t operator()() const { return {}; }
+
+        std::size_t size(std::size_t n = 1) const { return sizeof(int8_t) * n; }
+
+        template <class U>
+        int8_t* from(U* buffer, std::size_t n = 0) const
+        {
+            return reinterpret_cast<int8_t*>(buffer) + n;
+        }
+
+        template <class U>
+        const int8_t* from(const U* buffer, std::size_t n = 0) const
+        {
+            return reinterpret_cast<const int8_t*>(buffer) + n;
+        }
+
+        type_t type_enum() const { return get_type<int8_t>{}; }
+    };
+
     template <class Visitor>
     void visit_type(Visitor v) const
     {
@@ -184,12 +228,16 @@ struct shape
     }
 
     std::string type_string() const;
+    static type_t parse_type(const std::string& s);
 
     private:
     std::shared_ptr<const shape_impl> impl;
 
     std::size_t element_space() const;
 };
+
+void migraphx_to_value(value& v, const shape& s);
+void migraphx_from_value(const value& v, shape& s);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

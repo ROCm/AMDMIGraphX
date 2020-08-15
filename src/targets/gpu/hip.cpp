@@ -47,7 +47,7 @@ hip_ptr allocate_gpu(std::size_t sz, bool host = false)
         if(host)
             MIGRAPHX_THROW("Gpu allocation failed: " + hip_error(status));
         else
-            allocate_gpu(sz, true);
+            return allocate_gpu(sz, true);
     }
     return hip_ptr{result};
 }
@@ -163,6 +163,11 @@ void copy_from_gpu(context& ctx, const argument& src, const argument& dst)
 argument get_preallocation(context& ctx, const std::string& id)
 {
     return ctx.get_current_device().preallocations.at(id);
+}
+
+void store_preallocated_param(context& ctx, const std::string& id, const argument& a)
+{
+    ctx.get_current_device().preallocations[id] = a;
 }
 
 // clang-format off

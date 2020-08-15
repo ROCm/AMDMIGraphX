@@ -73,6 +73,7 @@
 #include <migraphx/gpu/prelu.hpp>
 #include <migraphx/gpu/recip.hpp>
 #include <migraphx/gpu/rnn_variable_seq_lens.hpp>
+#include <migraphx/gpu/equal.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -138,6 +139,7 @@ struct miopen_apply
 
         add_generic_op<hip_add>("add");
         add_generic_op<hip_sub>("sub");
+        add_generic_op<hip_equal>("equal");
         add_generic_op<hip_exp>("exp");
         add_generic_op<hip_erf>("erf");
         add_generic_op<hip_log>("log");
@@ -169,8 +171,8 @@ struct miopen_apply
         add_generic_op<hip_ceil>("ceil");
         add_generic_op<hip_floor>("floor");
         add_generic_op<hip_recip>("recip");
+        add_generic_op<miopen_contiguous>("contiguous");
 
-        add_extend_op<miopen_contiguous, op::contiguous>("contiguous");
         add_extend_op<hip_concat, op::concat>("concat");
         add_extend_op<hip_softmax, op::softmax>("softmax");
         add_extend_op<hip_logsoftmax, op::logsoftmax>("logsoftmax");
@@ -282,7 +284,7 @@ struct miopen_apply
             auto&& op = any_cast<op::convolution>(ins->get_operator());
 
             auto conv = miopen_convolution{op, make_conv(op)};
-            auto ws   = conv.compile(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
+            auto ws   = conv.find(get_context(), ins->get_shape(), to_shapes(ins->inputs()));
 
             auto workspace = insert_allocation(ins, ws, "workspace");
             auto output    = insert_allocation(ins, ins->get_shape());

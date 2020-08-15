@@ -4,6 +4,7 @@
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/reduce_mean.hpp>
+#include <migraphx/op/reduce_max.hpp>
 #include <migraphx/program.hpp>
 
 namespace migraphx {
@@ -15,28 +16,40 @@ void rewrite_pooling::apply(program& prog) const
     {
         if(ins->name() != "pooling")
             continue;
-        if(ins->get_shape().lens().size() != 4)
-            continue;
         if(ins->inputs().empty())
             continue;
         auto&& s = ins->inputs().front()->get_shape();
         if(not s.standard())
             continue;
         auto&& op = any_cast<op::pooling>(ins->get_operator());
-        if(op.mode != "average")
+        if(!std::all_of(op.padding.begin(), op.padding.end(), [](auto i) { return i == 0; }))
             continue;
-        if(op.padding[0] != 0 and op.padding[1] != 0)
+        if(!std::all_of(op.stride.begin(), op.stride.end(), [](auto i) { return i == 1; }))
             continue;
-        if(op.stride[0] != 1 and op.stride[1] != 1)
-            continue;
-        if(s.lens()[2] != op.lengths[0] and s.lens()[3] != op.lengths[1])
+        auto lens = s.lens();
+        if(!std::equal(lens.begin() + 2, lens.end(), op.lengths.begin(), op.lengths.end()))
             continue;
         std::int64_t n = s.lens()[0];
         std::int64_t c = s.lens()[1];
         auto reshape =
             prog.insert_instruction(ins, op::reshape{{n * c, -1}}, ins->inputs().front());
-        auto pooling = prog.insert_instruction(ins, op::reduce_mean{{1}}, reshape);
-        prog.replace_instruction(ins, op::reshape{{n, c, 1, 1}}, pooling);
+        instruction_ref pooling{};
+
+        // average pooling
+        if(op.mode == "average")
+        {
+            pooling = prog.insert_instruction(ins, op::reduce_mean{{1}}, reshape);
+        }
+        // max pooling
+        else
+        {
+            pooling = prog.insert_instruction(ins, op::reduce_max{{1}}, reshape);
+        }
+
+        std::vector<int64_t> rsp_lens(lens.size(), 1);
+        rsp_lens[0] = n;
+        rsp_lens[1] = c;
+        prog.replace_instruction(ins, op::reshape{rsp_lens}, pooling);
     }
 }
 

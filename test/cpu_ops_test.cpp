@@ -2939,7 +2939,7 @@ TEST_CASE(equal_test)
     auto l1 =
         p.add_literal(migraphx::literal{s, {1.1, 1.6, -0.1, -1.2, -1.5, -0.7, 0.0, 2.3, -2.1}});
     auto eq = p.add_instruction(migraphx::op::equal{}, l0, l1);
-    auto r = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, eq);
+    auto r  = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, eq);
     p.add_return({r});
 
     p.compile(migraphx::cpu::target{});
@@ -2959,8 +2959,8 @@ TEST_CASE(equal_brcst_test)
     migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
     auto l1  = p.add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
     auto bl1 = p.add_instruction(migraphx::op::multibroadcast{{3, 3}}, l1);
-    auto eq   = p.add_instruction(migraphx::op::equal{}, l0, bl1);
-    auto r = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, eq);
+    auto eq  = p.add_instruction(migraphx::op::equal{}, l0, bl1);
+    auto r   = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, eq);
     p.add_return({r});
 
     p.compile(migraphx::cpu::target{});

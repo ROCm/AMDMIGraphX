@@ -30,9 +30,7 @@ struct equal : binary<equal>
 
     auto apply() const
     {
-        return [](auto x, auto y) { 
-            return float_equal(x, y);
-        };
+        return [](auto x, auto y) { return float_equal(x, y); };
     }
 };
 

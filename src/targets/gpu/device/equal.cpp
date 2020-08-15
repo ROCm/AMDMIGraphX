@@ -7,10 +7,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-template<class T>
+template <class T>
 __device__ bool equal(T x, T y)
 {
-    auto eps = std::numeric_limits<T>::epsilon();
+    auto eps  = std::numeric_limits<T>::epsilon();
     auto diff = x - y;
     return (diff <= eps) and (diff >= -eps);
 }

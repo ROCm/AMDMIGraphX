@@ -590,7 +590,7 @@ struct miopen_conv_bias
 
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
-        f    = fusion(inputs[0]);
+        f = fusion(inputs[0]);
         assert(f.fp);
         conv = f.create_conv(op, inputs[1]);
         bias = f.create_bias(inputs[3]);
@@ -640,7 +640,7 @@ struct miopen_conv_bias_relu
     }
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
-        f    = fusion(inputs[0]);
+        f = fusion(inputs[0]);
         assert(f.fp);
         conv = f.create_conv(op, inputs[1]);
         bias = f.create_bias(inputs[3]);

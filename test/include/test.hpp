@@ -85,7 +85,6 @@ inline std::ostream& operator<<(std::ostream& s, const std::vector<T>& v)
     return s;
 }
 
-template <>
 inline std::ostream& operator<<(std::ostream& s, const std::vector<bool>& v)
 {
     s << "{ ";

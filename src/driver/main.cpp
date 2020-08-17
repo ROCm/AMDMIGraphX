@@ -330,7 +330,7 @@ struct op : command<op>
            ap.help("List all the operators of MIGraphX"),
            ap.set_value(true));
     }
-    void run()
+    void run() const
     {
         if(show_ops)
         {

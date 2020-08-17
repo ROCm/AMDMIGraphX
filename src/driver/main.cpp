@@ -334,7 +334,7 @@ struct op : command<op>
     {
         if(show_ops)
         {
-            for(auto name : get_operators())
+            for(const auto& name : get_operators())
                 std::cout << name << std::endl;
         }
     }

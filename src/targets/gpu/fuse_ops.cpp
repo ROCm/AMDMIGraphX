@@ -565,18 +565,21 @@ struct miopen_conv_bias
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
+        assert(f.fp);
         return op::convolution::reflect(self.op, f);
     }
 
     std::string name() const { return "gpu::conv_bias"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
+        assert(f.fp);
         check_shapes{inputs, *this}.has(5);
         // TODO: Check slices
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
+        assert(f.fp);
         auto fargs  = make_fused_args();
         float alpha = 1;
         float beta  = 0;
@@ -588,6 +591,7 @@ struct miopen_conv_bias
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
         f    = fusion(inputs[0]);
+        assert(f.fp);
         conv = f.create_conv(op, inputs[1]);
         bias = f.create_bias(inputs[3]);
         f.compile(ctx);
@@ -611,18 +615,21 @@ struct miopen_conv_bias_relu
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
+        assert(f.fp);
         return op::convolution::reflect(self.op, f);
     }
 
     std::string name() const { return "gpu::conv_bias_relu"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
+        assert(f.fp);
         check_shapes{inputs, *this}.has(5);
         // TODO: Check slices
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
+        assert(f.fp);
         auto fargs  = make_fused_args();
         float alpha = 1;
         float beta  = 0;
@@ -634,6 +641,7 @@ struct miopen_conv_bias_relu
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
         f    = fusion(inputs[0]);
+        assert(f.fp);
         conv = f.create_conv(op, inputs[1]);
         bias = f.create_bias(inputs[3]);
         relu = f.create_relu();

@@ -2,6 +2,7 @@
 #include <migraphx/gpu/hip.hpp>
 
 #include <migraphx/manage_ptr.hpp>
+#include <migraphx/register_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device/contiguous.hpp>
 #include <miopen/miopen.h>
@@ -11,6 +12,14 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+MIGRAPHX_REGISTER_OP(hip_allocate)
+MIGRAPHX_REGISTER_OP(hip_sync_device)
+MIGRAPHX_REGISTER_OP(hip_copy_to_gpu)
+MIGRAPHX_REGISTER_OP(hip_copy_from_gpu)
+MIGRAPHX_REGISTER_OP(hip_copy)
+MIGRAPHX_REGISTER_OP(hip_allocate_memory)
+MIGRAPHX_REGISTER_OP(hip_copy_literal)
 
 using hip_ptr      = MIGRAPHX_MANAGE_PTR(void, hipFree);
 using hip_host_ptr = MIGRAPHX_MANAGE_PTR(void, hipHostUnregister);

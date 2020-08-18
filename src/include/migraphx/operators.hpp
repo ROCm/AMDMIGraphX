@@ -1,7 +1,6 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_HPP
 #define MIGRAPHX_GUARD_OPERATORS_HPP
 
-#include <migraphx/op/abnormal_ops.hpp>
 #include <migraphx/op/abs.hpp>
 #include <migraphx/op/acos.hpp>
 #include <migraphx/op/acosh.hpp>
@@ -13,7 +12,7 @@
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/atan.hpp>
 #include <migraphx/op/atanh.hpp>
-#include <migraphx/op/batch_norm.hpp>
+#include <migraphx/op/batch_norm_inference.hpp>
 #include <migraphx/op/binary.hpp>
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/capture.hpp>
@@ -86,6 +85,8 @@
 #include <migraphx/op/tan.hpp>
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/unary.hpp>
+#include <migraphx/op/undefined.hpp>
+#include <migraphx/op/unknown.hpp>
 #include <migraphx/op/unsqueeze.hpp>
 
 #endif

@@ -38,7 +38,6 @@ void from_value_context(T& x, const value& v)
     return migraphx::from_value(v, x);
 }
 
-
 <%
  interface('context',
            virtual('finish', returns = 'void', const = True))

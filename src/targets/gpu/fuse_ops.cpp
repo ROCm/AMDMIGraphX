@@ -52,11 +52,13 @@ struct fusion
         assert(input.standard());
         auto t = make_tensor(input);
         fp     = make_fusion_plan(t);
+        assert(fp);
         keep_alive(std::move(t));
     }
 
     op_t operator[](std::size_t i) const
     {
+        assert(fp);
         op_t result;
         auto status = miopenFusionPlanGetOp(fp.get(), i, &result);
         if(status != miopenStatusSuccess)
@@ -64,10 +66,15 @@ struct fusion
         return result;
     }
 
-    auto get() const { return fp.get(); }
+    auto get() const 
+    {
+        assert(fp);
+        return fp.get(); 
+    }
 
     op_t create_bias(const shape& bias)
     {
+        assert(fp);
         op_t result;
         auto b      = shape{bias.type(), {1, bias.lens().at(1), 1, 1}};
         auto t      = keep_alive(make_tensor(b));
@@ -79,6 +86,7 @@ struct fusion
 
     op_t create_relu()
     {
+        assert(fp);
         op_t result;
         auto status = miopenCreateOpActivationForward(fp.get(), &result, miopenActivationRELU);
         if(status != miopenStatusSuccess)
@@ -88,6 +96,7 @@ struct fusion
 
     op_t create_conv(const op::convolution& op, const shape& weights)
     {
+        assert(fp);
         op_t result;
         auto cd     = keep_alive(make_conv(op));
         auto t      = keep_alive(make_tensor(weights));
@@ -99,6 +108,7 @@ struct fusion
 
     shape get_workspace(context&)
     {
+        assert(fp);
         // TODO: Use zero workspace for now
         std::size_t ws_size = 0;
         // int algo_count = 1;
@@ -111,6 +121,7 @@ struct fusion
 
     void compile(context& ctx)
     {
+        assert(fp);
         auto status = miopenCompileFusionPlan(ctx.get_stream().get_miopen(), fp.get());
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("Compiling fusion plan failed");
@@ -121,6 +132,7 @@ struct fusion
                      const argument& x,
                      const argument& y) const
     {
+        assert(fp);
         auto x_td   = make_tensor(x.get_shape());
         auto y_td   = make_tensor(y.get_shape());
         auto status = miopenExecuteFusionPlan(ctx.get_stream().get_miopen(),
@@ -565,21 +577,18 @@ struct miopen_conv_bias
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        assert(f.fp);
         return op::convolution::reflect(self.op, f);
     }
 
     std::string name() const { return "gpu::conv_bias"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        assert(f.fp);
         check_shapes{inputs, *this}.has(5);
         // TODO: Check slices
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        assert(f.fp);
         auto fargs  = make_fused_args();
         float alpha = 1;
         float beta  = 0;
@@ -591,7 +600,6 @@ struct miopen_conv_bias
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
         f = fusion(inputs[0]);
-        assert(f.fp);
         conv = f.create_conv(op, inputs[1]);
         bias = f.create_bias(inputs[3]);
         f.compile(ctx);
@@ -615,21 +623,18 @@ struct miopen_conv_bias_relu
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        assert(f.fp);
         return op::convolution::reflect(self.op, f);
     }
 
     std::string name() const { return "gpu::conv_bias_relu"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        assert(f.fp);
         check_shapes{inputs, *this}.has(5);
         // TODO: Check slices
         return op.compute_shape({inputs.at(0), inputs.at(1)});
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        assert(f.fp);
         auto fargs  = make_fused_args();
         float alpha = 1;
         float beta  = 0;
@@ -641,7 +646,6 @@ struct miopen_conv_bias_relu
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
         f = fusion(inputs[0]);
-        assert(f.fp);
         conv = f.create_conv(op, inputs[1]);
         bias = f.create_bias(inputs[3]);
         relu = f.create_relu();

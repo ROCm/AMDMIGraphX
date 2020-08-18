@@ -7,6 +7,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
 #include <unordered_map>
+#include <memory>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -167,9 +168,30 @@ struct context
         return hip_event_ptr{event};
     }
 
-    value to_value() const {}
+    value to_value() const 
+    {
+        value result;
+        result["events"] = events.size();
+        result["streams"] = current_device->nstreams();
 
-    void from_value(const value& v) {}
+        return result;
+    }
+
+    void from_value(const value& v) 
+    {
+        assert(v.contains("events"));
+        auto v_events = v.at("events");
+        assert(v_events.is_uint64());
+        std::size_t n_events = v_events.get_uint64();
+        this->create_events(n_events);
+
+        assert(v.contains("events"));
+        auto v_streams = v.at("streams");
+        assert(v_streams.is_uint64());
+        std::size_t n_streams = v_streams.get_uint64();
+
+        this->current_device = std::make_shared<hip_device>(0, n_streams);
+    }
 
     private:
     // TODO: Make this a vector to support multiple devices

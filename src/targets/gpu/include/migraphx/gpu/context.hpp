@@ -167,15 +167,9 @@ struct context
         return hip_event_ptr{event};
     }
 
-    value to_value() const
-    {
+    value to_value() const {}
 
-    }
-
-    void from_value(const value& v)
-    {
-
-    }
+    void from_value(const value& v) {}
 
     private:
     // TODO: Make this a vector to support multiple devices

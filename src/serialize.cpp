@@ -32,12 +32,5 @@ void migraphx_from_value(const value& v, argument& a)
     a         = l.get_argument();
 }
 
-void migraphx_to_value(value& v, const argument& a) { raw_data_to_value(v, a); }
-void migraphx_from_value(const value& v, argument& a)
-{
-    literal l = migraphx::from_value<literal>(v);
-    a         = l.get_argument();
-}
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

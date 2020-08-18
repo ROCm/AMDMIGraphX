@@ -167,11 +167,25 @@ struct context
         return hip_event_ptr{event};
     }
 
+    value to_value() const
+    {
+
+    }
+
+    void from_value(const value& v)
+    {
+
+    }
+
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;
 };
+
+inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }
+inline void migraphx_from_value(const value& v, context& ctx) { ctx.from_value(v); }
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

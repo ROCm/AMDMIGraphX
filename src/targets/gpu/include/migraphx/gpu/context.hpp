@@ -168,16 +168,16 @@ struct context
         return hip_event_ptr{event};
     }
 
-    value to_value() const 
+    value to_value() const
     {
         value result;
-        result["events"] = events.size();
+        result["events"]  = events.size();
         result["streams"] = current_device->nstreams();
 
         return result;
     }
 
-    void from_value(const value& v) 
+    void from_value(const value& v)
     {
         assert(v.contains("events"));
         auto v_events = v.at("events");

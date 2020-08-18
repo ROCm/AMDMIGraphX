@@ -66,10 +66,10 @@ struct fusion
         return result;
     }
 
-    auto get() const 
+    auto get() const
     {
         assert(fp);
-        return fp.get(); 
+        return fp.get();
     }
 
     op_t create_bias(const shape& bias)
@@ -599,7 +599,7 @@ struct miopen_conv_bias
 
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
-        f = fusion(inputs[0]);
+        f    = fusion(inputs[0]);
         conv = f.create_conv(op, inputs[1]);
         bias = f.create_bias(inputs[3]);
         f.compile(ctx);
@@ -645,7 +645,7 @@ struct miopen_conv_bias_relu
     }
     void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
     {
-        f = fusion(inputs[0]);
+        f    = fusion(inputs[0]);
         conv = f.create_conv(op, inputs[1]);
         bias = f.create_bias(inputs[3]);
         relu = f.create_relu();

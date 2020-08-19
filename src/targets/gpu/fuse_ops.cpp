@@ -327,7 +327,7 @@ struct find_layernorm
         auto args  = ins->inputs();
 
         // We dont fuse for non-standard layouts
-        if (not x_ins.get_shape().standard())
+        if(not x_ins.get_shape().standard())
             return;
 
         // We dont fuse layernorm for sizes larger than 1024

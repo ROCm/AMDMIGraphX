@@ -32,19 +32,19 @@ void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
         gs_launch(stream, nelements * block_size, block_size)([=](auto i, auto idx) __device__ {
             const auto out_idx  = fast_div(i, block_size_div);
             const auto base_idx = out_idx * relements;
-            value_type x = input.data()[base_idx];
+            value_type x        = input.data()[base_idx];
 
-            auto m = block_reduce<max_block_size>(
-                         idx, sum{}, 0, relements, [&](auto) { return x; }) /
-                     relements;
+            auto m =
+                block_reduce<max_block_size>(idx, sum{}, 0, relements, [&](auto) { return x; }) /
+                relements;
 
             x = x - m;
 
             auto r = block_reduce<max_block_size>(
-                         idx, sum{}, 0, relements, [&](auto) { return x*x; }) /
+                         idx, sum{}, 0, relements, [&](auto) { return x * x; }) /
                      relements;
 
-            const auto eps = ::rsqrt(r + 1e-12);
+            const auto eps          = ::rsqrt(r + 1e-12);
             output.data()[base_idx] = x * eps;
 
         });

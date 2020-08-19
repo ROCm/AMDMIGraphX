@@ -1,6 +1,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_CONTEXT_HPP
 #define MIGRAPHX_GUARD_RTGLIB_CONTEXT_HPP
 
+#include <migraphx/context.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/hip.hpp>

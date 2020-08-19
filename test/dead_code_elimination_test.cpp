@@ -1,7 +1,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <basic_ops.hpp>
-#include <migraphx/op/abnormal_ops.hpp>
+#include <migraphx/op/undefined.hpp>
 #include <migraphx/op/add.hpp>
 #include <migraphx/op/identity.hpp>
 #include <test.hpp>

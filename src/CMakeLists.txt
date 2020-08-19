@@ -1,6 +1,7 @@
 
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
+include(RegisterOp)
 
 add_library(migraphx 
     auto_contiguous.cpp
@@ -28,6 +29,7 @@ add_library(migraphx
     schedule.cpp
     serialize.cpp
     pass_manager.cpp
+    register_op.cpp
     simplify_algebra.cpp
     simplify_reshapes.cpp
     value.cpp
@@ -36,6 +38,98 @@ add_library(migraphx
     opt/memory_coloring_impl.cpp
 )
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
+function(register_migraphx_ops)
+    foreach(OP ${ARGN})
+        register_op(migraphx HEADER migraphx/op/${OP}.hpp OPERATORS op::${OP})
+    endforeach()
+endfunction()
+register_migraphx_ops(
+    abs
+    acosh
+    acos
+    add
+    argmax
+    argmin
+    asinh
+    asin
+    as_shape
+    atanh
+    atan
+    batch_norm_inference
+    broadcast
+    capture
+    ceil
+    clip
+    concat
+    contiguous
+    convert
+    convolution
+    cosh
+    cos
+    deconvolution
+    div
+    dot
+    elu
+    erf
+    exp
+    flatten
+    floor
+    gather
+    gru
+    identity
+    im2col
+    leaky_relu
+    load
+    log
+    logsoftmax
+    lrn
+    lstm
+    max
+    min
+    mul
+    multibroadcast
+    neg
+    outline
+    pad
+    pooling
+    pow
+    prelu
+    quant_convolution
+    quant_dot
+    recip
+    reduce_max
+    reduce_mean
+    reduce_min
+    reduce_prod
+    reduce_sum
+    relu
+    reshape
+    rnn
+    rnn_last_cell_output
+    rnn_last_hs_output
+    rnn_var_sl_last_output
+    round
+    rsqrt
+    scalar
+    sigmoid
+    sign
+    sinh
+    sin
+    slice
+    softmax
+    sqdiff
+    sqrt
+    squeeze
+    sub
+    tanh
+    tan
+    transpose
+    undefined
+    unknown
+    unsqueeze
+)
+register_op(migraphx HEADER migraphx/op/rnn_variable_seq_lens.hpp OPERATORS op::rnn_var_sl_shift_output op::rnn_var_sl_shift_sequence)
+register_op(migraphx HEADER migraphx/builtin.hpp OPERATORS builtin::literal builtin::param builtin::returns)
 rocm_clang_tidy_check(migraphx)
 rocm_install_targets(
   TARGETS migraphx

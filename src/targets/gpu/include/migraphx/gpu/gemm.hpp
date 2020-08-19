@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_GPU_GEMM_HPP
 
 #include <migraphx/shape.hpp>
+#include <migraphx/reflect.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/gemm_impl.hpp>
 #include <migraphx/op/quant_dot.hpp>

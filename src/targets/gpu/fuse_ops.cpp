@@ -322,7 +322,6 @@ struct find_layernorm
 
     void apply(program& p, match::matcher_result r) const
     {
-        return;
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
         auto args  = ins->inputs();

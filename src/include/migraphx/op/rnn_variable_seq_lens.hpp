@@ -2,7 +2,6 @@
 #define MIGRAPHX_GUARD_OPERATORS_RNN_VARIABLE_SEQ_LENS_HPP
 
 #include <array>
-#include <migraphx/operation.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>

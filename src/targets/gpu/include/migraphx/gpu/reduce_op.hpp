@@ -4,6 +4,7 @@
 #include <migraphx/gpu/name.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/reflect.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>

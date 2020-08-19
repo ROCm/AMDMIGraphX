@@ -18,6 +18,7 @@
 #include <migraphx/gpu/device/mul_add_relu.hpp>
 #include <migraphx/gpu/device/add.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/register_op.hpp>
 #include <migraphx/array.hpp>
 #include <migraphx/op/clip.hpp>
 #include <cmath>
@@ -45,7 +46,7 @@ struct fusion
         return result;
     }
 
-    fusion() {}
+    fusion() = default;
 
     fusion(const shape& input)
     {
@@ -188,66 +189,82 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 struct hip_triadd : ternary_device<hip_triadd, &device::add>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_triadd)
 
 struct hip_triadd_clip : quinary_device<hip_triadd_clip, &device::add_clip>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_triadd_clip)
 
 struct hip_add_clip : quaternary_device<hip_add_clip, &device::add_clip>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_add_clip)
 
 struct hip_triadd_relu : ternary_device<hip_triadd_relu, &device::add_relu>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_triadd_relu)
 
 struct hip_triadd_sigmoid : ternary_device<hip_triadd_sigmoid, &device::add_sigmoid>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_triadd_sigmoid)
 
 struct hip_triadd_tanh : ternary_device<hip_triadd_tanh, &device::add_tanh>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_triadd_tanh)
 
 struct hip_add_relu : binary_device<hip_add_relu, &device::add_relu>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_add_relu)
 
 struct hip_add_sigmoid : binary_device<hip_add_relu, &device::add_sigmoid>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_add_sigmoid)
 
 struct hip_add_tanh : binary_device<hip_add_tanh, &device::add_tanh>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_add_tanh)
 
 struct hip_layernorm : unary_device<hip_layernorm, &device::layernorm>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_layernorm)
 
 struct hip_gelu : unary_device<hip_gelu, &device::gelu>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_gelu)
 
 struct hip_add_gelu : binary_device<hip_add_gelu, &device::add_gelu>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_add_gelu)
 
 struct hip_gelu_new : unary_device<hip_gelu_new, &device::gelu_new>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_gelu_new)
 
 struct hip_add_gelu_new : binary_device<hip_add_gelu_new, &device::add_gelu_new>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_add_gelu_new)
 
 struct hip_mul_add : ternary_device<hip_mul_add, &device::mul_add>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_mul_add)
 
 struct hip_mul_add_relu : ternary_device<hip_mul_add_relu, &device::mul_add_relu>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_mul_add_relu)
 
 void move_broadcasted_back(std::vector<instruction_ref>& args)
 {
@@ -611,6 +628,7 @@ struct miopen_conv_bias
         return shapes.size() - 1;
     }
 };
+MIGRAPHX_REGISTER_OP(miopen_conv_bias)
 
 struct miopen_conv_bias_relu
 {
@@ -658,6 +676,7 @@ struct miopen_conv_bias_relu
         return shapes.size() - 1;
     }
 };
+MIGRAPHX_REGISTER_OP(miopen_conv_bias_relu)
 
 template <class... Ms>
 auto conv_bias(Ms... ms)

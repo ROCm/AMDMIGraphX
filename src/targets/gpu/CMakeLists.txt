@@ -108,7 +108,7 @@ add_library(migraphx_gpu
     logsoftmax.cpp
     concat.cpp
     leaky_relu.cpp
-    batchnorm.cpp
+    batch_norm_inference.cpp
     write_literals.cpp
     rocblas.cpp
     abs.cpp
@@ -129,6 +129,85 @@ add_library(migraphx_gpu
     sync_device.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
+function(register_migraphx_gpu_ops PREFIX)
+    foreach(OP ${ARGN})
+        register_op(migraphx_gpu HEADER migraphx/gpu/${OP}.hpp OPERATORS gpu::${PREFIX}${OP} INCLUDES migraphx/gpu/context.hpp)
+    endforeach()
+endfunction()
+register_migraphx_gpu_ops(hip_
+    acosh
+    acos
+    add
+    argmax
+    argmin
+    asinh
+    asin
+    atanh
+    atan
+    ceil
+    clip
+    concat
+    convert
+    cosh
+    cos
+    div
+    erf
+    exp
+    floor
+    gather
+    log
+    logsoftmax
+    max
+    min
+    mul
+    pad
+    pow
+    prelu
+    recip
+    reduce_max
+    reduce_mean
+    reduce_min
+    reduce_prod
+    reduce_sum
+    relu
+    round
+    rsqrt
+    sigmoid
+    sign
+    sinh
+    sin
+    softmax
+    sqdiff
+    sqrt
+    sub
+    tanh
+    tan
+)
+register_migraphx_gpu_ops(miopen_
+    abs
+    batch_norm_inference
+    contiguous
+    convolution
+    deconvolution
+    elu
+    int8_conv_pack
+    leaky_relu
+    lrn
+    pooling
+    quant_convolution
+)
+register_op(migraphx_gpu 
+    HEADER migraphx/gpu/rnn_variable_seq_lens.hpp 
+    OPERATORS gpu::hip_rnn_var_sl_shift_sequence gpu::hip_rnn_var_sl_shift_output gpu::hip_rnn_var_sl_last_output
+    INCLUDES migraphx/gpu/context.hpp)
+register_op(migraphx_gpu 
+    HEADER migraphx/gpu/int8_gemm_pack.hpp 
+    OPERATORS gpu::hip_int8_gemm_pack_a gpu::hip_int8_gemm_pack_b
+    INCLUDES migraphx/gpu/context.hpp)
+register_op(migraphx_gpu 
+    HEADER migraphx/gpu/gemm.hpp 
+    OPERATORS gpu::rocblas_gemm<op::dot> gpu::rocblas_gemm<op::quant_dot>
+    INCLUDES migraphx/gpu/context.hpp)
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 # Workaround broken rocblas headers

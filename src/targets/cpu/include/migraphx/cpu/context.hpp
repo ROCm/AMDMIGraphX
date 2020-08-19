@@ -10,13 +10,9 @@ namespace cpu {
 
 struct context
 {
-    value to_value() const
-    {
-        return value{};
-    }
+    value to_value() const { return value{}; }
 
-    void from_value(const value&)
-    { }
+    void from_value(const value&) {}
 
     void finish() const {}
 };

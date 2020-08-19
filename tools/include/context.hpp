@@ -33,17 +33,15 @@ value to_value_context(const T&)
 }
 
 template <class T>
-void from_value_context(T&, const value&)
-{ }
+void from_value_context(T&, const value&){}
 
 <%
  interface('context',
            virtual('to_value', returns = 'value', const = True, default = 'to_value_context'),
            virtual('from_value', v = 'const value&', default = 'from_value_context'),
-           virtual('finish', returns = 'void', const = True))
-%>
+           virtual('finish', returns = 'void', const = True)) %>
 
-inline void migraphx_to_value(value& v, const context& ctx)
+    inline void migraphx_to_value(value& v, const context& ctx)
 {
     v = ctx.to_value();
 }

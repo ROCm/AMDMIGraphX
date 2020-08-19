@@ -4,11 +4,10 @@
 #include <migraphx/functional.hpp>
 #include <test.hpp>
 
-
 TEST_CASE(context)
 {
     migraphx::context ctx = migraphx::cpu::context{};
-    migraphx::value v = ctx.to_value();
+    migraphx::value v     = ctx.to_value();
     EXPECT(v.empty());
 
     migraphx::cpu::context cpu_ctx;

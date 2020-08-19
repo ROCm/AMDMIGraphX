@@ -229,7 +229,7 @@ inline const ValueType& any_cast(const context& x)
 }
 
     // virtual('to_value', returns = 'value', const = True, default = 'to_value_context'),
-    // virtual('from_value', v = 'const value&', default = 'from_value_context'))
+    // virtual('from_value', v = 'const value&', default = 'from_value_context')
 
     // inline void migraphx_to_value(value& v, const context& ctx)
     // {

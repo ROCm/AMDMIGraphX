@@ -44,7 +44,7 @@ void from_value_context(T& x, const value& v)
 %>
 
 // virtual('to_value', returns = 'value', const = True, default = 'to_value_context'),
-// virtual('from_value', v = 'const value&', default = 'from_value_context'))
+// virtual('from_value', v = 'const value&', default = 'from_value_context')
 
 // inline void migraphx_to_value(value& v, const context& ctx)
 // {

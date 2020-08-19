@@ -183,9 +183,9 @@ struct context
         auto v_events = v.at("events");
         assert(v_events.is_uint64());
         std::size_t n_events = v_events.get_uint64();
-        this->create_events(n_events);
+        this->create_events(n_events - 1);
 
-        assert(v.contains("events"));
+        assert(v.contains("streams"));
         auto v_streams = v.at("streams");
         assert(v_streams.is_uint64());
         std::size_t n_streams = v_streams.get_uint64();

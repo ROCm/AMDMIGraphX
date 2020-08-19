@@ -49,16 +49,17 @@ struct fusion
     fusion() = default;
 
     fusion(const shape& input)
-    // : fp(make_fusion_plan(input))
     {
         assert(input.standard());
         auto t = make_tensor(input);
         fp     = make_fusion_plan(t);
+        assert(fp);
         keep_alive(std::move(t));
     }
 
     op_t operator[](std::size_t i) const
     {
+        assert(fp);
         op_t result;
         auto status = miopenFusionPlanGetOp(fp.get(), i, &result);
         if(status != miopenStatusSuccess)
@@ -66,10 +67,15 @@ struct fusion
         return result;
     }
 
-    auto get() const { return fp.get(); }
+    auto get() const
+    {
+        assert(fp);
+        return fp.get();
+    }
 
     op_t create_bias(const shape& bias)
     {
+        assert(fp);
         op_t result;
         auto b      = shape{bias.type(), {1, bias.lens().at(1), 1, 1}};
         auto t      = keep_alive(make_tensor(b));
@@ -81,6 +87,7 @@ struct fusion
 
     op_t create_relu()
     {
+        assert(fp);
         op_t result;
         auto status = miopenCreateOpActivationForward(fp.get(), &result, miopenActivationRELU);
         if(status != miopenStatusSuccess)
@@ -90,6 +97,7 @@ struct fusion
 
     op_t create_conv(const op::convolution& op, const shape& weights)
     {
+        assert(fp);
         op_t result;
         auto cd     = keep_alive(make_conv(op));
         auto t      = keep_alive(make_tensor(weights));
@@ -101,6 +109,7 @@ struct fusion
 
     shape get_workspace(context&)
     {
+        // assert(fp);
         // TODO: Use zero workspace for now
         std::size_t ws_size = 0;
         // int algo_count = 1;
@@ -113,6 +122,7 @@ struct fusion
 
     void compile(context& ctx)
     {
+        assert(fp);
         auto status = miopenCompileFusionPlan(ctx.get_stream().get_miopen(), fp.get());
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("Compiling fusion plan failed");
@@ -123,6 +133,7 @@ struct fusion
                      const argument& x,
                      const argument& y) const
     {
+        assert(fp);
         auto x_td   = make_tensor(x.get_shape());
         auto y_td   = make_tensor(y.get_shape());
         auto status = miopenExecuteFusionPlan(ctx.get_stream().get_miopen(),
@@ -576,23 +587,14 @@ struct find_mul_add_relu
 struct miopen_conv_bias
 {
     op::convolution op;
-    fusion f;
-    fusion::op_t conv;
-    fusion::op_t bias;
+    fusion f          = {};
+    fusion::op_t conv = {};
+    fusion::op_t bias = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return op::convolution::reflect(self.op, f);
-    }
-
-    miopen_conv_bias() = default;
-
-    miopen_conv_bias(op::convolution c, const shape& input, const shape& weights, const shape& b)
-        : op(std::move(c)), f(input)
-    {
-        conv = f.create_conv(op, weights);
-        bias = f.create_bias(b);
     }
 
     std::string name() const { return "gpu::conv_bias"; }
@@ -612,7 +614,14 @@ struct miopen_conv_bias
         return f.execute(ctx, fargs, args[0], args[4]);
     }
 
-    void finalize(context& ctx, const shape&, const std::vector<shape>&) { f.compile(ctx); }
+    void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
+    {
+        f    = fusion(inputs[0]);
+        conv = f.create_conv(op, inputs[1]);
+        bias = f.create_bias(inputs[3]);
+        f.compile(ctx);
+    }
+
     shape get_workspace(context& ctx) { return f.get_workspace(ctx); }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
@@ -624,28 +633,15 @@ MIGRAPHX_REGISTER_OP(miopen_conv_bias)
 struct miopen_conv_bias_relu
 {
     op::convolution op;
-    fusion f;
-    fusion::op_t conv;
-    fusion::op_t bias;
-    fusion::op_t relu;
+    fusion f          = {};
+    fusion::op_t conv = {};
+    fusion::op_t bias = {};
+    fusion::op_t relu = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return op::convolution::reflect(self.op, f);
-    }
-
-    miopen_conv_bias_relu() = default;
-
-    miopen_conv_bias_relu(op::convolution c,
-                          const shape& input,
-                          const shape& weights,
-                          const shape& b)
-        : op(std::move(c)), f(input)
-    {
-        conv = f.create_conv(op, weights);
-        bias = f.create_bias(b);
-        relu = f.create_relu();
     }
 
     std::string name() const { return "gpu::conv_bias_relu"; }
@@ -665,7 +661,15 @@ struct miopen_conv_bias_relu
         miopenSetOpArgsActivForward(fargs.get(), relu, &alpha, &beta, 0, 0, 0);
         return f.execute(ctx, fargs, args[0], args[4]);
     }
-    void finalize(context& ctx, const shape&, const std::vector<shape>&) { f.compile(ctx); }
+    void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
+    {
+        f    = fusion(inputs[0]);
+        conv = f.create_conv(op, inputs[1]);
+        bias = f.create_bias(inputs[3]);
+        relu = f.create_relu();
+        f.compile(ctx);
+    }
+
     shape get_workspace(context& ctx) { return f.get_workspace(ctx); }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
@@ -695,7 +699,7 @@ void apply_conv_bias(context& ctx, program& p, match::matcher_result r)
     auto alloc_ins   = ins->inputs().back();
     auto old_ws_ins  = conv_ins->inputs().at(2);
 
-    Op cb{conv_op, input_ins->get_shape(), weights_ins->get_shape(), bias_ins->get_shape()};
+    Op cb{conv_op};
     // TODO: Insert ws allocation
     auto ws = cb.get_workspace(ctx);
     (void)ws;

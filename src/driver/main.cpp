@@ -15,6 +15,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/quantization.hpp>
+#include <migraphx/register_op.hpp>
 #include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
@@ -316,6 +317,26 @@ struct perf : command<perf>
         auto m = c.params(p);
         std::cout << "Running performance report ... " << std::endl;
         p.perf_report(std::cout, n, m);
+    }
+};
+
+struct op : command<op>
+{
+    bool show_ops = false;
+    void parse(argument_parser& ap)
+    {
+        ap(show_ops,
+           {"--list", "-l"},
+           ap.help("List all the operators of MIGraphX"),
+           ap.set_value(true));
+    }
+    void run() const
+    {
+        if(show_ops)
+        {
+            for(const auto& name : get_operators())
+                std::cout << name << std::endl;
+        }
     }
 };
 

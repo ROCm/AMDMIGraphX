@@ -1,7 +1,7 @@
 #include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/op/batch_norm.hpp>
+#include <migraphx/op/batch_norm_inference.hpp>
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/add.hpp>
 #include <migraphx/op/mul.hpp>

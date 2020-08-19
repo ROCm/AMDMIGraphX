@@ -48,7 +48,7 @@
 #include <migraphx/gpu/mul.hpp>
 #include <migraphx/gpu/max.hpp>
 #include <migraphx/gpu/min.hpp>
-#include <migraphx/gpu/batchnorm.hpp>
+#include <migraphx/gpu/batch_norm_inference.hpp>
 #include <migraphx/gpu/pooling.hpp>
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/concat.hpp>

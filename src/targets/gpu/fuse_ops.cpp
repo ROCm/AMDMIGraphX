@@ -322,16 +322,17 @@ struct find_layernorm
 
     void apply(program& p, match::matcher_result r) const
     {
+        return;
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
         auto args  = ins->inputs();
 
         // We dont fuse for non-standard layouts
-        if(not x_ins.get_shape().standard())
+        if(not x_ins->get_shape().standard())
             return;
 
         // We dont fuse layernorm for sizes larger than 1024
-        if(x_ins.get_shape().lens().back() > 1024)
+        if(x_ins->get_shape().lens().back() > 1024)
             return;
 
         p.replace_instruction(ins, hip_layernorm{}, x_ins, args.back());

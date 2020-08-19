@@ -30,29 +30,34 @@ void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
         const std::size_t block_size_div = encode_divisor(block_size);
 
         gs_launch(stream, nelements * block_size, block_size)([=](auto i, auto idx) __device__ {
-            const auto out_idx  = i / block_size;
+            const auto out_idx  = fast_div(i, block_size_div);
             const auto base_idx = out_idx * relements;
             value_type x_data[4];
-            auto x = [&](auto j) -> value_type& {
-                return x_data[fast_div(j - idx.local, block_size_div)];
+            auto with_x = [&](auto f) {
+                int offset = 0;
+                return [=, &x_data](auto j) mutable {
+                    return f(x_data[offset++], j);
+                };
             };
 
-            idx.local_stride(relements,
-                             [&](auto j) __device__ { x(j) = input.data()[base_idx + j]; });
+            idx.local_stride(relements, with_x([&](auto& x, auto j) {
+                x = input.data()[base_idx + j];
+            }));
 
             auto m = block_reduce<max_block_size>(
-                         idx, sum{}, 0, relements, [&](auto j) __device__ { return x(j); }) /
+                         idx, sum{}, 0, relements, with_x([](auto& x, auto) { return x; })) /
                      relements;
 
-            idx.local_stride(relements, [&](auto j) __device__ { x(j) = x(j) - m; });
+            idx.local_stride(relements, with_x([&](auto& x, auto) { x = x - m; }));
 
             auto r = block_reduce<max_block_size>(
-                         idx, sum{}, 0, relements, [&](auto j) __device__ { return x(j) * x(j); }) /
+                         idx, sum{}, 0, relements, with_x([&](auto& x, auto) { return x*x; })) /
                      relements;
 
-            idx.local_stride(relements, [&](auto j) __device__ {
-                output.data()[base_idx + j] = x(j) * ::rsqrt(r + 1e-12);
-            });
+            const auto eps = ::rsqrt(r + 1e-12);
+            idx.local_stride(relements, with_x([&](auto& x, auto j) {
+                output.data()[base_idx + j] = x * eps;
+            }));
 
         });
 

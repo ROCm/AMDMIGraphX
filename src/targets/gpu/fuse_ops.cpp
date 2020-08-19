@@ -108,7 +108,7 @@ struct fusion
 
     shape get_workspace(context&)
     {
-        assert(fp);
+        // assert(fp);
         // TODO: Use zero workspace for now
         std::size_t ws_size = 0;
         // int algo_count = 1;

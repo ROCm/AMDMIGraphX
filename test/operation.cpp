@@ -198,10 +198,9 @@ TEST_CASE(check_from_value1)
 
 TEST_CASE(check_from_value2)
 {
-    migraphx::operation op1 = simple_operation{};
+    migraphx::operation op1 = migraphx::from_value<simple_operation>({{"data", 3}});
     migraphx::operation op2 = simple_operation{3};
 
-    op1 = migraphx::from_value<simple_operation>({{"data", 3}});
     EXPECT(op1 == op2);
 }
 

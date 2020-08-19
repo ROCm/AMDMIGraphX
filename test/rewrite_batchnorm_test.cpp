@@ -3,7 +3,7 @@
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/reshape.hpp>
-#include <migraphx/op/batch_norm.hpp>
+#include <migraphx/op/batch_norm_inference.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/ranges.hpp>

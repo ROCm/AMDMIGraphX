@@ -1,7 +1,6 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_LOGSOFTMAX_HPP
 #define MIGRAPHX_GUARD_OPERATORS_LOGSOFTMAX_HPP
 
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
 

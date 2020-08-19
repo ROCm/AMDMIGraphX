@@ -135,7 +135,6 @@ struct program_params
         fill_param_map(m, p, use_gpu);
         return m;
     }
-
 };
 
 struct compiler

@@ -24,7 +24,8 @@ std::vector<argument> run_cpu(program p, program::parameter_map inputs)
     return out;
 }
 
-std::vector<argument> run_gpu(program p, const compile_options& options, program::parameter_map inputs)
+std::vector<argument>
+run_gpu(program p, const compile_options& options, program::parameter_map inputs)
 {
 #ifdef HAVE_GPU
     p.compile(gpu::target{}, options);
@@ -53,7 +54,7 @@ std::vector<argument> run_gpu(program p, const compile_options& options, program
 void verify_program(const std::string& name,
                     const program& p,
                     compile_options options,
-                    program::parameter_map inputs, 
+                    program::parameter_map inputs,
                     double tolerance)
 {
     auto x = run_cpu(p, inputs);
@@ -106,7 +107,8 @@ void verify_instructions(const program& prog, compile_options options, double to
     }
 }
 
-void verify_reduced(program p, int n, compile_options options, program::parameter_map inputs, double tolerance)
+void verify_reduced(
+    program p, int n, compile_options options, program::parameter_map inputs, double tolerance)
 {
     auto last = std::prev(p.end(), n + 1);
     p.remove_instructions(last, p.end());
@@ -115,7 +117,10 @@ void verify_reduced(program p, int n, compile_options options, program::paramete
     verify_program(std::to_string(n), p, options, inputs, tolerance);
 }
 
-void verify_reduced_program(const program& p, compile_options options, program::parameter_map inputs, double tolerance)
+void verify_reduced_program(const program& p,
+                            compile_options options,
+                            program::parameter_map inputs,
+                            double tolerance)
 {
     auto n = std::distance(p.begin(), p.end());
     for(std::size_t i = 0; i < n; i++)

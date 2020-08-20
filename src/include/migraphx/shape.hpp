@@ -125,85 +125,43 @@ struct shape
     template <class T>
     struct as
     {
-        using type = T;
+        using type = std::conditional_t<std::is_same<T, bool>{}, int8_t, T>;
 
         template <class U>
-        T operator()(U u) const
+        type operator()(U u) const
         {
-            return T(u);
+            return type(u);
         }
 
         template <class U>
-        T* operator()(U* u) const
+        type* operator()(U* u) const
         {
-            return static_cast<T*>(u);
+            return static_cast<type*>(u);
         }
 
         template <class U>
-        const T* operator()(const U* u) const
+        const type* operator()(const U* u) const
         {
-            return static_cast<T*>(u);
+            return static_cast<type*>(u);
         }
 
-        T operator()() const { return {}; }
+        type operator()() const { return {}; }
 
-        std::size_t size(std::size_t n = 1) const { return sizeof(T) * n; }
-
-        template <class U>
-        T* from(U* buffer, std::size_t n = 0) const
-        {
-            return reinterpret_cast<T*>(buffer) + n;
-        }
+        std::size_t size(std::size_t n = 1) const { return sizeof(type) * n; }
 
         template <class U>
-        const T* from(const U* buffer, std::size_t n = 0) const
+        type* from(U* buffer, std::size_t n = 0) const
         {
-            return reinterpret_cast<const T*>(buffer) + n;
-        }
-
-        type_t type_enum() const { return get_type<T>{}; }
-    };
-
-    template <>
-    struct as<bool>
-    {
-        using type = int8_t;
-
-        template <class U>
-        int8_t operator()(U u) const
-        {
-            return int8_t(u);
+            return reinterpret_cast<type*>(buffer) + n;
         }
 
         template <class U>
-        int8_t* operator()(U* u) const
+        const type* from(const U* buffer, std::size_t n = 0) const
         {
-            return static_cast<int8_t*>(u);
+            return reinterpret_cast<const type*>(buffer) + n;
         }
 
-        template <class U>
-        const int8_t* operator()(const U* u) const
-        {
-            return static_cast<int8_t*>(u);
-        }
-
-        int8_t operator()() const { return {}; }
-
-        std::size_t size(std::size_t n = 1) const { return sizeof(int8_t) * n; }
-
-        template <class U>
-        int8_t* from(U* buffer, std::size_t n = 0) const
-        {
-            return reinterpret_cast<int8_t*>(buffer) + n;
-        }
-
-        template <class U>
-        const int8_t* from(const U* buffer, std::size_t n = 0) const
-        {
-            return reinterpret_cast<const int8_t*>(buffer) + n;
-        }
-
-        type_t type_enum() const { return get_type<int8_t>{}; }
+        type_t type_enum() const { return get_type<type>{}; }
     };
 
     template <class Visitor>

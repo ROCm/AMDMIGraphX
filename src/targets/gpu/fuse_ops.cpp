@@ -233,6 +233,9 @@ MIGRAPHX_REGISTER_OP(hip_add_tanh)
 
 struct hip_layernorm : unary_device<hip_layernorm, &device::layernorm>
 {
+    // Empty finalize to skip dimension reduction
+    void finalize(context&, const shape&, const std::vector<shape>&)
+    {}
 };
 MIGRAPHX_REGISTER_OP(hip_layernorm)
 

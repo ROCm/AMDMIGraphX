@@ -10,7 +10,7 @@ TEST_CASE(context)
     migraphx::value v     = ctx.to_value();
     EXPECT(v.empty());
 
-    migraphx::cpu::context cpu_ctx;
+    migraphx::context cpu_ctx = migraphx::cpu::context{};
     cpu_ctx.from_value(v);
 }
 

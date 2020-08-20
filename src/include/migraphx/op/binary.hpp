@@ -2,6 +2,9 @@
 #define MIGRAPHX_GUARD_OPERATORS_BINARY_HPP
 
 #include <migraphx/op/name.hpp>
+#include <migraphx/check_shapes.hpp>
+#include <migraphx/shape_for_each.hpp>
+#include <migraphx/argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

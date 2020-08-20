@@ -62,7 +62,7 @@ ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
 # Install cget
-RUN pip3 install cget && pip3 install numpy==1.18.5
+RUN pip3 install cget 
 
 # Install rclone
 RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
@@ -89,6 +89,8 @@ RUN ln -s $PREFIX /opt/rocm/hcc
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 RUN cget -p $PREFIX install -f /dev-requirements.txt -DMIOPEN_CACHE_DIR=""
+
+RUN pip3 install onnx==1.7.0 numpy==1.18.5 typing==3.7.4 pytest==6.0.1
 
 # Install newer cmake for onnx runtime
 RUN cget -p /opt/cmake install kitware/cmake@v3.13.0

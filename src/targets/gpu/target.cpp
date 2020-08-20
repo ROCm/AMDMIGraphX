@@ -24,6 +24,7 @@
 #include <migraphx/gpu/adjust_allocation.hpp>
 #include <migraphx/gpu/preallocate_param.hpp>
 #include <migraphx/gpu/pack_int8_args.hpp>
+#include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/decompose.hpp>
 #include <migraphx/remap.hpp>
@@ -78,6 +79,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         write_literals{&ctx},
         schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
         memory_coloring{"hip::allocate"},
+        sync_device{},
         preallocate_param{"scratch", &ctx},
         dead_code_elimination{},
         eliminate_workspace{},

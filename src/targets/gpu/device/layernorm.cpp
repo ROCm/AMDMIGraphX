@@ -21,40 +21,39 @@ void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
     reduce_output_lens.back() = 1;
 
     std::vector<index_int> reduce_lens = get_reduce_lens(input_shape.lens(), reduce_output_lens);
+    const index_int vec_size     = 4;
+    assert((nelements % vec_size) == 0);
+    assert((relements % vec_size) == 0);
+    auto nelements_v = nelements / vec_size;
+    auto relements_v = relements / vec_size;
 
-    hip_visit_all(result, arg1)([&](auto output, auto input) {
+    hip_vec_visit_all<vec_size>(result, arg1)([&](auto output, auto input) {
         using value_type = typename decltype(input)::value_type;
 
         const std::size_t max_block_size = 256;
-        const std::size_t block_size     = compute_block_size(relements, max_block_size);
+        const std::size_t block_size     = compute_block_size(relements_v, max_block_size);
         const std::size_t block_size_div = encode_divisor(block_size);
 
-        gs_launch(stream, nelements * block_size, block_size)([=](auto i, auto idx) __device__ {
+        gs_launch(stream, nelements_v * block_size, block_size)([=](auto i, auto idx) __device__ {
             const auto out_idx  = fast_div(i, block_size_div);
-            const auto base_idx = out_idx * relements;
-            value_type x_data[4];
-            auto with_x = [&](auto f) {
-                int offset = 0;
-                return [=, &x_data](auto j) mutable { return f(x_data[offset++], j); };
-            };
+            const auto base_idx = out_idx * relements_v;
 
-            idx.local_stride(relements,
-                             with_x([&](auto& x, auto j) { x = input.data()[base_idx + j]; }));
+            value_type x = input.data()[base_idx];
 
             auto m = block_reduce<max_block_size>(
-                         idx, sum{}, 0, relements, with_x([](auto& x, auto) { return x; })) /
+                         idx, sum{}, 0, relements_v, [&](auto) { return x; }) /
                      relements;
 
-            idx.local_stride(relements, with_x([&](auto& x, auto) { x = x - m; }));
+            x = x - m;
 
-            auto r = block_reduce<max_block_size>(
-                         idx, sum{}, 0, relements, with_x([&](auto& x, auto) { return x * x; })) /
-                     relements;
+            auto r = (block_reduce<max_block_size>(
+                                     idx, sum{}, 0, relements, [&](auto) { return x*x; }) /
+                                 relements) + value_type(1e-12);
 
-            const auto eps = ::rsqrt(r + 1e-12);
-            idx.local_stride(
-                relements, with_x([&](auto& x, auto j) { output.data()[base_idx + j] = x * eps; }));
-
+            value_type eps;
+            for(index_int k=0;k<vec_size;k++)
+                eps[k] = ::rsqrt(r[k]);
+            output.data()[base_idx] = x * eps;
         });
 
     });

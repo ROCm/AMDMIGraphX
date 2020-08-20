@@ -5,9 +5,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 bool verify_args(const std::string& name,
-                        const argument& cpu_arg,
-                        const argument& gpu_arg,
-                        double tolerance)
+                 const argument& cpu_arg,
+                 const argument& gpu_arg,
+                 double tolerance)
 {
     bool passed = true;
     visit_all(cpu_arg, gpu_arg)([&](auto cpu, auto gpu) {

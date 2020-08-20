@@ -15,8 +15,6 @@ namespace device {
 void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
 {
     auto relements = arg1.get_shape().lens().back();
-    if (relements > 1024)
-        MIGRAPHX_THROW("relements: " + std::to_string(relements));
     assert(relements <= 1024);
     auto nelements    = result.get_shape().elements() / relements;
     auto input_shape  = arg1.get_shape();

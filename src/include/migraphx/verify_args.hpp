@@ -9,9 +9,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 bool verify_args(const std::string& name,
-                        const argument& cpu_arg,
-                        const argument& gpu_arg,
-                        double tolerance = 80);
+                 const argument& cpu_arg,
+                 const argument& gpu_arg,
+                 double tolerance = 80);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -2,7 +2,6 @@
 #define MIGRAPHX_GUARD_RTGLIB_CONTEXT_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

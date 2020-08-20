@@ -21,7 +21,7 @@ void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
     reduce_output_lens.back() = 1;
 
     std::vector<index_int> reduce_lens = get_reduce_lens(input_shape.lens(), reduce_output_lens);
-    const index_int vec_size     = 4;
+    const index_int vec_size           = 4;
     assert((nelements % vec_size) == 0);
     assert((relements % vec_size) == 0);
     auto nelements_v = nelements / vec_size;
@@ -40,18 +40,19 @@ void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
 
             value_type x = input.data()[base_idx];
 
-            auto m = block_reduce<max_block_size>(
-                         idx, sum{}, 0, relements_v, [&](auto) { return x; }) /
-                     relements;
+            auto m =
+                block_reduce<max_block_size>(idx, sum{}, 0, relements_v, [&](auto) { return x; }) /
+                relements;
 
             x = x - m;
 
             auto r = (block_reduce<max_block_size>(
-                                     idx, sum{}, 0, relements, [&](auto) { return x*x; }) /
-                                 relements) + value_type(1e-12);
+                          idx, sum{}, 0, relements, [&](auto) { return x * x; }) /
+                      relements) +
+                     value_type(1e-12);
 
             value_type eps;
-            for(index_int k=0;k<vec_size;k++)
+            for(index_int k = 0; k < vec_size; k++)
                 eps[k] = ::rsqrt(r[k]);
             output.data()[base_idx] = x * eps;
         });

@@ -206,6 +206,11 @@ struct hip_copy_literal
         argument a = to_gpu(l.get_argument());
         store_preallocated_param(ctx, id, a);
     }
+    friend std::ostream& operator<<(std::ostream& os, const hip_copy_literal& x)
+    {
+        os << x.name() << "[id=" << x.id << "]";
+        return os;
+    }
 };
 
 } // namespace gpu

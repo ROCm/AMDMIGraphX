@@ -42,13 +42,13 @@ void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
 
             auto m =
                 block_reduce<max_block_size>(idx, sum{}, 0, relements_v, [&](auto) { return x; }) /
-                relements;
+                value_type(relements);
 
             x = x - m;
 
             auto r = (block_reduce<max_block_size>(
                           idx, sum{}, 0, relements, [&](auto) { return x * x; }) /
-                      relements) +
+                      value_type(relements)) +
                      value_type(1e-12);
 
             value_type eps;

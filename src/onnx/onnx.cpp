@@ -11,7 +11,6 @@
 
 #include <migraphx/fallthrough.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/operators.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
@@ -21,10 +20,37 @@
 #include <migraphx/type_traits.hpp>
 #include <migraphx/float_equal.hpp>
 
+#include <migraphx/op/as_shape.hpp>
+#include <migraphx/op/batch_norm_inference.hpp>
+#include <migraphx/op/broadcast.hpp>
+#include <migraphx/op/concat.hpp>
+#include <migraphx/op/convert.hpp>
+#include <migraphx/op/gather.hpp>
+#include <migraphx/op/gru.hpp>
+#include <migraphx/op/lrn.hpp>
+#include <migraphx/op/lstm.hpp>
+#include <migraphx/op/multibroadcast.hpp>
+#include <migraphx/op/pad.hpp>
+#include <migraphx/op/reshape.hpp>
+#include <migraphx/op/rnn.hpp>
+#include <migraphx/op/rnn_last_cell_output.hpp>
+#include <migraphx/op/rnn_last_hs_output.hpp>
+#include <migraphx/op/rnn_variable_seq_lens.hpp>
+#include <migraphx/op/rnn_var_sl_last_output.hpp>
+#include <migraphx/op/scalar.hpp>
+#include <migraphx/op/slice.hpp>
+#include <migraphx/op/squeeze.hpp>
+#include <migraphx/op/transpose.hpp>
+#include <migraphx/op/undefined.hpp>
+#include <migraphx/op/unknown.hpp>
+#include <migraphx/op/unsqueeze.hpp>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace onnx = onnx_for_migraphx;
+
+
 
 struct onnx_parser
 {
@@ -154,11 +180,11 @@ struct onnx_parser
     void init_actv_func()
     {
         // Support name format of all lower case or the first letter capital
-        map_actv_funcs.insert(std::make_pair("tanh", op::tanh{}));
-        map_actv_funcs.insert(std::make_pair("relu", op::relu{}));
-        map_actv_funcs.insert(std::make_pair("sigmoid", op::sigmoid{}));
-        map_actv_funcs.insert(std::make_pair("leakyrelu", op::leaky_relu{}));
-        map_actv_funcs.insert(std::make_pair("elu", op::elu{}));
+        map_actv_funcs.insert(std::make_pair("tanh", make_op("tanh")));
+        map_actv_funcs.insert(std::make_pair("relu", make_op("relu")));
+        map_actv_funcs.insert(std::make_pair("sigmoid", make_op("sigmoid")));
+        map_actv_funcs.insert(std::make_pair("leakyrelu", make_op("leaky_relu")));
+        map_actv_funcs.insert(std::make_pair("elu", make_op("elu")));
     }
 
     static operation load(const std::string& name, const node_info& info)
@@ -290,7 +316,7 @@ struct onnx_parser
             return ins;
         }
 
-        return prog.add_instruction(op::contiguous{}, ins);
+        return prog.add_instruction(make_op("contiguous"), ins);
     }
 
     instruction_ref
@@ -361,7 +387,7 @@ struct onnx_parser
         {
             auto bias_bcast =
                 prog.add_instruction(op::broadcast{axis, curr_ins->get_shape().lens()}, args[2]);
-            return prog.add_instruction(op::add{}, curr_ins, bias_bcast);
+            return prog.add_instruction(make_op("add"), curr_ins, bias_bcast);
         }
         return curr_ins;
     }
@@ -446,11 +472,11 @@ struct onnx_parser
             max_arg = prog.add_instruction(op::multibroadcast{input_lens}, max_arg);
 
         if(min_used and max_used)
-            return prog.add_instruction(op::clip{}, args[0], min_arg, max_arg);
+            return prog.add_instruction(make_op("clip"), args[0], min_arg, max_arg);
         if(min_used)
-            return prog.add_instruction(op::max{}, args[0], min_arg);
+            return prog.add_instruction(make_op("max"), args[0], min_arg);
 
-        return prog.add_instruction(op::identity{}, args[0]);
+        return prog.add_instruction(make_op("identity"), args[0]);
     }
 
     instruction_ref parse_arg_op(const std::string&,
@@ -1074,9 +1100,9 @@ struct onnx_parser
         auto l_dim_idx = prog.add_literal(literal(ind_s, vec_axis_ind.begin(), vec_axis_ind.end()));
         auto l_stride  = prog.add_literal(literal{{ind_s.type(), {1}}, {axis_stride}});
         l_stride       = prog.add_instruction(op::multibroadcast{ind_s.lens()}, l_stride);
-        auto dim_diff  = prog.add_instruction(op::sub{}, arg_ind, l_dim_idx);
-        auto delta     = prog.add_instruction(op::mul{}, dim_diff, l_stride);
-        auto ind       = prog.add_instruction(op::add{}, l_shape_idx, delta);
+        auto dim_diff  = prog.add_instruction(make_op("sub"), arg_ind, l_dim_idx);
+        auto delta     = prog.add_instruction(make_op("mul"), dim_diff, l_stride);
+        auto ind       = prog.add_instruction(make_op("add"), l_shape_idx, delta);
 
         op::gather op{0};
         return prog.add_instruction(op, arg_data, ind);
@@ -1211,11 +1237,11 @@ struct onnx_parser
                 {
                     l3 = prog.add_instruction(op::multibroadcast{out_lens}, args[2]);
                 }
-                return prog.add_instruction(op::dot{alpha, beta}, l1, l2, l3);
+                return prog.add_instruction(make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2, l3);
             }
         }
 
-        return prog.add_instruction(op::dot{alpha, beta}, l1, l2);
+        return prog.add_instruction(make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2);
     }
 
     instruction_ref parse_matmul(const std::string&,
@@ -1325,22 +1351,22 @@ struct onnx_parser
         auto bias  = args[2];
         auto dims  = x->get_shape().lens();
 
-        auto mean            = prog.add_instruction(op::reduce_mean{{2, 3}}, x);
+        auto mean            = prog.add_instruction(make_op("reduce_mean", {{"axes", {2, 3}}}), x);
         auto mean_bcast      = prog.add_instruction(op::multibroadcast{dims}, mean);
-        auto l0              = prog.add_instruction(op::sqdiff{}, x, mean_bcast);
-        auto variance        = prog.add_instruction(op::reduce_mean{{2, 3}}, l0);
-        auto l1              = prog.add_instruction(op::sub{}, x, mean_bcast);
+        auto l0              = prog.add_instruction(make_op("sqdiff"), x, mean_bcast);
+        auto variance        = prog.add_instruction(make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
+        auto l1              = prog.add_instruction(make_op("sub"), x, mean_bcast);
         auto epsilon_literal = prog.add_literal(epsilon);
         auto epsilon_bcast   = prog.add_instruction(op::multibroadcast{dims}, epsilon_literal);
         auto variance_bcast  = prog.add_instruction(op::multibroadcast{dims}, variance);
-        auto l2              = prog.add_instruction(op::add{}, variance_bcast, epsilon_bcast);
-        auto l3              = prog.add_instruction(op::rsqrt{}, l2);
-        auto l4              = prog.add_instruction(op::mul{}, l1, l3);
+        auto l2              = prog.add_instruction(make_op("add"), variance_bcast, epsilon_bcast);
+        auto l3              = prog.add_instruction(make_op("rsqrt"), l2);
+        auto l4              = prog.add_instruction(make_op("mul"), l1, l3);
         auto scale_bcast     = prog.add_instruction(op::broadcast{1, dims}, scale);
         ;
         auto bias_bcast = prog.add_instruction(op::broadcast{1, dims}, bias);
-        auto l5         = prog.add_instruction(op::mul{}, l4, scale_bcast);
-        return prog.add_instruction(op::add{}, l5, bias_bcast);
+        auto l5         = prog.add_instruction(make_op("mul"), l4, scale_bcast);
+        return prog.add_instruction(make_op("add"), l5, bias_bcast);
     }
 
     instruction_ref
@@ -1351,7 +1377,7 @@ struct onnx_parser
         {
             alpha = parse_value(info.attributes.at("alpha")).at<float>();
         }
-        op::leaky_relu op{alpha};
+        auto op = make_op("leaky_relu", {{"alpha", alpha}});
         return prog.add_instruction(op, args.front());
     }
 
@@ -1362,7 +1388,7 @@ struct onnx_parser
         {
             alpha = parse_value(info.attributes.at("alpha")).at<float>();
         }
-        op::elu op{alpha};
+        auto op = make_op("elu", {{"alpha", alpha}});
         return prog.add_instruction(op, args.front());
     }
 
@@ -1407,9 +1433,9 @@ struct onnx_parser
         auto bias_vals = prog.add_literal(literal{shape{input_type, {bias.size()}}, bias});
 
         auto scale_tensor = prog.add_instruction(migraphx::op::scalar{input_lens}, scale_val);
-        auto img_scaled   = prog.add_instruction(migraphx::op::mul{}, args.front(), scale_tensor);
+        auto img_scaled   = prog.add_instruction(migraphx::make_op("mul"), args.front(), scale_tensor);
         auto bias_bcast   = prog.add_instruction(migraphx::op::broadcast{1, input_lens}, bias_vals);
-        return prog.add_instruction(migraphx::op::add{}, img_scaled, bias_bcast);
+        return prog.add_instruction(migraphx::make_op("add"), img_scaled, bias_bcast);
     }
 
     instruction_ref
@@ -1446,7 +1472,7 @@ struct onnx_parser
         // check if padding is actually being done (at least one value is nonzero)
         if(std::all_of(pads.begin(), pads.end(), [](const int& i) { return i == 0; }))
         {
-            return prog.add_instruction(migraphx::op::identity{}, args.front());
+            return prog.add_instruction(make_op("identity"), args.front());
         }
 
         if(contains(info.attributes, "mode"))
@@ -2075,37 +2101,37 @@ struct onnx_parser
     instruction_ref
     parse_reduce_l1(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
-        auto abs_ins = prog.add_instruction(op::abs{}, args[0]);
+        auto abs_ins = prog.add_instruction(make_op("abs"), args[0]);
         return parse_reduce_oper({}, "reduce_sum", std::move(info), {abs_ins});
     }
 
     instruction_ref
     parse_reduce_l2(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
-        auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
+        auto square_ins = prog.add_instruction(make_op("mul"), args[0], args[0]);
         auto sum_ins    = parse_reduce_oper({}, "reduce_sum", std::move(info), {square_ins});
-        return prog.add_instruction(op::sqrt{}, sum_ins);
+        return prog.add_instruction(make_op("sqrt"), sum_ins);
     }
 
     instruction_ref
     parse_reduce_log_sum(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         auto sum_ins = parse_reduce_oper({}, "reduce_sum", std::move(info), std::move(args));
-        return prog.add_instruction(op::log{}, sum_ins);
+        return prog.add_instruction(make_op("log"), sum_ins);
     }
 
     instruction_ref
     parse_reduce_log_sum_exp(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
-        auto exp_ins = prog.add_instruction(op::exp{}, args[0]);
+        auto exp_ins = prog.add_instruction(make_op("exp"), args[0]);
         auto sum_ins = parse_reduce_oper({}, "reduce_sum", std::move(info), {exp_ins});
-        return prog.add_instruction(op::log{}, sum_ins);
+        return prog.add_instruction(make_op("log"), sum_ins);
     }
 
     instruction_ref
     parse_reduce_sum_square(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
-        auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
+        auto square_ins = prog.add_instruction(make_op("mul"), args[0], args[0]);
         return parse_reduce_oper({}, "reduce_sum", std::move(info), {square_ins});
     }
 
@@ -2214,11 +2240,11 @@ struct onnx_parser
 
         auto off_val       = prog.add_instruction(op::slice{{0}, {0}, {1}}, args[2]);
         auto on_val        = prog.add_instruction(op::slice{{0}, {1}, {2}}, args[2]);
-        auto diff          = prog.add_instruction(op::sub{}, on_val, off_val);
+        auto diff          = prog.add_instruction(make_op("sub"), on_val, off_val);
         auto unsq_off_val  = prog.add_instruction(op::multibroadcast{lens}, off_val);
         auto unsq_diff_val = prog.add_instruction(op::multibroadcast{lens}, diff);
-        auto l_mul         = prog.add_instruction(op::mul{}, tr_out, unsq_diff_val);
-        return prog.add_instruction(op::add{}, l_mul, unsq_off_val);
+        auto l_mul         = prog.add_instruction(make_op("mul"), tr_out, unsq_diff_val);
+        return prog.add_instruction(make_op("add"), l_mul, unsq_off_val);
     }
 
     instruction_ref
@@ -2302,9 +2328,9 @@ struct onnx_parser
         auto l0 = prog.add_instruction(op::gather{}, args[0], args[1]);
         switch(reduce_mode)
         {
-        case reduce_mode_t::sum: l0 = prog.add_instruction(op::reduce_sum{{0}}, l0); break;
-        case reduce_mode_t::mean: l0 = prog.add_instruction(op::reduce_mean{{0}}, l0); break;
-        case reduce_mode_t::max: l0 = prog.add_instruction(op::reduce_max{{0}}, l0); break;
+        case reduce_mode_t::sum: l0 = prog.add_instruction(make_op("reduce_sum", {{"axes", {0}}}), l0); break;
+        case reduce_mode_t::mean: l0 = prog.add_instruction(make_op("reduce_mean", {{"axes", {0}}}), l0); break;
+        case reduce_mode_t::max: l0 = prog.add_instruction(make_op("reduce_max", {{"axes", {0}}}), l0); break;
         }
         return l0;
     }

@@ -421,8 +421,11 @@ MIGRAPHX_REGISTER_OP(cpu_im2col)
 struct max_pool
 {
     static std::string name() { return "max"; }
-    template<class T>
-    static double start() { return std::numeric_limits<T>::lowest(); }
+    template <class T>
+    static double start()
+    {
+        return std::numeric_limits<T>::lowest();
+    }
 
     static double apply(double x, double y)
     {
@@ -437,8 +440,11 @@ struct avg_pool
 {
     static std::string name() { return "average"; }
 
-    template<class T>
-    static double start() { return 0.0; }
+    template <class T>
+    static double start()
+    {
+        return 0.0;
+    }
 
     static double apply(double x, double y) { return x + y; }
 

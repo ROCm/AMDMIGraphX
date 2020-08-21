@@ -66,7 +66,7 @@ struct pooling
         for(size_t i = 0; i < kdims; i++)
         {
             assert(lengths[i] <= input_lens[i + 2] + 2 * padding[i]);
-            std::size_t len = (ceil_mode != 0)
+            std::size_t len = (ceil_mode)
                                   ? ceil_divide<std::ptrdiff_t>(
                                         input_lens[i + 2] + 2 * padding[i] - lengths[i], stride[i])
                                   : floor_divide<std::ptrdiff_t>(

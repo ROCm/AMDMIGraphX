@@ -97,8 +97,8 @@ struct onnx_parser
 
         add_mem_op("ATen", &onnx_parser::parse_aten);
         add_mem_op("AveragePool", &onnx_parser::parse_pooling);
-        add_mem_op("ArgMax", &onnx_parser::parse_arg_op<op::argmax>);
-        add_mem_op("ArgMin", &onnx_parser::parse_arg_op<op::argmin>);
+        add_mem_op("ArgMax", "argmax", &onnx_parser::parse_arg_op);
+        add_mem_op("ArgMin", "argmin", &onnx_parser::parse_arg_op);
         add_mem_op("BatchNormalization", &onnx_parser::parse_batchnorm);
         add_mem_op("Cast", &onnx_parser::parse_cast);
         add_mem_op("Clip", &onnx_parser::parse_clip);
@@ -132,11 +132,11 @@ struct onnx_parser
         add_mem_op("ReduceL2", &onnx_parser::parse_reduce_l2);
         add_mem_op("ReduceLogSum", &onnx_parser::parse_reduce_log_sum);
         add_mem_op("ReduceLogSumExp", &onnx_parser::parse_reduce_log_sum_exp);
-        add_mem_op("ReduceMax", &onnx_parser::parse_reduce_oper<op::reduce_max>);
-        add_mem_op("ReduceMean", &onnx_parser::parse_reduce_oper<op::reduce_mean>);
-        add_mem_op("ReduceMin", &onnx_parser::parse_reduce_oper<op::reduce_min>);
-        add_mem_op("ReduceProd", &onnx_parser::parse_reduce_oper<op::reduce_prod>);
-        add_mem_op("ReduceSum", &onnx_parser::parse_reduce_oper<op::reduce_sum>);
+        add_mem_op("ReduceMax", "reduce_max", &onnx_parser::parse_reduce_oper);
+        add_mem_op("ReduceMean", "reduce_mean", &onnx_parser::parse_reduce_oper);
+        add_mem_op("ReduceMin", "reduce_min", &onnx_parser::parse_reduce_oper);
+        add_mem_op("ReduceProd", "reduce_prod", &onnx_parser::parse_reduce_oper);
+        add_mem_op("ReduceSum", "reduce_sum", &onnx_parser::parse_reduce_oper);
         add_mem_op("ReduceSumSquare", &onnx_parser::parse_reduce_sum_square);
         add_mem_op("Reshape", &onnx_parser::parse_reshape);
         add_mem_op("RNN", &onnx_parser::parse_rnn);
@@ -209,6 +209,14 @@ struct onnx_parser
     {
         add_op(name, [=](auto&&... xs) {
             return std::mem_fn(f)(*this, name, std::forward<decltype(xs)>(xs)...);
+        });
+    }
+
+    template <class F>
+    void add_mem_op(std::string onnx_name, std::string op_name, F f)
+    {
+        add_op(onnx_name, [=](auto&&... xs) {
+            return std::mem_fn(f)(*this, onnx_name, op_name, std::forward<decltype(xs)>(xs)...);
         });
     }
 
@@ -459,9 +467,8 @@ struct onnx_parser
         return prog.add_instruction(Op{axis}, std::move(args));
     }
 
-    template <class Op>
     instruction_ref
-    parse_arg_op(const std::string&, node_info info, std::vector<instruction_ref> args)
+    parse_arg_op(const std::string&, const std::string& op_name, node_info info, std::vector<instruction_ref> args)
     {
         int64_t axis = 0;
         if(contains(info.attributes, "axis"))
@@ -477,14 +484,41 @@ struct onnx_parser
 
         if(keep_dims == 0)
         {
-            auto ins = prog.add_instruction(Op{axis}, std::move(args));
+            auto ins = prog.add_instruction(make_op(op_name, {{"axis", axis}}), std::move(args));
             return prog.add_instruction(op::squeeze{{axis}}, ins);
         }
         else
         {
-            return prog.add_instruction(Op{axis}, std::move(args));
+            return prog.add_instruction(make_op(op_name, {{"axis", axis}}), std::move(args));
         }
     }
+
+    // template <class Op>
+    // instruction_ref
+    // parse_arg_op(const std::string&, node_info info, std::vector<instruction_ref> args)
+    // {
+    //     int64_t axis = 0;
+    //     if(contains(info.attributes, "axis"))
+    //     {
+    //         axis = static_cast<int64_t>(parse_value(info.attributes.at("axis")).at<int>());
+    //     }
+
+    //     int keep_dims = 1;
+    //     if(contains(info.attributes, "keepdims"))
+    //     {
+    //         keep_dims = parse_value(info.attributes.at("keepdims")).at<int>();
+    //     }
+
+    //     if(keep_dims == 0)
+    //     {
+    //         auto ins = prog.add_instruction(Op{axis}, std::move(args));
+    //         return prog.add_instruction(op::squeeze{{axis}}, ins);
+    //     }
+    //     else
+    //     {
+    //         return prog.add_instruction(Op{axis}, std::move(args));
+    //     }
+    // }
 
     void calc_reflect_indices(std::vector<int>& indices, const int64_t num_dims)
     {
@@ -2018,9 +2052,8 @@ struct onnx_parser
         return {hidden_states, last_output, last_cell_output};
     }
 
-    template <class T>
     instruction_ref
-    parse_reduce_oper(const std::string&, node_info info, std::vector<instruction_ref> args)
+    parse_reduce_oper(const std::string&, const std::string& op_name, node_info info, std::vector<instruction_ref> args)
     {
         std::size_t n_dim = args.front()->get_shape().lens().size();
 
@@ -2042,11 +2075,11 @@ struct onnx_parser
 
         if(keep_dims == 1)
         {
-            return prog.add_instruction(T{axes}, std::move(args));
+            return prog.add_instruction(make_op(op_name, {{"axes", axes}}), std::move(args));
         }
         else
         {
-            auto ins = prog.add_instruction(T{axes}, std::move(args));
+            auto ins = prog.add_instruction(make_op(op_name, {{"axes", axes}}), std::move(args));
             return prog.add_instruction(op::squeeze{axes}, ins);
         }
     }
@@ -2055,21 +2088,21 @@ struct onnx_parser
     parse_reduce_l1(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         auto abs_ins = prog.add_instruction(op::abs{}, args[0]);
-        return parse_reduce_oper<op::reduce_sum>({}, std::move(info), {abs_ins});
+        return parse_reduce_oper({}, "reduce_sum", std::move(info), {abs_ins});
     }
 
     instruction_ref
     parse_reduce_l2(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
-        auto sum_ins    = parse_reduce_oper<op::reduce_sum>({}, std::move(info), {square_ins});
+        auto sum_ins    = parse_reduce_oper({}, "reduce_sum", std::move(info), {square_ins});
         return prog.add_instruction(op::sqrt{}, sum_ins);
     }
 
     instruction_ref
     parse_reduce_log_sum(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
-        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(info), std::move(args));
+        auto sum_ins = parse_reduce_oper({}, "reduce_sum", std::move(info), std::move(args));
         return prog.add_instruction(op::log{}, sum_ins);
     }
 
@@ -2077,7 +2110,7 @@ struct onnx_parser
     parse_reduce_log_sum_exp(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         auto exp_ins = prog.add_instruction(op::exp{}, args[0]);
-        auto sum_ins = parse_reduce_oper<op::reduce_sum>({}, std::move(info), {exp_ins});
+        auto sum_ins = parse_reduce_oper({}, "reduce_sum", std::move(info), {exp_ins});
         return prog.add_instruction(op::log{}, sum_ins);
     }
 
@@ -2085,7 +2118,7 @@ struct onnx_parser
     parse_reduce_sum_square(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         auto square_ins = prog.add_instruction(op::mul{}, args[0], args[0]);
-        return parse_reduce_oper<op::reduce_sum>({}, std::move(info), {square_ins});
+        return parse_reduce_oper({}, "reduce_sum", std::move(info), {square_ins});
     }
 
     instruction_ref

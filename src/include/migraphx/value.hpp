@@ -159,6 +159,23 @@ struct value
     using is_pickable =
         std::integral_constant<bool, (std::is_arithmetic<T>{} and not std::is_pointer<T>{})>;
 
+    template<class T>
+    using range_value = std::decay_t<decltype(std::declval<T>().end(),*std::declval<T>().begin())>;
+
+    template<class T>
+    using is_generic_range = std::integral_constant<bool, (std::is_convertible<range_value<T>, value>{} and
+        not std::is_convertible<T, array>{} and not std::is_convertible<T, object>{})>;
+
+    template<class T, MIGRAPHX_REQUIRES(is_generic_range<T>{})>
+    value(const T& r) : value(from_values(r))
+    {
+    }
+
+    template<class T, MIGRAPHX_REQUIRES(is_generic_range<T>{})>
+    value(const std::string& pkey, const T& r) : value(pkey, from_values(r))
+    {
+    }
+
     template <class T, MIGRAPHX_REQUIRES(is_pickable<T>{})>
     value(T i) : value(pick<T>{i})
     {
@@ -175,6 +192,11 @@ struct value
     value& operator=(T rhs)
     {
         return *this = pick<T>{rhs}; // NOLINT
+    }
+    template<class T, MIGRAPHX_REQUIRES(is_generic_range<T>{})>
+    value& operator=(T rhs)
+    {
+        return *this = from_values(rhs); // NOLINT
     }
 
     value& operator=(std::nullptr_t);
@@ -294,6 +316,15 @@ struct value
     void debug_print(bool show_type = false) const;
 
     private:
+    template<class T>
+    std::vector<value> from_values(const T& r)
+    {
+        std::vector<value> v;
+        std::transform(r.begin(), r.end(), std::back_inserter(v), [&](auto&& e) {
+            return value(e);
+        });
+        return v;
+    }
     type_t get_type() const;
     std::shared_ptr<value_base_impl> x;
     std::string key;

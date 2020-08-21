@@ -74,7 +74,8 @@ struct value_converter<std::pair<T, U>>
 
 namespace detail {
 template <class To, class Key, class From>
-auto try_convert_value_impl(rank<2>, const std::pair<Key, From>& x) -> decltype(value_converter<To>::apply(x.second))
+auto try_convert_value_impl(rank<2>, const std::pair<Key, From>& x)
+    -> decltype(value_converter<To>::apply(x.second))
 {
     return value_converter<To>::apply(x.second);
 }

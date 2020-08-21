@@ -10,7 +10,7 @@ operation make_op(const std::string& name, const value& v)
     auto op = load_op(name);
     // Merge values
     value w = op.to_value();
-    for(auto&& x:v)
+    for(auto&& x : v)
     {
         w[x.get_key()] = x.without_key();
     }

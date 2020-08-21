@@ -603,7 +603,7 @@ struct onnx_parser
         auto auto_pad = info.attributes["auto_pad"].s();
         if(auto_pad.find("SAME") != std::string::npos)
         {
-            v["padding_mode"]    = to_value(op::padding_mode_t::same);
+            v["padding_mode"]  = to_value(op::padding_mode_t::same);
             bool is_same_upper = (auto_pad.find("SAME_UPPER") != std::string::npos);
             paddings.resize(2 * kdims);
 
@@ -634,11 +634,13 @@ struct onnx_parser
         }
     }
 
-    instruction_ref
-    parse_conv(const std::string&, const std::string& op_name, node_info info, std::vector<instruction_ref> args)
+    instruction_ref parse_conv(const std::string&,
+                               const std::string& op_name,
+                               node_info info,
+                               std::vector<instruction_ref> args)
     {
-        auto op = make_op(op_name);
-        auto values = op.to_value();
+        auto op      = make_op(op_name);
+        auto values  = op.to_value();
         auto l0      = args[0];
         auto weights = args[1];
         auto in_lens = l0->get_shape().lens();
@@ -658,7 +660,8 @@ struct onnx_parser
         {
             values["dilation"].clear();
             copy(info.attributes["dilations"].ints(), std::back_inserter(values["dilation"]));
-            check_attr_sizes(kdims, values["dilation"].size(), "PARSE_CONV: inconsistent dilations");
+            check_attr_sizes(
+                kdims, values["dilation"].size(), "PARSE_CONV: inconsistent dilations");
         }
 
         std::vector<int64_t> padding;
@@ -674,7 +677,12 @@ struct onnx_parser
             auto weight_lens = weights->get_shape().lens();
 
             std::vector<std::size_t> k_lens(weight_lens.begin() + 2, weight_lens.end());
-            cal_auto_padding_size(info, values, k_lens, values["dilation"].to_vector<std::size_t>(), in_lens, padding);
+            cal_auto_padding_size(info,
+                                  values,
+                                  k_lens,
+                                  values["dilation"].to_vector<std::size_t>(),
+                                  in_lens,
+                                  padding);
         }
         check_asym_padding(l0, padding, values);
 
@@ -727,7 +735,8 @@ struct onnx_parser
         {
             values["stride"].clear();
             copy(info.attributes["strides"].ints(), std::back_inserter(values["stride"]));
-            check_attr_sizes(kdims, values["stride"].size(), "PARSE_CONV_TRANSPOSE: inconsistent strides");
+            check_attr_sizes(
+                kdims, values["stride"].size(), "PARSE_CONV_TRANSPOSE: inconsistent strides");
         }
         if(contains(info.attributes, "dilations"))
         {
@@ -853,7 +862,8 @@ struct onnx_parser
         s_start.resize(n_dims);
         for(std::size_t i = 0; i < n_dims; ++i)
         {
-            tune_padding_to_symmetric(padding[i], padding[i + n_dims], v.at("stride")[i].to<int64_t>(), s_start[i]);
+            tune_padding_to_symmetric(
+                padding[i], padding[i + n_dims], v.at("stride")[i].to<int64_t>(), s_start[i]);
         }
     }
 
@@ -861,7 +871,7 @@ struct onnx_parser
     parse_pooling(const std::string& name, node_info info, std::vector<instruction_ref> args)
     {
         std::string mode = ends_with(name, "MaxPool") ? "max" : "average";
-        operation op = make_op("pooling", {{"mode", mode}});
+        operation op     = make_op("pooling", {{"mode", mode}});
         // operation op = op::pooling{ends_with(name, "MaxPool") ? "max" : "average"};
         // op::pooling op{ends_with(name, "MaxPool") ? "max" : "average"};
         value values = op.to_value();
@@ -902,7 +912,8 @@ struct onnx_parser
         {
             values["lengths"].clear();
             copy(info.attributes["kernel_shape"].ints(), std::back_inserter(values["lengths"]));
-            check_attr_sizes(kdims, values["lengths"].size(), "PARSE_POOLING: inconsistent lengths");
+            check_attr_sizes(
+                kdims, values["lengths"].size(), "PARSE_POOLING: inconsistent lengths");
         }
 
         // ensure pads availabe only when auto_pad is "NOT_SET"
@@ -922,7 +933,12 @@ struct onnx_parser
         {
             values["padding"].clear();
             // return paddings could be empty, then setting to 0 for no padding
-            cal_auto_padding_size(info, values, values["lengths"].to_vector<std::size_t>(), {1, 1}, in_lens, paddings);
+            cal_auto_padding_size(info,
+                                  values,
+                                  values["lengths"].to_vector<std::size_t>(),
+                                  {1, 1},
+                                  in_lens,
+                                  paddings);
         }
 
         if(paddings.size() != 2 * kdims)
@@ -971,7 +987,8 @@ struct onnx_parser
         in_lens = l0->get_shape().lens();
         for(size_t i = 0; i < kdims; i++)
         {
-            if(values["lengths"][i].to<int64_t>() > in_lens[i + 2] + 2 * values["padding"][i].to<int64_t>())
+            if(values["lengths"][i].to<int64_t>() >
+               in_lens[i + 2] + 2 * values["padding"][i].to<int64_t>())
             {
                 MIGRAPHX_THROW("PARSE_POOLING: kernel shape is too large");
             }

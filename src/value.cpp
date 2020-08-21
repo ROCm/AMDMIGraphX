@@ -311,18 +311,9 @@ value& value::operator[](std::size_t i) { return *(begin() + i); }
 const value& value::operator[](std::size_t i) const { return *(begin() + i); }
 value& value::operator[](const std::string& pkey) { return *emplace(pkey, nullptr).first; }
 
-void value::clear()
-{
-    get_array_impl(x).clear();
-}
-void value::resize(std::size_t n)
-{
-    get_array_impl(x).resize(n);
-}
-void value::resize(std::size_t n, const value& v)
-{
-    get_array_impl(x).resize(n, v);
-}
+void value::clear() { get_array_impl(x).clear(); }
+void value::resize(std::size_t n) { get_array_impl(x).resize(n); }
+void value::resize(std::size_t n, const value& v) { get_array_impl(x).resize(n, v); }
 
 std::pair<value*, bool> value::insert(const value& v)
 {

@@ -9,10 +9,15 @@ namespace gpu {
 namespace device {
 
 template <class T>
-struct vector_type {};
+struct vector_type
+{
+};
 
 template <class T, index_int N>
-struct vector_type<vec<T, N>> { using type = T; };
+struct vector_type<vec<T, N>>
+{
+    using type = T;
+};
 
 template <class T>
 using vector_type_t = typename vector_type<T>::type;
@@ -20,13 +25,17 @@ using vector_type_t = typename vector_type<T>::type;
 // m = x - mean(x)
 // m / sqrt(mean(m ^ 2) + 1e-12)
 
-template<index_int N>
-void layernorm_vec_impl(hipStream_t stream, const argument& result, const argument& arg1, index_int nelements, index_int relements)
+template <index_int N>
+void layernorm_vec_impl(hipStream_t stream,
+                        const argument& result,
+                        const argument& arg1,
+                        index_int nelements,
+                        index_int relements)
 {
     hip_vec_visit_all<N>(result, arg1)([&](auto output, auto input) {
         using value_type = typename decltype(input)::value_type;
 
-        const auto relements_v = relements / N;
+        const auto relements_v           = relements / N;
         const std::size_t max_block_size = 256;
         const std::size_t block_size     = compute_block_size(relements_v, max_block_size);
         const std::size_t block_size_div = encode_divisor(block_size);
@@ -40,7 +49,7 @@ void layernorm_vec_impl(hipStream_t stream, const argument& result, const argume
 
             auto mean = [&](auto z) {
                 auto psum = block_reduce<max_block_size>(
-                           idx, sum{}, value_type(0), relements_v, [=](auto) { return z; });
+                    idx, sum{}, value_type(0), relements_v, [=](auto) { return z; });
                 vector_type_t<value_type> sum = 0;
                 for(index_int k = 0; k < vec_size; k++)
                     sum += psum[k];
@@ -66,7 +75,11 @@ void layernorm_vec_impl(hipStream_t stream, const argument& result, const argume
     });
 }
 
-void layernorm_impl(hipStream_t stream, const argument& result, const argument& arg1, index_int nelements, index_int relements)
+void layernorm_impl(hipStream_t stream,
+                    const argument& result,
+                    const argument& arg1,
+                    index_int nelements,
+                    index_int relements)
 {
     hip_visit_all(result, arg1)([&](auto output, auto input) {
         using value_type = typename decltype(input)::value_type;
@@ -83,8 +96,11 @@ void layernorm_impl(hipStream_t stream, const argument& result, const argument& 
             const bool in_range  = idx.local < relements;
 
             auto mean = [&](auto z) {
-                return block_reduce<max_block_size>(
-                           idx, sum{}, value_type(0), relements, [=](auto) { return in_range ? z : 0; }) /
+                return block_reduce<max_block_size>(idx,
+                                                    sum{},
+                                                    value_type(0),
+                                                    relements,
+                                                    [=](auto) { return in_range ? z : 0; }) /
                        relements;
             };
 
@@ -104,16 +120,16 @@ void layernorm_impl(hipStream_t stream, const argument& result, const argument& 
 
 void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
 {
-    auto relements = arg1.get_shape().lens().back();
+    auto relements    = arg1.get_shape().lens().back();
     auto nelements    = result.get_shape().elements() / relements;
     auto input_shape  = arg1.get_shape();
     auto output_shape = result.get_shape();
     auto reduce_output_lens(output_shape.lens());
     reduce_output_lens.back() = 1;
 
-    if ((relements % 4) == 0)
+    if((relements % 4) == 0)
         layernorm_vec_impl<4>(stream, result, arg1, nelements, relements);
-    else if (relements < 256)
+    else if(relements < 256)
         layernorm_impl(stream, result, arg1, nelements, relements);
     else
         MIGRAPHX_THROW("No kernel for layernorm");

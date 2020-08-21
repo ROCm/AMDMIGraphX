@@ -50,8 +50,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace onnx = onnx_for_migraphx;
 
-
-
 struct onnx_parser
 {
     using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;

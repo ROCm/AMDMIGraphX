@@ -501,7 +501,8 @@ struct cpu_pooling : auto_register_op<cpu_pooling<Op>>
                     }
                 });
 
-                output[i] = type(Op::final(acc, pool_size));
+
+                output[i] = (pool_size == 0) ? type(0) : type(Op::final(acc, pool_size));
             });
         });
 

@@ -2632,12 +2632,13 @@ struct onnx_parser
         case onnx::TensorProto::UINT32: shape_type = shape::uint32_type; break;
         case onnx::TensorProto::UINT64: shape_type = shape::uint64_type; break;
         case onnx::TensorProto::UINT8: shape_type = shape::uint8_type; break;
+        case onnx::TensorProto::BOOL: shape_type = shape::bool_type; break;
         case onnx::TensorProto::STRING:
-        case onnx::TensorProto::BOOL:
         case onnx::TensorProto::UNDEFINED:
         case onnx::TensorProto::COMPLEX64:
         case onnx::TensorProto::COMPLEX128:
-            break; // throw std::runtime_error("Unsupported type");
+            MIGRAPHX_THROW("PARSE_TYPE: unsupported type" + std::to_string(t.tensor_type().elem_type()));
+            break; 
         }
 
         if(!input_dims.empty())
@@ -2682,6 +2683,7 @@ struct onnx_parser
         case 5: return shape::int16_type;
         case 6: return shape::int32_type;
         case 7: return shape::int64_type;
+        case 9: return shape::bool_type;
         case 10: return shape::half_type;
         case 11: return shape::double_type;
         case 12: return shape::uint32_type;

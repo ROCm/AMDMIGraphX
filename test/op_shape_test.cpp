@@ -146,7 +146,7 @@ TEST_CASE(pooling_shape)
 
     migraphx::shape output1{migraphx::shape::float_type, {4, 3, 2, 2}};
     expect_shape(output1,
-                 migraphx::op::pooling{"max", {0, 0}, {3, 3}, {1, 1}, migraphx::op::default_, 1},
+                 migraphx::op::pooling{"max", {0, 0}, {3, 3}, {1, 1}, 1},
                  input);
 }
 

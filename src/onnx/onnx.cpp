@@ -842,7 +842,7 @@ struct onnx_parser
         // does not support ceil_mode
         if(contains(info.attributes, "ceil_mode"))
         {
-            op.ceil_mode = info.attributes.at("ceil_mode").i();
+            op.ceil_mode = static_cast<bool>(info.attributes.at("ceil_mode").i());
         }
 
         // count include padding, if count include pad is 1, we always use

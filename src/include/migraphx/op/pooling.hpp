@@ -23,8 +23,8 @@ struct pooling
     std::vector<std::size_t> padding = {0, 0};
     std::vector<std::size_t> stride  = {1, 1};
     std::vector<std::size_t> lengths = {1, 1};
+    bool ceil_mode                   = 0;
     padding_mode_t padding_mode      = default_;
-    int ceil_mode                    = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -66,7 +66,7 @@ struct pooling
         for(size_t i = 0; i < kdims; i++)
         {
             assert(lengths[i] <= input_lens[i + 2] + 2 * padding[i]);
-            std::size_t len = (ceil_mode)
+            std::size_t len = (ceil_mode != 0)
                                   ? ceil_divide<std::ptrdiff_t>(
                                         input_lens[i + 2] + 2 * padding[i] - lengths[i], stride[i])
                                   : floor_divide<std::ptrdiff_t>(

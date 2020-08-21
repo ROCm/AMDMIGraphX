@@ -1305,7 +1305,8 @@ TEST_CASE(maxpool_same_upper_test)
     float val                 = std::numeric_limits<float>::lowest();
     auto ins_pad              = p.add_instruction(migraphx::op::pad{pads, val}, input);
     p.add_instruction(
-        migraphx::op::pooling{"max", {0, 0}, {1, 1}, {2, 2}, false, migraphx::op::padding_mode_t::same},
+        migraphx::op::pooling{
+            "max", {0, 0}, {1, 1}, {2, 2}, false, migraphx::op::padding_mode_t::same},
         ins_pad);
 
     auto prog = optimize_onnx("maxpool_same_upper_test.onnx");

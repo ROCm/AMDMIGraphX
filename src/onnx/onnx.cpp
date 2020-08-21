@@ -467,8 +467,10 @@ struct onnx_parser
         return prog.add_instruction(Op{axis}, std::move(args));
     }
 
-    instruction_ref
-    parse_arg_op(const std::string&, const std::string& op_name, node_info info, std::vector<instruction_ref> args)
+    instruction_ref parse_arg_op(const std::string&,
+                                 const std::string& op_name,
+                                 node_info info,
+                                 std::vector<instruction_ref> args)
     {
         int64_t axis = 0;
         if(contains(info.attributes, "axis"))
@@ -2052,8 +2054,10 @@ struct onnx_parser
         return {hidden_states, last_output, last_cell_output};
     }
 
-    instruction_ref
-    parse_reduce_oper(const std::string&, const std::string& op_name, node_info info, std::vector<instruction_ref> args)
+    instruction_ref parse_reduce_oper(const std::string&,
+                                      const std::string& op_name,
+                                      node_info info,
+                                      std::vector<instruction_ref> args)
     {
         std::size_t n_dim = args.front()->get_shape().lens().size();
 

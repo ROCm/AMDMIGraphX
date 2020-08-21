@@ -12,6 +12,7 @@
 #include <migraphx/fallthrough.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/operators.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/config.hpp>
@@ -50,44 +51,49 @@ struct onnx_parser
     onnx_parser()
     {
         // sort onnx operator alphabetically through name
-        add_generic_op("Abs", op::abs{});
-        add_generic_op("Acos", op::acos{});
-        add_generic_op("Acosh", op::acosh{});
-        add_generic_op("Asin", op::asin{});
-        add_generic_op("Asinh", op::asinh{});
-        add_generic_op("Atan", op::atan{});
-        add_generic_op("Atanh", op::atanh{});
-        add_generic_op("Ceil", op::ceil{});
-        add_generic_op("Cos", op::cos{});
-        add_generic_op("Cosh", op::cosh{});
-        add_generic_op("Erf", op::erf{});
-        add_generic_op("Exp", op::exp{});
-        add_generic_op("Dropout", op::identity{});
-        add_generic_op("Floor", op::floor{});
-        add_generic_op("Identity", op::identity{});
-        add_generic_op("Log", op::log{});
-        add_generic_op("Neg", op::neg{});
-        add_generic_op("Reciprocal", op::recip{});
-        add_generic_op("Relu", op::relu{});
-        add_generic_op("Round", op::round{});
-        add_generic_op("Sigmoid", op::sigmoid{});
-        add_generic_op("Sign", op::sign{});
-        add_generic_op("Sin", op::sin{});
-        add_generic_op("Sinh", op::sinh{});
-        add_generic_op("Sqrt", op::sqrt{});
-        add_generic_op("Tan", op::tan{});
-        add_generic_op("Tanh", op::tanh{});
+        add_generic_op("Abs", "abs");
+        add_generic_op("Acos", "acos");
+        add_generic_op("Acosh", "acosh");
+        add_generic_op("Asin", "asin");
+        add_generic_op("Asinh", "asinh");
+        add_generic_op("Atan", "atan");
+        add_generic_op("Atanh", "atanh");
+        add_generic_op("Ceil", "ceil");
+        add_generic_op("Concat", "concat");
+        add_generic_op("Cos", "cos");
+        add_generic_op("Cosh", "cosh");
+        add_generic_op("Dropout", "identity");
+        add_generic_op("Erf", "erf");
+        add_generic_op("Exp", "exp");
+        add_generic_op("Flatten", "flatten");
+        add_generic_op("Floor", "floor");
+        add_generic_op("Gather", "gather", true);
+        add_generic_op("Identity", "identity");
+        add_generic_op("Log", "log");
+        add_generic_op("Neg", "neg");
+        add_generic_op("Reciprocal", "recip");
+        add_generic_op("Relu", "relu");
+        add_generic_op("Round", "round");
+        add_generic_op("Sigmoid", "sigmoid");
+        add_generic_op("Sign", "sign");
+        add_generic_op("Sin", "sin");
+        add_generic_op("Sinh", "sinh");
+        add_generic_op("Sqrt", "sqrt");
+        add_generic_op("Squeeze", "squeeze", true);
+        add_generic_op("Tan", "tan");
+        add_generic_op("Tanh", "tanh");
+        add_generic_op("Unsqueeze", "unsqueeze", true);
 
-        add_binary_op("Add", op::add{});
-        add_binary_op("Div", op::div{});
-        add_binary_op("Mul", op::mul{});
-        add_binary_op("Pow", op::pow{});
-        add_binary_op("PRelu", op::prelu{});
-        add_binary_op("Sub", op::sub{});
+        add_binary_op("Add", "add");
+        add_binary_op("Div", "div");
+        add_binary_op("Mul", "mul");
+        add_binary_op("Pow", "pow");
+        add_binary_op("PRelu", "prelu");
+        add_binary_op("Sub", "sub");
 
-        add_variadic_op("Sum", op::add{});
-        add_variadic_op("Max", op::max{});
-        add_variadic_op("Min", op::min{});
+        add_variadic_op("Sum", "add");
+        add_variadic_op("Max", "max");
+        add_variadic_op("Min", "min");
 
         add_mem_op("ATen", &onnx_parser::parse_aten);
         add_mem_op("AveragePool", &onnx_parser::parse_pooling);
@@ -96,7 +102,6 @@ struct onnx_parser
         add_mem_op("BatchNormalization", &onnx_parser::parse_batchnorm);
         add_mem_op("Cast", &onnx_parser::parse_cast);
         add_mem_op("Clip", &onnx_parser::parse_clip);
-        add_mem_op("Concat", &onnx_parser::parse_concat);
         add_mem_op("Constant", &onnx_parser::parse_constant);
         add_mem_op("ConstantFill", &onnx_parser::parse_constant_fill);
         add_mem_op("ConstantOfShape", &onnx_parser::parse_constant_of_shape);
@@ -105,8 +110,6 @@ struct onnx_parser
         add_mem_op("ConvTranspose", &onnx_parser::parse_conv_transpose);
         add_mem_op("Elu", &onnx_parser::parse_elu);
         add_mem_op("Expand", &onnx_parser::parse_expand);
-        add_mem_op("Flatten", &onnx_parser::parse_flatten);
-        add_mem_op("Gather", &onnx_parser::parse_gather);
         add_mem_op("GatherElements", &onnx_parser::parse_gather_elements);
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
         add_mem_op("GlobalAveragePool", &onnx_parser::parse_pooling);
@@ -141,10 +144,8 @@ struct onnx_parser
         add_mem_op("Slice", &onnx_parser::parse_slice);
         add_mem_op("Softmax", &onnx_parser::parse_softmax<op::softmax>);
         add_mem_op("Split", &onnx_parser::parse_split);
-        add_mem_op("Squeeze", &onnx_parser::parse_squeeze);
         add_mem_op("Tile", &onnx_parser::parse_tile);
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
-        add_mem_op("Unsqueeze", &onnx_parser::parse_unsqueeze);
 
         // init the activation function map
         init_actv_func();
@@ -158,6 +159,32 @@ struct onnx_parser
         map_actv_funcs.insert(std::make_pair("sigmoid", op::sigmoid{}));
         map_actv_funcs.insert(std::make_pair("leakyrelu", op::leaky_relu{}));
         map_actv_funcs.insert(std::make_pair("elu", op::elu{}));
+    }
+
+    static operation load(const std::string& name, const node_info& info)
+    {
+        auto op = make_op(name);
+        auto v = op.to_value();
+        for(auto&& x:v) {
+            if (info.attributes.count(x.get_key()) == 0)
+                continue;
+            literal s = parse_value(info.attributes.at(x.get_key()));
+            if (x.is_array())
+            {
+                std::vector<value> values;
+                s.visit([&](auto y) { std::transform(y.begin(), y.end(), std::back_inserter(values), [](auto z) {
+                        return value(z);
+                    }); 
+                });
+                x = values;
+            }
+            else
+            {
+                s.visit([&](auto y) { x = y.front(); });
+            }
+        }
+        op.from_value(v);
+        return op;
     }
 
     template <class F>
@@ -183,10 +210,9 @@ struct onnx_parser
         });
     }
 
-    template <class T>
-    void add_binary_op(std::string name, T x)
+    void add_binary_op(std::string onnx_name, std::string op_name)
     {
-        add_op(name, [this, x](node_info info, std::vector<instruction_ref> args) {
+        add_op(onnx_name, [this, op_name](node_info info, std::vector<instruction_ref> args) {
             if(args.size() != 2)
                 MIGRAPHX_THROW("binary operators should have 2 operands");
             if(contains(info.attributes, "broadcast") and contains(info.attributes, "axis"))
@@ -197,13 +223,13 @@ struct onnx_parser
                     uint64_t axis = parse_value(info.attributes.at("axis")).at<uint64_t>();
                     auto l = prog.add_instruction(op::broadcast{axis, args[0]->get_shape().lens()},
                                                   args[1]);
-                    return prog.add_instruction(x, args[0], l);
+                    return prog.add_instruction(make_op(op_name), args[0], l);
                 }
-                return prog.add_instruction(x, args);
+                return prog.add_instruction(make_op(op_name), args);
             }
             else
             {
-                return add_broadcastable_binary_op(args[0], args[1], x);
+                return add_broadcastable_binary_op(args[0], args[1], op_name);
             }
         });
     }
@@ -257,8 +283,7 @@ struct onnx_parser
         return prog.add_instruction(op::contiguous{}, ins);
     }
 
-    template <class T>
-    instruction_ref add_broadcastable_binary_op(instruction_ref arg0, instruction_ref arg1, T x)
+    instruction_ref add_broadcastable_binary_op(instruction_ref arg0, instruction_ref arg1, std::string name)
     {
         if(arg0->get_shape().lens() != arg1->get_shape().lens())
         {
@@ -275,31 +300,35 @@ struct onnx_parser
             if(arg1->get_shape().lens() != out_lens)
                 l1 = prog.add_instruction(op::multibroadcast{out_lens}, arg1);
 
-            return prog.add_instruction(x, l0, l1);
+            return prog.add_instruction(make_op(name), l0, l1);
         }
         else
         {
-            return prog.add_instruction(x, {arg0, arg1});
+            return prog.add_instruction(make_op(name), {arg0, arg1});
         }
     }
 
-    template <class T>
-    void add_generic_op(std::string name, T x)
+    void add_generic_op(std::string onnx_name, std::string op_name, bool contiguous=false)
     {
-        add_op(name, [this, x](const node_info&, std::vector<instruction_ref> args) {
-            return prog.add_instruction(x, args);
+        add_op(onnx_name, [this, op_name, contiguous](const node_info& info, std::vector<instruction_ref> args) {
+            auto op = load(op_name, info);
+            if (contiguous) {
+                std::transform(args.begin(), args.end(), args.begin(), [&](auto arg) {
+                    return make_contiguous(arg);
+                });
+            }
+            return prog.add_instruction(op, args);
         });
     }
 
-    template <class T>
-    void add_variadic_op(std::string name, T x)
+    void add_variadic_op(std::string onnx_name, std::string op_name)
     {
-        add_op(name, [this, x](const node_info&, std::vector<instruction_ref> args) {
+        add_op(onnx_name, [this, op_name](const node_info&, std::vector<instruction_ref> args) {
             return std::accumulate(std::next(args.begin()),
                                    args.end(),
                                    args.front(),
-                                   [this, x](instruction_ref a, instruction_ref b) {
-                                       return add_broadcastable_binary_op(a, b, x);
+                                   [this, op_name](instruction_ref a, instruction_ref b) {
+                                       return add_broadcastable_binary_op(a, b, op_name);
                                    });
         });
     }
@@ -969,62 +998,6 @@ struct onnx_parser
         }
 
         return prog.add_instruction(op, make_contiguous(args[0]));
-    }
-
-    instruction_ref
-    parse_flatten(const std::string&, node_info info, std::vector<instruction_ref> args)
-    {
-        int64_t axis = 1;
-        if(contains(info.attributes, "axis"))
-        {
-            axis = parse_value(info.attributes.at("axis")).at<int>();
-        }
-        return prog.add_instruction(op::flatten{axis}, args[0]);
-    }
-
-    instruction_ref
-    parse_squeeze(const std::string&, node_info info, std::vector<instruction_ref> args)
-    {
-        op::squeeze op;
-        literal s = parse_value(info.attributes.at("axes"));
-        s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
-        return prog.add_instruction(op, make_contiguous(args[0]));
-    }
-
-    instruction_ref
-    parse_unsqueeze(const std::string&, node_info info, std::vector<instruction_ref> args)
-    {
-        op::unsqueeze op;
-        literal s = parse_value(info.attributes.at("axes"));
-        s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
-        return prog.add_instruction(op, make_contiguous(args[0]));
-    }
-
-    instruction_ref
-    parse_concat(const std::string&, node_info info, std::vector<instruction_ref> args)
-    {
-        // change to hande axis to be negative values
-        if(!contains(info.attributes, "axis"))
-        {
-            MIGRAPHX_THROW("PARSE_CONCAT: attribute axis is required!");
-        }
-
-        int axis = parse_value(info.attributes.at("axis")).at<int>();
-        op::concat op{axis};
-        return prog.add_instruction(op, std::move(args));
-    }
-
-    instruction_ref
-    parse_gather(const std::string&, node_info info, std::vector<instruction_ref> args)
-    {
-        int axis = 0;
-        if(contains(info.attributes, "axis"))
-        {
-            axis = parse_value(info.attributes.at("axis")).at<int>();
-        }
-
-        op::gather op{axis};
-        return prog.add_instruction(op, make_contiguous(args[0]), make_contiguous(args[1]));
     }
 
     instruction_ref

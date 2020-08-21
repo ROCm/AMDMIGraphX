@@ -332,9 +332,18 @@ struct find_layernorm
         if(not x_ins->get_shape().standard())
             return;
 
-        // We dont fuse layernorm for sizes larger than 1024
-        if(x_ins->get_shape().lens().back() > 1024)
+        auto relements = x_ins->get_shape().lens().back();
+
+        if(relements % 4 == 0) 
+        {
+          if(relements > 1024)
             return;
+        }
+        else
+        {
+            if(relements > 256)
+            return;
+        }
 
         p.replace_instruction(ins, hip_layernorm{}, x_ins, args.back());
     }

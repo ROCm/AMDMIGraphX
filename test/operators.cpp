@@ -26,7 +26,8 @@ TEST_CASE(make_op)
 
 TEST_CASE(make_op_from_value1)
 {
-    migraphx::operation x = migraphx::make_op("convolution", {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {2, 2}}});
+    migraphx::operation x = migraphx::make_op(
+        "convolution", {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {2, 2}}});
     migraphx::operation y = migraphx::op::convolution{{1, 1}, {2, 2}, {2, 2}};
     EXPECT(x == y);
 }

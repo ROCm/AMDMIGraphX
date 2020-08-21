@@ -1218,8 +1218,10 @@ struct onnx_parser
         return prog.add_instruction(op::dot{alpha, beta}, l1, l2);
     }
 
-    instruction_ref
-    parse_matmul(const std::string&, const std::string& op_name, const node_info&, std::vector<instruction_ref> args)
+    instruction_ref parse_matmul(const std::string&,
+                                 const std::string& op_name,
+                                 const node_info&,
+                                 std::vector<instruction_ref> args)
     {
         auto l0      = args[0];
         auto l1      = args[1];
@@ -1266,7 +1268,8 @@ struct onnx_parser
             }
         }
 
-        auto dot_res     = prog.add_instruction(make_op(op_name, {{"alpha", 1}, {"beta", 0}}), bl0, bl1);
+        auto dot_res =
+            prog.add_instruction(make_op(op_name, {{"alpha", 1}, {"beta", 0}}), bl0, bl1);
         int64_t num_axis = static_cast<int64_t>(dot_res->get_shape().lens().size());
         if(is_a_prepended)
         {

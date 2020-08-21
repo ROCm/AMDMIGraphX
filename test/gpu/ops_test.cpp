@@ -1194,6 +1194,19 @@ struct test_global_max_pooling : verify_program<test_global_max_pooling>
     }
 };
 
+struct test_max_pooling_ceil_3d : verify_program<test_max_pooling_ceil_3d>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+        auto op = migraphx::op::pooling{"max", {1, 1, 1}, {3, 3, 3}, {3, 3, 3}, true};
+        p.add_instruction(op, input);
+        return p;
+    }
+};
+
 struct test_avg_pooling_1d : verify_program<test_avg_pooling_1d>
 {
     migraphx::program create_program() const

@@ -421,7 +421,8 @@ MIGRAPHX_REGISTER_OP(cpu_im2col)
 struct max_pool
 {
     static std::string name() { return "max"; }
-    static double start() { return std::numeric_limits<double>::lowest(); }
+    template<class T>
+    static double start() { return std::numeric_limits<T>::lowest(); }
 
     static double apply(double x, double y)
     {
@@ -435,6 +436,8 @@ struct max_pool
 struct avg_pool
 {
     static std::string name() { return "average"; }
+
+    template<class T>
     static double start() { return 0.0; }
 
     static double apply(double x, double y) { return x + y; }
@@ -486,7 +489,7 @@ struct cpu_pooling : auto_register_op<cpu_pooling<Op>>
 
                 shape win_shape{output_shape.type(), win_size};
                 auto pool_size = win_shape.elements();
-                double acc     = Op::start();
+                double acc     = Op::template start<type>();
                 shape_for_each(win_shape, [&](auto idx_w) {
                     auto idx = idx_o;
                     std::transform(idx_w.begin(),
@@ -501,7 +504,7 @@ struct cpu_pooling : auto_register_op<cpu_pooling<Op>>
                     }
                 });
 
-                output[i] = (pool_size == 0) ? type(0) : type(Op::final(acc, pool_size));
+                output[i] = (pool_size == 0) ? type(acc) : type(Op::final(acc, pool_size));
             });
         });
 

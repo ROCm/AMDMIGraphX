@@ -2637,8 +2637,9 @@ struct onnx_parser
         case onnx::TensorProto::UNDEFINED:
         case onnx::TensorProto::COMPLEX64:
         case onnx::TensorProto::COMPLEX128:
-            MIGRAPHX_THROW("PARSE_TYPE: unsupported type" + std::to_string(t.tensor_type().elem_type()));
-            break; 
+            MIGRAPHX_THROW("PARSE_TYPE: unsupported type" +
+                           std::to_string(t.tensor_type().elem_type()));
+            break;
         }
 
         if(!input_dims.empty())

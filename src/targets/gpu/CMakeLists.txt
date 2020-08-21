@@ -152,6 +152,7 @@ register_migraphx_gpu_ops(hip_
     cosh
     cos
     div
+    equal
     erf
     exp
     floor

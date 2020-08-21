@@ -51,7 +51,7 @@ void layernorm_vec_impl(hipStream_t stream,
                 auto psum = block_reduce<max_block_size>(
                     idx, sum{}, value_type(0), relements_v, [=](auto) { return z; });
                 vector_type_t<value_type> sum = 0;
-                for(index_int k = 0; k < vec_size; k++)
+                for(index_int k = 0; k < N; k++)
                     sum += psum[k];
                 return sum / relements;
 
@@ -66,7 +66,7 @@ void layernorm_vec_impl(hipStream_t stream,
 
             // rsqrt(mean(m ^ 2) + 1e-12)
             value_type d;
-            for(index_int k = 0; k < vec_size; k++)
+            for(index_int k = 0; k < N; k++)
                 d[k] = ::rsqrt(r[k]);
             // m * rsqrt(mean(m ^ 2) + 1e-12)
             if(in_range)

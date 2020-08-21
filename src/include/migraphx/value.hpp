@@ -73,6 +73,12 @@ struct value_converter<std::pair<T, U>>
 };
 
 namespace detail {
+template <class To, class Key, class From>
+auto try_convert_value_impl(rank<2>, const std::pair<Key, From>& x) -> decltype(value_converter<To>::apply(x.second))
+{
+    return value_converter<To>::apply(x.second);
+}
+
 template <class To, class From>
 auto try_convert_value_impl(rank<1>, const From& x) -> decltype(value_converter<To>::apply(x))
 {
@@ -89,7 +95,7 @@ To try_convert_value_impl(rank<0>, const From& x)
 template <class To, class From>
 To try_convert_value(const From& x)
 {
-    return detail::try_convert_value_impl<To>(rank<1>{}, x);
+    return detail::try_convert_value_impl<To>(rank<2>{}, x);
 }
 
 struct value
@@ -238,6 +244,10 @@ struct value
     value& operator[](std::size_t i);
     const value& operator[](std::size_t i) const;
     value& operator[](const std::string& pkey);
+
+    void clear();
+    void resize(std::size_t n);
+    void resize(std::size_t n, const value& v);
 
     std::pair<value*, bool> insert(const value& v);
     value* insert(const value* pos, const value& v);

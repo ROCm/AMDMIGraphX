@@ -204,7 +204,6 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_softmax_default_axis_cpu')
 
         # error cases
-        backend_test.exclude(r'test_averagepool_2d_ceil_cpu')
         backend_test.exclude(r'test_clip_default_inbounds_cpu')
         backend_test.exclude(r'test_clip_default_int8_inbounds_cpu')
         backend_test.exclude(r'test_clip_default_int8_max_cpu')
@@ -248,7 +247,6 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_max_float16_cpu')
         backend_test.exclude(r'test_max_int64_cpu')
         backend_test.exclude(r'test_max_uint64_cpu')
-        backend_test.exclude(r'test_maxpool_2d_ceil_cpu')
         backend_test.exclude(r'test_maxpool_2d_uint8_cpu')
         backend_test.exclude(r'test_mean_example_cpu')
         backend_test.exclude(r'test_mean_one_input_cpu')

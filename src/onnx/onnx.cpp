@@ -2370,7 +2370,7 @@ struct onnx_parser
     instruction_ref
     parse_equal(const std::string&, const node_info&, std::vector<instruction_ref> args)
     {
-        auto l = prog.add_instruction(op::equal{}, args);
+        auto l = prog.add_instruction(op::equal{}, std::move(args));
         return prog.add_instruction(op::convert{shape::bool_type}, l);
     }
 

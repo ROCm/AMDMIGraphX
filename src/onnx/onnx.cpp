@@ -122,8 +122,8 @@ struct onnx_parser
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
         add_mem_op("LRN", &onnx_parser::parse_lrn);
         add_mem_op("LSTM", &onnx_parser::parse_lstm);
-        add_mem_op("MatMul", &onnx_parser::parse_matmul<op::dot>);
-        add_mem_op("MatMulInteger", &onnx_parser::parse_matmul<op::quant_dot>);
+        add_mem_op("MatMul", "dot", &onnx_parser::parse_matmul);
+        add_mem_op("MatMulInteger", "quant_dot", &onnx_parser::parse_matmul);
         add_mem_op("MaxPool", &onnx_parser::parse_pooling);
         add_mem_op("NonZero", &onnx_parser::parse_nonzero);
         add_mem_op("OneHot", &onnx_parser::parse_onehot);
@@ -1218,9 +1218,8 @@ struct onnx_parser
         return prog.add_instruction(op::dot{alpha, beta}, l1, l2);
     }
 
-    template <class Op>
     instruction_ref
-    parse_matmul(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    parse_matmul(const std::string&, const std::string& op_name, const node_info&, std::vector<instruction_ref> args)
     {
         auto l0      = args[0];
         auto l1      = args[1];
@@ -1267,7 +1266,7 @@ struct onnx_parser
             }
         }
 
-        auto dot_res     = prog.add_instruction(Op{1, 0}, bl0, bl1);
+        auto dot_res     = prog.add_instruction(make_op(op_name, {{"alpha", 1}, {"beta", 0}}), bl0, bl1);
         int64_t num_axis = static_cast<int64_t>(dot_res->get_shape().lens().size());
         if(is_a_prepended)
         {

@@ -12,7 +12,7 @@ operation make_op(const std::string& name, const value& v)
     value w = op.to_value();
     for(auto&& x : v)
     {
-        w[x.get_key()] = x.without_key();
+        w.at(x.get_key()) = x.without_key();
     }
     op.from_value(w);
     return op;

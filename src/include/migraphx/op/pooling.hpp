@@ -23,7 +23,7 @@ struct pooling
     std::vector<std::size_t> padding = {0, 0};
     std::vector<std::size_t> stride  = {1, 1};
     std::vector<std::size_t> lengths = {1, 1};
-    bool ceil_mode                   = 0;
+    bool ceil_mode                   = false;
     padding_mode_t padding_mode      = default_;
 
     template <class Self, class F>

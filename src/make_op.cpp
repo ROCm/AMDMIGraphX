@@ -4,10 +4,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-operation make_op(const std::string& name)
-{
-    return load_op(name);
-}
+operation make_op(const std::string& name) { return load_op(name); }
 operation make_op(const std::string& name, const value& v)
 {
     auto op = load_op(name);

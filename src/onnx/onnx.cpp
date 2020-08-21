@@ -164,17 +164,19 @@ struct onnx_parser
     static operation load(const std::string& name, const node_info& info)
     {
         auto op = make_op(name);
-        auto v = op.to_value();
-        for(auto&& x:v) {
-            if (info.attributes.count(x.get_key()) == 0)
+        auto v  = op.to_value();
+        for(auto&& x : v)
+        {
+            if(info.attributes.count(x.get_key()) == 0)
                 continue;
             literal s = parse_value(info.attributes.at(x.get_key()));
-            if (x.is_array())
+            if(x.is_array())
             {
                 std::vector<value> values;
-                s.visit([&](auto y) { std::transform(y.begin(), y.end(), std::back_inserter(values), [](auto z) {
+                s.visit([&](auto y) {
+                    std::transform(y.begin(), y.end(), std::back_inserter(values), [](auto z) {
                         return value(z);
-                    }); 
+                    });
                 });
                 x = values;
             }
@@ -283,7 +285,8 @@ struct onnx_parser
         return prog.add_instruction(op::contiguous{}, ins);
     }
 
-    instruction_ref add_broadcastable_binary_op(instruction_ref arg0, instruction_ref arg1, std::string name)
+    instruction_ref
+    add_broadcastable_binary_op(instruction_ref arg0, instruction_ref arg1, std::string name)
     {
         if(arg0->get_shape().lens() != arg1->get_shape().lens())
         {
@@ -308,17 +311,20 @@ struct onnx_parser
         }
     }
 
-    void add_generic_op(std::string onnx_name, std::string op_name, bool contiguous=false)
+    void add_generic_op(std::string onnx_name, std::string op_name, bool contiguous = false)
     {
-        add_op(onnx_name, [this, op_name, contiguous](const node_info& info, std::vector<instruction_ref> args) {
-            auto op = load(op_name, info);
-            if (contiguous) {
-                std::transform(args.begin(), args.end(), args.begin(), [&](auto arg) {
-                    return make_contiguous(arg);
-                });
-            }
-            return prog.add_instruction(op, args);
-        });
+        add_op(
+            onnx_name,
+            [this, op_name, contiguous](const node_info& info, std::vector<instruction_ref> args) {
+                auto op = load(op_name, info);
+                if(contiguous)
+                {
+                    std::transform(args.begin(), args.end(), args.begin(), [&](auto arg) {
+                        return make_contiguous(arg);
+                    });
+                }
+                return prog.add_instruction(op, args);
+            });
     }
 
     void add_variadic_op(std::string onnx_name, std::string op_name)

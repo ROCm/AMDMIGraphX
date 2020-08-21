@@ -1235,7 +1235,8 @@ struct onnx_parser
                 {
                     l3 = prog.add_instruction(op::multibroadcast{out_lens}, args[2]);
                 }
-                return prog.add_instruction(make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2, l3);
+                return prog.add_instruction(
+                    make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2, l3);
             }
         }
 
@@ -1431,8 +1432,9 @@ struct onnx_parser
         auto bias_vals = prog.add_literal(literal{shape{input_type, {bias.size()}}, bias});
 
         auto scale_tensor = prog.add_instruction(migraphx::op::scalar{input_lens}, scale_val);
-        auto img_scaled   = prog.add_instruction(migraphx::make_op("mul"), args.front(), scale_tensor);
-        auto bias_bcast   = prog.add_instruction(migraphx::op::broadcast{1, input_lens}, bias_vals);
+        auto img_scaled =
+            prog.add_instruction(migraphx::make_op("mul"), args.front(), scale_tensor);
+        auto bias_bcast = prog.add_instruction(migraphx::op::broadcast{1, input_lens}, bias_vals);
         return prog.add_instruction(migraphx::make_op("add"), img_scaled, bias_bcast);
     }
 
@@ -2326,9 +2328,15 @@ struct onnx_parser
         auto l0 = prog.add_instruction(op::gather{}, args[0], args[1]);
         switch(reduce_mode)
         {
-        case reduce_mode_t::sum: l0 = prog.add_instruction(make_op("reduce_sum", {{"axes", {0}}}), l0); break;
-        case reduce_mode_t::mean: l0 = prog.add_instruction(make_op("reduce_mean", {{"axes", {0}}}), l0); break;
-        case reduce_mode_t::max: l0 = prog.add_instruction(make_op("reduce_max", {{"axes", {0}}}), l0); break;
+        case reduce_mode_t::sum:
+            l0 = prog.add_instruction(make_op("reduce_sum", {{"axes", {0}}}), l0);
+            break;
+        case reduce_mode_t::mean:
+            l0 = prog.add_instruction(make_op("reduce_mean", {{"axes", {0}}}), l0);
+            break;
+        case reduce_mode_t::max:
+            l0 = prog.add_instruction(make_op("reduce_max", {{"axes", {0}}}), l0);
+            break;
         }
         return l0;
     }

@@ -209,6 +209,14 @@ std::vector<value>& get_array_impl(const std::shared_ptr<value_base_impl>& x)
     return *a;
 }
 
+std::vector<value>& get_array_throw(const std::shared_ptr<value_base_impl>& x)
+{
+    auto* a = if_array_impl(x);
+    if (not a)
+        MIGRAPHX_THROW("Expected an array or object");
+    return *a;
+}
+
 value* find_impl(const std::shared_ptr<value_base_impl>& x, const std::string& key)
 {
     auto* a = if_array_impl(x);
@@ -311,9 +319,19 @@ value& value::operator[](std::size_t i) { return *(begin() + i); }
 const value& value::operator[](std::size_t i) const { return *(begin() + i); }
 value& value::operator[](const std::string& pkey) { return *emplace(pkey, nullptr).first; }
 
-void value::clear() { get_array_impl(x).clear(); }
-void value::resize(std::size_t n) { get_array_impl(x).resize(n); }
-void value::resize(std::size_t n, const value& v) { get_array_impl(x).resize(n, v); }
+void value::clear() { get_array_throw(x).clear(); }
+void value::resize(std::size_t n) 
+{ 
+    if (not is_array())
+        MIGRAPHX_THROW("Expected an array.");
+    get_array_impl(x).resize(n); 
+}
+void value::resize(std::size_t n, const value& v) 
+{
+    if (not is_array())
+        MIGRAPHX_THROW("Expected an array.");
+    get_array_impl(x).resize(n, v); 
+}
 
 std::pair<value*, bool> value::insert(const value& v)
 {

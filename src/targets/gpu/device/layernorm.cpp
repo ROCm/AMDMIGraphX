@@ -65,7 +65,7 @@ void layernorm_vec_impl(hipStream_t stream,
             value_type r = mean(m * m) + value_type(1e-12);
 
             // rsqrt(mean(m ^ 2) + 1e-12)
-            value_type d;
+            value_type d = 0;
             for(index_int k = 0; k < N; k++)
                 d[k] = ::rsqrt(r[k]);
             // m * rsqrt(mean(m ^ 2) + 1e-12)
@@ -122,7 +122,6 @@ void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
 {
     auto relements    = arg1.get_shape().lens().back();
     auto nelements    = result.get_shape().elements() / relements;
-    auto input_shape  = arg1.get_shape();
     auto output_shape = result.get_shape();
     auto reduce_output_lens(output_shape.lens());
     reduce_output_lens.back() = 1;

@@ -16,7 +16,7 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::vector<argument> run_cpu(program p, program::parameter_map inputs)
+std::vector<argument> run_cpu(program p, const program::parameter_map& inputs)
 {
     p.compile(cpu::target{});
     auto out = p.eval(inputs);
@@ -25,7 +25,7 @@ std::vector<argument> run_cpu(program p, program::parameter_map inputs)
 }
 
 std::vector<argument>
-run_gpu(program p, const compile_options& options, program::parameter_map inputs)
+run_gpu(program p, const compile_options& options, const program::parameter_map& inputs)
 {
 #ifdef HAVE_GPU
     p.compile(gpu::target{}, options);
@@ -47,6 +47,7 @@ run_gpu(program p, const compile_options& options, program::parameter_map inputs
 #else
     (void)p;
     (void)options;
+    (void)inputs;
     MIGRAPHX_THROW("Gpu unsupported!");
 #endif
 }
@@ -54,7 +55,7 @@ run_gpu(program p, const compile_options& options, program::parameter_map inputs
 void verify_program(const std::string& name,
                     const program& p,
                     compile_options options,
-                    program::parameter_map inputs,
+                    const program::parameter_map& inputs,
                     double tolerance)
 {
     auto x = run_cpu(p, inputs);
@@ -108,7 +109,7 @@ void verify_instructions(const program& prog, compile_options options, double to
 }
 
 void verify_reduced(
-    program p, int n, compile_options options, program::parameter_map inputs, double tolerance)
+    program p, int n, compile_options options, const program::parameter_map& inputs, double tolerance)
 {
     auto last = std::prev(p.end(), n + 1);
     p.remove_instructions(last, p.end());
@@ -119,7 +120,7 @@ void verify_reduced(
 
 void verify_reduced_program(const program& p,
                             compile_options options,
-                            program::parameter_map inputs,
+                            const program::parameter_map& inputs,
                             double tolerance)
 {
     auto n = std::distance(p.begin(), p.end());

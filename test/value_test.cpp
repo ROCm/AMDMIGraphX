@@ -664,7 +664,7 @@ TEST_CASE(value_resize_n_object)
 
 TEST_CASE(value_assign_construct_from_vector)
 {
-    std::vector<int> v = {1, 2, 3};
+    std::vector<int> v     = {1, 2, 3};
     migraphx::value values = v;
     EXPECT(values.to_vector<int>() == v);
 }
@@ -686,7 +686,7 @@ TEST_CASE(value_assign_from_vector)
 
 TEST_CASE(value_init_from_vector)
 {
-    std::vector<int> v = {1, 2, 3};
+    std::vector<int> v     = {1, 2, 3};
     migraphx::value values = {{"a", v}};
     EXPECT(values.at("a").to_vector<int>() == v);
 }

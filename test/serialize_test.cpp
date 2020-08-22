@@ -72,7 +72,7 @@ TEST_CASE(serialize_reflectable_type)
 TEST_CASE(serialize_empty_array)
 {
     std::vector<std::size_t> ints = {};
-    migraphx::value v = migraphx::to_value(ints);
+    migraphx::value v             = migraphx::to_value(ints);
     EXPECT(v.is_array());
     EXPECT(v.empty());
     v.push_back(1);

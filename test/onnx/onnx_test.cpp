@@ -791,6 +791,24 @@ TEST_CASE(equal_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(equal_bool_test)
+{
+    migraphx::program p;
+    migraphx::shape sf{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape sb{migraphx::shape::bool_type, {2, 3}};
+
+
+    auto input1 = p.add_parameter("x1", sf);
+    auto input2 = p.add_parameter("x2", sb);
+    auto cin1 = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, input1);
+    auto ret     = p.add_instruction(migraphx::op::equal{}, cin1, input2);
+    p.add_return({ret});
+
+    auto prog = migraphx::parse_onnx("equal_bool_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(erf_test)
 {
     migraphx::program p;

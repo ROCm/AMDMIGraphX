@@ -2371,7 +2371,11 @@ struct onnx_parser
     parse_equal(const std::string&, const node_info&, std::vector<instruction_ref> args)
     {
         auto l = add_broadcastable_binary_op(args[0], args[1], op::equal{});
-        return prog.add_instruction(op::convert{shape::bool_type}, l);
+        if (l->get_shape().type() != shape::bool_type)
+        {
+            l = prog.add_instruction(op::convert{shape::bool_type}, l);
+        }
+        return l;
     }
 
     void parse_from(std::istream& is)

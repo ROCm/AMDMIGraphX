@@ -451,7 +451,7 @@ struct find_add_clip
     {
         return match::name(std::unordered_set<std::string>{"gpu::clip", "gpu::clipped_relu"})(
             match::arg(0)(match::any_of(match::name("gpu::add"),
-                                        match::name("hip::triadd"),
+                                        match::name("gpu::triadd"),
                                         match::any_of[match::inputs()](match::standard_shape()))
                               .bind("add")));
     }
@@ -470,7 +470,7 @@ struct find_add_clip
         add_args.insert(add_args.end(), std::next(ins_args.begin()), ins_args.end());
         if(add_ins->name() == "gpu::add")
             p.replace_instruction(ins, hip_add_clip{}, add_args);
-        else if(add_ins->name() == "hip::triadd")
+        else if(add_ins->name() == "gpu::triadd")
             p.replace_instruction(ins, hip_triadd_clip{}, add_args);
     }
 };
@@ -485,7 +485,7 @@ struct find_add_unary
         return match::name(op_name)(match::arg(0)(
             match::used_once(),
             match::any_of(match::name("gpu::add"),
-                          match::name("hip::triadd"),
+                          match::name("gpu::triadd"),
                           match::any_of(match::name("@literal"),
                                         match::any_of[match::inputs()](match::standard_shape())))
                 .bind("add")));
@@ -503,7 +503,7 @@ struct find_add_unary
         args.back() = ins->inputs().back();
         if(add_ins->name() == "gpu::add")
             p.replace_instruction(ins, binary_add_op, args);
-        else if(add_ins->name() == "hip::triadd")
+        else if(add_ins->name() == "gpu::triadd")
             p.replace_instruction(ins, ternary_add_op, args);
     }
 };
@@ -569,7 +569,7 @@ struct find_mul_add_relu
     auto matcher() const
     {
         return match::name("gpu::relu")(
-            match::arg(0)(match::name("hip::mul_add")(match::used_once()).bind("mul_add")));
+            match::arg(0)(match::name("gpu::mul_add")(match::used_once()).bind("mul_add")));
     }
 
     void apply(program& p, match::matcher_result r) const

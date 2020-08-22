@@ -108,8 +108,11 @@ void verify_instructions(const program& prog, compile_options options, double to
     }
 }
 
-void verify_reduced(
-    program p, int n, compile_options options, const program::parameter_map& inputs, double tolerance)
+void verify_reduced(program p,
+                    int n,
+                    compile_options options,
+                    const program::parameter_map& inputs,
+                    double tolerance)
 {
     auto last = std::prev(p.end(), n + 1);
     p.remove_instructions(last, p.end());

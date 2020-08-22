@@ -1,78 +1,37 @@
-#include <rocblas.h>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/operators.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/shape_for_each.hpp>
-#include <migraphx/gpu/miopen.hpp>
-#include <migraphx/gpu/hip.hpp>
-#include <migraphx/dfor.hpp>
-#include <migraphx/gpu/device/contiguous.hpp>
-#include <migraphx/gpu/device/add.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/gpu/argmax.hpp>
-#include <migraphx/gpu/argmin.hpp>
-#include <migraphx/gpu/rocblas.hpp>
+#include <migraphx/make_op.hpp>
+
+#include <migraphx/op/abs.hpp>
+#include <migraphx/op/batch_norm_inference.hpp>
+#include <migraphx/op/convolution.hpp>
+#include <migraphx/op/deconvolution.hpp>
+#include <migraphx/op/dot.hpp>
+#include <migraphx/op/elu.hpp>
+#include <migraphx/op/leaky_relu.hpp>
+#include <migraphx/op/lrn.hpp>
+#include <migraphx/op/pooling.hpp>
+#include <migraphx/op/reshape.hpp>
+#include <migraphx/op/quant_convolution.hpp>
+#include <migraphx/op/quant_dot.hpp>
+
+#include <migraphx/gpu/abs.hpp>
+#include <migraphx/gpu/batch_norm_inference.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/deconvolution.hpp>
-#include <migraphx/gpu/quant_convolution.hpp>
-#include <migraphx/gpu/contiguous.hpp>
-#include <migraphx/gpu/relu.hpp>
-#include <migraphx/gpu/sigmoid.hpp>
-#include <migraphx/gpu/abs.hpp>
-#include <migraphx/gpu/leaky_relu.hpp>
 #include <migraphx/gpu/elu.hpp>
-#include <migraphx/gpu/softmax.hpp>
-#include <migraphx/gpu/logsoftmax.hpp>
-#include <migraphx/gpu/add.hpp>
-#include <migraphx/gpu/sub.hpp>
-#include <migraphx/gpu/div.hpp>
-#include <migraphx/gpu/exp.hpp>
-#include <migraphx/gpu/erf.hpp>
-#include <migraphx/gpu/log.hpp>
-#include <migraphx/gpu/sin.hpp>
-#include <migraphx/gpu/sign.hpp>
-#include <migraphx/gpu/cos.hpp>
-#include <migraphx/gpu/tan.hpp>
-#include <migraphx/gpu/sinh.hpp>
-#include <migraphx/gpu/cosh.hpp>
-#include <migraphx/gpu/tanh.hpp>
-#include <migraphx/gpu/asin.hpp>
-#include <migraphx/gpu/acos.hpp>
-#include <migraphx/gpu/atan.hpp>
-#include <migraphx/gpu/asinh.hpp>
-#include <migraphx/gpu/acosh.hpp>
-#include <migraphx/gpu/atanh.hpp>
-#include <migraphx/gpu/mul.hpp>
-#include <migraphx/gpu/max.hpp>
-#include <migraphx/gpu/min.hpp>
-#include <migraphx/gpu/batch_norm_inference.hpp>
-#include <migraphx/gpu/pooling.hpp>
 #include <migraphx/gpu/gemm.hpp>
-#include <migraphx/gpu/concat.hpp>
-#include <migraphx/gpu/pad.hpp>
-#include <migraphx/gpu/gather.hpp>
-#include <migraphx/gpu/lrn.hpp>
-#include <migraphx/gpu/convert.hpp>
-#include <migraphx/gpu/clip.hpp>
-#include <migraphx/gpu/round.hpp>
-#include <migraphx/gpu/ceil.hpp>
-#include <migraphx/gpu/floor.hpp>
-#include <migraphx/gpu/rsqrt.hpp>
-#include <migraphx/gpu/sqrt.hpp>
-#include <migraphx/gpu/reduce_max.hpp>
-#include <migraphx/gpu/reduce_mean.hpp>
-#include <migraphx/gpu/reduce_min.hpp>
-#include <migraphx/gpu/reduce_prod.hpp>
-#include <migraphx/gpu/reduce_sum.hpp>
-#include <migraphx/gpu/pow.hpp>
-#include <migraphx/gpu/sqdiff.hpp>
+#include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
-#include <migraphx/gpu/prelu.hpp>
-#include <migraphx/gpu/recip.hpp>
-#include <migraphx/gpu/rnn_variable_seq_lens.hpp>
+#include <migraphx/gpu/leaky_relu.hpp>
+#include <migraphx/gpu/lrn.hpp>
+#include <migraphx/gpu/miopen.hpp>
+#include <migraphx/gpu/pooling.hpp>
+#include <migraphx/gpu/quant_convolution.hpp>
+#include <migraphx/gpu/rocblas.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -136,61 +95,58 @@ struct miopen_apply
         add_miopen_extend_op<miopen_leaky_relu, op::leaky_relu>("leaky_relu", make_leaky_relu);
         add_miopen_extend_op<miopen_elu, op::elu>("elu", make_elu);
 
-        add_generic_op<hip_add>("add");
-        add_generic_op<hip_sub>("sub");
-        add_generic_op<hip_exp>("exp");
-        add_generic_op<hip_erf>("erf");
-        add_generic_op<hip_log>("log");
-        add_generic_op<hip_sin>("sin");
-        add_generic_op<hip_cos>("cos");
-        add_generic_op<hip_tan>("tan");
-        add_generic_op<hip_sinh>("sinh");
-        add_generic_op<hip_cosh>("cosh");
-        add_generic_op<hip_tanh>("tanh");
-        add_generic_op<hip_asin>("asin");
-        add_generic_op<hip_acos>("acos");
-        add_generic_op<hip_atan>("atan");
-        add_generic_op<hip_asinh>("asinh");
-        add_generic_op<hip_acosh>("acosh");
-        add_generic_op<hip_atanh>("atanh");
-        add_generic_op<hip_sqrt>("sqrt");
-        add_generic_op<hip_mul>("mul");
-        add_generic_op<hip_div>("div");
-        add_generic_op<hip_max>("max");
-        add_generic_op<hip_min>("min");
-        add_generic_op<hip_rsqrt>("rsqrt");
-        add_generic_op<hip_round>("round");
-        add_generic_op<hip_pow>("pow");
-        add_generic_op<hip_sqdiff>("sqdiff");
-        add_generic_op<hip_relu>("relu");
-        add_generic_op<hip_prelu>("prelu");
-        add_generic_op<hip_sign>("sign");
-        add_generic_op<hip_sigmoid>("sigmoid");
-        add_generic_op<hip_ceil>("ceil");
-        add_generic_op<hip_floor>("floor");
-        add_generic_op<hip_recip>("recip");
-        add_generic_op<miopen_contiguous>("contiguous");
+        add_generic_op("add", "gpu::add");
+        add_generic_op("sub", "gpu::sub");
+        add_generic_op("exp", "gpu::exp");
+        add_generic_op("erf", "gpu::erf");
+        add_generic_op("log", "gpu::log");
+        add_generic_op("sin", "gpu::sin");
+        add_generic_op("cos", "gpu::cos");
+        add_generic_op("tan", "gpu::tan");
+        add_generic_op("sinh", "gpu::sinh");
+        add_generic_op("cosh", "gpu::cosh");
+        add_generic_op("tanh", "gpu::tanh");
+        add_generic_op("asin", "gpu::asin");
+        add_generic_op("acos", "gpu::acos");
+        add_generic_op("atan", "gpu::atan");
+        add_generic_op("asinh", "gpu::asinh");
+        add_generic_op("acosh", "gpu::acosh");
+        add_generic_op("atanh", "gpu::atanh");
+        add_generic_op("sqrt", "gpu::sqrt");
+        add_generic_op("mul", "gpu::mul");
+        add_generic_op("div", "gpu::div");
+        add_generic_op("max", "gpu::max");
+        add_generic_op("min", "gpu::min");
+        add_generic_op("rsqrt", "gpu::rsqrt");
+        add_generic_op("round", "gpu::round");
+        add_generic_op("pow", "gpu::pow");
+        add_generic_op("sqdiff", "gpu::sqdiff");
+        add_generic_op("relu", "gpu::relu");
+        add_generic_op("prelu", "gpu::prelu");
+        add_generic_op("sign", "gpu::sign");
+        add_generic_op("sigmoid", "gpu::sigmoid");
+        add_generic_op("ceil", "gpu::ceil");
+        add_generic_op("floor", "gpu::floor");
+        add_generic_op("recip", "gpu::recip");
+        add_generic_op("contiguous", "gpu::contiguous");
 
-        add_extend_op<hip_concat, op::concat>("concat");
-        add_extend_op<hip_softmax, op::softmax>("softmax");
-        add_extend_op<hip_logsoftmax, op::logsoftmax>("logsoftmax");
-        add_extend_op<hip_argmax, op::argmax>("argmax");
-        add_extend_op<hip_argmin, op::argmin>("argmin");
-        add_extend_op<hip_gather, op::gather>("gather");
-        add_extend_op<hip_pad, op::pad>("pad");
-        add_extend_op<hip_convert, op::convert>("convert");
-        add_extend_op<hip_clip, op::clip>("clip");
-        add_extend_op<hip_reduce_max, op::reduce_max>("reduce_max");
-        add_extend_op<hip_reduce_mean, op::reduce_mean>("reduce_mean");
-        add_extend_op<hip_reduce_min, op::reduce_min>("reduce_min");
-        add_extend_op<hip_reduce_prod, op::reduce_prod>("reduce_prod");
-        add_extend_op<hip_reduce_sum, op::reduce_sum>("reduce_sum");
-        add_extend_op<hip_rnn_var_sl_shift_output, op::rnn_var_sl_shift_output>(
-            "rnn_var_sl_shift_output");
-        add_extend_op<hip_rnn_var_sl_shift_sequence, op::rnn_var_sl_shift_sequence>(
-            "rnn_var_sl_shift_sequence");
-        add_extend_op<hip_rnn_var_sl_last_output, op::rnn_var_sl_last_output>(
-            "rnn_var_sl_last_output");
+        add_extend_op("concat", "gpu::concat");
+        add_extend_op("softmax", "gpu::softmax");
+        add_extend_op("logsoftmax", "gpu::logsoftmax");
+        add_extend_op("argmax", "gpu::argmax");
+        add_extend_op("argmin", "gpu::argmin");
+        add_extend_op("gather", "gpu::gather");
+        add_extend_op("pad", "gpu::pad");
+        add_extend_op("convert", "gpu::convert");
+        add_extend_op("clip", "gpu::clip");
+        add_extend_op("reduce_max", "gpu::reduce_max");
+        add_extend_op("reduce_mean", "gpu::reduce_mean");
+        add_extend_op("reduce_min", "gpu::reduce_min");
+        add_extend_op("reduce_prod", "gpu::reduce_prod");
+        add_extend_op("reduce_sum", "gpu::reduce_sum");
+        add_extend_op("rnn_var_sl_shift_output", "gpu::rnn_var_sl_shift_output");
+        add_extend_op("rnn_var_sl_shift_sequence", "gpu::rnn_var_sl_shift_sequence");
+        add_extend_op("rnn_var_sl_last_output", "gpu::rnn_var_sl_last_output");
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
         add_lrn_op();
@@ -379,28 +335,26 @@ struct miopen_apply
         });
     }
 
-    template <class T>
-    void add_generic_op(std::string name)
+    void add_generic_op(std::string op_name, std::string gpu_name)
     {
-        apply_map.emplace(name, [=](instruction_ref ins) {
+        apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto output                       = insert_allocation(ins, ins->get_shape());
             std::vector<instruction_ref> refs = ins->inputs();
             refs.push_back(output);
 
-            return prog->replace_instruction(ins, T{}, refs);
+            return prog->replace_instruction(ins, make_op(gpu_name), refs);
         });
     }
 
-    template <class T, class Op>
-    void add_extend_op(std::string name)
+    void add_extend_op(std::string op_name, std::string gpu_name)
     {
-        apply_map.emplace(name, [=](instruction_ref ins) {
-            auto&& op                         = any_cast<Op>(ins->get_operator());
+        apply_map.emplace(op_name, [=](instruction_ref ins) {
+            auto&& op                         = ins->get_operator();
             auto output                       = insert_allocation(ins, ins->get_shape());
             std::vector<instruction_ref> refs = ins->inputs();
             refs.push_back(output);
 
-            return prog->replace_instruction(ins, T{op}, refs);
+            return prog->replace_instruction(ins, make_op(gpu_name, op.to_value()), refs);
         });
     }
 
@@ -472,7 +426,7 @@ struct miopen_apply
             std::vector<float> zeros(s.elements(), 0.0f);
             auto l0     = prog->add_literal(literal(s, zeros));
             auto output = insert_allocation(ins, s);
-            return prog->replace_instruction(ins, hip_sub{}, l0, ins->inputs().front(), output);
+            return prog->replace_instruction(ins, make_op("gpu::sub"), l0, ins->inputs().front(), output);
         });
     }
 };

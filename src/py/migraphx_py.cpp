@@ -84,7 +84,7 @@ py::buffer_info to_buffer_info(T& x)
     visit_type(s, [&](auto as) {
         // migraphx use int8_t data to store bool type, we need to
         // explicitly specify the data type as bool for python
-        if (s.type() == migraphx::shape::bool_type)
+        if(s.type() == migraphx::shape::bool_type)
         {
             b = py::buffer_info(x.data(),
                                 as.size(),

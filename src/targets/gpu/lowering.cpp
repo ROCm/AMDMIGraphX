@@ -426,7 +426,8 @@ struct miopen_apply
             std::vector<float> zeros(s.elements(), 0.0f);
             auto l0     = prog->add_literal(literal(s, zeros));
             auto output = insert_allocation(ins, s);
-            return prog->replace_instruction(ins, make_op("gpu::sub"), l0, ins->inputs().front(), output);
+            return prog->replace_instruction(
+                ins, make_op("gpu::sub"), l0, ins->inputs().front(), output);
         });
     }
 };

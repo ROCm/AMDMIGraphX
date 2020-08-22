@@ -145,7 +145,7 @@ TEST_CASE(pooling_shape)
     expect_shape(output, migraphx::op::pooling{"max", {0, 0}, {3, 3}, {1, 1}}, input);
 
     migraphx::shape output1{migraphx::shape::float_type, {4, 3, 2, 2}};
-    expect_shape(output1, migraphx::op::pooling{"max", {0, 0}, {3, 3}, {1, 1}, 1}, input);
+    expect_shape(output1, migraphx::op::pooling{"max", {0, 0}, {3, 3}, {1, 1}, true}, input);
 }
 
 TEST_CASE(inconsistent_attr_shape)

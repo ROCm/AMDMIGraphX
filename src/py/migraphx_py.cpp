@@ -111,11 +111,9 @@ migraphx::shape to_shape(const py::buffer_info& info)
     migraphx::shape::type_t t;
     std::size_t n = 0;
     visit_types([&](auto as) {
-        std::cout << "format1 = " << info.format << std::endl;
-        std::cout << "format2 = " << py::format_descriptor<decltype(as())>::format() << std::endl
-                  << std::endl;
-
-        if(info.format == py::format_descriptor<decltype(as())>::format())
+        if(info.format == py::format_descriptor<decltype(as())>::format() or 
+           (info.format == "l" and py::format_descriptor<decltype(as())>::format() == "q") or
+           (info.format == "L" and py::format_descriptor<decltype(as())>::format() == "Q"))
         {
             t = as.type_enum();
             n = sizeof(as());

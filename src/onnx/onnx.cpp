@@ -2568,22 +2568,20 @@ struct onnx_parser
         if(t.has_raw_data())
         {
             const std::string& s = t.raw_data();
-            auto type = get_type(t.data_type());
+            auto type            = get_type(t.data_type());
             return create_literal(type, dims, s.data());
         }
 
         switch(t.data_type())
         {
-        case onnx::TensorProto::INT8:
-            return create_literal(shape::int8_type, dims, t.int32_data());
+        case onnx::TensorProto::INT8: return create_literal(shape::int8_type, dims, t.int32_data());
         case onnx::TensorProto::UINT16:
             return create_literal(shape::uint16_type, dims, t.int32_data());
         case onnx::TensorProto::INT16:
             return create_literal(shape::int16_type, dims, t.int32_data());
         case onnx::TensorProto::INT32:
             return create_literal(shape::int32_type, dims, t.int32_data());
-        case onnx::TensorProto::BOOL:
-            return create_literal(shape::bool_type, dims, t.int32_data());
+        case onnx::TensorProto::BOOL: return create_literal(shape::bool_type, dims, t.int32_data());
         case onnx::TensorProto::INT64:
             return create_literal(shape::int64_type, dims, t.int64_data());
         case onnx::TensorProto::DOUBLE:

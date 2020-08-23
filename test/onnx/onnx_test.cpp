@@ -1401,7 +1401,7 @@ TEST_CASE(nonzero_test)
 TEST_CASE(nonzero_int_test)
 {
     migraphx::program p;
-    migraphx::shape s{migraphx::shape::int32_type, {2, 3}};
+    migraphx::shape s{migraphx::shape::int16_type, {2, 3}};
     std::vector<int> data = {1, 1, 0, 1, 0, 1};
     p.add_literal(migraphx::literal(s, data.begin(), data.end()));
 

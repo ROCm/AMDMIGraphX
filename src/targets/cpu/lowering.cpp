@@ -422,7 +422,7 @@ struct max_pool
 {
     static std::string name() { return "max"; }
     template <class T>
-    static double start()
+    static T start()
     {
         return std::numeric_limits<T>::lowest();
     }
@@ -433,14 +433,14 @@ struct max_pool
         return (m);
     }
 
-    static double final(double x, double) { return (x); }
+    static double final(double x, std::size_t) { return (x); }
 };
 
 struct avg_pool
 {
     static std::string name() { return "average"; }
 
-    template <class T>
+    template<class T>
     static double start()
     {
         return 0.0;
@@ -448,7 +448,7 @@ struct avg_pool
 
     static double apply(double x, double y) { return x + y; }
 
-    static double final(double x, double y) { return x / y; }
+    static double final(double x, std::size_t y) { return (y == 0) ? x : (x / y); }
 };
 
 template <class Op>
@@ -510,7 +510,7 @@ struct cpu_pooling : auto_register_op<cpu_pooling<Op>>
                     }
                 });
 
-                output[i] = (pool_size == 0) ? type(acc) : type(Op::final(acc, pool_size));
+                output[i] = type(Op::final(acc, pool_size));
             });
         });
 

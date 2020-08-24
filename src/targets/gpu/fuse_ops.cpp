@@ -334,16 +334,8 @@ struct find_layernorm
 
         auto relements = x_ins->get_shape().lens().back();
 
-        if(relements % 4 == 0)
-        {
-            if(relements > 1024)
-                return;
-        }
-        else
-        {
-            if(relements > 256)
-                return;
-        }
+        if(relements > 1024 or (relements % 4 !=0 and relements > 256))
+            return;
 
         p.replace_instruction(ins, hip_layernorm{}, x_ins, args.back());
     }

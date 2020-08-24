@@ -352,7 +352,7 @@ struct onnx_parser
                 if(contiguous)
                 {
                     std::transform(args.begin(), args.end(), args.begin(), [&](auto arg) {
-                        return make_contiguous(arg);
+                        return this->make_contiguous(arg);
                     });
                 }
                 return prog.add_instruction(op, args);

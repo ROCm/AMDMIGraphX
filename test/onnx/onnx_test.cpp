@@ -1102,8 +1102,8 @@ TEST_CASE(implicit_pow_bcast_test)
 TEST_CASE(implicit_sub_bcast_test)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
-    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {4, 5}});
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::uint64_type, {2, 3, 4, 5}});
+    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::uint64_type, {4, 5}});
     auto l3 = p.add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, l1);
     p.add_instruction(migraphx::op::sub{}, l0, l3);
 
@@ -1372,7 +1372,7 @@ TEST_CASE(no_pad_test)
 TEST_CASE(neg_test)
 {
     migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape s{migraphx::shape::int64_type, {2, 3}};
     auto input = p.add_parameter("0", s);
     auto ret   = p.add_instruction(migraphx::op::neg{}, input);
     p.add_return({ret});

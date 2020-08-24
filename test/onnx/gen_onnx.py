@@ -1436,9 +1436,9 @@ def implicit_pow_bcast_test():
 
 @onnx_test
 def implicit_sub_bcast_test():
-    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
-    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 5])
-    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+    arg0 = helper.make_tensor_value_info('0', TensorProto.UINT64, [2, 3, 4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.UINT64, [4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.UINT64,
                                             [2, 3, 4, 5])
 
     node = onnx.helper.make_node(
@@ -1802,8 +1802,8 @@ def min_test():
 
 @onnx_test
 def neg_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 3])
+    x = helper.make_tensor_value_info('0', TensorProto.INT64, [2, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.INT64, [2, 3])
 
     node = onnx.helper.make_node('Neg', inputs=['0'], outputs=['1'])
 

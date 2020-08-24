@@ -1,6 +1,7 @@
 import migraphx
 import numpy as np
 
+
 def test_conv_relu():
     p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
     print(p)
@@ -15,6 +16,7 @@ def test_conv_relu():
 
     r = p.run(params)
     print(r)
+
 
 def test_sub_uint64():
     p = migraphx.parse_onnx("implicit_sub_bcast_test.onnx")
@@ -33,6 +35,7 @@ def test_sub_uint64():
     r = p.run(params)
     print(r)
 
+
 def test_neg_int64():
     p = migraphx.parse_onnx("neg_test.onnx")
     print(p)
@@ -47,6 +50,7 @@ def test_neg_int64():
     params["0"] = migraphx.argument(arg0)
     r = p.run(params)
     print(r)
+
 
 test_conv_relu()
 test_sub_uint64()
